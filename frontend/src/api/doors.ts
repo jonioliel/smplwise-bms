@@ -71,7 +71,7 @@ export const getDoorPathInventory = () => get<DoorPathInventory>('intercom/door-
 export type DoorConversionAction = 'disable' | 'convert_event_job' | 'hand_over_program';
 type DoorConversionCategory = 'event_automation' | 'schedule' | 'script' | 'scene' | 'launcher' | 'unknown';
 
-/** One action for one item: offered now, or the reason it is not (`reason_text` is the server's Hebrew; never show `reason`).
+/** One action for one item: offered now, or the reason it is not (`reason_text` is the server's text in the reader's language; never show `reason`).
  * convert_event_job: `doors` the draft Arx door job will hold and `removed_steps` leaving the automation; hand_over_program: `program`,
  * the draft weekly door window (days 0 = Sunday .. 6). */
 export type DoorConversionOffer = Wire.DoorConversionOffer;

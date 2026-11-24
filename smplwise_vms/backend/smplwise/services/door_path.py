@@ -34,8 +34,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..db import now_iso
+from ..i18n import cat
+from ..i18n import t as _t
 from ..rbac import Principal
 from . import door_overrides, intercom_doors, intercom_sync
+from .door_conversion_text import as_msgs
 
 WISKEY_DOMAINS = intercom_doors.WISKEY_PLATFORMS  # the integration's own service domain has the same two names
 OPEN_SERVICES = frozenset({"lock.unlock", "lock.open"})
@@ -74,6 +77,10 @@ UNRESOLVED_TEXT = {
     "too_deep": "שרשרת קריאות ארוכה מדי",
 }
 DOOR_PROBLEM_TEXT = {"unmapped": "הדלת לא משויכת לממסר"}
+# DOOR-PREVIEW-I18N-2500: the same words as `Msg`s (services/door_conversion_text.py) - the string a Hebrew reader sees is unchanged;
+# the routes of the report and of the conversion list render them in the reader's language
+UNRESOLVED_TEXT = as_msgs("doorpath.unresolved", UNRESOLVED_TEXT)
+DOOR_PROBLEM_TEXT = as_msgs("doorpath.door_problem", DOOR_PROBLEM_TEXT)
 
 
 # ================================================================ the resolution of one item
@@ -693,6 +700,14 @@ GUARD_TEXT = {
     "unchanged": "הרצה מ-Arx ללא שינוי",
 }
 APPROVER_TEXT = {"approved": "מאושר", "none": "אין מאשר", "inactive": "המאשר אינו פעיל", "no_permission": "למאשר אין הרשאת פתיחה"}
+# DOOR-PREVIEW-I18N-2500: an unnamed item's NAME is the Hebrew word of its kind, as before (a name: sorted, stored in the conversion
+# register); the kind / origin / suggestion / guard / approver TEXTS are `Msg`s rendered in the reader's language
+KIND_NAME = dict(KIND_TEXT)
+KIND_TEXT = as_msgs("doorpath.kind", KIND_TEXT)
+ORIGIN_TEXT = as_msgs("doorpath.origin", ORIGIN_TEXT)
+SUGGESTION_TEXT = as_msgs("doorpath.suggestion", SUGGESTION_TEXT)
+GUARD_TEXT = as_msgs("doorpath.guard", GUARD_TEXT)
+APPROVER_TEXT = as_msgs("doorpath.approver", APPROVER_TEXT)
 AUTOMATION_WRITES = ("automation.create", "automation.update", "automation.code_edit", "automation.copy", "automation.restore")
 SCHEDULE_WRITES = ("schedule.create", "schedule.update", "schedule.enable", "schedule.split", "schedule.copy", "schedule.restore")
 
@@ -789,9 +804,9 @@ def _door_names(res: Resolution, r: Resolver) -> list[str]:
         station = intercom_sync.SYNC.station(s.station_id) if s.station_id else None
         if station is not None and s.relay is not None:
             relay_name = next((lk.get("name") for lk in station.get("locks") or [] if int(lk.get("physical_index") or 0) == s.relay), None)
-            label = f"{station['name']} · {relay_name or f'ממסר {s.relay}'}"
+            label = cat(station["name"], " · ", relay_name or _t("doorpath.relay", n=s.relay))
         else:
-            label = (_entity_label(r, s.entity_id) or "דלת לא משויכת") if s.entity_id else "דלת לא מזוהה"
+            label = (_entity_label(r, s.entity_id) or _t("doorpath.door_unmapped")) if s.entity_id else _t("doorpath.door_unknown")
         if label not in out:
             out.append(label)
     return out
@@ -911,7 +926,7 @@ def _config_items(conn: sqlite3.Connection, r: Resolver, dev_mode: bool) -> list
         kind, item_id = row["kind"], row["item_id"]
         origin, meta = _automation_origin(conn, kind, item_id, row["revision"])
         cfg = _config(row) or {}
-        name = str(cfg.get("alias") or cfg.get("name") or "") or _entity_label(r, row["entity_id"]) or KIND_TEXT[kind]
+        name = str(cfg.get("alias") or cfg.get("name") or "") or _entity_label(r, row["entity_id"]) or KIND_NAME[kind]
         ent = r.entity(row["entity_id"]) if row["entity_id"] else None
         estate = conn.execute("SELECT state FROM ha_entities WHERE entity_id = ?", (row["entity_id"],)).fetchone() if row["entity_id"] else None
         if meta is not None and meta["gone_at"]:
@@ -945,7 +960,7 @@ def _schedules(conn: sqlite3.Connection, r: Resolver, dev_mode: bool) -> list[di
             continue
         sid = row["schedule_id"]
         origin, meta = _schedule_origin(conn, sid, row["revision"])
-        name = str((item or {}).get("name") or "") or KIND_TEXT["schedule"]
+        name = str((item or {}).get("name") or "") or KIND_NAME["schedule"]
         state = "gone" if meta is not None and meta["gone_at"] else ("enabled" if row["enabled"] else "disabled")
         recurring = str((item or {}).get("repeat_type") or "repeat") == "repeat"
         approver = approver_of(conn, "schedule", sid, row["revision"])
@@ -976,7 +991,7 @@ def _launcher(conn: sqlite3.Connection, r: Resolver, dev_mode: bool) -> list[dic
         origin = "unknown"
         if row is not None:
             origin, _ = _automation_origin(conn, row["kind"], row["item_id"], row["revision"])
-        name = str(it.get("label") or "") or _entity_label(r, str(it.get("id") or "")) or KIND_TEXT["launcher"]
+        name = str(it.get("label") or "") or _entity_label(r, str(it.get("id") or "")) or KIND_NAME["launcher"]
         out.append(_view(conn, r, kind="launcher", key=f"launcher:{n}", name=name, origin=origin, state="ready", autonomous=False, meta=None, approver=None, res=res,
                          last_run=None, recurring=False, dev_mode=dev_mode, revision=None))
     return out

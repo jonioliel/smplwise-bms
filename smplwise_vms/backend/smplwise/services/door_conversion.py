@@ -53,9 +53,12 @@ from typing import Any, Callable
 from ..audit import audit
 from ..db import get_setting, now_iso
 from ..errors import ApiError
+from ..i18n import DEFAULT_LANG, join, localize
+from ..i18n import t as _t
 from ..rbac import Principal
 from . import default_names as dn
 from . import door_automation, door_path, door_run_guard, door_windows, intercom_sync, trusted_caller
+from .door_conversion_text import DAY_KEYS, as_msgs
 
 FLAG_KEY = "doors.conversion"
 FLAG_VALUES = ("off", "on")
@@ -126,6 +129,21 @@ UNAVAILABLE_TEXT = {
     "handled": "כבר טופל - אפשר לבטל את הפעולה הקודמת",
     "invalid": "הפריט אינו מתאים",
 }
+# DOOR-PREVIEW-I18N-2500: the same words as `Msg`s (services/door_conversion_text.py): a Hebrew reader's string is unchanged; `listing`
+# renders them in the reader's language, and a refusal that carries one (`action_not_offered`) reaches the reader in it through the
+# error envelope (I18N-BACKEND-2490)
+CATEGORY_TEXT = as_msgs("doorconv.category", CATEGORY_TEXT)
+ACTION_TEXT = as_msgs("doorconv.action", ACTION_TEXT)
+STATE_TEXT = as_msgs("doorconv.state", STATE_TEXT)
+UNAVAILABLE_TEXT = as_msgs("doorconv.why", UNAVAILABLE_TEXT)
+DAY_MSG = tuple(_t(f"doorconv.day.{d}") for d in DAY_KEYS)
+if DAY_MSG != DAY_TEXT:
+    raise ValueError("doorconv.day.*: the catalogue's Hebrew differs from DAY_TEXT")
+
+
+def days_text(days: list[int]) -> str:
+    """The hand-over preview's weekdays ("א' ב' ה'" as always; "Sun, Mon, Thu" for an English reader)."""
+    return join(_t("doorconv.day_sep"), [DAY_MSG[d] for d in days])
 
 
 # ================================================================ the switch
@@ -412,7 +430,7 @@ def program_plan(conn: sqlite3.Connection, schedule_id: str, *, today: dt.date |
             return out
     spans = sorted({(p["start"], p["end"]) for p in periods})
     out.update(available=True, body=body, program={
-        "name": name, "days": days, "days_text": " ".join(DAY_TEXT[d] for d in days),
+        "name": name, "days": days, "days_text": days_text(days),
         "periods": [{"start": a, "end": b} for a, b in spans],
         "doors": [known[door_windows.door_key(s, relay)].label for s, relay in doors],
     })
@@ -481,7 +499,7 @@ def _record_view(r: sqlite3.Row) -> dict[str, Any]:
 
 def listing(conn: sqlite3.Connection, *, dev_mode: bool = False, lang: str = dn.DEFAULT_LANG) -> dict[str, Any]:
     """Read only. The inventory with what may be done to each item, the register, and the switch. Names only (as the inventory).
-    `lang`: the reader's language (the hand-over preview's default window name)."""
+    `lang`: the reader's language - the hand-over preview's default window name, and every text of the answer (DOOR-PREVIEW-I18N-2500)."""
     inv = door_path.inventory(conn, dev_mode=dev_mode)
     active = active_records(conn)
     items = []
@@ -506,8 +524,11 @@ def listing(conn: sqlite3.Connection, *, dev_mode: bool = False, lang: str = dn.
         "disable_required": sum(1 for i in items if i["disable_required"]),
         "handled": len(active),
     }
-    return {"switch": mode(conn), "state": state, "state_text": STATE_TEXT[state], "wiskey_present": inv["wiskey_present"], "generated_at": inv["generated_at"],
-            "counts": counts, "items": items, "records": records}
+    out = {"switch": mode(conn), "state": state, "state_text": STATE_TEXT[state], "wiskey_present": inv["wiskey_present"], "generated_at": inv["generated_at"],
+           "counts": counts, "items": items, "records": records}
+    # DOOR-PREVIEW-I18N-2500: every text of the answer (category, reasons, days, the inventory's words) in the reader's language; the
+    # default (Hebrew) keeps the `Msg`s, whose string is the Hebrew - `act` reads `reason_text` from here and refuses with it
+    return out if lang == DEFAULT_LANG else localize(out, lang)
 
 
 # ================================================================ acting on one item
@@ -552,26 +573,26 @@ def _set_enabled(kind: str, item_id: str, enable: bool, auto_writer: AutoWriter,
 
 def _gate(conn: sqlite3.Connection, principal: Principal, audit_action: str, key: str | None, confirmed: Any, rid: str | None) -> None:
     if confirmed is not True:
-        raise _deny(conn, principal, audit_action, key, ApiError(409, "confirmation_required", "הפעולה דורשת אישור מפורש."), rid)
+        raise _deny(conn, principal, audit_action, key, ApiError(409, "confirmation_required", _t("doorconv.err.confirmation_required")), rid)
     if mode(conn) != "on":
-        raise _deny(conn, principal, audit_action, key, ApiError(409, "door_conversion_off", "השבתה והסבה של פריטים שפותחים דלתות כבויה בהגדרות."), rid)
+        raise _deny(conn, principal, audit_action, key, ApiError(409, "door_conversion_off", _t("doorconv.err.switch_off")), rid)
 
 
 def act(conn: sqlite3.Connection, principal: Principal, *, key: str, action: str, revision: str | None, confirmed: Any, dev_mode: bool,
         auto_writer: AutoWriter, sched_writer: SchedWriter, rid: str | None = None) -> dict[str, Any]:
     """One confirmed action on one listed item (module docstring, step 2). The caller (the route) checked `system.configure`."""
     if action not in ACTIONS:
-        raise ApiError(422, "validation", "פעולה לא מוכרת.")
+        raise ApiError(422, "validation", _t("doorconv.err.unknown_action"))
     audit_action = AUDIT_ACTION[action]
     _gate(conn, principal, audit_action, key, confirmed, rid)
     view = listing(conn, dev_mode=dev_mode)
     item = next((i for i in view["items"] if i["key"] == key), None)
     if item is None:
-        raise _deny(conn, principal, audit_action, key, ApiError(404, "not_listed", "הפריט אינו ברשימת הפריטים שפותחים דלתות."), rid)
+        raise _deny(conn, principal, audit_action, key, ApiError(404, "not_listed", _t("doorconv.err.not_listed")), rid)
     if item["record"] is not None:
         raise _deny(conn, principal, audit_action, key, ApiError(409, "already_handled", UNAVAILABLE_TEXT["handled"]), rid)
     if revision != item["revision"]:
-        raise _deny(conn, principal, audit_action, key, ApiError(409, "stale_revision", "הפריט השתנה מאז שהרשימה הוצגה - יש לטעון אותה מחדש."), rid)
+        raise _deny(conn, principal, audit_action, key, ApiError(409, "stale_revision", _t("doorconv.err.stale_list")), rid)
     offer = item["actions"][action]
     if not offer["available"]:
         raise _deny(conn, principal, audit_action, key, ApiError(409, "action_not_offered", offer["reason_text"], details={"reason": offer["reason"]}), rid,
@@ -648,21 +669,21 @@ def undo(conn: sqlite3.Connection, principal: Principal, record_id: str, *, conf
     _gate(conn, principal, RESTORED, record_id, confirmed, rid)
     row = conn.execute("SELECT * FROM door_path_conversions WHERE id = ?", (record_id,)).fetchone()
     if row is None:
-        raise _deny(conn, principal, RESTORED, record_id, ApiError(404, "not_found", "הרישום לא נמצא."), rid)
+        raise _deny(conn, principal, RESTORED, record_id, ApiError(404, "not_found", _t("doorconv.err.record_not_found")), rid)
     if row["state"] != "done":
-        raise _deny(conn, principal, RESTORED, record_id, ApiError(409, "already_undone", "הפעולה כבר בוטלה."), rid)
+        raise _deny(conn, principal, RESTORED, record_id, ApiError(409, "already_undone", _t("doorconv.err.already_undone")), rid)
     kind, item_id, action = row["item_kind"], row["item_id"], row["action"]
     re_enabled = False
     try:
         if action in ("disabled", "handed_over") and row["was_enabled"]:
             live = _live_revision(conn, kind, item_id)
             if live is None:
-                raise ApiError(409, "item_gone", "הפריט כבר לא קיים.")
+                raise ApiError(409, "item_gone", _t("doorconv.err.item_gone"))
             if live != row["revision_after"]:
-                raise ApiError(409, "stale_revision", "הפריט השתנה מאז ההשבתה - אי אפשר להחזיר אותו אוטומטית.")
+                raise ApiError(409, "stale_revision", _t("doorconv.err.stale_disabled"))
             rule = door_windows.rule_row(conn, row["program_rule_id"]) if action == "handed_over" and row["program_rule_id"] else None
             if rule is not None and rule["state"] == "enabled":
-                raise ApiError(409, "program_in_use", "חלון הפתיחה שנוצר פעיל - יש להשהות אותו קודם.")
+                raise ApiError(409, "program_in_use", _t("doorconv.err.program_in_use"))
             if not _is_enabled(conn, kind, item_id):
                 with door_run_guard.restore_pass(kind, item_id):
                     _set_enabled(kind, item_id, True, auto_writer, sched_writer)
@@ -670,7 +691,7 @@ def undo(conn: sqlite3.Connection, principal: Principal, record_id: str, *, conf
         if action == "handed_over" and row["program_rule_id"]:
             rule = door_windows.rule_row(conn, row["program_rule_id"])
             if rule is not None and rule["state"] == "enabled":
-                raise ApiError(409, "program_in_use", "חלון הפתיחה שנוצר פעיל - יש להשהות אותו קודם.")
+                raise ApiError(409, "program_in_use", _t("doorconv.err.program_in_use"))
             if rule is not None and rule["state"] != "retired":
                 door_windows.set_rule_state(conn, principal, row["program_rule_id"], "retired")
         if action == "converted" and row["door_job_id"]:
