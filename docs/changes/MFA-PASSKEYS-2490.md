@@ -172,3 +172,22 @@ user, `POST auth/step-up/challenge`), `smplwise/routers/second_factor.py` (verif
 
 NOT_RUN: tsc, eslint, every Playwright spec (the new spec included), the compare screenshots, the backend families beyond the four
 files above, the full backend suite, any real device, any lab check.
+
+## Runner verification 24.11
+
+Run on the test server, slot B, 24.11 10:38-11:36 UTC, at `ca64a6fcd` (job `~/work/verify_night_2411.sh`, logs
+`~/work/verify-night/mfapasskeys/`). The vite dev server of this branch; the "before" shots from a dev server of `fb9a3ac1e`
+(slice 1, no passkey UI).
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit -p tsconfig.json` (app) | exit 0 |
+| `npm run typecheck` (tests + scripts configs) | exit 0 |
+| `eslint` on the changed `src/` + `tests/` files | 0 errors (1 warning: the spec file is outside the lint config) |
+| `node scripts/unused-exports.mjs --enforce` | **FAIL**: 3 new file-local exports in `src/api/step-up-passkey.ts` (`StepUpNeed`, `stepUpChallenge`, `verifyPasskeyStepUp`), and the baseline entry `src/api/passkeys.ts#renamePasskey` is gone (prune) |
+| `node scripts/lazy-tags-check.mjs` | OK |
+| Playwright `unit-mfa-passkeys-2490.spec.ts` + `evidence-second-factor.spec.ts`, desktop + mobile, `--workers=2` | **8 passed, 4 failed, 2 skipped**. Failed on both sizes: "add, rename, a second passkey after a passkey step-up ..." (line 196: `[data-pk-item]` count 0, expected 1, after the add) and "the authenticator code answers the step-up ..." (`[data-pk-remove]` never appears, test timeout) |
+| compare shots (`-g "compare shots"`) after / before | 2 passed / 2 passed; 4 + 4 pictures copied to `private/planning/mfa_passkeys_compare_2026-11-24/` (the page's other three sections stay empty: they come from the two failing tests) |
+| backend, 136 auth-family files in 4 shards | **BLOCKED**: the runner's disk filled up during the run (`sqlite3.OperationalError: database or disk is full`, `507 insufficient_storage`, truncated logs); no shard result is valid. Not re-run: the lead has these rows re-tested at the merged head by MFA-SECFIX |
+| `ruff check smplwise` | All checks passed |
+| `scripts/gen_wire_types.py --check` | exit 0 |
