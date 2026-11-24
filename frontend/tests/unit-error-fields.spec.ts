@@ -12,7 +12,8 @@ const err = (details: Record<string, unknown>, status = 422, code = 'validation'
 test('canonical fields and problems', () => {
   const e = err({ fields: ['a', 'b'], problems: [{ field: 'b', code: 'format', message: 'פורמט' }, { field: 'c', code: 'missing' }] });
   expect(fieldsOf(e)).toEqual(['a', 'b', 'c']);
-  expect(problemsOf(e)).toEqual<FieldProblem[]>([{ field: 'b', code: 'format', message: 'פורמט' }, { field: 'c', code: 'missing' }]);
+  const want: FieldProblem[] = [{ field: 'b', code: 'format', message: 'פורמט' }, { field: 'c', code: 'missing' }];
+  expect(problemsOf(e)).toEqual(want);
 });
 
 test('the canonical keys win over a legacy key sent beside them (the migration window)', () => {
