@@ -249,7 +249,8 @@ async function saveWithStepUp(page: Page, methods: string[]) {
   await tab.locator('[data-fp-mode-option="enforce"]').click();
   await tab.locator('[data-fp-save]').click();
   const dialog = page.locator('sw-step-up-dialog');
-  await expect(dialog.locator('[data-step-up-dialog]')).toBeVisible();
+  // the open dialog's content is drawn in the top layer and the <sw-dialog> host has no box of its own: its footer button is the visible sign
+  await expect(dialog.locator('[data-step-up-cancel]')).toBeVisible();
   return { mock, tab, dialog };
 }
 
