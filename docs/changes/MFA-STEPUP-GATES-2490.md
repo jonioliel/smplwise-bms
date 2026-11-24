@@ -155,4 +155,15 @@ The scan over-approximates on purpose (a reference is not always an authorisatio
 
 ## 8. Tests (real runs)
 
-RESULTS_PLACEHOLDER
+| Where | Command | Result |
+|---|---|---|
+| workstation (Windows, the main checkout's `.venv`, one file; the runner slot B queue was 7+ jobs deep) | `pytest tests/test_mfa_stepup_gates_2490.py` (behaviour tests, ratchet deselected) | 16 passed (after fixing 2 test-setup errors: a fake request without headers, a panel without a stored code) |
+| workstation | `pytest tests/test_mfa_stepup_gates_2490.py -k "every_write_route or reach_their_gate or every_listed"` (the ratchet, about 40 s) | 3 passed |
+| workstation | mutation check: the door-automation settings hook removed by hand -> the ratchet run | 2 failed (`PUT /door-automations/settings` named), file restored |
+| runner | `ruff check smplwise` at `e1cb887dc` | All checks passed |
+| runner slot B, `e1cb887dc` | 139 backend files of the step / second_factor / mfa / rbac / alarm / door / access_ / remote / local_identity / passkey / bridge_key / ha_users / security / wiskey_validation / wiskey_door / visitor / tickets_cost / intake / settings / singletons / app_session / automations_api / automation_policy / ha_action / emergency / anchors / wall / delegat / identity families (includes the slice-1 `test_mfa_stepup_2490.py`), 5 sequential chunks in one slot lease (`-o addopts=""`, junit in `~/work/mfagates-out`) | chunk 0: **840 passed**; chunk 1: **500 passed**; chunk 2: **747 passed**; chunk 3 (27 files, 570 tests): killed by its 9000 s timeout at about 85 % under load average ~200 (the runner then ran out of memory and was rebooted ~05:55 UTC) with ONE failure in its progress line, located by position in `test_service_identity_extended.py` (around `test_doors_and_scripts_through_device_control_need_the_switch_and_the_users_permission`); chunk 4: lost in the reboot. Chunks 3 + 4 re-queued once (`ONLY="chunk.03 chunk.04"`, now with `-rfE`); not started by 08:07 UTC (slot B waits for 4 GB free while the 2.49.0 gate runs) |
+| workstation, one file at a time | `pytest tests/test_service_identity_extended.py` (the file of the chunk-3 failure) | 89 passed - so the server failure is not reproduced; suspected load / timing (the 2 s record wait of `routers/ha.py`), to be confirmed by the re-queued run |
+| workstation | `pytest tests/test_service_identity.py` | 47 passed |
+| workstation | `pytest tests/test_wxh4_emergency_revoke_2407.py` (the bridge-key reveal, now a once-action; chunk 4) | 22 passed |
+
+NOT_RUN: the full backend suite (the release gate's slot A only), every Playwright / pixel suite (no UI in this slice), any lab check.
