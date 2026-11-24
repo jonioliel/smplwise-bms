@@ -341,6 +341,8 @@ class BoardPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=model.BOARD_NAME_MAX)
     enabled: bool | None = None
     display: dict[str, Any] | None = None
+    # MULTI-BUILDING-HOME-2500 (owner Q68): the building the board belongs to ("" = the whole site); its greeting uses that building's name
+    building_id: str | None = Field(default=None, max_length=64)
 
 
 class ItemsIn(BaseModel):
@@ -419,7 +421,8 @@ def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal =
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
     return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": model.load_display(b["display_json"]),
             "has_token": bool(b["token_hash"]), "has_stored_link": bool(b.get("token_sealed")), "token_rotated_at": b["token_rotated_at"], "last_seen_at": b["last_seen_at"],
-            "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"]}
+            "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"],
+            **({"building_id": b["building_id"]} if b.get("building_id") else {})}  # MULTI-BUILDING-HOME-2500 (Q68): only when set
 
 
 def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
@@ -438,7 +441,13 @@ def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqli
         return {"boards": [{"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"])} for b in store.list_boards(conn)], "full": False}
     counts = store.item_counts(conn)
     s = store.settings(conn)
-    return {"boards": [_board_out(b, counts) for b in store.list_boards(conn)], "full": True, "max": s["boards_max"], "remote": s["boards_remote"]}
+    out: dict[str, Any] = {"boards": [_board_out(b, counts) for b in store.list_boards(conn)], "full": True, "max": s["boards_max"], "remote": s["boards_remote"]}
+    from ..services import home_buildings
+
+    choices = home_buildings.building_choices(conn)  # MULTI-BUILDING-HOME-2500 (Q68): the building picker, only on a multi-building site
+    if choices is not None:
+        out["buildings"] = choices
+    return out
 
 
 @router.post("/notices/boards", **wire(W.NoticeBoardCreated))
@@ -489,6 +498,12 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
                 if any(f["url"] not in curated for f in d["news"]["feeds"]):
                     raise Invalid("display.news.feeds", "רק מקורות מהרשימה.")
             cols["display"] = d
+        if body.building_id is not None:  # MULTI-BUILDING-HOME-2500 (Q68): "" = the whole site; a building must be live
+            from ..services import home_buildings
+
+            if body.building_id and not home_buildings.is_live_building(conn, body.building_id):
+                raise ApiError(422, "building_not_found", "הבניין לא נמצא.", details={"fields": ["building_id"]})
+            cols["building_id"] = body.building_id or None
     except Invalid as exc:
         raise _invalid(exc)
     nb = store.update_board(conn, b["id"], principal.user_id, cols) if cols else b

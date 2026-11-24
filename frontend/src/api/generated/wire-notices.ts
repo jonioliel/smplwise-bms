@@ -47,6 +47,7 @@ export interface NoticeBoard {
   item_count: number;
   created_at: string;
   updated_at: string;
+  building_id?: string | null;
 }
 
 /** A board as a notice manager without notices.boards sees it (the compose dialog's chips). */
@@ -55,6 +56,12 @@ export interface NoticeBoardBrief {
   name: string;
   slug: string;
   enabled: boolean;
+}
+
+export interface NoticeBoardBuilding {
+  id: string;
+  name: string;
+  is_shared: boolean;
 }
 
 export interface NoticeBoardControl {
@@ -126,6 +133,7 @@ export interface NoticeBoardListFull {
   full: true;
   max: number;
   remote: boolean;
+  buildings?: NoticeBoardBuilding[] | null;
 }
 
 /** A new link token (rotate / issue-link) and the board after the change. */

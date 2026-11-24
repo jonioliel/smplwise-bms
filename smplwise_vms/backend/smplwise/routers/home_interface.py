@@ -28,6 +28,7 @@ from ..services import device_types
 from ..services import devices as svc
 from ..services import door_authority, intercom_doors
 from ..services import ha_scope
+from ..services import home_buildings as hb
 from ..services import home_interface as hi
 from ..services import switch_protection
 from ._common import rid as _rid
@@ -146,7 +147,7 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
                 lk["can_unlock"] = lk["unlock_reason"] == "ok"
                 lk.pop("alarm_managed", None)
                 r["locks"].append(lk)
-    return {
+    out = {
         "weather": _weather(conn),
         "floors": floors,
         "rooms": [rooms[rid] for f in floors for rid in f["rooms"]],
@@ -155,6 +156,14 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         "modules": sorted(modules),
         "policy": pol,
     }
+    # MULTI-BUILDING-HOME-2500 (owner Q64-Q67): the building level - only while the multi-building switch is on AND the caller's rooms
+    # reach two or more of our buildings; otherwise no key is added and the answer is the answer of before. Display only.
+    if hb.multi_on(conn):
+        extra = hb.overview_extra(conn, rooms=out["rooms"], entities=entities, pol=pol,
+                                  extra_areas=hb.meter_areas(conn, principal) if "energy" in modules else None)
+        if extra is not None:
+            out.update(extra)
+    return out
 
 
 WEATHER_HE = {"sunny": "בהיר", "clear-night": "לילה בהיר", "partlycloudy": "מעונן חלקית", "cloudy": "מעונן", "rainy": "גשום", "pouring": "גשם חזק",
@@ -215,7 +224,11 @@ def policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3
     from ..db import get_setting
 
     seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in store.favourites_seed_rows(conn)}
-    return {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY))}
+    out = {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY))}
+    choices = hb.building_choices(conn)  # MULTI-BUILDING-HOME-2500 (Q65): the per-person building picker, only on a multi-building site
+    if choices is not None:
+        out["buildings"] = choices
+    return out
 
 
 class PolicyBody(BaseModel):
@@ -230,6 +243,9 @@ class PolicyBody(BaseModel):
     all_rooms: bool = False
     all_modules: bool = False
     guests: bool | None = None  # HOME-V3-P1-2430: may invite a guest from the home interface (never a grant)
+    # MULTI-BUILDING-HOME-2500 (Q65): the building the person's home interface opens on ("" = not set: the device's last choice). Display
+    # only - never a grant; 422 building_not_found for an unknown or deleted building.
+    building_id: str | None = Field(None, max_length=64)
 
 
 @router.put("/home/policies/{user_id}", **wire(W.HomePolicy))
@@ -245,7 +261,9 @@ def put_policy(user_id: str, body: PolicyBody, request: Request, principal: Prin
     out = hi.set_policy(conn, principal, user_id, data)
     audit(conn, actor=principal, action="home_interface.policy.set", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={"before": {k: before.get(k) for k in ("default_interface", "may_switch", "home_only", "kiosk", "guests")} if before else None,
-                   "after": {k: out[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests")}})
+                   "after": {k: out[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests")},
+                   # MULTI-BUILDING-HOME-2500 (Q65): the building, only when the request named it
+                   **({"building": {"before": (before or {}).get("building_id"), "after": out.get("building_id")}} if "building_id" in data else {})})
     return out
 
 
@@ -311,6 +329,7 @@ class InstallBody(BaseModel):
     wall_night_dim: Literal["medium", "soft", "strong"] | None = None
     wall_takeover: Literal["alarm_urgent", "alarm", "call_only"] | None = None
     wall_notice_new: Literal["48", "24", "72", "168", "read"] | None = None  # HOME-NEXT-2500
+    building_all: Literal["hide", "allow"] | None = None  # MULTI-BUILDING-HOME-2500 (Q64)
 
 
 @router.get("/home/settings", **wire(W.HomeSettingsView))

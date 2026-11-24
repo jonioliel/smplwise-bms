@@ -50,6 +50,7 @@ class NoticeBoard(WireModel):
     item_count: int
     created_at: str
     updated_at: str
+    building_id: str | None = None  # MULTI-BUILDING-HOME-2500 (Q68): the board's building (absent = the whole site)
 
 
 class NoticeBoardListBrief(WireModel):
@@ -58,12 +59,20 @@ class NoticeBoardListBrief(WireModel):
     full: Literal[False]
 
 
+class NoticeBoardBuilding(WireModel):
+    id: str
+    name: str
+    is_shared: bool
+
+
 class NoticeBoardListFull(WireModel):
     """`GET /notices/boards` for notices.boards: every board, the installation's limit and whether boards answer remotely."""
     boards: list[NoticeBoard]
     full: Literal[True]
     max: int
     remote: bool
+    # MULTI-BUILDING-HOME-2500 (Q68): the buildings a board can belong to - only on a multi-building site (the switch on, two or more)
+    buildings: list[NoticeBoardBuilding] | None = None
 
 
 class NoticeBoardCreated(WireModel):

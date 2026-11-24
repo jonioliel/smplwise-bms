@@ -171,13 +171,14 @@ export interface ReadsAnswer extends Pick<Wire.NoticeReads, 'audience' | 'read'>
 }
 export const getReads = (id: string) => get<ReadsAnswer>(`notices/${encodeURIComponent(id)}/reads`);
 
-export const listBoards = () => get<{ boards: Board[]; full: boolean } & Partial<Pick<Wire.NoticeBoardListFull, 'max' | 'remote'>>>('notices/boards');
+/** MULTI-BUILDING-HOME-2500 (Q68): `buildings` - the buildings a board can belong to, only on a multi-building site */
+export const listBoards = () => get<{ boards: Board[]; full: boolean } & Partial<Pick<Wire.NoticeBoardListFull, 'max' | 'remote' | 'buildings'>>>('notices/boards');
 export const getBoard = (id: string) =>
   get<Omit<Wire.NoticeBoardDetail, 'board'> & { board: FullBoard }>(
     `notices/boards/${encodeURIComponent(id)}`,
   );
 export const createBoard = (body: { name: string; slug: string; display?: Partial<Display> }) => post<Omit<Wire.NoticeBoardCreated, 'board'> & { board: FullBoard }>('notices/boards', body);
-export const patchBoard = (id: string, body: { name?: string; enabled?: boolean; display?: Partial<Display> | Record<string, unknown> }) =>
+export const patchBoard = (id: string, body: { name?: string; enabled?: boolean; display?: Partial<Display> | Record<string, unknown>; building_id?: string }) =>
   patch<{ board: FullBoard }>(`notices/boards/${encodeURIComponent(id)}`, body);
 export const rotateBoardToken = (id: string) => post<Omit<Wire.NoticeBoardNewToken, 'board'> & { board: FullBoard }>(`notices/boards/${encodeURIComponent(id)}/rotate-token`);
 export const getBoardLink = (id: string) => get<Wire.NoticeBoardLink>(`notices/boards/${encodeURIComponent(id)}/link`);

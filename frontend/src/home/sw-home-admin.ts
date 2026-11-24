@@ -24,6 +24,7 @@ import '../components/sw-segmented'; // HOME-WALL-NIGHT-2500: the rest time keys
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
+import '../components/sw-dropdown'; // MULTI-BUILDING-HOME-2500: the person's building
 import { tr } from '../i18n/msg/home';
 
 /* The page's rows are the backend's response models (wire/home_interface.py, ../api/generated/wire-home-interface.ts); narrowed on
@@ -283,7 +284,16 @@ export class SwHomeAdmin extends LitElement {
         ${opt('wallpaper', 'none', tr('בלי רקע'), tr('ברירת המחדל: מסך נקי.'))}
         ${opt('wallpaper', 'gallery', tr('גלריה מוכנה'), tr('כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.'))}
         ${opt('wallpaper', 'gallery_image', tr('גלריה ותמונה אישית'), tr('בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.'))}
-      </div></section>${this.roomWallPane()}${this.visitorsCard()}</div>`;
+      </div></section>${this.buildingsCard(opt)}${this.roomWallPane()}${this.visitorsCard()}</div>`;
+  }
+
+  /** MULTI-BUILDING-HOME-2500 (owner Q64): only on a multi-building site - whether the home interface offers "כל הבניינים". */
+  private buildingsCard(opt: (k: 'building_all', v: InstallSettings['building_all'], title: string, note: string) => unknown) {
+    if (!this.data?.buildings?.length) return nothing;
+    return html`<section class="card" aria-label="${tr('ריבוי בניינים')}" data-home-buildings><h3>${tr('ריבוי בניינים')}</h3><p class="note">${tr('בכל אתר עם כמה בניינים, הממשק הביתי מציג בניין אחד בכל פעם.')}</p><div class="opts">
+        ${opt('building_all', 'hide', tr('בניין אחד בכל פעם'), tr('ברירת המחדל. מחליפים בניין בכפתור הבניין שליד שם החדר.'))}
+        ${opt('building_all', 'allow', tr('גם "כל הבניינים"'), tr('מוסיף לבחירה את כל הבניינים יחד. "כבה הכל" לא מוצע במצב הזה: הוא תמיד של בניין אחד.'))}
+      </div></section>`;
   }
 
   // ---------------------------------------------------------------- HOME-WALL-NIGHT-2500: the wall panels' rest screen, night and takeover
@@ -469,6 +479,8 @@ export class SwHomeAdmin extends LitElement {
       <div class="srow"><div><b>${tr('ממשק ביתי בלבד')}</b><div class="note">${u.system_admin ? tr('מנהל מערכת תמיד רשאי לממשק המלא.') : tr('לא יכול לפתוח את הממשק המלא. השרת מסרב גם לבקשות שלו לאזורים של הממשק המלא.')}</div></div><sw-toggle label="${tr('ממשק ביתי בלבד')}" labelHidden ?checked=${u.home_only} ?disabled=${u.system_admin || this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { home_only: e.detail.checked, ...(e.detail.checked ? {} : { kiosk: false }) })}></sw-toggle></div>
       <div class="srow"><div><b>${tr('מצב מסך קיר')}</b><div class="note">${tr('נשאר תמיד בממשק הביתי ובחדר שלו, בלי תפריט אישי. יוצאים עם קוד המנהל.')}</div></div>
         <div class="inline">${u.kiosk || rooms.length ? html`<select aria-label="${tr('החדר של מסך הקיר')}" ?disabled=${u.system_admin} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) void this.save(u, { kiosk: true, kiosk_area_id: v }); }}><option value="">${u.kiosk ? tr('חדר') : tr('בחרו חדר')}</option>${rooms.map((r) => html`<option value=${r.id} ?selected=${u.kiosk_area_id === r.id}>${r.name}</option>`)}</select>` : nothing}<sw-toggle label="${tr('מצב מסך קיר')}" labelHidden ?checked=${u.kiosk} ?disabled=${u.system_admin || this.busy || (!u.kiosk && !u.kiosk_area_id)} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { kiosk: e.detail.checked, kiosk_area_id: u.kiosk_area_id })}></sw-toggle></div></div>
+      ${this.data?.buildings?.length ? html`<div class="srow" data-home-building><div><b>${tr('הבניין שנפתח')}</b><div class="note">${tr('הבניין שהממשק הביתי מציג בכניסה. בלי בחירה: הבניין שנבחר לאחרונה במכשיר. לא משנה הרשאות.')}</div></div>
+        <sw-dropdown label="${tr('הבניין שנפתח')}" .items=${[{ id: '', label: tr('האחרון שנבחר במכשיר') }, ...this.data.buildings.map((b) => ({ id: b.id, label: b.name }))]} .value=${u.building_id ?? ''} ?disabled=${this.busy} @change=${(e: CustomEvent<{ id: string }>) => this.save(u, { building_id: e.detail.id })}></sw-dropdown></div>` : nothing}
       <div class="srow"><div><b>${tr('רשאי להזמין אורחים')}</b><div class="note">${u.can_invite ? tr('מופיע בממשק הביתי תחת אינטרקום: אורח מקבל קוד זמני לדלת. דורש שהזמנת מבקרים מופעלת בהתקנה.') : tr('הסימון לבדו לא מספיק: צריך גם הרשאה להזמנת מבקרים (משתמשים והרשאות), והזמנת מבקרים מופעלת בהתקנה.')}</div></div><sw-toggle label="${tr('רשאי להזמין אורחים')}" labelHidden data-home-guests ?checked=${!!u.guests} ?disabled=${this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { guests: e.detail.checked })}></sw-toggle></div>
       <div class="cols">
         <div><b>${tr('מה מופיע בממשק הביתי')}</b>${this.data!.modules.map((m) => html`<label class="chk"><input type="checkbox" .checked=${modOn(m)} @change=${(e: Event) => { const next = toggleList(u.modules, this.data!.modules, m, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_modules: true } : { modules: next }); }}><span>${MODULE_LABEL[m]}</span></label>`)}</div>
