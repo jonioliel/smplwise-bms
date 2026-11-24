@@ -141,4 +141,33 @@ Compare-page captures (lead request): `~/work/rel2500-shots/` on the runner - `n
 
 ## 6. Release gate
 
-Left for the lead (gate 2 on the runner, `~/gate2/release_gate2.sh release/2500-train`; see section 5 item 3 for the disk setting).
+Gate 2 on the runner, full run at `bdf28fc37` (`~/gate2/release_gate2.sh release/2500-train --full`,
+`GATE_BACKEND_SHARDS=4 GATE_PW_SLOTS=8 GATE_PW_MAX_WORKERS=4 GATE_MIN_FREE_MB=3000`), finished 2026-11-24 19:20 UTC.
+
+**PASS in 173 min.** 0 likely-real failures, 0 run faults, 0 unclear, 5 flaky (passed alone), max load 43.0.
+
+| Job | Passed | Failed | Flaky |
+|---|---|---|---|
+| tsc | 1 | 0 | 0 |
+| build | 1 | 0 | 0 |
+| fe_static | 3 | 0 | 0 |
+| release_check | 1 | 0 | 0 |
+| preview | 23814 | 0 | 4 |
+| dev | 1126 | 0 | 0 |
+| fixture | 28 | 0 | 0 |
+| visual | 72 | 0 | 0 |
+| pixel | 390 | 0 | 0 |
+| addon_build | 1 | 0 | 0 |
+| backend | 44901 | 0 | 1 |
+
+Flaky (failed once, passed alone):
+- preview `evidence-multibuilding-home-2330.spec.ts:124` [tablet]
+- preview `evidence-nav-size.spec.ts:237` [tablet]
+- preview `evidence-tickets-vendor-accounts.spec.ts:146` [desktop]
+- preview `evidence-mb-home-2500.spec.ts:128` [desktop]
+- backend `tests/test_wire_routers_b_2450.py::test_the_generated_client_types_are_current`
+
+Quarantine list: 0 active. Gate report on the runner: `~/smplwise-results/gate_release-2500-train_bdf28fc37.gate2.md`.
+
+Publish (tag `v2.50.0`, `main`, `#addon`) and lab install were approved in advance by the owner (2026-11-24),
+conditional on this green gate. No Home Assistant restart (bridge 0.10.8 unchanged).
