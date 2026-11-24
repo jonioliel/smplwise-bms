@@ -194,6 +194,11 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
             if row["source_ref"] not in keys:
                 conn.execute("UPDATE cameras SET status = 'offline', enabled = 0, updated_at = ? WHERE id = ? AND (status != 'offline' OR enabled = 1)", (now, row["id"]))
                 removed += 1
+    # ONVIF-DISCOVER-2500 (owner Q58): the cameras this recorder reaches, by address, so a camera scan marks them "already through the
+    # recorder" (memory only, never stored)
+    from .camera_discovery import known as discovery_known
+
+    discovery_known.note_channel_hosts(rid, [getattr(ch, "device_address", None) for ch in channels])
     if is_frigate:  # reviews / events stored before their camera existed (first poll raced the first import) get their camera now
         from .recorders import frigate_events
 
