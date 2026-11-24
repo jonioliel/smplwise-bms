@@ -9,7 +9,7 @@ export interface AlarmRule {
   name: string;
   description: string;
   enabled: boolean;
-  owner: "local" | "ha";
+  owner: "ha" | "local";
   ha_automation_id: string | null;
   trigger: Record<string, unknown>;
   scope: Record<string, unknown>;

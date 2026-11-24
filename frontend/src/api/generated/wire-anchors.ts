@@ -39,7 +39,7 @@ export interface AnchorPosition {
 
 /** `POST /floors/{id}/anchors/realign` (S4): `crop` maps the items through the two crops, `accept` re-stamps them. */
 export interface AnchorRealigned {
-  mode: "crop" | "accept";
+  mode: "accept" | "crop";
   version_id: string;
   moved: number;
   skipped: number;
@@ -132,10 +132,10 @@ export interface FloorMap {
   zones: ZoneOnMap[];
   floor_images: Record<string, unknown> | null;
   bakes: Record<string, unknown> | null;
-  reach: "floor" | "cameras";
+  reach: "cameras" | "floor";
   needs_alignment: boolean;
   at: string | null;
-  history: "exact" | "current" | null;
+  history: "current" | "exact" | null;
   history_from: string | null;
   ha_history: Record<string, unknown> | null;
   permissions: Record<string, boolean>;
@@ -206,7 +206,7 @@ export interface PlanVersion {
   width_px: number;
   height_px: number;
   scale_m_per_px: number | null;
-  status: "draft" | "published" | "archived";
+  status: "archived" | "draft" | "published";
   revision: number;
   notes: string;
   calibration: unknown;

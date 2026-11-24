@@ -123,7 +123,7 @@ export interface FloorMovePeople {
 export interface FloorMovePerson {
   user_id: string;
   name: string;
-  change: "loses" | "gains" | "changes";
+  change: "changes" | "gains" | "loses";
   lost: string[];
   gained: string[];
 }

@@ -18,7 +18,7 @@ export interface CustomRole {
   created_by_username: string | null;
   updated_by_username: string | null;
   updated_at: string;
-  delegation_block: "sensitive_custom_role" | "assign_role" | null;
+  delegation_block: "assign_role" | "sensitive_custom_role" | null;
 }
 
 export interface CustomRoleDeleted {
@@ -72,7 +72,7 @@ export interface CustomRoleUpdated {
   created_by_username: string | null;
   updated_by_username: string | null;
   updated_at: string;
-  delegation_block: "sensitive_custom_role" | "assign_role" | null;
+  delegation_block: "assign_role" | "sensitive_custom_role" | null;
   impact: CustomRoleImpact;
 }
 

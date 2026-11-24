@@ -44,7 +44,7 @@ export interface DeviceKeyRow {
   platform: "android";
   created_at: string;
   last_used_at: string | null;
-  attested: "hardware" | "software" | "none" | "failed" | "not_checked";
+  attested: "failed" | "hardware" | "none" | "not_checked" | "software";
   counts: boolean;
 }
 

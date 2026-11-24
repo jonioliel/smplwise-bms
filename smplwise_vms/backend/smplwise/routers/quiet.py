@@ -22,6 +22,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import quiet_windows as qw
 from ..services.timeutil import iso_utc
 from ._common import rid as _rid
+from ..wire import quiet as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -37,30 +39,30 @@ class SettingsBody(BaseModel):
     confirmed: Any = None
 
 
-@router.get("/quiet/windows")
+@router.get("/quiet/windows", **wire(W.QuietWindows))
 def list_windows(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     now = qw.now_utc()
     return {"enabled": qw.enabled(conn), "windows": qw.list_for(conn, principal, now), "now": iso_utc(now),
             "can_configure": authorize(conn, principal, qw.CONFIGURE, INSTALLATION).allowed}
 
 
-@router.post("/quiet/windows", status_code=201)
+@router.post("/quiet/windows", status_code=201, **wire(W.QuietStartWindow))
 def start_window(body: StartBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return qw.start(conn, principal, body.scope_type, body.scope_id, body.minutes, _rid(request))
 
 
-@router.post("/quiet/windows/{window_id}/stop")
+@router.post("/quiet/windows/{window_id}/stop", **wire(W.QuietStopWindow))
 def stop_window(request: Request, window_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     return qw.stop(conn, principal, window_id, _rid(request))
 
 
-@router.get("/quiet/settings")
+@router.get("/quiet/settings", **wire(W.QuietSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {"settings": qw.settings_view(conn)}
 
 
-@router.put("/quiet/settings")
+@router.put("/quiet/settings", **wire(W.QuietPutSettings))
 def put_settings(body: SettingsBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, qw.CONFIGURE, INSTALLATION)
     if body.confirmed is not True:

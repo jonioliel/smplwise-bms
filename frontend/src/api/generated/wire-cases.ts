@@ -20,7 +20,7 @@ export interface CaseBookmark {
   to_at: string | null;
   note: string;
   added_by_username: string;
-  preservation: "preserved" | "preserving" | "nvr";
+  preservation: "nvr" | "preserved" | "preserving";
 }
 
 export interface CaseBookmarks {
@@ -130,7 +130,7 @@ export interface CaseIntegrity {
 export interface CaseIntegrityFile {
   item_id: string;
   kind: string;
-  status: "ok" | "mismatch" | "missing";
+  status: "mismatch" | "missing" | "ok";
   expected: string;
   actual: string | null;
 }
@@ -150,7 +150,7 @@ export interface CaseItem {
   note: string;
   added_by_username: string;
   created_at: string;
-  preservation: "preserved" | "preserving" | "nvr_only" | "missing" | "unknown" | "none" | "not_in_bundle";
+  preservation: "missing" | "none" | "not_in_bundle" | "nvr_only" | "preserved" | "preserving" | "unknown";
   export: CaseItemExport | null;
   file_path: string | null;
   file_sha256: string | null;
@@ -177,7 +177,7 @@ export interface CaseList {
 /** An item the route confirm added: the event (`event_id`) or a clip of a suggested camera (`relation`, `via`). */
 export interface CaseRouteAdded {
   id: string;
-  kind: "event" | "clip";
+  kind: "clip" | "event";
   camera_id: string | null;
   event_id?: string;
   relation?: string;
@@ -283,7 +283,7 @@ export interface CaseVerifyCounts {
 
 export interface CaseVerifyFile {
   path: string;
-  status: "ok" | "missing" | "mismatch" | "corrupt";
+  status: "corrupt" | "mismatch" | "missing" | "ok";
   expected: string;
   actual: string | null;
   bytes: number | null;
@@ -296,7 +296,7 @@ export interface EventRouteVia {
   label: string | null;
   floor_id: string;
   floor_name: string;
-  direction: "up" | "down" | null;
+  direction: "down" | "up" | null;
   twin_published: boolean;
 }
 

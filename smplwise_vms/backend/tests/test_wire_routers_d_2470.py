@@ -68,7 +68,10 @@ def test_the_block_progress():
 @pytest.mark.parametrize("name", sorted(ROUTERS))
 def test_every_json_route_declares_a_wire_model(name):
     gen = _gen()
-    no_json = importlib.import_module(f"smplwise.wire.{name}").NO_JSON
+    wmod = importlib.import_module(f"smplwise.wire.{name}")
+    no_json = wmod.NO_JSON
+    # RESPONSE-MODELS-E-2480: a JSON route no test answers successfully stays unmodelled, named in UNMODELLED (the ratchet counts it)
+    unmodelled = getattr(wmod, "UNMODELLED", frozenset())
     missing, stale = [], []
     keys = set()
     for key, r in _routes(name):
@@ -77,6 +80,10 @@ def test_every_json_route_declares_a_wire_model(name):
             if gen.wire_models(r.response_model):
                 stale.append(key)
             continue
+        if key in unmodelled:
+            if gen.wire_models(r.response_model):
+                stale.append(key + " (UNMODELLED)")
+            continue
         if not gen.wire_models(r.response_model):
             missing.append(key)
         elif not r.response_model_exclude_unset:
@@ -84,6 +91,7 @@ def test_every_json_route_declares_a_wire_model(name):
     assert not missing, f"{name}: JSON routes without a response model: {missing}"
     assert not stale, f"{name}: routes listed as non-JSON but modelled: {stale}"
     assert not (set(no_json) - keys), f"{name}: NO_JSON names routes the router does not have: {sorted(set(no_json) - keys)}"
+    assert not (set(unmodelled) - keys), f"{name}: UNMODELLED names routes the router does not have: {sorted(set(unmodelled) - keys)}"
 
 
 @pytest.mark.parametrize("name", sorted(ROUTERS))
@@ -102,7 +110,8 @@ def test_the_generated_client_types_are_current():
 @pytest.mark.parametrize("name", sorted(ROUTERS))
 def test_the_route_map_names_every_modelled_route(name):
     text = (ROOT / "frontend" / "src" / "api" / "generated" / ROUTERS[name]).read_text(encoding="utf-8")
-    no_json = importlib.import_module(f"smplwise.wire.{name}").NO_JSON
+    wmod = importlib.import_module(f"smplwise.wire.{name}")
+    no_json = wmod.NO_JSON | getattr(wmod, "UNMODELLED", frozenset())
     for key, _r in _routes(name):
         if key not in no_json:
             method, path = key.split(" ", 1)

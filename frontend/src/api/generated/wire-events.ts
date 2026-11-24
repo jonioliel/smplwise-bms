@@ -64,7 +64,7 @@ export interface EventCorrelationEvent {
 
 /** A sensor transition, a command or a camera event within the window; the keys of the other kinds are absent. */
 export interface EventCorrelationLink {
-  kind: "sensor" | "command" | "camera";
+  kind: "camera" | "command" | "sensor";
   event_id?: string;
   action_id?: string;
   entity_id?: string;
@@ -131,7 +131,7 @@ export interface EventDetail {
   created_at: string;
   recorder_id?: string | null;
   details: Record<string, unknown>;
-  thumbnail: "ready" | "pending" | "unavailable" | "none";
+  thumbnail: "none" | "pending" | "ready" | "unavailable";
   camera_name: string | null;
   location: EventLocation | null;
   timezone: string;
@@ -243,7 +243,7 @@ export interface EventListed {
   details: Record<string, unknown>;
   camera_name: string | null;
   place?: EventPlace | null;
-  thumbnail: "ready" | "pending" | "unavailable" | "none";
+  thumbnail: "none" | "pending" | "ready" | "unavailable";
 }
 
 /** Where the event's camera sits (its current anchor); `zone` is the smallest room / zone containing the pin. */
@@ -333,7 +333,7 @@ export interface EventRouteSubject {
 export interface EventRouteSuggestion {
   camera_id: string;
   name: string;
-  relation: "same_zone" | "adjacent_zone" | "nearby" | "via_connector";
+  relation: "adjacent_zone" | "nearby" | "same_zone" | "via_connector";
   relation_label: string;
   distance: number;
   zone: string | null;
@@ -351,7 +351,7 @@ export interface EventRouteVia {
   label: string | null;
   floor_id: string;
   floor_name: string;
-  direction: "up" | "down" | null;
+  direction: "down" | "up" | null;
   twin_published: boolean;
 }
 
@@ -398,7 +398,7 @@ export interface EventSpotlight {
   on: boolean;
   score: number;
   rules: EventSpotlightRule[];
-  confidence: "measured" | "inferred";
+  confidence: "inferred" | "measured";
   sources: string[];
 }
 
@@ -447,7 +447,7 @@ export interface EventWindow {
   camera_id: string | null;
   camera_name: string | null;
   channel: number | null;
-  group: "camera" | "all" | "zone" | "floor" | "manual";
+  group: "all" | "camera" | "floor" | "manual" | "zone";
   group_label: string | null;
   manual_group_id: string | null;
   spotlight: EventSpotlight;
@@ -464,9 +464,9 @@ export interface EventWindow {
   first_event_id: string;
   last_event_id: string;
   event_ids: string[];
-  thumbnail: "ready" | "pending" | "unavailable" | "none";
+  thumbnail: "none" | "pending" | "ready" | "unavailable";
   thumbnail_event_id: string;
-  confidence: "measured" | "inferred";
+  confidence: "inferred" | "measured";
 }
 
 /** `POST /events/windows/groups` (M047): the events that now form one window, and the ones skipped (unknown / out of scope). */
@@ -483,7 +483,7 @@ export interface EventWindows {
   to: string;
   timezone: string;
   gap_seconds: number;
-  group: "camera" | "all" | "zone" | "floor";
+  group: "all" | "camera" | "floor" | "zone";
   events_total: number;
   spotlights: number;
   spotlight_rules: EventSpotlightRule[];

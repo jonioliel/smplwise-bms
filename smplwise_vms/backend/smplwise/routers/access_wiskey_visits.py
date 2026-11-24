@@ -31,6 +31,8 @@ from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_visits as wv
 from ._common import rid as _rid
+from ..wire import access_wiskey_visits as W
+from ..wire import wire
 
 router = APIRouter()
 API = "/access/wiskey-visits"
@@ -70,7 +72,7 @@ def _unavailable(feature: str, reason: str | None) -> ApiError:
     return ApiError(409, "wiskey_visits_unsupported", wv.reason_text(reason) or "", details={"feature": feature, "reason": reason})
 
 
-@router.get(API)
+@router.get(API, **wire(W.AccessWiskeyVisitsHome))
 def home(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _on_or_404(conn)
     if not _sees(conn, principal):
@@ -80,7 +82,7 @@ def home(request: Request, principal: Principal = Depends(current_principal_ro),
             "can": {"list": auth.unrestricted(ia.PEOPLE_READ), "settings": is_system_admin(conn, principal.user_id)}}
 
 
-@router.get(f"{API}/visits")
+@router.get(f"{API}/visits", **wire(W.AccessWiskeyVisitsVisits))
 def visits(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
            status: Literal["all", "pending", "approved", "rejected", "cancelled", "superseded"] = "all", query: str = Query("", max_length=64),
            offset: int = Query(0, ge=0, le=100_000), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
@@ -100,7 +102,7 @@ def visits(request: Request, principal: Principal = Depends(current_principal_ro
     return {"state": reply.get("state"), "last_error": reply.get("last_error"), "fetched_at": reply.get("fetched_at"), "visits": page}
 
 
-@router.get(f"{API}/templates")
+@router.get(f"{API}/templates", **wire(W.AccessWiskeyVisitsTemplates))
 def templates(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _on_or_404(conn)
     if not _sees(conn, principal):
@@ -112,7 +114,7 @@ def templates(request: Request, principal: Principal = Depends(current_principal
     return {"state": reply.get("state"), "last_error": reply.get("last_error"), "fetched_at": reply.get("fetched_at"), "templates": reply.get("templates")}
 
 
-@router.get(f"{API}/links")
+@router.get(f"{API}/links", **wire(W.AccessWiskeyVisitsLinks))
 def links(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _on_or_404(conn)
     out = []
@@ -123,7 +125,7 @@ def links(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
     return {"links": out}
 
 
-@router.post(f"{API}/{{invite_id}}/push")
+@router.post(f"{API}/{{invite_id}}/push", **wire(W.AccessWiskeyVisitsPush))
 def push(body: PushIn, request: Request, invite_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     db = request.app.state.db
     with db.connection(mode="read", label="wiskey_visits.gate") as conn:
@@ -159,7 +161,7 @@ def push(body: PushIn, request: Request, invite_id: str = Path(..., pattern=_ID)
     return {"status": "pushed", "record": record_reply, "link": view}
 
 
-@router.post(f"{API}/{{invite_id}}/reconcile")
+@router.post(f"{API}/{{invite_id}}/reconcile", **wire(W.AccessWiskeyVisitsReconcile))
 def reconcile(request: Request, invite_id: str = Path(..., pattern=_ID), principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     db = request.app.state.db
     rid = _rid(request)
@@ -195,7 +197,7 @@ def reconcile(request: Request, invite_id: str = Path(..., pattern=_ID), princip
     return {"verdict": verdict, "link": view}
 
 
-@router.put(f"{API}/settings")
+@router.put(f"{API}/settings", **wire(W.AccessWiskeyVisitsPutSettings))
 def put_settings(body: SettingsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
     with request.app.state.db.connection(label="wiskey_visits.settings") as conn:
         require_system_admin(conn, principal, action=wv.AUDIT_SETTINGS, request_id=_rid(request), text="רק מנהל מערכת יכול לשנות הגדרה זו.")

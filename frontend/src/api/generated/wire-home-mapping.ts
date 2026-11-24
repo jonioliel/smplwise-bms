@@ -107,7 +107,7 @@ export interface HomeMappingPlatformFloor {
 }
 
 export interface HomeMappingReach {
-  mode: "map_and_mapping" | "map";
+  mode: "map" | "map_and_mapping";
 }
 
 /** `GET /sites/{id}/mapping`: everything the assistant needs. */
@@ -122,7 +122,7 @@ export interface HomeMappingRead {
   can_set_reach: boolean;
   review_mode: "required" | "skip";
   can_set_review: boolean;
-  filter_mode: "on" | "off";
+  filter_mode: "off" | "on";
   can_set_filter: boolean;
   versions: HomeMappingVersion[];
   seen: unknown[] | null;
@@ -145,9 +145,9 @@ export interface HomeMappingRevision {
 
 /** The assistant's settings (each a choice; an unknown stored value reads as the default). */
 export interface HomeMappingSettings {
-  floor_inherit: "on" | "off";
+  floor_inherit: "off" | "on";
   auto_insert: "off" | "on";
-  new_token: "new_first" | "existing_first" | "unassigned_first";
+  new_token: "existing_first" | "new_first" | "unassigned_first";
 }
 
 export interface HomeMappingSettingsAnswer {
@@ -183,7 +183,7 @@ export interface HomeMultiBuildingCheck {
 }
 
 export interface HomeMultiBuildingFilter {
-  mode: "on" | "off";
+  mode: "off" | "on";
 }
 
 /**
@@ -192,7 +192,7 @@ export interface HomeMultiBuildingFilter {
  */
 export interface HomeMultiBuildingFinding {
   code: string;
-  severity: "blocking" | "warning" | "info";
+  severity: "blocking" | "info" | "warning";
   count: number;
   items: Record<string, unknown>[];
 }

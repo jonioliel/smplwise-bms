@@ -10,7 +10,7 @@ export interface EnrolledUser {
 }
 
 export interface EnrolledUsers {
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
   users: EnrolledUser[];
   must_enroll: string[];
 }
@@ -62,7 +62,7 @@ export interface FactorReset {
 export interface FactorResetCheck {
   user_id: string;
   allowed: boolean;
-  reason: "self" | "user_unknown" | "local_only" | "last_admin" | "rate_limited" | null;
+  reason: "last_admin" | "local_only" | "rate_limited" | "self" | "user_unknown" | null;
   confirm_text: string;
   channel: "any" | "local";
   remote: boolean;
@@ -83,7 +83,7 @@ export interface FactorStatus {
 /** The once-action's step-up details (services/step_up.once_details): verify with this action, then send the request once. */
 export interface OnceStepUp {
   action: string;
-  methods: ("totp" | "passkey" | "device_key")[];
+  methods: ("device_key" | "passkey" | "totp")[];
   minutes: number;
   once: boolean;
   verify_path: string;
@@ -91,7 +91,7 @@ export interface OnceStepUp {
 
 /** `PUT /auth/second-factor/overrides/{kind}/{id}`: the change and every override after it. */
 export interface OverrideSet {
-  kind: "user" | "role";
+  kind: "role" | "user";
   subject_id: string;
   policy: "inherit" | "optional" | "required";
   user: Record<string, string>;
@@ -100,7 +100,7 @@ export interface OverrideSet {
 
 /** The per-user and per-role policy overrides (subject id -> stored policy); a subject without a row inherits. */
 export interface Overrides {
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
   user: Record<string, string>;
   role: Record<string, string>;
 }
@@ -114,7 +114,7 @@ export interface OwnFactor {
   enabled: boolean;
   enabled_at: string | null;
   last_used_at: string | null;
-  policy: "optional" | "admins";
+  policy: "admins" | "optional";
   must_enroll: boolean;
   must_enroll_enforced: boolean;
 }
@@ -158,7 +158,7 @@ export interface ResetFactors {
  * `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490).
  */
 export interface StepUpProof {
-  method: "totp" | "passkey" | "recovery_code" | "device_key";
+  method: "device_key" | "passkey" | "recovery_code" | "totp";
   minutes: number;
   valid_until: string | null;
 }
@@ -173,8 +173,8 @@ export interface StepUpStatus {
   minutes: number;
   local_channel: boolean;
   applies: boolean;
-  reason: "off" | "local_channel" | "bearer_token" | "no_method" | null;
-  methods: ("totp" | "passkey" | "device_key")[];
+  reason: "bearer_token" | "local_channel" | "no_method" | "off" | null;
+  methods: ("device_key" | "passkey" | "totp")[];
   valid_until: string | null;
 }
 

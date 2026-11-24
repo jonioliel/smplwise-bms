@@ -52,6 +52,8 @@ from ..services.wiskey_listen_adapter import ReceiveDownlink
 from ._common import raw_body as _raw_body, rid as _rid
 from . import media
 from .settings import read_settings
+from ..wire import intercom_media as W
+from ..wire import wire
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom.media")
@@ -133,7 +135,7 @@ def station_thumbnail(request: Request, auth: ia.Authority = Depends(_gate(READ)
         im.release_leased_streams(settings, station_id, grace_s=im.REOPEN_GRACE_S)  # VIDEO-TRANSPORT-2400: the live view that follows reuses it
 
 
-@router.get("/access-control/stations/{station_id}/media")
+@router.get("/access-control/stations/{station_id}/media", **wire(W.IntercomMediaStationMedia))
 def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """`state`: `off` (the setting; the drawer keeps the still and the classic panel), `unavailable` (+ `reason`: `feed`,
     `offline`, `no_camera`, `no_media`, `no_host`, `no_credentials`, `descriptor_*`, `provider_error`) or `ready`. `talk.reason` when
@@ -201,7 +203,7 @@ def _station_plans(request: Request, auth: ia.Authority, d: im.Descriptor) -> di
     return {"choice": pol["choice"], "source": pol["source"], "channel": pol["channel"], "order": pol["order"], "plans": plans}
 
 
-@router.get("/access-control/station-media/readiness")
+@router.get("/access-control/station-media/readiness", **wire(W.IntercomMediaStationMediaReadiness))
 def station_media_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`)
     and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_not_listed`,
@@ -353,7 +355,7 @@ def _refuse(conn: sqlite3.Connection, principal: Principal, station_id: str, rid
     return exc
 
 
-@router.post("/access-control/stations/{station_id}/talk")
+@router.post("/access-control/stations/{station_id}/talk", **wire(W.IntercomMediaTalkStart))
 def talk_start(request: Request, auth: ia.Authority = Depends(_gate(CALL)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
     """Reserves the station's talker slot for the caller. Refusals (each one audit row, nothing is sent anywhere): 404
     `intercom_station_not_found` (off the caller's chain or absent), 403 `forbidden` (no `access.call` on this station), 409
@@ -407,7 +409,7 @@ def talk_start(request: Request, auth: ia.Authority = Depends(_gate(CALL)), stat
     }
 
 
-@router.post("/access-control/talk/{session_id}/stop")
+@router.post("/access-control/talk/{session_id}/stop", **wire(W.IntercomMediaTalkStop))
 def talk_stop(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), session_id: str = Path(min_length=16, max_length=64)) -> dict[str, Any]:
     """Ends the caller's own talk session (idempotent); another user's session answers 404 `intercom_talk_not_found`."""
     t = im.MEDIA.talk(session_id)

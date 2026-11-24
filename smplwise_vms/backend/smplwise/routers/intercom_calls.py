@@ -26,6 +26,8 @@ from ..rbac import INSTALLATION, Principal, ROLES, custom_roles, require, role_n
 from ..services import door_authority, intercom_calls, intercom_sync, wiskey_camera
 from ..services import intercom_authority as ia
 from ._common import rid as _rid
+from ..wire import intercom_calls as W
+from ..wire import wire
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -42,7 +44,7 @@ def _stations(request: Request) -> tuple[str, dict[str, Any] | None]:
     return intercom_sync.SYNC.served(settings_of(request))
 
 
-@router.get("/intercom/calls/active")
+@router.get("/intercom/calls/active", **wire(W.IntercomCallsActiveCalls))
 def active_calls(request: Request, principal: Principal = Depends(_caller_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`{enabled, mode, feed, sound, sound_reason, server_time_ms, calls: [...]}`. `calls` is empty unless the feed is live: a ring
     on a last-known copy is never offered (the station may have stopped ringing long ago)."""
@@ -60,7 +62,7 @@ def active_calls(request: Request, principal: Principal = Depends(_caller_ro), c
     return body
 
 
-@router.get("/intercom/calls")
+@router.get("/intercom/calls", **wire(W.IntercomCallsCallLog))
 def call_log(request: Request, station_id: str | None = Query(default=None, max_length=MAX_STATION_ID), limit: int = Query(default=20, ge=1, le=intercom_calls.MAX_LIST),
              before: str | None = Query(default=None, max_length=40), principal: Principal = Depends(_history_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The call log, newest first. `before` = the previous page's last `rang_at`. Rows of stations the caller may not read are left out.
@@ -86,12 +88,12 @@ def _settings_view(conn: sqlite3.Connection, request: Request) -> dict[str, Any]
     return {"settings": intercom_calls.load_settings(conn), "roles": roles, "stations": stations, "defaults": dict(intercom_calls.DEFAULT_SETTINGS)}
 
 
-@router.get("/intercom/calls/settings")
+@router.get("/intercom/calls/settings", **wire(W.IntercomCallsCallSettings))
 def get_call_settings(request: Request, principal: Principal = Depends(_admin_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return localize_for(conn, principal, _settings_view(conn, request))  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
 
 
-@router.put("/intercom/calls/settings")
+@router.put("/intercom/calls/settings", **wire(W.IntercomCallsCallSettings))
 def put_call_settings(request: Request, body: dict[str, Any], principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """`{mode: off|everyone|roles, roles: [role id], stations: [station id] (empty = all), sound: bool}`. Audited with the old and new value."""
     require(conn, principal, CONFIGURE, INSTALLATION)

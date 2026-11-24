@@ -28,7 +28,7 @@ export interface RoomWallpaperImage {
  */
 export interface RoomWallpaperList {
   walls: Record<string, string>;
-  mode: "none" | "gallery" | "gallery_image";
+  mode: "gallery" | "gallery_image" | "none";
   gallery: string[];
 }
 

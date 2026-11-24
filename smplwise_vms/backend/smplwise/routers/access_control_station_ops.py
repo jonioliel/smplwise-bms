@@ -44,6 +44,8 @@ from ..services import intercom_sync, savepoints
 from ..services import wiskey_station_ops as ops
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
+from ..wire import access_control_station_ops as W
+from ..wire import wire
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -144,7 +146,7 @@ def _last_runs(conn: sqlite3.Connection, station_id: str) -> dict[str, Any]:
     return out
 
 
-@router.get("/access-control/stations/{station_id}/maintenance")
+@router.get("/access-control/stations/{station_id}/maintenance", **wire(W.AccessControlStationOpsMaintenanceView))
 def maintenance_view(request: Request, auth: ia.Authority = Depends(_viewer), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     if not auth.station(ia.READ, station_id):
         raise _not_found()

@@ -29,6 +29,8 @@ from ..errors import ApiError, not_found, validation
 from ..rbac import INSTALLATION, Principal, require
 from ..services import brand_assets as ba
 from ._common import rid as _rid
+from ..wire import brand as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -56,13 +58,13 @@ def _image(mime: str, data: bytes, stamp: str, cache: str) -> Response:
     return Response(content=data, media_type=mime, headers=headers)
 
 
-@router.get("/brand/public")
+@router.get("/brand/public", **wire(W.BrandBrandPublic))
 def brand_public(request: Request) -> dict[str, Any]:
     with request.app.state.db.connection(mode="read", label="brand/public") as conn:
         return ba.public_view(conn)
 
 
-@router.get("/brand")
+@router.get("/brand", **wire(W.BrandBrandGet))
 def brand_get(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {**ba.full_view(conn), "files": ba.meta(conn)}
 
@@ -86,7 +88,7 @@ _FIELD_TEXT = {"company_name": "שם היזם / החברה", "company_kind": "ס
                "title_mode": "תוכן הכותרת", "project_name": "שם הפרויקט"}
 
 
-@router.put("/brand")
+@router.put("/brand", **wire(W.BrandBrandPut))
 def brand_put(body: BrandBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..db import set_setting
 
@@ -105,7 +107,7 @@ def brand_put(body: BrandBody, request: Request, principal: Principal = Depends(
     return {**ba.full_view(conn), "files": ba.meta(conn)}
 
 
-@router.post("/brand/company-logo/{variant}", status_code=201)
+@router.post("/brand/company-logo/{variant}", status_code=201, **wire(W.BrandLogoUpload))
 def logo_upload(variant: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     variant = _variant(variant)
@@ -122,7 +124,7 @@ def logo_upload(variant: str, request: Request, file: UploadFile = File(...), pr
             "warnings": [{"code": w, "message": WARNING_TEXT[w]} for w in norm.warnings if w in WARNING_TEXT], **{"view": ba.full_view(conn), "files": ba.meta(conn)}}
 
 
-@router.delete("/brand/company-logo/{variant}")
+@router.delete("/brand/company-logo/{variant}", **wire(W.BrandBrandPut))
 def logo_delete(variant: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     variant = _variant(variant)
     require(conn, principal, "system.configure", INSTALLATION)

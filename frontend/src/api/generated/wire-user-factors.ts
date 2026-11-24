@@ -24,7 +24,7 @@ export interface UserFactors {
  * `wall` / `service`), and whether the policy is enforced or only reported.
  */
 export interface UserPolicy {
-  sign_in: "required" | "optional" | "exempt";
+  sign_in: "exempt" | "optional" | "required";
   source: string;
   enforced: boolean;
 }

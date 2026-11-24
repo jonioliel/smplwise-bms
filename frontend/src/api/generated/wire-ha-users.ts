@@ -12,7 +12,7 @@ export interface HaUserAccess {
 /** `POST /ha-users/check`: the read-only token probe. */
 export interface HaUserCheck {
   access: HaUserAccess;
-  transport: "token" | "supervisor" | "none";
+  transport: "none" | "supervisor" | "token";
 }
 
 /** `POST /ha-users`: the created user; `replayed` when the same request key already created it. */
@@ -31,7 +31,7 @@ export interface HaUserList {
   users: HaUserRow[];
   can_manage: boolean;
   actor_ha_admin: boolean;
-  transport: "token" | "supervisor" | "none";
+  transport: "none" | "supervisor" | "token";
   access: HaUserAccess;
   roles: HaUserRoleRef[];
   scopes: HaUserScope[];
@@ -67,7 +67,7 @@ export interface HaUserRow {
   scope_type: string;
   scope_id: string;
   scope_name: string;
-  state: "creating" | "active" | "inactive" | "needs_repair" | "deleted";
+  state: "active" | "creating" | "deleted" | "inactive" | "needs_repair";
   repair: string | null;
   person: boolean;
   created_at: string;
@@ -76,7 +76,7 @@ export interface HaUserRow {
 }
 
 export interface HaUserScope {
-  type: "installation" | "site" | "building" | "floor";
+  type: "building" | "floor" | "installation" | "site";
   id: string;
   name: string;
 }

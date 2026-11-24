@@ -11,7 +11,7 @@
  */
 export interface TokenList {
   ha_listed: boolean;
-  ha_reason: "local_channel" | "local_user" | "no_ha_token" | "ha_unavailable" | null;
+  ha_reason: "ha_unavailable" | "local_channel" | "local_user" | "no_ha_token" | null;
   tokens: TokenRow[];
   app_enabled: boolean;
 }
@@ -24,8 +24,8 @@ export interface TokenList {
  */
 export interface TokenRow {
   id: string;
-  source: "ha" | "arx";
-  kind: "long_lived" | "short_lived" | "unknown" | "app";
+  source: "arx" | "ha";
+  kind: "app" | "long_lived" | "short_lived" | "unknown";
   name: string | null;
   client: string | null;
   created_at: string | null;

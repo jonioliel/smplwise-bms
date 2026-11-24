@@ -6,7 +6,7 @@
 /** An active binding of the group (services/rbac_admin._binding_dict); `via_group` is null here (the group's own binding). */
 export interface AccessGroupBinding {
   id: string;
-  subject_kind: "user" | "group";
+  subject_kind: "group" | "user";
   subject_id: string;
   subject_name: string;
   role_id: string;
@@ -29,7 +29,7 @@ export interface AccessGroupMember {
 
 /** A scope node where the caller holds rbac.assign, with the path name the scope picker shows (services/rbac_admin.assign_scopes). */
 export interface AssignScope {
-  type: "installation" | "site" | "building" | "floor" | "camera" | "access_control_station";
+  type: "access_control_station" | "building" | "camera" | "floor" | "installation" | "site";
   id: string;
   name: string;
 }
@@ -73,8 +73,8 @@ export interface DirectoryUser {
   username: string;
   is_admin: boolean;
   active: boolean;
-  source: "local" | "both" | "ha_directory" | "vms";
-  sync_status: "verified" | "stale" | "removed" | "dev" | "unavailable" | "unknown";
+  source: "both" | "ha_directory" | "local" | "vms";
+  sync_status: "dev" | "removed" | "stale" | "unavailable" | "unknown" | "verified";
   synced_at: string | null;
   first_seen_at: string | null;
   last_seen_at: string | null;
@@ -82,7 +82,7 @@ export interface DirectoryUser {
   bindings: AccessGroupBinding[];
   is_self: boolean;
   remote_access: boolean;
-  remote_access_basis: "local" | "flag" | "admin_default" | null;
+  remote_access_basis: "admin_default" | "flag" | "local" | null;
   remote_admin_default: boolean;
   remote_last_sign_in: string | null;
   remote_sessions: number;

@@ -22,6 +22,8 @@ from ..services import backup_drill as drill
 from ..services import backup_sensitive as sens
 from ..services import restore_safety
 from ._common import rid as _rid
+from ..wire import backup as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -85,14 +87,14 @@ def _path(request: Request, name: str) -> Path:
     return p
 
 
-@router.get("/backups")
+@router.get("/backups", **wire(W.BackupBackupsApi))
 def list_backups_api(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     items = svc.list_backups(settings_of(request))
     return {"backups": items, "policy": svc.KEEP, "bytes": sum(i["bytes"] for i in items), "schema_version": svc.schema_version(conn)}
 
 
-@router.post("/backups", status_code=201)
+@router.post("/backups", status_code=201, **wire(W.BackupCreateBackup))
 def create_backup(body: CreateIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     try:
@@ -128,13 +130,13 @@ def _drill_status(request: Request, conn: sqlite3.Connection) -> dict[str, Any]:
                          "due_now": enabled and nxt is None}}
 
 
-@router.get("/backups/drill")
+@router.get("/backups/drill", **wire(W.BackupDrillStatus))
 def drill_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     return _drill_status(request, conn)
 
 
-@router.post("/backups/drill", status_code=202)
+@router.post("/backups/drill", status_code=202, **wire(W.BackupDrillRun))
 def drill_run(body: DrillRunIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     archive = _path(request, body.name) if body.name else None
@@ -150,7 +152,7 @@ def drill_run(body: DrillRunIn, request: Request, principal: Principal = Depends
     return {"started": True, "archive": body.name, "target_id": body.target_id}
 
 
-@router.put("/backups/drill/schedule")
+@router.put("/backups/drill/schedule", **wire(W.BackupDrillSchedule))
 def drill_schedule(body: DrillScheduleIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     set_setting(conn, drill.SCHEDULE_KEY, "true" if body.monthly else "false")
@@ -159,7 +161,7 @@ def drill_schedule(body: DrillScheduleIn, request: Request, principal: Principal
     return _drill_status(request, conn)
 
 
-@router.get("/backups/{name}")
+@router.get("/backups/{name}", **wire(W.BackupBackup))
 def get_backup(name: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     p = _path(request, name)
@@ -188,7 +190,7 @@ def delete_backup(name: str, request: Request, principal: Principal = Depends(cu
     audit(conn, actor=principal, action="backup.delete", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request))
 
 
-@router.post("/backups/upload", status_code=201)
+@router.post("/backups/upload", status_code=201, **wire(W.BackupBackupsApiBackup))
 def upload_backup(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     content = file.file.read(svc.MAX_UPLOAD + 1)
@@ -200,7 +202,7 @@ def upload_backup(request: Request, file: UploadFile = File(...), principal: Pri
     return e
 
 
-@router.post("/backups/{name}/restore")
+@router.post("/backups/{name}/restore", **wire(W.BackupRestoreBackup))
 def restore_backup(name: str, body: RestoreIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services import step_up
 

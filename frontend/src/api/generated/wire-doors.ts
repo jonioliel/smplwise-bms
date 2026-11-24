@@ -13,7 +13,7 @@ export interface DoorBlockCounts {
 
 export interface DoorBlockDevice {
   name: string;
-  state: "unblocked" | "blocked";
+  state: "blocked" | "unblocked";
 }
 
 export interface DoorBlockEntity {
@@ -22,7 +22,7 @@ export interface DoorBlockEntity {
   domain: string;
   platform: string | null;
   area: string | null;
-  state: "door" | "unblocked" | "blocked";
+  state: "blocked" | "door" | "unblocked";
   overridable: boolean;
   stale: boolean;
   override: DoorBlockOverride | null;
@@ -100,7 +100,7 @@ export interface DoorConversionItem {
 
 export interface DoorConversionList {
   switch: "off" | "on";
-  state: "no_wiskey" | "nothing_found" | "items";
+  state: "items" | "no_wiskey" | "nothing_found";
   state_text: string;
   wiskey_present: boolean;
   generated_at: string;
@@ -137,7 +137,7 @@ export interface DoorConversionRecord {
   item_key: string;
   kind: string;
   name: string;
-  action: "disabled" | "converted" | "handed_over";
+  action: "converted" | "disabled" | "handed_over";
   state: "done" | "undone";
   door_job_id: string | null;
   program_rule_id: string | null;
@@ -156,7 +156,7 @@ export interface DoorConversionUndone {
 
 export interface DoorEntityBlock {
   entity_id: string;
-  state: "unblocked" | "blocked";
+  state: "blocked" | "unblocked";
   override: DoorBlockOverride | null;
   changed: boolean;
 }
@@ -174,13 +174,13 @@ export interface DoorGrantRole {
   custom: boolean;
   includes: boolean;
   editable: boolean;
-  answer?: "yes" | "per_user" | "never";
+  answer?: "never" | "per_user" | "yes";
   delegable?: boolean;
   revision?: number;
 }
 
 export interface DoorGrantSubject {
-  kind: "user" | "group";
+  kind: "group" | "user";
   id: string;
   name: string;
   active: boolean;
@@ -234,7 +234,7 @@ export interface DoorMapLockMapping {
   station_id: string;
   station_name: string | null;
   relay: number;
-  source: "wiskey_explicit" | "single_relay" | "manual";
+  source: "manual" | "single_relay" | "wiskey_explicit";
   mapped_at: string;
   valid: boolean;
   problem: string | null;
@@ -250,7 +250,7 @@ export interface DoorMapRow {
   entity_id: string;
   config_entry_id: string;
   physical_index: number;
-  source: "wiskey_explicit" | "single_relay" | "manual";
+  source: "manual" | "single_relay" | "wiskey_explicit";
   mapped_by: string | null;
   mapped_at: string;
   revision: number;
@@ -354,7 +354,7 @@ export interface DoorRoleSwitched {
 export interface DoorSettings {
   trusted_path: "off" | "on";
   trusted_path_available: boolean;
-  editor_block: "blocked" | "allowed";
+  editor_block: "allowed" | "blocked";
   editor_allowed_available: boolean;
   lock_jobs: DoorLockJob[];
   conversion: "off" | "on";

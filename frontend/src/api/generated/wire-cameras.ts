@@ -4,7 +4,7 @@
 /* eslint-disable */
 
 export interface CameraAudio {
-  state: "available" | "disabled" | "unsupported" | "unknown";
+  state: "available" | "disabled" | "unknown" | "unsupported";
   reason: string | null;
   channel_id: string | null;
   codec: string | null;
@@ -57,7 +57,7 @@ export interface CameraListed {
   can_view_live: boolean;
   recorder_enabled: boolean;
   recorder_name: string | null;
-  live_kind?: "stream" | "still";
+  live_kind?: "still" | "stream";
   video_source: "manual" | "nvr";
   standalone: boolean;
   area_id?: string | null;
@@ -69,7 +69,7 @@ export interface CameraPreset {
 }
 
 export interface CameraPtz {
-  state: "supported" | "unsupported" | "unknown";
+  state: "supported" | "unknown" | "unsupported";
   reason: string | null;
   presets: CameraPreset[] | null;
   preset_count: number | null;

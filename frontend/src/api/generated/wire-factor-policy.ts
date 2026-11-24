@@ -8,7 +8,7 @@
  * one (would have to enrol at the next remote sign-in once enforced) and exempt; the lists are capped at 500 entries.
  */
 export interface Compliance {
-  policy: "optional" | "admins" | "sensitive" | "all";
+  policy: "admins" | "all" | "optional" | "sensitive";
   users_total: number;
   covered: number;
   enrolled: number;
@@ -22,11 +22,11 @@ export interface Compliance {
 
 /** `GET /security/factor-policy`: the settings, the legacy rules, the overrides and the compliance view. */
 export interface FactorPolicy {
-  policy: "optional" | "admins" | "sensitive" | "all";
-  mode: "report" | "enforce";
+  policy: "admins" | "all" | "optional" | "sensitive";
+  mode: "enforce" | "report";
   enforced: boolean;
   wall_exempt: boolean;
-  long_lived_tokens: "allow" | "refuse_under_policy" | "refuse";
+  long_lived_tokens: "allow" | "refuse" | "refuse_under_policy";
   legacy: LegacyRules;
   overrides: Record<string, Record<string, string>>;
   compliance: Compliance;
@@ -34,15 +34,15 @@ export interface FactorPolicy {
 
 /** The rules that act in every mode, unchanged (`security.second_factor_policy`, `remote.require_mfa_admin`). */
 export interface LegacyRules {
-  second_factor_policy: "optional" | "admins";
+  second_factor_policy: "admins" | "optional";
   require_mfa_admin: boolean;
 }
 
 /** `PUT /security/factor-policy/overrides/{kind}/{id}`: the change and every override after it. */
 export interface OverrideSet {
-  kind: "user" | "role";
+  kind: "role" | "user";
   subject_id: string;
-  sign_in: "inherit" | "required" | "optional" | "exempt";
+  sign_in: "exempt" | "inherit" | "optional" | "required";
   overrides: Record<string, Record<string, string>>;
 }
 

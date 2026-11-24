@@ -140,7 +140,7 @@ export interface DeviceBulkOn {
 
 /** Exactly what `POST /devices/actions` would send (services/device_bulk.resolve). */
 export interface DeviceBulkPreview {
-  scope: "building" | "floor" | "area";
+  scope: "area" | "building" | "floor";
   id: string;
   name: string;
   floor_name: string | null;
@@ -309,7 +309,7 @@ export interface DeviceHomeSensor {
 /** Every entity of one kind in a scope, grouped by floor › area (services/devices.build_items) with the route's flags. */
 export interface DeviceItems {
   kind: string;
-  scope: "building" | "floor" | "area";
+  scope: "area" | "building" | "floor";
   id: string;
   name: string;
   floor_name: string | null;
