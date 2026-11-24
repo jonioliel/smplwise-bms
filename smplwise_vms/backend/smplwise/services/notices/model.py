@@ -139,9 +139,21 @@ PERM_DELETE = "notices.delete"  # NOTICEDEL-295: real deletion of a published / 
 CURATED_NEWS: list[dict[str, str]] = [
     {"id": "ynet", "name": "ynet", "url": "https://www.ynet.co.il/Integration/StoryRss2.xml"},
     {"id": "globes", "name": "גלובס", "url": "https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=2"},
-    {"id": "calcalist", "name": "כלכליסט", "url": "https://www.calcalist.co.il/GeneralRSS/0,16335,L-8,00.xml"},
+    {"id": "calcalist", "name": "כלכליסט", "url": "https://www.calcalist.co.il/Integration/StoryRss3674.xml"},
     {"id": "walla", "name": "וואלה", "url": "https://rss.walla.co.il/feed/1"},
 ]
+
+# NOTICE-NEWS-FEEDS-2500: curated feed URLs that stopped working -> their replacement. Applied whenever a stored list or a board's
+# feeds are read (services/notices/news_sources, _feed below), so an installation that saved the list before keeps working without a
+# migration. Only these exact curated URLs are rewritten; a manager's own address is never touched.
+RETIRED_NEWS_URLS: dict[str, str] = {
+    "https://www.calcalist.co.il/GeneralRSS/0,16335,L-8,00.xml": "https://www.calcalist.co.il/Integration/StoryRss3674.xml",  # the old one answers 404 (checked 2026-11-24)
+}
+
+
+def current_news_url(url: str) -> str:
+    """The working address of a curated feed whose old address was retired (any other URL unchanged)."""
+    return RETIRED_NEWS_URLS.get(url, url)
 
 # section 11: the module settings (settings table, `notices.*`). Strings like every other setting row.
 SETTINGS_DEFAULTS: dict[str, str] = {
@@ -298,7 +310,7 @@ def _feed(raw: Any) -> dict[str, str] | None:
     name = str(raw.get("name") or "").strip()[:40]
     if not url.startswith("https://") or len(url) > 400 or any(c.isspace() or ord(c) < 33 for c in url) or "@" in url.split("/", 3)[2]:
         return None  # https only, and no credentials in the URL
-    out = {"name": name or url[8:40], "url": url}
+    out = {"name": name or url[8:40], "url": current_news_url(url)}
     sid = raw.get("id")
     if isinstance(sid, str) and re.fullmatch(r"[a-z][a-z0-9-]{0,23}", sid):
         out["id"] = sid  # NOTICERSS-295: the editable source list's id (the TV shows that source's current name and logo)
@@ -494,6 +506,14 @@ def load_display(raw_json: str | None) -> dict[str, Any]:
     except ValueError:
         raw = {}
     return normalize_display(raw)
+
+
+def news_unset(display: dict[str, Any]) -> bool:
+    """NOTICE-NEWS-EMPTY-2500: the news block is on but the board chose no source - the TV then draws no news at all (display.build_feed
+    builds no `news` block), so the board editor, the boards table and the Settings preview say so instead of a silently empty TV."""
+    blocks = display.get("blocks") if isinstance(display.get("blocks"), dict) else {}
+    news = display.get("news") if isinstance(display.get("news"), dict) else {}
+    return bool(blocks.get("news")) and not news.get("feeds")
 
 
 def clean_slug(value: Any) -> str:

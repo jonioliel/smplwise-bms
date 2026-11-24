@@ -41,6 +41,9 @@ class DiscoveredChannel:
     # to compute the keyed `cameras.device_fingerprint`; the serial number itself is never stored, logged or returned.
     device_model: str | None = field(default=None, repr=False)
     device_serial: str | None = field(default=None, repr=False)
+    # ONVIF-DISCOVER-2500: the camera's own address as the recorder reports it (sourceInputPortDescriptor ipAddress / hostName). Kept
+    # only in memory (services/camera_discovery/known.py) to mark a scanned camera "already through the recorder"; never stored or logged.
+    device_address: str | None = field(default=None, repr=False)
 
 
 def parse_track_description(desc: str) -> dict[str, object]:
@@ -291,9 +294,11 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
         desc = _child(el, "sourceInputPortDescriptor")
         dev_model = (_text(desc, "model").strip() or None) if desc is not None else None
         dev_serial = (_text(desc, "serialNumber").strip() or None) if desc is not None else None
+        dev_address = ((_text(desc, "ipAddress").strip() or _text(desc, "hostName").strip())[:255] or None) if desc is not None else None
         result.append(DiscoveredChannel(
             device_model=dev_model,
             device_serial=dev_serial,
+            device_address=dev_address,
             channel=ch,
             name=re.sub(r"\s+", " ", _text(el, "name")).strip(),
             online=online.get(ch),

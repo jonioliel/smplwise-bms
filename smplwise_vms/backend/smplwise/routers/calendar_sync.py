@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import release
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, require
 from ..services import calendar_sync_store as store
 from ..services import connection_store
@@ -202,11 +202,11 @@ def put_feed_url(cid: str, body: Body, request: Request, principal: Principal = 
     d = _body(body)
     url = d.get("url")
     if set(d) - {"url"} or not isinstance(url, str) or not 10 <= len(url) <= 2048:
-        raise ApiError(422, "validation", "url: the https address of the iCal feed", details={"field": "url"})
+        raise field_error("url: the https address of the iCal feed", ["url"], legacy={"field": "url"})
     try:
         ics.check_url(url, resolve=False)
     except SyncError:
-        raise ApiError(422, "feed_refused", OAUTH_HE["feed_refused"], details={"field": "url"}) from None
+        raise field_error(OAUTH_HE["feed_refused"], ["url"], code="feed_refused", legacy={"field": "url"}) from None
     data_dir = settings_of(request).data_dir
     credentials.set_secret(conn, data_dir, cid, "feed_url", ics.normalise_url(url))
     host = ics.host_hint(url)
@@ -255,7 +255,7 @@ def authorize_complete(cid: str, body: Body, request: Request, principal: Princi
         raise ApiError(409, "wrong_provider", OAUTH_HE["wrong_provider"])
     d = _body(body)
     if set(d) - {"redirect_url"}:
-        raise ApiError(422, "validation", "redirect_url only", details={"field": "redirect_url"})
+        raise field_error("redirect_url only", ["redirect_url"], legacy={"field": "redirect_url"})
     secret = credentials.secret(conn, settings_of(request).data_dir, cid, "client_secret")
     release(conn)
     try:

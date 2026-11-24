@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import insights_common as ic
 
@@ -92,8 +92,8 @@ def put_settings(body: SettingsIn, principal: Principal = Depends(current_princi
     if body.settings is not None:
         try:
             doc = ic.validate(body.settings, conn)
-        except ic.Invalid as e:
-            raise ApiError(422, "validation", ic.MESSAGES["validation"]["he"], details={"fields": e.fields[:40], "message_en": ic.MESSAGES["validation"]["en"]}) from None
+        except ic.Invalid as e:  # ADR-019 Step 1
+            raise field_error(ic.MESSAGES["validation"]["he"], e.fields[:40], extra={"message_en": ic.MESSAGES["validation"]["en"]}) from None
         ic.save(conn, doc)
         changed["settings"] = {"pairs": len(doc["doors"]["pairs"]), "sections": len(doc["report"]["sections"])}
     if body.switches:
@@ -246,8 +246,8 @@ def put_delivery(body: DeliveryIn, principal: Principal = Depends(current_princi
         cfg = dl.save(conn, edit, body.enabled, principal.user_id, now_ts())
     except dl.Invalid as e:
         if e.code == "setup_incomplete":
-            raise ApiError(422, "setup_incomplete", "ההגדרה לא הושלמה.", details={"fields": e.fields, "message_en": "The setup is not complete."}) from None
-        raise ApiError(422, "validation", ic.MESSAGES["validation"]["he"], details={"fields": e.fields[:40], "message_en": ic.MESSAGES["validation"]["en"]}) from None
+            raise field_error("ההגדרה לא הושלמה.", e.fields, code="setup_incomplete", extra={"message_en": "The setup is not complete."}) from None
+        raise field_error(ic.MESSAGES["validation"]["he"], e.fields[:40], extra={"message_en": ic.MESSAGES["validation"]["en"]}) from None
     audit(conn, actor=principal, action="reports.building.delivery.update", decision="allowed", resource_type="building_report_delivery", resource_id="delivery",
           details={"enabled": cfg["enabled"], "was_enabled": before["enabled"], "email": cfg["email"], "whatsapp": cfg["whatsapp"], "users": len(cfg["users"]),
                    "dom": cfg["dom"], "at": cfg["at"]})

@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from . import WireModel
+from .building_filter import BuildingFilter
 
 # routes without a JSON body
 NO_JSON = frozenset({"DELETE /calendar/events/{eid}/guests"})
@@ -186,10 +187,14 @@ class CalRoomDay(WireModel):
     equipment: list[str]
     open: list[CalOpenSpan]
     entries: list[CalOccurrence]
+    # MULTI-BUILDING-NEXT-2500: the buildings the room serves - only when the answer carries `building_filter`
+    buildings: list[str] | None = None
 
 
 class CalRoomsDay(WireModel):
     rooms: list[CalRoomDay]
+    # MULTI-BUILDING-NEXT-2500: present only on a multi-building site whose rooms sit in two or more buildings (services/building_filter)
+    building_filter: BuildingFilter | None = None
 
 
 class CalSlot(WireModel):

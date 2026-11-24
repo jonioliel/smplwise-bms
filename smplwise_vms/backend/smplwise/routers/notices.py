@@ -36,7 +36,7 @@ from ..services.notices import router_store as rstore
 from ..services.transit import model as transit_model
 from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
-from ..wire import wire
+from ..wire import tagged, wire
 from ..wire import notices as W
 from ._common import rid as _rid
 
@@ -45,7 +45,8 @@ OFF_HE = "לוח ההודעות כבוי בהגדרות המערכת."
 
 
 def _invalid(exc: Invalid) -> ApiError:
-    return ApiError(422, "validation", str(exc), details={"field": exc.field})
+    """ADR-019 Step 1: the canonical field keys; `field` is still sent (legacy) until its readers moved."""
+    return exc.to_api_error(str(exc), legacy={"field": exc.field})
 
 
 def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> None:
@@ -261,15 +262,16 @@ def _news_out(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"sources": news_sources.listing(conn), "max": news_sources.SOURCES_MAX, "name_max": news_sources.NAME_MAX}
 
 
-@open_router.get("/notices/news-sources")
+@open_router.get("/notices/news-sources", **wire(W.NoticeNewsSources))
 def get_news_sources(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The news-source list with each feed's health (NOTICE-NEWS-FEEDS-2500: last good fetch, last failure reason)."""
     can = _can(conn, principal)
     if not (can["configure"] or can["boards"]):
         require(conn, principal, "system.configure", INSTALLATION)
     return _news_out(conn)
 
 
-@open_router.put("/notices/news-sources")
+@open_router.put("/notices/news-sources", **wire(W.NoticeNewsSources))
 def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The whole list at once (the order sent is the order shown). A raw-URL feed of a board that is sent here is adopted under its name."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -283,7 +285,7 @@ def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal
     return _news_out(conn)
 
 
-@open_router.put("/notices/news-sources/{source_id}/logo")
+@open_router.put("/notices/news-sources/{source_id}/logo", **wire(W.NoticeNewsSources))
 def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     from ..services.bill_pdf_logo import LogoError
@@ -300,7 +302,7 @@ def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...)
     return _news_out(conn)
 
 
-@open_router.delete("/notices/news-sources/{source_id}/logo")
+@open_router.delete("/notices/news-sources/{source_id}/logo", **wire(W.NoticeNewsSources))
 def delete_news_logo(source_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     try:
@@ -341,6 +343,8 @@ class BoardPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=model.BOARD_NAME_MAX)
     enabled: bool | None = None
     display: dict[str, Any] | None = None
+    # MULTI-BUILDING-HOME-2500 (owner Q68): the building the board belongs to ("" = the whole site); its greeting uses that building's name
+    building_id: str | None = Field(default=None, max_length=64)
 
 
 class ItemsIn(BaseModel):
@@ -417,9 +421,21 @@ def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal =
 
 
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
-    return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": model.load_display(b["display_json"]),
+    display = model.load_display(b["display_json"])
+    return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": display,
             "has_token": bool(b["token_hash"]), "has_stored_link": bool(b.get("token_sealed")), "token_rotated_at": b["token_rotated_at"], "last_seen_at": b["last_seen_at"],
-            "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"]}
+            "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"],
+            "news_unset": model.news_unset(display),  # NOTICE-NEWS-EMPTY-2500: news on, no source chosen (the TV shows no news)
+            **({"building_id": b["building_id"]} if b.get("building_id") else {})}  # MULTI-BUILDING-HOME-2500 (Q68): only when set
+
+
+def _news_audit(conn: sqlite3.Connection, before: list[dict[str, Any]], after: list[dict[str, Any]]) -> dict[str, Any]:
+    """NOTICE-NEWS-EMPTY-2500: a display save records how many news sources the board had before and after, and which ones were removed -
+    by the source list's id only, never a URL (a raw-URL feed the list does not know is recorded as "custom")."""
+    kept = {f["url"] for f in after}
+    by_url = {s["url"]: s["id"] for s in news_sources.load(conn)}
+    removed = [f.get("id") or by_url.get(f["url"]) or "custom" for f in before if f["url"] not in kept]
+    return {"news_feeds_before": len(before), "news_feeds_after": len(after), "news_feeds_removed": removed}
 
 
 def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
@@ -429,7 +445,7 @@ def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
     return b
 
 
-@router.get("/notices/boards", **wire(W.NoticeBoardListBrief | W.NoticeBoardListFull))
+@router.get("/notices/boards", **wire(tagged("full", W.NoticeBoardListBrief, W.NoticeBoardListFull)))
 def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every board for notices.boards; the enabled boards' names only for a notice manager (the compose dialog's chips)."""
     can = _can(conn, principal)
@@ -438,7 +454,13 @@ def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqli
         return {"boards": [{"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"])} for b in store.list_boards(conn)], "full": False}
     counts = store.item_counts(conn)
     s = store.settings(conn)
-    return {"boards": [_board_out(b, counts) for b in store.list_boards(conn)], "full": True, "max": s["boards_max"], "remote": s["boards_remote"]}
+    out: dict[str, Any] = {"boards": [_board_out(b, counts) for b in store.list_boards(conn)], "full": True, "max": s["boards_max"], "remote": s["boards_remote"]}
+    from ..services import home_buildings
+
+    choices = home_buildings.building_choices(conn)  # MULTI-BUILDING-HOME-2500 (Q68): the building picker, only on a multi-building site
+    if choices is not None:
+        out["buildings"] = choices
+    return out
 
 
 @router.post("/notices/boards", **wire(W.NoticeBoardCreated))
@@ -489,6 +511,12 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
                 if any(f["url"] not in curated for f in d["news"]["feeds"]):
                     raise Invalid("display.news.feeds", "רק מקורות מהרשימה.")
             cols["display"] = d
+        if body.building_id is not None:  # MULTI-BUILDING-HOME-2500 (Q68): "" = the whole site; a building must be live
+            from ..services import home_buildings
+
+            if body.building_id and not home_buildings.is_live_building(conn, body.building_id):
+                raise ApiError(422, "building_not_found", "הבניין לא נמצא.", details={"fields": ["building_id"]})
+            cols["building_id"] = body.building_id or None
     except Invalid as exc:
         raise _invalid(exc)
     nb = store.update_board(conn, b["id"], principal.user_id, cols) if cols else b
@@ -500,9 +528,12 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
         fit = {k: cols["display"].get(k) for k in model.TV_FIT_KEYS if cols["display"].get(k) != before.get(k)}
         if fit:
             details["tv_fit"] = fit
-        old = {f["url"] for f in model.load_display(b["display_json"])["news"]["feeds"]}
+        old = {f["url"] for f in before["news"]["feeds"]}
         curated = news_sources.allowed_urls(conn)
         details["custom_feeds_added"] = len([f for f in cols["display"]["news"]["feeds"] if f["url"] not in old and f["url"] not in curated])
+        details.update(_news_audit(conn, before["news"]["feeds"], cols["display"]["news"]["feeds"]))
+        if model.news_unset(cols["display"]):
+            details["news_unset"] = True
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request), details=details)
     return {"board": _board_out(nb, store.item_counts(conn))}
 

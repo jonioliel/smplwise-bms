@@ -42,6 +42,9 @@ os.environ.setdefault("SW_WISKEY_EVENT_RESUME", "0")
 # CR-RESPONSE-MODELS-CONSUMPTION-2450 (review 07:F8 step 2): a response that does not fit its model, or carries an undeclared key,
 # fails the test (production logs it and answers unchanged - smplwise/wire/__init__.py)
 os.environ.setdefault("SW_WIRE_STRICT", "1")
+# ADR-019 L14 step 1: a tolerant web-UI request model (smplwise/wire/request.py RequestModel) that receives an undeclared key fails the test
+# (production drops the key as before, logs it once and counts it)
+os.environ.setdefault("SW_REQUEST_STRICT", "1")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402,F401 - re-exported: test files import it from here

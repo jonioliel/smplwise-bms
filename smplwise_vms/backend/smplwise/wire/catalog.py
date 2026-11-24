@@ -3,6 +3,8 @@ the catalogue pictures and the home-platform floor / area links). Field order is
 (`site_row`, `building_row`, `floor_row`)."""
 from __future__ import annotations
 
+from typing import Any, Literal
+
 from . import WireModel
 
 # routes without a JSON body: the 204 deletes and the catalogue picture (a JPEG)
@@ -97,3 +99,82 @@ class CatalogHomeLinks(WireModel):
     floors: list[CatalogFloorLink]
     areas: list[CatalogAreaLink]
     buildings: list[CatalogBuildingLink]
+
+
+# ---------------------------------------------------------------- MULTI-BUILDING-SAFETY-2500: moving a floor to another building
+
+class FloorMoveRef(WireModel):
+    id: str
+    name: str
+
+
+class FloorMoveFloor(WireModel):
+    id: str
+    name: str
+    level: int
+
+
+class FloorMovePerson(WireModel):
+    """A person whose permissions on the floor change with the move: `loses` (all of them), `gains` (from none) or `changes`."""
+    user_id: str
+    name: str
+    change: Literal["loses", "gains", "changes"]
+    lost: list[str]
+    gained: list[str]
+
+
+class FloorMovePeople(WireModel):
+    loses: int
+    gains: int
+    changes: int
+    total: int
+    items: list[FloorMovePerson]
+    """At most 200 people (the counts are complete): those who lose access first."""
+
+
+class FloorMoveRecords(WireModel):
+    tickets: int
+    ticket_rfqs: int
+    maint_tasks: int
+    notices: int
+    incidents: int
+
+
+class FloorMoveWith(WireModel):
+    """What moves unchanged with the floor (it points at the floor id), and the records whose copy of the building follows it."""
+    floor_bindings: int
+    cameras: int
+    anchors: int
+    plans: int
+    areas: int
+    records: FloorMoveRecords
+
+
+class FloorMoveNote(WireModel):
+    code: str
+    items: list[dict[str, Any]]
+
+
+class FloorMovePreview(WireModel):
+    """`GET /floors/{id}/move-preview?building=`: the impact of moving the floor, worked out without writing, and the digest the move
+    is confirmed with."""
+    floor: FloorMoveFloor
+    from_building: FloorMoveRef
+    to_building: FloorMoveRef
+    people: FloorMovePeople
+    moves_with: FloorMoveWith
+    blockers: list[FloorMoveNote]
+    warnings: list[FloorMoveNote]
+    can_move: bool
+    digest: str
+
+
+class FloorMoveResult(WireModel):
+    """`POST /floors/{id}/move`: the floor in its new building and what changed."""
+    floor: CatalogFloor
+    from_building: FloorMoveRef
+    to_building: FloorMoveRef
+    records: FloorMoveRecords
+    loses: int
+    gains: int
+    changes: int

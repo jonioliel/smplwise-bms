@@ -55,3 +55,34 @@ def test_the_saved_preview_needs_notices_boards_and_a_live_board(client, setting
     assert client.get(f"{API}/notices/boards/nope/preview").status_code == 404
     assert client.delete(f"{API}/notices/boards/{bid}").status_code == 200
     assert client.get(f"{API}/notices/boards/{bid}/preview").status_code == 404
+
+
+def test_the_board_list_answers_either_shape_without_logging_a_drift(client, settings, monkeypatch, caplog):
+    """NOTICE-WIRE-DRIFT-2490: `GET /notices/boards` answers the full list or the names-only list, told apart by `full`. In production
+    (SW_WIRE_STRICT unset) a plain union tried both models and logged a drift for each correct answer; the union is now discriminated."""
+    monkeypatch.delenv("SW_WIRE_STRICT", raising=False)
+    _on(client)
+    _board(client)
+    bind(client, settings, "edna", "notices_manage", "installation", "*")
+    with caplog.at_level("ERROR", logger="smplwise.wire"):
+        full = client.get(f"{API}/notices/boards")
+        brief = client.get(f"{API}/notices/boards", headers=as_user("edna"))
+    assert full.status_code == 200 and brief.status_code == 200
+    f, b = full.json(), brief.json()
+    assert f["full"] is True and {"max", "remote"} <= set(f) and {"has_token", "display", "item_count", "updated_at"} <= set(f["boards"][0])
+    assert b["full"] is False and set(b) == {"boards", "full"} and set(b["boards"][0]) == {"id", "name", "slug", "enabled"}
+    assert not [r for r in caplog.records if "response contract drift" in r.getMessage()]
+
+
+def test_a_user_link_of_either_kind_validates_without_a_drift(monkeypatch, caplog):
+    """NOTICE-WIRE-DRIFT-2490: `LocalUserLink.link` is a shown link or a queued WhatsApp link; only the matching model validates it."""
+    from smplwise.wire import local_identity as L
+
+    monkeypatch.delenv("SW_WIRE_STRICT", raising=False)
+    shown = {"user_id": "u1", "link": {"purpose": "reset", "path": "/p", "expires_at": "2026-11-24T00:00:00Z"}}
+    queued = {"user_id": "u1", "link": {"purpose": "reset", "via": "whatsapp", "expires_at": "2026-11-24T00:00:00Z", "queued": True}}
+    with caplog.at_level("ERROR", logger="smplwise.wire"):
+        a = L.LocalUserLink.model_validate(shown).model_dump(exclude_unset=True)
+        b = L.LocalUserLink.model_validate(queued).model_dump(exclude_unset=True)
+    assert a == shown and b == queued
+    assert not [r for r in caplog.records if "response contract drift" in r.getMessage()]

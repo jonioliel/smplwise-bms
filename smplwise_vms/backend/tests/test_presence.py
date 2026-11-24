@@ -114,6 +114,7 @@ def test_register_validation_name_uniqueness_permission_and_rate_limit(world):
     assert register(c, "dana", install_id="short")[1]["code"] == "invalid_install_id"
     r = c.post(f"{API}/presence/devices", json={"name": "טלפון", "platform": "windows", "install_id": "11111111-2222-3333-4444-555555555555"}, headers=as_user("dana"))
     assert r.status_code == 400 and r.json()["code"] == "invalid_platform"
+    assert r.json()["details"] == {"field": "platform", "fields": ["platform"]}  # ADR-019 family 2: canonical `fields`, legacy `field` kept
     assert register(c, "dana", name="הנייד של יוסי")[0] == 201
     status, body = register(c, "dana", name="הנייד של יוסי", install_id="99999999-2222-3333-4444-555555555555")
     assert status == 409 and body["code"] == "device_name_taken" and body["details"]["suggestion"] == "הנייד של יוסי 2"
@@ -163,9 +164,14 @@ def test_config_follows_the_master_switch_and_the_notice_version_rises_by_itself
     assert c.get(f"{API}/presence/settings", headers=as_user("dana")).status_code == 403
     assert c.put(f"{API}/presence/settings", json={"enabled": False}, headers=as_user("dana")).status_code == 403
     # validation
-    for bad in ({"enabled": "yes"}, {"retention_days": 0}, {"retention_days": 400}, {"interval_s": 5}, {"sensors_allowed": ["camera"]}, {"sites": [{"id": "x", "lat": 95, "lon": 0}]},
-                {"nope": 1}, {"required_sensors": {"enabled": True, "sensors": ["microphone"]}}, {"mode": "regions"}):
-        assert c.put(f"{API}/presence/settings", json=bad).status_code == 422, bad
+    for bad, field in (({"enabled": "yes"}, "enabled"), ({"retention_days": 0}, "retention_days"), ({"retention_days": 400}, "retention_days"), ({"interval_s": 5}, "interval_s"),
+                       ({"sensors_allowed": ["camera"]}, "sensors_allowed"), ({"sites": [{"id": "x", "lat": 95, "lon": 0}]}, "sites"), ({"nope": 1}, "nope"),
+                       ({"required_sensors": {"enabled": True, "sensors": ["microphone"]}}, "required_sensors.sensors"), ({"mode": "regions"}, "mode")):
+        r = c.put(f"{API}/presence/settings", json=bad)
+        assert r.status_code == 422, bad
+        # ADR-019 family 2: the canonical `fields`; the legacy `field` still sent (an unknown key never had one)
+        d = r.json()["details"]
+        assert d["fields"] == [field] and d.get("field") == (None if field == "nope" else field), (bad, d)
 
 
 def test_ack_and_events_need_the_switch_and_the_current_notice(world):
@@ -233,6 +239,9 @@ def test_events_are_idempotent_validated_and_update_the_current_state(world):
             assert r.status_code == 200, r.text
         else:
             assert r.status_code == 400 and r.json()["code"] == code, (bad, r.text)
+            if code == "invalid_event":  # ADR-019 family 2: `fields` next to the legacy `field` (`lat/lon` names both fields)
+                d = r.json()["details"]
+                assert d["fields"] == (["lat", "lon"] if d["field"] == "lat/lon" else [d["field"]]), (bad, d)
     assert c.put(f"{API}/presence/settings", json={"sensors_allowed": ["battery"]}).status_code == 200
     r = c.post(f"{API}/presence/devices/{did}/events", json={"events": [event("x7x7x7x7")]}, headers=tok)
     assert r.status_code == 400 and r.json()["code"] == "sensor_not_allowed" and r.json()["details"]["sensor"] == "location"
@@ -376,7 +385,8 @@ def test_required_sensors_policy_blocks_the_app_until_the_sensor_is_on_never_adm
     me = c.get(f"{API}/me", headers={**as_user("dana"), **APP_UA}).json()["presence_gate"]
     assert me["blocked"] is False and me["reason"] == "break_glass" and me["missing"] == ["location"]
     assert c.get(f"{API}/sites", headers={**as_user("dana"), **APP_UA}).status_code == 200
-    assert c.post(f"{API}/presence/settings/break-glass", json={"hours": 2, "reason": ""}).status_code == 422
+    r = c.post(f"{API}/presence/settings/break-glass", json={"hours": 2, "reason": ""})
+    assert r.status_code == 422 and r.json()["details"] == {"field": "reason", "fields": ["reason"]}
     assert c.post(f"{API}/presence/settings/break-glass", json={"hours": 0}).json()["break_glass"]["until"] is None
     assert c.get(f"{API}/sites", headers={**as_user("dana"), **APP_UA}).status_code == 403
     assert c.post(f"{API}/presence/settings/break-glass", json={"hours": 1, "reason": "בדיקה"}, headers=as_user("dana")).status_code == 403
@@ -444,7 +454,8 @@ def test_wifi_match_mode_defaults_to_phone_validates_and_reaches_the_config(worl
     tok = bearer(body["device_token"])
     assert c.get(f"{API}/presence/config", headers=tok).json()["wifi_match_mode"] == "phone"
     assert enable(c)["wifi_match_mode"] == "phone"
-    assert c.put(f"{API}/presence/settings", json={"wifi_match_mode": "cloud"}).status_code == 422
+    r = c.put(f"{API}/presence/settings", json={"wifi_match_mode": "cloud"})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["wifi_match_mode"] and r.json()["details"]["known"] == ["phone", "server"]
     assert c.put(f"{API}/presence/settings", json={"wifi_match_mode": "server"}).json()["settings"]["wifi_match_mode"] == "server"
     assert c.get(f"{API}/presence/config", headers=tok).json()["wifi_match_mode"] == "server"
 
@@ -562,8 +573,10 @@ def test_hardware_required_defaults_validates_and_round_trips(world):
     assert c.get(f"{API}/presence/settings").json()["settings"]["required_sensors"]["hardware_required"] == sorted(["beacon", "location"])
     bad = c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["battery"], "hardware_required": ["warp_drive"]}})
     assert bad.status_code == 422 and bad.json()["details"]["field"] == "required_sensors.hardware_required"
+    assert bad.json()["details"]["fields"] == ["required_sensors.hardware_required"]
     bad = c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": True, "sensors": ["battery"], "hardware_required": "beacon"}})
     assert bad.status_code == 422 and bad.json()["details"]["field"] == "required_sensors.hardware_required"
+    assert bad.json()["details"]["fields"] == ["required_sensors.hardware_required"]
     # a policy stored without the key (older servers) reads as []
     from smplwise.services import presence as pres
     assert pres._normalize_required({"enabled": True, "sensors": ["battery"]}, strict=False)["hardware_required"] == []

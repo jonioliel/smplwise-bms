@@ -128,6 +128,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("plan_view", "plans"),  # CR-029 S0: a person's own realistic-3D look dials
     Mount("plan_catalog", "catalog"),
     Mount("anchors", "anchors"),
+    Mount("camera_discovery", "cameras"),  # ONVIF-API-2500: finding cameras on the site network - BEFORE /cameras/{camera_id}/capabilities
     Mount("camera_sources", "cameras"),  # CAMERA-STREAM-SOURCES-2410: a camera's video source, cameras without a recorder
     Mount("cameras", "cameras"),
     Mount("settings", "settings"),

@@ -45,6 +45,7 @@ from ..i18n import localize_for
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
 from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
                         revocation, trusted_door)
+from ..services import default_names as dn
 from ..services import doors_store as store
 from ..wire import doors as W
 from ..wire import wire
@@ -440,7 +441,8 @@ def door_path_inventory(request: Request, principal: Principal = Depends(current
     Arx-started run does now and a conversion suggestion. Read-only over Arx's own database: nothing is converted,
     disabled or sent. Names only - no entity ids, station ids or addresses."""
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return door_path.inventory(conn, dev_mode=bool(settings_of(request).dev_user))
+    # DOOR-PREVIEW-I18N-2500: kind, origin, approver, run guard, suggestion and unresolved texts in the reader's language
+    return localize_for(conn, principal, door_path.inventory(conn, dev_mode=bool(settings_of(request).dev_user)))
 
 
 # ---------------------------------------------------------------- disable and list, event door jobs, hand-over (WXD10A / WXD10B)
@@ -451,7 +453,9 @@ def door_path_conversion(request: Request, principal: Principal = Depends(curren
     window) and why not, the register of what was done, and the switch `doors.conversion`. An empty inventory answers
     `state = nothing_found` with nothing offered. System administrator only; names only."""
     require(conn, principal, CONFIGURE, INSTALLATION)
-    return door_conversion.listing(conn, dev_mode=bool(settings_of(request).dev_user))
+    # REVIEW-2490-FIXES-2500: the hand-over preview names an unnamed schedule's window in the reader's language (as the hand-over does);
+    # DOOR-PREVIEW-I18N-2500: and every text of the answer (category, why-not reasons, weekdays, the inventory's words) is in it too
+    return door_conversion.listing(conn, dev_mode=bool(settings_of(request).dev_user), lang=dn.lang_of(conn, principal))
 
 
 class DoorConversionBody(BaseModel):

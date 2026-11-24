@@ -236,10 +236,14 @@ def test_validation_problems_are_422_and_write_nothing(mw):
     for body in bad:
         r = mw.c.post(f"{M}/tasks", json=body)
         assert r.status_code == 422, (body, r.text)
+        d = r.json()["details"]
+        if "problem" in d:  # ADR-019 Step 1: a field refusal names its field (fields + problems), the legacy `problem` still sent
+            assert d["fields"] and d["problems"] == [{"field": d["fields"][0], "code": d["problem"]}], (body, d)
     assert mw.c.post(f"{M}/tasks", json={"kind": "certificate", "title": "x", "unexpected": 1}).status_code == 422
     assert mw.rows("SELECT COUNT(*) FROM maint_tasks")[0][0] == 0
     t = mw.task()
-    assert mw.c.patch(f"{M}/tasks/{t['id']}", json={"kind": "round"}).status_code == 422, "the kind never changes"
+    r = mw.c.patch(f"{M}/tasks/{t['id']}", json={"kind": "round"})
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["kind"], "the kind never changes"
 
 
 def test_revision_guards_a_concurrent_edit(mw):

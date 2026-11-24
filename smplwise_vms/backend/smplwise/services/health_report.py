@@ -15,7 +15,7 @@ from . import media_reach
 from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, go2rtc_url, installation_block
 from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
-from ..db import get_setting, now_iso, permission_revision
+from ..db import get_setting, now_iso, permission_revision, recent_storage_refusal_age
 from ..errors import reason_of
 from ..i18n import cat, join, t
 from . import health_report_text  # noqa: F401 - registers the `health.*` texts (I18N-BACKEND-2490)
@@ -192,8 +192,13 @@ def _storage_check(settings: Settings) -> dict[str, Any]:
         sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
         free_ratio = du.free / du.total if du.total else 1
         st = "error" if du.free < STORAGE_ERROR_FREE else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
+        refused = recent_storage_refusal_age()  # T068-EDGE-2450: a write was refused for lack of space although `free` looks fine (quota)
+        if refused is not None:
+            st = "error"
         detail = t("health.storage.detail", free=_fmt_bytes(du.free), total=_fmt_bytes(du.total), plans=_fmt_bytes(sizes["plans"]), thumbs=_fmt_bytes(sizes["thumbs"]),
                    backups=_fmt_bytes(sizes["backups"]), exports=_fmt_bytes(sizes["exports"]), imported=_fmt_bytes(sizes["imported"]))
+        if refused is not None:
+            detail = join(" · ", [detail, t("health.storage.refused")])
         return _check("storage", t("health.storage.label"), st, detail, free=du.free, total=du.total, **sizes)
     except OSError as exc:
         return _check("storage", t("health.storage.label"), "error", t("health.storage.unreadable", error=type(exc).__name__))
@@ -477,6 +482,8 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     try:  # T035 (outage run): a full data disk reaches every operator, not only the administrator's health report (same threshold)
         if shutil.disk_usage(settings.data_dir).free < STORAGE_ERROR_FREE:
             items.append({"id": "storage", "status": "error", "label": t("health.sum.storage")})
+        elif recent_storage_refusal_age() is not None:  # T068-EDGE-2450: writes are being refused although the volume reports free space
+            items.append({"id": "storage", "status": "error", "label": t("health.sum.storage_refused")})
     except OSError:
         pass
     backups = backup_svc.list_backups(settings)

@@ -74,7 +74,28 @@ INSTALL_VALUES: dict[str, tuple[str, ...]] = {
     "default_mode": ("full_all", "home_regular", "choose"),
     "kiosk_exit": ("code", "none"),
     "wallpaper": ("none", "gallery", "gallery_image"),
+    # HOME-WALL-NIGHT-2500 (owner 22.11, Q70 / Q71 / Q73 / Q74 = the recommendation): the wall panel's rest screen (on by default, after
+    # 2 minutes without a touch), its night mode (fixed hours, 23:00-06:00 by default, editable; at night the screen is only dimmed - a
+    # layer drawn by the page, no device API) and which events take the whole screen over (the alarm and an urgent notice; a door
+    # call always comes first and is not a setting). The first value listed is the default.
+    "wall_rest": ("on", "off"),
+    "wall_rest_after": ("2", "1", "5", "10", "15"),
+    "wall_night": ("on", "off"),
+    "wall_night_dim": ("medium", "soft", "strong"),
+    "wall_takeover": ("alarm_urgent", "alarm", "call_only"),
+    # HOME-NEXT-2500 (owner 22.11, Q72 = the recommendation): a wall panel is shared, so its notice board has no "קראתי" - a notice is
+    # marked "new" for 48 hours after it was published (editable: 24 / 72 hours or a week), and an urgent notice may take the screen
+    # over only while it is new. "read" keeps the 2.48 behaviour (the panel's own account marks notices read).
+    "wall_notice_new": ("48", "24", "72", "168", "read"),
 }
+INSTALL_KEYS.update({k: f"home.{k}" for k in ("wall_rest", "wall_rest_after", "wall_night", "wall_night_dim", "wall_takeover", "wall_notice_new")})
+# HOME-WALL-NIGHT-2500: the night window's two local wall times (the installation's zone, HH:MM, 24 h); start == end = no window
+INSTALL_TIMES: dict[str, tuple[str, str]] = {"wall_night_start": ("home.wall_night_start", "23:00"), "wall_night_end": ("home.wall_night_end", "06:00")}
+HM_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+# MULTI-BUILDING-HOME-2500 (owner Q64 = the recommendation): on a multi-building site the home interface hides "כל הבניינים"; "allow"
+# offers it (services/home_buildings reads the same row).
+INSTALL_KEYS["building_all"] = "home.building_all"
+INSTALL_VALUES["building_all"] = ("hide", "allow")
 LEGACY_FROZEN_BY = "migration:0212"
 # the built-in gallery (drawn by the frontend from CSS gradients only - no picture files); the server only checks the names
 GALLERY = ("dusk", "tide", "dune", "moss", "ember", "slate", "aurora", "linen")
@@ -188,16 +209,37 @@ def install_settings(conn: sqlite3.Connection) -> dict[str, str]:
     for k, key in INSTALL_KEYS.items():
         v = get_setting(conn, key)
         out[k] = v if v in INSTALL_VALUES[k] else INSTALL_VALUES[k][0]
+    for k, (key, default) in INSTALL_TIMES.items():
+        v = get_setting(conn, key)
+        out[k] = v if isinstance(v, str) and HM_RE.match(v) else default
     return out
 
 
 def set_install_settings(conn: sqlite3.Connection, body: dict[str, Any]) -> dict[str, str]:
     for k, v in body.items():
-        if k not in INSTALL_KEYS or v not in INSTALL_VALUES[k]:
+        if k in INSTALL_TIMES:
+            if not isinstance(v, str) or not HM_RE.match(v):
+                raise HomeInterfaceError(422, "validation", "שעה לא תקינה בהגדרות מסך הקיר (HH:MM).")
+        elif k not in INSTALL_KEYS or v not in INSTALL_VALUES[k]:
             raise HomeInterfaceError(422, "validation", "ערך לא מוכר בהגדרות הממשק הביתי.")
     for k, v in body.items():
-        set_setting(conn, INSTALL_KEYS[k], v)
+        set_setting(conn, INSTALL_TIMES[k][0] if k in INSTALL_TIMES else INSTALL_KEYS[k], v)
     return install_settings(conn)
+
+
+def wall_settings(inst: dict[str, str]) -> dict[str, Any]:
+    """HOME-WALL-NIGHT-2500: what a wall panel needs of the installation settings (sent with the policy, so the panel needs no admin read)."""
+    return {
+        "rest": inst["wall_rest"] == "on",
+        "rest_after_min": int(inst["wall_rest_after"]),
+        "night": inst["wall_night"] == "on",
+        "night_start": inst["wall_night_start"],
+        "night_end": inst["wall_night_end"],
+        "night_dim": inst["wall_night_dim"],
+        "takeover": inst["wall_takeover"],
+        # HOME-NEXT-2500: hours a notice stays "new" on a wall panel; 0 = the panel's own "קראתי" (as before)
+        "notice_new_h": 0 if inst["wall_notice_new"] == "read" else int(inst["wall_notice_new"]),
+    }
 
 
 def default_policy(admin: bool, mode: str = "full_all") -> dict[str, Any]:
@@ -230,7 +272,9 @@ def stored_policy(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | No
             "kiosk": bool(r["kiosk"]), "kiosk_area_id": r["kiosk_area_id"],
             "rooms": rooms if isinstance(rooms, list) else None, "modules": modules if isinstance(modules, list) else None,
             "current_interface": r["current_interface"], "updated_at": r["updated_at"], "updated_by": r["updated_by"],
-            "guests": bool(r["guests"]) if "guests" in r.keys() else False}
+            "guests": bool(r["guests"]) if "guests" in r.keys() else False,
+            # MULTI-BUILDING-HOME-2500 (Q65): the building the administrator set for this person (display only; migration 0218)
+            "building_id": r["building_id"] if "building_id" in r.keys() else None}
 
 
 def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
@@ -265,6 +309,10 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         # HOME-V3-P1-2430: the administrator marked this person for guest invitations; the room wallpapers set for everyone
         "guests": bool(pol.get("guests")),
         "room_wallpapers": _room_walls(conn, inst["wallpaper"]),
+        "wall": wall_settings(inst),  # HOME-WALL-NIGHT-2500
+        # MULTI-BUILDING-HOME-2500 (Q65): the person's building, only when an administrator set one (an unset one adds no key: the
+        # answer for a person without it is the answer of before)
+        **({"building_id": pol["building_id"]} if pol.get("building_id") else {}),
     }
 
 
@@ -313,6 +361,14 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
     for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests"):
         if k in body and body[k] is not None:
             merged[k] = body[k]
+    if "building_id" in body:  # MULTI-BUILDING-HOME-2500 (Q65): "" / None clears it; a building must be live (display only, never a grant)
+        bid = body["building_id"] or None
+        if bid is not None:
+            from . import home_buildings
+
+            if not isinstance(bid, str) or not home_buildings.is_live_building(conn, bid):
+                raise HomeInterfaceError(422, "building_not_found", "הבניין לא נמצא.")
+        merged["building_id"] = bid
     if "rooms" in body:
         merged["rooms"] = _clean_list(body["rooms"], None, "החדרים")
     if "modules" in body:
@@ -342,6 +398,8 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
          json.dumps(merged["modules"]) if merged.get("modules") is not None else None,
          current, now_iso(), actor.user_id, int(bool(merged.get("guests")))),
     )
+    if "building_id" in body:
+        conn.execute("UPDATE home_interface_policy SET building_id = ? WHERE user_id = ?", (merged.get("building_id"), user_id))
     return effective(conn, user_id)
 
 
@@ -373,7 +431,8 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         eff = effective(conn, u["id"])
         out.append({"user_id": u["id"], "username": u["username"], "display_name": u["display_name"] or u["username"], "source": u["source"],
                     "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin", "guests")},
-                    "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite")})
+                    "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite"),
+                    **({"building_id": eff["building_id"]} if eff.get("building_id") else {})})  # MULTI-BUILDING-HOME-2500 (Q65)
     return out
 
 
@@ -599,7 +658,7 @@ def clean_layout(v: Any) -> dict[str, Any]:
         if v["theme"] is not None and (not isinstance(v["theme"], str) or not THEME_RE.match(v["theme"])):
             raise HomeInterfaceError(422, "validation", "ערכת הצבעים אינה מוכרת.")
         out["theme"] = v["theme"]
-    for k in ("big_text", "welcomed"):
+    for k in ("big_text", "welcomed", "scene_suggest"):  # HOME-FAVORITES-2500 (Q79): scene_suggest = the suggestion after a scene (on when absent)
         if k in v:
             out[k] = bool(v[k])
     for k, allowed, what in (("motion", LAYOUT_MOTION, "התנועה"), ("cal_week", LAYOUT_CAL_WEEK, "תצוגת השבוע")):

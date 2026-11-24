@@ -11,6 +11,7 @@ machine word a screen keys on; the words are chosen when the envelope is answere
 The Hebrew answer is byte for byte what it was before."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from .i18n import DEFAULT_LANG, Msg, register, t
@@ -117,10 +118,15 @@ _VALIDATION_TEXT = {
 def validation_payload(errors: list[dict[str, Any]], correlation_id: str, lang: str = DEFAULT_LANG) -> dict[str, Any]:
     """The error envelope for a request pydantic rejected. FastAPI's default is a bare {"detail": [...]} the screens
     cannot read - the settings save used to fail without a word on an out-of-range value (0.1.80). The user message
-    names each field and its constraint in the requester's language (Hebrew by default); the raw errors stay in details for a developer."""
+    names each field and its constraint in the requester's language (Hebrew by default); the raw errors stay in details for a developer.
+
+    ADR-019 (Step 0, item 4): `details.fields` (each field once, in the order of the errors) and `details.problems`
+    (`{field, code, message}`: the pydantic error type and the constraint text in the same language) are derived from the same list,
+    so a screen reads a refused body through the one field reader (`fieldsOf` / `problemsOf` in frontend/src/api/client.ts)."""
     constraints, unknown, prefix = _VALIDATION_TEXT.get(lang) or _VALIDATION_TEXT[DEFAULT_LANG]
     parts: list[str] = []
     raw: list[dict[str, Any]] = []
+    problems: list[dict[str, str]] = []
     for e in errors:
         loc = [str(p) for p in e.get("loc", ()) if p not in ("body", "query", "path", "header")]
         field = ".".join(loc) or "body"
@@ -132,7 +138,10 @@ def validation_payload(errors: list[dict[str, Any]], correlation_id: str, lang: 
             what = str(e.get("msg") or unknown)
         parts.append(f"{field}: {what}")
         raw.append({"loc": loc, "type": e.get("type"), "msg": e.get("msg"), "ctx": ctx})
-    return {"code": "validation", "user_message": prefix + " · ".join(parts), "retryable": False, "correlation_id": correlation_id, "details": {"errors": raw}}
+        problems.append({"field": field, "code": str(e.get("type") or "invalid"), "message": what})
+    # ADR-019 Step 0 item 4: the canonical field keys next to the raw list (additive - `errors` stays for a developer)
+    details = {"errors": raw, "fields": _unique(p["field"] for p in problems), "problems": problems}
+    return {"code": "validation", "user_message": prefix + " · ".join(parts), "retryable": False, "correlation_id": correlation_id, "details": details}
 
 
 def unauthenticated(code: str, message: str) -> ApiError:
@@ -155,21 +164,62 @@ def validation(message: str, **details: Any) -> ApiError:
     return ApiError(422, "validation", message, details=details)
 
 
+def _unique(names: Iterable[Any]) -> list[str]:
+    """Each name once, in first-seen order."""
+    return list(dict.fromkeys(str(n) for n in names))
+
+
+def _problems(problems: Iterable[dict[str, Any]] | None) -> list[dict[str, str]]:
+    """`{field, code, message?}` with string values; a missing / None message is left out."""
+    out: list[dict[str, str]] = []
+    for p in problems or ():
+        one = {"field": str(p["field"]), "code": str(p["code"])}
+        if p.get("message") is not None:
+            one["message"] = str(p["message"])
+        out.append(one)
+    return out
+
+
+def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[dict[str, Any]] | None = None, code: str = "validation",
+                status: int = 422, legacy: dict[str, Any] | None = None, extra: dict[str, Any] | None = None,
+                cls: type[ApiError] = ApiError) -> ApiError:
+    """ADR-019 (Step 0, item 2): a refusal about one or more input fields, in the one field-error envelope (D1).
+
+    `details.fields` lists the field names (dotted paths of the request model, never a Hebrew label), each once - the fields of
+    `problems` are added in their order; `details.problems` is `[{field, code, message?}]` when the caller has per-field reasons.
+    `legacy` is the key a family sent before its migration (`{"field": "to"}`, `{"key": ...}`), sent next to the canonical ones
+    until its readers moved (ADR-019 Step 1 (d)); `extra` holds the endpoint's own details (`message_en`, limits, `reason`, ...),
+    which are not part of the decision. Neither may carry `fields` / `problems`: the canonical keys are this helper's.
+    `cls` is the family's own `ApiError` subclass (`PresenceError`) where a router catches that class (ADR019-FAMILY2-2500)."""
+    for name, part in (("legacy", legacy), ("extra", extra)):
+        if part and ("fields" in part or "problems" in part):
+            raise ValueError(f"field_error: `{name}` must not carry the canonical keys")
+    probs = _problems(problems)
+    details: dict[str, Any] = {**(legacy or {}), **(extra or {}), "fields": _unique([*fields, *(p["field"] for p in probs)])}
+    if probs:
+        details["problems"] = probs
+    return cls(status, code, message, details=details)
+
+
 class ServiceInvalid(ValueError):
     """The common base of the services' validation errors - CR-CORE-HELPERS-2438 (code review 2026-11-13, 04:F16 step one).
 
     Today 23 classes in five shapes (`(message, field, code)`, `(field, code)`, `(field, message)`, `(code, fields)`, `(fields)`,
     `(key)`, `(code, message, message_en, details)`) are translated by 53 router `except ...Invalid` blocks, each with its own
     mapping to the 422 envelope. This base gives them one shape - `code`, `fields`, `message`, `details` - and one `to_api_error()`.
-    It is additive: nothing subclasses it in this branch. A class that adopts it later keeps its own constructor (it sets the
-    attributes it has; the class defaults cover the rest) and overrides `api_details()` when its endpoint's envelope carries
-    `details.field` or `details.key` instead of `details.fields` - envelope keys change only with a contract decision."""
+    A class that adopts it keeps its own constructor (it sets the attributes it has; the class defaults cover the rest).
+    ADR-019 (ADR019-STEP0-2500): the routers raise `to_api_error()`, which answers the canonical `details.fields` (and `problems`
+    for a class with a per-field reason, `field_code`); a family's legacy key (`details.field`, `details.key`) is passed as
+    `legacy=` until its readers moved - envelope keys are removed only with the ADR's per-family step."""
 
     status = 422
     code = "validation"
     message = ""
     fields: tuple[str, ...] | list[str] = ()
     details: dict[str, Any] | None = None
+    # ADR-019: the per-field reason of a class whose `code` says what is wrong with the field (`format`, `unknown`, ...) rather than
+    # being the envelope code; when set, `api_details()` adds `problems` ({field, code} per named field).
+    field_code: str | None = None
 
     def __init__(self, message: str = "", *, code: str | None = None, fields: Any = (), details: dict[str, Any] | None = None,
                  status: int | None = None) -> None:
@@ -182,15 +232,30 @@ class ServiceInvalid(ValueError):
         if status is not None:
             self.status = status
 
+    def field_problems(self) -> list[dict[str, str]]:
+        """ADR-019 D1 `details.problems`: one `{field, code}` per named field when the class carries a per-field reason
+        (`field_code`); [] otherwise."""
+        if not self.field_code:
+            return []
+        return [{"field": str(f), "code": str(self.field_code)} for f in self.fields]
+
     def api_details(self) -> dict[str, Any]:
-        """The envelope's `details`: the error's own details, and `fields` when it names any."""
+        """The envelope's `details`: the error's own details, `fields` when it names any, and `problems` when it has per-field
+        reasons (ADR-019 Step 0, item 2)."""
         out = dict(self.details or {})
         if self.fields:
             out.setdefault("fields", list(self.fields))
+            problems = self.field_problems()
+            if problems:
+                out.setdefault("problems", problems)
         return out
 
-    # test-only: no product caller; used by tests/test_be_small_unify_2440.py, tests/test_be_twins_2440.py (+1 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
-    def to_api_error(self, message: str | None = None, *, status: int | None = None) -> ApiError:
-        """The ApiError a router raises for this error: its status (422 unless the class or the instance says otherwise), its code,
-        `message` when the router has the user-facing text (else the error's own message), and `api_details()`."""
-        return ApiError(status or self.status, self.code, message or self.message or str(self), details=self.api_details())
+    def to_api_error(self, message: str | None = None, *, status: int | None = None, code: str | None = None,
+                     legacy: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> ApiError:
+        """The ApiError a router raises for this error: its status (422 unless the class or the instance says otherwise), its code
+        (`code` overrides it where the class's own code is a per-field reason and the endpoint answers another), `message` when the
+        router has the user-facing text (else the error's own message), and `api_details()`. ADR-019 Step 1: `legacy` is the
+        family's pre-migration key (`{"field": ...}`), sent next to the canonical ones until its readers moved; `extra` holds the
+        endpoint's own details (`message_en`, ...). The keys of `api_details()` win over both."""
+        details = {**(legacy or {}), **(extra or {}), **self.api_details()}
+        return ApiError(status or self.status, code or self.code, message or self.message or str(self), details=details)

@@ -80,6 +80,7 @@ P_CORE_STOP = "/core/stop"        # WISKEY-MANAGED-INSTALL-2382: stop the core b
 P_CORE_START = "/core/start"      # WISKEY-MANAGED-INSTALL-2382: start it again after the swap / the rollback
 P_ADDONS = "/addons"              # HEALTH-GO2RTC-FOLLOWUP-2431: READ the installed add-ons list (services/video_services.py: which are go2rtc)
 P_ADDON_INFO = "/addons/{addon}/info"  # HEALTH-GO2RTC-FOLLOWUP-2431: READ one listed go2rtc add-on's info (hostname, state, version, image)
+P_NETWORK_INFO = "/network/info"  # ONVIF-DISCOVER-2500: READ the host's own interface networks (the only range a camera scan may cover)
 
 # The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
 ALLOWED: frozenset[tuple[str, str]] = frozenset({
@@ -91,6 +92,7 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset({
     ("DELETE", P_DISCOVERY_ITEM),                                            # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
     ("GET", P_BACKUPS), ("POST", P_CORE_STOP), ("POST", P_CORE_START),        # WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run
     ("GET", P_ADDONS), ("GET", P_ADDON_INFO),                                 # HEALTH-GO2RTC-FOLLOWUP-2431: which video services run (read only)
+    ("GET", P_NETWORK_INFO),                                                  # ONVIF-DISCOVER-2500: the site's own network (read only)
 })
 # The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
 BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {

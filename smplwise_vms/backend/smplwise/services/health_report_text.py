@@ -51,6 +51,8 @@ TEXTS: dict[str, tuple[str, str]] = {
     "storage.label": ("אחסון התוסף (/data)", "Add-on storage (/data)"),
     "storage.detail": ("פנוי {free} מתוך {total} · תוכניות {plans} · תמונות אירועים {thumbs} · גיבויים {backups} · ייצוא {exports} · ראיות מיובאות {imported}",
                        "{free} free of {total} · plans {plans} · event pictures {thumbs} · backups {backups} · exports {exports} · imported evidence {imported}"),
+    # T068-EDGE-2450: a write was refused for lack of space although the volume reports free space (quota)
+    "storage.refused": ("שמירה נדחתה לאחרונה בגלל מחסור במקום באחסון", "a save was refused recently for lack of storage space"),
     "storage.unreadable": ("לא ניתן לקרוא את שטח הדיסק ({error})", "The disk space cannot be read ({error})"),
     # Home Assistant and the bridge
     "ha.label": ("סנכרון Home Assistant", "Home Assistant sync"),
@@ -138,6 +140,8 @@ TEXTS: dict[str, tuple[str, str]] = {
     "sum.ha_none": ("אין חיבור לתשתית המערכת", "No connection to the platform"),
     "sum.ffmpeg": ("ffmpeg חסר — אין תמונות אירועים", "ffmpeg is missing — no event pictures"),
     "sum.storage": ("אחסון התוסף כמעט מלא — שמירות, תיעוד פעולות ופקודות עלולים להיכשל", "The add-on storage is almost full — saves, the action log and commands may fail"),
+    "sum.storage_refused": ("האחסון של התוסף מסרב לשמירות (אין מקום לכתיבה) — שמירות, תיעוד פעולות ופקודות נכשלות",
+                            "The add-on storage is refusing saves (no room to write) — saves, the action log and commands fail"),
     "sum.no_backup": ("אין עדיין גיבוי של הפרויקט", "There is no backup of the project yet"),
     "sum.backup_old": ("הגיבוי האחרון ישן מיומיים", "The last backup is more than two days old"),
     "sum.portal_dropped": ("{n} בקשות קוד של ספקים לא טופלו בשעה האחרונה (התור מלא)", "{n} vendor code requests were not handled in the last hour (the queue is full)"),

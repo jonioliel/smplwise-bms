@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate
 from ..db import get_setting, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import transit_store as store
 from ..services.transit import catalogue, health, model, poller, stride
@@ -96,13 +96,13 @@ def put_settings(body: ConfigIn, request: Request, principal: Principal = Depend
     patch = body.model_dump(exclude_none=True)
     try:
         new = model.normalize_config({**old, **patch}, strict=True)
-    except model.Invalid as exc:
-        raise ApiError(422, "validation", str(exc), details={"field": exc.field})
+    except model.Invalid as exc:  # ADR-019 Step 1: the canonical keys, `field` still sent (legacy)
+        raise exc.to_api_error(str(exc), legacy={"field": exc.field}) from None
     have = store.stop_count(conn) > 0
     for s in new["stops"]:  # a stop must exist in the local catalogue once there is one; its catalogue name is the default display name
         row = catalogue.get(conn, s["code"]) if have else None
         if have and row is None:
-            raise ApiError(422, "validation", "קוד תחנה לא נמצא בקטלוג התחנות.", details={"field": "stops", "code": s["code"]})
+            raise field_error("קוד תחנה לא נמצא בקטלוג התחנות.", ["stops"], legacy={"field": "stops"}, extra={"code": s["code"]})
         if not s["name"] and row:
             s["name"] = row["name"][: model.STOP_NAME_MAX]
     if new != old:

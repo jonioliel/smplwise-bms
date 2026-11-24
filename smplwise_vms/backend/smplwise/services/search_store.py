@@ -43,5 +43,5 @@ def placed_entities(conn: sqlite3.Connection) -> Rows:
 
 def searchable_entities(conn: sqlite3.Connection) -> Rows:
     """Every enabled entity that is not a scheduler, with the state's friendly name (when the attributes are valid JSON)."""
-    return conn.execute("SELECT entity_id, name, original_name, domain, area_name, CASE WHEN json_valid(attributes_json) THEN json_extract(attributes_json, '$.friendly_name') END AS friendly_name "
+    return conn.execute("SELECT entity_id, name, original_name, domain, area_id, area_name, CASE WHEN json_valid(attributes_json) THEN json_extract(attributes_json, '$.friendly_name') END AS friendly_name "
                         "FROM ha_entities WHERE disabled = 0 AND " + dsvc.NOT_SCHEDULER_SQL + " ORDER BY name, entity_id").fetchall()

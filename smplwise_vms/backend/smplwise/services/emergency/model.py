@@ -69,6 +69,7 @@ class Invalid(ServiceInvalid):
         self.field = field
         self.code = code
         self.fields = [field] if field else []
+        self.field_code = code  # ADR-019: `code` is the field's reason (`format`, `type`, ...) -> details.problems
 
 
 def default_thresholds() -> dict[str, float]:

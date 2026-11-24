@@ -97,14 +97,16 @@ def register(w: World, user: str, name: str = "הנייד שלי", relay_token: 
 def test_push_registration_validation_mutes_and_unregister(w, relay):
     did, tok = register(w, "ops2")
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "x"}, headers=tok).json()["code"] == "invalid_relay_token"
-    assert w.c.post(f"{API}/notifications/devices", json={"platform": "windows", "relay_token": "rt_0123456789abcdef0123"}, headers=tok).json()["code"] == "invalid_platform"
+    r = w.c.post(f"{API}/notifications/devices", json={"platform": "windows", "relay_token": "rt_0123456789abcdef0123"}, headers=tok)
+    assert r.json()["code"] == "invalid_platform" and r.json()["details"] == {"field": "platform", "fields": ["platform"]}  # ADR-019 family 2
     assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123"}, headers=as_user("ops2")).status_code == 401  # device token only
     cats = w.c.get(f"{API}/notifications/categories", headers=tok).json()["categories"]
     assert [c["id"] for c in cats] == ["safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance", "building"] and cats[-1]["name"] == "הודעות לבניין" and cats[0] == {"id": "safety", "name": "בטיחות", "critical": True}
     assert w.c.get(f"{API}/notifications/categories", headers=as_user("ops2")).status_code == 200  # a session reads it too (the web app's device card)
     r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["automations", "system"]}, headers=tok)
     assert r.status_code == 200 and r.json()["push"]["muted"] == ["automations", "system"]
-    assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["spam"]}, headers=tok).status_code == 422
+    r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["spam"]}, headers=tok)
+    assert r.status_code == 422 and r.json()["details"]["fields"] == ["muted"] and r.json()["details"]["field"] == "muted"  # ADR-019 family 2
     assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": []}, headers=as_user("ops2")).json()["push"]["muted"] == []
     # another user's session or device cannot touch it; the administrator may unregister push; the device stays registered
     assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": []}, headers=as_user("vera")).status_code == 404

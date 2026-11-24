@@ -26,7 +26,8 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import building_scope, home_mapping_store as store
+from ..services import building_filter, building_scope, home_mapping_store as store
+from ..services import multi_building_check as mbc
 from ._common import rid as _rid
 from .catalog import P_CONTENT, get_site
 from ..wire import home_mapping as W
@@ -133,6 +134,12 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal_
         # round 14 (owner 02.11): "הרשאת בניין לפי" - read by every mapping reader, changed only with rbac.roles.manage everywhere
         "building_reach": building_scope.reach_mode(conn),
         "can_set_reach": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed,
+        # MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): the check before turning the switch on - required, or skipped by this setting
+        "review_mode": mbc.review_mode(conn),
+        "can_set_review": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed,
+        # MULTI-BUILDING-NEXT-2500 (owner 22.11, Q69 "the filtering"): the building filter of the lists - display only, the switch's own rule
+        "filter_mode": building_filter.filter_mode(conn),
+        "can_set_filter": _can_toggle(conn, principal),
         "versions": _versions(conn, site_id),
         "seen": seen if isinstance(seen, list) else None,
         "items": items,
@@ -205,24 +212,95 @@ def put_settings(site_id: str, body: SettingsIn, request: Request, principal: Pr
 
 class MultiIn(BaseModel):
     enabled: bool
+    # MULTI-BUILDING-SAFETY-2500: the digest of the check the person was shown (GET /home/multi-building/check); required to turn on
+    check_digest: str | None = Field(default=None, max_length=64)
 
 
-@router.put("/home/multi-building", **wire(W.HomeMappingMulti))
-def put_multi_building(body: MultiIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The multi-building view of the home screen: OFF by default (owner 31.10). Off = the exact one-building home; the mapping data stays."""
+def _require_toggle(conn: sqlite3.Connection, principal: Principal) -> list[str]:
+    """The switch's own rule: site.content.configure on every live site (each refusal audited by require)."""
     sites = store.live_site_ids(conn)
     if not sites:
         raise validation("אין אתר במערכת.")
     for s in sites:
         require(conn, principal, P_CONTENT, ("site", s))
+    return sites
+
+
+@router.get("/home/multi-building/check", **wire(W.HomeMultiBuildingCheck))
+def multi_building_check(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The check before the multi-building switch is turned on: blocking and non-blocking findings and the digest to confirm with."""
+    _require_toggle(conn, principal)
+    return mbc.report(conn)
+
+
+def _refuse_on(conn: sqlite3.Connection, principal: Principal, request: Request, code: str, message: str, rep: dict[str, Any]) -> ApiError:
+    audit(conn, actor=principal, action="home.multi_building", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+          reason=code, details={"enabled": True, "check": mbc.summary(rep)})
+    return conflict(code, message, digest=rep["digest"], blocking=rep["blocking"], warnings=rep["warnings"])
+
+
+@router.put("/home/multi-building", **wire(W.HomeMappingMulti))
+def put_multi_building(body: MultiIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The multi-building view of the home screen: OFF by default (owner 31.10). Off = the exact one-building home; the mapping data stays.
+    Turning it on needs the check (owner 22.11, Q63) unless an administrator of roles set `home.multi_building.review` = skip."""
+    _require_toggle(conn, principal)
     before = multi_building_on(conn)
+    check: dict[str, Any] | None = None
+    if body.enabled and not before:
+        rep = mbc.report(conn)
+        mode = mbc.review_mode(conn)
+        if mode == "required":
+            if not body.check_digest:
+                raise _refuse_on(conn, principal, request, "check_required", "לפני הפעלת ריבוי בניינים צריך לעבור על הבדיקה.", rep)
+            if body.check_digest != rep["digest"]:
+                raise _refuse_on(conn, principal, request, "check_stale", "המיפוי או ההרשאות השתנו מאז הבדיקה. עברו עליה שוב.", rep)
+            if rep["blocking"]:
+                raise _refuse_on(conn, principal, request, "check_blocked", "בבדיקה יש ממצאים חוסמים. תקנו אותם לפני ההפעלה.", rep)
+        check = {**mbc.summary(rep), "result": "passed" if mode == "required" else "skipped"}
+        mbc.remember_on(conn, now_iso(), principal.user_id)
     reach_before = building_scope.mapping_reach_on(conn)
     set_setting(conn, MULTI_KEY, "on" if body.enabled else "off")
     if reach_before or building_scope.mapping_reach_on(conn):
         building_scope.mapping_changed(conn)  # round 14: the mapping starts / stops counting for building reach - open sockets re-scope now
     audit(conn, actor=principal, action="home.multi_building", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
-          details={"enabled": body.enabled, "was": before})
-    return {"enabled": body.enabled}
+          details={"enabled": body.enabled, "was": before, **({"check": check} if check else {})})
+    out: dict[str, Any] = {"enabled": body.enabled}
+    if check:
+        out["check"] = check["result"]
+    return out
+
+
+class ReviewIn(BaseModel):
+    mode: Literal["required", "skip"]
+
+
+@router.put("/home/multi-building/review", **wire(W.HomeMultiBuildingReview))
+def put_multi_building_review(body: ReviewIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Whether turning the multi-building switch on needs the check (owner 22.11, Q63: required, a setting may skip it)."""
+    # skipping the check lets the mapping become reach unreviewed: the authority over roles, like "הרשאת בניין לפי"
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    was = mbc.review_mode(conn)
+    set_setting(conn, mbc.REVIEW_KEY, body.mode)
+    audit(conn, actor=principal, action="home.multi_building.review", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"mode": body.mode, "was": was, "multi_building": multi_building_on(conn)})
+    return {"mode": body.mode}
+
+
+class FilterIn(BaseModel):
+    mode: Literal["on", "off"]
+
+
+@router.put("/home/multi-building/filter", **wire(W.HomeMultiBuildingFilter))
+def put_multi_building_filter(body: FilterIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """MULTI-BUILDING-NEXT-2500: whether the full interface's lists (energy meters, schedules, shared rooms, the plan editor's device
+    search, the global search) offer a building filter on a multi-building site. Display only - it never changes who sees what - so it
+    takes the switch's own rule (site.content.configure on every live site). Audited `home.multi_building.filter`."""
+    _require_toggle(conn, principal)
+    was = building_filter.filter_mode(conn)
+    set_setting(conn, building_filter.FILTER_KEY, body.mode)
+    audit(conn, actor=principal, action="home.multi_building.filter", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"mode": body.mode, "was": was, "multi_building": multi_building_on(conn)})
+    return {"mode": body.mode}
 
 
 class ReachIn(BaseModel):

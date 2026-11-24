@@ -168,8 +168,10 @@ def test_rows_of_a_deleted_building_are_not_listed(client, settings):
 def test_multi_building_switch_off_by_default_audited_and_permissioned(client, settings):
     ids = seed_tree(client)
     assert client.get(f"{API}/settings").json()["settings"]["home.multi_building"] == "off"
-    r = client.put(f"{API}/home/multi-building", json={"enabled": True})
-    assert r.status_code == 200 and r.json() == {"enabled": True}
+    # MULTI-BUILDING-SAFETY-2500: turning it on is confirmed with the digest of the check before it
+    digest = client.get(f"{API}/home/multi-building/check").json()["digest"]
+    r = client.put(f"{API}/home/multi-building", json={"enabled": True, "check_digest": digest})
+    assert r.status_code == 200 and r.json() == {"enabled": True, "check": "passed"}
     assert client.get(f"{API}/settings").json()["settings"]["home.multi_building"] == "on"
     assert client.get(f"{API}/sites/{ids['site']}/mapping").json()["multi_building"] is True
     # not through PATCH /settings
@@ -182,7 +184,8 @@ def test_multi_building_switch_off_by_default_audited_and_permissioned(client, s
     bind(client, settings, "dana", "viewer", "installation", "*")
     assert client.put(f"{API}/home/multi-building", json={"enabled": True}, headers=as_user("dana")).status_code == 403
     bind(client, settings, "yoni", "site_admin", "site", ids["site"])
-    assert client.put(f"{API}/home/multi-building", json={"enabled": True}, headers=as_user("yoni")).status_code == 200
+    digest = client.get(f"{API}/home/multi-building/check", headers=as_user("yoni")).json()["digest"]
+    assert client.put(f"{API}/home/multi-building", json={"enabled": True, "check_digest": digest}, headers=as_user("yoni")).status_code == 200
     # ... but not when another site exists that he does not administer
     client.post(f"{API}/sites", json={"name": "אתר שני"})
     assert client.put(f"{API}/home/multi-building", json={"enabled": False}, headers=as_user("yoni")).status_code == 403
