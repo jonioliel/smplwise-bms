@@ -420,10 +420,13 @@ def test_refuse_mode_on_the_bearer_path(arx):
 def test_long_lived_rule_falls_back_to_the_token_lifetime_when_the_listing_drifts(arx, listing):
     arx.setting(fp.LLAT_KEY, "refuse")
     listing["make"] = lambda iss: {"changed": True}
+    # MFA-SECFIX-2500 (merge with MFA-TOKENS-2490): the fake core now gives a long-lived token HA's real lifespan (years), so with HA's
+    # type unknown the token's own lifetime decides both ways: years -> refused; a normal sign-in's 30-minute token -> allowed
     r = arx.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {_long_lived(arx, arx.viewer)}"})
-    # the fake core's long-lived token carries a 30-minute exp: with HA's type unknown, the token's own lifetime decides (short here);
-    # a real long-lived token lives years (test_long_lived_detection_uses_ha_type_then_the_token_lifetime)
-    assert r.status_code == 200
+    assert r.status_code == 403 and r.json()["code"] == "long_lived_token_refused"
+    arx.client.cookies.clear()
+    normal = arx.core.issue(arx.viewer.id, client_id=None)["access_token"]
+    assert arx.client.post("/arx/api/v1/auth/session", headers={"Authorization": f"Bearer {normal}"}).status_code == 200
 
 
 # ================================================================ auth_mfa_seen

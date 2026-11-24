@@ -195,7 +195,8 @@ def test_m1_an_enrolled_administrator_shows_their_own_code(arx):
     with arx.db.connection(mode="read") as conn:
         assert sf.is_enrolled(conn, "u-viewer")
     r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"code": code_now(arx, "dev-joni")})
-    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True}
+    # MFA-SECFIX-2500 SR-2: the answer also counts every factor kind removed (the code came with 10 recovery codes)
+    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10}
     row = arx.audit("auth.second_factor.reset")[-1]
     assert row["decision"] == "allowed" and json.loads(row["details_json"])["step_up"] is True
 
