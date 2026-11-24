@@ -247,6 +247,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("access_tokens", "remote"),  # MFA-TOKENS-2490: the user's own access tokens (HA's read-only, Arx-issued revocable)
     Mount("factor_policy", "remote"),  # MFA-POLICY-2490: the sign-in factor policy - overrides and the compliance view (report mode by default)
     Mount("device_keys", "remote"),  # MFA-DEVICEKEY-2490: the Android app's phone key (register / sign / revoke; owner Q51)
+    Mount("user_factors", "remote"),  # MFA-SCREENS-2510: one user's second factors for the user drawer (read only)
     Mount("capture_lease", "access"),  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
     Mount("bridge_key", "system"),  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
     Mount("wiskey_pairing", "system"),  # WISKEY-PAIRING-2382: Arx <-> WisKey pairing status, probe, guided re-pair

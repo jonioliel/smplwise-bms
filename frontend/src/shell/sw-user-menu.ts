@@ -6,16 +6,16 @@ import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-remote-sessions';
-import '../components/sw-access-tokens'; // MFA-TOKENS-2490: החשבון שלי › אסימוני גישה
-// CR-SHELL-LAZY-2436 (review 07:F24): <sw-second-factor> is imported when its section is first opened (onFactorToggle)
+// CR-SHELL-LAZY-2436 (review 07:F24) / MFA-SCREENS-2510: החשבון שלי › אבטחה (<sw-account-security>: the authenticator code with its QR
+// library, passkeys, phone keys, access tokens) is imported when its section is first opened (onFactorToggle)
 import '../components/sw-native-device-card';
 import { nativeCan } from '../arx/native-app';
-import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-video-prefs';
 import './sw-lang-prefs';
 import { tr } from '../i18n/msg/shell';
+import { tr as trm } from '../i18n/msg/mfa';
 import './sw-home-personal';
 import { can, canAnywhere, cap } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
@@ -42,7 +42,7 @@ export function openAlertsText(n: number): string {
  *   center, CR-018: `open-notifications`; a count chip only when there are unread notifications), עריכת המסך הראשי (the home screen's layout editor: system.configure only), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
  *   יציאה at the foot (the remote channel only: under the local entry the platform owns the sign-in);
  * - החשבון שלי: סדר הלשוניות, הגדרות התראות, וידאו (VIDEO-TRANSPORT-2400: the viewer's own live transport), הכניסות שלי, החלף שרת
- *   (inside the Android app).
+ *   (inside the Android app), אבטחה (MFA-SCREENS-2510: every factor of the user in one place, and the access tokens).
  * The shell owns the open state; this element reports `close` and `nav-order` (open the tab-order dialog).
  */
 @customElement('sw-user-menu')
@@ -78,7 +78,6 @@ export class SwUserMenu extends LitElement {
   @state() private level: 'main' | 'account' = 'main';
   /** The sign-ins list loads only while its section is open (it asks the server). */
   @state() private sessionsOpen = false;
-  @state() private tokensOpen = false;
   /** The WisKey start choices section (WisKey rc.37) loads only while it is open. */
   @state() private wiskeyOpen = false;
   /** VIDEO-TRANSPORT-2400: החשבון שלי › וידאו (the viewer's own live transport) */
@@ -87,10 +86,10 @@ export class SwUserMenu extends LitElement {
   @state() private langOpen = false;
   /** The personal home screen section (screen.personalize) loads only while it is open. */
   @state() private homeOpen = false;
-  /** K11: the optional second factor section loads only while it is open. */
+  /** K11 / MFA-SCREENS-2510: the security section (every factor, the access tokens) loads only while it is open. */
   @state() private factorOpen = false;
-  /** CR-SHELL-LAZY-2436: <sw-second-factor>'s chunk landed (see onFactorToggle). */
-  @state() private factorReady = typeof customElements !== 'undefined' && !!customElements.get('sw-second-factor');
+  /** CR-SHELL-LAZY-2436: <sw-account-security>'s chunk landed (see onFactorToggle). */
+  @state() private factorReady = typeof customElements !== 'undefined' && !!customElements.get('sw-account-security');
   @state() private deviceOpen = false;
   @state() private staffOpen = false; // TKSTAFF1 review F3: the own work-link mobile
 
@@ -448,7 +447,6 @@ export class SwUserMenu extends LitElement {
    * mounted and loaded, and the flag disagrees with what the person sees. */
   private closeSections() {
     this.sessionsOpen = false;
-    this.tokensOpen = false;
     this.wiskeyOpen = false;
     this.videoOpen = false;
     this.langOpen = false;
@@ -458,14 +456,14 @@ export class SwUserMenu extends LitElement {
     this.staffOpen = false;
   }
 
-  /** CR-SHELL-LAZY-2436 (review 07:F24): the second factor section opened - its element (and the QR library it carries) is a chunk of
+  /** CR-SHELL-LAZY-2436 (review 07:F24): the security section opened - its element (and the QR library it carries) is a chunk of
    * its own, fetched on the first opening; the tag is rendered once the chunk landed (GATE2342: never upgraded in place). */
   private onFactorToggle(open: boolean) {
     this.factorOpen = open;
     if (!open || this.factorReady) return;
-    void import('../components/sw-second-factor').then(
+    void import('../components/sw-account-security').then(
       () => (this.factorReady = true),
-      (err: unknown) => console.warn('second factor chunk failed to load', err),
+      (err: unknown) => console.warn('security chunk failed to load', err),
     );
   }
 
@@ -514,14 +512,14 @@ export class SwUserMenu extends LitElement {
     const video = this.api && !this.gated && canAnywhere('video.live') && cap('live_video'); // VIDEO-2403: no live video, no transport choice
     // I18N-EN-SWITCH-2438: the interface language - for every signed-in user (stored on the server, so only with a backend)
     const lang = this.api;
-    // MFA-TOKENS-2490: the signed-in user's own access tokens (Home Assistant's read-only, the app's saved sign-ins revocable)
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, tokens: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video, lang };
+    // MFA-TOKENS-2490 / MFA-SCREENS-2510: the user's own access tokens are part of the security section (`factor`)
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video, lang };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.tokens || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video || acc.lang;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video || acc.lang;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -624,12 +622,6 @@ export class SwUserMenu extends LitElement {
               <div class="sessions">${this.open && this.sessionsOpen ? html`<sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>` : nothing}</div>
             </details></li>`
           : nothing}
-        ${acc.tokens
-          ? html`<li><details data-my-tokens @toggle=${(e: Event) => (this.tokensOpen = (e.currentTarget as HTMLDetailsElement).open)}>
-              <summary><span class="ic"><sw-icon name="lock" size=${18}></sw-icon></span><span class="txt">${tr('אסימוני גישה')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.tokensOpen ? html`<sw-access-tokens></sw-access-tokens>` : nothing}</div>
-            </details></li>`
-          : nothing}
         ${acc.staff
           ? html`<li><details data-my-staff-mobile @toggle=${(e: Event) => {
               this.staffOpen = (e.currentTarget as HTMLDetailsElement).open;
@@ -640,9 +632,9 @@ export class SwUserMenu extends LitElement {
             </details></li>`
           : nothing}
         ${acc.factor
-          ? html`<li><details data-my-second-factor @toggle=${(e: Event) => this.onFactorToggle((e.currentTarget as HTMLDetailsElement).open)}>
-              <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.factorOpen ? html`${this.factorReady ? html`<sw-second-factor></sw-second-factor>` : nothing}<sw-passkeys></sw-passkeys>` : nothing}</div>
+          ? html`<li><details data-my-security data-my-second-factor @toggle=${(e: Event) => this.onFactorToggle((e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${trm('אבטחה')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.factorOpen && this.factorReady ? html`<sw-account-security></sw-account-security>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.device

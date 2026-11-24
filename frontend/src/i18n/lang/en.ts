@@ -72,6 +72,7 @@ import * as t67 from './en/i18n/msg/investigate';
 import * as t68 from './en/i18n/msg/live';
 import * as t69 from './en/i18n/msg/map';
 import * as t70 from './en/i18n/msg/media';
+import * as t70m from './en/i18n/msg/mfa';
 import * as t71 from './en/i18n/msg/misc';
 import * as t72 from './en/i18n/msg/plan-view-card';
 import * as t73 from './en/i18n/msg/plan-wizard';
@@ -222,6 +223,7 @@ export const PACK: LangPack = {
   'i18n/msg/live': t68,
   'i18n/msg/map': t69,
   'i18n/msg/media': t70,
+  'i18n/msg/mfa': t70m,
   'i18n/msg/misc': t71,
   'i18n/msg/plan-view-card': t72,
   'i18n/msg/plan-wizard': t73,

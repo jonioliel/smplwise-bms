@@ -200,10 +200,11 @@ test('the sign-in code step switches to a recovery code (letters, a placeholder)
   const login = page.locator('arx-login');
   const code = login.locator('[data-arx-code]');
   await expect(code).toHaveAttribute('inputmode', 'numeric');
-  await login.locator('[data-arx-recovery-toggle]').click();
+  // MFA-SCREENS-2510: the "use a recovery code" link became the second step's methods chooser (code / recovery code)
+  await login.locator('[data-arx-method="recovery"]').click();
   await expect(code).toHaveAttribute('inputmode', 'text');
   await expect(code).toHaveAttribute('placeholder', 'XXXX-XXXX');
-  await expect(login.locator('[data-arx-recovery-toggle]')).toHaveText('שימוש בקוד מהאפליקציה');
+  await expect(login.locator('[data-arx-method="recovery"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(login.locator('p.sub')).toHaveText('הזן אחד מקודי השחזור ששמרת. כל קוד עובד פעם אחת.');
   if (process.env.SW_SHOTS) {
     fs.mkdirSync(process.env.SW_SHOTS, { recursive: true });
@@ -213,7 +214,7 @@ test('the sign-in code step switches to a recovery code (letters, a placeholder)
       await page.screenshot({ path: path.join(process.env.SW_SHOTS, `rc-login-${page.viewportSize()?.width ?? 0}-${scheme}.png`) });
     }
   }
-  await login.locator('[data-arx-recovery-toggle]').click();
+  await login.locator('[data-arx-method="totp"]').click();
   await expect(code).toHaveAttribute('inputmode', 'numeric');
 });
 

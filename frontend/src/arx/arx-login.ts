@@ -9,6 +9,7 @@ import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './an
 import { changePassword, confirmReset, localMe, localPasskeySecondFactor, localPasskeySignIn, localSecondFactor, localSignIn, requestReset } from './local-auth';
 import { lit } from '../i18n/local-identity';
 import { tr } from '../i18n/msg/misc';
+import { tr as trm } from '../i18n/msg/mfa';
 import { PasskeyCancelled, passkeysSupported } from './webauthn';
 import '../components/sw-second-factor';
 import '../components/sw-passkeys';
@@ -47,6 +48,10 @@ export class ArxLogin extends LitElement {
   @property() initialMode: '' | 'infra' | 'local' = '';
   /** USR2 phase 4: the server allows passkey-only sign-in (remote-config `local_passkey_first`): the local mode shows the button. */
   @property({ type: Boolean }) passkeyFirst = false;
+  /** MFA-SCREENS-2510 (owner answer 2026-11-24 Q14: not yet): the screen hook for "a sign-in with a recovery code asks to set up the
+   * authenticator again". On (remote-config `recovery_reenrol`, which no server sends yet), a recovery-code sign-in lands on the
+   * enrolment step instead of the app; off (the default) changes nothing. */
+  @property({ type: Boolean }) recoveryReenrol = false;
   /** USR2 phase 4: how the pending local second step can be answered (`methods` of the 202; TOTP when absent). */
   @state() private factorMethods: ('totp' | 'passkey')[] = ['totp'];
   @state() private mode: 'infra' | 'local' = 'infra';
@@ -58,6 +63,8 @@ export class ArxLogin extends LitElement {
   @state() private mfaName = '';
   /** MFA-RECOVERY-CODES-2490: the Arx code step takes a one-time recovery code instead of the app's code (letters, not a number pad). */
   @state() private recoveryCode = false;
+  /** MFA-SCREENS-2510: the passkey is the chosen way of the second step (the methods chooser; the code form otherwise). */
+  @state() private passkeyChosen = false;
   /** The Android download offer (only on an Android device, only when an administrator configured an address). */
   @state() private offer: AndroidOffer | null = null;
   @query('#username') private usernameEl?: HTMLInputElement;
@@ -382,6 +389,14 @@ export class ArxLogin extends LitElement {
       /* loop 2: the well is a real step down from the card (surface-2 pulled toward the border tone), so an empty field reads as a field */
       background: color-mix(in srgb, var(--sw-surface-2, var(--sw-surface)) 76%, var(--sw-border));
     }
+    /* MFA-SCREENS-2510: the second step's methods chooser - the modes' look (the local / infrastructure switch), up to three keys */
+    .modes.methods.n3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .modes.methods button.mode {
+      font-size: var(--sw-fs-sm);
+      padding-inline: var(--sw-s-1);
+    }
     .passkey-only {
       display: flex;
       flex-direction: column;
@@ -570,16 +585,26 @@ export class ArxLogin extends LitElement {
       return;
     }
     if (this.step === 'lfactor') {
+      const recovery = this.recoveryCode;
       await this.run(async () => {
         const r = await localSecondFactor(code);
+        if (recovery && this.recoveryReenrol && !r.must_change_password) {
+          this.step = 'enrol';
+          return;
+        }
         await this.afterLocal(!!r.must_change_password);
       }, false);
       if (this.error && this.codeEl) this.codeEl.value = '';
       return;
     }
     if (this.step === 'factor') {
+      const recovery = this.recoveryCode;
       await this.run(async () => {
         await completeSecondFactor(code);
+        if (recovery && this.recoveryReenrol) {
+          this.step = 'enrol'; // MFA-SCREENS-2510 Q14 hook (off by default)
+          return;
+        }
         this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
       });
       return;
@@ -653,7 +678,41 @@ export class ArxLogin extends LitElement {
     this.flow = null;
     this.step = 'credentials';
     this.recoveryCode = false;
+    this.passkeyChosen = false;
     if (clearError) this.error = '';
+  }
+
+  /** MFA-SCREENS-2510: the ways the second step can be answered here - the authenticator code, a passkey (an Arx-only identity whose
+   * browser can use one) and a one-time recovery code (only beside the authenticator code: the codes are made with it). The remote
+   * sign-in of a home-system user offers the code and the recovery code (slice 4 left the passkey out of that step). */
+  private methods(): ('totp' | 'passkey' | 'recovery')[] {
+    if (this.step === 'factor') return ['totp', 'recovery'];
+    if (this.step !== 'lfactor') return [];
+    const totp = this.factorMethods.includes('totp');
+    return [...(totp ? (['totp'] as const) : []), ...(this.factorMethods.includes('passkey') && passkeysSupported() ? (['passkey'] as const) : []), ...(totp ? (['recovery'] as const) : [])];
+  }
+
+  private async chooseMethod(m: 'totp' | 'passkey' | 'recovery') {
+    this.passkeyChosen = m === 'passkey';
+    this.recoveryCode = m === 'recovery';
+    this.error = '';
+    if (this.codeEl) this.codeEl.value = '';
+    await this.updateComplete;
+    if (m === 'passkey') this.renderRoot.querySelector<HTMLElement>('[data-arx-passkey-factor]')?.focus();
+    else this.codeEl?.focus();
+  }
+
+  /** MFA-SCREENS-2510: one chooser for the second step (replaces slice 7's "use a recovery code" link and the separate passkey button),
+   * in the look of the local / infrastructure switch. Nothing when there is only one way. */
+  private renderMethods() {
+    const all = this.methods();
+    if (all.length < 2) return nothing;
+    const current = this.passkeyChosen ? 'passkey' : this.recoveryCode ? 'recovery' : 'totp';
+    const label = { totp: trm('קוד מהאפליקציה'), passkey: trm('מפתח גישה'), recovery: t('secondFactor.recoveryCodeLabel') };
+    return html`<div class="modes methods n${all.length}" role="group" aria-label=${trm('דרך האימות')} data-arx-methods>
+      ${all.map((m) => html`<button type="button" class="mode ${m === current ? 'on' : ''}" aria-pressed=${m === current ? 'true' : 'false'} ?disabled=${this.busy}
+        data-arx-method=${m} @click=${() => void this.chooseMethod(m)}>${label[m]}</button>`)}
+    </div>`;
   }
 
   private renderOffer() {
@@ -698,7 +757,7 @@ export class ArxLogin extends LitElement {
           : this.step === 'factor'
           ? t('secondFactor.loginPrompt')
           : this.step === 'lfactor'
-          ? this.factorMethods.includes('totp') ? lit('codePrompt') : lit('passkeyUse')
+          ? this.factorMethods.includes('totp') && !this.passkeyChosen ? lit('codePrompt') : lit('passkeyUse')
           : this.step === 'enrol'
           ? lit('enrolSub')
           : this.step === 'change'
@@ -757,24 +816,17 @@ export class ArxLogin extends LitElement {
                   <button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeySignIn()} data-arx-passkey-signin>${this.busy ? lit('passkeyWaiting') : lit('passkeySignIn')}</button>`
               : nothing}
           </form>`
-        : this.step === 'lfactor' && !this.factorMethods.includes('totp')
-        ? html`<div class="passkey-only" data-arx-passkey-only>
+        : (this.step === 'lfactor' && !this.factorMethods.includes('totp')) || (this.step === 'lfactor' && this.passkeyChosen)
+        ? html`${this.renderMethods()}<div class="passkey-only" data-arx-passkey-only>
             <button type="button" ?disabled=${this.busy || !passkeysSupported()} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${this.busy ? lit('passkeyWaiting') : lit('passkeyUse')}</button>
             ${passkeysSupported() ? nothing : html`<span class="hint">${lit('passkeyUnsupported')}</span>`}
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
           </div>`
-        : html`<form @submit=${this.onCode} novalidate>
+        : html`${this.renderMethods()}<form @submit=${this.onCode} novalidate>
             <label>${this.recoveryCode ? t('secondFactor.recoveryCodeLabel') : tr('קוד אימות')}<input id="code" class="code" name="code" inputmode=${this.recoveryCode ? 'text' : 'numeric'}
               autocomplete="one-time-code" autocapitalize=${this.recoveryCode ? 'characters' : 'off'} spellcheck="false" placeholder=${this.recoveryCode ? 'XXXX-XXXX' : ''}
               maxlength="12" required ?disabled=${this.busy} data-arx-code /></label>
             <button type="submit" ?disabled=${this.busy} data-arx-verify>${this.busy ? tr('בודק…') : tr('אימות')}</button>
-            ${this.step === 'factor' || this.step === 'lfactor'
-              ? html`<button type="button" class="link" ?disabled=${this.busy} data-arx-recovery-toggle
-                  @click=${() => { this.recoveryCode = !this.recoveryCode; this.error = ''; if (this.codeEl) this.codeEl.value = ''; this.codeEl?.focus(); }}>${this.recoveryCode ? t('secondFactor.recoveryUseApp') : t('secondFactor.recoveryUse')}</button>`
-              : nothing}
-            ${this.step === 'lfactor' && this.factorMethods.includes('passkey') && passkeysSupported()
-              ? html`<button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${lit('passkeyUse')}</button>`
-              : nothing}
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${tr('חזרה לכניסה')}</button>
           </form>`}
       <div class="foot">

@@ -1,4 +1,7 @@
 import '../components/sw-second-factor';
+import '../components/sw-user-factors'; // MFA-SCREENS-2510: the user drawer's factors section
+import '../components/sw-factor-policy-admin'; // MFA-SCREENS-2510: the tab "אימות דו־שלבי" (policy, compliance, step-up)
+import { tr as trm } from '../i18n/msg/mfa';
 import { t } from '../i18n/he';
 import './system-alarm'; // CR-010: the user's alarm code policy in the user drawer
 import { LitElement, html, css, nothing } from 'lit';
@@ -475,7 +478,8 @@ export class SystemAccess extends LitElement {
     const known = TABS.some((t) => t.id === want)
       || (want === 'ha-users' && (!isApi() || can('users.ha_manage'))) // USR1: the tab exists only with the permission
       || (want === 'local' && isApi() && can('identity.directory.read')) // USR2: the Arx-only identities tab
-      || (want === 'home' && isApi() && can('rbac.assign')); // HOME-SIMPLE-2420: who sees the home or the full interface
+      || (want === 'home' && isApi() && can('rbac.assign')) // HOME-SIMPLE-2420: who sees the home or the full interface
+      || (want === 'factor' && isApi() && (can('system.configure') || can('rbac.assign'))); // MFA-SCREENS-2510: the second-factor policy tab
     if (known && want !== this.tab) this.setTab(want);
   }
 
@@ -902,7 +906,7 @@ export class SystemAccess extends LitElement {
                             <sw-button size="sm" variant="ghost" @click=${() => (this.remoteOff = null)}>${tr('ביטול')}</sw-button>
                           </div>`
                         : nothing}</dd>`}
-                    ${!dir.delegated && can('system.configure') ? html`<dt>${t('secondFactor.adminLabel')}</dt><dd data-second-factor-user><sw-second-factor-user .userId=${u.id}></sw-second-factor-user></dd>` : nothing}
+                    ${!dir.delegated && can('system.configure') ? html`<dt>${t('secondFactor.adminLabel')}</dt><dd data-second-factor-user><sw-user-factors .userId=${u.id}></sw-user-factors></dd>` : nothing}
                     ${!dir.delegated && can('system.configure') ? html`<dt>${t('secondFactor.overrideLabel')}</dt><dd data-second-factor-policy-user><sw-second-factor-policy kind="user" .subjectId=${u.id}></sw-second-factor-policy></dd>` : nothing}
                     ${!dir.delegated && can('system.configure') ? html`<dt>${tr('אזעקה')}</dt><dd data-alarm-user-policy><system-alarm-user .userId=${u.id} ?canEdit=${!this.busy}></system-alarm-user></dd>` : nothing}
                   </dl>
@@ -1249,6 +1253,8 @@ export class SystemAccess extends LitElement {
       ...(can('identity.directory.read') ? [{ id: 'local', label: lit('tab') }] : []),
       // HOME-SIMPLE-2420: the interface each person sees (home / full), the switch, home only, wall panels - the role assigner's own permission
       ...(can('rbac.assign') ? [{ id: 'home', label: tr('ממשק ביתי') }] : []),
+      // MFA-SCREENS-2510: the sign-in factor policy with its compliance view, and the step-up settings (readers: the policy route's)
+      ...(!dir.delegated && (can('system.configure') || can('rbac.assign')) ? [{ id: 'factor', label: trm('אימות דו־שלבי') }] : []),
     ];
     const sub = dir.delegated && !this.groupsMeta.can_manage
       ? `${tr('מנהל אתר · שיוך תפקידים מרשימת ההאצלה בתוך ההיקף שלך בלבד')} · ${tr('{n} משתמשים פעילים', { n: dir.users.length })} · ${tr('רוויזיית הרשאות {n}', { n: dir.revision })}`
@@ -1259,7 +1265,7 @@ export class SystemAccess extends LitElement {
         <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label=${tr('הרשאות')} .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>${tr('שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות.')} ${can('users.ha_manage') ? tr('משתמש חדש נוצר בלשונית "משתמשי מערכת הבית" (תמיד כמשתמש רגיל) או במסך של מערכת הבית.') : tr('אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.')}</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
-        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.tab === 'home' ? html`<sw-home-admin data-home-admin-tab></sw-home-admin>` : this.tab === 'local' ? html`<system-local-users data-local-users-tab .roles=${localRoles(this.roles.roles)} .scopes=${this.scopeOptions}></system-local-users>` : this.renderAuditApi()}
+        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.tab === 'home' ? html`<sw-home-admin data-home-admin-tab></sw-home-admin>` : this.tab === 'factor' ? html`<sw-factor-policy-admin data-factor-policy-tab ?canEdit=${can('system.configure')}></sw-factor-policy-admin>` : this.tab === 'local' ? html`<system-local-users data-local-users-tab .roles=${localRoles(this.roles.roles)} .scopes=${this.scopeOptions}></system-local-users>` : this.renderAuditApi()}
       </sw-page>
     `;
   }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// MFA-TOKENS-2490 (slice 6 of the MFA train): החשבון שלי › אסימוני גישה, against a mocked wire contract of
+// MFA-TOKENS-2490 (slice 6 of the MFA train): החשבון שלי › אסימוני גישה (MFA-SCREENS-2510: inside החשבון שלי › אבטחה), against a mocked wire contract of
 // smplwise/routers/access_tokens.py (invented user and tokens). Home Assistant's tokens are read-only (no revoke button, a hint where
 // to revoke them in Home Assistant); a long-lived token is marked "no repeated check" with a warning; the phone app's saved sign-ins
 // (tokens Arx issued) have a revoke button, and "revoke all" asks once more.
@@ -90,8 +90,8 @@ async function openAccount(page: Page) {
 
 async function openSection(page: Page) {
   const menu = await openAccount(page);
-  await menu.locator('[data-my-tokens] summary').click();
-  const section = menu.locator('[data-my-tokens] sw-access-tokens');
+  await menu.locator('[data-my-security] summary').click();
+  const section = menu.locator('[data-my-security] sw-access-tokens');
   await expect(section.locator('[data-access-tokens-list]')).toBeVisible();
   return section;
 }
@@ -169,10 +169,10 @@ test('compare shots: the account level and the open section, light and dark', as
     await setup(page);
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     const menu = await openAccount(page);
-    await expect(menu.locator('[data-my-tokens]')).toBeVisible();
+    await expect(menu.locator('[data-my-security]')).toBeVisible();
     await shot(page, `after-account-${scheme}`);
-    await menu.locator('[data-my-tokens] summary').click();
-    await expect(menu.locator('[data-my-tokens] sw-access-tokens [data-access-tokens-list]')).toBeVisible();
+    await menu.locator('[data-my-security] summary').click();
+    await expect(menu.locator('[data-my-security] sw-access-tokens [data-access-tokens-list]')).toBeVisible();
     await shot(page, `after-tokens-${scheme}`);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   }
