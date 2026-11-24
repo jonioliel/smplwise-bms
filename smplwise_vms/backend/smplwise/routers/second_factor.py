@@ -405,7 +405,9 @@ def recovery_regenerate(request: Request, body: RecoveryBody | None = None, prin
     if not sf.is_enrolled(conn, principal.user_id):
         raise ApiError(409, "recovery_codes_unavailable", RECOVERY_UNAVAILABLE_HE)
     code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
-    if code:
+    if not code and not step_up.factor_change_proof_on(conn):
+        pass  # MFA-SECFIX-2500 (owner Q2 = b): with step-up off a new batch asks for no proof (as the other factor changes)
+    elif code:
         try:
             sf.verify(conn, settings_of(request), principal.user_id, code)
         except sf.SecondFactorError as exc:

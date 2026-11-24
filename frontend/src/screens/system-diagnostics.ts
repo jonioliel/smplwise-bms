@@ -1688,7 +1688,7 @@ export class SystemDiagnostics extends LitElement {
    * confirmation counts, and whether the local network asks too; the caller's own confirmation below. Saved with the tab's save row
    * (PATCH settings) - which itself needs a fresh confirmation while step-up is on. */
   private renderStepUp(ro: boolean) {
-    const on = String(this.value('security.step_up') ?? 'on') !== 'off';
+    const on = String(this.value('security.step_up') ?? 'off') !== 'off';
     const local = String(this.value('security.step_up_local') ?? 'off') === 'on';
     const minutes = Number(this.value('security.step_up_minutes') ?? 5);
     return html`<sw-card heading=${t('stepUp.settingsHeading')} subheading=${t('stepUp.settingsSub')} data-card="remote.step-up" data-step-up-settings>

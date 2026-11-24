@@ -21,7 +21,7 @@ restart forgets them (the user is asked again). Sources of a mark:
 * the first code of an enrolment in this session (`note_proof`, routers/second_factor.confirm);
 * a local (Arx-only) session whose sign-in showed the factor (`auth_local_sessions.factor_at`) within the window.
 
-Settings: `security.step_up` on (default, the owner's decision) | off (only the sign-in factor); `security.step_up_minutes` 0-30
+Settings: `security.step_up` on | off (MFA-SECFIX-2500: the DEFAULT since the owner's answer Q2 = b of 2026-11-24 - only the sign-in factor); `security.step_up_minutes` 0-30
 (default 5; 0 = every action: a verified proof is good for ONE gated request within ONE_SHOT_S, sign-in proofs do not count);
 `security.step_up_local` off (default: the local channel, Ingress, keeps today's behaviour - CR-011 E) | on.
 
@@ -59,7 +59,13 @@ from ..errors import ApiError
 STEP_UP_KEY = "security.step_up"
 MINUTES_KEY = "security.step_up_minutes"
 LOCAL_KEY = "security.step_up_local"
-DEFAULT_ON = "on"
+# MFA-SECFIX-2500 (owner answer Q2 = b, 2026-11-24; NOT the recommendation): step-up is OFF by default - the owner switches it on
+# himself ("never ask for re-confirmation unless I switched it on"). While it is off the train asks nothing beyond what 2.49.0 asked:
+# only the once-actions that always demanded their own code (another user's factor reset, the bridge-key reveal, the administrator's
+# passkey removal of an Arx-only identity) keep asking. The proofs the slices added (passkey add / remove, a new batch of recovery
+# codes, phone-key add / revoke, a code enrolment next to another factor, the physical gates) apply only while it is on - see
+# `factor_change_proof_on`. SR-3's recent sign-in for a FIRST factor stays (a re-sign-in, not a code prompt).
+DEFAULT_ON = "off"  # the name is kept for the importers; the value is the default of `security.step_up`
 DEFAULT_MINUTES = 5
 MAX_MINUTES = 30
 DEFAULT_LOCAL = "off"
@@ -492,14 +498,19 @@ def recent_sign_in(request: Any) -> bool:
     return at is not None and _fresh(_wall() - at, RECENT_SIGN_IN_S)
 
 
+def factor_change_proof_on(conn: sqlite3.Connection) -> bool:
+    """MFA-SECFIX-2500 (owner Q2 = b): do the proofs for the caller's own factor changes apply? Only while `security.step_up` is on."""
+    return enabled(conn)
+
+
 def require_first_factor_freshness(conn: sqlite3.Connection, request: Any, principal: Any, action: str) -> None:
     """MFA-SECFIX-2500 SR-3: enrolling a factor - the authenticator code, a passkey, a phone key. A user who has a step-up method
     already needs a proof that counts for a factor change (`fresh_proof`, never a recovery code); a user with NO method (a first
     factor) needs a recent sign-in of this session - else 403 `reauth_required` (sign in again). A stolen session long after its
     sign-in therefore cannot take the account's first factor."""
     if methods_of(conn, principal.user_id):
-        if not _is_remote(request):
-            return  # the local channel stays the break-glass path for an extra factor (as for the passkey / phone-key rules)
+        if not _is_remote(request) or not factor_change_proof_on(conn):
+            return  # the local channel stays the break-glass path; with step-up off (owner Q2 = b) no proof is asked
         if not fresh_proof(conn, request, principal):
             raise required_error(conn, principal, action)
         return
