@@ -37,7 +37,7 @@ import time
 from typing import Any
 
 from ..db import Database, get_setting, new_id, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal, is_system_admin
 from . import presence_values as pv
 from ..test_reset import register_reset
@@ -307,8 +307,9 @@ def load_settings(conn: sqlite3.Connection) -> dict[str, Any]:
 
 def _normalize_people(p: Any, *, strict: bool) -> dict[str, Any]:
     """The "who is in the building" thresholds (WHOIN034-295). Lenient on read (a bad stored value falls back to its default), strict on write."""
-    def bad(field: str, msg: str) -> PresenceError:
-        return PresenceError(422, "validation", msg, details={"field": f"people.{field}"})
+    def bad(field: str, msg: str) -> ApiError:  # ADR-019 Step 1 (family 2): the canonical keys, `field` still sent (legacy)
+        path = f"people.{field}"
+        return field_error(msg, ["people" if field == "*" else path], cls=PresenceError, legacy={"field": path})
 
     if not isinstance(p, dict):
         if strict:
@@ -359,8 +360,8 @@ def set_opt_out(conn: sqlite3.Connection, user_id: str, opted_out: bool) -> bool
 
 
 def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
-    def bad(msg: str, field: str) -> PresenceError:
-        return PresenceError(422, "validation", msg, details={"field": field})
+    def bad(msg: str, field: str) -> ApiError:
+        return field_error(msg, [field], cls=PresenceError, legacy={"field": field})
 
     if not isinstance(p, dict):
         if strict:
@@ -410,7 +411,7 @@ def _normalize_required(p: Any, *, strict: bool) -> dict[str, Any]:
 
 def _validate_sites(v: Any) -> list[dict[str, Any]]:
     if not isinstance(v, list) or len(v) > SITES_MAX:
-        raise PresenceError(422, "validation", "עד 20 אתרים (גדרות גאוגרפיות).", details={"field": "sites"})
+        raise field_error("עד 20 אתרים (גדרות גאוגרפיות).", ["sites"], cls=PresenceError, legacy={"field": "sites"})
     out = []
     for s in v:
         try:
@@ -422,10 +423,10 @@ def _validate_sites(v: Any) -> list[dict[str, Any]]:
             if not sid or not -90 <= lat <= 90 or not -180 <= lon <= 180 or not 30 <= radius <= 5000:
                 raise ValueError
         except (KeyError, TypeError, ValueError):
-            raise PresenceError(422, "validation", "אתר: id, lat, lon ו־radius_m (30–5000 מטר).", details={"field": "sites"}) from None
+            raise field_error("אתר: id, lat, lon ו־radius_m (30–5000 מטר).", ["sites"], cls=PresenceError, legacy={"field": "sites"}) from None
         out.append({"id": sid, "name": name, "lat": lat, "lon": lon, "radius_m": radius})
     if len({s["id"] for s in out}) != len(out):
-        raise PresenceError(422, "validation", "מזהי האתרים חייבים להיות ייחודיים.", details={"field": "sites"})
+        raise field_error("מזהי האתרים חייבים להיות ייחודיים.", ["sites"], cls=PresenceError, legacy={"field": "sites"})
     return out
 
 
@@ -443,8 +444,8 @@ def ssid_hash(salt: str, ssid: str) -> str:
 
 def _place_floor(conn: sqlite3.Connection | None, floor_id: Any, zone_id: Any, field: str) -> tuple[str | None, str | None]:
     """An optional (floor, area) placement: the floor must exist, the area (a spatial zone) must be on that floor."""
-    def bad(msg: str) -> PresenceError:
-        return PresenceError(422, "validation", msg, details={"field": field})
+    def bad(msg: str) -> ApiError:
+        return field_error(msg, [field], cls=PresenceError, legacy={"field": field})
 
     fid = str(floor_id).strip() if isinstance(floor_id, str) and floor_id.strip() else None
     zid = str(zone_id).strip() if isinstance(zone_id, str) and zone_id.strip() else None
@@ -462,7 +463,7 @@ def _int_or_none(v: Any, lo: int, hi: int, field: str) -> int | None:
     if v is None or v == "":
         return None
     if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
-        raise PresenceError(422, "validation", f"{field}: מספר בין {lo} ל־{hi}.", details={"field": field})
+        raise field_error(f"{field}: מספר בין {lo} ל־{hi}.", [field], cls=PresenceError, legacy={"field": field})
     return v
 
 
@@ -471,28 +472,28 @@ def _validate_beacons(conn: sqlite3.Connection | None, v: Any, site_ids: set[str
     original keys (the app ranges the UUID and reports the site); the rest is additive: the app may report `beacon_id` (or `uuid` with
     `major` / `minor`) so the server can place the person on a floor and an area."""
     if not isinstance(v, list) or len(v) > BEACONS_MAX:
-        raise PresenceError(422, "validation", f"עד {BEACONS_MAX} משדרים.", details={"field": "beacons"})
+        raise field_error(f"עד {BEACONS_MAX} משדרים.", ["beacons"], cls=PresenceError, legacy={"field": "beacons"})
     out: list[dict[str, Any]] = []
     for b in v:
         if not isinstance(b, dict):
-            raise PresenceError(422, "validation", "משדר: אובייקט.", details={"field": "beacons"})
+            raise field_error("משדר: אובייקט.", ["beacons"], cls=PresenceError, legacy={"field": "beacons"})
         uuid = str(b.get("uuid") or "").strip().lower()
         if not _UUID_RE.match(uuid):
-            raise PresenceError(422, "validation", "מזהה המשדר (UUID) אינו תקין.", details={"field": "beacons.uuid"})
+            raise field_error("מזהה המשדר (UUID) אינו תקין.", ["beacons.uuid"], cls=PresenceError, legacy={"field": "beacons.uuid"})
         site_id = str(b.get("site_id") or "").strip()
         if site_id not in site_ids:
-            raise PresenceError(422, "validation", "יש לשייך את המשדר לאתר מוגדר.", details={"field": "beacons.site_id"})
+            raise field_error("יש לשייך את המשדר לאתר מוגדר.", ["beacons.site_id"], cls=PresenceError, legacy={"field": "beacons.site_id"})
         major = _int_or_none(b.get("major"), 0, 65535, "beacons.major")
         minor = _int_or_none(b.get("minor"), 0, 65535, "beacons.minor")
         bid = str(b.get("id") or "").strip() or "bcn_" + hashlib.sha256(f"{uuid}:{major}:{minor}".encode()).hexdigest()[:10]
         if not _ID_RE.match(bid):
-            raise PresenceError(422, "validation", "מזהה משדר אינו תקין.", details={"field": "beacons.id"})
+            raise field_error("מזהה משדר אינו תקין.", ["beacons.id"], cls=PresenceError, legacy={"field": "beacons.id"})
         fid, zid = _place_floor(conn, b.get("floor_id"), b.get("zone_id"), "beacons.floor_id")
         out.append({"id": bid, "name": " ".join(str(b.get("name") or "").split())[:80], "uuid": uuid, "major": major, "minor": minor, "site_id": site_id, "floor_id": fid, "zone_id": zid})
     if len({b["id"] for b in out}) != len(out):
-        raise PresenceError(422, "validation", "מזהי המשדרים חייבים להיות ייחודיים.", details={"field": "beacons.id"})
+        raise field_error("מזהי המשדרים חייבים להיות ייחודיים.", ["beacons.id"], cls=PresenceError, legacy={"field": "beacons.id"})
     if len({(b["uuid"], b["major"], b["minor"]) for b in out}) != len(out):
-        raise PresenceError(422, "validation", "אותו משדר (UUID, major, minor) מופיע פעמיים.", details={"field": "beacons.uuid"})
+        raise field_error("אותו משדר (UUID, major, minor) מופיע פעמיים.", ["beacons.uuid"], cls=PresenceError, legacy={"field": "beacons.uuid"})
     return out
 
 
@@ -500,38 +501,38 @@ def _validate_wifi_sites(conn: sqlite3.Connection | None, v: Any, site_ids: set[
     """Wi-Fi sites (WHOIN034-295): `{id, name, site_id, floor_id?, ssid_hash_salt, ssid_hashes, add_ssids?}`. The editor sends new network
     names in `add_ssids` (write-only): the server hashes them with the site's salt (made here when missing) and keeps only the hashes."""
     if not isinstance(v, list) or len(v) > WIFI_SITES_MAX:
-        raise PresenceError(422, "validation", f"עד {WIFI_SITES_MAX} רשתות אתר.", details={"field": "wifi_sites"})
+        raise field_error(f"עד {WIFI_SITES_MAX} רשתות אתר.", ["wifi_sites"], cls=PresenceError, legacy={"field": "wifi_sites"})
     before = {str(w.get("id")): w for w in current if isinstance(w, dict) and w.get("id")}
     out: list[dict[str, Any]] = []
     for w in v:
         if not isinstance(w, dict):
-            raise PresenceError(422, "validation", "רשת אתר: אובייקט.", details={"field": "wifi_sites"})
+            raise field_error("רשת אתר: אובייקט.", ["wifi_sites"], cls=PresenceError, legacy={"field": "wifi_sites"})
         site_id = str(w.get("site_id") or "").strip()
         if site_id not in site_ids:
-            raise PresenceError(422, "validation", "יש לשייך את הרשת לאתר מוגדר.", details={"field": "wifi_sites.site_id"})
+            raise field_error("יש לשייך את הרשת לאתר מוגדר.", ["wifi_sites.site_id"], cls=PresenceError, legacy={"field": "wifi_sites.site_id"})
         wid = str(w.get("id") or "").strip() or "wifi_" + new_id()[:10]
         if not _ID_RE.match(wid):
-            raise PresenceError(422, "validation", "מזהה רשת אינו תקין.", details={"field": "wifi_sites.id"})
+            raise field_error("מזהה רשת אינו תקין.", ["wifi_sites.id"], cls=PresenceError, legacy={"field": "wifi_sites.id"})
         salt = w.get("ssid_hash_salt") or (before.get(wid) or {}).get("ssid_hash_salt") or secrets.token_hex(16)
         if not isinstance(salt, str) or not 8 <= len(salt) <= 64:
-            raise PresenceError(422, "validation", "ערך ההמלחה אינו תקין.", details={"field": "wifi_sites.ssid_hash_salt"})
+            raise field_error("ערך ההמלחה אינו תקין.", ["wifi_sites.ssid_hash_salt"], cls=PresenceError, legacy={"field": "wifi_sites.ssid_hash_salt"})
         hashes = w.get("ssid_hashes", [])
         if isinstance(hashes, list):  # 2.16.0 integration: hashes compare case-insensitively (the 2.15.0 behaviour); stored lowercase
             hashes = [h.strip().lower() if isinstance(h, str) else h for h in hashes]
         add = w.get("add_ssids", [])
         if not isinstance(hashes, list) or any(not isinstance(h, str) or not _HEX64_RE.match(h) for h in hashes):
-            raise PresenceError(422, "validation", "רשימת הרשתות אינה תקינה.", details={"field": "wifi_sites.ssid_hashes"})
+            raise field_error("רשימת הרשתות אינה תקינה.", ["wifi_sites.ssid_hashes"], cls=PresenceError, legacy={"field": "wifi_sites.ssid_hashes"})
         if not isinstance(add, list) or any(not isinstance(s, str) or not 1 <= len(s.encode("utf-8")) <= 32 for s in add):
-            raise PresenceError(422, "validation", "שם רשת: 1 עד 32 תווים.", details={"field": "wifi_sites.add_ssids"})
+            raise field_error("שם רשת: 1 עד 32 תווים.", ["wifi_sites.add_ssids"], cls=PresenceError, legacy={"field": "wifi_sites.add_ssids"})
         merged = list(dict.fromkeys([*hashes, *(ssid_hash(salt, s) for s in add)]))
         if not merged:
-            raise PresenceError(422, "validation", "יש להזין לפחות שם רשת אחד.", details={"field": "wifi_sites.add_ssids"})
+            raise field_error("יש להזין לפחות שם רשת אחד.", ["wifi_sites.add_ssids"], cls=PresenceError, legacy={"field": "wifi_sites.add_ssids"})
         if len(merged) > SSID_HASHES_MAX:
-            raise PresenceError(422, "validation", f"עד {SSID_HASHES_MAX} רשתות לאתר.", details={"field": "wifi_sites.ssid_hashes"})
+            raise field_error(f"עד {SSID_HASHES_MAX} רשתות לאתר.", ["wifi_sites.ssid_hashes"], cls=PresenceError, legacy={"field": "wifi_sites.ssid_hashes"})
         fid, _ = _place_floor(conn, w.get("floor_id"), None, "wifi_sites.floor_id")
         out.append({"id": wid, "name": " ".join(str(w.get("name") or "").split())[:80], "site_id": site_id, "floor_id": fid, "ssid_hash_salt": salt, "ssid_hashes": merged})
     if len({w["id"] for w in out}) != len(out):
-        raise PresenceError(422, "validation", "מזהי הרשתות חייבים להיות ייחודיים.", details={"field": "wifi_sites.id"})
+        raise field_error("מזהי הרשתות חייבים להיות ייחודיים.", ["wifi_sites.id"], cls=PresenceError, legacy={"field": "wifi_sites.id"})
     return out
 
 
@@ -546,7 +547,7 @@ def _validate_places(conn: sqlite3.Connection, body: dict[str, Any], current: di
         # a geofence still named by a beacon or a Wi-Fi site cannot go unless those go (or move) in the same save
         for key, label in (("beacons", "משדר"), ("wifi_sites", "רשת")):
             if key not in body and any(str(x.get("site_id")) not in site_ids for x in current[key]):
-                raise PresenceError(422, "validation", f"{label} עדיין משויך לאתר שהוסר.", details={"field": key})
+                raise field_error(f"{label} עדיין משויך לאתר שהוסר.", [key], cls=PresenceError, legacy={"field": key})
     if "beacons" in body:
         out["beacons"] = _validate_beacons(conn, body["beacons"], site_ids)
     if "wifi_sites" in body:
@@ -565,32 +566,32 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites", "wifi_match_mode",
                            "value_check", "retention_days", "required_sensors", "people"}
     if unknown:
-        raise PresenceError(422, "validation", "שדה לא מוכר: " + ", ".join(sorted(unknown)), details={"fields": sorted(unknown)})
+        raise field_error("שדה לא מוכר: " + ", ".join(sorted(unknown)), sorted(unknown), cls=PresenceError)
     places = _validate_places(conn, body, current)  # WHOIN034-295: all validated BEFORE anything is written (a refusal still commits)
     if "value_check" in body and body["value_check"] not in pv.VALUE_CHECK_MODES:  # v2.2: also before any write
-        raise PresenceError(422, "validation", "בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", details={"field": "value_check", "known": list(pv.VALUE_CHECK_MODES)})
+        raise field_error("בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", ["value_check"], cls=PresenceError, legacy={"field": "value_check"}, extra={"known": list(pv.VALUE_CHECK_MODES)})
     bump = False
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
-            raise PresenceError(422, "validation", "מתג הנוכחות: כן/לא.", details={"field": "enabled"})
+            raise field_error("מתג הנוכחות: כן/לא.", ["enabled"], cls=PresenceError, legacy={"field": "enabled"})
         set_setting(conn, "presence.enabled", "true" if body["enabled"] else "false")
         changes["enabled"] = body["enabled"]
     if "mode" in body:
         if body["mode"] not in MODES:
-            raise PresenceError(422, "validation", "מצב לא מוכר.", details={"field": "mode"})
+            raise field_error("מצב לא מוכר.", ["mode"], cls=PresenceError, legacy={"field": "mode"})
         set_setting(conn, "presence.mode", body["mode"])
         changes["mode"] = body["mode"]
     for key, lo, hi in (("interval_s", 30, 3600), ("distance_filter_m", 10, 5000), ("retention_days", RETENTION_MIN, RETENTION_MAX)):
         if key in body:
             v = body[key]
             if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
-                raise PresenceError(422, "validation", f"{key}: בין {lo} ל־{hi}.", details={"field": key})
+                raise field_error(f"{key}: בין {lo} ל־{hi}.", [key], cls=PresenceError, legacy={"field": key})
             set_setting(conn, f"presence.{key}", str(v))
             changes[key] = v
     if "notice_text" in body:
         text = body["notice_text"]
         if not isinstance(text, str) or len(text) > 8000:
-            raise PresenceError(422, "validation", "טקסט ההודעה: עד 8000 תווים.", details={"field": "notice_text"})
+            raise field_error("טקסט ההודעה: עד 8000 תווים.", ["notice_text"], cls=PresenceError, legacy={"field": "notice_text"})
         text = text.strip()
         if text != current["notice_text"]:
             set_setting(conn, "presence.notice_text", text)
@@ -599,7 +600,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     if "sensors_allowed" in body:
         v = body["sensors_allowed"]
         if not isinstance(v, list) or any(s not in SENSORS for s in v):
-            raise PresenceError(422, "validation", "חיישן לא מוכר ברשימת המאושרים.", details={"field": "sensors_allowed", "known": list(SENSOR_KEYS)})
+            raise field_error("חיישן לא מוכר ברשימת המאושרים.", ["sensors_allowed"], cls=PresenceError, legacy={"field": "sensors_allowed"}, extra={"known": list(SENSOR_KEYS)})
         allowed = [s for s in SENSOR_KEYS if s in v]
         if set(allowed) - set(current["sensors_allowed"]):
             bump = True  # a newly allowed sensor: the employees are asked again (addendum A.1.3)
@@ -608,7 +609,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     if "intervals_s" in body:
         v = body["intervals_s"]
         if not isinstance(v, dict) or any(k not in SENSORS or not isinstance(x, int) or isinstance(x, bool) or not 30 <= x <= 86400 for k, x in v.items()):
-            raise PresenceError(422, "validation", "מרווחי הדיווח: שניות (30–86400) לכל חיישן מוכר.", details={"field": "intervals_s"})
+            raise field_error("מרווחי הדיווח: שניות (30–86400) לכל חיישן מוכר.", ["intervals_s"], cls=PresenceError, legacy={"field": "intervals_s"})
         set_setting(conn, "presence.intervals_s", json.dumps(v))
         changes["intervals_s"] = v
     if places["sites"] is not None:
@@ -625,7 +626,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
         changes["people"] = places["people"]
     if "wifi_match_mode" in body:
         if body["wifi_match_mode"] not in WIFI_MATCH_MODES:
-            raise PresenceError(422, "validation", "מצב התאמת Wi-Fi: בטלפון או בשרת.", details={"field": "wifi_match_mode", "known": list(WIFI_MATCH_MODES)})
+            raise field_error("מצב התאמת Wi-Fi: בטלפון או בשרת.", ["wifi_match_mode"], cls=PresenceError, legacy={"field": "wifi_match_mode"}, extra={"known": list(WIFI_MATCH_MODES)})
         set_setting(conn, "presence.wifi_match_mode", body["wifi_match_mode"])
         changes["wifi_match_mode"] = body["wifi_match_mode"]
     if "value_check" in body:  # validated above, before any write
@@ -645,10 +646,10 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
 def break_glass(conn: sqlite3.Connection, actor_user_id: str, hours: int, reason: str) -> dict[str, Any]:
     """Suspend the required-sensors policy for `hours` (0 = end the suspension now). Always audited by the caller."""
     if not isinstance(hours, int) or isinstance(hours, bool) or not 0 <= hours <= 24 * 14:
-        raise PresenceError(422, "validation", "משך ההשעיה: עד 14 יום (0 מסיים אותה).", details={"field": "hours"})
+        raise field_error("משך ההשעיה: עד 14 יום (0 מסיים אותה).", ["hours"], cls=PresenceError, legacy={"field": "hours"})
     reason = " ".join(str(reason or "").split())[:200]
     if hours and len(reason) < 3:
-        raise PresenceError(422, "validation", "נדרשת סיבה להשעיית המדיניות.", details={"field": "reason"})
+        raise field_error("נדרשת סיבה להשעיית המדיניות.", ["reason"], cls=PresenceError, legacy={"field": "reason"})
     until = iso(now_utc() + dt.timedelta(hours=hours)) if hours else None
     set_setting(conn, "presence.break_glass", json.dumps({"until": until, "reason": reason if hours else "", "by": actor_user_id if hours else None}))
     return load_settings(conn)["break_glass"]
@@ -699,7 +700,7 @@ def _suggest(conn: sqlite3.Connection, user_id: str, name: str) -> str:
 def clean_name(name: Any) -> str:
     text = " ".join(str(name or "").split())
     if not NAME_MIN <= len(text) <= NAME_MAX:
-        raise PresenceError(400, "invalid_name", f"השם צריך להכיל בין {NAME_MIN} ל־{NAME_MAX} תווים.", details={"field": "name"})
+        raise field_error(f"השם צריך להכיל בין {NAME_MIN} ל־{NAME_MAX} תווים.", ["name"], code="invalid_name", status=400, cls=PresenceError, legacy={"field": "name"})
     return text
 
 
@@ -709,10 +710,10 @@ def register(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any
     name = clean_name(body.get("name"))
     platform = body.get("platform")
     if platform not in PLATFORMS:
-        raise PresenceError(400, "invalid_platform", "הפלטפורמה אינה מוכרת (ios / android).", details={"field": "platform"})
+        raise field_error("הפלטפורמה אינה מוכרת (ios / android).", ["platform"], code="invalid_platform", status=400, cls=PresenceError, legacy={"field": "platform"})
     install_id = str(body.get("install_id") or "").strip()
     if not 8 <= len(install_id) <= 64:
-        raise PresenceError(400, "invalid_install_id", "מזהה ההתקנה אינו תקין.", details={"field": "install_id"})
+        raise field_error("מזהה ההתקנה אינו תקין.", ["install_id"], code="invalid_install_id", status=400, cls=PresenceError, legacy={"field": "install_id"})
     if not take("register", principal.user_id, RATE_REGISTER):
         raise PresenceError(429, "rate_limited", "יותר מדי רישומים. נסו שוב מאוחר יותר.", retryable=True)
     token = new_token()
@@ -909,7 +910,7 @@ def config_for(conn: sqlite3.Connection, st: dict[str, Any] | None = None) -> di
 def ack_notice(conn: sqlite3.Connection, device: sqlite3.Row, version: Any) -> dict[str, Any]:
     st = load_settings(conn)
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
-        raise PresenceError(400, "invalid_notice_version", "גרסת ההודעה אינה תקינה.", details={"field": "notice_version"})
+        raise field_error("גרסת ההודעה אינה תקינה.", ["notice_version"], code="invalid_notice_version", status=400, cls=PresenceError, legacy={"field": "notice_version"})
     if version != st["notice_version"]:
         raise PresenceError(409, "notice_version_stale", "ההודעה לעובדים התעדכנה. יש להציג את הגרסה החדשה.", details={"notice_version": st["notice_version"]})
     conn.execute("UPDATE mobile_devices SET notice_ack_version = ?, notice_ack_at = ?, last_seen_at = ? WHERE id = ?", (version, now_iso(), now_iso(), device["id"]))
@@ -995,21 +996,23 @@ def _check_value(sensor: str, value: dict[str, Any], mode: str, cid: str) -> dic
         found = pv.problems(sensor, value)
         if found:
             key, reason = found[0]
-            raise PresenceError(400, "invalid_event", VALUE_REFUSED_HE, details={"field": f"value.{key}" if key else "value", "reason": reason, "sensor": sensor,
-                                                                                 "client_event_id": cid, "contract_version": pv.CONTRACT_VERSION})
+            field = f"value.{key}" if key else "value"
+            # ADR-019 Step 1 (family 2): `fields` + `problems` (the reason per field); `field` and `reason` still sent (legacy)
+            raise field_error(VALUE_REFUSED_HE, problems=[{"field": field, "code": reason}], code="invalid_event", status=400, cls=PresenceError,
+                              legacy={"field": field, "reason": reason}, extra={"sensor": sensor, "client_event_id": cid, "contract_version": pv.CONTRACT_VERSION})
     return value
 
 
 def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
     cid = str(e.get("client_event_id") or "").strip()
     if not 1 <= len(cid) <= 64:
-        raise PresenceError(400, "invalid_event", "client_event_id חסר או לא תקין.", details={"field": "client_event_id"})
+        raise field_error("client_event_id חסר או לא תקין.", ["client_event_id"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "client_event_id"})
     typ = e.get("type")
     if typ not in EVENT_TYPES:
-        raise PresenceError(400, "invalid_event", "סוג אירוע לא מוכר.", details={"field": "type", "client_event_id": cid})
+        raise field_error("סוג אירוע לא מוכר.", ["type"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "type"}, extra={"client_event_id": cid})
     at = _parse(e.get("at")) if isinstance(e.get("at"), str) else None
     if at is None:
-        raise PresenceError(400, "invalid_event", "חותמת זמן חסרה או לא תקינה (ISO-8601 UTC).", details={"field": "at", "client_event_id": cid})
+        raise field_error("חותמת זמן חסרה או לא תקינה (ISO-8601 UTC).", ["at"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "at"}, extra={"client_event_id": cid})
     out: dict[str, Any] = {"client_event_id": cid, "type": typ, "at": iso(at), "site_id": None, "lat": None, "lon": None, "accuracy_m": None, "value": None, "sensor": None,
                            "source": e.get("source") if e.get("source") in SOURCES else None}
     if typ == "sensor":
@@ -1018,9 +1021,9 @@ def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
             raise PresenceError(400, "sensor_not_allowed", "החיישן הזה אינו מאושר בשרת.", details={"sensor": sensor if isinstance(sensor, str) else None, "client_event_id": cid})
         value = e.get("value")
         if not isinstance(value, dict) or len(value) > 20 or any(not isinstance(k, str) or not (v is None or isinstance(v, (str, int, float, bool))) or (isinstance(v, str) and len(v) > 128) for k, v in value.items()):
-            raise PresenceError(400, "invalid_event", "ערך החיישן: אובייקט שטוח של עד 20 מפתחות.", details={"field": "value", "client_event_id": cid})
+            raise field_error("ערך החיישן: אובייקט שטוח של עד 20 מפתחות.", ["value"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "value"}, extra={"client_event_id": cid})
         if len(json.dumps(value, ensure_ascii=False)) > VALUE_MAX_BYTES:
-            raise PresenceError(400, "invalid_event", "ערך החיישן גדול מדי.", details={"field": "value", "client_event_id": cid})
+            raise field_error("ערך החיישן גדול מדי.", ["value"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "value"}, extra={"client_event_id": cid})
         value = _check_value(sensor, value, st.get("value_check", pv.VALUE_CHECK_DEFAULT), cid)
         if sensor == "network":
             value = _resolve_wifi(value, st)
@@ -1038,7 +1041,7 @@ def _validate_event(e: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:
         if typ != "fix" and e.get("lat") is None:  # an enter / exit from a region monitor may carry no coordinate
             lat = lon = acc = None  # type: ignore[assignment]
         else:
-            raise PresenceError(400, "invalid_event", "קואורדינטה לא תקינה.", details={"field": "lat/lon", "client_event_id": cid}) from None
+            raise field_error("קואורדינטה לא תקינה.", ["lat", "lon"], code="invalid_event", status=400, cls=PresenceError, legacy={"field": "lat/lon"}, extra={"client_event_id": cid}) from None
     site_id = e.get("site_id")
     site_id = str(site_id)[:64] if isinstance(site_id, str) and site_id else None
     out.update({"lat": lat, "lon": lon, "accuracy_m": acc, "site_id": site_id})
