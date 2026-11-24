@@ -470,6 +470,12 @@ const he = {
   safeMargin_0: 'ללא',
   safeMargin_pct: '{n}%',
   safeMarginHint: 'מרחק מכל קצה של המסך שבו לא מציירים. מתאים לטלוויזיה שחותכת את הקצוות (overscan). לבדיקה על מכשיר אחד אפשר להוסיף לכתובת ‎?safe=3‎ (גובר על ההגדרה). ברירת המחדל: ללא.',
+  // NOTICE-NEWS-EMPTY-2500: news on and no source chosen - the TV shows no news; said in the editor, the boards table and the board line
+  newsUnset: 'החדשות מופעלות אבל לא נבחר מקור - לא יוצגו חדשות במסך',
+  newsAddAll: 'הוספת כל המקורות',
+  newsUnsetChip: 'חדשות ללא מקור',
+  newsLastQ: 'להסיר את המקור האחרון?',
+  newsLastBody: 'בלי מקור לא יוצגו חדשות במסך, גם כשהחדשות מופעלות.',
 };
 
 type Key = keyof typeof he;

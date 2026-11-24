@@ -250,4 +250,9 @@ export const en = {
   agoSec: '{n} s ago',
   agoMin: '{n} min ago',
   agoHour: '{n} h ago',
+  newsUnset: 'News is on but no source is chosen - the screen will show no news',
+  newsAddAll: 'Add all sources',
+  newsUnsetChip: 'News without a source',
+  newsLastQ: 'Remove the last source?',
+  newsLastBody: 'Without a source the screen shows no news, even with news switched on.',
 };
