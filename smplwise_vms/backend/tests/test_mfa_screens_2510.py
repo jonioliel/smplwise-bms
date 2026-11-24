@@ -72,3 +72,20 @@ def test_the_policy_verdict_follows_the_settings_and_the_override(arx):
     assert local.get(ROUTE + arx.viewer.id).json()["policy"] == {"sign_in": "required", "source": "global", "enforced": True}
     assert local.put("/api/v1/security/factor-policy/overrides/user/" + arx.viewer.id, json={"sign_in": "exempt"}).status_code == 200
     assert local.get(ROUTE + arx.viewer.id).json()["policy"] == {"sign_in": "exempt", "source": "user", "enforced": True}
+
+
+def test_recovery_reenrol_switch_reaches_the_sign_in_page_only_while_on(arx):
+    """RELEASE-2510-TRAIN (owner Q14, MFA-SCREENS-2510 question 2): `security.recovery_reenrol` defaults to off and the remote-config answer
+    leaves the key out; switched on (PATCH settings, validated on | off) the sign-in page reads `recovery_reenrol: true`."""
+    from smplwise.db import get_setting, set_setting
+    from smplwise.services import backup, settings_store
+
+    assert settings_store.DEFAULTS["security.recovery_reenrol"] == "off"
+    assert "security.recovery_reenrol" in backup.SETTINGS_KEEP
+    assert "recovery_reenrol" not in arx.client.get("/arx/api/v1/auth/remote-config").json()
+    local = TestClient(arx.app)
+    assert local.patch("/api/v1/settings", json={"security.recovery_reenrol": "maybe"}).status_code == 422
+    with arx.db.connection() as conn:
+        set_setting(conn, "security.recovery_reenrol", "on")
+        assert get_setting(conn, "security.recovery_reenrol", "off") == "on"
+    assert arx.client.get("/arx/api/v1/auth/remote-config").json()["recovery_reenrol"] is True

@@ -445,6 +445,10 @@ DEFAULTS: dict[str, str] = {
     # confirmation, 3 per hour) or `local` (the local network only). A system administrator changes it; widening it back to `any` only
     # from the local channel. Never restored from a backup.
     "security.factor_reset_channel": "any",
+    # RELEASE-2510-TRAIN (owner Q14 = no forced re-enrolment; MFA-SCREENS-2510 question 2): after a sign-in with a recovery code, the
+    # sign-in page goes on to the authenticator enrolment step - `off` (default: nothing changes) | `on`. Read by the sign-in page through
+    # `auth/remote-config` (`recovery_reenrol`, present only while on). Security policy: never restored from a backup.
+    "security.recovery_reenrol": "off",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,

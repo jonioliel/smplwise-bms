@@ -293,6 +293,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_auth"}
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_attestation"}
 # MFA-RESET-HARDENING-2510: from which channel an administrator may reset another user's factors (owner Q53) - never from an archive
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_reset_channel"}
+# RELEASE-2510-TRAIN: the re-enrolment after a recovery-code sign-in (owner Q14: off) - a restore never changes it
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.recovery_reenrol"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
