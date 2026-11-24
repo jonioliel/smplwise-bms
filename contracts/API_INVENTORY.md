@@ -1490,6 +1490,8 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | remote | POST | `/api/v1/csp-report` | The browsers' CSP violation reports for the remote channel (Reporting API `report-to` and the older `report-uri`). |
 | remote | DELETE | `/api/v1/csp-reports` |  |
 | remote | GET | `/api/v1/csp-reports` | הגדרות › גישה מרחוק: the counters, the mode and both policies, for the owner's review before enforcing. |
+| remote | GET | `/api/v1/security/factor-policy` | The sign-in factor policy, the legacy rules, the overrides and the compliance view (or a preview of another policy). |
+| remote | PUT | `/api/v1/security/factor-policy/overrides/{kind}/{subject_id}` | Set one user's or role's sign-in factor override (inherit / required / optional / exempt); audited, mirrored to the legacy table. |
 | reports | GET | `/api/v1/reports/shift` | What happened in the building in the window (reports.shift; sections by the reader's rights; counts only). |
 | reports | GET | `/api/v1/reports/shift/status` |  |
 | reports | PUT | `/api/v1/reports/shift/status` | Turn the shift summary on or off (system.configure, installation). |

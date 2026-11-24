@@ -424,6 +424,14 @@ DEFAULTS: dict[str, str] = {
     # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not
     # count). System administrators only; audited; never restored from a backup.
     "security.passkeys_all_users": "on",
+    # MFA-POLICY-2490 (services/factor_policy.py; design full-2fa-t095 4.1): WHO must show a second factor at a remote sign-in -
+    # optional (nobody by this policy) | admins | sensitive | all; mode report (default: evaluated and shown in the compliance view,
+    # never refuses - the owner: nobody without a factor is locked out until he switches it on) | enforce; wall-panel users exempt
+    # (on); long-lived tokens from outside: allow (owner decision Q48) | refuse_under_policy | refuse. Security policy: never restored.
+    "security.factor_policy": "optional",
+    "security.factor_policy_mode": "report",
+    "security.factor_wall_exempt": "on",
+    "security.remote_long_lived_tokens": "allow",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
