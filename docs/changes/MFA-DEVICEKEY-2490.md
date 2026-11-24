@@ -69,11 +69,16 @@ only the hook is here.
 
 | Where | Command | Result |
 |---|---|---|
-| workstation (Windows, Python 3.12, `.venv` of the main checkout, `SW_WIRE_STRICT=1`) | `pytest tests/test_mfa_devicekey_2490.py -o addopts=""` | **19 passed** |
-| runner slot B | auth-related backend files (see 5.1) | see 5.1 |
-| runner | Android unit tests / compile | see 5.1 |
+| workstation (Windows, Python 3.12, `.venv` of the main checkout, `SW_WIRE_STRICT=1`), one file at a time | `pytest tests/test_mfa_devicekey_2490.py -o addopts=""` (at `e2ba0bd69`) | **19 passed** |
+| workstation | `pytest tests/test_mfa_stepup_2490.py` (slice 1) | **22 passed** |
+| workstation | `pytest tests/test_second_factor.py` | **23 passed** |
+| workstation | `pytest tests/test_local_privacy.py` | **18 passed** |
+| workstation | `pytest tests/test_secfix2_pub07_guard_first.py tests/test_local_auth_inventory.py` (at `92ad20c2d`) | 37 passed, **2 failed** (the new public route was not in the pinned public set) -> fixed in `e2ba0bd69` (remote-only, guard-first, listed) |
+| workstation | `pytest tests/test_local_auth_inventory.py` (after the fix) | **4 passed** |
+| workstation | `python scripts/gen_wire_types.py --check` (after regenerating, `359f9f273`) | exit 0 |
+| workstation | `python scripts/api_inventory.py` | 1917 routes; diff = the 5 new routes only |
+| runner slot B | ONE combined job `~/work/mfadevkey_job.sh` (generators, `ruff check smplwise`, ~126 auth-related backend files in 5 shards, Android if a toolchain exists), queued 2026-11-24 04:21 UTC via `~/work/slotb.sh` | **NOT_RUN**: still waiting for slot B at the last successful look (07:08 local, no summary); the runner (load ~200) then refused SSH until the 90-minute limit. Log / results: `~/work/mfadevkey-out/slotb.log`, `~/work/mfadevkey-out/summary.txt` (the job checks out `origin/pilot/MFA-DEVICEKEY-2490` when it starts, so it tests the branch head) |
+| runner | Android `testDebugUnitTest assembleDebug` (incl. `DeviceKeyPolicyTest.kt`) | **NOT_RUN**: no JDK and no Android SDK on the runner (`which java` empty, no `ANDROID_HOME` / `~/Android/Sdk`) |
+| any | `ruff` | **NOT_RUN** on the workstation (not installed in the `.venv`); part of the queued runner job |
 | real phone | instrumented key creation, prompt text, invalidation after a new fingerprint, screen-lock variant on API 30+ | **NOT_RUN** (owner must be present) |
-
-### 5.1 Runner results
-
-(filled in below after the runner job)
+| any | web UI / Playwright | not applicable (no UI in this slice) |
