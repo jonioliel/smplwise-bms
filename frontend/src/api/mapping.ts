@@ -17,7 +17,7 @@ export interface MappingVersion extends Omit<Wire.HomeMappingVersion, 'kind'> {
   kind: 'apply' | 'confirm' | 'auto' | 'restore';
 }
 type MappingBuilding = Wire.HomeMappingBuilding;
-export interface MappingRead extends Pick<Wire.HomeMappingRead, 'site' | 'revision' | 'multi_building' | 'can_toggle'>, Partial<Pick<Wire.HomeMappingRead, 'can_set_reach' | 'review_mode' | 'can_set_review'>> {
+export interface MappingRead extends Pick<Wire.HomeMappingRead, 'site' | 'revision' | 'multi_building' | 'can_toggle'>, Partial<Pick<Wire.HomeMappingRead, 'can_set_reach' | 'review_mode' | 'can_set_review' | 'filter_mode' | 'can_set_filter'>> {
   state: unknown;
   settings: MappingSettings;
   /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on;
@@ -86,6 +86,8 @@ function demoBuild(demoMapping: typeof import('./mapping-demo').demoMapping): De
     can_set_reach: true,
     review_mode: 'required',
     can_set_review: true,
+    filter_mode: 'on',
+    can_set_filter: true,
     versions: [],
     seen: null,
     items: {

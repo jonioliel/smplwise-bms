@@ -25,7 +25,7 @@ from ..db import Database, bump_permission_revision, get_setting, is_storage_ful
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
-from ..services import bridge_discovery, push_queue, service_identity
+from ..services import bridge_discovery, building_filter, push_queue, service_identity
 from ..services import ha_store as store
 from ..services import devices as dsvc
 from ..services.timeutil import parse_utc
@@ -83,8 +83,11 @@ def list_entities(
     placed: bool | None = None,
     include_disabled: bool = False,
     limit: int = Query(500, ge=1, le=2000),
+    building: str | None = Query(None, max_length=120),
 ) -> dict[str, Any]:
-    """The catalogue: everything for installation-wide readers, only placed entities on visible floors otherwise."""
+    """The catalogue: everything for installation-wide readers, only placed entities on visible floors otherwise.
+    MULTI-BUILDING-NEXT-2500: on a multi-building site `building` keeps the entities whose area serves that building (the plan editor's
+    device search; services/building_filter - display only, after the visibility rule above, never widens)."""
     wide, floors = _visible_floors(conn, principal, "entity.state.read")
     placements = _placements(conn)
     if not wide and not floors:
@@ -128,7 +131,11 @@ def list_entities(
             if r["area_id"] is not None:
                 seen_areas[r["area_id"]] = {"area_id": r["area_id"], "area_name": r["area_name"]}
         areas = sorted(seen_areas.values(), key=lambda a: a["area_name"] or "")
-    return {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
+    answer: dict[str, Any] = {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
+    bf = building_filter.prepare(conn, building)
+    if bf is not None:
+        building_filter.apply(bf, out, [bf.place(areas=[r.get("area_id")]) for r in out], answer, "entities")
+    return answer
 
 
 @router.get("/ha/entities/{entity_id}")
@@ -607,12 +614,15 @@ def dev_registry(body: DevRegistryIn, request: Request, principal: Principal = D
     # above ran on the read connection, so no SQLite write lock is held while waiting for the mirror lock)
     with ha_sync.SYNC.mirror_lock, db.connection() as wconn:
         before = ha_sync.mirror_fingerprint(wconn)
+        reach_before = building_scope.reach_snapshot(wconn)  # MULTI-BUILDING-NEXT-2500: an area move carries building reach with it
         n = ha_sync.apply_registry(wconn, maps)
         ha_sync.apply_structure(wconn, body.areas, body.floors, body.labels)
         media_store.apply_devices(wconn, body.devices)  # CR-015: the device mirror and the media model, as the sync's refresh does
         switch_protection.reconcile(wconn, set(maps), devices=body.devices)
         media_changed = media_store.rebuild(wconn)
         changed = ha_sync.mirror_fingerprint(wconn) != before
+        if changed:
+            building_scope.registry_moved(wconn, reach_before)
         audit(wconn, actor=principal, action="ha.dev.registry", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"entities": n, "areas": len(body.areas), "floors": len(body.floors)})
     ha_sync.STATE.last_registry_at = now_iso()

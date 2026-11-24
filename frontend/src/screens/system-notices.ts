@@ -262,7 +262,7 @@ export class SystemNotices extends LitElement {
   }
 
   private composeDialog() {
-    return html`<notice-compose .draft=${this.compose} .canPush=${this.s?.can.push ?? false} .pushDefault=${this.s?.settings.push_default ?? 'by_severity'} .boards=${this.boards} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
+    return html`<notice-compose .draft=${this.compose} .canPush=${this.s?.can.push ?? false} .pushDefault=${this.s?.settings.push_default ?? 'by_severity'} .boards=${this.boards} .boardBuildings=${this.bldChoices} .floors=${this.floors} .groups=${this.groups} .roles=${this.roles}
       @notice-close=${() => (this.compose = null)} @notice-saved=${(e: CustomEvent<NoticeSavedDetail>) => this.composed(e)}></notice-compose>`;
   }
 

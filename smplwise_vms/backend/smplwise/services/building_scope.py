@@ -129,6 +129,35 @@ def mapping_changed(conn: sqlite3.Connection) -> None:
     revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])
 
 
+def reach_snapshot(conn: sqlite3.Connection) -> dict[str, str] | None:
+    """MULTI-BUILDING-NEXT-2500 (T119 row MB-HA-AREA-SIGNAL, design gap G4): entity id -> the building its area resolves to, taken before
+    a registry refresh while the mapping counts for reach; None while it does not count (the switch off / "מיקום במפה")."""
+    if not mapping_reach_on(conn):
+        return None
+    return {eid: t[0] for eid, t in entity_targets(conn).items()}
+
+
+def registry_moved(conn: sqlite3.Connection, before: dict[str, str] | None) -> list[str]:
+    """After a registry refresh wrote the mirror: the entities whose building changed because the home system moved them (or their
+    area) to another area / floor. While the mapping counts for reach that moves building reach with them, so every open socket re-scopes
+    now (before: within the next 60 s sweep) and one system audit row `home.mapping.area_moved` records it (counts, the buildings
+    touched, up to 20 entity ids). Nothing is written to the home system and no binding changes. `before` None = nothing to compare
+    (the mapping did not count when the refresh began): the rule before. Returns the moved entity ids (sorted)."""
+    if before is None:
+        return []
+    after = reach_snapshot(conn) or {}
+    moved = sorted(e for e in set(before) | set(after) if before.get(e) != after.get(e))
+    if not moved:
+        return []
+    mapping_changed(conn)
+    from ..audit import audit
+
+    touched = sorted({b for e in moved for b in (before.get(e), after.get(e)) if b})
+    audit(conn, actor=None, action="home.mapping.area_moved", decision="allowed", resource_type="installation", resource_id="*",
+          details={"entities": len(moved), "buildings": touched, "sample": moved[:20], "reach_on": mapping_reach_on(conn)})
+    return moved
+
+
 class RemapGuard:
     """Round 14 security rule for every mapping write (the floor's home links, the mapping assistant's apply / restore, a plan room's area
     link): while the mapping counts for reach, moving an area OUT of the building it resolves to now (to another building, or to none)

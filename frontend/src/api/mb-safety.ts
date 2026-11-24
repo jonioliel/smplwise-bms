@@ -88,3 +88,12 @@ export async function setReview(mode: ReviewMode): Promise<WireMapping.HomeMulti
   if (!isApi()) return { mode };
   return put<WireMapping.HomeMultiBuildingReview>('home/multi-building/review', { mode });
 }
+
+/** MULTI-BUILDING-NEXT-2500: whether the full interface's lists offer a building filter on a multi-building site (`home.multi_building.filter`;
+ * display only - the switch's own permission). */
+export type FilterMode = WireMapping.HomeMultiBuildingFilter['mode'];
+export const FILTER_MODES: readonly FilterMode[] = ['on', 'off'];
+export async function setFilterMode(mode: FilterMode): Promise<WireMapping.HomeMultiBuildingFilter> {
+  if (!isApi()) return { mode };
+  return put<WireMapping.HomeMultiBuildingFilter>('home/multi-building/filter', { mode });
+}

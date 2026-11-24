@@ -16,7 +16,7 @@ import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 import { tr } from '../i18n/msg/system-b';
-import { needsCheck, REVIEW_MODES, setReview, type ReviewMode } from '../api/mb-safety';
+import { FILTER_MODES, needsCheck, REVIEW_MODES, setFilterMode, setReview, type FilterMode, type ReviewMode } from '../api/mb-safety';
 import './mb-enable-check';
 import '../components/sw-toggle';
 import { switchPress } from '../components/sw-toggle';
@@ -485,7 +485,7 @@ export class SystemMapping extends LitElement {
       <sw-segmented label=${SETTING_TEXT[k].label} value=${String(d.settings[k])}
         @change=${(e: CustomEvent<SegmentedChange>) => { const v = (MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).find((x) => String(x) === e.detail.value); if (v !== undefined) void this.setSetting(k, v); }}
         .options=${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => ({ value: String(v), label: (SETTING_TEXT[k].options as Record<string, string>)[v as string], attrs: { 'data-mapping-option': String(v) } }))}></sw-segmented></div>`;
-    return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}${this.renderReview()}</sw-card>`;
+    return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}${this.renderReview()}${this.renderFilter()}</sw-card>`;
   }
 
   /** Round 14 (owner 02.11): what a building-scoped role binding reaches while the multi-building switch is on - an installation setting,
@@ -513,6 +513,36 @@ export class SystemMapping extends LitElement {
       <span class="h">${cur === 'required' ? tr('לפני ההפעלה מוצגת בדיקה של המיפוי ושל ההרשאות שישתנו, ורק אחריה אפשר להפעיל.') : tr('ההפעלה מיידית, בלי בדיקה. תוצאות הבדיקה נרשמות ביומן הפעולות.')}${d.can_set_review ? '' : ` ${tr('רק מנהל הרשאות יכול לשנות.')}`}</span>
       <sw-segmented label=${tr('בדיקה לפני הפעלת ריבוי בניינים')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setReviewMode(e.detail.value as ReviewMode)}
         .options=${REVIEW_MODES.map((v) => ({ value: v, label: text[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
+  }
+
+  /** MULTI-BUILDING-NEXT-2500 (owner 22.11, Q69 "the filtering"): whether the lists (energy meters, schedules, shared rooms, the plan
+   * editor's device search, the global search) offer a building filter while multi-building is on. Display only; the switch's own
+   * permission (the server checks it again and audits it). */
+  private renderFilter() {
+    const d = this.data!;
+    const cur: FilterMode = d.filter_mode ?? 'on';
+    const can = (d.can_set_filter ?? d.can_toggle) === true && !this.busy;
+    const text: Record<FilterMode, string> = { on: tr('מוצג'), off: tr('מוסתר') };
+    return html`<div class="set" data-mapping-setting="filter">
+      <span class="l">${tr('סינון לפי בניין ברשימות')}</span>
+      <span class="h">${cur === 'on' ? tr('כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.') : tr('הרשימות מוצגות לכל האתר, בלי בחירת בניין.')}</span>
+      <sw-segmented label=${tr('סינון לפי בניין ברשימות')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setFilter(e.detail.value as FilterMode)}
+        .options=${FILTER_MODES.map((v) => ({ value: v, label: text[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
+  }
+
+  private async setFilter(mode: FilterMode) {
+    if (!this.data || this.busy || (this.data.filter_mode ?? 'on') === mode) return;
+    this.busy = true;
+    this.message = '';
+    try {
+      const r = await setFilterMode(mode);
+      this.data = { ...this.data, filter_mode: r.mode };
+      this.message = tr('הגדרת הסינון לפי בניין עודכנה.');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async setReviewMode(mode: ReviewMode) {

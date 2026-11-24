@@ -323,6 +323,8 @@ const he = {
   bBuilding: 'בניין',
   bBuildingSite: 'כל האתר',
   bBuildingHint: 'הברכה בראש המסך משתמשת בשם הבניין. אילו הודעות מוצגות נקבע כמו קודם: לפי הסימון ללוח.',
+  // MULTI-BUILDING-NEXT-2500: the audience shortcut - every floor of one building
+  audBuilding: 'כל {name}',
   kvSeen: 'נראה לאחרונה',
   kvCreated: 'נוצר',
   kvRotated: 'תאריך הקישור',

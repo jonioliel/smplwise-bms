@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from ..auth import current_principal_ro, get_read_conn
 from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from ..errors import ApiError
-from ..services import ha_scope
+from ..services import building_filter, ha_scope
 from ..services import search_store as store
 from ..services import semantic
 from ..services.access import camera_scope, visible_camera_ids
@@ -62,13 +62,17 @@ def _contains(hay: str | None, needle: str) -> bool:
 def search(
     q: str = Query(..., min_length=1, max_length=80),
     limit: int = Query(8, ge=1, le=20),
+    building: str | None = Query(None, max_length=120),
     principal: Principal = Depends(current_principal_ro),
     conn: sqlite3.Connection = Depends(get_read_conn),
 ) -> dict[str, Any]:
+    """MULTI-BUILDING-NEXT-2500: on a multi-building site every hit names the buildings it serves and `building` keeps one building's
+    hits (services/building_filter: display only, after the scope rules below - a hit is never added)."""
     _require_search(conn, principal)
     needle = q.strip().casefold()
     if not needle:
         return {"q": q, "results": [], "counts": {}}
+    bf = building_filter.prepare(conn, building)
     floors = {
         f["id"]: dict(f)
         for f in store.live_floors_with_building(conn)
@@ -80,8 +84,12 @@ def search(
 
     results: list[dict[str, Any]] = []
     counts: dict[str, int] = {}
+    found: list[tuple[str, dict[str, Any], list[str]]] = []  # MULTI-BUILDING-NEXT-2500: the hits with their buildings, before the cut
 
-    def add(kind: str, item: dict[str, Any]) -> None:
+    def add(kind: str, item: dict[str, Any], *, areas: tuple[str | None, ...] = (), floors: tuple[str | None, ...] = (), buildings: tuple[str | None, ...] = ()) -> None:
+        if bf is not None:
+            found.append((kind, item, bf.place(areas=areas, floors=floors, buildings=buildings)))
+            return
         counts[kind] = counts.get(kind, 0) + 1
         if counts[kind] <= limit:
             results.append({"kind": kind, **item})
@@ -104,7 +112,7 @@ def search(
             continue
         f = floors[shown[0]]
         add("zone", {"id": z["id"], "title": z["name"], "subtitle": f"{f['building_name']} · {f['name']} · {KIND_LABEL.get(z['kind'], z['kind'])}", "route": f"/explore/floors/{shown[0]}?zone={z['id']}",
-                     "floor_id": shown[0], **({"floor_ids": shown} if len(shown) > 1 or shown[0] != z["floor_id"] else {})})
+                     "floor_id": shown[0], **({"floor_ids": shown} if len(shown) > 1 or shown[0] != z["floor_id"] else {})}, floors=tuple(shown))
 
     # cameras (scope: the cameras the caller may see on a map; unplaced cameras for installation-wide readers)
     cam_ids = visible_camera_ids(conn, principal, "map.read")
@@ -129,18 +137,18 @@ def search(
             "subtitle": f"ערוץ {c['channel']}" + (f" · {f['building_name']} · {f['name']}" if f else " · לא מוצבת על תוכנית"),
             "route": f"/explore/floors/{fid}?camera={c['id']}" if f and floor_ok(fid) else f"/live/cameras/{c['id']}",
             "floor_id": fid if f else None,
-        })
+        }, floors=(fid if f else None,))
 
     # floors and buildings
     for fid, f in floors.items():
         if _contains(f["name"], needle) and floor_ok(fid):
-            add("floor", {"id": fid, "title": f["name"], "subtitle": f["building_name"], "route": f"/explore/floors/{fid}", "floor_id": fid})
+            add("floor", {"id": fid, "title": f["name"], "subtitle": f["building_name"], "route": f"/explore/floors/{fid}", "floor_id": fid}, floors=(fid,))
     for b in store.live_buildings(conn):
         if not _contains(b["name"], needle):
             continue
         if not any(floor_ok(fid) for fid, f in floors.items() if f["building_id"] == b["id"]) and not authorize(conn, principal, "map.read", ("building", b["id"])).allowed:
             continue
-        add("building", {"id": b["id"], "title": b["name"], "subtitle": "מבנה", "route": f"/explore/buildings/{b['id']}/floors", "floor_id": None})
+        add("building", {"id": b["id"], "title": b["name"], "subtitle": "מבנה", "route": f"/explore/buildings/{b['id']}/floors", "floor_id": None}, buildings=(b["id"],))
 
     # HA entities: everything for installation-wide readers, only placed entities on visible floors otherwise
     ent_floors = _visible_floors(conn, principal, "entity.state.read")
@@ -176,7 +184,7 @@ def search(
             "route": f"/security/alarm?panel={quote(e['entity_id'])}" if e["domain"] == "alarm_control_panel" and alarm_view
             else f"/explore/floors/{fid}?entity={quote(e['entity_id'])}" if f and floor_ok(fid) else f"/explore/entities?q={quote(e['entity_id'])}",
             "floor_id": fid if f else None,
-        })
+        }, floors=(fid if f else None,), areas=(() if f else (e["area_id"],)))
 
     # objects of the published structure of each visible floor: by their label or their library name (he / en / tags)
     from ..services import geometry_store, plan_catalog
@@ -191,9 +199,20 @@ def search(
             if not any(_contains(h, needle) for h in (o["label"], n["he"], n["en"], *n["tags"])):
                 continue
             add("object", {"id": o["id"], "title": o["label"] or n["he"], "subtitle": f"{n['he']} · {f['building_name']} · {f['name']}",
-                           "route": f"/explore/floors/{fid}?focus=object:{o['id']}", "floor_id": fid})
+                           "route": f"/explore/floors/{fid}?focus=object:{o['id']}", "floor_id": fid}, floors=(fid,))
 
-    return {"q": q, "results": results, "counts": counts}
+    out: dict[str, Any] = {"q": q, "results": results, "counts": counts}
+    if bf is not None:
+        meta = bf.meta()
+        for kind, item, served in found:
+            if meta is not None and not bf.keep(served):
+                continue
+            counts[kind] = counts.get(kind, 0) + 1
+            if counts[kind] <= limit:
+                results.append({"kind": kind, **item, **({"buildings": served} if meta is not None else {})})
+        if meta is not None:
+            out["building_filter"] = meta
+    return out
 
 
 # ---------------------------------------------------------------- semantic search (T063)

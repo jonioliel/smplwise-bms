@@ -96,6 +96,9 @@ class HomeMappingRead(WireModel):
     review_mode: Literal["required", "skip"]
     """MULTI-BUILDING-SAFETY-2500: whether turning the switch on needs the check (`home.multi_building.review`)."""
     can_set_review: bool
+    filter_mode: Literal["on", "off"]
+    """MULTI-BUILDING-NEXT-2500: the building filter of the full interface's lists (`home.multi_building.filter`)."""
+    can_set_filter: bool
     versions: list[HomeMappingVersion]
     seen: list[Any] | None
     """The item keys the last apply saw (null before the first)."""
@@ -141,6 +144,10 @@ class HomeMultiBuildingCheck(WireModel):
 
 class HomeMultiBuildingReview(WireModel):
     mode: Literal["required", "skip"]
+
+
+class HomeMultiBuildingFilter(WireModel):
+    mode: Literal["on", "off"]
 
 
 class HomeMappingReach(WireModel):

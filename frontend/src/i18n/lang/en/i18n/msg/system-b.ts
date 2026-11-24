@@ -1238,4 +1238,10 @@ export const en = {
   'מה ישתנה בהרשאות ובמסך הראשי כשמפעילים': 'What changes in permissions and on the home screen when it is turned on',
   'עברתי על הממצאים': 'I went over the findings',
   'שום אזור עוד לא ממופה לבניין, ולכן ההפעלה לא תשנה כלום.': 'No area is mapped to a building yet, so turning it on changes nothing.',
+  // MULTI-BUILDING-NEXT-2500: the building filter of the lists (screens/system-mapping.ts)
+  'מוצג': 'Shown',
+  'סינון לפי בניין ברשימות': 'Building filter in lists',
+  'כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.': 'While multi-building is on, the electricity meters, the schedules, the shared rooms, the plan editor's device search and the global search offer a building choice. Display only: it does not change who sees what.',
+  'הרשימות מוצגות לכל האתר, בלי בחירת בניין.': 'The lists show the whole site, without a building choice.',
+  'הגדרת הסינון לפי בניין עודכנה.': 'The building filter setting was updated.',
 };

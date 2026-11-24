@@ -24,7 +24,11 @@ API = "/api/v1"
 
 
 def _multi(c, on: bool = True) -> None:
-    r = c.put(f"{API}/home/multi-building", json={"enabled": on})
+    # MULTI-BUILDING-NEXT-2500 (the safety row merged in): turning the switch on is confirmed with the digest of the check before it
+    body: dict = {"enabled": on}
+    if on:
+        body["check_digest"] = c.get(f"{API}/home/multi-building/check").json()["digest"]
+    r = c.put(f"{API}/home/multi-building", json=body)
     assert r.status_code == 200, r.text
 
 

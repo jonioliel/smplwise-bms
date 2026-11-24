@@ -4,6 +4,8 @@ import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-place-tree';
 import '../components/sw-state-panel';
+import '../components/sw-building-filter';
+import { pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import type { PlaceRow } from './wiskey-stations-logic';
 import { describeError } from '../api/client';
 import { navigate } from '../router';
@@ -208,6 +210,9 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   @state() protected view: MetersView = 'table';
   @state() protected collapsed: string[] = [];
   @state() protected access: A;
+  /** MULTI-BUILDING-NEXT-2500: the building chosen in the filter ('' = the whole site) and the list's filter (null = no filter drawn). */
+  @state() protected building = '';
+  @state() protected buildingMeta: BuildingFilterMeta | null = null;
   /** CR-CMP2-SELECTS-2450 (07:F12 adoption): the page's flash line; each page keeps its own duration (`flash`). */
   protected readonly toaster = new ToastController(this, { ms: 5000 });
   protected get notice(): string {
@@ -235,6 +240,14 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   protected abstract fetchMeters(): Promise<M[]>;
   /** After the list is on screen (optional): slower companions of the first load. A failure of the first load is the page's error state. */
   protected afterLoad?(initial: boolean, meters: M[]): Promise<void>;
+  /** MULTI-BUILDING-NEXT-2500: the building filter the last list read answered (a module without buildings: none). */
+  protected readBuildingFilter(): BuildingFilterMeta | null {
+    return null;
+  }
+  /** Whether a meter shows under the chosen building (a module without buildings: always). */
+  protected inBuilding(_m: M, _building: string): boolean {
+    return true;
+  }
   protected abstract areaTree(): MetersFloorNode[];
   /** `area` is the tree's key: an area id or `floor:<id>`. */
   protected abstract inArea(m: M, area: string): boolean;
@@ -281,6 +294,10 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
     try {
       const meters = await this.fetchMeters();
       this.meters = meters;
+      const meta = this.readBuildingFilter();
+      this.buildingMeta = meta;
+      // the device's last choice when this list offers it; a choice that left the list (a building gone) falls back to the whole site
+      this.building = pickChosen(meta, this.building || readChosen());
       this.phase = 'ready';
       this.error = '';
       if (this.afterLoad) await this.afterLoad(initial, meters);
@@ -317,11 +334,23 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
     store(this.cfg.collapseKey, this.collapsed);
   }
 
+  /** MULTI-BUILDING-NEXT-2500: the meters of the chosen building (all of them under "כל האתר" or with no filter) - the tiles, the
+   * areas tree and the list all count these. */
+  protected scoped(): M[] {
+    const b = this.building;
+    return b ? this.meters.filter((m) => this.inBuilding(m, b)) : this.meters;
+  }
+
   protected visible(): M[] {
     const needle = this.q.trim().toLowerCase();
     const area = this.areaFilter;
     // AUDIT30-E5: the shared places tree also picks a whole floor (`floor:<id>`, the key the module's tree gives the floor)
-    return this.meters.filter((m) => (!area || this.inArea(m, area)) && (!needle || this.matchesSearch(m, needle)));
+    return this.scoped().filter((m) => (!area || this.inArea(m, area)) && (!needle || this.matchesSearch(m, needle)));
+  }
+
+  private renderBuildings() {
+    return this.buildingMeta ? html`<sw-building-filter class="bf" .filter=${this.buildingMeta} value=${this.building}
+      @building-change=${(e: CustomEvent<{ value: string }>) => (this.building = e.detail.value)}></sw-building-filter>` : nothing;
   }
 
   protected onKey(e: KeyboardEvent, m: M) {
@@ -334,7 +363,7 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
   /** AUDIT30-E5 (round-30 audit #14): the areas list is the shared places tree (sw-place-tree): "all", the floors (fold + pick) and their
    * areas; the chosen row is the soft accent wash of every other tree, not a filled accent key. */
   private placeRows(): PlaceRow[] {
-    const rows: PlaceRow[] = [{ id: 'all', kind: 'all', name: this.texts().allAreas, depth: 0, count: this.meters.length, dot: null }];
+    const rows: PlaceRow[] = [{ id: 'all', kind: 'all', name: this.texts().allAreas, depth: 0, count: this.scoped().length, dot: null }];
     for (const f of this.areaTree()) {
       const open = !this.collapsed.includes(f.floor_id);
       rows.push({ id: `floor:${f.floor_id}`, kind: 'floor', name: f.name, depth: 0, count: f.count, dot: null, open });
@@ -386,6 +415,7 @@ export abstract class MetersPageBase<M extends { id: string }, A extends MetersA
     const body = !list.length ? this.renderNoResults() : html`${this.view === 'cards' ? this.renderCards(list) : this.renderTable(list)}${this.renderRows(list)}`;
     return this.frame('ready', html`
       ${this.renderHead()}
+      ${this.renderBuildings()}
       ${this.notice ? html`<div class="notice" role="status" data-notice>${this.notice}</div>` : nothing}
       ${this.renderTiles()}
       <div class="cols"><div class="card tree-card">${this.renderTree()}</div><div class="mlist">${body}</div></div>

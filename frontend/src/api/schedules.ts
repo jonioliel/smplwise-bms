@@ -23,6 +23,7 @@ import { lazy } from './demo-load';
 import { CONFIRM_WORDS } from '../i18n/confirm-words';
 import { tr } from '../i18n/msg/api-automation';
 import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time and weekday words
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 
 /** CR-MOCKS-LAZY-2436 (review 07:F2): the demo store (./schedules-mock.ts) is fetched on the first demo call - with a backend it is never
  * loaded. Each call reads the store in force (`demoStore()`), as before. */
@@ -255,6 +256,8 @@ export interface Schedule {
   warnings: Problem[];
   /** Detail route only: the component's item, verbatim. */
   raw?: Record<string, unknown>;
+  /** MULTI-BUILDING-NEXT-2500: the buildings the schedule's targets serve (only in a list answer that carries `building_filter`). */
+  buildings?: string[];
 }
 
 // ------------------------------------------------------------------------------------------------ write model (§2.2)
@@ -359,6 +362,8 @@ export interface ScheduleList {
   offset: number;
   limit: number;
   status: { available: Availability; stale: boolean; last_sync_at: string | null };
+  /** MULTI-BUILDING-NEXT-2500: only on a multi-building site whose schedules sit in two or more buildings (services/building_filter). */
+  building_filter?: BuildingFilterMeta;
 }
 
 // ------------------------------------------------------------------------------------------------ catalogue (§3.4, §3.4b)

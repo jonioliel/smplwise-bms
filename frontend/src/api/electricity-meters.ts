@@ -12,6 +12,10 @@ import { getDevicesTree } from './devices';
 import { lazy, lazyAdapter } from './demo-load';
 import { tr } from '../i18n/msg/api-electricity';
 import type * as Wire from './generated/wire-consumption';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
+
+/** MULTI-BUILDING-NEXT-2500: the building filter of the last meters list read (null = none: one building, the switch off, the demo). */
+let lastBuildingFilter: BuildingFilterMeta | null = null;
 
 /** reporting = מדווח, stale = לא מדווח (no reading within `energy.stale_after_minutes`), paused = מושהה. */
 export type MeterStatus = 'reporting' | 'stale' | 'paused';
@@ -41,6 +45,8 @@ export interface Meter {
   /** How many accounts use it, when the server says (list); null = not known, the column is not drawn. */
   accounts_count: number | null;
   revision: number;
+  /** MULTI-BUILDING-NEXT-2500: the buildings the meter's area serves (only on a multi-building site whose meters sit in two or more). */
+  buildings?: string[];
 }
 
 export interface MeterEpoch {
@@ -199,6 +205,7 @@ export function wireMeter(w: WireMeter, floors: Map<string, { id: string; name: 
     accounts: (w.used_in ?? []).map((u) => u.name),
     accounts_count: w.accounts_count ?? (w.used_in ? w.used_in.length : null),
     revision: w.revision,
+    ...(w.buildings ? { buildings: w.buildings } : {}),
   };
 }
 
@@ -284,6 +291,7 @@ async function monthToDate(ids: string[]): Promise<Map<string, number>> {
 const http: MeterAdapter = {
   async list() {
     const [raw, floors] = await Promise.all([get<Wire.EnergyMeterList>('energy/meters'), floorsByArea()]);
+    lastBuildingFilter = raw.building_filter ?? null;
     const list = items<WireMeter>(raw);
     const month = await monthToDate(list.map((m) => m.id));
     return list.map((m) => wireMeter(m, floors, month));
@@ -422,6 +430,7 @@ const demo = lazyAdapter<MeterAdapter>(() => fixtures().then(() => demoNow), {})
 export const meters = (): MeterAdapter => (isApi() ? http : demo);
 
 export const listMeters = () => meters().list();
+export const meterBuildingFilter = (): BuildingFilterMeta | null => (isApi() ? lastBuildingFilter : null);
 export const getMeter = (id: string) => meters().detail(id);
 export const meterCandidates = (q: string, area?: string) => meters().candidates(q, area);
 export const addMeter = (body: AddMeterBody) => meters().add(body);

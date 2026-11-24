@@ -11,6 +11,8 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
+import '../components/sw-building-filter';
+import { alsoNote, keepBuilding, pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import { PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measureFitItems, pageCount, pageSlice } from '../api/screen-display';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { pl } from '../i18n/polish';
@@ -147,6 +149,9 @@ export class DevicesSchedules extends LitElement {
   @state() private autoCounts: Record<ItemKind, number> | null = null;
   @state() private status: ScheduleStatus | null = null;
   @state() private items: Schedule[] | null = null;
+  /** MULTI-BUILDING-NEXT-2500: the list's building filter (null = none drawn) and the building chosen in it ('' = the whole site). */
+  @state() private buildingMeta: BuildingFilterMeta | null = null;
+  @state() private building = '';
   @state() private failed = '';
   @state() private noView = false;
   @state() private filters: ListFilters = { ...NO_FILTERS };
@@ -197,6 +202,7 @@ export class DevicesSchedules extends LitElement {
   private readonly detailReads = new NewestApplied();
   // CR-EDITORS-MEMO-2440 (06:PERF-6): the filtered and the sorted list, once per list / filters (both are replaced, never edited in place)
   private readonly filteredMemo = new KeyedMemo<Schedule[]>();
+  private readonly buildingMemo = new KeyedMemo<Schedule[]>();
   private readonly sortedMemo = new KeyedMemo<Schedule[]>();
   private urlTimer = 0;
   private noteTimer = 0;
@@ -423,6 +429,8 @@ export class DevicesSchedules extends LitElement {
     try {
       const r = await listSchedules({ limit: 500 });
       this.items = r.items;
+      this.buildingMeta = r.building_filter ?? null;
+      this.building = pickChosen(this.buildingMeta, this.building || readChosen());
       this.failed = '';
       this.selected = new Set([...this.selected].filter((id) => r.items.some((s) => s.id === id)));
     } catch (err) {
@@ -493,7 +501,7 @@ export class DevicesSchedules extends LitElement {
   private onChanged = (e: CustomEvent<{ schedule: Schedule | null }>) => {
     const s = e.detail?.schedule;
     if (s) {
-      this.items = (this.items ?? []).map((x) => (x.id === s.id ? { ...s, raw: undefined } : x));
+      this.items = (this.items ?? []).map((x) => (x.id === s.id ? { ...s, raw: undefined, ...(x.buildings ? { buildings: x.buildings } : {}) } : x));
       if (this.detail?.id === s.id) this.detail = s;
       void this.refreshStatusOnly();
     } else void this.refresh();
@@ -683,7 +691,7 @@ export class DevicesSchedules extends LitElement {
     if (sub === 'trash' || sub === 'review') {
       return nothing; // the shared back control of sw-page (backHref) leads to the list
     }
-    const all = this.items ?? [];
+    const all = this.scopedItems();
     const floors = placeOptions(all, 'floor');
     const f = this.filters;
     const tools = scr.kind === 'ready' && this.items !== null;
@@ -701,6 +709,8 @@ export class DevicesSchedules extends LitElement {
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
+        ${this.buildingMeta ? html`<sw-building-filter .filter=${this.buildingMeta} value=${this.building}
+          @building-change=${(e: CustomEvent<{ value: string }>) => { this.building = e.detail.value; this.page = 1; }}></sw-building-filter>` : nothing}
         ${all.length ? html`<sw-segmented class="stf" radio size="sm" label=${tr('סינון לפי מצב')} ?data-open=${this.filtersOpen} value=${f.state} @change=${(e: CustomEvent<SegmentedChange>) => this.setFilter({ state: e.detail.value as StateFilter })}
           .options=${STATE_SEGMENTS.map((s) => ({ value: s.id, label: s.label, count: String(sc[s.id]), attrs: { 'data-state-filter': s.id || 'all' } }))}></sw-segmented>` : nothing}
         ${attention ? html`<button type="button" class="rc attn" data-open-review data-sched-attention @click=${() => this.go('review')}><i class="wdot" aria-hidden="true"></i>${pl('review')}<small>${attention}</small></button>` : nothing}
@@ -873,7 +883,7 @@ export class DevicesSchedules extends LitElement {
     const shown = s.slots.slice(0, 3);
     return html`<div class=${`tr${s.enabled ? '' : ' off'}`} data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)}>
       <span class="csel"><label class="pick"><input type="checkbox" data-select=${s.id} aria-label=${tr('בחירת {name}', { name: s.display_name })} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>
-      <span class="cname" style="min-inline-size:0"><a class="name" href=${this.href(s.id)}>${bidi(s.display_name)}</a><div class="sub">${bidi(devicesLine(s))}</div>${s.sensitive || s.lowering ? html`<sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>` : nothing}</span>
+      <span class="cname" style="min-inline-size:0"><a class="name" href=${this.href(s.id)}>${bidi(s.display_name)}</a><div class="sub">${bidi(devicesLine(s))}${this.alsoTag(s)}</div>${s.sensitive || s.lowering ? html`<sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>` : nothing}</span>
       <span class="cdays"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
       <span class="cslots slotrows">${shown.map((sl) => html`<span class="sr"><span class="w">${windowText(sl)}</span><span class="a">${slotChips(sl, s).map((c) => html`<span class="ac" style=${`--c:${toneColor(c.tone)}`} title=${c.devices.join(', ')}>${c.label}${c.devices.length > 1 ? ` · ${c.devices.length}` : ''}</span>`)}</span></span>`)}${s.slots.length > shown.length ? html`<button type="button" class="linkbtn" @click=${() => this.go(s.id)}>${tr('ועוד {n} משבצות', { n: s.slots.length - shown.length })}</button>` : nothing}</span>
       <span class="ccond"><schedule-condition-chip .conditions=${s.conditions} compact></schedule-condition-chip></span>
@@ -912,7 +922,7 @@ export class DevicesSchedules extends LitElement {
     return html`<div class=${`lr${s.enabled ? '' : ' off'}`} role="row" data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)} ?data-menu=${open}>
       ${picking ? html`<span class="lsel" role="cell"><label class="pick" title=${tr('בחירה')}><input type="checkbox" data-select=${s.id} aria-label=${tr('בחירת {name}', { name: s.display_name })} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>` : nothing}
       <span class="ltog" role="cell">${this.switchOf(s)}</span>
-      <span class="lname" role="cell"><a class="name" href=${this.href(s.id)} data-row-open>${bidi(s.display_name)}</a><span class="sub">${floor ? html`<b>${bidi(floor)}</b> · ` : nothing}${bidi(devicesLine(s))}</span></span>
+      <span class="lname" role="cell"><a class="name" href=${this.href(s.id)} data-row-open>${bidi(s.display_name)}</a><span class="sub">${floor ? html`<b>${bidi(floor)}</b> · ` : nothing}${bidi(devicesLine(s))}${this.alsoTag(s)}</span></span>
       <span class="ldays" role="cell"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
       <span class="lbar" role="cell"><sw-schedule-bar compact .slots=${s.slots} .sun=${sun}></sw-schedule-bar></span>
       <span class=${`lnext${issue ? ' warn' : ''}`} role="cell" data-row-next title=${issue}>${issue ? html`${aIcon('warning')}${issue}` : html`<i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i><b data-next-run>${nextRunText(s)}</b>`}</span>
@@ -1001,13 +1011,26 @@ export class DevicesSchedules extends LitElement {
 
   // ---------------------------------------------------------------------------- render
 
-  private renderReady(st: ReturnType<typeof screenState>) {
+  /** MULTI-BUILDING-NEXT-2500: the schedules of the chosen building (Q67: one serving two buildings shows in both; one in no building
+   * shows under every building); all of them under "כל האתר" or with no filter. */
+  private scopedItems(): Schedule[] {
     const all = this.items ?? [];
+    return this.building ? this.buildingMemo.get([all, this.building], () => keepBuilding(all, this.building)) : all;
+  }
+
+  /** Q67: " · גם ב..." on a schedule that serves the chosen building and others. */
+  private alsoTag(s: Schedule) {
+    const note = alsoNote(s.buildings, this.building, this.buildingMeta);
+    return note ? html` · <span data-also>${note}</span>` : nothing;
+  }
+
+  private renderReady(st: ReturnType<typeof screenState>) {
+    const all = this.scopedItems();
     const filters = this.filters;
     const rows = this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
     const manage = !!this.status?.can.manage;
     let content: TemplateResult;
-    if (!all.length) {
+    if (!(this.items ?? []).length) {
       content = this.stateBox('calendar', tr('אין עדיין תזמונים'), 'empty', manage && !st.readOnly ? html`<button type="button" class="btn primary" data-new-schedule @click=${() => this.newSchedule()}>${aIcon('plus')}${tr('תזמון חדש')}</button>` : undefined);
     } else if (!rows.length) {
       content = this.stateBox('search', tr('לא נמצאו תזמונים'), 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.clearFilters()}>${tr('נקה סינון')}</button>`);
