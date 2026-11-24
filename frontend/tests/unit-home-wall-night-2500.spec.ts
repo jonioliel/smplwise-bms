@@ -35,10 +35,10 @@ const at = (iso: string) => Date.parse(iso);
 
 test.describe('HOME-WALL-NIGHT-2500 settings', () => {
   test('the defaults are the owner answers: rest on after 2 minutes, night 23:00-06:00, medium dim, alarm + urgent notice', () => {
-    expect(wallSettings(undefined)).toEqual({ rest: true, restAfterMin: 2, night: true, nightStart: 1380, nightEnd: 360, nightDim: 'medium', takeover: 'alarm_urgent' });
+    expect(wallSettings(undefined)).toEqual({ rest: true, restAfterMin: 2, night: true, nightStart: 1380, nightEnd: 360, nightDim: 'medium', takeover: 'alarm_urgent', noticeNewH: 48 });
     expect(wallSettings({ rest: 'yes', rest_after_min: -1, night: 1, night_start: '24:00', night_end: '6:00', night_dim: 'off', takeover: 'all' })).toEqual(WALL_DEFAULTS);
     expect(wallSettings({ rest: false, rest_after_min: 10, night: false, night_start: '22:30', night_end: '07:15', night_dim: 'strong', takeover: 'call_only' }))
-      .toEqual({ rest: false, restAfterMin: 10, night: false, nightStart: 1350, nightEnd: 435, nightDim: 'strong', takeover: 'call_only' });
+      .toEqual({ rest: false, restAfterMin: 10, night: false, nightStart: 1350, nightEnd: 435, nightDim: 'strong', takeover: 'call_only', noticeNewH: 48 });
   });
   test('times read and write as HH:MM', () => {
     expect(parseHm('00:00')).toBe(0);

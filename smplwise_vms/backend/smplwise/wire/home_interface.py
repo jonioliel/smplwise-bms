@@ -19,7 +19,8 @@ Interface = Literal["home", "full"]
 class HomeWallSettings(WireModel):
     """HOME-WALL-NIGHT-2500: the wall panel's rest screen (`rest`, after `rest_after_min` minutes without a touch), its night window
     (`night`, local HH:MM `night_start` .. `night_end` in the installation's zone; start == end = no window) with how strongly the screen
-    is dimmed, and which events take the screen over (a door call always does, and comes first)."""
+    is dimmed, and which events take the screen over (a door call always does, and comes first). HOME-NEXT-2500: `notice_new_h` = the
+    hours a notice stays "new" on the shared panel, which has no "read" (0 = the panel's own "read", as before)."""
     rest: bool
     rest_after_min: int
     night: bool
@@ -27,6 +28,7 @@ class HomeWallSettings(WireModel):
     night_end: str
     night_dim: Literal["medium", "soft", "strong"]
     takeover: Literal["alarm_urgent", "alarm", "call_only"]
+    notice_new_h: int
 
 
 class HomePolicy(WireModel):
@@ -226,6 +228,7 @@ class HomeInstallSettings(WireModel):
     wall_night_end: str
     wall_night_dim: Literal["medium", "soft", "strong"]
     wall_takeover: Literal["alarm_urgent", "alarm", "call_only"]
+    wall_notice_new: Literal["48", "24", "72", "168", "read"]
 
 
 class HomeSettingsView(WireModel):
