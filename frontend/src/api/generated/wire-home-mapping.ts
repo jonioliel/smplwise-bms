@@ -90,6 +90,7 @@ export interface HomeMappingLinks {
 
 export interface HomeMappingMulti {
   enabled: boolean;
+  check?: "passed" | "skipped" | null;
 }
 
 export interface HomeMappingPlatformArea {
@@ -119,6 +120,8 @@ export interface HomeMappingRead {
   can_toggle: boolean;
   building_reach: string;
   can_set_reach: boolean;
+  review_mode: "required" | "skip";
+  can_set_review: boolean;
   versions: HomeMappingVersion[];
   seen: unknown[] | null;
   items: HomeMappingItems;
@@ -165,12 +168,41 @@ export interface HomeMappingVersion {
   current: boolean;
 }
 
+/** `GET /home/multi-building/check` (MULTI-BUILDING-SAFETY-2500): the report, and the digest `PUT /home/multi-building` is confirmed with. */
+export interface HomeMultiBuildingCheck {
+  digest: string;
+  reach_mode: string;
+  review_mode: "required" | "skip";
+  buildings: number;
+  blocking: number;
+  warnings: number;
+  last_on: string | null;
+  findings: HomeMultiBuildingFinding[];
+}
+
+/**
+ * One finding of the check before turning multi-building on. `items` (at most 20) depend on the code: a device, a building with its
+ * reach gain, an area, a mapping version.
+ */
+export interface HomeMultiBuildingFinding {
+  code: string;
+  severity: "blocking" | "warning" | "info";
+  count: number;
+  items: Record<string, unknown>[];
+}
+
+export interface HomeMultiBuildingReview {
+  mode: "required" | "skip";
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface HomeMappingRoutes {
   "GET /api/v1/sites/{site_id}/mapping": HomeMappingRead;
   "PUT /api/v1/sites/{site_id}/mapping/state": HomeMappingRevision;
   "PUT /api/v1/sites/{site_id}/mapping/settings": HomeMappingSettingsAnswer;
+  "GET /api/v1/home/multi-building/check": HomeMultiBuildingCheck;
   "PUT /api/v1/home/multi-building": HomeMappingMulti;
+  "PUT /api/v1/home/multi-building/review": HomeMultiBuildingReview;
   "PUT /api/v1/home/building-reach": HomeMappingReach;
   "POST /api/v1/sites/{site_id}/mapping/apply": HomeMappingApply;
   "POST /api/v1/sites/{site_id}/mapping/versions/{number}/restore": HomeMappingRestore;

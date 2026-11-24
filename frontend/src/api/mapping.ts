@@ -17,7 +17,7 @@ export interface MappingVersion extends Omit<Wire.HomeMappingVersion, 'kind'> {
   kind: 'apply' | 'confirm' | 'auto' | 'restore';
 }
 type MappingBuilding = Wire.HomeMappingBuilding;
-export interface MappingRead extends Pick<Wire.HomeMappingRead, 'site' | 'revision' | 'multi_building' | 'can_toggle'>, Partial<Pick<Wire.HomeMappingRead, 'can_set_reach'>> {
+export interface MappingRead extends Pick<Wire.HomeMappingRead, 'site' | 'revision' | 'multi_building' | 'can_toggle'>, Partial<Pick<Wire.HomeMappingRead, 'can_set_reach' | 'review_mode' | 'can_set_review'>> {
   state: unknown;
   settings: MappingSettings;
   /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on;
@@ -84,6 +84,8 @@ function demoBuild(demoMapping: typeof import('./mapping-demo').demoMapping): De
     can_toggle: true,
     building_reach: 'map_and_mapping',
     can_set_reach: true,
+    review_mode: 'required',
+    can_set_review: true,
     versions: [],
     seen: null,
     items: {
@@ -162,13 +164,15 @@ export async function setBuildingReach(mode: BuildingReach): Promise<Wire.HomeMa
   return put<Wire.HomeMappingReach>('home/building-reach', { mode });
 }
 
-export async function setMultiBuilding(enabled: boolean): Promise<Wire.HomeMappingMulti> {
+/** MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): turning it on carries the digest of the check the person went through (api/mb-safety.ts
+ * loadCheck); the server refuses without it unless the check is skipped by `home.multi_building.review`. */
+export async function setMultiBuilding(enabled: boolean, checkDigest?: string): Promise<Wire.HomeMappingMulti> {
   if (!isApi()) {
     (await demoStore()).read.multi_building = enabled;
     window.dispatchEvent(new CustomEvent('sw-multi-building', { detail: { enabled } }));
     return { enabled };
   }
-  const r = await put<Wire.HomeMappingMulti>('home/multi-building', { enabled });
+  const r = await put<Wire.HomeMappingMulti>('home/multi-building', checkDigest ? { enabled, check_digest: checkDigest } : { enabled });
   window.dispatchEvent(new CustomEvent('sw-multi-building', { detail: r }));
   return r;
 }

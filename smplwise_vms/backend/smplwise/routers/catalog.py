@@ -455,6 +455,66 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
     audit(conn, actor=principal, action="floor.delete", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details={"anchors_tombstoned": anchors, "force": force, "skin_controls_deleted": controls, "bakes_deleted": bakes, "map_default_floor_cleared": default_cleared})
 
 
+# ---------- moving a floor to another building (MULTI-BUILDING-SAFETY-2500, owner 22.11 Q62) ----------
+# Allowed only to someone who manages the content of BOTH buildings, after an impact preview that names who loses access
+# (services/floor_move.py). The move is confirmed with the preview's digest (409 preview_stale when anything changed since).
+
+def _move_targets(conn: sqlite3.Connection, principal: Principal, floor_id: str, building_id: str) -> tuple[sqlite3.Row, sqlite3.Row]:
+    """The live floor and the live target building, after the two permission checks (source building AND target building, each refusal
+    audited). The target must be another building of the same site (a site's time zone and address are its own)."""
+    from ..services import floor_move
+
+    f = get_floor(conn, floor_id)
+    require(conn, principal, P_CONTENT, ("building", f["building_id"]))
+    target = floor_move.live_building(conn, building_id)
+    if target is None:
+        raise ApiError(404, "building_not_found", "הבניין לא נמצא.", details={"building_id": building_id})
+    require(conn, principal, P_CONTENT, ("building", target["id"]))
+    if target["id"] == f["building_id"]:
+        raise validation("הקומה כבר נמצאת בבניין הזה.", building_id=building_id)
+    source = get_building(conn, f["building_id"])
+    if source["site_id"] != target["site_id"]:
+        raise validation("אפשר להעביר קומה רק לבניין באותו אתר.", building_id=building_id)
+    return f, target
+
+
+@router.get("/floors/{floor_id}/move-preview", **wire(W.FloorMovePreview))
+def floor_move_preview(floor_id: str, building: str = Query(..., min_length=1, max_length=120), principal: Principal = Depends(current_principal_ro),
+                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """What moving the floor to another building of its site changes: who loses / gains access, what moves with it, blockers."""
+    from ..services import floor_move
+
+    f, target = _move_targets(conn, principal, floor_id, building)
+    return floor_move.preview(conn, f, target)
+
+
+class FloorMoveIn(BaseModel):
+    building_id: str = Field(min_length=1, max_length=120)
+    preview_digest: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/floors/{floor_id}/move", **wire(W.FloorMoveResult))
+def floor_move(floor_id: str, body: FloorMoveIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Move the floor to another building of its site, confirmed with the preview's digest; plans, anchors, cameras and floor bindings go with it."""
+    from ..services import floor_move as fm, revocation
+
+    f, target = _move_targets(conn, principal, floor_id, body.building_id)
+    pv = fm.preview(conn, f, target)
+    if pv["blockers"]:
+        raise conflict("move_blocked", "אי אפשר להעביר את הקומה: חדר משותף מחבר אותה לקומה בבניין אחר. בטלו את השיתוף קודם.",
+                       blockers=[b["code"] for b in pv["blockers"]])
+    if body.preview_digest != pv["digest"]:
+        raise conflict("preview_stale", "משהו השתנה מאז התצוגה המקדימה. בדקו אותה שוב.", digest=pv["digest"])
+    records = fm.apply(conn, floor_id, target["id"], now_iso())
+    p = pv["people"]
+    audit(conn, actor=principal, action="floor.move", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request),
+          details={"from": pv["from_building"]["id"], "to": target["id"], "loses": p["loses"], "gains": p["gains"], "changes": p["changes"],
+                   "lost_users": [x["user_id"] for x in p["items"] if x["change"] == "loses"], "records": records, "digest": pv["digest"]})
+    revocation.mark(store.user_ids(conn))  # reach moved with the floor: every open socket re-scopes now
+    return {"floor": floor_row(conn, get_floor(conn, floor_id)), "from_building": pv["from_building"], "to_building": pv["to_building"],
+            "records": records, "loses": p["loses"], "gains": p["gains"], "changes": p["changes"]}
+
+
 # ---------- home-platform links (SYNOPTIC-HA-2310) ----------
 # Mapping rows keyed by the platform's id -> our floor (migration 0187): layer 1 = platform floor -> our floor (one row per platform
 # floor), layer 2 = per-area override (NULL floor = taken off every floor by hand). Layer 3, the plan rooms' area links, wins over both

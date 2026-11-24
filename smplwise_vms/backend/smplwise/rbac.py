@@ -425,7 +425,12 @@ def note_grant(decision: Decision | None, permission: str = "") -> None:
 
 
 def effective_permissions(conn: sqlite3.Connection, principal: Principal, target: tuple[str, str]) -> list[str]:
-    chain = set(scope_chain(conn, *target))
+    return effective_on_chain(conn, principal, set(scope_chain(conn, *target)))
+
+
+def effective_on_chain(conn: sqlite3.Connection, principal: Principal, chain: set[tuple[str, str]]) -> list[str]:
+    """`effective_permissions` for a scope chain the caller supplies - MULTI-BUILDING-SAFETY-2500: the floor-move preview asks what a
+    person would hold on a floor whose building is about to change (the floor's chain under its target building), without writing."""
     allowed: set[str] = set()
     denied: set[str] = set()
     for b in _active_bindings(conn, principal):

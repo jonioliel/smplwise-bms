@@ -100,6 +100,84 @@ export interface CatalogTreeSite {
   buildings?: CatalogTreeBuilding[];
 }
 
+export interface FloorMoveFloor {
+  id: string;
+  name: string;
+  level: number;
+}
+
+export interface FloorMoveNote {
+  code: string;
+  items: Record<string, unknown>[];
+}
+
+export interface FloorMovePeople {
+  loses: number;
+  gains: number;
+  changes: number;
+  total: number;
+  items: FloorMovePerson[];
+}
+
+/** A person whose permissions on the floor change with the move: `loses` (all of them), `gains` (from none) or `changes`. */
+export interface FloorMovePerson {
+  user_id: string;
+  name: string;
+  change: "loses" | "gains" | "changes";
+  lost: string[];
+  gained: string[];
+}
+
+/**
+ * `GET /floors/{id}/move-preview?building=`: the impact of moving the floor, worked out without writing, and the digest the move
+ * is confirmed with.
+ */
+export interface FloorMovePreview {
+  floor: FloorMoveFloor;
+  from_building: FloorMoveRef;
+  to_building: FloorMoveRef;
+  people: FloorMovePeople;
+  moves_with: FloorMoveWith;
+  blockers: FloorMoveNote[];
+  warnings: FloorMoveNote[];
+  can_move: boolean;
+  digest: string;
+}
+
+export interface FloorMoveRecords {
+  tickets: number;
+  ticket_rfqs: number;
+  maint_tasks: number;
+  notices: number;
+  incidents: number;
+}
+
+export interface FloorMoveRef {
+  id: string;
+  name: string;
+}
+
+/** `POST /floors/{id}/move`: the floor in its new building and what changed. */
+export interface FloorMoveResult {
+  floor: CatalogFloor;
+  from_building: FloorMoveRef;
+  to_building: FloorMoveRef;
+  records: FloorMoveRecords;
+  loses: number;
+  gains: number;
+  changes: number;
+}
+
+/** What moves unchanged with the floor (it points at the floor id), and the records whose copy of the building follows it. */
+export interface FloorMoveWith {
+  floor_bindings: number;
+  cameras: number;
+  anchors: number;
+  plans: number;
+  areas: number;
+  records: FloorMoveRecords;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface CatalogRoutes {
   "POST /api/v1/sites/{site_id}/image": CatalogSite;
@@ -114,6 +192,8 @@ export interface CatalogRoutes {
   "POST /api/v1/buildings/{building_id}/floors": CatalogFloor;
   "GET /api/v1/floors/{floor_id}": CatalogFloorRead;
   "PATCH /api/v1/floors/{floor_id}": CatalogFloor;
+  "GET /api/v1/floors/{floor_id}/move-preview": FloorMovePreview;
+  "POST /api/v1/floors/{floor_id}/move": FloorMoveResult;
   "GET /api/v1/home-links": CatalogHomeLinks;
   "PUT /api/v1/floors/{floor_id}/home-link": CatalogHomeLinks;
 }

@@ -148,6 +148,12 @@ test('the exceptions: plain questions, "נשארו N החלטות" goes down, th
   await expect(A(page).locator('[data-ma-offer]')).toHaveCount(1);
   await shot(page, 'step-done', info.project.name);
   await A(page).locator('[data-ma-enable-multi]').click();
+  // MULTI-BUILDING-SAFETY-2500 (owner 22.11, Q63): turning it on goes through the check first
+  const check = A(page).locator('mb-enable-check');
+  await check.locator('[data-mb-findings]').waitFor();
+  await expect(A(page).locator('[data-ma-multi-on]')).toHaveCount(0);
+  await check.locator('sw-toggle[data-mb-ack]').click();
+  await check.locator('[data-mb-enable] button').click();
   await expect(A(page).locator('[data-ma-multi-on]')).toHaveCount(1);
   await A(page).locator('[data-ma-finish]').click();
   await expect(page.locator('system-mapping [data-mapping-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
