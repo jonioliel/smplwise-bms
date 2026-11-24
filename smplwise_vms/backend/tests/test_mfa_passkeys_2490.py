@@ -71,7 +71,10 @@ def passkey_step_up(arx, auth: FakeAuthenticator, action: str = "system.configur
 
 
 def details(row: dict) -> dict:
-    return json.loads(row["details_json"] or "{}")
+    """The audit row's details without the channel the audit layer adds by itself."""
+    out = json.loads(row["details_json"] or "{}")
+    out.pop("channel", None)
+    return out
 
 
 # ---------------------------------------------------------------- the switch and the settings
