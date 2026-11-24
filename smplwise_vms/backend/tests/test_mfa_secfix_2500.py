@@ -84,8 +84,7 @@ def test_sr2_the_reset_removes_every_factor_kind_and_says_so(arx, cheap_hashes):
 
 def test_sr2_the_reset_ends_the_targets_proofs(arx, clock):
     enrol(arx, arx.viewer)  # the enrolment's first code is a fresh proof of the viewer's session
-    with arx.db.connection(mode="read") as conn:
-        assert any(m.user_id == "u-viewer" for m in step_up._MARKS.values())
+    assert any(m.user_id == "u-viewer" for m in step_up._MARKS.values())
     assert TestClient(arx.app).delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
     assert not any(m.user_id == "u-viewer" for m in step_up._MARKS.values())
 
