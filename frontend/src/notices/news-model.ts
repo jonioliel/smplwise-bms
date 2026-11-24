@@ -36,7 +36,7 @@ export function emptyRow(): Row {
 }
 
 /** The i18n key of a failure reason the server reports (`last_error`: services/notices/sources.failure_code and FetchRefused codes). */
-export type HealthKey = 'nsWhyStatus' | 'nsWhySize' | 'nsWhyXml' | 'nsWhyTimeout' | 'nsWhyDns' | 'nsWhyTls' | 'nsWhyNetwork' | 'nsWhyEncoding' | 'nsWhyEmpty'
+type HealthKey = 'nsWhyStatus' | 'nsWhySize' | 'nsWhyXml' | 'nsWhyTimeout' | 'nsWhyDns' | 'nsWhyTls' | 'nsWhyNetwork' | 'nsWhyEncoding' | 'nsWhyEmpty'
   | 'nsWhyRedirect' | 'nsWhyBlocked' | 'nsWhyOther';
 
 const WHY: Record<string, HealthKey> = {
