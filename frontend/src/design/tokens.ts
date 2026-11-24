@@ -369,6 +369,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     tokens: {
       '--sw-on-video': same('#ffffff'), // text and icons over video
       '--sw-on-video-2': same('rgba(255, 255, 255, 0.72)'), // secondary text over video
+      '--sw-video-shadow-ink': same('#000000'), // the ink of a text shadow drawn over video (used with color-mix for its alpha)
       '--sw-video-scrim': same('rgba(0, 0, 0, 0.55)'), // a HUD pill's backdrop
       '--sw-video-scrim-strong': same('rgba(0, 0, 0, 0.72)'), // a HUD panel's backdrop (controls bar, the error card)
       '--sw-video-line': same('rgba(255, 255, 255, 0.18)'), // a hairline on video (tile borders, dividers in the HUD)
@@ -474,6 +475,19 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     },
   },
   {
+    // SHARED-CHECKBOX-2480: the SIZE knobs of the shared check box (components/sw-checkbox.ts) - the sizes live here because a size is
+    // a px value. A module look tunes them on its own host (`--sw-check-size: 16px` for a dense table). Its colour, radius, gap and
+    // font knobs (--sw-check-on / -off / -bg / -mark / -radius / -gap / -fs) are read with a token fallback inside the component, so
+    // they follow a screen that re-tints its accent or surface locally; they are not declared here.
+    id: 'check',
+    title: 'Check box sizes (sw-checkbox knobs)',
+    tokens: {
+      '--sw-check-size': same('18px'), // the drawn box, border included (the size most native boxes of the product were set to)
+      '--sw-check-border-w': same('2px'), // the unchecked box's ring (a UI boundary, >= 3:1 on its surface)
+      '--sw-check-touch': same('44px'), // the transparent hit area's block size under a coarse pointer
+    },
+  },
+  {
     // Bubble foundation (2026-10-02). Every name here is NEW. The base values are neutral: the classic skin draws nothing with
     // them that it did not draw before (a sheet is opaque, a pill is a plain surface, the hues are the accent). The bubble skin
     // gives them their values; a PALETTE (later phase) is a set of values for the colour names of this group and of
@@ -484,6 +498,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the sheet (translucent pop-up): colour as a triplet so the transparency dial can compose the alpha
       '--sw-sheet-rgb': lt('255, 255, 255', '21, 28, 44'),
       '--sw-sheet-alpha': same('1'), // the look dial `transparency` sets this on <html> (design/look.ts); 1 = opaque
+      // PHONE-SHEET-2480: the lowest alpha the open sw-sheet rests at in this skin. 1 = a skin without a sheet blur: the sheet is opaque
+      // whatever the transparency dial says (a translucent fill with no blur let the page and the phone's bottom bar read through a
+      // form). The glass skins (domus, crystal, bubble) set 0, so their frosted sheet follows the dial as before.
+      '--sw-sheet-alpha-min': same('1'),
       '--sw-layer': lt('rgba(255, 255, 255, 0.55)', 'rgba(255, 255, 255, 0.08)'), // a pill sitting ON a translucent sheet
       '--sw-layer-2': lt('rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.14)'),
       '--sw-nav-glass': lt('#ffffff', '#151c2c'), // rail, tree panel, phone dock

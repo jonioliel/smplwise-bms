@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoApp } from './helpers/app-ready';
 
 // DATASTORE-295 phase 2: Settings › אבחון › גיבוי ושחזור - the off-box copies card, the encryption key and the restore drill, against a
 // MOCKED wire contract of routers/backup_offbox.py and routers/backup.py (invented targets, no real host or key):
@@ -120,7 +121,7 @@ async function setup(page: Page): Promise<Mock> {
 }
 
 async function open(page: Page) {
-  await page.goto('/?design=a#/system/diagnostics?tab=backup');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=backup'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-offbox-backup');
   await expect(card.locator('[data-offbox-target="t1"]')).toBeVisible();
   return card;
@@ -170,7 +171,7 @@ test('the key export needs EXPORT, shows the key once, then cannot run again', a
   await expect(dlg.locator('[data-offbox-key-go]')).toHaveAttribute('disabled', ''); // sw-button: a custom element, not a native control
   await dlg.locator('[data-offbox-confirm]').fill('EXPORT');
   await expect(dlg.locator('[data-offbox-key-go]')).toHaveAttribute('disabled', ''); // typed word alone is not enough
-  await dlg.locator('[data-offbox-ack]').check();
+  await dlg.locator('[data-offbox-ack]').click();
   await dlg.locator('[data-offbox-key-go]').click();
   await expect(dlg.locator('[data-offbox-key-text]')).toHaveValue(/^SWXB-KEY-1:3f2a9c1d7b6e5a40:/);
   await shot(page, 'offbox-key-export');
@@ -202,7 +203,7 @@ test('restore from a copy: the scope starts from the setting, the safety passwor
   await card.locator('[data-offbox-target="t1"] [data-offbox-restore-open]').click();
   const dlg = card.locator('[data-offbox-restore-dialog]');
   await dlg.locator('[data-offbox-prepare]').click();
-  await expect(dlg.locator('[data-offbox-restore-access]')).not.toBeChecked();
+  await expect(dlg.locator('[data-offbox-restore-access]')).not.toHaveAttribute('checked');
   const safety = dlg.locator('[data-offbox-restore-safety]');
   await expect(safety).toHaveAttribute('type', 'password');
   await expect(safety).toHaveAttribute('placeholder', /12/);

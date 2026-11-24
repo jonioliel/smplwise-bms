@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-schedule-bar';
 import { actionLabel, type ArgSpec, type Problem } from '../api/schedules';
 import {
@@ -172,11 +172,6 @@ export class ScheduleSlotPanel extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 3px var(--sw-accent-soft);
     }
-    input[type='checkbox'] {
-      inline-size: auto;
-      min-block-size: 0;
-      accent-color: var(--sw-accent);
-    }
     input[type='time'],
     input[type='number'] {
       font-variant-numeric: tabular-nums;
@@ -341,7 +336,7 @@ export class ScheduleSlotPanel extends LitElement {
     }
     /* mobile-native: a finger needs 44 px; the mouse keeps the denser 36 */
     @media (pointer: coarse) {
-      input:not([type='range']):not([type='checkbox']),
+      input:not([type='range']),
       select {
         min-block-size: 44px;
       }
@@ -481,7 +476,7 @@ export class ScheduleSlotPanel extends LitElement {
         const key = `${group.key}:var:${f.name}`;
         const label = `${f.label ?? f.name}${f.required ? ' *' : ''}`;
         if (f.type === 'bool') {
-          return html`<label class="pair" data-var=${f.name}><input type="checkbox" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).checked)} />${label}</label>`;
+          return html`<label class="pair" data-var=${f.name}><sw-toggle size="sm" labelHidden in-label label=${label} ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setVar(group, f.name, toggled(e))}></sw-toggle>${label}</label>`;
         }
         if (f.choices && f.choices.length) {
           return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
@@ -538,7 +533,7 @@ export class ScheduleSlotPanel extends LitElement {
     }
     if (spec.type === 'bool') {
       return html`<div class="arg" data-arg=${spec.name}>
-        <label class="pair"><input type="checkbox" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).checked)} />${label}</label>
+        <label class="pair"><sw-toggle size="sm" labelHidden in-label label=${label} ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setArg(group, spec.name, toggled(e))}></sw-toggle>${label}</label>
       </div>`;
     }
     if (spec.type === 'int' && spec.min !== undefined && spec.max !== undefined) {

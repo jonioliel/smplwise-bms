@@ -236,7 +236,7 @@ test.describe('settings and the announce form', () => {
     await expect.poll(() => calls.some((c) => (c.body?.screens as { seconds?: number } | undefined)?.seconds === 600)).toBe(true);
     const row = card.locator('[data-announce-screen="board:b1"]');
     await expect(row.locator('[data-announce-screen-area]')).toBeDisabled();
-    await row.locator('[data-announce-screen-allow]').check();
+    await row.locator('[data-announce-screen-allow]').click();
     await expect.poll(() => calls.some((c) => JSON.stringify((c.body?.screens as { targets?: unknown } | undefined)?.targets) === '[{"key":"board:b1","area_id":null,"device_key":null}]')).toBe(true);
     await row.locator('[data-announce-screen-area]').selectOption('living');
     await row.locator('[data-announce-screen-device]').selectOption('tv-1');
@@ -260,6 +260,8 @@ test.describe('settings and the announce form', () => {
     await via.first().click(); // speakers off: screens only
     await p2.locator('devices-announce [data-announce-send]').click();
     await expect.poll(() => calls2.some((c) => c.method === 'POST' && c.path === '' && c.body?.speakers === false && c.body?.screens === true)).toBe(true);
+    // the sent form clears itself when the answer arrives: type again only after that, or the late clear wipes the new text (a race)
+    await expect(p2.locator('devices-announce [data-announce-text="he"]')).toHaveValue('');
     await p2.locator('devices-announce [data-announce-text="he"]').fill('בדיקה');
     await expect(p2.locator('devices-announce [data-announce-send]')).not.toHaveAttribute('disabled', '');
     await via.nth(1).click(); // screens off too: nothing to send to

@@ -1177,6 +1177,23 @@ def tablet_skip_set(fe):
         return set()
 
 
+def header_comments(header):
+    """Only the comment text of a spec header: // lines and /* ... */ blocks (code lines are ignored).
+    GATE-ONEPROJECT-2480: a skip message in code ('one project runs the whole sweep') must not count as the marker."""
+    out, inblock = [], False
+    for ln in header.splitlines():
+        s = ln.strip()
+        if inblock:
+            out.append(s.split("*/")[0] if "*/" in s else s)
+            inblock = "*/" not in s
+        elif s.startswith("//"):
+            out.append(s)
+        elif s.startswith("/*"):
+            out.append(s.split("*/")[0] if "*/" in s[2:] else s)
+            inblock = "*/" not in s[2:]
+    return "\n".join(out)
+
+
 def classify(fe, tier):
     out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}, "tablet_dropped": []}
     no_tablet = tablet_skip_set(fe)
@@ -1189,7 +1206,7 @@ def classify(fe, tier):
             continue
         header = "\n".join(text.splitlines()[:70])
         flags = list(dict.fromkeys(re.findall(r"--project=(desktop|tablet|mobile)", header)))
-        one = re.search(r"one project", header, re.I) is not None
+        one = re.search(r"one project", header_comments(header), re.I) is not None   # comments only (GATE-ONEPROJECT-2480)
         workers1 = "--workers=1" in header
         fixtures = re.findall(r"fixtures/(\w+)\.py", header)
         dev = bool(DEV_HDR.search(header) and "fresh build" not in header) or bool(SRC_IMPORT.search(text))

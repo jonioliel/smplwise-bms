@@ -172,10 +172,10 @@ test.describe('WISKEY-CONFLICTS-2400: fleet alerts', () => {
     const mock = await boot(page, {}, '/wiskey/alerts');
     await page.locator(`${PANEL} [data-wkt-alert="entry-b/sync_stalled"] [data-wkt-snooze]`).click();
     const dlg = page.locator(`${PANEL} sw-dialog[data-wkt-alert-dialog]`);
-    await dlg.locator('[data-wkt-whole-station]').check();
+    await dlg.locator('[data-wkt-whole-station]').click();
     await dlg.locator('[data-wkt-alert-ok]').click();
     await expect.poll(() => mock.calls.filter((c) => c.method === 'POST').map((c) => c.path)).toEqual(['stations/entry-b/alerts/maintenance/snooze']);
-    await page.locator(`${PANEL} [data-wkt-show-snoozed]`).check();
+    await page.locator(`${PANEL} [data-wkt-show-snoozed]`).click();
     await page.locator(`${PANEL} [data-wkt-alert="entry-a/clock_drift"] [data-wkt-restore]`).click();
     await page.locator(`${PANEL} sw-dialog[data-wkt-alert-dialog] [data-wkt-alert-ok]`).click();
     await expect.poll(() => mock.calls.filter((c) => c.method === 'POST').map((c) => c.path).at(-1)).toBe('stations/entry-a/alerts/clock_drift/restore');

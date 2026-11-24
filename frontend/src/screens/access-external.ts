@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -9,6 +10,8 @@ import '../components/sw-dropdown';
 import '../components/sw-chip-choice';
 import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import '../components/sw-state-panel';
+import '../components/sw-pager';
+import { PageFit } from '../components/page-fit';
 import '../access-external/identity-card';
 import '../access-external/request-dialog';
 import '../access-external/wiskey-visits-panel'; // WISKEY-VISITS-2407: visits / guest templates / the record of an invitation
@@ -93,6 +96,10 @@ type Dialog =
 @customElement('access-external-screen')
 export class AccessExternalScreen extends LitElement {
   readonly bubbleSkin = new SkinController(this);
+  /** SCROLL-AUDIT-2480 (owner rule: a control screen never scrolls; long lists page): on a desktop window (from 1024x560;
+   * the list card is bounded by the desktop rule below from 1024x600), the grants list shows the rows that fit its card; the rest are on the next pages (`sw-pager` at the end of the filters row).
+   * The long lists set to scroll (הגדרות › כללי › עיצוב הממשק): every row is drawn and the list scrolls inside its card, as before. */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.gl-body[role="list"]'), () => true);
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private data: GrantsReply | null = null;
   @state() private error = '';
@@ -291,6 +298,8 @@ export class AccessExternalScreen extends LitElement {
         .main > .tcard.grants { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; }
         .tcard.grants > .filters, .tcard.grants > .gl-h, .tcard.grants > .legend { flex: none; }
         .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+        /* SCROLL-AUDIT-2480: the measured pages are in force (long lists paged) - the list clips and shows the rows that fit */
+        :host([data-pages-on]) .tcard.grants > .gl-body { overflow: hidden; }
         .main > [data-pending-panel] { flex: 0 1 auto; min-block-size: 0; max-block-size: 38%; overflow-y: auto; scrollbar-width: thin; }
         .side { min-block-size: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
       }
@@ -777,7 +786,7 @@ export class AccessExternalScreen extends LitElement {
             <div class="field"><label for="vu">${xt('ap_until')}</label><input id="vu" class="in num" type="date" lang=${dateInputLang()} .value=${this.apUntil} min=${localDate(vf, this.tz)} max=${lastDay(vu, this.tz)} aria-invalid=${win.error ? 'true' : 'false'} @input=${(e: Event) => (this.apUntil = (e.target as HTMLInputElement).value)} /></div></div>
             <span class="note" style=${win.error ? 'color:var(--sw-danger-text);font-weight:600' : ''} data-window-hint>${winHint}</span></section>
           <section class="sec"><h4><sw-icon name="clock" size="14"></sw-icon>${xt('ap_hours')}</h4><b class="num">${hoursText({ timing: scope?.timing ?? g.timing, valid_from: vf, valid_until: vu }, this.tz)}</b></section>
-          ${needTold ? html`<label class="cb"><input type="checkbox" data-approve-told .checked=${this.apTold} @change=${(e: Event) => (this.apTold = (e.target as HTMLInputElement).checked)} /><span>${xt('ap_told')}</span></label>` : nothing}
+          ${needTold ? html`<label class="cb"><sw-toggle size="sm" labelHidden in-label label=${xt('ap_told')} data-approve-told .checked=${this.apTold} @change=${(e: Event) => (this.apTold = toggled(e))}></sw-toggle><span>${xt('ap_told')}</span></label>` : nothing}
         </div>
         <div class="stack">
           <div class="callout" data-tone="acc"><sw-icon name="shield" size="18"></sw-icon><div><b>${xt('ap_nothingTitle')}</b>${xt('ap_nothingText')}</div></div>
@@ -1107,7 +1116,7 @@ export class AccessExternalScreen extends LitElement {
                 <div><span>${xt('r_local')}</span><b>${r.local_approvers === 'on' ? xt('r_yes') : xt('r_no')}</b></div>`
             : nothing}
         </div>
-        <div class="lockrow" data-extended-identity="locked"><sw-icon name="lock" size="18"></sw-icon><div><b>${xt('extTitle')}</b>${xt('extText')}</div><input type="checkbox" disabled aria-label=${xt('extTitle')} /></div>
+        <div class="lockrow" data-extended-identity="locked"><sw-icon name="lock" size="18"></sw-icon><div><b>${xt('extTitle')}</b>${xt('extText')}</div><sw-toggle size="sm" labelHidden disabled label=${xt('extTitle')}></sw-toggle></div>
       </section>
     </aside>`;
   }
@@ -1136,6 +1145,9 @@ export class AccessExternalScreen extends LitElement {
   private list(grants: Grant[]): TemplateResult {
     const off = !this.data?.enabled;
     const rows = visible(grants, this.query);
+    // the measured pages: a new filter, search, door, source or set of grants starts at page 1 (a state update of the same rows keeps it)
+    this.toggleAttribute('data-pages-on', this.fit.on);
+    this.fit.sync(rows.length, `${this.query.filter}|${this.query.q}|${this.query.station}|${this.query.source}|${rows.map((g) => g.id).join(',')}`);
     const stations: DropdownItem[] = [{ id: '', label: xt('allDoors') }, ...stationsOf(grants).map((s) => ({ id: s.id, label: s.name }))];
     const sources: DropdownItem[] = [{ id: '', label: xt('allSources') }, { id: 'ticket', label: xt('srcTicket') }, { id: 'rfq_order', label: xt('srcRfq') }, { id: 'manual', label: xt('srcManual') }];
     let body: TemplateResult;
@@ -1148,7 +1160,7 @@ export class AccessExternalScreen extends LitElement {
         actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
-        <div class="gl-body" role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
+        <div class="gl-body" role="list">${rows.filter((_, i) => this.fit.shows(i)).map((g) => html`<button type="button" role="listitem" class="gl-r" data-fit-item data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
           <span class="pn"><b>${this.name(g)}</b><small>${[g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor')].filter(Boolean).join(' · ')}</small><span class="sr">${xt(SRC_KEY[g.source] ?? 'srcManual')}${g.source_ref ? html` <span class="num">${g.source_ref}</span>` : nothing}</span></span>
           <span class="doors">${this.doorChips(g)}</span>
           <span class="win"><span class="num">${datesText(g.valid_from, g.valid_until, this.tz)}</span><small class="num">${hoursText(g, this.tz)}</small></span>
@@ -1162,6 +1174,7 @@ export class AccessExternalScreen extends LitElement {
         <sw-dropdown tall .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>
         <sw-dropdown tall .items=${sources} .value=${this.query.source} label=${xt('source')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, source: e.detail.id })}></sw-dropdown>
         <span class="chip" data-tone="acc" data-shown>${xt('shown', { n: rows.length })}</span>
+        ${this.fit.on && this.fit.pages > 1 ? html`<sw-pager data-grants-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
       </div>
       ${body}
       <div class="legend"><span><sw-icon name="lock" size="14"></sw-icon>${xt('legendCode')}</span><span><sw-icon name="help" size="14"></sw-icon>${xt('legendVerified')}</span></div>

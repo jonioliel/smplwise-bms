@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
 import '../components/sw-button';
@@ -952,7 +953,7 @@ export class LiveWall extends LitElement {
           rows,
           (row) => row.id, // keyed: a row that moves takes its own checkbox and width select with it
           (row, i) => html`<div class="settings-row ${row.hidden ? 'is-hidden' : ''}" data-wall-settings-row=${row.id} ?data-wall-row-hidden=${row.hidden}>
-            <label class="settings-show"><input type="checkbox" data-wall-show=${row.id} .checked=${!row.hidden} @change=${(ev: Event) => this.setHidden(i, !(ev.target as HTMLInputElement).checked)} />${tr('מוצגת')}</label>
+            <label class="settings-show"><sw-toggle size="sm" labelHidden in-label label=${tr('מוצגת')} data-wall-show=${row.id} .checked=${!row.hidden} @change=${(ev: Event) => this.setHidden(i, !toggled(ev))}></sw-toggle>${tr('מוצגת')}</label>
             <div class="settings-move">
               <button data-wall-move-up=${row.id} ?disabled=${!canMove(rows, i, -1)} @click=${() => this.moveRow(i, -1)} aria-label=${tr('הזז למעלה')}>↑</button>
               <button data-wall-move-down=${row.id} ?disabled=${!canMove(rows, i, 1)} @click=${() => this.moveRow(i, 1)} aria-label=${tr('הזז למטה')}>↓</button>

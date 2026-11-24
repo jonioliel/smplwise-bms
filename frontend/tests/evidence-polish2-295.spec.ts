@@ -145,23 +145,27 @@ test.describe('automations: rows or the cards with their sentence', () => {
 // least 4.5:1 on its own background, chosen or not, and a chosen segment at least 3:1 from its track (WCAG 1.4.3 / 1.4.11). Backgrounds are
 // composited through every ancestor (shadow hosts included); the glass blur is ignored (it only averages what is already counted).
 const CHOICE = '.seg button, .views button, button.vtog, .rc[aria-pressed]';
+// CR-CMP2-POLISH-2470: the devices kind strips (automations / schedules: תזמונים · אוטומציות · ...) left `.seg` for sw-tabs (pill,
+// CR-CMP2-TABS-2460), so `.seg button` no longer found them. Their key is the label box of each tab inside the sw-tabs shadow root, the
+// track the strip row's ::before - both read here; chosen = aria-selected on the tab.
+const KINDS = { host: 'sw-tabs.kinds', key: '[role="tab"] > .lbl' };
 // FIX-FLAKY-POLISH-WORSTCASE-2439: the screen's route chunk and its first render can land well after <sw-app> (0.2-2 s later on the loaded
 // runner, measured): the contrast is read once the screen has drawn its choice buttons, never on the bare shell
 async function choiceCount(page: Page) {
-  return page.evaluate((sel) => {
+  return page.evaluate(([sel, kinds]) => {
     let n = 0;
-    const walk = (root: Document | ShadowRoot) => {
+    const walk = (root: Document | ShadowRoot, inKinds: boolean) => {
       for (const el of root.querySelectorAll('*')) {
-        if (el.shadowRoot) walk(el.shadowRoot);
-        if (el.matches(sel) && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden') n++;
+        if (el.shadowRoot) walk(el.shadowRoot, el.matches(kinds.host));
+        if ((el.matches(sel) || (inKinds && el.matches(kinds.key))) && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden') n++;
       }
     };
-    walk(document);
+    walk(document, false);
     return n;
-  }, CHOICE);
+  }, [CHOICE, KINDS] as const);
 }
 async function choiceContrast(page: Page) {
-  return page.evaluate((sel) => {
+  return page.evaluate(([sel, kinds]) => {
     type C = { r: number; g: number; b: number; a: number };
     const parse = (s: string): C | null => {
       const m = s.match(/rgba?\(([^)]+)\)/);
@@ -194,16 +198,42 @@ async function choiceContrast(page: Page) {
       return c;
     };
     const found: Element[] = [];
-    const walk = (root: Document | ShadowRoot) => {
+    const kindKeys = new Set<Element>();
+    const walk = (root: Document | ShadowRoot, inKinds: boolean) => {
       for (const el of root.querySelectorAll('*')) {
-        if (el.shadowRoot) walk(el.shadowRoot);
+        if (el.shadowRoot) walk(el.shadowRoot, el.matches(kinds.host));
         if (el.matches(sel)) found.push(el);
+        else if (inKinds && el.matches(kinds.key)) {
+          found.push(el);
+          kindKeys.add(el);
+        }
       }
     };
-    walk(document);
+    walk(document, false);
     return found
       .filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden')
       .map((el) => {
+        if (kindKeys.has(el)) {
+          // a kind tab (sw-tabs pill): the track is the row's ::before over what the row sits on; the key is the label box's own fill
+          // (the chosen tab) over the track, or the track itself; the label ink over the key
+          const row = el.closest('.row')!;
+          const under = bgOf(row);
+          const trackC = parse(getComputedStyle(row, '::before').backgroundColor);
+          const track = trackC && trackC.a > 0 ? over(trackC, under) : under;
+          const cs = getComputedStyle(el);
+          const own = parse(cs.backgroundColor);
+          const key = own && own.a > 0 ? over(own, track) : track;
+          const tab = el.closest('[role="tab"]')!;
+          const host = (el.getRootNode() as ShadowRoot).host;
+          return {
+            ring: 0,
+            what: `${host.tagName.toLowerCase()}.kinds "${(tab.textContent || '').trim().slice(0, 16)}"`,
+            chosen: tab.getAttribute('aria-selected') === 'true',
+            chip: false,
+            text: ratio(over(parse(cs.color)!, key), key),
+            track: ratio(key, track),
+          };
+        }
         const chosen = ['aria-pressed', 'aria-checked', 'aria-selected'].some((a) => el.getAttribute(a) === 'true');
         const bg = bgOf(el);
         const fg = over(parse(getComputedStyle(el).color)!, bg);
@@ -214,7 +244,7 @@ async function choiceContrast(page: Page) {
         const ring = ringC && ringC.a > 0 ? ratio(over(ringC, ground), ground) : 0;
         return { ring, what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, chip: el.matches('.rc[aria-pressed]'), text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
       });
-  }, CHOICE);
+  }, [CHOICE, KINDS] as const);
 }
 
 test.describe('dark scheme: the choice buttons are legible', () => {
@@ -233,6 +263,8 @@ test.describe('dark scheme: the choice buttons are legible', () => {
       const all = await choiceContrast(page);
       expect(all.length, 'choice buttons found').toBeGreaterThan(0);
       expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);
+      // CR-CMP2-POLISH-2470: the kind strip is measured again on the two devices screens (a chosen kind among them)
+      if (name === 'automations' || name === 'schedules') expect(all.some((x) => x.what.startsWith('sw-tabs.kinds') && x.chosen), 'the kind strip (sw-tabs) is measured').toBe(true);
       for (const x of all) {
         expect(x.text, `label ${x.what} chosen=${x.chosen}`).toBeGreaterThanOrEqual(4.5);
         // WCAG 1.4.11: a chosen control is told from what it sits on at 3:1. A segment key by its fill against the track. A chosen

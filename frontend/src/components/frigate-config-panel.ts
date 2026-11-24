@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
+import { toggled } from './sw-toggle';
 import './sw-dialog';
 import './sw-dropdown';
 import './sw-state-panel';
@@ -400,7 +401,7 @@ export class FrigateConfigPanel extends LitElement {
     return html`<sw-dialog open heading=${heading} data-fcp-confirm=${p.kind} @close=${() => (this.pending = null)}>
       <div class="form">
         <p class="dialog-text">${t.confirmText}</p>
-        ${needSup ? html`<label class="sup" data-supervised-box=${kind}><input type="checkbox" .checked=${this.supervised} @change=${(e: Event) => (this.supervised = (e.target as HTMLInputElement).checked)} /><span><b>${s.supervised.label}</b> · ${s.supervised.hint}</span></label>` : nothing}
+        ${needSup ? html`<label class="sup" data-supervised-box=${kind}><sw-toggle size="sm" labelHidden in-label label=${s.supervised.label} .checked=${this.supervised} @change=${(e: Event) => (this.supervised = toggled(e))}></sw-toggle><span><b>${s.supervised.label}</b> · ${s.supervised.hint}</span></label>` : nothing}
         ${blocked ? html`<div class="err" data-fcp-blocked>${s.supervised.need}</div>` : nothing}
         ${this.dialogError ? html`<div class="err" role="alert" data-fcp-error>${this.dialogError}</div>` : nothing}
       </div>

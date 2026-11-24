@@ -92,6 +92,15 @@ def test_the_shared_primitives_are_exempt(tmp_path):
     assert t["native-table"] == 0 and t["hand-switch"] == 0
 
 
+def test_the_owner_kept_switches_are_not_counted(tmp_path):
+    # HAND-SWITCH-2480 (owner N12): the home `.hsw` and the settings row switch stay; any other hand-built switch still counts
+    kept = 'html`<button class="hsw" role="switch" aria-checked="true"><i></i></button><button type="button" class="sw" role="switch">x</button>`'
+    other = 'html`<button type="button" class="sb" role="switch"></button><span class="sw" role="switch"></span><input type="checkbox">`'
+    root = _tree(tmp_path, {"home/a.ts": kept, "screens/b.ts": other})
+    per = dr.scan(root)
+    assert per["hand-switch"] == {"screens/b.ts": 3}, per["hand-switch"]
+
+
 def test_ratchet_fails_only_when_a_count_goes_up(tmp_path):
     root = _tree(tmp_path, {"screens/a.ts": "css`.a { width: 10px; height: 20px; }`", "design/tokens.css": TOKENS})
     counts, refused = dr.update(root, allow_raise=True)

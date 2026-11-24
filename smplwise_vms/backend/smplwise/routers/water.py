@@ -43,6 +43,7 @@ from ..services.energy_provider import coverage_of
 from ..services.timeutil import parse_utc
 from ..wire import water as W, wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..test_reset import register_reset
 
 router = APIRouter()
 API = "/infra/water"
@@ -885,3 +886,12 @@ def put_alerts(request: Request, principal: Principal = Depends(_alerts_editor),
     audit(conn, actor=principal, action="infra.water.alerts.update", decision="allowed", resource_type="settings", resource_id="water.alerts", request_id=_rid(request),
           details={"changed": changed, "on": [k for k in wa.KINDS if out["kinds"][k]["enabled"]]})
     return {**out, "can_edit": True}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    CSV_LIMIT.hits.clear()
+    MANUAL_LIMIT.hits.clear()
+
+
+register_reset(__name__, ("CSV_LIMIT", "MANUAL_LIMIT"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

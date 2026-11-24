@@ -58,11 +58,12 @@ export class SwPlanStills extends LitElement {
   private maskUrl: string | null = null;
 
   static styles = css`
-    :host { display: block; position: relative; width: 100%; height: 100%; min-height: 200px; background: var(--sw-map-sky, #dbe7f8); overflow: hidden; }
+    /* COLOR-LITERAL-B-2480: the fallback colours below, one literal each */
+    :host { display: block; position: relative; --ps-blue: #2767ed; --ps-red: #ef4444; width: 100%; height: 100%; min-height: 200px; background: var(--sw-map-sky, #dbe7f8); overflow: hidden; }
     svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .presence { fill: var(--sw-map-presence, #2767ed); fill-opacity: 0.22; stroke: var(--sw-map-presence, #2767ed); stroke-width: 2; stroke-opacity: 0.7; }
-    .door { fill: var(--sw-danger, #ef4444); fill-opacity: 0.35; stroke: var(--sw-danger, #ef4444); stroke-width: 2; }
-    .cam { fill: var(--sw-accent, #2767ed); stroke: #fff; stroke-width: 2; }
+    .presence { fill: var(--sw-map-presence, var(--ps-blue)); fill-opacity: 0.22; stroke: var(--sw-map-presence, var(--ps-blue)); stroke-width: 2; stroke-opacity: 0.7; }
+    .door { fill: var(--sw-danger, var(--ps-red)); fill-opacity: 0.35; stroke: var(--sw-danger, var(--ps-red)); stroke-width: 2; }
+    .cam { fill: var(--sw-accent, var(--ps-blue)); stroke: #fff; stroke-width: 2; }
     .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sw-text-2, #5b6a85); font: 500 13px/1.4 var(--sw-font, system-ui); }
   `;
 

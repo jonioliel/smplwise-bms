@@ -18,7 +18,7 @@ import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's ow
 import { waNotify, type WaNotifyView } from '../api/notify-whatsapp';
 import {
   CENTER_LAYOUTS, CENTER_LAYOUT_LABEL, CHANNEL_LABEL, DELIVERY_STATUS_LABEL, FAILURES_AUDIENCES, FAILURE_SOURCES, LOCKSCREEN_LABEL, LOCKSCREEN_LEVELS, RECIPIENT_LABEL, RETENTION_CHOICES,
-  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, NOTICE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
+  SEVERITIES, SEVERITY_LABEL, SOURCE_CATALOG, TICKET_SOURCES, RFQ_SOURCES, MAINTENANCE_SOURCES, NOTICE_SOURCES, WEEKDAYS, WEEKDAY_LETTER, announceStatus, channelCell, channelStatus, clockText, deliveryReasonText, errorCode, hhmmToMin, notify, notifyErrorText,
   policyBody, recipientsRuleFor, relativeTime, settingsBody, validateSettings, parseRecipients, NOTIFY_ERROR_LABEL,
   type CenterLayout, type Channel, type Delivery, type EmailSecurity, type EscalationSettings, type FailuresAudience, type LockscreenLevel, type NotifyPolicy,
   type NotifySettings, type NotifyStats, type RetentionDays, type Severity, type Weekday,
@@ -43,6 +43,7 @@ import { dateInputLang } from '../api/day-format';
 import './system-quiet-windows'; // APP-SERVER-LEFTOVERS-2380: the quiet-window card (quiet.windows.*, incl. channels)
 import { qwt } from '../i18n/quiet-windows';
 import { tr } from '../i18n/msg/system-b';
+import '../components/sw-field';
 
 type SecId = NotifySectionId; // CR-WISKEY-NOTIF-2443: the ids live in components/notify-logic.ts (with the guard `notifySection`)
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -120,6 +121,8 @@ export class SystemNotifications extends LitElement {
     css`
       :host {
         --nt-sheet-w: 480px;
+        /* COLOR-LITERAL-A-2480: the lock-screen preview's inner bezel ring, written once (the same literal) */
+        --nt-bezel-ring: rgba(255, 255, 255, 0.08);
       }
       /* AUDIT30-I4 / I6: the page frame is sw-page (its title, its crumb); the media page keeps its inline padding */
       sw-page.page {
@@ -324,6 +327,15 @@ export class SystemNotifications extends LitElement {
         vertical-align: middle;
         block-size: 56px;
       }
+      /* NATIVE-SELECT-A-2480: the select sits in sw-field; its block padding stays the browser's 0 (the field's 5 px would make it taller) */
+      select.inp {
+        padding-block: 0;
+      }
+      /* NATIVE-SELECT-A-2480: the recipient select sits in the shared field; the field keeps the select's own width in the cell */
+      .mx td > sw-field {
+        display: inline-flex;
+        max-inline-size: 100%;
+      }
       .mx tr:last-child td {
         border-block-end: 0;
       }
@@ -394,7 +406,7 @@ export class SystemNotifications extends LitElement {
       /* AUDIT30-I1 (#3): left as the segmented thumb on purpose - measured readable in dark (label 15.6:1, key 11.3:1 from its track,
          tests/evidence-sys-audit-quickfix-2437.spec.ts); the Blue Wash pair would fall under the owner-approved DARK-SEG-ALL-2380 rule
          (the chosen key at least 3:1 from its track). Recorded in docs/changes/AUDIT30-I-DEVICES.md. */
-      .sevseg button[aria-pressed='true'] {
+      .sevseg button[aria-checked='true'] {
         background: var(--mm-seg-thumb);
         color: var(--mm-seg-fg-on, var(--dv-text));
         box-shadow: var(--dv-shadow-control);
@@ -410,6 +422,13 @@ export class SystemNotifications extends LitElement {
         gap: 6px;
         align-items: center;
         flex-wrap: nowrap;
+      }
+      /* RESPONSE-HINTS-2480 (owner decision, option ב): in the sources matrix the channel chips wrap inside their cell (two lines),
+         so no channel (WhatsApp, Companion, הכרזה) hides behind a sideways scroll of the table at 1280-1920 px */
+      .mx td .chs {
+        flex-wrap: wrap;
+        max-inline-size: 100%;
+        padding-block: 4px;
       }
       .chip {
         display: inline-flex;
@@ -588,8 +607,8 @@ export class SystemNotifications extends LitElement {
         border-radius: 34px;
         overflow: hidden;
         background: radial-gradient(500px 340px at 20% -10%, #8fb4ff 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #ffb36b 0%, transparent 55%), linear-gradient(180deg, #1b2a4a, #0b1020);
-        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08);
-        color: #fff;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px var(--nt-bezel-ring);
+        color: var(--sw-on-video);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -600,7 +619,7 @@ export class SystemNotifications extends LitElement {
       .lphone.sel {
         opacity: 1;
         transform: translateY(-4px);
-        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08), 0 0 0 3px var(--dv-accent);
+        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px var(--nt-bezel-ring), 0 0 0 3px var(--dv-accent);
       }
       :host([data-devices-scheme='dark']) .lphone {
         background: radial-gradient(500px 340px at 20% -10%, #2a3f6e 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #5a3a16 0%, transparent 55%), linear-gradient(180deg, #0a0d16, #000);
@@ -619,7 +638,7 @@ export class SystemNotifications extends LitElement {
         padding: 0 10px;
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.45);
-        color: #fff;
+        color: var(--sw-on-video);
         font-size: var(--sw-fs-xs);
         font-weight: var(--sw-fw-semibold);
         display: inline-flex;
@@ -1093,19 +1112,19 @@ export class SystemNotifications extends LitElement {
   // ---------------------------------------------------------------------------------------------- sections
 
   private sevSeg(source: string, cur: Severity) {
-    return html`<span class="sevseg" role="radiogroup" aria-label=${tr('חומרה')}>${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} aria-pressed=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
+    return html`<span class="sevseg" role="radiogroup" aria-label=${tr('חומרה')}>${SEVERITIES.slice().reverse().map((s) => html`<button type="button" role="radio" aria-checked=${String(cur === s)} data-pol-sev=${`${source}:${s}`} style=${`--sev:var(--nt-sev-${s})`} title=${SEVERITY_LABEL[s]} @click=${() => this.patchPolicy(source, (p) => policyWithSeverity(p, s))}><i aria-hidden="true"></i>${SEVERITY_LABEL[s]}</button>`)}</span>`;
   }
   private whoSel(p: NotifyPolicy) {
     const forced = FAILURE_SOURCES.includes(p.source);
     const eff = this.settings ? recipientsRuleFor(p, this.settings) : p.recipients.rule;
     const shown = forced ? eff : p.recipients.rule;
-    return html`<select class="inp sm" data-pol-who=${p.source} aria-label=${tr('מי מקבל')} ?disabled=${forced} @change=${(e: Event) => {
+    return html`<sw-field><select class="inp sm" data-pol-who=${p.source} aria-label=${tr('מי מקבל')} ?disabled=${forced} @change=${(e: Event) => {
       const v = (e.target as HTMLSelectElement).value as NotifyPolicy['recipients']['rule'];
       if (v === 'users') {
         this.openPicker(p.source);
         (e.target as HTMLSelectElement).value = shown;
       } else this.patchPolicy(p.source, (x) => policyWithRule(x, v));
-    }}>${(RULES.includes(shown) ? RULES : [...RULES, shown]).map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select>`;
+    }}>${(RULES.includes(shown) ? RULES : [...RULES, shown]).map((r) => html`<option value=${r} .selected=${shown === r}>${r === 'users' && p.recipients.rule === 'users' ? `${RECIPIENT_LABEL.users} (${p.recipients.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r]}</option>`)}</select></sw-field>`;
   }
   private chans(p: NotifyPolicy) {
     const s = this.settings;
@@ -1113,9 +1132,10 @@ export class SystemNotifications extends LitElement {
     const mail = channelCell(p, 'email', s);
     const app = channelCell(p, 'app', s);
     const wa = channelCell(p, 'whatsapp', s, this.wa); // NOTIFWA: editable; "unconfigured" while the channel's master switch is off
+    const ann = channelCell(p, 'announce', s); // RESPONSE-HINTS-2480 (owner N58): spoken in the room the announcement settings name
     const unconfTitle: Partial<Record<Channel, string>> = { email: tr('הדוא"ל לא מוגדר'), whatsapp: tr('וואטסאפ כבוי') };
     const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? unconfTitle[c] ?? '' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
-    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}<span class="chip soon" aria-disabled="true" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
+    return html`<span class="chs"><span class="chip lock" title=${tr('תמיד')}>${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}${chip('whatsapp', wa, 'chat')}${chip('announce', ann, 'horn')}<span class="chip soon" role="img" title=${tr('Companion – בקרוב')} aria-label=${tr('Companion – בקרוב')}>${nIcon('phone')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
     // CR-CMP2-TOAST-2440 (06:CMP-2 step 2, owner O13 a): the shared sw-toggle instead of a hand-built track (switchPress: the model's value)
@@ -1134,7 +1154,7 @@ export class SystemNotifications extends LitElement {
     const s = this.settings as NotifySettings;
     let body: TemplateResult;
     if (!this.phone) {
-      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:20%"><col style="width:7%"><col style="width:24%"><col style="width:18%"><col></colgroup>
+      body = html`<div class="mxw"><table class="mx"><colgroup><col style="width:18%"><col style="width:6%"><col style="width:22%"><col style="width:16%"><col></colgroup>
         <thead><tr><th>${tr('מקור')}</th><th class="c">${tr('פעיל')}</th><th>${tr('חומרה')}</th><th>${tr('מי מקבל')}</th><th>${tr('ערוצים')}</th></tr></thead>
         <tbody>${groups.map((g: MatrixGroup) => html`<tr class="cat"><td colspan="5">${nIcon(g.icon)}${g.label}</td></tr>${g.rows.map(({ info, policy: p }) => html`<tr class=${p.enabled ? '' : 'off'} data-pol-row=${p.source}>
           <td class="keep"><span class="nm"><span class="ring">${nIcon(info.icon)}</span><b>${info.label}</b></span></td>
@@ -1229,7 +1249,7 @@ export class SystemNotifications extends LitElement {
       <div class="fgrid">
         <label>${tr('שרת')}<input class="inp ltr" data-mail-host .value=${m.host} @input=${(ev: Event) => set({ host: (ev.target as HTMLInputElement).value })} /></label>
         <label>${tr('פורט')}<input class="inp ltr" inputmode="numeric" data-mail-port .value=${m.port} @input=${(ev: Event) => set({ port: (ev.target as HTMLInputElement).value })} /></label>
-        <label>${tr('אבטחה')}<select class="inp" data-mail-security @change=${(ev: Event) => set({ security: (ev.target as HTMLSelectElement).value as EmailSecurity })}>${(['starttls', 'tls', 'none'] as EmailSecurity[]).map((v) => html`<option value=${v} .selected=${m.security === v}>${v === 'none' ? tr('ללא') : v === 'tls' ? 'TLS' : 'STARTTLS'}</option>`)}</select></label>
+        <label>${tr('אבטחה')}<sw-field><select class="inp" data-mail-security @change=${(ev: Event) => set({ security: (ev.target as HTMLSelectElement).value as EmailSecurity })}>${(['starttls', 'tls', 'none'] as EmailSecurity[]).map((v) => html`<option value=${v} .selected=${m.security === v}>${v === 'none' ? tr('ללא') : v === 'tls' ? 'TLS' : 'STARTTLS'}</option>`)}</select></sw-field></label>
         <label>${tr('משתמש')}<input class="inp ltr" data-mail-user .value=${m.user} @input=${(ev: Event) => set({ user: (ev.target as HTMLInputElement).value })} /></label>
         <label>${tr('סיסמה')}<span style="display:flex;gap:8px"><input class="inp ltr" type="password" autocomplete="new-password" data-mail-password style="flex:1" .value=${m.pwEdit ? m.password : '••••••••••'} ?readonly=${!m.pwEdit} @input=${(ev: Event) => set({ password: (ev.target as HTMLInputElement).value })} />${e.password_set && !m.pwEdit ? html`<button type="button" class="btn quiet sm" data-mail-pw-change @click=${() => set({ pwEdit: true, password: '' })}>${tr('החלפה')}</button>` : nothing}</span></label>
         <label>${tr('מאת')}<input class="inp ltr" data-mail-from .value=${m.from} @input=${(ev: Event) => set({ from: (ev.target as HTMLInputElement).value })} /></label>
@@ -1254,6 +1274,7 @@ export class SystemNotifications extends LitElement {
     const push = channelStatus('webpush', s, this.devices);
     const mail = channelStatus('email', s, this.devices);
     const wa = channelStatus('whatsapp', s, this.devices, this.wa ? { enabled: this.wa.enabled, mapped: this.wa.account.mapped } : null);
+    const ann = announceStatus(this.policies);
     const pill = (state: string, text: string) => html`<span class="tag ${state === 'on' || state === 'always' ? 'ok' : state === 'soon' ? 'soon' : ''}">${state === 'on' || state === 'always' ? tr('פעיל') : text}</span>`;
     return html`<section class="glass sec" data-set-section="chan" id="sec-chan"><header><h2>${nIcon('phone')}${SECTIONS[7].label}</h2></header>
       <div class="frow"><div class="l"><b>${tr('מרכז ההתראות במחשב')}</b></div><div class="r"><sw-segmented size="sm" label=${tr('מרכז ההתראות במחשב')} value=${s.center_layout} @change=${(ev: CustomEvent<SegmentedChange>) => this.patchSettings({ center_layout: ev.detail.value as CenterLayout })}
@@ -1265,6 +1286,7 @@ export class SystemNotifications extends LitElement {
         <div class="chc" data-channel="app"><span class="ring">${nIcon('phone')}</span><b>${tr('אפליקציה לנייד')}</b><small>${tr('לפי המכשירים שנרשמו באפליקציה · שעות השקט כמו דחיפה')}</small>${pill('on', '')}</div>
         <div class="chc soon" data-channel="ha_mobile"><span class="ring">${nIcon('phone')}</span><b>Companion</b><small>${tr('טלפונים לפי משתמש')}</small><span class="tag soon">${tr('בקרוב')}</span></div>
         <div class="chc" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small>${wa.text}</small>${pill(wa.state, wa.text)}</div>
+        <div class="chc" data-channel="announce"><span class="ring">${nIcon('horn')}</span><b>${CHANNEL_LABEL.announce}</b><small>${ann.state === 'on' ? ann.text : tr('נשמעת ברמקול שנבחר בהגדרות ההכרזות')}</small>${pill(ann.state, ann.text)}</div>
       </div>
       <div class="devbox"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></div></section>`;
   }

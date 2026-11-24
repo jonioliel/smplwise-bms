@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appReady } from './helpers/app-ready';
 
 // SYN-COLUMNS-2321 (owner request 2026-10-31): "an option to hide columns I have no data for". The synoptic board, the cross-section and the
 // settings card. Static demo build: `?xsdata=sparse` is a building with no temperature sensors and no lights (switches only, as on the
@@ -15,6 +16,7 @@ const FLOORS = '/#/explore/buildings/b1/floors';
 async function open(page: Page, url: string) {
   await page.goto(url);
   await page.reload();
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
 }
 
 async function shot(page: Page, name: string, project: string) {

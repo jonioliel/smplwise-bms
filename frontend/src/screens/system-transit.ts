@@ -5,7 +5,7 @@ import { settingsLadderStyles } from '../styles/settings';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-button';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import {
@@ -16,6 +16,7 @@ import { tr, trLang, type TrKey } from '../i18n/transit';
 import { canAdd, clampInt, moveStop, stopsBody } from '../transit/model';
 import { noticesCss } from '../notices/styles';
 import { PollController } from '../components/poll-controller';
+import '../components/sw-field';
 
 /**
  * BUSTIMES-295: הגדרות › תחבורה ציבורית (#/system/transit). The installation's part of the feature: the module switch, up to four stops
@@ -240,8 +241,8 @@ export class SystemTransit extends LitElement {
     return html`<div class="panel" data-transit-search><div class="hd"><h2>${tr('searchCard')}</h2></div>
       ${catalogue.count === 0 ? html`<p class="hint">${tr('catalogueEmpty')}</p>` : html`<div class="form" @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.runSearch()}>
         <div class="r">
-          <div class="fld"><label for="tr-city">${tr('city')}</label><select id="tr-city" class="inp" data-v=${this.city} .value=${this.city} @change=${(e: Event) => (this.city = (e.target as HTMLSelectElement).value)}>
-            <option value="">${tr('cityAny')}</option>${this.cities.map((c) => html`<option value=${c} ?selected=${c === this.city}>${c}</option>`)}</select></div>
+          <div class="fld"><label for="tr-city">${tr('city')}</label><sw-field><select id="tr-city" class="inp" data-v=${this.city} .value=${this.city} @change=${(e: Event) => (this.city = (e.target as HTMLSelectElement).value)}>
+            <option value="">${tr('cityAny')}</option>${this.cities.map((c) => html`<option value=${c} ?selected=${c === this.city}>${c}</option>`)}</select></sw-field></div>
           <div class="fld"><label for="tr-q">${tr('nameFilter')}</label><input id="tr-q" class="inp" maxlength="60" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}></div>
           <div class="fld"><label for="tr-code">${tr('codeFilter')}</label><input id="tr-code" class="inp ltr" inputmode="numeric" maxlength="8" .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)}></div>
         </div>
@@ -275,11 +276,11 @@ export class SystemTransit extends LitElement {
     return html`<div class="panel" data-transit-refresh><div class="hd"><h2>${tr('refreshCard')}</h2></div><div class="form">
       ${this.numField('refresh_s', 'refreshS', 'refreshSHint', limits.refresh_range, edit, 'seconds')}
       ${this.numField('poll_s', 'pollS', 'pollSHint', limits.poll_range, edit, 'seconds')}
-      <label class="ck"><input type="checkbox" data-field="poll_floor_ack" .checked=${config.poll_floor_ack} ?disabled=${!edit || this.busy}
-        @change=${(e: Event) => this.save({ poll_floor_ack: (e.target as HTMLInputElement).checked, ...((e.target as HTMLInputElement).checked || config.poll_s >= limits.poll_floor_s ? {} : { poll_s: limits.poll_floor_s }) })}>${tr('pollAck')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${tr('pollAck')} data-field="poll_floor_ack" .checked=${config.poll_floor_ack} ?disabled=${!edit || this.busy}
+        @change=${(e: Event) => this.save({ poll_floor_ack: toggled(e), ...(toggled(e) || config.poll_s >= limits.poll_floor_s ? {} : { poll_s: limits.poll_floor_s }) })}></sw-toggle>${tr('pollAck')}</label>
       ${this.numField('position_fresh_min', 'positionFresh', 'positionFreshHint', limits.position_fresh_range, edit)}
-      <label class="ck"><input type="checkbox" data-field="show_distance" .checked=${config.show_distance} ?disabled=${!edit || this.busy}
-        @change=${(e: Event) => this.save({ show_distance: (e.target as HTMLInputElement).checked })}>${tr('showDistance')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${tr('showDistance')} data-field="show_distance" .checked=${config.show_distance} ?disabled=${!edit || this.busy}
+        @change=${(e: Event) => this.save({ show_distance: toggled(e) })}></sw-toggle>${tr('showDistance')}</label>
       <span class="hint">${tr('showDistanceHint')}</span>
     </div></div>`;
   }

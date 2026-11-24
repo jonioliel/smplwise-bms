@@ -53,7 +53,7 @@ export class SystemBrandInstaller extends LitElement {
   @state() private warnings: string[] = [];
 
   static styles = [settingsStyles, css`
-    :host { display: block; }
+    :host { display: block; --bi-dark-ink: #e8edf7; /* COLOR-LITERAL-A-2480: the dark preview's ink, written once */ }
     .bcard { display: flex; flex-direction: column; gap: 10px; }
     .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .tabs { display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px; border-radius: var(--sw-r-md); background: var(--sw-surface-3); max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
@@ -93,11 +93,11 @@ export class SystemBrandInstaller extends LitElement {
     .acts { display: flex; gap: 6px; flex-wrap: wrap; }
     .tile { display: grid; place-items: center; min-block-size: 84px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); padding: 12px; }
     .tile.light, .mini.l { background: #ffffff; }
-    .tile.dark, .mini.d { background: #0d1220; color: #e8edf7; }
+    .tile.dark, .mini.d { background: #0d1220; color: var(--bi-dark-ink); }
     .drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-block-size: 84px; padding: 8px; border: 1.5px dashed var(--sw-border-strong); border-radius: var(--sw-r-md); color: var(--sw-text-2); font-size: var(--sw-fs-sm); text-align: center; }
     .meta { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     .mini { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border-strong); text-align: center; color: #1d2433; }
-    .mini.d { color: #e8edf7; }
+    .mini.d { color: var(--bi-dark-ink); }
     .mini b { font-size: var(--sw-fs-sm); overflow-wrap: anywhere; unicode-bidi: plaintext; }
     .mini span.c { font-size: var(--sw-fs-xs); opacity: 0.8; overflow-wrap: anywhere; unicode-bidi: plaintext; }
     .mini .bar { inline-size: 40px; block-size: 4px; border-radius: var(--sw-r-2xs); margin-block-start: 4px; }

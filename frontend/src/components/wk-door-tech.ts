@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-badge';
 import './sw-dialog';
 import './sw-dropdown';
@@ -17,6 +18,8 @@ import {
   emptyBody,
   getDoorTech,
   getHold,
+  holdAfter,
+  codeAfter,
   normalized,
   phraseFor,
   shownPhraseFor,
@@ -86,6 +89,10 @@ export class WkDoorTech extends LitElement {
   @state() private pending: Pending | null = null;
   @state() private running: string | null = null;
   @state() private results: Record<string, DoorTechOutcome> = {};
+  /** DOOR-TECH-REREAD-2480: the button pressed while the read after a write is out (its confirmation opens when that read is in). */
+  @state() private queued: string | null = null;
+  /** The read that follows a write, while it is out. */
+  private reread: Promise<void> | null = null;
   private seq = 0;
   private loadedFor = '';
 
@@ -254,7 +261,7 @@ export class WkDoorTech extends LitElement {
       padding: 4px 8px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
-      background: var(--sw-surface, #fff);
+      background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -385,6 +392,8 @@ export class WkDoorTech extends LitElement {
     this.pending = null;
     this.running = null;
     this.results = {};
+    this.queued = null;
+    this.reread = null;
   }
 
   private doors(): number[] {
@@ -402,6 +411,7 @@ export class WkDoorTech extends LitElement {
   private async openDialog(): Promise<void> {
     this.open = true;
     this.tab = 'hold';
+    this.queued = null;
     await this.load();
   }
 
@@ -447,6 +457,7 @@ export class WkDoorTech extends LitElement {
   private pick(tab: Tab): void {
     this.tab = tab;
     this.pending = null;
+    this.queued = null;
     if (tab === 'codes' && this.codesPhase === 'idle') void this.loadCodes();
   }
 
@@ -478,9 +489,83 @@ export class WkDoorTech extends LitElement {
     if (this.station?.id !== sid) return;
     this.running = null;
     this.results = { ...this.results, [key]: out };
+    this.applyAnswer(key, out);
     this.dispatchEvent(new CustomEvent('door-tech-changed', { detail: out, bubbles: true, composed: true }));
-    await this.load(); // a READ: what the door looks like after the answer (nothing is repeated)
-    if (key.startsWith('code:')) await this.loadCodes();
+    // a READ: what the door looks like after the answer (nothing is repeated). DOOR-TECH-REREAD-2480 (owner Q11): no button is locked
+    // while it is out - the answer is already drawn (applyAnswer), and a press in the meantime waits for it (afterRead), so nothing goes
+    // out with a revision this write has just replaced
+    const reread = (async () => {
+      await this.load();
+      if (key.startsWith('code:')) await this.loadCodes();
+    })();
+    this.reread = reread;
+    await reread;
+    if (this.reread === reread) this.reread = null;
+  }
+
+  /** What the write's own answer says about the door, drawn at once: a hold's new draft / "no draft", a code slot's presence. */
+  private applyAnswer(key: string, out: DoorTechOutcome): void {
+    const n = Number(key.slice(key.indexOf(':') + 1));
+    if (out.kind === 'hold_save' && out.status === 'acknowledged') this.editing = null;
+    const hold = holdAfter(out);
+    if (hold !== undefined) this.holds = { ...this.holds, [n]: hold };
+    const configured = codeAfter(out);
+    if (configured !== undefined && this.codes) this.codes = { ...this.codes, slots: this.codes.slots.map((s) => (s.slot === n ? { ...s, configured } : s)) };
+  }
+
+  /**
+   * A press of a write's button. While the read after a write is out the button is NOT locked (owner Q11: no lock flash); the press is
+   * kept (the button shows busy) and runs once that read is in, against what it says - the confirmation then carries the fresh revision.
+   * A later press replaces an earlier kept one; nothing is ever sent without its confirmation.
+   */
+  private afterRead(id: string, fn: () => void): void {
+    const r = this.reread;
+    if (!r) {
+      fn();
+      return;
+    }
+    const sid = this.station?.id;
+    this.queued = id;
+    void r.then(() => {
+      if (this.queued !== id) return;
+      this.queued = null;
+      if (this.station?.id !== sid || !this.open || this.running) return;
+      fn();
+    });
+  }
+
+  private programOf(door: number): StationProgram | null {
+    return this.programs?.programs.find((x) => x.door === door) ?? null;
+  }
+
+  // the buttons' actions, read from the state at the moment they run (afterRead may run them after a read)
+
+  private editHold(door: number): void {
+    const d = this.holds[door] ?? null;
+    if (d && d.revision === null) return;
+    this.editing = { door, revision: d?.revision ?? 0, body: d?.policy ? toBody(d.policy, this.zone) : emptyBody(this.zone) };
+  }
+
+  private applyProgram(door: number): void {
+    const p = this.programOf(door);
+    const draft = this.holds[door] ?? null;
+    if (draft?.policy && (!p || (!p.enabled && !p.removing))) this.askProgramSave(door, toBody(draft.policy, this.zone), p?.revision ?? 0);
+  }
+
+  private resumeProgram(door: number): void {
+    const p = this.programOf(door);
+    if (p && !p.enabled && !p.removing && p.policy && p.revision !== null) this.askProgramSave(door, toBody(p.policy, this.zone), p.revision);
+  }
+
+  private programStep(door: number, action: 'pause' | 'remove'): void {
+    const p = this.programOf(door);
+    if (p && !p.removing && (action === 'remove' || p.enabled)) this.askProgramAction(p, action);
+  }
+
+  private openCodeForm(slot: number, action: 'set' | 'clear'): void {
+    const sl = this.codes?.slots.find((x) => x.slot === slot);
+    if (!sl || sl.configured === null || this.codeForm || (action === 'clear' && !sl.configured)) return;
+    this.codeForm = { slot, action, expected: action === 'clear' || sl.configured === true, door: this.doors()[0] ?? 1, compatibility: false };
   }
 
   private stationName(): string {
@@ -500,11 +585,7 @@ export class WkDoorTech extends LitElement {
       kind: 'hold_save',
       title: t.confirm.hold_save.title,
       sentence: fill(t.confirm.hold_save.one, { name: body.name, door: this.doorName(door), station: this.stationName() }),
-      send: async () => {
-        const out = await runWrite('hold_save', () => saveHold(s.id, door, revision, body));
-        if (out.status === 'acknowledged') this.editing = null;
-        return out;
-      },
+      send: () => runWrite('hold_save', () => saveHold(s.id, door, revision, body)), // an acknowledged save closes the editor (applyAnswer)
     });
   }
 
@@ -603,6 +684,7 @@ export class WkDoorTech extends LitElement {
           this.pending = null;
           this.editing = null;
           this.codeForm = null;
+          this.queued = null;
         }
       }}
     >
@@ -678,11 +760,11 @@ export class WkDoorTech extends LitElement {
             <div class="btns">
               ${this.unsupported('hold_save')
                 ? nothing
-                : html`<wk-action-button icon=${d ? 'edit' : 'plus'} data-wk-dt-hold-edit=${door} ?disabled=${!this.live || !!this.running || d?.revision === null}
-                    @click=${() => (this.editing = { door, revision: d?.revision ?? 0, body: body ?? emptyBody(this.zone) })}>${d ? t.hold.edit : t.hold.add}</wk-action-button>`}
+                : html`<wk-action-button icon=${d ? 'edit' : 'plus'} data-wk-dt-hold-edit=${door} ?busy=${this.queued === `hold-edit:${door}`} ?disabled=${!this.live || !!this.running || d?.revision === null}
+                    @click=${() => this.afterRead(`hold-edit:${door}`, () => this.editHold(door))}>${d ? t.hold.edit : t.hold.add}</wk-action-button>`}
               ${d && !this.unsupported('hold_delete')
-                ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-hold-delete=${door} ?busy=${busy} ?disabled=${!this.live || !!this.running}
-                    @click=${() => this.askHoldDelete(door)}>${t.hold.remove}</wk-action-button>`
+                ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-hold-delete=${door} ?busy=${busy || this.queued === `hold-delete:${door}`} ?disabled=${!this.live || !!this.running}
+                    @click=${() => this.afterRead(`hold-delete:${door}`, () => this.askHoldDelete(door))}>${t.hold.remove}</wk-action-button>`
                 : nothing}
             </div>
           </div>
@@ -772,7 +854,7 @@ export class WkDoorTech extends LitElement {
         </div>
       </div>
       <div class="btns">
-        <wk-action-button tone="primary" icon="check" data-wk-dt-save ?disabled=${!this.live || !!this.running || problems.length > 0} @click=${() => this.askHoldSave()}>${t.editor.save}</wk-action-button>
+        <wk-action-button tone="primary" icon="check" data-wk-dt-save ?busy=${this.queued === 'hold-save'} ?disabled=${!this.live || !!this.running || problems.length > 0} @click=${() => this.afterRead('hold-save', () => this.askHoldSave())}>${t.editor.save}</wk-action-button>
         <wk-action-button data-wk-dt-editor-cancel ?disabled=${!!this.running} @click=${() => ((this.editing = null), (this.pending = null))}>${t.editor.cancel}</wk-action-button>
       </div>
       ${this.confirmAt(`hold:${e.door}`)} ${this.result(`hold:${e.door}`)}
@@ -805,16 +887,16 @@ export class WkDoorTech extends LitElement {
         ${exec && p?.enabled ? html`<span class="line">${exec}</span>` : nothing}
         <div class="btns">
           ${canSave && draftBody && (!p || paused)
-            ? html`<wk-action-button tone="primary" icon="play" data-wk-dt-program-apply=${door} ?disabled=${off || !online} @click=${() => this.askProgramSave(door, draftBody, p?.revision ?? 0)}>${t.programs.apply}</wk-action-button>`
+            ? html`<wk-action-button tone="primary" icon="play" data-wk-dt-program-apply=${door} ?busy=${this.queued === `program-apply:${door}`} ?disabled=${off || !online} @click=${() => this.afterRead(`program-apply:${door}`, () => this.applyProgram(door))}>${t.programs.apply}</wk-action-button>`
             : nothing}
           ${canSave && paused && progBody && p?.revision !== null
-            ? html`<wk-action-button icon="play" data-wk-dt-program-resume=${door} ?disabled=${off || !online} @click=${() => this.askProgramSave(door, progBody, p!.revision!)}>${t.programs.resume}</wk-action-button>`
+            ? html`<wk-action-button icon="play" data-wk-dt-program-resume=${door} ?busy=${this.queued === `program-resume:${door}`} ?disabled=${off || !online} @click=${() => this.afterRead(`program-resume:${door}`, () => this.resumeProgram(door))}>${t.programs.resume}</wk-action-button>`
             : nothing}
           ${canAct && p?.enabled && !p.removing
-            ? html`<wk-action-button icon="pause" data-wk-dt-program-pause=${door} ?disabled=${off} @click=${() => this.askProgramAction(p, 'pause')}>${t.programs.pause}</wk-action-button>`
+            ? html`<wk-action-button icon="pause" data-wk-dt-program-pause=${door} ?busy=${this.queued === `program-pause:${door}`} ?disabled=${off} @click=${() => this.afterRead(`program-pause:${door}`, () => this.programStep(door, 'pause'))}>${t.programs.pause}</wk-action-button>`
             : nothing}
           ${canAct && p && !p.removing
-            ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-program-remove=${door} ?disabled=${off} @click=${() => this.askProgramAction(p, 'remove')}>${t.programs.remove}</wk-action-button>`
+            ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-program-remove=${door} ?busy=${this.queued === `program-remove:${door}`} ?disabled=${off} @click=${() => this.afterRead(`program-remove:${door}`, () => this.programStep(door, 'remove'))}>${t.programs.remove}</wk-action-button>`
             : nothing}
         </div>
         ${!draftBody && (!p || paused) ? html`<span class="line">${t.programs.needDraft}</span>` : nothing}
@@ -849,11 +931,11 @@ export class WkDoorTech extends LitElement {
           </div>
           ${can
             ? html`<div class="btns">
-                <wk-action-button icon="lock" data-wk-dt-code-set=${sl.slot} ?disabled=${off}
-                  @click=${() => (this.codeForm = { slot: sl.slot, action: 'set', expected: sl.configured === true, door: this.doors()[0] ?? 1, compatibility: false })}>${sl.configured ? t.codes.replace : t.codes.define}</wk-action-button>
+                <wk-action-button icon="lock" data-wk-dt-code-set=${sl.slot} ?busy=${this.queued === `code-set:${sl.slot}`} ?disabled=${off}
+                  @click=${() => this.afterRead(`code-set:${sl.slot}`, () => this.openCodeForm(sl.slot, 'set'))}>${sl.configured ? t.codes.replace : t.codes.define}</wk-action-button>
                 ${sl.configured
-                  ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-code-clear=${sl.slot} ?disabled=${off}
-                      @click=${() => (this.codeForm = { slot: sl.slot, action: 'clear', expected: true, door: this.doors()[0] ?? 1, compatibility: false })}>${t.codes.clear}</wk-action-button>`
+                  ? html`<wk-action-button tone="danger" icon="trash" data-wk-dt-code-clear=${sl.slot} ?busy=${this.queued === `code-clear:${sl.slot}`} ?disabled=${off}
+                      @click=${() => this.afterRead(`code-clear:${sl.slot}`, () => this.openCodeForm(sl.slot, 'clear'))}>${t.codes.clear}</wk-action-button>`
                   : nothing}
               </div>`
             : nothing}
@@ -886,7 +968,7 @@ export class WkDoorTech extends LitElement {
         ? html`<label class="f">${t.codes.current}<input type="password" inputmode="numeric" autocomplete="off" maxlength="16" data-wk-dt-code-field="current" /><span class="line">${t.codes.currentHint}</span></label>`
         : nothing}
       ${c.capabilities.advertised === false && f.action === 'set'
-        ? html`<label class="check"><input type="checkbox" data-wk-dt-code-compat .checked=${f.compatibility} @change=${(e: Event) => (this.codeForm = { ...f, compatibility: (e.target as HTMLInputElement).checked })} />${t.codes.compatibility}</label>`
+        ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${t.codes.compatibility} data-wk-dt-code-compat .checked=${f.compatibility} @change=${(e: Event) => (this.codeForm = { ...f, compatibility: toggled(e) })}></sw-toggle>${t.codes.compatibility}</label>`
         : nothing}
       <label class="f">${fill(t.codes.typed, { phrase })}<input autocomplete="off" maxlength="32" data-wk-dt-code-field="typed" /></label>
       <span class="problem" role="alert" data-wk-dt-code-problem></span>

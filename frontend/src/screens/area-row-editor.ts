@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import { getDevicesTree, type ClimateSummary } from '../api/devices';
 import { isApi } from '../api/session';
@@ -183,9 +184,9 @@ export class AreaRowEditor extends LitElement {
           const i = this.area.items.indexOf(id);
           const cut = on && i === ROW_MAX_PHONE && this.area.items.length > ROW_MAX_PHONE;
           return html`${cut ? html`<li class="cut" data-phone-cut role="presentation">${tr('בטלפון: רק הפריטים שמעל הקו')}</li>` : nothing}<li class=${on ? '' : 'off'} data-area-item=${id}>
-            <label><input type="checkbox" data-area-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleArea(id, (e.target as HTMLInputElement).checked)} />${AREA_ITEM_LABEL[id]}</label>
+            <label><sw-toggle size="sm" labelHidden in-label label=${AREA_ITEM_LABEL[id]} data-area-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleArea(id, toggled(e))}></sw-toggle>${AREA_ITEM_LABEL[id]}</label>
             ${on && ACTIVE_ITEMS.includes(id)
-              ? html`<label class="only"><input type="checkbox" data-area-item-only=${id} .checked=${this.area.only_active.includes(id)} ?disabled=${dis} @change=${(e: Event) => this.toggleOnly(id, (e.target as HTMLInputElement).checked)} />${id === 'openings' || id === 'locks' ? tr('רק כשפתוח') : tr('רק כשפעיל')}</label>`
+              ? html`<label class="only"><sw-toggle size="sm" labelHidden in-label label=${id === 'openings' || id === 'locks' ? tr('רק כשפתוח') : tr('רק כשפעיל')} data-area-item-only=${id} .checked=${this.area.only_active.includes(id)} ?disabled=${dis} @change=${(e: Event) => this.toggleOnly(id, toggled(e))}></sw-toggle>${id === 'openings' || id === 'locks' ? tr('רק כשפתוח') : tr('רק כשפעיל')}</label>`
               : nothing}
             ${on
               ? html`<button type="button" class="ib" data-area-item-earlier=${id} aria-label=${tr('הקדם: {name}', { name: AREA_ITEM_LABEL[id] })} ?disabled=${dis || i === 0} @click=${() => this.emit({ ...this.area, items: moveItem(this.area.items, id, -1) }, this.floor)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
@@ -218,7 +219,7 @@ export class AreaRowEditor extends LitElement {
           </ul>`
         : nothing}
       <div class="row">
-        <label><input type="checkbox" data-area-show-empty .checked=${this.area.show_empty} ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, show_empty: (e.target as HTMLInputElement).checked }, this.floor)} /> ${tr('הצג גם מונים שערכם אפס')}</label>
+        <label><sw-toggle size="sm" labelHidden in-label label=${tr('הצג גם מונים שערכם אפס')} data-area-show-empty .checked=${this.area.show_empty} ?disabled=${dis} @change=${(e: Event) => this.emit({ ...this.area, show_empty: toggled(e) }, this.floor)}></sw-toggle> ${tr('הצג גם מונים שערכם אפס')}</label>
       </div>
       <div class="hd" id="are-floor">${tr('בכותרת הקומה')}</div>
       <ul aria-labelledby="are-floor" data-floor-row-items>
@@ -226,7 +227,7 @@ export class AreaRowEditor extends LitElement {
           const on = this.floor.items.includes(id);
           const i = this.floor.items.indexOf(id);
           return html`<li class=${on ? '' : 'off'} data-floor-item=${id}>
-            <label><input type="checkbox" data-floor-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleFloor(id, (e.target as HTMLInputElement).checked)} />${FLOOR_ITEM_LABEL[id]}</label>
+            <label><sw-toggle size="sm" labelHidden in-label label=${FLOOR_ITEM_LABEL[id]} data-floor-item-on=${id} .checked=${on} ?disabled=${dis} @change=${(e: Event) => this.toggleFloor(id, toggled(e))}></sw-toggle>${FLOOR_ITEM_LABEL[id]}</label>
             ${on
               ? html`<button type="button" class="ib" data-floor-item-earlier=${id} aria-label=${tr('הקדם: {name}', { name: FLOOR_ITEM_LABEL[id] })} ?disabled=${dis || i === 0} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, -1) })}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
                 <button type="button" class="ib" data-floor-item-later=${id} aria-label=${tr('אחר: {name}', { name: FLOOR_ITEM_LABEL[id] })} ?disabled=${dis || i === this.floor.items.length - 1} @click=${() => this.emit(this.area, { items: moveItem(this.floor.items, id, 1) })}><sw-icon name="arrowDown" size=${14}></sw-icon></button>`

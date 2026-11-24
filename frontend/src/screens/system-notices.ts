@@ -7,7 +7,7 @@ import '../components/sw-field';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
 import '../components/sw-icon';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
@@ -309,7 +309,7 @@ export class SystemNotices extends LitElement {
         @news-sources-change=${(e: CustomEvent<NewsSource[]>) => (this.s = { ...this.s!, settings: { ...this.s!.settings, news_sources: e.detail } })}></notice-news-sources>` : nothing}
       ${st.enabled && can.boards ? html`<div class="panel flush" data-boards-card>
         <div class="toolbar"><h2>${nt('boardsCard')}</h2><span class="chip num">${nt('boardsCount', { n: this.boards.length, m: st.boards_max })}</span><span class="sp"></span>
-          ${can.configure ? html`<label class="ck"><input type="checkbox" .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: (e.target as HTMLInputElement).checked })}>${nt('dRemote')}</label>` : nothing}
+          ${can.configure ? html`<label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('dRemote')} .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: toggled(e) })}></sw-toggle>${nt('dRemote')}</label>` : nothing}
           <sw-button variant="primary" icon="plus" data-new-board ?disabled=${this.boards.length >= st.boards_max} @click=${() => this.openCreate()}>${nt('newBoard')}</sw-button></div>
         ${this.boards.length ? html`<div class="scrollx">${this.boardsTable()}</div><div class="cards">${this.boards.map((b) => this.boardCard(b))}</div>`
           : html`<sw-state-panel icon="wall" state="empty" heading=${nt('noBoards')} hint=${nt('boardsEmpty')} actionLabel=${nt('firstBoard')} @action=${() => this.openCreate()}></sw-state-panel>`}
@@ -392,8 +392,8 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-cadr">${nt('dConnPerAddr')}</label><sw-field class="short"><input id="ns-cadr" class="num" type="number" min="1" max="64" data-conn-per-address .value=${String(st.conn_per_address)}
           @change=${(e: Event) => this.patchSettings({ conn_per_address: Number((e.target as HTMLInputElement).value) })}></sw-field></div>
       </div>
-      <label class="ck" data-places-tree-setting><input type="checkbox" .checked=${st.show_places_tree !== false} @change=${(e: Event) => this.patchSettings({ show_places_tree: (e.target as HTMLInputElement).checked })}>${nt('dPlacesTree')}</label>
-      <label class="ck"><input type="checkbox" .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: (e.target as HTMLInputElement).checked })}>${nt('dCustomFeeds')}</label>
+      <label class="ck" data-places-tree-setting><sw-toggle size="sm" labelHidden in-label label=${nt('dPlacesTree')} .checked=${st.show_places_tree !== false} @change=${(e: Event) => this.patchSettings({ show_places_tree: toggled(e) })}></sw-toggle>${nt('dPlacesTree')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('dCustomFeeds')} .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: toggled(e) })}></sw-toggle>${nt('dCustomFeeds')}</label>
       <div class="fld"><span class="lbl">${nt('companyLogo')}</span><a href="#/system/diagnostics?tab=general" data-logo-link>${nt('logoWhere')}</a></div>
     </div></div>`;
   }
@@ -650,7 +650,7 @@ export class SystemNotices extends LitElement {
         <div class="hd"><h2>${nt('preview')}</h2><span class="sp"></span><sw-button size="sm" icon="eye" @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('fullScreen')}</sw-button></div>
         <div class="prev ${portrait ? 'port' : ''}"><iframe data-preview title=${nt('preview')} src=${this.previewSrc()} @load=${() => this.pushPreview()}></iframe></div>
         <div class="ctl"><sw-button size="sm" @click=${() => this.cmd('prev')}>${nt('prev')}</sw-button><sw-button size="sm" @click=${() => this.cmd('toggle')}>${nt('pauseToggle')}</sw-button>
-          <sw-button size="sm" @click=${() => this.cmd('next')}>${nt('next')}</sw-button><label class="ck"><input type="checkbox" .checked=${this.sendToTvs} @change=${(e: Event) => (this.sendToTvs = (e.target as HTMLInputElement).checked)}>${nt('sendToTvs')}</label>
+          <sw-button size="sm" @click=${() => this.cmd('next')}>${nt('next')}</sw-button><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('sendToTvs')} .checked=${this.sendToTvs} @change=${(e: Event) => (this.sendToTvs = toggled(e))}></sw-toggle>${nt('sendToTvs')}</label>
           <span class="hint">${nt('remoteHint')}</span></div>
         <div class="form">
           <div class="r"><div class="fld"><span class="lbl">${nt('theme')}</span><sw-segmented label=${nt('theme')} data-theme-seg value=${d.theme} @change=${(e: CustomEvent<SegmentedChange>) => this.setD({ theme: e.detail.value as 'day' | 'night' | 'auto' })}
@@ -660,14 +660,14 @@ export class SystemNotices extends LitElement {
           <div class="r"><div class="fld"><label for="bd-dh">${nt('dayHours')}</label><sw-field><input id="bd-dh" class="ltr" placeholder="07:00-19:00" .value=${d.day_hours} @change=${(e: Event) => this.setD({ day_hours: (e.target as HTMLInputElement).value.trim() })}></sw-field><span class="hint">${nt('dayHoursHint')}</span></div>
             <div class="fld"><label for="bd-fs">${nt('fontSize')}</label><sw-field><select id="bd-fs" data-v=${d.font_size} @change=${(e: Event) => this.setD({ font_size: (e.target as HTMLSelectElement).value as Display['font_size'] })}>
               <option value="s">${nt('fsS')}</option><option value="m">${nt('fsM')}</option><option value="l">${nt('fsL')}</option></select></sw-field></div></div>
-          <div class="fld"><label class="ck"><input type="checkbox" .checked=${d.night.enabled} @change=${(e: Event) => this.setD({ night: { ...d.night, enabled: (e.target as HTMLInputElement).checked } })}>${nt('nightDim')}</label>
+          <div class="fld"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('nightDim')} .checked=${d.night.enabled} @change=${(e: Event) => this.setD({ night: { ...d.night, enabled: toggled(e) } })}></sw-toggle>${nt('nightDim')}</label>
             ${d.night.enabled ? html`<div class="sum">${nt('nightFrom')}<sw-field class="short"><input class="ltr" type="time" lang=${dateInputLang()} .value=${d.night.from} @change=${(e: Event) => this.setD({ night: { ...d.night, from: (e.target as HTMLInputElement).value } })}></sw-field>
               ${nt('nightTo')}<sw-field class="short"><input class="ltr" type="time" lang=${dateInputLang()} .value=${d.night.to} @change=${(e: Event) => this.setD({ night: { ...d.night, to: (e.target as HTMLInputElement).value } })}></sw-field>
               ${nt('nightLevel')}<sw-field class="short"><select data-v=${String(d.night.dim)} @change=${(e: Event) => this.setD({ night: { ...d.night, dim: Number((e.target as HTMLSelectElement).value) } })}>
                 ${[0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => html`<option value=${String(v)}>${Math.round(v * 100)}%</option>`)}</select></sw-field></div>` : nothing}</div>
-          <div class="chips"><label class="ck"><input type="checkbox" .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: (e.target as HTMLInputElement).checked } })}>${nt('burnIn')}</label>
-            <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
-            <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
+          <div class="chips"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('burnIn')} .checked=${d.burn_in.shift} @change=${(e: Event) => this.setD({ burn_in: { shift: toggled(e) } })}></sw-toggle>${nt('burnIn')}</label>
+            <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('companyLogo')} .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: toggled(e) } })}></sw-toggle>${nt('companyLogo')}</label>
+            <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('smplwiseLogo')} checked disabled></sw-toggle>${nt('smplwiseLogo')}</label></div>
           <notice-display-design .display=${d} .defaults=${this.tv2Defaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-design>
           <notice-display-fit .display=${d} .defaults=${this.tvFitDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-fit>
           <notice-display-layout .display=${d} .defaults=${this.tvDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-layout>
@@ -675,13 +675,13 @@ export class SystemNotices extends LitElement {
         </div></div>
       <div class="panel"><div class="hd"><h2>${nt('whatShown')}</h2><span class="sp"></span><sw-button size="sm" variant="primary" data-save-display ?disabled=${!this.dirty} @click=${() => this.saveAll()}>${nt('save')}</sw-button></div>
         <div class="blocks">
-          <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.clock} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, clock: (e.target as HTMLInputElement).checked } })}>${nt('blkClock')}</label>
-            <div class="sub"><label class="ck"><input type="checkbox" .checked=${d.blocks.hebdate} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, hebdate: (e.target as HTMLInputElement).checked } })}>${nt('blkHebdate')}</label>
-              <label class="ck"><input type="checkbox" .checked=${d.blocks.welcome} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, welcome: (e.target as HTMLInputElement).checked } })}>${nt('blkWelcome')}</label></div></div>
-          <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.weather} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, weather: (e.target as HTMLInputElement).checked } })}>${nt('blkWeather')}</label>
+          <div class="blk"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkClock')} .checked=${d.blocks.clock} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, clock: toggled(e) } })}></sw-toggle>${nt('blkClock')}</label>
+            <div class="sub"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkHebdate')} .checked=${d.blocks.hebdate} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, hebdate: toggled(e) } })}></sw-toggle>${nt('blkHebdate')}</label>
+              <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkWelcome')} .checked=${d.blocks.welcome} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, welcome: toggled(e) } })}></sw-toggle>${nt('blkWelcome')}</label></div></div>
+          <div class="blk"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkWeather')} .checked=${d.blocks.weather} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, weather: toggled(e) } })}></sw-toggle>${nt('blkWeather')}</label>
             <div class="sub">${s.weather_entity ? html`<span class="ltr mut">${s.weather_entity}</span>` : html`<span class="mut">${nt('blkWeatherNoEntity')}</span>`}
               <span>${nt('hoursAhead')}</span><sw-field class="short"><select data-v=${String(d.weather.hours)} @change=${(e: Event) => this.setD({ weather: { hours: Number((e.target as HTMLSelectElement).value) } })}>${[3, 5, 8].map((h) => html`<option value=${String(h)}>${h}</option>`)}</select></sw-field></div></div>
-          <div class="blk"><label class="ck"><input type="checkbox" .checked=${d.blocks.news} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, news: (e.target as HTMLInputElement).checked } })}>${nt('blkNews')}</label>
+          <div class="blk"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkNews')} .checked=${d.blocks.news} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, news: toggled(e) } })}></sw-toggle>${nt('blkNews')}</label>
             <div class="sub">${d.news.feeds.map((f, i) => { const v = feedView(f, s.news_sources); return html`<div class="feed" data-feed=${f.url}>${v.logo ? html`<img class="flg" alt="" src=${v.logo}>` : html`<sw-icon name="link" size="12"></sw-icon>`}<b>${shortName(v.name)}</b>${v.known ? nothing : html`<span class="chip">${nt('nsCustomTag')}</span>`}
                 <sw-button size="sm" variant="ghost" @click=${() => this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } })}>${nt('remove')}</sw-button></div>`; })}
               <sw-field class="short"><select data-v=${this.feedPick} @change=${(e: Event) => (this.feedPick = (e.target as HTMLSelectElement).value)}><option value="">${nt('feedPick')}</option>

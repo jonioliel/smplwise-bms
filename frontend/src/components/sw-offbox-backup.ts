@@ -4,7 +4,7 @@ import './sw-badge';
 import './sw-button';
 import './sw-card';
 import './sw-dialog';
-import './sw-toggle';
+import { toggled } from './sw-toggle';
 import { ApiError, describeError } from '../api/client';
 import {
   CONFIG_FIELDS, SECRET_FIELDS, blankTarget, checkTarget, createTarget, deleteTarget, drillStatus, exportKey, importKey, offboxStatus, pushTarget,
@@ -396,13 +396,13 @@ export class SwOffboxBackup extends LitElement {
               <div><dt>${obr('summary_key')}</dt><dd><code data-ltr>${p.key_id}</code></dd></div>
             </dl>
             <div class="msg warn" role="note">${obr('warnDestructive')}</div>
-            <label class="ack"><input type="checkbox" data-offbox-restore-access .checked=${this.rAccess}
-              @change=${(e: Event) => { this.rAccess = (e.target as HTMLInputElement).checked; }} /><span>${obr('includeAccess')}</span></label>
+            <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${obr('includeAccess')} data-offbox-restore-access .checked=${this.rAccess}
+              @change=${(e: Event) => { this.rAccess = toggled(e); }}></sw-toggle><span>${obr('includeAccess')}</span></label>
             ${p.sensitive === 'encrypted'
               ? html`<label class="row"><span class="lbl">${obr('password')}</span><input class="ctl" type="password" autocomplete="off" data-offbox-restore-password
                   .value=${this.rPassword} ?disabled=${this.rSkip} @input=${(e: Event) => { this.rPassword = (e.target as HTMLInputElement).value; }} /></label>
-                <label class="ack"><input type="checkbox" data-offbox-restore-skip .checked=${this.rSkip}
-                  @change=${(e: Event) => { this.rSkip = (e.target as HTMLInputElement).checked; }} /><span>${obr('skipSensitive')}</span></label>`
+                <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${obr('skipSensitive')} data-offbox-restore-skip .checked=${this.rSkip}
+                  @change=${(e: Event) => { this.rSkip = toggled(e); }}></sw-toggle><span>${obr('skipSensitive')}</span></label>`
               : nothing}
             <label class="row" data-offbox-restore-safety-row><span class="lbl">${obr('safetyPassword')}<span class="muted">${obr('safetyHint')}</span></span>
               <input class="ctl" type="password" autocomplete="new-password" data-offbox-restore-safety placeholder=${obr('safetyPlaceholder', { n: this.minChars })}
@@ -579,8 +579,8 @@ export class SwOffboxBackup extends LitElement {
             ${isExport
               ? html`<ul class="keyfacts" data-offbox-key-facts>
                   <li>${obt('keyExportWhat')}</li><li>${obt('keyExportNoRestore')}</li><li>${obt('keyExportLost')}</li><li>${obt('keyExportStore')}</li></ul>
-                <label class="ack"><input type="checkbox" data-offbox-ack .checked=${this.acked}
-                  @change=${(e: Event) => { this.acked = (e.target as HTMLInputElement).checked; }} /><span>${obt('keyExportAck')}</span></label>`
+                <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${obt('keyExportAck')} data-offbox-ack .checked=${this.acked}
+                  @change=${(e: Event) => { this.acked = toggled(e); }}></sw-toggle><span>${obt('keyExportAck')}</span></label>`
               : nothing}
             <div class="muted">${obt(isExport ? 'keyExportConfirm' : 'keyRotateConfirm')}</div>
             <input class="confirm-in" data-ltr data-offbox-confirm placeholder=${word} .value=${this.confirm} @input=${(e: Event) => { this.confirm = (e.target as HTMLInputElement).value; }} />`}

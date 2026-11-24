@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -206,14 +207,14 @@ export class TicketsRfqTerms extends LitElement {
         @input=${(e: Event) => set({ to: (e.target as HTMLInputElement).value })}></label>`}
       <label class="fld">${rt('insMoveReason')}<input class="inp" type="text" maxlength="500" .value=${m.reason}
         @input=${(e: Event) => set({ reason: (e.target as HTMLInputElement).value })}></label>
-      ${canNotify ? html`<label class="tcheck" data-move-notify=${key}><input type="checkbox" .checked=${m.notify}
-        @change=${(e: Event) => set({ notify: (e.target as HTMLInputElement).checked, message: m.message || preview })}>${rt('mvNotify')}</label>
+      ${canNotify ? html`<label class="tcheck" data-move-notify=${key}><sw-toggle size="sm" labelHidden in-label label=${rt('mvNotify')} .checked=${m.notify}
+        @change=${(e: Event) => set({ notify: toggled(e), message: m.message || preview })}></sw-toggle>${rt('mvNotify')}</label>
         ${m.notify ? html`<label class="fld tfull" data-move-message=${key}>${rt('mvMessage')}
           <textarea class="inp" rows="3" maxlength="2000" .value=${m.message}
             @input=${(e: Event) => set({ message: (e.target as HTMLTextAreaElement).value })}></textarea>
           <small class="mut">${rt('mvMessageNote')}</small></label>` : nothing}` : nothing}
-      ${a.can?.resend_order ? html`<label class="tcheck" data-move-resend=${key}><input type="checkbox" .checked=${m.resend}
-        @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; set({ resend: on, orderText: null }); if (on) void this.loadOrderPreview(a, key, it); }}>${rt('mvResend')}</label>
+      ${a.can?.resend_order ? html`<label class="tcheck" data-move-resend=${key}><sw-toggle size="sm" labelHidden in-label label=${rt('mvResend')} .checked=${m.resend}
+        @change=${(e: Event) => { const on = toggled(e); set({ resend: on, orderText: null }); if (on) void this.loadOrderPreview(a, key, it); }}></sw-toggle>${rt('mvResend')}</label>
         ${m.resend ? html`<div class="tfull note" data-move-order-preview=${key}>${m.orderText === null ? rt('mvOrderLoading')
           : m.orderText ? html`<pre class="tpre">${m.orderText}</pre>` : rt('mvOrderUnavailable')}<small class="mut">${rt('mvResendNote')}</small></div>` : nothing}` : nothing}
       <div class="tacts"><button type="button" class="btn primary sm" data-move-save=${key} ?disabled=${!!this.busy || bad || m.date === current}

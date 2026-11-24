@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import './sw-toggle';
+import type { SwToggle } from './sw-toggle';
 import './sw-button';
 import { ApiError, describeError } from '../api/client';
 import { ownPasskeys, registerPasskey, registrationOptions, removePasskey, setPasskeyFirst, setPasskeyOnly, type PasskeySummary } from '../api/passkeys';
@@ -162,7 +164,7 @@ export class SwPasskeys extends LitElement {
   }
 
   private first(e: Event) {
-    const box = e.target as HTMLInputElement;
+    const box = e.target as SwToggle;
     const on = box.checked;
     void this.run(async () => {
       try {
@@ -175,7 +177,7 @@ export class SwPasskeys extends LitElement {
   }
 
   private async only(e: Event) {
-    const box = e.target as HTMLInputElement;
+    const box = e.target as SwToggle;
     const on = box.checked;
     if (on && !(await confirmDialog({ body: po('onlyConfirmOn'), danger: true }))) {
       box.checked = false;
@@ -228,11 +230,11 @@ export class SwPasskeys extends LitElement {
           </form>`
         : nothing}
       ${d.first_allowed && d.credentials.some((c) => c.usable)
-        ? html`<label class="first"><input type="checkbox" data-pk-first .checked=${d.first_on} ?disabled=${this.busy} @change=${(e: Event) => this.first(e)} />
+        ? html`<label class="first"><sw-toggle size="sm" labelHidden in-label label=${lit('passkeyFirst')} data-pk-first .checked=${d.first_on} ?disabled=${this.busy} @change=${(e: Event) => this.first(e)}></sw-toggle>
             <span>${lit('passkeyFirst')}<br /><small>${lit('passkeyFirstHelp')}</small></span></label>`
         : nothing}
       ${d.first_allowed && d.credentials.some((c) => c.usable)
-        ? html`<label class="first"><input type="checkbox" data-pk-only .checked=${!!d.only_on} ?disabled=${this.busy} @change=${(e: Event) => this.only(e)} />
+        ? html`<label class="first"><sw-toggle size="sm" labelHidden in-label label=${po('onlyLabel')} data-pk-only .checked=${!!d.only_on} ?disabled=${this.busy} @change=${(e: Event) => this.only(e)}></sw-toggle>
             <span>${po('onlyLabel')}</span></label>`
         : nothing}
       ${this.error ? html`<div class="err" role="alert" data-pk-error>${this.error}</div>` : nothing}

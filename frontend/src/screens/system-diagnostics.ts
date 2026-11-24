@@ -8,7 +8,7 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-tabs';
 import '../components/sw-field';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { sa } from '../i18n/search-access';
@@ -1429,7 +1429,7 @@ export class SystemDiagnostics extends LitElement {
           ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', 'מוצגים'], ['hide', 'מוסתרים']])}</div>
         <div class="row" data-plan-surfaces><span class="lbl">התוכנית החיה מחוץ ללשונית המפה<span class="muted">איפה עוד מוצגת תוכנית הקומה עם מצבי החדרים; כל מקום לחוד</span></span>
           <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
-            ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><input type="checkbox" data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', (e.target as HTMLInputElement).checked ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))} /> ${l}</label>`)}
+            ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${l} data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', toggled(e) ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))}></sw-toggle> ${l}</label>`)}
           </span></div>
         <div class="row" data-camsuggest-distance><span class="lbl">הצעת מצלמה לאזור: טווח מרבי<span class="muted">בעורך התוכנית, כפתור "הצע מצלמה קרובה" באזור מציע רק מצלמות שנמצאות בתוך הטווח הזה מקצה האזור, באחוזים מרוחב התוכנית. ההצעה לא נשמרת עד שלוחצים "קבל"</span></span>
           ${sel('plan.camsuggest_distance', '35', 'camsuggest-distance', [['10', '10%'], ['20', '20%'], ['35', '35%'], ['50', '50%'], ['75', '75%'], ['100', '100%']])}</div>
@@ -2151,7 +2151,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRestoreDialog(b: BackupEntry) {
     return html`<sw-dialog open heading="שחזור גיבוי" subheading=${b.name} @close=${() => (this.restoreTarget = null)}>
       <div class="row"><span class="lbl">אופן השחזור<span class="muted">${this.restoreMode === 'replace' ? 'הנתונים הנוכחיים של הפרויקט מוחלפים במה שבגיבוי' : 'רק פריטים שחסרים היום מתווספים; הקיימים נשארים'}</span></span>
-        <select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></div>
+        <sw-field><select data-restore-mode @change=${(e: Event) => (this.restoreMode = (e.target as HTMLSelectElement).value as 'replace' | 'merge')}><option value="replace" ?selected=${this.restoreMode === 'replace'}>החלפה</option><option value="merge" ?selected=${this.restoreMode === 'merge'}>מיזוג</option></select></sw-field></div>
       <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
       ${this.renderRestoreSafety()}

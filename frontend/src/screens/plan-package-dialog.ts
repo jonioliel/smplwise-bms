@@ -7,6 +7,7 @@
  */
 import { localeFor } from '../i18n/locale';
 import { css, html, nothing, type TemplateResult } from 'lit';
+import { toggled } from '../components/sw-toggle';
 import type { PackageMode, PackageOrigin, PackagePreview } from '../api/geometry';
 import { pkgCollection, pkgLang, pkgT } from '../i18n/plan-package';
 
@@ -94,7 +95,7 @@ export function renderPackageImportDialog(s: PackageImportState, a: PackageImpor
             <div class="pkg-line"><bdi>${gate.floor_name ?? ''}</bdi> · ${pkgT(gate.stage === 'draft' ? 'draft' : 'published', lang)} · <bdi>${dateOf(gate.generated_at, lang)}</bdi></div>
             <div class="pkg-line warn" data-pkg-trust=${gate.trust}>${pkgT('signedForeign', lang)}</div>
           </div>
-          <label class="pkg-trust"><input type="checkbox" data-pkg-accept-foreign .checked=${s.acceptForeign} ?disabled=${!!s.busy} @change=${(e: Event) => a.setAcceptForeign((e.target as HTMLInputElement).checked)} /> ${pkgT('trustForeign', lang)}</label>`
+          <label class="pkg-trust"><sw-toggle size="sm" labelHidden in-label label=${pkgT('trustForeign', lang)} data-pkg-accept-foreign .checked=${s.acceptForeign} ?disabled=${!!s.busy} @change=${(e: Event) => a.setAcceptForeign(toggled(e))}></sw-toggle> ${pkgT('trustForeign', lang)}</label>`
       : nothing}
     ${p
       ? html`<div class="pkg-sec" data-pkg-origin>
@@ -111,7 +112,7 @@ export function renderPackageImportDialog(s: PackageImportState, a: PackageImpor
           </div>
           ${renderMissing(p, lang)}
           ${foreign
-            ? html`<label class="pkg-trust"><input type="checkbox" data-pkg-accept-foreign .checked=${s.acceptForeign} @change=${(e: Event) => a.setAcceptForeign((e.target as HTMLInputElement).checked)} /> ${pkgT('trustForeign', lang)}</label>`
+            ? html`<label class="pkg-trust"><sw-toggle size="sm" labelHidden in-label label=${pkgT('trustForeign', lang)} data-pkg-accept-foreign .checked=${s.acceptForeign} @change=${(e: Event) => a.setAcceptForeign(toggled(e))}></sw-toggle> ${pkgT('trustForeign', lang)}</label>`
             : nothing}`
       : nothing}
     <sw-button slot="footer" variant="ghost" data-pkg-cancel ?disabled=${s.busy === 'import'} @click=${() => a.cancel()}>${pkgT('cancel', lang)}</sw-button>

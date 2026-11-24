@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cellClassOf, cellPartOf, groupSegments, headClassOf, rowAttrAllowed, rowAttrMap, rowFocusStep } from '../src/components/table-logic';
+import { cellClassOf, cellPartOf, groupSegments, headClassOf, rowAttrAllowed, rowAttrMap, rowFocusStep, rowReach } from '../src/components/table-logic';
 import { loadFraction, loadTone } from '../src/components/load-bar-logic';
 
 // CR-CMP2-TABLES-2450 (owner N10, 19.11): `sw-table` grows what the hand-built tables need to move in - per-row / per-cell hooks
@@ -86,7 +86,7 @@ test.describe('sw-table: the contract in the source', () => {
   });
 
   test('parts: table, head-row, head, row, cell (+ cell-<kind>), empty; a screen may slot its own empty state', () => {
-    for (const p of ['part="table"', 'part="head-row"', 'part="head"', 'part="row"', 'part=${cellPartOf(c)}', 'part="empty"']) expect(src, p).toContain(p);
+    for (const p of ['part="table"', 'part="head-row"', 'part="head"', "part=${live ? 'row' : 'row still'}", 'part=${cellPartOf(c)}', 'part="empty"']) expect(src, p).toContain(p);
     expect(src).toContain('<slot name="empty"><div class="empty" part="empty">${this.emptyText}</div></slot>');
   });
 
@@ -94,7 +94,9 @@ test.describe('sw-table: the contract in the source', () => {
     expect(styles).toMatch(/:host\(\[bare\]\) \{\s*background: none;\s*border: 0;\s*border-radius: 0;\s*box-shadow: none;/);
     expect(styles).toMatch(/:host\(\[static-rows\]\) tr\.clickable \{\s*cursor: default;/);
     expect(src).toContain('if (this.staticRows) return false;');
-    expect(src).toContain('@click=${() => this.staticRows || this.pick(row)}');
+    // CR-CMP2-POLISH-2470: the click goes through rowReach (static-rows and a still row never pick)
+    expect(src).toContain('const { live, tab } = rowReach(row, focusable, this.staticRows, this.rowFocusable);');
+    expect(src).toContain('@click=${() => live && this.pick(row)}');
     expect(styles).toContain('min-inline-size: var(--sw-table-min, 560px);');
     expect(styles).toContain('background: var(--sw-table-head-bg, var(--sw-surface));');
     expect(styles).toMatch(/td\.k-truncate \.trunc \{\s*display: block;\s*max-inline-size: var\(--sw-table-trunc, 260px\);\s*overflow: hidden;\s*text-overflow: ellipsis;\s*white-space: nowrap;/);
@@ -266,5 +268,49 @@ test.describe('generator: the phase table and the alert routing are the shared t
     const st = read('generator/gen-styles.ts');
     for (const p of ['::part(rec)', '::part(rec-item)', '::part(rec-item usr)', '::part(chs)', '::part(ch)', '::part(ch on)', '::part(off)']) expect(st, p).toContain(`sw-table[data-gen-routing-table]${p}`);
     expect(st).not.toMatch(/\.pbar|table\.routing|table\.phase/);
+  });
+});
+
+// CR-CMP2-POLISH-2470 (the open question of CR-CMP2-TABLES-CONSUMPTION-2450 Q4 / CR-CMP2-GEN-REST-2460 Q3): per-row reach. A row that does
+// nothing (a closed water alert, a generator alert type without its sensor) is neither a tab stop nor a click target in a table whose
+// other rows open something.
+test.describe('sw-table: per-row reach (rowFocusable)', () => {
+  const src = read('components/sw-table.ts');
+  const styles = src.slice(src.indexOf('static styles'), src.indexOf('private pick('));
+  type R = { id: string; open?: boolean };
+  const open = (r: R) => !!r.open;
+
+  test('unset: every row as the table says (tab stops when the table has them, a click unless static-rows)', () => {
+    expect(rowReach<R>({ id: 'a' }, true, false)).toEqual({ live: true, tab: true });
+    expect(rowReach<R>({ id: 'a' }, false, false)).toEqual({ live: true, tab: false });
+    expect(rowReach<R>({ id: 'a' }, true, true)).toEqual({ live: false, tab: false });
+    expect(rowReach<R>({ id: 'a' }, false, true)).toEqual({ live: false, tab: false });
+  });
+
+  test('a row for which rowFocusable is false is still: no tab stop and no click, whatever the table says', () => {
+    expect(rowReach<R>({ id: 'a', open: true }, true, false, open)).toEqual({ live: true, tab: true });
+    expect(rowReach<R>({ id: 'b' }, true, false, open)).toEqual({ live: false, tab: false });
+    expect(rowReach<R>({ id: 'b' }, false, false, open)).toEqual({ live: false, tab: false });
+    // the table's own no-tab-stops (no listener, no-focus-rows) still wins for a live row; static-rows wins over the predicate
+    expect(rowReach<R>({ id: 'a', open: true }, false, false, open)).toEqual({ live: true, tab: false });
+    expect(rowReach<R>({ id: 'a', open: true }, true, true, open)).toEqual({ live: false, tab: false });
+  });
+
+  test('the element: opt-in property, a still row has no tabindex / keydown / pick, part "row still", no pointer or press tint', () => {
+    expect(src).toContain('@property({ attribute: false }) rowFocusable?: (row: Record<string, unknown>) => boolean;');
+    expect(src).toContain("part=${live ? 'row' : 'row still'}");
+    expect(src).toContain("tabindex=${tab ? '0' : nothing} @keydown=${tab ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}");
+    expect(src).toContain('@click=${() => live && this.pick(row)}');
+    // the arrow walk only finds rows with tabindex="0", so a still row is skipped by construction
+    expect(src).toContain(`querySelectorAll<HTMLTableRowElement>('tbody tr[tabindex="0"]')`);
+    expect(styles).toMatch(/tr\.clickable\.still \{\s*cursor: default;/);
+    expect(styles).toMatch(/tbody tr\.clickable\.still:active \{\s*background: transparent;/);
+  });
+
+  test('applied: closed water alerts and generator alert types without their sensor', () => {
+    const water = read('screens/water/page-alerts.ts');
+    expect(water).toContain('.rowFocusable=${(r: Record<string, unknown>) => !r.closed_at}');
+    const routing = read('generator/gen-routing.ts');
+    expect(routing).toContain('.rowFocusable=${(r: Record<string, unknown>) => !!(r as MatrixRow).item?.available}');
   });
 });

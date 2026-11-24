@@ -15,8 +15,14 @@ const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const BUBBLE = '.step, .row, .outcome, .chk, .wait';
-// the shell's own section row and tab row (not this screen's), and the shared dialog's close button, are not measured
-const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button';
+// the shell's own section row and tab row (not this screen's), and the shared dialog's close button, are not measured; nor the shared
+// sw-toggle (HAND-SWITCH-2480: the backup switch replaced the drawn box; the row's <label> is the touch target and the switch keeps its own
+// contract, as in the other layout guards)
+const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button, sw-toggle';
+// RELEASE-2480-TRAIN: the page's keys (auto-update switch, check interval) are sw-segmented in the module look (SEG-MODULE-LOOK-2480,
+// owner Q5 / Q6 22.11): a 28 px key on a desktop, 44 px under a finger (the component's phone rule). Exempt from the target rule only; still
+// measured for escape / overflow / clipped / floating. The component's own contract: unit-sw-segmented / pixel-sw-segmented.
+const TARGET_SKIP = 'sw-segmented';
 
 interface Scenario {
   name: string;
@@ -86,7 +92,7 @@ test.describe('update and restart screens: the layout guard', () => {
         await page.setViewportSize({ width: w, height: height(w) });
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         runs++;
-        const found = await page.evaluate(inPageCheck, { ctx: `${sc.name} ${skin} ${scheme} ${w}`, bubble: BUBBLE, skip: SKIP, roots: ['system-update'] });
+        const found = await page.evaluate(inPageCheck, { ctx: `${sc.name} ${skin} ${scheme} ${w}`, bubble: BUBBLE, skip: SKIP, targetSkip: TARGET_SKIP, roots: ['system-update'] });
         // the desktop touch dial (44 px above 1100 px) belongs to the bubble skin; the settings screens of the other skins keep the 26-36 px desktop buttons
         results.push(...found.filter((f) => !(f.cls === 'target' && w > 1100 && skin !== 'bubble')));
       }

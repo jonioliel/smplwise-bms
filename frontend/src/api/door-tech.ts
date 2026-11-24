@@ -154,6 +154,25 @@ export async function runWrite(kind: DoorTechKind, send: () => Promise<DoorTechR
   }
 }
 
+/**
+ * DOOR-TECH-REREAD-2480 (owner Q11): what a write's own answer already says about the door it wrote, drawn at once (the read that
+ * follows the write confirms it): a hold save's new draft (with its new revision), a hold delete's "no draft". `undefined` = the answer
+ * says nothing usable (not acknowledged, another kind, an odd shape) - the screen keeps what it shows until that read is in.
+ */
+export function holdAfter(out: DoorTechOutcome): HoldDraft | null | undefined {
+  if (out.status !== 'acknowledged' || !out.data) return undefined;
+  if (out.kind === 'hold_delete') return out.data.deleted === true ? null : undefined;
+  if (out.kind !== 'hold_save') return undefined;
+  const d = out.data.draft as HoldDraft | null | undefined;
+  return d && typeof d.revision === 'number' && d.policy ? d : undefined;
+}
+
+/** The same for a code write: the slot's presence after it (WisKey's read-back; never a value), or `undefined`. */
+export function codeAfter(out: DoorTechOutcome): boolean | undefined {
+  if (out.kind !== 'code_write' || out.status !== 'acknowledged' || !out.data) return undefined;
+  return typeof out.data.configured === 'boolean' ? out.data.configured : undefined;
+}
+
 // ---------------------------------------------------------------- the schedule editor's model
 
 /** A policy the server served (`{timezone, name, weekly, holidays}`, every field possibly null) as the editor's body: unknown days

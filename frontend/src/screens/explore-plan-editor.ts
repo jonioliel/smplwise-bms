@@ -9,7 +9,7 @@ import '../components/sw-field';
 import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../components/sw-segmented'; // CR-CMP2-SEGMENTED-C-2450: drawn by plan-studio6-panel's material field
@@ -932,8 +932,8 @@ export class ExplorePlanEditor extends LitElement {
     const own = this.geomSel && doc ? findGeomItem(doc, this.geomSel.id) : null;
     const zone = own && (this.geomSel?.kind === 'object' || this.geomSel?.kind === 'label') ? overhangZone(doc, own) : null;
     const mark = zone && own
-      ? html`<label class="shared-hint" data-shared-content-toggle><input type="checkbox" .checked=${own.shared_space_id === zone} ?disabled=${!this.bundle?.permissions.structure}
-          @change=${(e: Event) => this.setSharedContent(own.id, (e.target as HTMLInputElement).checked ? zone : null)} /> חלק מהחלל המשותף (מוצג גם בקומה השנייה)</label>`
+      ? html`<label class="shared-hint" data-shared-content-toggle><sw-toggle size="sm" labelHidden in-label label="חלק מהחלל המשותף (מוצג גם בקומה השנייה)" .checked=${own.shared_space_id === zone} ?disabled=${!this.bundle?.permissions.structure}
+          @change=${(e: Event) => this.setSharedContent(own.id, toggled(e) ? zone : null)}></sw-toggle> חלק מהחלל המשותף (מוצג גם בקומה השנייה)</label>`
       : nothing;
     return html`${text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing}${member}${mark}`;
   }
@@ -4584,7 +4584,7 @@ export class ExplorePlanEditor extends LitElement {
       ${slot('on', on, 'תמונה עם תאורה', 'אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה')}
       ${off || on
         ? html`<div class="row" style="margin-block-start:8px"><span class="lbl">יישור על התוכנית<span class="muted">גרור את הפינות אל פינות הקומה בתוכנית (או את התמונה כולה); מקשי החצים מכוונים פינה מסומנת</span></span>
-            <label class="chk"><input type="checkbox" .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = (e.target as HTMLInputElement).checked)} /> הצג את תוכנית הרקע</label></div>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="הצג את תוכנית הרקע" .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = toggled(e))}></sw-toggle> הצג את תוכנית הרקע</label></div>
           <sw-floor-image-align data-floor-image-align .planWidth=${b.width} .planHeight=${b.height} .planUrl=${b.imageUrl} .showPlan=${this.alignShowPlan} .imageUrl=${floorImageUrl(off ?? on)}
             .corners=${draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]]} .opacity=${draft?.opacity ?? 1} .rooms=${this.zones.map((z) => ({ id: z.id, polygon: z.polygon }))} .walls=${this.alignWalls(b)} ?disabled=${this.imageBusy}
             @corners-change=${(e: CustomEvent<{ corners: Corners }>) => (this.alignDraft = { corners: e.detail.corners, opacity: draft?.opacity ?? 1 })}></sw-floor-image-align>
@@ -4836,7 +4836,7 @@ export class ExplorePlanEditor extends LitElement {
       const results = (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id));
       return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת התקן אחר'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
         <sw-field><input type="search" placeholder=${lights ? 'חיפוש מפסק לפי שם או אזור' : 'חיפוש לפי שם, entity_id או אזור'} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
-        ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = (e.target as HTMLInputElement).checked; void this.searchEntities(); }} /> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
+        ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><sw-toggle size="sm" labelHidden in-label label="להציג גם ישויות light (נורות חכמות)" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = toggled(e); void this.searchEntities(); }}></sw-toggle> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
         ${b.source === 'demo'
           ? html`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`
           : this.entBusy && !this.entResults
@@ -4848,9 +4848,9 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (this.tool === 'layers') {
       return html`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
-        <div class="layerlist">${LAYERS.filter((l) => l.id !== 'cameras' || cap('cameras_available')).map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
-          <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
-          ${b.imageUrl ? html`<label><input type="checkbox" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, (e.target as HTMLInputElement).checked)} /> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
+        <div class="layerlist">${LAYERS.filter((l) => l.id !== 'cameras' || cap('cameras_available')).map((l) => html`<label><sw-toggle size="sm" labelHidden in-label label=${l.label} .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if (toggled(e)) next.add(l.id); else next.delete(l.id); this.layers = next; }}></sw-toggle> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
+          <label><sw-toggle size="sm" labelHidden in-label label="חדרים ואזורים" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = toggled(e))}></sw-toggle> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
+          ${b.imageUrl ? html`<label><sw-toggle size="sm" labelHidden in-label label="תמונת התוכנית" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, toggled(e))}></sw-toggle> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
         ${this.studio.doc
           ? renderGridOptions({ ...this.grid, steps: GRID_STEPS_M, estimated: effectiveScale(this.studio.doc).estimated, showEstimates: this.showEstimates },
               (on) => this.setGrid(b.floorId, { on }), (stepM) => this.setGrid(b.floorId, { stepM }))
@@ -4992,7 +4992,7 @@ export class ExplorePlanEditor extends LitElement {
       ${cands
         ? html`<div class="note">${cands.length} חדרים זוהו · סמן, תן שם ושמור. הפוליגונים מוצגים במפה בקו מקווקו.</div>
             <div class="candlist">${cands.map((c, i) => html`<div class="cand" data-candidate><input type="checkbox" .checked=${c.include} aria-label="כלול" @change=${(e: Event) => this.setCandidate(i, { include: (e.target as HTMLInputElement).checked })} /><i class="sw" style="background:${PALETTE[i % PALETTE.length]}"></i><input class="name" .value=${c.name} placeholder="שם החדר" aria-label="שם החדר" @input=${(e: Event) => this.setCandidate(i, { name: (e.target as HTMLInputElement).value })} /><select aria-label="סוג" @change=${(e: Event) => this.setCandidate(i, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${c.kind === k.id}>${k.label}</option>`)}</select></div>`)}</div>
-            ${this.zones.some((z) => z.source === 'auto') ? html`<label class="chk"><input type="checkbox" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = (e.target as HTMLInputElement).checked)} /> החלף את החדרים שזוהו אוטומטית בעבר (${this.zones.filter((z) => z.source === 'auto').length})</label>` : nothing}
+            ${this.zones.some((z) => z.source === 'auto') ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="החלף את החדרים שזוהו אוטומטית בעבר" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = toggled(e))}></sw-toggle> החלף את החדרים שזוהו אוטומטית בעבר (${this.zones.filter((z) => z.source === 'auto').length})</label>` : nothing}
             <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.zoneBusy || !cands.some((c) => c.include)} @click=${() => this.acceptCandidates()}>שמור ${cands.filter((c) => c.include).length} חדרים</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.candidates = null)}>בטל</sw-button></div>`
         : this.drawing
           ? html`<div class="note">לחץ על התוכנית להוספת פינות (${this.drawing.length} עד כה). לחיצה על הפינה הראשונה או Enter סוגרים את הצורה · Esc לביטול.</div>
@@ -5018,7 +5018,7 @@ export class ExplorePlanEditor extends LitElement {
             <sw-field label="עוצמת ניקוי"><select aria-label="עוצמת ניקוי" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, strength: (e.target as HTMLSelectElement).value as Strength })}><option value="light" ?selected=${this.stylizeOpts.strength === 'light'}>קל · קירות דקים נשמרים</option><option value="medium" ?selected=${this.stylizeOpts.strength === 'medium'}>בינוני · קירות כפולים מאוחדים</option><option value="strong" ?selected=${this.stylizeOpts.strength === 'strong'}>חזק · מדרגות וריהוט לגושים</option></select></sw-field>
             <sw-field label="מילוי חדרים"><select aria-label="מילוי חדרים" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, roomFill: (e.target as HTMLSelectElement).value as RoomFill })}>${(Object.keys(ROOM_FILL_LABEL) as RoomFill[]).map((k) => html`<option value=${k} ?selected=${this.stylizeOpts.roomFill === k}>${ROOM_FILL_LABEL[k]}</option>`)}</select></sw-field>
           </div>
-          <label class="chk"><input type="checkbox" .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: (e.target as HTMLInputElement).checked })} /> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
+          <label class="chk"><sw-toggle size="sm" labelHidden in-label label="ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)" .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: toggled(e) })}></sw-toggle> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
           <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize()}>${this.stylizing ? 'מעבד…' : 'עבד תצוגה מקדימה'}</sw-button></div>
           ${st
             ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת Arx · ${st.rooms} חדרים · ${ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill} · ${st.keep_lines ? 'עם קווים דקים' : 'ללא קווים דקים'}</div><img src=${st.stylized_url} alt="שפת Arx" /></div></div>
@@ -5119,7 +5119,7 @@ export class ExplorePlanEditor extends LitElement {
                 <span>${p.invalid ? (p.items?.length ? `${countLabel(p.items.length, 'פריט אחד לא מוכן', 'פריטים לא מוכנים')} לפרסום` : 'התוכן של החלל המשותף לא תקין - הפרסום ייחסם') : countLabel(p.changes ?? 0, 'שינוי אחד', 'שינויים')}</span>
               </div>
               ${p.invalid && p.items?.length ? html`<div class="note" data-geom-shared-invalid>${p.items.map((i) => html`<div>${i.id.split(':').pop()} · ${i.message}</div>`)}
-                <label><input type="checkbox" data-geom-shared-skip .checked=${d.skip.length > 0} @change=${(e: Event) => { this.geomDiff = { ...d, skip: (e.target as HTMLInputElement).checked ? p.items!.map((i) => i.id) : [] }; }} /> פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)</label></div>` : nothing}`)}
+                <label><sw-toggle size="sm" labelHidden in-label label="פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)" data-geom-shared-skip .checked=${d.skip.length > 0} @change=${(e: Event) => { this.geomDiff = { ...d, skip: toggled(e) ? p.items!.map((i) => i.id) : [] }; }}></sw-toggle> פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)</label></div>` : nothing}`)}
             </div>
             <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
             ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}

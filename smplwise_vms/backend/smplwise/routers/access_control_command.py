@@ -26,6 +26,7 @@ from ..services.access_control_core import PERSON, command_already_sent
 from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, rid as _rid
 from .access_control_base import DOOR_OPEN, MAX_STATION_ID, log
+from ..test_reset import register_reset
 
 
 # ---------------------------------------------------------------- physical actions (access.release)
@@ -386,3 +387,11 @@ def _relay_of(act: _Action, station: dict[str, Any] | None, lock: int | None) ->
     if lock is None:
         lock = 1  # no copy to check against: WisKey's own default relay (panel.ts unlock(station, physical = 1))
     return lock
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    RELAYS.clear()
+
+
+register_reset(__name__, ("RELAYS",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

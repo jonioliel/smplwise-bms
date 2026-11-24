@@ -1777,30 +1777,27 @@ interface ValidateOptions {
   allowedActions?: readonly string[];
 }
 const issue = (path: string, code: string, message: string): Issue => ({ path, code, message });
-/** Local validation of a draft with the caps of §2.2 (the server re-validates; the issues carry the dotted block path of `walkDraft`). */
-export function validateDraft(kind: ItemKind, draft: AnyDraft, opts: ValidateOptions = {}): Issue[] {
-  const out: Issue[] = [];
-  if (kind === 'scene') {
-    const d = draft as SceneDraft;
-    if (!d.name.trim()) out.push(issue('name', 'alias_required', tr('תנו שם')));
-    else if (d.name.length > CAPS.alias_max) out.push(issue('name', 'alias_too_long', tr('שם ארוך מדי (עד {alias_max} תווים)', { alias_max: CAPS.alias_max })));
-    if (!d.members.length) out.push(issue('members', 'members_required', tr('הוסיפו מכשיר')));
-    if (d.members.length > CAPS.members_max) out.push(issue('members', 'too_many_members', tr('עד {members_max} מכשירים בסצנה', { members_max: CAPS.members_max })));
-    d.members.forEach((m, i) => {
-      const dom = m.entity_id.split('.')[0];
-      if (dom === 'alarm_control_panel' || !(SCENE_CAPTURE_DOMAINS as readonly string[]).includes(dom)) out.push(issue(`members.${i}`, 'domain_not_allowed', tr('סוג המכשיר אינו נתמך בסצנה')));
-      if (!m.state) out.push(issue(`members.${i}`, 'state_required', tr('בחרו מצב')));
-      if (secretKind(m.attributes)) out.push(issue(`members.${i}`, 'code_not_allowed', tr('אסור לשמור קוד סודי')));
-    });
-    return out;
-  }
-  const d = draft as AutomationDraft & ScriptDraft;
+type Need = (cond: boolean, code: string, msg: string) => void;
+/** The scene part of validateDraft: name, members and each member's domain, state and secret. */
+function sceneIssues(d: SceneDraft, out: Issue[]): void {
+  if (!d.name.trim()) out.push(issue('name', 'alias_required', tr('תנו שם')));
+  else if (d.name.length > CAPS.alias_max) out.push(issue('name', 'alias_too_long', tr('שם ארוך מדי (עד {alias_max} תווים)', { alias_max: CAPS.alias_max })));
+  if (!d.members.length) out.push(issue('members', 'members_required', tr('הוסיפו מכשיר')));
+  if (d.members.length > CAPS.members_max) out.push(issue('members', 'too_many_members', tr('עד {members_max} מכשירים בסצנה', { members_max: CAPS.members_max })));
+  d.members.forEach((m, i) => {
+    const dom = m.entity_id.split('.')[0];
+    if (dom === 'alarm_control_panel' || !(SCENE_CAPTURE_DOMAINS as readonly string[]).includes(dom)) out.push(issue(`members.${i}`, 'domain_not_allowed', tr('סוג המכשיר אינו נתמך בסצנה')));
+    if (!m.state) out.push(issue(`members.${i}`, 'state_required', tr('בחרו מצב')));
+    if (secretKind(m.attributes)) out.push(issue(`members.${i}`, 'code_not_allowed', tr('אסור לשמור קוד סודי')));
+  });
+}
+/** The caps of an automation or a script: alias, description, triggers / conditions or fields, steps, depth and targets. */
+function capIssues(kind: ItemKind, draft: AnyDraft, d: AutomationDraft & ScriptDraft, walked: Walked[], out: Issue[]): void {
   const alias = d.alias;
   if (!alias.trim()) out.push(issue('alias', 'alias_required', tr('תנו שם')));
   else if (alias.length > CAPS.alias_max) out.push(issue('alias', 'alias_too_long', tr('שם ארוך מדי (עד {alias_max} תווים)', { alias_max: CAPS.alias_max })));
   if (d.description.length > CAPS.description_max) out.push(issue('description', 'description_too_long', tr('תיאור ארוך מדי (עד {description_max} תווים)', { description_max: CAPS.description_max })));
   const steps = kind === 'automation' ? d.actions : d.sequence;
-  const walked = walkDraft(draft);
   if (kind === 'automation') {
     if (!d.triggers.length) out.push(issue('triggers', 'trigger_required', tr('הוסיפו לפחות טריגר אחד')));
     if (d.triggers.length > CAPS.triggers_max) out.push(issue('triggers', 'too_many_triggers', tr('עד {triggers_max} טריגרים', { triggers_max: CAPS.triggers_max })));
@@ -1813,65 +1810,80 @@ export function validateDraft(kind: ItemKind, draft: AnyDraft, opts: ValidateOpt
   if (deep) out.push(issue(deep.path, 'too_deep', tr('עד {depth_max} רמות של שילוב', { depth_max: CAPS.depth_max })));
   const targets = new Set(draftTargets(draft));
   if (targets.size > CAPS.targets_max) out.push(issue(kind === 'automation' ? 'actions' : 'sequence', 'too_many_targets', tr('עד {targets_max} מכשירים', { targets_max: CAPS.targets_max })));
+}
+// a locked trigger (a device button) carries its `id` in its raw: the conditions of a `choose` may name it
+const triggerIdOf = (t: AutomationDraft['triggers'][number]): string | null => (t.kind === 'typed' ? t.id ?? null : isObj(t.raw) && typeof t.raw.id === 'string' ? t.raw.id : null);
+function triggerBlockIssues(x: TriggerBlock, need: Need): void {
+  if (x.type === 'state' || x.type === 'numeric_state') need(!x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
+  if (x.type === 'numeric_state') need(x.above == null && x.below == null, 'value_required', tr('הגדירו ערך'));
+  if (x.type === 'time') need(!TIME_RE.test(x.at), 'time_required', tr('בחרו שעה'));
+  if (x.type === 'time_pattern') need(x.hours == null && x.minutes == null && x.seconds == null, 'pattern_required', tr('הגדירו מחזור'));
+}
+function conditionBlockIssues(x: ConditionBlock, opts: ValidateOptions, triggerIds: Set<string>, need: Need): void {
+  if (x.type === 'state' || x.type === 'numeric_state') need(!x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
+  if (x.type === 'numeric_state') need(x.above == null && x.below == null, 'value_required', tr('הגדירו ערך'));
+  if (x.type === 'time') need((!!x.after && !TIME_RE.test(x.after)) || (!!x.before && !TIME_RE.test(x.before)), 'time_invalid', tr('שעה לא תקינה'));
+  if (x.type === 'shabbat') need(!opts.shabbatSensor, 'shabbat_sensor_missing', tr('לא הוגדר חיישן שבת'));
+  if (x.type === 'trigger') { need(!x.ids.length, 'trigger_id_required', tr('בחרו טריגר')); need(x.ids.some((i) => !triggerIds.has(i)), 'trigger_id_unknown', tr('הטריגר אינו קיים')); }
+  if (x.type === 'and' || x.type === 'or' || x.type === 'not') need(!x.conditions.length, 'conditions_required', tr('הוסיפו תנאי'));
+}
+function actionBlockIssues(x: ActionBlock, opts: ValidateOptions, ctx: ModelContext, need: Need): void {
+  if (x.type === 'service') {
+    const sk = secretKind(x.data);
+    need(sk === 'code', 'code_not_allowed', AUTOMATION_ERROR_LABEL.code_not_allowed);
+    need(sk === 'secret', 'secret_not_allowed', tr('אסור לשמור ערך חסוי'));
+    need(x.role === 'device' && !x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
+    need((x.role === 'scene' || x.role === 'script' || x.role === 'automation') && x.entity_ids.length !== 1, 'entity_required', tr('בחרו פריט'));
+    const cls = classifyAction(x.action, ctx);
+    need(!cls.ok, 'action_not_allowed', AUTOMATION_ERROR_LABEL.action_not_allowed);
+    if (x.role === 'notify') {
+      need(typeof x.data.message !== 'string' || !x.data.message.trim(), 'message_required', tr('כתבו הודעה'));
+      need(!!opts.notifyTargets && !opts.notifyTargets.includes(x.action), 'notify_target_not_allowed', tr('יעד התראה לא מאושר'));
+    }
+  } else if (x.type === 'delay') need(!(x.delay.hours || x.delay.minutes || x.delay.seconds), 'duration_required', tr('הגדירו משך'));
+  else if (x.type === 'choose') { need(!x.options.length, 'option_required', tr('הוסיפו ענף')); need(x.options.length > CAPS.choose_options_max, 'too_many_options', tr('עד {choose_options_max} ענפים', { choose_options_max: CAPS.choose_options_max })); }
+  else if (x.type === 'if') { need(!x.conditions.length, 'conditions_required', tr('הוסיפו תנאי')); need(!x.then.length, 'action_required', tr('הוסיפו לפחות פעולה אחת')); }
+  else if (x.type === 'repeat_count') need(!Number.isInteger(x.count) || x.count < 1 || x.count > 1000, 'count_invalid', tr('מספר חזרות לא תקין'));
+}
+/** A script's fields: key shape, duplicate keys, names, number ranges and select options. */
+function fieldIssues(d: ScriptDraft, out: Issue[]): void {
+  const keys = new Set<string>();
+  d.fields.forEach((f, i) => {
+    const p = `fields.${i}`;
+    if (!/^[a-z_][a-z0-9_]*$/.test(f.key)) out.push(issue(p, 'field_key_invalid', tr('מפתח שדה: אותיות לטיניות קטנות, ספרות וקו תחתון')));
+    if (keys.has(f.key)) out.push(issue(p, 'duplicate_field_key', tr('מפתח שדה כפול')));
+    keys.add(f.key);
+    if (!f.name.trim()) out.push(issue(p, 'alias_required', tr('תנו שם לשדה')));
+    if (f.selector.kind === 'number' && !(f.selector.min < f.selector.max)) out.push(issue(p, 'range_invalid', tr('הטווח לא תקין')));
+    if (f.selector.kind === 'select' && !f.selector.options.length) out.push(issue(p, 'options_required', tr('הוסיפו אפשרויות')));
+  });
+}
+/** Local validation of a draft with the caps of §2.2 (the server re-validates; the issues carry the dotted block path of `walkDraft`). */
+export function validateDraft(kind: ItemKind, draft: AnyDraft, opts: ValidateOptions = {}): Issue[] {
+  const out: Issue[] = [];
+  if (kind === 'scene') {
+    sceneIssues(draft as SceneDraft, out);
+    return out;
+  }
+  const d = draft as AutomationDraft & ScriptDraft;
+  const walked = walkDraft(draft);
+  capIssues(kind, draft, d, walked, out);
 
-  // a locked trigger (a device button) carries its `id` in its raw: the conditions of a `choose` may name it
-  const tid = (t: AutomationDraft['triggers'][number]): string | null => (t.kind === 'typed' ? t.id ?? null : isObj(t.raw) && typeof t.raw.id === 'string' ? t.raw.id : null);
-  const triggerIds = new Set(kind === 'automation' ? d.triggers.map(tid).filter((x): x is string => !!x) : []);
+  const triggerIds = new Set(kind === 'automation' ? d.triggers.map(triggerIdOf).filter((x): x is string => !!x) : []);
   if (kind === 'automation') {
     const seen = new Set<string>();
-    d.triggers.forEach((t, i) => { const id = tid(t); if (id) { if (seen.has(id)) out.push(issue(`triggers.${i}`, 'duplicate_trigger_id', tr('מזהה הטריגר כבר בשימוש'))); seen.add(id); } });
+    d.triggers.forEach((t, i) => { const id = triggerIdOf(t); if (id) { if (seen.has(id)) out.push(issue(`triggers.${i}`, 'duplicate_trigger_id', tr('מזהה הטריגר כבר בשימוש'))); seen.add(id); } });
   }
   const ctx: ModelContext = { allowedActions: opts.allowedActions };
   for (const w of walked) {
     const b = w.block;
     if (b.kind === 'locked') continue;
-    const need = (cond: boolean, code: string, msg: string) => { if (cond) out.push(issue(w.path, code, msg)); };
-    if (w.section === 'trigger') {
-      const x = b as TriggerBlock;
-      if (x.type === 'state' || x.type === 'numeric_state') need(!x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
-      if (x.type === 'numeric_state') need(x.above == null && x.below == null, 'value_required', tr('הגדירו ערך'));
-      if (x.type === 'time') need(!TIME_RE.test(x.at), 'time_required', tr('בחרו שעה'));
-      if (x.type === 'time_pattern') need(x.hours == null && x.minutes == null && x.seconds == null, 'pattern_required', tr('הגדירו מחזור'));
-    } else if (w.section === 'condition') {
-      const x = b as ConditionBlock;
-      if (x.type === 'state' || x.type === 'numeric_state') need(!x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
-      if (x.type === 'numeric_state') need(x.above == null && x.below == null, 'value_required', tr('הגדירו ערך'));
-      if (x.type === 'time') need((!!x.after && !TIME_RE.test(x.after)) || (!!x.before && !TIME_RE.test(x.before)), 'time_invalid', tr('שעה לא תקינה'));
-      if (x.type === 'shabbat') need(!opts.shabbatSensor, 'shabbat_sensor_missing', tr('לא הוגדר חיישן שבת'));
-      if (x.type === 'trigger') { need(!x.ids.length, 'trigger_id_required', tr('בחרו טריגר')); need(x.ids.some((i) => !triggerIds.has(i)), 'trigger_id_unknown', tr('הטריגר אינו קיים')); }
-      if (x.type === 'and' || x.type === 'or' || x.type === 'not') need(!x.conditions.length, 'conditions_required', tr('הוסיפו תנאי'));
-    } else {
-      const x = b as ActionBlock;
-      if (x.type === 'service') {
-        const sk = secretKind(x.data);
-        need(sk === 'code', 'code_not_allowed', AUTOMATION_ERROR_LABEL.code_not_allowed);
-        need(sk === 'secret', 'secret_not_allowed', tr('אסור לשמור ערך חסוי'));
-        need(x.role === 'device' && !x.entity_ids.length, 'entity_required', tr('בחרו מכשיר'));
-        need((x.role === 'scene' || x.role === 'script' || x.role === 'automation') && x.entity_ids.length !== 1, 'entity_required', tr('בחרו פריט'));
-        const cls = classifyAction(x.action, ctx);
-        need(!cls.ok, 'action_not_allowed', AUTOMATION_ERROR_LABEL.action_not_allowed);
-        if (x.role === 'notify') {
-          need(typeof x.data.message !== 'string' || !x.data.message.trim(), 'message_required', tr('כתבו הודעה'));
-          need(!!opts.notifyTargets && !opts.notifyTargets.includes(x.action), 'notify_target_not_allowed', tr('יעד התראה לא מאושר'));
-        }
-      } else if (x.type === 'delay') need(!(x.delay.hours || x.delay.minutes || x.delay.seconds), 'duration_required', tr('הגדירו משך'));
-      else if (x.type === 'choose') { need(!x.options.length, 'option_required', tr('הוסיפו ענף')); need(x.options.length > CAPS.choose_options_max, 'too_many_options', tr('עד {choose_options_max} ענפים', { choose_options_max: CAPS.choose_options_max })); }
-      else if (x.type === 'if') { need(!x.conditions.length, 'conditions_required', tr('הוסיפו תנאי')); need(!x.then.length, 'action_required', tr('הוסיפו לפחות פעולה אחת')); }
-      else if (x.type === 'repeat_count') need(!Number.isInteger(x.count) || x.count < 1 || x.count > 1000, 'count_invalid', tr('מספר חזרות לא תקין'));
-    }
+    const need: Need = (cond, code, msg) => { if (cond) out.push(issue(w.path, code, msg)); };
+    if (w.section === 'trigger') triggerBlockIssues(b as TriggerBlock, need);
+    else if (w.section === 'condition') conditionBlockIssues(b as ConditionBlock, opts, triggerIds, need);
+    else actionBlockIssues(b as ActionBlock, opts, ctx, need);
   }
-  if (kind === 'script') {
-    const keys = new Set<string>();
-    d.fields.forEach((f, i) => {
-      const p = `fields.${i}`;
-      if (!/^[a-z_][a-z0-9_]*$/.test(f.key)) out.push(issue(p, 'field_key_invalid', tr('מפתח שדה: אותיות לטיניות קטנות, ספרות וקו תחתון')));
-      if (keys.has(f.key)) out.push(issue(p, 'duplicate_field_key', tr('מפתח שדה כפול')));
-      keys.add(f.key);
-      if (!f.name.trim()) out.push(issue(p, 'alias_required', tr('תנו שם לשדה')));
-      if (f.selector.kind === 'number' && !(f.selector.min < f.selector.max)) out.push(issue(p, 'range_invalid', tr('הטווח לא תקין')));
-      if (f.selector.kind === 'select' && !f.selector.options.length) out.push(issue(p, 'options_required', tr('הוסיפו אפשרויות')));
-    });
-  }
+  if (kind === 'script') fieldIssues(d, out);
   return out;
 }
 /** Issues grouped by the block they point at (`uid -> issues`); issues that point at no block (alias, caps) are under `''`. */

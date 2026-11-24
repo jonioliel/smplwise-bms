@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-dialog';
 import { automationsStyles } from '../styles/automations-glass';
 import { applyAutomationsGlass } from '../styles/glass';
@@ -105,8 +106,8 @@ export class TicketsRfqQuestionDialog extends LitElement {
         <div class="choice" role="radiogroup" aria-label=${rt('qScope')}>${opt('vendor', 'qScopeVendor', 'qScopeVendorSub')}${opt('all', 'qScopeAll', 'qScopeAllSub')}</div>
         ${this.scope === 'all' ? html`<label class="fld">${rt('qShownAs')}<textarea class="inp" style="min-block-size:64px;padding-block:10px" maxlength=${QUESTION_SHOWN_MAX} data-rfq-answer-shown
             .value=${this.shown} @input=${(e: Event) => (this.shown = (e.target as HTMLTextAreaElement).value)}></textarea><small class="mut">${rt('qShownNote')}</small></label>
-          <label class="chk"><input type="checkbox" data-rfq-answer-named .checked=${this.named} @change=${(e: Event) => (this.named = (e.target as HTMLInputElement).checked)} />${rt('qNameAsker')}</label>` : nothing}
-        <label class="chk"><input type="checkbox" data-rfq-answer-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = (e.target as HTMLInputElement).checked)} />${rt('qNotify')}</label>
+          <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('qNameAsker')} data-rfq-answer-named .checked=${this.named} @change=${(e: Event) => (this.named = toggled(e))}></sw-toggle>${rt('qNameAsker')}</label>` : nothing}
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rt('qNotify')} data-rfq-answer-notify .checked=${this.notify} @change=${(e: Event) => (this.notify = toggled(e))}></sw-toggle>${rt('qNotify')}</label>
         <div class="note">${rt('writeNote')}</div>
         ${this.error ? html`<div class="err" role="alert" data-dlg-error>${this.error}</div>` : nothing}
       </div>

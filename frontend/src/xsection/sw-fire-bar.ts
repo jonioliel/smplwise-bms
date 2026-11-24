@@ -22,14 +22,15 @@ export class SwAckButton extends LitElement {
 
   static styles = css`
     :host { display: inline-block; }
-    button { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; font: inherit; font-weight: 700; color: var(--sw-danger-text, #be123c); background: #fff; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    :host { --fb-white: #fff; --fb-red: #be123c; } /* COLOR-LITERAL-B-2480: the button's white and its danger fallback, one literal each */
+    button { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; font: inherit; font-weight: 700; color: var(--sw-danger-text, var(--fb-red)); background: var(--fb-white); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
-    button.ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
-    .fill { position: absolute; inset: 0; transform-origin: inline-start; transform: scaleX(0); background: color-mix(in srgb, var(--sw-danger, #be123c) 22%, #fff); pointer-events: none; }
+    button.ghost { background: transparent; color: var(--fb-white); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); }
+    .fill { position: absolute; inset: 0; transform-origin: inline-start; transform: scaleX(0); background: color-mix(in srgb, var(--sw-danger, var(--fb-red)) 22%, var(--fb-white)); pointer-events: none; }
     .holding .fill { transform: scaleX(1); transition: transform ${ACK_HOLD_MS}ms linear; }
     .xi { inline-size: 16px; block-size: 16px; flex: none; position: relative; }
     span.t { position: relative; }
-    :focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--fb-white); outline-offset: 2px; }
   `;
 
   private done() {
@@ -88,8 +89,9 @@ export class SwFireBar extends LitElement {
 
   static styles = css`
     :host { display: contents; }
-    .bar { position: fixed; inset-block-start: 0; inset-inline: 0; z-index: 2147483000; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 14px calc(8px) 14px; padding-block-start: max(8px, env(safe-area-inset-top)); background: var(--sw-danger, #be123c); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); font-size: 14px; }
-    .bar.ackd { background: color-mix(in srgb, var(--sw-danger, #be123c) 80%, #000); }
+    :host { --fbb-white: #fff; --fbb-red: #be123c; } /* COLOR-LITERAL-B-2480: the bar's white ink and its danger fallback, one literal each */
+    .bar { position: fixed; inset-block-start: 0; inset-inline: 0; z-index: 2147483000; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 14px calc(8px) 14px; padding-block-start: max(8px, env(safe-area-inset-top)); background: var(--sw-danger, var(--fbb-red)); color: var(--fbb-white); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); font-size: 14px; }
+    .bar.ackd { background: color-mix(in srgb, var(--sw-danger, var(--fbb-red)) 80%, #000); }
     .ico { display: grid; place-items: center; inline-size: 32px; block-size: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); flex: none; }
     .xi { inline-size: 18px; block-size: 18px; }
     .tx { min-inline-size: 0; flex: 1 1 220px; display: flex; flex-direction: column; gap: 1px; }
@@ -98,9 +100,9 @@ export class SwFireBar extends LitElement {
     .tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.35) 5px 6px), rgba(0, 0, 0, 0.25); font-size: 12px; font-weight: 700; }
     .ac { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 button { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-        .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: #fff; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .lnk { min-block-size: 40px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7); color: var(--fbb-white); font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
     .lnk .xi { inline-size: 16px; block-size: 16px; }
-    :focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    :focus-visible { outline: 2px solid var(--fbb-white); outline-offset: 2px; }
     @media (prefers-reduced-motion: no-preference) { .ico { animation: pulse 1.6s ease-in-out infinite; } }
     @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); } 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); } }
   `;

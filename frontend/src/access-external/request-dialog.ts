@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-segmented';
@@ -69,7 +70,7 @@ export class AccessRequestDialog extends LitElement {
       .sec > h4 .sp { flex: 1; }
       /* CR-CMP2-SEGMENTED-C-2450: the dialog's choices are sw-segmented (block: the keys share the row), its own key through the knobs */
       sw-segmented { --sw-seg-track: var(--sw-surface-2); --sw-seg-gap: 4px; --sw-seg-h: var(--sw-touch-desktop, 44px); --sw-seg-key-pad: 10px; --sw-seg-fs: var(--sw-fs-sm);
-        --sw-seg-fw: 400; --sw-seg-on-fw: 600; --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid)); --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading)); }
+        --sw-seg-fw: 400; --sw-seg-on-fw: 600; --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface-solid)); --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-heading)); --sw-seg-radius: var(--sw-r-md); --sw-seg-btn-radius: var(--sw-r-sm); }
       .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
       textarea.in { min-block-size: 76px; padding-block: 8px; resize: vertical; }
       select.in { appearance: auto; }
@@ -457,7 +458,7 @@ export class AccessRequestDialog extends LitElement {
     const dir = lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr';
     return html`<section class="sec" data-sec="notice"><h4><sw-icon name="shield" size="14"></sw-icon>${rt('notice')}<span class="sp"></span><span class="chip" data-tone="off">${rt('noticeLang', { lang: rt(`lang_${lang}` as RtKey), v: n?.version ?? 'n2' })}</span></h4>
       <div class="ntext" dir=${dir} lang=${lang} data-notice-text>${n?.text ?? rt('loading')}</div>
-      <label class="cb" ?data-invalid=${!!e.told}><input type="checkbox" data-told .checked=${this.f.told} @change=${(ev: Event) => this.set({ told: (ev.target as HTMLInputElement).checked })} /><span><b dir=${dir} lang=${lang}>${n?.attest ?? ''}</b></span></label>
+      <label class="cb" ?data-invalid=${!!e.told}><sw-toggle size="sm" labelHidden in-label label=${n?.attest ?? ''} data-told .checked=${this.f.told} @change=${(ev: Event) => this.set({ told: toggled(ev) })}></sw-toggle><span><b dir=${dir} lang=${lang}>${n?.attest ?? ''}</b></span></label>
       ${this.err(e, 'told')}</section>`;
   }
 

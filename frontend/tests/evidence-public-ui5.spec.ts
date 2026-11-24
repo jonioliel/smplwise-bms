@@ -391,9 +391,11 @@ test.describe('TKUI5: the public page in the approved look', () => {
     await shot(page, 'unavailable-en');
   });
 
-  test('four languages, light and dark, vendor and staff: direction, no overflow, the preliminary-translation line for Arabic and Russian', async ({ page }) => {
-    const mobile = test.info().project.name === 'mobile';
-    for (const lang of LANGS) {
+  // FLAKY-SWEEP-2480: one test per language (the four languages' 12 page loads and full-page pictures shared one budget: a timeout on the
+  // phone in the 2.46.0 gate); the same pages, checks and pictures
+  for (const lang of LANGS) {
+    test(`four languages, light and dark, vendor and staff: direction, no overflow, the preliminary-translation line for Arabic and Russian [${lang}]`, async ({ page }) => {
+      const mobile = test.info().project.name === 'mobile';
       for (const scheme of ['light', 'dark'] as const) {
         if (scheme === 'dark' && !mobile && lang !== 'he') continue;
         await open(page, view(lang, { theme: scheme }), { scheme, quote: quoteInfo({ state: 'submitted', quote: quoteOf('submitted') }), wait: '[data-quote-part="submitted"]' });
@@ -407,11 +409,12 @@ test.describe('TKUI5: the public page in the approved look', () => {
         await expect(page.locator('[data-cost-card]')).toHaveCount(0);
         await expect(page.locator('[data-prelim]')).toHaveCount(lang === 'ar' || lang === 'ru' ? 1 : 0);
         await shot(page, `staff-${lang}-light`);
+      } else {
+        await open(page, staffView('he', { history: HISTORY, theme: 'dark' }), { scheme: 'dark' });
+        await shot(page, 'staff-he-dark');
       }
-    }
-    await open(page, staffView('he', { history: HISTORY, theme: 'dark' }), { scheme: 'dark' });
-    await shot(page, 'staff-he-dark');
-  });
+    });
+  }
 
   test('phone: every target is at least 44 px; the theme toggle still works', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'the phone');

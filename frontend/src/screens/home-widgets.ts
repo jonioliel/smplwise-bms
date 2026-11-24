@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-icon';
-import '../components/media-remote';
+// PERF-2490: <media-remote> (the remote / player drawer, ~190 KB with the player panel and the editor) is a chunk of its own - see loadRemote
 import { ALARM_HE } from '../api/devices';
 import { createClockSubscription } from '../api/clock-ticker';
 import {
@@ -149,6 +149,10 @@ export class HomeWidgetsView extends LitElement {
   @state() private remoteKey = '';
   @state() private remoteKind = '';
   @state() private remoteOpen = false;
+  /** PERF-2490: the chunk of <media-remote> landed. The drawer is rendered only then (GATE2342: never upgraded in place); it draws nothing
+   * while closed, so the chunk is fetched as soon as the media widget has something to open (updated), not on the first press. */
+  @state() private remoteReady = typeof customElements !== 'undefined' && !!customElements.get('media-remote');
+  private remoteLoad: Promise<unknown> | null = null;
   /** CR-HOME-RELOAD-2436 (06:HOME-1 a): the media poll runs only while a media widget is placed, one read at a time (an ask while one
    * runs is folded into one more read right after it). */
   private poll = new PollController(this);
@@ -269,6 +273,23 @@ export class HomeWidgetsView extends LitElement {
     }
   }
 
+  /** The media widget is on and has a device to open: the drawer is (or will be) in the template. */
+  private get wantsRemote(): boolean {
+    return this.items.some((i) => i.id === 'media') && this.hasMedia;
+  }
+
+  /** PERF-2490: fetch the drawer's chunk once (a failed fetch may be retried by the next update). */
+  private loadRemote() {
+    if (this.remoteLoad) return;
+    this.remoteLoad = import('../components/media-remote').then(
+      () => (this.remoteReady = true),
+      (err: unknown) => {
+        console.warn('media remote chunk failed to load', err);
+        this.remoteLoad = null;
+      },
+    );
+  }
+
   /** The widget has something to show: an approved screen, speaker, player or receiver. */
   private get hasMedia(): boolean {
     return !!this.screens?.length || !!this.speakers?.length;
@@ -282,6 +303,7 @@ export class HomeWidgetsView extends LitElement {
   }
 
   protected updated() {
+    if (!this.remoteReady && this.wantsRemote) this.loadRemote();
     this.syncTicker();
     this.watchEditBars();
     // BV1: the surface dial on the host (the surfaceless / glass widget rules key on it; the other skins ignore it)
@@ -305,7 +327,7 @@ export class HomeWidgetsView extends LitElement {
   render() {
     const items = this.items;
     if (!items.length || !this.config) return nothing;
-    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.items.some((i) => i.id === 'media') && this.hasMedia ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
+    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.remoteReady && this.wantsRemote ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
   }
 
   /** A widget card, or its ghost; the media widget (CR-015) asks for itself: without a screen this user may see it is absent

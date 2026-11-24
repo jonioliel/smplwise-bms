@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-badge';
@@ -390,7 +391,7 @@ export class SystemLocalUsers extends LitElement {
     return html`<label>${lit('pwField')}<sw-field><input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.password} @input=${text('password')} data-local-pw=${mark} /></sw-field>
         <span class="muted">${lit('pwHint', { min: this.pwMin })}</span></label>
       <label>${lit('pwAgain')}<sw-field><input class="ltr" type="password" autocomplete="new-password" maxlength="128" .value=${d.again} @input=${text('again')} data-local-pw-again=${mark} /></sw-field></label>
-      <label class="full check"><input type="checkbox" .checked=${d.must} @change=${(e: Event) => set({ ...d, must: (e.target as HTMLInputElement).checked })} data-local-pw-must=${mark} />
+      <label class="full check"><sw-toggle size="sm" labelHidden in-label label=${lit(mark === 'user' ? 'pwMustChangeNext' : 'pwMustChange')} .checked=${d.must} @change=${(e: Event) => set({ ...d, must: toggled(e) })} data-local-pw-must=${mark}></sw-toggle>
         ${lit(mark === 'user' ? 'pwMustChangeNext' : 'pwMustChange')}</label>
       <div class="muted full">${lit('pwMustChangeHelp')}</div>`;
   }
@@ -758,8 +759,8 @@ export class SystemLocalUsers extends LitElement {
         <div class="muted full">${lit('publicUrlHint')}</div>
         ${this.publicUrlNote ? html`<div class="note full" role="status">${this.publicUrlNote}</div>` : nothing}
         <div class="actions"><sw-button @click=${() => this.savePublicUrl()} ?disabled=${this.busy} data-local-public-url-save>${lit('publicUrlSave')}</sw-button></div>
-        <label class="full check"><input type="checkbox" .checked=${!!d.passkey_first_allowed} ?disabled=${this.busy}
-            @change=${(e: Event) => this.setPasskeyFirstAllowed((e.target as HTMLInputElement).checked)} data-local-passkey-first-allowed />
+        <label class="full check"><sw-toggle size="sm" labelHidden in-label label=${lit('passkeySettingFirst')} .checked=${!!d.passkey_first_allowed} ?disabled=${this.busy}
+            @change=${(e: Event) => this.setPasskeyFirstAllowed(toggled(e))} data-local-passkey-first-allowed></sw-toggle>
           ${lit('passkeySettingFirst')}</label>
         <div class="muted full">${lit('passkeySettingHelp')}</div>
       </div>

@@ -14,7 +14,7 @@ export const homeV3Styles = css`${unsafeCSS(String.raw`/* SmplWise Arx - home in
 .foot-note { flex: none; display: flex; align-items: center; gap: 8px; color: var(--hs-text-2); font-size: var(--f-sm); min-block-size: 28px; }
 .foot-note .hi { inline-size: 18px; block-size: 18px; flex: none; }
 .at .dst { min-inline-size: 0; } .dst > .clamp1 { min-inline-size: 0; }
-.hs .rb.play, .ovl .rb.play { background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
+.hs .rb.play, .ovl .rb.play { background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); }
 .hs .rb.play:disabled { background: var(--hs-surface-3); color: var(--hs-text-2); }
 a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-radius: 999px; }
 
@@ -26,11 +26,11 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .hubt .hl { font-size: var(--f-tile); font-weight: 600; max-inline-size: 100%; }
 .hubt .hs2 { font-size: 14px; line-height: 1.3; color: var(--hs-text-2); max-inline-size: 100%; }
 .hubt .hs2[data-tone] { color: var(--ct); } .hubt .hs2 .dot { inline-size: 8px; block-size: 8px; margin-inline-end: 6px; }
-.hub .hubt > .count { position: absolute !important; inset-block-start: 10px; inset-inline-end: 10px; min-inline-size: 24px; block-size: 24px; border-radius: 12px; background: var(--hs-accent); color: var(--hs-on-accent, #fff); font-size: 13px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; }
+.hub .hubt > .count { position: absolute !important; inset-block-start: 10px; inset-inline-end: 10px; min-inline-size: 24px; block-size: 24px; border-radius: 12px; background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); font-size: 13px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; }
 
 /* ---- recordings */
 .pb-body { flex: 1; min-block-size: 0; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 14px; }
-.hs .pb-pic { background: #000; overflow: hidden; }
+.hs .pb-pic { background: var(--hs-black); overflow: hidden; }
 .rec-st { display: inline-flex; gap: 6px; font-weight: 500; }
 .pb-side { grid-row: 1; grid-column: 2; gap: 6px; }
 .pb-ev { inline-size: 100%; flex: 1 1 0; max-block-size: 76px; background: transparent; }
@@ -48,7 +48,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .tl input:focus-visible + .tl-ax { outline: 3px solid var(--hs-focus); outline-offset: 2px; border-radius: 6px; }
 .tl-ax { display: flex; justify-content: space-between; font-size: 13px; color: var(--hs-text-2); margin-block-start: 6px; }
 .cf-foot { position: absolute; inset-inline: 0; inset-block-end: 0; display: flex; justify-content: center; padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
-.ovl .hbtn.onpic { background: rgba(0,0,0,.66); color: #fff; }
+.ovl .hbtn.onpic { background: rgba(0,0,0,.66); color: var(--hs-white); }
 
 /* ---- list rows (diary, calls, people, calendar, schedules) */
 .evrow, .srow, .prow, .crow, .cev { display: grid; align-items: center; gap: 14px; padding: 0 16px; }
@@ -90,7 +90,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .transit > .hi { inline-size: 20px; block-size: 20px; flex: none; } .transit > b { color: var(--hs-heading); font-weight: 600; flex: none; } .tr { flex: 0 1 auto; } .tr b { color: var(--hs-heading); font-weight: 600; }
 .ncard { display: grid; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: start; gap: 6px; padding: 16px 20px; text-align: start; overflow: hidden; color: var(--hs-text); inline-size: 100%; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
 .nh { display: flex; align-items: center; gap: 10px; min-inline-size: 0; max-inline-size: 100%; }
-.newp { flex: none; background: var(--hs-accent); color: var(--hs-on-accent, #fff); font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+.newp { flex: none; background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 .pinp { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ct); font-size: 13px; font-weight: 600; } .pinp .hi { inline-size: 16px; block-size: 16px; }
 .nt { font-size: var(--f-tile); font-weight: 600; color: var(--hs-heading); line-height: 1.3; }
 .ncard:not(.new) .nt { font-weight: 500; }
@@ -109,8 +109,8 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 .volr .vi .hi { inline-size: 24px; block-size: 24px; display: block; } .volr .vv { text-align: center; color: var(--hs-heading); font-weight: 600; }
 .volr input { -webkit-appearance: none; appearance: none; inline-size: 100%; block-size: var(--hit); margin: 0; background: transparent; cursor: pointer; }
 .volr input::-webkit-slider-runnable-track { block-size: 10px; border-radius: 5px; background: linear-gradient(to left, var(--hs-accent-text) var(--v, 0%), var(--hs-surface-3) var(--v, 0%)); /* taste-skill-ignore: a hard-stop fill for the slider's value, not a decorative gradient */ }
-.volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); margin-block-start: -9px; }
-.volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: #fff; }
+.volr input::-webkit-slider-thumb { -webkit-appearance: none; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--hs-white); box-shadow: 0 1px 4px var(--hs-thumb-shadow); margin-block-start: -9px; }
+.volr input::-moz-range-track { block-size: 10px; border-radius: 5px; background: var(--hs-surface-3); } .volr input::-moz-range-thumb { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: var(--hs-white); }
 .md-src { grid-column: 1 / -1; display: flex; gap: 8px; min-inline-size: 0; overflow: hidden; }
 .md-src .chip2, .chipset .chip2 { padding: 0 16px !important; gap: 8px; background: var(--hs-surface-3); flex: 0 1 auto; } .chip2 .hi { inline-size: 20px; block-size: 20px; flex: none; }
 .md-list { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)) auto; gap: 12px; min-block-size: 0; }
@@ -190,7 +190,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .keys { display: grid; grid-template-columns: repeat(3, 76px); gap: 10px; justify-content: center; } .ovl .keys .rb { inline-size: 76px; block-size: 64px; border-radius: 18px; font-size: 24px; font-weight: 500; }
 .rm { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; justify-items: center; gap: 14px; margin-block: 8px; inline-size: 100%; }
 .rm-col { display: grid; gap: 10px; justify-items: center; } .dpad { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; place-items: center; }
-.ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
+.ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); }
 
 /* ---- 1024 tablets: the category row stacks icon over text so nine fit */
 @media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {
@@ -239,7 +239,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 }
 @media (hover: hover) and (pointer: fine) {
   .hubt:hover, .ncard:hover, .arow.tkrow:hover, .hs .wd:not([aria-pressed="true"]):hover, .pr:not(.void):not(.lit):hover { background: var(--hs-surface-2); }
-  :host([data-hs-scheme="light"]) .hubt:hover, :host([data-hs-scheme="light"]) .ncard:hover, :host([data-hs-scheme="light"]) .arow.tkrow:hover { background: #fbfaf8; }
+  :host([data-hs-scheme="light"]) .hubt:hover, :host([data-hs-scheme="light"]) .ncard:hover, :host([data-hs-scheme="light"]) .arow.tkrow:hover { background: var(--hs-hover-light); }
 }
 @media (prefers-reduced-motion: reduce) { .hubt, .ncard, .wd, .pr, .arow.tkrow { transition-property: background-color, color !important; transform: none !important; } }
 

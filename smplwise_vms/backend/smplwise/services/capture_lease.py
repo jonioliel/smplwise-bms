@@ -38,6 +38,7 @@ from typing import Any, Callable, Iterable
 from ..db import Database, get_setting, has_table, now_iso, permission_revision
 from ..errors import ApiError
 from . import confirm_words
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.capture_lease")
 
@@ -952,3 +953,11 @@ def reset_for_tests() -> None:
     GUARDS.clock_untrusted = False
     TEST_SKIP_NEXT_SEQUENCE = False
     set_clock()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    GUARDS.degraded = GUARDS.ledger_busy = GUARDS.clock_untrusted = False
+
+
+register_reset(__name__, ("GUARDS",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

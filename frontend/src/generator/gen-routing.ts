@@ -277,7 +277,7 @@ export class GenRouting extends LitElement {
     const chk = (label: string, on: boolean, fn: () => void, dis = false, extra = '') => html`<label class="${on ? 'on' : ''} ${dis ? 'dis' : ''}"><input type="checkbox" .checked=${on} ?disabled=${dis} @change=${fn} /> ${label}${extra ? html` <span class="mut">${extra}</span>` : nothing}</label>`;
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
       ${i ? html`<div class="drawer-body">
-        <label class="row"><input type="checkbox" .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled /> <span>${S.active}</span></label>
+        <label class="row"><sw-toggle size="sm" labelHidden in-label label=${S.active} .checked=${d.enabled} @change=${() => this.patch({ enabled: !d.enabled })} data-enabled></sw-toggle> <span>${S.active}</span></label>
         <div class="fld"><label>${S.severity}</label><sw-segmented data-severity value=${d.severity ?? i.default_severity} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ severity: e.detail.value as Severity })}
           .options=${SEVS.map((s) => ({ value: s, label: G.alerts.sev[s] }))}></sw-segmented></div>
         ${eff.roles.length + eff.users.length > 0 ? nothing : html`<div class="notice warnbox" data-empty-note>${S.routingEmpty}: ${S.routingEmptyShort}</div>`}
@@ -289,7 +289,7 @@ export class GenRouting extends LitElement {
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels>${chk(S.inboxAlways, true, () => undefined, true)}${data.channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => this.patch({ channels: this.toggle(d.channels, c) })))}${data.channels_reserved.map((c) => chk(chLabel(c), false, () => undefined, true, S.soon))}</div></div>
         <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<sw-segmented data-quiet value=${d.quiet_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ quiet_mode: e.detail.value as 'pass' | 'matrix' | 'hold' })}
           .options=${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => ({ value: m, label: S.quietLong[m] }))}></sw-segmented>`}</div>
-        <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><input type="checkbox" .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
+        <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><sw-toggle size="sm" labelHidden label=${S.escalate} .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate></sw-toggle>
           ${d.escalate ? html`<input type="number" min="1" style="inline-size:90px" .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /> <span class="mut">${S.escalateAfter}</span>` : nothing}</div>`}</div>
         <div class="fld"><label for="tpl">${S.message}</label>
           <textarea id="tpl" class="note" dir="rtl" .value=${this.text} maxlength=${max} @input=${(e: Event) => this.tplInput((e.target as HTMLTextAreaElement).value)} data-template></textarea>
@@ -313,6 +313,7 @@ export class GenRouting extends LitElement {
     // CR-CMP2-GEN-REST-2460 (owner N10): the alert-type matrix is the shared table - a group heading row per group (groupHeading), the "on"
     // switch a sw-toggle (it saves at once and never opens the row), the recipient / channel chips the module's look through parts, a
     // type that is off dimmed (part "off"), a type without its sensor muted with the sensor it needs. A row opens the type's editor.
+    // CR-CMP2-POLISH-2470: a type without its sensor opens nothing, so its row is still (rowFocusable: no tab stop, no pointer).
     const dim = (on: boolean, v: unknown) => html`<span part=${on ? nothing : 'off'}>${v}</span>`;
     const setOn = async (i: PolicyItem, v: boolean) => {
       try {
@@ -379,6 +380,7 @@ export class GenRouting extends LitElement {
         <input type="search" placeholder=${G.history.search} aria-label=${G.history.search} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></div>
       <div class="card flush hide-phone" data-routing-matrix><sw-table bare data-gen-table data-gen-routing-table rowKey="key" .columns=${columns as unknown as TableColumn[]}
         .rows=${matrixRows as unknown as Record<string, unknown>[]} .groupHeading=${(r: Record<string, unknown>) => (r as MatrixRow).grp ?? null} .rowAttrs=${matrixHooks}
+        .rowFocusable=${(r: Record<string, unknown>) => !!(r as MatrixRow).item?.available}
         @row-select=${(e: CustomEvent<{ row: MatrixRow }>) => e.detail.row.item && this.edit(e.detail.row.item)}></sw-table></div>
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}

@@ -44,6 +44,7 @@ from ..services.settings_store import setting_value
 from ..wire import frigate as W
 from ..wire import wire
 from ._common import rid as _rid
+from ..test_reset import register_reset
 
 router = APIRouter()
 
@@ -558,3 +559,11 @@ def storage(recorder_id: str, request: Request, principal: Principal = Depends(c
     doc = a.cached_discovery() or a.discover()
     return {"recorder_id": recorder_id, "cameras": cams, "usage_unavailable": unavailable,
             "policy": fp.recording_policy(doc["summary"].get("retention")), "retention": doc["summary"].get("retention")}
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    _ASSET_SEMS.clear()
+
+
+register_reset(__name__, ("_ASSET_SEMS",), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

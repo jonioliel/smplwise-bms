@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from './sw-toggle';
 import './sw-badge';
 import './sw-button';
 import './sw-dialog';
@@ -657,7 +658,7 @@ export class WkTriagePanel extends LitElement {
         <span class="muted" data-wkt-alert-count>${tt.alerts.count(this.alertCounts.active, this.alertCounts.snoozed)}</span>
         <span class="sp"></span>
         ${this.mode === 'full'
-          ? html`<label class="chk"><input type="checkbox" data-wkt-show-snoozed .checked=${this.showSnoozed} @change=${(e: Event) => (this.showSnoozed = (e.target as HTMLInputElement).checked)} />${tt.alerts.showSnoozed}</label>`
+          ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tt.alerts.showSnoozed} data-wkt-show-snoozed .checked=${this.showSnoozed} @change=${(e: Event) => (this.showSnoozed = toggled(e))}></sw-toggle>${tt.alerts.showSnoozed}</label>`
           : nothing}
       </div>
       ${this.alertsError ? html`<div class="err" role="alert">${this.alertsError}</div>` : nothing}
@@ -710,8 +711,8 @@ export class WkTriagePanel extends LitElement {
       <div class="dlg">
         <b>${tt.alerts.kind[d.alert.kind] ?? d.alert.kind} · <bdi>${d.alert.station_name || this.station(d.alert.station_id)}</bdi></b>
         ${snooze
-          ? html`<label class="chk"><input type="checkbox" data-wkt-whole-station .checked=${d.kind === 'maintenance'}
-                @change=${(e: Event) => (this.draft = { ...d, kind: (e.target as HTMLInputElement).checked ? 'maintenance' : d.alert.kind })} />${tt.alerts.stationSnooze}</label>
+          ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tt.alerts.stationSnooze} data-wkt-whole-station .checked=${d.kind === 'maintenance'}
+                @change=${(e: Event) => (this.draft = { ...d, kind: toggled(e) ? 'maintenance' : d.alert.kind })}></sw-toggle>${tt.alerts.stationSnooze}</label>
               <div class="f"><span>${tt.alerts.durationLabel}</span>
                 <sw-dropdown block data-wkt-duration label=${tt.alerts.durationLabel} .value=${String(d.duration)}
                   .items=${DURATIONS.map((m) => ({ id: String(m), label: tt.alerts.duration[m] }))}

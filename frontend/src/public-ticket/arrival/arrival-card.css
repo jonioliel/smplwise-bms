@@ -12,7 +12,11 @@
 .arrival .arr-notice summary { display: flex; gap: 6px; align-items: center; cursor: pointer; font-weight: 600; min-block-size: 32px; }
 .arrival .arr-notice p { margin: 8px 0 0; font-size: var(--sw-fs-sm); line-height: 1.55; white-space: pre-line; }
 .arrival .arr-ack { display: flex; gap: 10px; align-items: flex-start; font-size: var(--sw-fs-sm); line-height: 1.5; margin-block: 8px 12px; }
-.arrival .arr-ack input { inline-size: 22px; block-size: 22px; flex: none; margin: 0; accent-color: var(--sw-accent); }
+/* HAND-SWITCH-2480 (owner): the acknowledgement is a switch - the native check box drawn as the compact 32 x 18 track (same as sw-toggle sm) */
+.arrival .arr-ack input { appearance: none; position: relative; inline-size: 32px; block-size: 18px; flex: none; margin: 0; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); cursor: pointer; transition: background .12s; }
+.arrival .arr-ack input::after { content: ''; position: absolute; inset-block: 0; margin-block: auto; inset-inline-start: 2px; inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--sw-text-inverse); transition: inset-inline-start .12s; }
+.arrival .arr-ack input:checked { background: var(--sw-accent); }
+.arrival .arr-ack input:checked::after { inset-inline-start: 16px; }
 .arrival .arr-state { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--sw-r-md); background: var(--sw-bg); }
 .arrival .arr-state.ok { background: var(--sw-success-soft); color: var(--sw-success); }
 .arrival .arr-state.wait { background: var(--sw-accent-soft); color: var(--sw-accent-text); }

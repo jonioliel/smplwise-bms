@@ -890,7 +890,7 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       const canvas = page.locator(`${ED} sw-plan-canvas`);
       await expect(canvas.locator('[data-grid]')).toHaveCount(0); // a floor never switched: no grid
       await page.locator(`${ED} [data-tool="layers"]`).click();
-      await page.locator(`${ED} [data-grid-toggle]`).check();
+      await page.locator(`${ED} [data-grid-toggle]`).click();
       await expect(page.locator(`${ED} [data-grid-step]`)).toHaveValue('0.5'); // the default spacing, on the calibrated scale
       await expect(page.locator(`${ED} [data-grid-step] option:checked`)).toHaveText('0.50 מ׳');
       await expect(canvas.locator('[data-grid]')).toHaveAttribute('data-grid-px', String(GRID_PX));

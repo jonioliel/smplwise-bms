@@ -63,12 +63,14 @@ export interface CalCalendarOne {
   calendar: CalCalendar;
 }
 
+/** `title`: the entry that holds the slot, only where the caller may read it on that calendar (null = "another booking"; RESPONSE-HINTS-2480). */
 export interface CalConflict {
   event_id: string;
   calendar_id: string;
   start: string;
   end: string;
   state: string;
+  title?: string | null;
 }
 
 /** `change_rejected` when a change of an approved booking was rejected (the booking keeps its approved slot). */

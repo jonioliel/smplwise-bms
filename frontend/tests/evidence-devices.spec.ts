@@ -1630,7 +1630,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       for (const sel of ['select[data-set-devices-style]', 'select[data-set-devices-view]', 'select[data-set-devices-density]', 'select[data-set-devices-sensors]']) {
         await expect(sec.locator(sel)).toBeDisabled();
       }
-      await expect(sec.locator('area-row-editor').locator('input[data-area-show-empty]')).toBeDisabled();
+      await expect(sec.locator('area-row-editor').locator('sw-toggle[data-area-show-empty]')).toHaveAttribute('disabled', '');
       await expect(sec.locator('button[data-devices-swatch="smplwise"]')).toBeDisabled();
       await expect(sec.locator('button[data-devices-swatch="glass"]')).toBeDisabled();
       await expect(sec.locator('button[data-devices-swatch="glass"]')).toHaveAttribute('aria-pressed', 'true');
@@ -1815,7 +1815,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await layoutShot(page, 'panel-desktop');
       const sensors = a.locator('.lay-item[data-lay-key="card:sensors"]');
       await sensors.click();
-      await a.locator('[data-layout-panel="card:sensors"] [data-layout-hidden]').check();
+      await a.locator('[data-layout-panel="card:sensors"] [data-layout-hidden]').click();
       await expect(sensors).toHaveClass(/lay-hidden/);
 
       // save: one PUT, the editor closes, the layout is applied (grid units, never pixels)

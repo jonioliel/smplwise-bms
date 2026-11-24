@@ -28,6 +28,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Hashable
+from ..test_reset import register_reset
 
 MAX_ENTRIES = 32
 MAX_ROWS = 5000  # ~3 KB per event row dict (measured): ~15 MB worst case
@@ -169,3 +170,12 @@ class WindowCache:
 
 
 CACHE = WindowCache()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    CACHE.clear()
+    CACHE.reset_stats()
+
+
+register_reset(__name__, ("CACHE",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

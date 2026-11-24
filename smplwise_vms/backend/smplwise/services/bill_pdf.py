@@ -33,6 +33,7 @@ from typing import Any, Callable, Mapping
 from .bill_pdf_logo import LogoError, sanitize_logo
 from .child_env import minimal_env
 from .bill_pdf_model import NUMBER_RE, BillSnapshot, BillSnapshotError
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.bill_pdf")
 
@@ -299,3 +300,14 @@ def _kill_group(proc: subprocess.Popen) -> None:
             proc.kill()
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _STATUS_LOCK:
+        _STATUS.clear()
+        _STATUS.update(configured=None, active=None, checked=False, checked_at=None, detail="", check_seconds=None, last_render_engine=None,
+                       last_render_at=None, slow_fallbacks=0, crash_fallbacks=0, fallback_after_s=None)
+
+
+register_reset(__name__, ("_STATUS",), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

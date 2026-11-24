@@ -149,6 +149,8 @@ export class SwScheduleGrid extends LitElement {
 
   static styles = css`
     :host {
+      /* COLOR-LITERAL-A-2480: the dashed marker line of both orientations, written once (the same literal) */
+      --sg-vline: rgba(217, 119, 6, 0.7);
       display: block;
       direction: ltr;
       font-size: var(--sw-fs-xs);
@@ -340,7 +342,7 @@ export class SwScheduleGrid extends LitElement {
       position: absolute;
       inset-block: 0;
       inline-size: 0;
-      border-inline-start: 1px dashed rgba(217, 119, 6, 0.7);
+      border-inline-start: 1px dashed var(--sg-vline);
     }
     .vline.now {
       border-inline-start: 2px solid var(--sw-danger);
@@ -693,7 +695,7 @@ export class SwScheduleGrid extends LitElement {
       inline-size: auto;
       block-size: 0;
       border-inline-start: 0;
-      border-block-start: 1px dashed rgba(217, 119, 6, 0.7);
+      border-block-start: 1px dashed var(--sg-vline);
     }
     :host([orientation='vertical']) .vline.now {
       border-block-start: 2px solid var(--sw-danger);

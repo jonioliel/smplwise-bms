@@ -188,7 +188,7 @@
 #cv[data-design="v2"] .tk { margin-block-start: 20px; block-size: 64px; gap: 28px; }
 #cv[data-design="v2"] .tk .lbl { font-size: 24px; letter-spacing: .12em; }
 #cv[data-design="v2"] .tk .lbl svg { font-size: 26px; }
-#cv[data-design="v2"] .tk .win { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%); }
+#cv[data-design="v2"] .tk .win { -webkit-mask-image: linear-gradient(90deg, transparent 0, var(--tv-black) 48px, var(--tv-black) calc(100% - 48px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, var(--tv-black) 48px, var(--tv-black) calc(100% - 48px), transparent 100%); }
 #cv[data-design="v2"] .tk .track { font-size: calc(34px * var(--fs2)); }
 #cv[data-design="v2"] .tk .track .sep { margin-inline: 40px; }
 

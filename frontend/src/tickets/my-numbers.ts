@@ -25,6 +25,7 @@ export class TicketsMyNumbers extends LitElement {
     :host { display: block; }
     /* TICKETS-POLISH-2331: one quiet strip (audit §7.5.4) - the number beside its label on a desktop row of 4; on a phone a horizontal
        strip of compact tiles (the 2 x 2 block pushed the first request below the fold) */
+    .kpis:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sw-s-3); }
     .kpi { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 16px; border-radius: var(--sw-r-xl); border: 1px solid var(--dv-border); background: var(--dv-surface); -webkit-backdrop-filter: var(--dv-surface-blur); backdrop-filter: var(--dv-surface-blur); box-shadow: var(--dv-shadow-1); min-inline-size: 0; }
     .kpi small { font-size: var(--sw-fs-sm); color: var(--dv-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
@@ -64,7 +65,7 @@ export class TicketsMyNumbers extends LitElement {
   render() {
     const n = this.n;
     if (!n || !this.allowed() || n.open === 0) return nothing;
-    return html`<div class="kpis" role="group" aria-label=${ot('myGroup')} data-my-numbers>
+    return html`<div class="kpis" role="group" tabindex="0" aria-label=${ot('myGroup')} data-my-numbers>
       <div class="kpi" data-my="open"><small>${ot('myOpen')}</small><b>${n.open}</b></div>
       <div class=${`kpi${n.waiting ? ' warn' : ''}`} data-my="waiting"><small>${ot('myWaiting')}</small><b>${n.waiting}</b></div>
       <div class=${`kpi${n.overdue ? ' bad' : ''}`} data-my="overdue"><small>${ot('myOverdue')}</small><b>${n.overdue}</b></div>

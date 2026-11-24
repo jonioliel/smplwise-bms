@@ -5,6 +5,8 @@ import fs from 'node:fs';
 // (the default and compact sizes, a count, a disabled key, a disabled group, the block form, a long row that wraps; since
 // CR-CMP2-SEGMENTED-C-2450 icon keys - every label, the chosen key's label, icon-only - a badge and two-line keys with a dimmed one) drawn with the app's
 // tokens, light and dark, classic skin, demo fixtures. The screens that adopted it are pinned by their own screen shots.
+// CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the specimen draws the default, the module look (28 px pill keys, 13 px regular / semibold
+// chosen, the chosen key in the text ink; 44 px keys on the phone project).
 // Titles carry "pixel-stable" (the gate's pixel lane). Baselines are per OS: the Linux ones are generated on the runner with
 // --update-snapshots, looked at, then committed; on an OS without a baseline the check is skipped instead of failing on a missing file.
 //   run_smart.py preview <branch> tests/pixel-sw-segmented.spec.ts --project=desktop --project=mobile -u --workers=1 --machine runner

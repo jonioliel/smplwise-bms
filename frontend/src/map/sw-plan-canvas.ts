@@ -434,6 +434,7 @@ export class SwPlanCanvas extends LitElement {
       block-size: 100%;
       min-block-size: 320px;
       background: var(--sw-map-bg);
+      --pc-white: #fff; /* COLOR-LITERAL-B-2480: the white outline / label ink of the markers and handles (one literal, six rules) */
       overflow: hidden;
       touch-action: none;
       user-select: none;
@@ -502,7 +503,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .handle.range {
       fill: var(--sw-accent);
-      stroke: #fff;
+      stroke: var(--pc-white);
       cursor: ns-resize;
     }
     .handle-line {
@@ -539,7 +540,7 @@ export class SwPlanCanvas extends LitElement {
       opacity: 0.18;
     }
     .marker .pin {
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 2.5;
       filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.28));
     }
@@ -549,7 +550,7 @@ export class SwPlanCanvas extends LitElement {
     }
     .marker .icon {
       fill: none;
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -566,7 +567,7 @@ export class SwPlanCanvas extends LitElement {
       stroke: var(--sw-surface);
     }
     .marker.cluster .count {
-      fill: #fff;
+      fill: var(--pc-white);
       font: 700 12px var(--sw-font, inherit);
       text-anchor: middle;
       dominant-baseline: central;
@@ -704,12 +705,12 @@ export class SwPlanCanvas extends LitElement {
     }
     .tribune-entry circle {
       fill: var(--sw-accent);
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.5;
     }
     .tribune-entry path {
       fill: none;
-      stroke: #fff;
+      stroke: var(--pc-white);
       stroke-width: 1.6;
     }
     .tribune-entry rect {
@@ -2832,7 +2833,7 @@ export class SwPlanCanvas extends LitElement {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.panActive ? 'spacepan' : ''}" data-space-pan=${this.panActive ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
-        <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label=${tr('תוכנית קומה')}>
+        <svg xmlns="http://www.w3.org/2000/svg" role="group" aria-label=${tr('תוכנית קומה')}>
           <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker>
             <pattern id="sw-glass-hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><rect class="glass-hatch-bg" width="4" height="4" /><line class="glass-hatch-line" x1="0" y1="0" x2="0" y2="4" /></pattern></defs>
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">

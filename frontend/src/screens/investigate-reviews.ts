@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
@@ -605,6 +606,11 @@ export class InvestigateReviews extends LitElement {
       --sw-seg-key-min-w: 36px;
       --sw-seg-ico-pad: var(--sw-s-2);
       --sw-seg-on-fg: var(--sw-seg-key-ink, var(--sw-text));
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-key-pad: 14px;
+      --sw-seg-fs: var(--sw-fs-md);
+      --sw-seg-fw: var(--sw-fw-semibold);
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
     }
     .ib {
       display: inline-flex;
@@ -790,9 +796,8 @@ export class InvestigateReviews extends LitElement {
       color: var(--sw-stale-text);
       font-size: var(--sw-fs-xs);
     }
-    .form .sup input {
-      margin: 2px 0 0;
-      accent-color: var(--sw-accent);
+    .form .sup sw-toggle {
+      flex: none;
     }
     .form .err {
       color: var(--sw-danger-text);
@@ -952,7 +957,7 @@ export class InvestigateReviews extends LitElement {
       <div class="form">
         <label>${r.exportName}<input type="text" maxlength="80" data-review-export-name .value=${x.name} ?disabled=${x.busy} @input=${(e: Event) => (this.exp = { ...x, name: (e.target as HTMLInputElement).value })} /></label>
         <label>${r.exportRange}<span class="range" data-review-export-range>${fmt.format(new Date(x.start * 1000))} → ${fmt.format(new Date(x.end * 1000))} · ${spanText(new Date(x.start * 1000).toISOString(), new Date(x.end * 1000).toISOString())}</span></label>
-        ${needSup ? html`<label class="sup"><input type="checkbox" data-review-export-supervised .checked=${x.supervised} @change=${(e: Event) => (this.exp = { ...x, supervised: (e.target as HTMLInputElement).checked })} /><span><b>${c.settings.supervised.label}</b> · ${c.settings.supervised.hint}</span></label>` : nothing}
+        ${needSup ? html`<label class="sup"><sw-toggle size="sm" labelHidden in-label label=${c.settings.supervised.label} data-review-export-supervised .checked=${x.supervised} @change=${(e: Event) => (this.exp = { ...x, supervised: toggled(e) })}></sw-toggle><span><b>${c.settings.supervised.label}</b> · ${c.settings.supervised.hint}</span></label>` : nothing}
         ${x.error ? html`<div class="err" role="alert" data-review-export-error>${x.error}</div>` : nothing}
       </div>
       <sw-button slot="footer" @click=${() => (this.exp = null)}>${c.cancel}</sw-button>

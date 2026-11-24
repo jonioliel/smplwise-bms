@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { LiveRefresh } from './live-refresh';
 import { repeat } from 'lit/directives/repeat.js';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
@@ -753,7 +753,7 @@ export class TicketsContacts extends LitElement {
       ${c && c.kind === 'person' ? html`<access-identity-card compact data-contact-identity contact-id=${c.id} name=${c.display_name}></access-identity-card>` : nothing}
       ${c && this.erasing ? html`<div class="danger" role="group" data-contact-erase-confirm>
         <span>${tt('ctEraseConfirm', { name: c.display_name })}</span>
-        ${this.mgr ? nothing : html`<label class="chk"><input type="checkbox" .checked=${this.eraseHistory} @change=${(e: Event) => (this.eraseHistory = (e.target as HTMLInputElement).checked)} />${tt('ctEraseHistory')}</label>`}
+        ${this.mgr ? nothing : html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tt('ctEraseHistory')} .checked=${this.eraseHistory} @change=${(e: Event) => (this.eraseHistory = toggled(e))}></sw-toggle>${tt('ctEraseHistory')}</label>`}
         <span class="chipsrow"><sw-button size="sm" variant="danger" data-contact-erase-ok ?disabled=${this.busy} @click=${() => void this.erase(c)}>${tt('ctErase')}</sw-button>
           <sw-button size="sm" variant="ghost" @click=${() => (this.erasing = false)}>${tt('ctCancel')}</sw-button></span>
       </div>` : nothing}

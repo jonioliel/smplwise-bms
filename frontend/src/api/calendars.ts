@@ -229,8 +229,9 @@ export interface EventPatch {
   scope?: 'occurrence' | 'following' | 'series';
   occurrence_start?: string;
 }
-/** The server's conflict names the entry (`event_id`), never its title; the demo store and the edit form's own contested slot carry a
- * `title` instead (so the clash hint names the entry only there). `contested` / `suggestions` (free slots nearby) are not built by the demo store. */
+/** The server's conflict names the entry (`event_id`) and, since RESPONSE-HINTS-2480, its `title` where this viewer may read it (null =
+ * hidden: the hint says "another booking"; absent = an older server). The demo store and the edit form's own contested slot carry a `title`
+ * too. `contested` / `suggestions` (free slots nearby) are not built by the demo store. */
 type PreviewConflict = Omit<CalWire.CalConflict, 'state' | 'event_id'> & Partial<Pick<CalWire.CalConflict, 'event_id'>> & { state: EntryState; title?: string | null };
 export type EventPreview = Omit<CalWire.CalEventPreview, 'conflicts' | 'contested' | 'suggestions'> & Partial<Pick<CalWire.CalEventPreview, 'contested' | 'suggestions'>>
   & { conflicts: PreviewConflict[] };

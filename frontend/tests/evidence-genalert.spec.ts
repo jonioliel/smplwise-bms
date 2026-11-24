@@ -41,6 +41,13 @@ test.describe('genalert evidence', () => {
       await shoot(page, 'routing-first-run', scheme);
     }
     await open(page, { level: 'typical' });
+    if (!phone) {
+      // CR-CMP2-POLISH-2470: a type without its sensor opens nothing, so its row is no tab stop (sw-table rowFocusable); the others are
+      const na = page.locator(`${R} [data-routing-matrix] tr[data-na]`);
+      expect(await na.count(), 'a type without its sensor in the mock').toBeGreaterThan(0);
+      for (const row of await na.all()) await expect(row).not.toHaveAttribute('tabindex', /.*/);
+      await expect(page.locator(`${R} [data-routing-matrix] tr[data-type]:not([data-na])`).first()).toHaveAttribute('tabindex', '0');
+    }
     // the critical default: roles, a channel, the delay
     await page.locator(`${R} [data-severity-row="critical"]`).click();
     await page.waitForSelector(`${R} [data-drawer="severity"] [data-critical-delay]`);
@@ -66,7 +73,7 @@ test.describe('genalert evidence', () => {
     if (!phone) {
       await page.locator(`${R} [data-type="battery_low"] >> visible=true`).first().click({ force: true });
       await page.waitForSelector(`${R} [data-escalate]`);
-      await page.locator(`${R} [data-escalate]`).check();
+      await page.locator(`${R} [data-escalate]`).click();
       await expect(page.locator(`${R} [data-escalate-min]`)).toBeVisible();
       await expect(page.locator(`${R} [data-quiet] button`)).toHaveCount(3);
       await shoot(page, 'routing-alert-type-editor');

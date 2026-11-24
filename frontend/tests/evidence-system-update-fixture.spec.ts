@@ -135,7 +135,7 @@ test('the update, end to end: backup, job, the new process, the health check, th
   await root(page).locator('[data-update-check]').click();
   await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 20_000 });
   await root(page).locator('[data-update-apply]').click();
-  await expect(root(page).locator('[data-update-backup]')).toBeChecked();
+  await expect(root(page).locator('[data-update-backup]')).toHaveAttribute('checked', '');
   await root(page).locator('[data-update-confirm]').click();
   await expect(run(page)).toBeVisible();
   await expect(run(page).locator('[data-run-step="backup"]')).toHaveAttribute('data-run-step-state', 'current', { timeout: 20_000 });

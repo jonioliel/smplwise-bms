@@ -400,6 +400,8 @@ export class InvestigatePlayback extends LitElement {
     .bar .q.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
+      /* A11Y-AUDIT-2490: the ink of an accent fill (white on the dark scheme's light accent read 2.5:1) */
+      color: var(--sw-text-inverse);
     }
     .bar .sep {
       inline-size: 1px;

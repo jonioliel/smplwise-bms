@@ -340,8 +340,8 @@ export class TicketsOverview extends LitElement {
     /* many departments: one row that scrolls sideways (the controls row never grows into the widgets' room) */
     .paged .dh-det { flex-wrap: nowrap; }
     .paged .dh-det .depts { flex: 0 1 auto; min-inline-size: 0; overflow-x: auto; scrollbar-width: none; }
-    .paged .dh-det .depts.over:dir(rtl) { -webkit-mask-image: linear-gradient(to left, transparent, #000 28px); mask-image: linear-gradient(to left, transparent, #000 28px); }
-    .paged .dh-det .depts.over:dir(ltr) { -webkit-mask-image: linear-gradient(to right, transparent, #000 28px); mask-image: linear-gradient(to right, transparent, #000 28px); }
+    .paged .dh-det .depts.over:dir(rtl) { --_mask: linear-gradient(to left, transparent, #000 28px); -webkit-mask-image: var(--_mask); mask-image: var(--_mask); }
+    .paged .dh-det .depts.over:dir(ltr) { --_mask: linear-gradient(to right, transparent, #000 28px); -webkit-mask-image: var(--_mask); mask-image: var(--_mask); }
     .paged .dh-det .amb { white-space: nowrap; }
     .pager { display: inline-flex; align-items: center; gap: 2px; flex: none; }
     .pager .pgb { all: unset; box-sizing: border-box; display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 50%; color: var(--dv-text-2); cursor: pointer; }

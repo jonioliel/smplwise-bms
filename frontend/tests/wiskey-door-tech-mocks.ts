@@ -26,6 +26,11 @@ export interface DtMock {
   programs: Record<string, { door: number; revision: number; enabled: boolean; removing: boolean; policy: Record<string, unknown>; execution: Record<string, unknown> }[]>;
   codes: Record<string, Record<number, boolean>>;
   history: Record<string, unknown>[];
+  /** DOOR-TECH-REREAD-2480: while set, every read of the door technical dialog (view, holds, programs, codes) waits for it before it
+   * answers (with the state at that moment) - a spec holds the read that follows a write (see `holdReads`). */
+  readGate: (() => Promise<void>) | null;
+  /** A hold save / delete whose `revision` is not the draft's current one is refused with `revision_conflict` (WisKey's compare-and-swap). */
+  strictRevision: boolean;
   // recorded
   reads: string[];
   posts: { path: string; body: Record<string, unknown> }[];
@@ -44,6 +49,8 @@ export const newDtMock = (over: Partial<DtMock> = {}): DtMock => ({
   },
   codes: { lobby: { 1: true, 2: false, 3: false, 4: false } },
   history: [],
+  readGate: null,
+  strictRevision: false,
   reads: [],
   posts: [],
   ...over,
@@ -55,6 +62,25 @@ const fail = (route: Route, status: number, code: string, details: Record<string
 const head = () => ({ state: 'ready', configured: true, last_error: null, fetched_at: NOW_ISO, fresh: true, sync: null });
 const KINDS: DtKind[] = ['hold_save', 'hold_delete', 'code_write', 'program_save', 'program_action'];
 
+/** Holds every read of the dialog until `release()`; `waiting()` = how many reads are held now. The writes are not held. */
+export function holdReads(m: DtMock): { release: () => void; waiting: () => number } {
+  let open!: () => void;
+  let held = 0;
+  const gate = new Promise<void>((r) => (open = r));
+  m.readGate = async () => {
+    held++;
+    await gate;
+    held--;
+  };
+  return {
+    release: () => {
+      m.readGate = null;
+      open();
+    },
+    waiting: () => held,
+  };
+}
+
 export async function installDtMock(page: Page, base: StationsMock, m: DtMock): Promise<DtMock> {
   await page.route('**/api/v1/access-control/stations/**', async (route) => {
     const req = route.request();
@@ -65,6 +91,7 @@ export async function installDtMock(page: Page, base: StationsMock, m: DtMock): 
     const s = base.stations.find((x) => x.id === id);
     const tail = rest.join('/');
     if (!s) return route.fallback();
+    if (method === 'GET' && m.readGate && (tail === 'door-tech' || tail === 'programs' || tail === 'codes' || /^doors\/\d\/hold$/.test(tail))) await m.readGate();
     if (method === 'GET' && tail === 'door-tech') {
       m.reads.push(`door-tech:${id}`);
       const allowed = m.allowed.has(id);
@@ -109,13 +136,14 @@ export async function installDtMock(page: Page, base: StationsMock, m: DtMock): 
     else if ((m2 = /^codes\/(\d+)$/.exec(tail))) [kind, slot] = ['code_write', Number(m2[1])];
     if (!kind) return route.fallback();
     m.posts.push({ path: `${id}/${tail}`, body });
-    const result = m.result[kind] ?? 'ok';
+    const stale = m.strictRevision && (kind === 'hold_save' || kind === 'hold_delete') && body.revision !== (m.drafts[`${id}/${door}`]?.revision ?? 0);
+    const result = stale ? 'refused' : (m.result[kind] ?? 'ok');
     const record = (status: string, code: string | null) =>
       m.history.unshift({ kind, at: NOW_ISO, status, code, door: door || (body.door as number) || null, slot: slot || null, code_action: kind === 'code_write' ? body.action : null,
                           program_action: kind === 'program_action' ? tail.split('/').pop() : null, enabled: kind === 'program_save' ? body.enabled : null });
     if (result === 'slow') await new Promise((r) => setTimeout(r, 1500));
     if (result === 'refused') {
-      const code = m.code[kind] ?? 'revision_conflict';
+      const code = stale ? 'revision_conflict' : (m.code[kind] ?? 'revision_conflict');
       record('refused', code);
       return fail(route, 409, 'door_tech_refused', { outcome: 'refused', wiskey_code: code, state: 'error' });
     }

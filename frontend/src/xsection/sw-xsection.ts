@@ -431,14 +431,15 @@ export class SwXsCompact extends LitElement {
 
 /** The tile's styles, included by the host that draws tiles beside its cards (explore-floors). */
 export const xsTileStyles = css`
+  :host { --xt-white: #fff; } /* COLOR-LITERAL-B-2480: the chosen tile's white ink, one literal */
   .xtile { inline-size: 54px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); padding: 0; font: inherit; color: var(--sw-heading); font-size: 12.5px; font-weight: 700; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; min-block-size: 44px; transition: background var(--sw-t-hover, 120ms) var(--sw-ease-color, ease), transform var(--sw-t-press, 100ms) var(--sw-ease, ease); }
   .xtile:active { transform: scale(var(--sw-press-scale, 0.98)); }
   .xtile .tv { font-size: 12px; font-weight: 600; color: var(--sw-text-2); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
   .xtile[data-temp='hot'] { background: color-mix(in srgb, var(--sw-heat) 16%, var(--sw-surface)); }
   .xtile[data-temp='cold'] { background: color-mix(in srgb, var(--sw-cool) 16%, var(--sw-surface)); }
   .xtile[data-off]:not([aria-pressed='true']) { color: var(--sw-text-3); }
-  .xtile[aria-pressed='true'] { background: var(--sw-accent); color: #fff; }
-  .xtile[aria-pressed='true'] .tv { color: #fff; }
+  .xtile[aria-pressed='true'] { background: var(--sw-accent); color: var(--xt-white); }
+  .xtile[aria-pressed='true'] .tv { color: var(--xt-white); }
   .xtile .fac { block-size: 9px; inline-size: 26px; display: flex; gap: 1.5px; padding: 1.5px; border-radius: 3px; background: var(--sw-border); }
   .xtile .fac i { flex: 1 1 0; background: var(--sw-surface-2); border-radius: 1px; }
   .xtile .fac i.on { background: var(--sw-lit); }

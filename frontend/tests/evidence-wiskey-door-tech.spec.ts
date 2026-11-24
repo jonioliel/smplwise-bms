@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
-import { installDtMock, newDtMock, type DtMock } from './wiskey-door-tech-mocks';
+import { holdReads, installDtMock, newDtMock, type DtMock } from './wiskey-door-tech-mocks';
 import { tallDesktop } from './helpers/tall-desktop';
 
 // WISKEY-DOOR-TECH-2390 - door technical writes in the stations drawer ("הגדרות דלת" -> "ניהול טכני של הדלתות"), behind the real
@@ -123,12 +123,104 @@ test.describe('door technical writes', () => {
     await inDt(page, '[data-wk-dt-send]').click();
     await expect(inDt(page, '[data-wk-dt-result="hold:1"][data-status="acknowledged"]')).toBeVisible();
     expect(dt.posts[1].body).toMatchObject({ revision: 2 });
+    // FLAKY-SWEEP-2480: the result line is drawn from the write's answer, the door's new revision (3) only from the READ that follows it
+    // (wk-door-tech execute -> load); a delete pressed in between went out with revision 2 (2.46.0 gate, desktop). The list shows the
+    // new name once that read is in.
+    await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('שעות לובי חדשות');
     await inDt(page, '[data-wk-dt-hold-delete="1"]').click();
     await expect(inDt(page, '[data-wk-dt-confirm="hold_delete"]')).toBeVisible();
     await inDt(page, '[data-wk-dt-send]').click();
     await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('אין לוח החזקה');
     expect(dt.posts.map((p) => p.path)).toEqual(['lobby/doors/2/hold', 'lobby/doors/1/hold', 'lobby/doors/1/hold/delete']);
     expect(dt.posts[2].body).toMatchObject({ revision: 3, confirmed: true });
+  });
+
+  test('DOOR-TECH-REREAD-2480: while the screen re-reads after a write the hold buttons stay pressable (no lock flash); a press waits for the read and is sent once with the fresh revision', async ({ page }) => {
+    const { dt } = await boot(page, { strictRevision: true }); // a stale revision would be refused, as WisKey does
+    await openDialog(page, 'lobby');
+    await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('שעות לובי');
+    // every state of the hold buttons and the result lines, in order, from here on (a MutationObserver in the dialog's shadow root:
+    // a lock that lasts a single frame is still recorded)
+    await page.locator(`${SCREEN} sw-drawer[data-wk-drawer] wk-door-tech`).evaluate((host) => {
+      const root = host.shadowRoot!;
+      const log: string[] = [];
+      (window as unknown as { __dtLog: string[] }).__dtLog = log;
+      const snap = () =>
+        [...root.querySelectorAll('[data-wk-dt-hold-edit],[data-wk-dt-hold-delete],[data-wk-dt-result]')]
+          .map((el) =>
+            el.hasAttribute('data-wk-dt-result')
+              ? `result ${el.getAttribute('data-wk-dt-result')}=${el.getAttribute('data-status')}`
+              : `${el.hasAttribute('data-wk-dt-hold-edit') ? 'edit' : 'delete'} ${el.getAttribute('data-wk-dt-hold-edit') ?? el.getAttribute('data-wk-dt-hold-delete')}=${el.hasAttribute('disabled') ? 'locked' : 'open'}`,
+          )
+          .join(' | ');
+      new MutationObserver(() => {
+        const s = snap();
+        if (s !== log[log.length - 1]) log.push(s);
+      }).observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'data-status'] });
+    });
+    // a save whose following read is held
+    await inDt(page, '[data-wk-dt-hold-edit="1"]').click();
+    await inDt(page, '[data-wk-dt-name]').fill('שעות לובי חדשות');
+    await inDt(page, '[data-wk-dt-save]').click();
+    const reads = holdReads(dt);
+    await inDt(page, '[data-wk-dt-send]').click();
+    await expect(inDt(page, '[data-wk-dt-result="hold:1"][data-status="acknowledged"]')).toBeVisible();
+    await expect.poll(() => reads.waiting()).toBeGreaterThan(0); // the read after the write is out and held
+    // the write's own answer is drawn at once: the new name, and the buttons are not locked
+    await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('שעות לובי חדשות');
+    await expect(inDt(page, '[data-wk-dt-hold-delete="1"]')).not.toHaveAttribute('disabled', '');
+    await expect(inDt(page, '[data-wk-dt-hold-edit="1"]')).not.toHaveAttribute('disabled', '');
+    // a press while the read is out: kept (busy cursor), nothing asked or sent yet
+    await inDt(page, '[data-wk-dt-hold-delete="1"]').click();
+    await expect(inDt(page, '[data-wk-dt-hold-delete="1"]')).toHaveAttribute('busy', '');
+    await expect(inDt(page, '[data-wk-dt-confirm]')).toHaveCount(0);
+    expect(dt.posts).toHaveLength(1);
+    reads.release();
+    await expect(inDt(page, '[data-wk-dt-confirm="hold_delete"]')).toBeVisible();
+    await expect(inDt(page, '[data-wk-dt-hold-delete="1"]')).not.toHaveAttribute('busy', '');
+    // two presses of "send" before the screen redraws send once
+    await inDt(page, '[data-wk-dt-send]').evaluate((host) => {
+      const b = host.shadowRoot!.querySelector('button')!;
+      b.click();
+      b.click();
+    });
+    await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('אין לוח החזקה');
+    expect(dt.posts.map((p) => p.path)).toEqual(['lobby/doors/1/hold', 'lobby/doors/1/hold/delete']);
+    expect(dt.posts[1].body).toMatchObject({ revision: 3, confirmed: true }); // the revision the save made, never the old 2
+    // no lock between the save's answer and the delete being sent: after "acknowledged" no hold button was ever locked until the
+    // delete's own "sending"
+    const log = await page.evaluate(() => (window as unknown as { __dtLog: string[] }).__dtLog);
+    const from = log.findIndex((s) => s.includes('result hold:1=acknowledged'));
+    const to = log.findIndex((s, i) => i > from && s.includes('result hold:1=sending'));
+    expect(from, log.join('\n')).toBeGreaterThanOrEqual(0);
+    expect(to, log.join('\n')).toBeGreaterThan(from);
+    expect(log.slice(from, to).filter((s) => s.includes('=locked')), log.join('\n')).toEqual([]);
+    // the write itself does lock them (one write at a time)
+    expect(log.slice(0, from).some((s) => s.includes('=locked')) || log.slice(to).some((s) => s.includes('=locked')), log.join('\n')).toBe(true);
+  });
+
+  test('DOOR-TECH-REREAD-2480: a code slot pressed while the read after a code write is out opens its form from the fresh presence', async ({ page }) => {
+    const { dt } = await boot(page);
+    await openDialog(page, 'lobby');
+    await inDt(page, '[data-wk-dt-tab="codes"]').click();
+    await expect(inDt(page, '[data-wk-dt-slot="2"][data-configured="false"]')).toBeVisible();
+    await inDt(page, '[data-wk-dt-code-set="2"]').click();
+    await inDt(page, '[data-wk-dt-code-field="new"]').fill(CODE);
+    await inDt(page, '[data-wk-dt-code-field="repeat"]').fill(CODE);
+    await inDt(page, '[data-wk-dt-code-field="typed"]').fill('קוד 2');
+    const reads = holdReads(dt);
+    await inDt(page, '[data-wk-dt-code-send]').click();
+    await expect(inDt(page, '[data-wk-dt-result="code:2"][data-status="acknowledged"]')).toBeVisible();
+    await expect.poll(() => reads.waiting()).toBeGreaterThan(0);
+    // the answer's presence is drawn at once; the slot's buttons are not locked
+    await expect(inDt(page, '[data-wk-dt-slot="2"][data-configured="true"]')).toBeVisible();
+    await expect(inDt(page, '[data-wk-dt-code-clear="2"]')).not.toHaveAttribute('disabled', '');
+    await inDt(page, '[data-wk-dt-code-clear="2"]').click();
+    await expect(inDt(page, '[data-wk-dt-code-form]')).toHaveCount(0);
+    reads.release();
+    await expect(inDt(page, '[data-wk-dt-code-form="2"][data-action="clear"]')).toBeVisible();
+    await expect(inDt(page, '[data-wk-dt-code-field="current"]')).toHaveCount(1); // the slot is set now: its current code is asked
+    expect(dt.posts).toHaveLength(1);
   });
 
   test('a public code needs the typed phrase, is sent once and never shown; a refusal reads "WisKey סירב"', async ({ page }, info) => {

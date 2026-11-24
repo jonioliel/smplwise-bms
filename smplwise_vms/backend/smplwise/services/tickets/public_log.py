@@ -34,6 +34,7 @@ import traceback
 from typing import Any, Callable
 
 from .ratelimit import MinuteCounter
+from ...test_reset import register_reset
 
 REQUEST_LOG = logging.getLogger("smplwise.tickets.public")
 SERVER_LOG = logging.getLogger("smplwise.tickets.public.http")
@@ -236,3 +237,12 @@ class ProtocolLog:
 
     def critical(self, msg: object, *args: Any, **kw: Any) -> None:
         self.log(logging.CRITICAL, msg, *args, **kw)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _LINES._lock:
+        _LINES._seen, _LINES._minute, _LINES._used = 0, -1, 0
+
+
+register_reset(__name__, ("_LINES",), _reset_for_tests)  # SINGLETONS-REST-2480 group 5: module-level tables (tests/test_singletons_registered.py)

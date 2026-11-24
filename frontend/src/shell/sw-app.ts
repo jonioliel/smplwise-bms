@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-badge';
 import '../components/sw-tabs';
+import '../components/sw-checkbox'; // SHARED-CHECKBOX-2480: the shared selection check box, registered app-wide (as sw-toggle is) for the screens that move onto it
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
@@ -32,9 +33,8 @@ import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, 
 import '../screens/devices-building';
 import { loadPendingScreens, loadScreen, pendingScreens, setScreenWarmup, waitingScreenTags, warmCommonScreens, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
 // CR-017 S4's editors (<automation-builder>, <script-editor>, <scene-editor>) come with the list that mounts them (devices-automations imports them: PERF-HOME-DEVICES-2342)
-import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
-import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to mark the plan done when a request a plan opened is closed
+import { warmOverlays } from './lazy-overlays'; // PERF-2490: <device-activity> (CR-032) and <maint-close-prompt> (MAINT215B) load with their first event
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALENDARS-UI-2310: the module's switch and placement for the navigation
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
@@ -49,13 +49,11 @@ import { tr } from '../i18n/msg/shell';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
-import '../pwa/notifications-settings';
-import '../components/device-activity'; // CR-032: the device activity popup (long press on an electrical device)
-// CR-SHELL-LAZY-2436: the schedule editor is a lazy chunk now (lazy-screens.ts); these three dialogs it used to bring stay in the entry
-// chunk because the lazy schedules screens (devices-schedules, schedule-drawer) render them by tag without importing them
-import '../screens/schedule-lowering-dialog';
-import '../screens/schedule-create-dialog';
-import '../screens/schedules-week-view';
+import '../components/sw-card'; // PERF-2490: the shared primitives the push settings used to bring stay in the entry chunk -
+import '../components/sw-field'; // screens and harness pages render them by tag without importing them
+import '../components/sw-toggle';
+// PERF-2490: the schedule dialogs and the week view are imported by the lazy schedules screens that render them (devices-schedules,
+// schedule-drawer, schedule-editor) - no longer by the shell
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
 // CR-SHELL-LAZY-2436: <media-remote> is not rendered by the shell; the home widgets and the area media card import it themselves
 import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
@@ -2203,6 +2201,7 @@ export class SwApp extends LitElement {
     this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved) && pendingScreens() === 0);
     if (this.hasAttribute('data-shell-ready') && isHomeRoute(this.route)) warmHomeDrillDown();
     if (this.hasAttribute('data-shell-ready')) warmCommonScreens(); // WARMUP-POLISH-2421: the common screens' chunks, idle, one at a time
+    if (this.hasAttribute('data-shell-ready')) warmOverlays(); // PERF-2490: the device popup's chunk, idle
     this.syncSearchOutside();
     this.syncSysPopOutside();
     this.applyNavSize();
@@ -3067,10 +3066,13 @@ export class SwApp extends LitElement {
     const first = this.userName.split(/\s+/)[0] || tr('חשבון');
     // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
     const here = areaOf(this.route) === 'system';
+    // A11Y-AUDIT-2490 (owner N50): the avatar's initials are a picture of the name, not its text - drawn by CSS (sw-avatar decorative)
+    // and hidden from screen readers, so the key's visible text is the first name, which its label (תפריט המשתמש · <name>) contains
+    // (WCAG 2.5.3 label in name; axe reads the on-screen text nodes, aria-hidden alone does not take them out)
     return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
       aria-current=${here ? 'page' : 'false'} aria-haspopup="dialog" aria-expanded=${this.menuOpen ? 'true' : 'false'} aria-label=${this.userLabel()} title=${this.userLabel()}
       @click=${(e: Event) => (this.menuOpen ? this.closeMenu(false) : this.openMenu(e.currentTarget as HTMLElement))}>
-      <span class="ic"><span class="av"><sw-avatar name=${this.userName} size=${where === 'rail' ? this.nav.avatar : this.nav.pAvatar}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
+      <span class="ic" aria-hidden="true"><span class="av"><sw-avatar decorative name=${this.userName} size=${where === 'rail' ? this.nav.avatar : this.nav.pAvatar}></sw-avatar>${n ? html`<i class="dot" data-alert-dot aria-hidden="true"></i>` : nothing}</span></span><span class="lbl">${first}</span>
     </button>`;
   }
 

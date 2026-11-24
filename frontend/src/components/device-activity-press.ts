@@ -201,7 +201,7 @@ export class ActivityPress extends PressController<ActivityHit> {
 
   private startRing(el: HTMLElement) {
     try {
-      const ring = '0 0 0 2px var(--sw-accent, #2563eb)';
+      const ring = '0 0 0 2px var(--sw-accent)';
       const still = reduced();
       this.ring = el.animate(
         still

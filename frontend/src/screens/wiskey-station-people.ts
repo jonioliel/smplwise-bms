@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-badge';
@@ -252,7 +253,7 @@ export class WiskeyStationPeople extends LitElement {
             @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} />
         </label>
         ${hiddenCount
-          ? html`<label class="check"><input type="checkbox" data-station-people-show-ignored .checked=${this.showIgnored} @change=${(e: Event) => (this.showIgnored = (e.target as HTMLInputElement).checked)} />
+          ? html`<label class="check"><sw-toggle size="sm" labelHidden in-label label=${st('show_ignored')} data-station-people-show-ignored .checked=${this.showIgnored} @change=${(e: Event) => (this.showIgnored = toggled(e))}></sw-toggle>
               <span>${st('show_ignored')} (${hiddenCount})</span></label>`
           : nothing}
       </div>
@@ -358,7 +359,7 @@ export class WiskeyStationPeople extends LitElement {
               : html`<ul>${c.matches.filter((m) => !m.reasons.includes('employee_no')).map((m) => html`<li data-station-check-match=${m.id}>
                   <button type="button" class="link" @click=${() => { this.acting = null; this.dispatchEvent(new CustomEvent('open-person', { detail: { id: m.id } })); }}>${m.display_name}</button>
                   ${m.employee_no ? html`<bdi dir="ltr" class="muted">${m.employee_no}</bdi>` : nothing}</li>`)}</ul>`}
-            <label class="check"><input type="checkbox" data-station-check-accept .checked=${this.acceptDuplicate} @change=${(e: Event) => (this.acceptDuplicate = (e.target as HTMLInputElement).checked)} />
+            <label class="check"><sw-toggle size="sm" labelHidden in-label label=${st('adopt_maybe_accept')} data-station-check-accept .checked=${this.acceptDuplicate} @change=${(e: Event) => (this.acceptDuplicate = toggled(e))}></sw-toggle>
               <span>${st('adopt_maybe_accept')}</span></label>
           </div>`
         : nothing}`;
@@ -438,11 +439,6 @@ export class WiskeyStationPeople extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       cursor: pointer;
-    }
-    .check input {
-      inline-size: 18px;
-      block-size: 18px;
-      accent-color: var(--sw-accent);
     }
     .status {
       list-style: none;

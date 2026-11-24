@@ -141,6 +141,7 @@ const tokens: TokenTable = {
   '--sw-glass-blur': same('blur(28px) saturate(1.7)'),
   '--sw-glass-blur-nav': same('blur(22px) saturate(1.6)'),
   '--sw-glass-blur-sheet': same('blur(36px) saturate(1.7)'),
+  '--sw-sheet-alpha-min': same('0'), // PHONE-SHEET-2480: a glass skin - its sheet blurs, so the transparency dial keeps reaching it
   // the sheen: light caught on the top third of the glass (was a 46 % fade of a 55 % white - invisible over an opaque-ish panel)
   '--sw-glass-sheen': lt('linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.2) 38%, rgba(255,255,255,0) 72%)', 'linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.03) 40%, rgba(255,255,255,0) 72%)'),
   '--sw-t-med': same('220ms'),

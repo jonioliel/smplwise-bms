@@ -934,12 +934,10 @@ export function roomChips(devices: readonly Pick<PlayerDevice, 'area_id' | 'area
 
 // ------------------------------------------------------------------------------------------------ pure helpers: what a device offers
 
-/** Whether the UI should offer a command at all (the server re-checks everything). Greyed, never guessed, without `caps_known`. */
-export function playerCommandOffered(d: Pick<PlayerDevice, 'live' | 'caps' | 'can' | 'zones'>, c: PlayerCommand): boolean {
-  const { live, caps, can } = d;
-  if (!live.caps_known || isDead(live)) return false;
-  const power = c.command === 'power_on' || c.command === 'power_off' || c.command === 'source' || c.command === 'sound_output';
-  if (power ? !can.power : !can.control) return false;
+/** The power gate of a command: a second zone has its own state and only the commands it accepts; power_on / power_off are decided
+ * here (true / false), any other command needs the target on (false when it is not, null = go on to the capability). */
+function powerGate(d: Pick<PlayerDevice, 'live' | 'caps' | 'zones'>, c: PlayerCommand): boolean | null {
+  const { live, caps } = d;
   // a second zone: its own state, and only the commands it accepts
   const zone = c.zone && d.zones && c.zone !== d.zones[0]?.id ? d.zones.find((z) => z.id === c.zone) ?? null : null;
   if (c.zone && d.zones && c.zone !== d.zones[0]?.id) {
@@ -952,6 +950,12 @@ export function playerCommandOffered(d: Pick<PlayerDevice, 'live' | 'caps' | 'ca
     if (c.command === 'power_off') return caps.power_off && isOn(live);
     if (!isOn(live)) return false;
   }
+  return null;
+}
+
+/** Whether the device's capabilities carry a command (and its arguments are in range). */
+function commandCapable(d: Pick<PlayerDevice, 'live' | 'caps'>, c: PlayerCommand): boolean {
+  const { live, caps } = d;
   switch (c.command) {
     case 'volume_set': return caps.volume_set && c.level >= 0 && c.level <= 100;
     case 'volume_step': return caps.volume_step;
@@ -966,6 +970,17 @@ export function playerCommandOffered(d: Pick<PlayerDevice, 'live' | 'caps' | 'ca
     case 'transfer': return caps.transfer && c.from_key.length > 0;
     default: return false; // keys / text / app: not a player thing
   }
+}
+
+/** Whether the UI should offer a command at all (the server re-checks everything). Greyed, never guessed, without `caps_known`. */
+export function playerCommandOffered(d: Pick<PlayerDevice, 'live' | 'caps' | 'can' | 'zones'>, c: PlayerCommand): boolean {
+  const { live, can } = d;
+  if (!live.caps_known || isDead(live)) return false;
+  const power = c.command === 'power_on' || c.command === 'power_off' || c.command === 'source' || c.command === 'sound_output';
+  if (power ? !can.power : !can.control) return false;
+  const gate = powerGate(d, c);
+  if (gate !== null) return gate;
+  return commandCapable(d, c);
 }
 
 /** The library tabs the panel shows, in order: per the device's caps, the provider (Sonos has no playlists) and the

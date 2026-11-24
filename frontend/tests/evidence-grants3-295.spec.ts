@@ -147,8 +147,8 @@ test.describe('GRANTS3-295 the assign dialog', () => {
       await page.waitForSelector(`${D} [data-assign-preview]`);
       const tick = page.locator(`${D} [data-access-needed]`);
       await expect(tick).toBeVisible();
-      await expect(tick).not.toBeChecked();
-      await tick.check();
+      await expect(tick).not.toHaveAttribute('checked');
+      await tick.click();
       await page.locator(`${D} [data-access-needed-switch]`).scrollIntoViewIfNeeded();
       await shot(page, info, `04-assign-access-needed-${scheme}`);
       await page.locator(`${D} [data-dialog-ok]`).click();

@@ -143,7 +143,7 @@ test.describe('groups and profile fields', () => {
     expect(mock.posts).toHaveLength(1); // cancel sends nothing
 
     await s(page, '[data-pf-confirm-open]').click();
-    await s(page, '[data-pf-confirm-check]').check();
+    await s(page, '[data-pf-confirm-check]').click();
     await s(page, '[data-pf-confirm-send]').click();
     await expect(s(page, '[data-pf-result="saved"]')).toBeVisible();
     const applies = mock.posts.filter((x) => x.path === 'access-control/profiles/apply');
@@ -178,7 +178,7 @@ test.describe('groups and profile fields', () => {
     await ready(page);
     await toPreview(page);
     await s(page, '[data-pf-confirm-open]').click();
-    await s(page, '[data-pf-confirm-check]').check();
+    await s(page, '[data-pf-confirm-check]').click();
     await s(page, '[data-pf-confirm-send]').click();
     await expect(s(page, '[data-pf-result="not_saved"]')).toHaveAttribute('data-pf-outcome', 'refused');
     await expect(s(page, '[data-pf-result-text]')).toContainText('הנתונים השתנו');
@@ -193,7 +193,7 @@ test.describe('groups and profile fields', () => {
     await ready(page);
     await toPreview(page);
     await s(page, '[data-pf-confirm-open]').click();
-    await s(page, '[data-pf-confirm-check]').check();
+    await s(page, '[data-pf-confirm-check]').click();
     await s(page, '[data-pf-confirm-send]').click();
     await expect(s(page, '[data-pf-result="unknown"]')).toBeVisible();
     await expect(s(page, '[data-pf-reapply]')).toHaveCount(0);

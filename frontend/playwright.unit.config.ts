@@ -19,7 +19,9 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 // build they pass (the gate runs it on the preview). A spec counts as a page spec when it navigates to an app-relative address, or names it in a constant (const HOME = '/?design=a#/...').
 // FIX-UNIT-PAGES-CONFIG-2440: an address relative to the baseURL ('./#/devices', as unit-session-me-failure-2435 uses) is app-relative too;
 // it used to fall through to the node-only run and fail there with no baseURL.
-export const PAGE_SPEC = /goto\(\s*[`'"]\.?\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\.?\/[?#]/;
+// TRIAL-2480: FLAKY-SWEEP-2480 moved page specs to the helper `gotoApp(page, '/...')` (helpers/app-ready.ts); that call navigates too
+// (unit-device-types-admin-ui fell into the node-only run and failed there with "invalid URL").
+export const PAGE_SPEC = /goto\(\s*[`'"]\.?\/|gotoApp\(\s*\w+\s*,\s*[`'"]\.?\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\.?\/[?#]/;
 // Only unit-* specs belong to this config, in either mode: a bare `-c playwright.unit.config.ts` run must not pick up the evidence / layout /
 // pixel specs (they need playwright.config.ts's preview server and projects).
 export const UNIT_SPEC = /^unit-.*\.spec\.ts$/;

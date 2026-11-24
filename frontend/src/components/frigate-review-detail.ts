@@ -101,7 +101,7 @@ export class FrigateReviewDetail extends LitElement {
       background: var(--sw-stale);
     }
     .tag.state i {
-      background: #fff;
+      background: var(--sw-on-video);
       inline-size: 6px;
       block-size: 6px;
     }

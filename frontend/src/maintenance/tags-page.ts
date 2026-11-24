@@ -79,10 +79,10 @@ export class MaintTagsPage extends LitElement {
     .sticker { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); padding: 12px; background: #fff; color: #111; text-align: center; display: grid; justify-items: center; gap: 4px; break-inside: avoid; }
     .sticker svg { inline-size: 120px; block-size: 120px; }
     .sticker .l { font-weight: var(--sw-fw-bold); }
-    .sticker .s { font-size: var(--sw-fs-xs); color: #555; }
-    .sticker .path { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: #555; direction: ltr; unicode-bidi: isolate; }
+    .sticker .s { font-size: var(--sw-fs-xs); color: var(--tg-ink-2); }
+    .sticker .path { font-family: var(--sw-font-mono); font-size: var(--sw-fs-2xs); color: var(--tg-ink-2); direction: ltr; unicode-bidi: isolate; }
     .note { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
-    :host { flex: 1; min-block-size: 0; }
+    :host { flex: 1; min-block-size: 0; --tg-ink-2: #555; /* COLOR-LITERAL-B-2480: the sticker's secondary ink */ }
     /* owner 24.10: no page scrolling - the stickers and the table scroll inside this area */
     .tagscroll { flex: 1; min-block-size: 0; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
     @media print {

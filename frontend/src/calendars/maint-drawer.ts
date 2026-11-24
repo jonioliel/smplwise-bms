@@ -4,6 +4,7 @@ import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-button';
 import { ApiError, describeError } from '../api/client';
+import { calErrorText } from './conflict-hint';
 import { dateInputLang } from '../api/day-format';
 import type { MaintPreview, OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx, type NewMaintDetail } from './ctx';
@@ -170,7 +171,7 @@ export class CalMaintDrawer extends LitElement {
     } catch (e) {
       if (e instanceof ApiError && e.code === 'maintenance_overlap') this.err = tr('אי אפשר להציב את החלון מעל הזמנה. בחרו אחד מהזמנים הפנויים.');
       else if (e instanceof ApiError && e.code === 'overlap_decision_required') this.err = tr('יש חפיפה עם הזמנות קיימות. יש לבחור מה לעשות.');
-      else this.err = describeError(e);
+      else this.err = calErrorText(e);
       void this.runPreview();
     } finally {
       this.busy = false;

@@ -44,7 +44,7 @@ const HOME_WIDGETS_BUBBLE = css`
     color: inherit;
   }
   :host([data-skin='bubble']) .wg-weather .wx-fc {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: var(--hw-tone-line);
   }
   :host([data-skin='bubble']) .wg-shabbat {
     background: var(--sw-surface);
@@ -111,7 +111,7 @@ const HOME_WIDGETS_BUBBLE = css`
     box-sizing: border-box;
     border: 0;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.14);
+    background: var(--hw-well);
     color: inherit;
     display: grid;
     place-items: center;

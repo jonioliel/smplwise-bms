@@ -499,7 +499,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     }
     await page.setViewportSize(SIZES['1440']);
     // hide the gym screen, enlarge the living room, pin the kids' screen, hide the cinema on the phone only, move the pergola up
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await expect(page$(page).locator('media-screen-card[data-screen-card="md-gym"]')).toHaveAttribute('data-dimmed', '');
     await page$(page).locator('[data-mm-size="md-living:l"]').click();
     await expect(page$(page).locator('media-screen-card[data-screen-card="md-living"]')).toHaveAttribute('data-size', 'l');
@@ -507,7 +507,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(page$(page).locator('section[data-group]').first()).toHaveAttribute('data-group', 'pinned');
     await expect(page$(page).locator('[data-mm-phone]')).toHaveCount(0); // folded until asked for
     await page$(page).locator('[data-mm-phone-toggle="md-cinema"]').click();
-    await page$(page).locator('[data-mm-phone-on="md-cinema"]').uncheck();
+    await page$(page).locator('[data-mm-phone-on="md-cinema"]').click();
     const order = () => page$(page).locator('[data-group="g"] media-screen-card').evaluateAll((els) => els.map((e) => e.getAttribute('data-screen-card')));
     expect(await order()).toEqual(['md-kitchen', 'md-living', 'md-pergola']);
     await page$(page).locator('[data-mm-row="md-pergola"] [data-mm-up]').click();
@@ -540,7 +540,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await install(page, st);
     await open(page, '/multimedia/screens?edit=1');
     await expect(page$(page).locator('[data-mm-editbar]')).toBeVisible(); // ?edit=1 enters it (this user may edit)
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await page$(page).locator('[data-mm-save]').click();
     await expect(cards(page)).toHaveCount(7);
     await enterEditFromMenu(page);
@@ -562,14 +562,14 @@ test.describe('multimedia screens (mocked backend)', () => {
     await install(page, st);
     await open(page, '/multimedia/screens');
     await enterEditFromMenu(page);
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     st.store.layoutState.revision += 1; // someone else saved
     await page$(page).locator('[data-mm-save]').click();
     await expect(page$(page).locator('[data-mm-editbar] [role="alert"]')).toHaveText('המסך נערך במקום אחר');
     await expect(page$(page).locator('[data-mm-save]')).toBeDisabled();
     await page$(page).locator('[data-mm-editbar] .btn', { hasText: 'טען מחדש' }).click();
     await expect(page$(page).locator('[data-mm-editbar] [role="alert"]')).toHaveCount(0);
-    await expect(page$(page).locator('[data-mm-on="md-gym"]')).toBeChecked(); // the draft started again from the saved layout
+    await expect(page$(page).locator('[data-mm-on="md-gym"]')).toHaveAttribute('checked', ''); // the draft started again from the saved layout
   });
 
   test('the editor: cancel with changes asks; without changes it just closes', async ({ page }) => {
@@ -579,7 +579,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await page$(page).locator('[data-mm-cancel]').click(); // nothing changed
     await expect(page$(page).locator('[data-mm-editbar]')).toHaveCount(0);
     await enterEditFromMenu(page);
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await page$(page).locator('[data-mm-cancel]').click();
     await expect(page$(page).locator('[data-mm-confirm="cancel"]')).toHaveAttribute('heading', 'לבטל את השינויים?');
     await page$(page).locator('[data-mm-confirm-no]').click();
@@ -599,7 +599,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(page$(page).locator('[data-mm-pin]')).toHaveCount(0); // "מועדפים", phone rows, floor order: installation only
     await expect(page$(page).locator('[data-mm-phone-toggle]')).toHaveCount(0);
     await expect(page$(page).locator('[data-mm-floors-col]')).toHaveCount(0);
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await page$(page).locator('[data-mm-size="md-kitchen:l"]').click();
     await page$(page).locator('[data-mm-group="none"]').click();
     await page$(page).locator('[data-mm-save]').click();
@@ -632,7 +632,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await enterEditFromMenu(page);
     await page$(page).locator('[data-scope="me"]').click();
     await expect(page$(page).locator('[data-mm-pin]')).toHaveCount(0);
-    await page$(page).locator('[data-mm-on="md-office"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-office"]').click();
     await page$(page).locator('[data-mm-save]').click();
     await expect(cards(page)).toHaveCount(7);
     expect(layoutPuts()).toHaveLength(0);
@@ -640,7 +640,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await enterEditFromMenu(page);
     await page$(page).locator('[data-scope="all"]').click();
     await expect(page$(page).locator('[data-mm-pin]')).toHaveCount(8);
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await page$(page).locator('[data-mm-save]').click();
     await expect.poll(() => layoutPuts().length).toBe(1);
     // the personal override (office hidden) and the installation layout (gym hidden) both apply now
@@ -704,7 +704,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect.poll(() => st.calls.filter((c) => c.path === 'multimedia/admin/links').at(-1)?.body).toMatchObject({ op: 'link', device_key: 'md-kitchen' });
     await expect(sys.locator('[data-mm-suggestions]')).toHaveCount(0);
     // the remote's default sections
-    await sys.locator('[data-mm-section="colors"] sw-toggle').click();
+    await sys.locator('[data-mm-section="colors"] sw-toggle:not([data-mm-more])').click();
     await sys.locator('[data-mm-save-remote]').click();
     await expect.poll(() => st.calls.find((c) => c.path === 'multimedia/remote-default' && c.method === 'PUT')?.body).toBeTruthy();
     const sections = (st.calls.find((c) => c.path === 'multimedia/remote-default' && c.method === 'PUT')!.body as { sections: { id: string; on: boolean }[] }).sections;
@@ -737,7 +737,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await page.locator('sw-app [data-profile-menu]').click();
     await page.locator('sw-app sw-user-menu [data-menu-screen-edit="multimedia-layout"]').click();
     await page$(page).locator('[data-scope="me"]').click();
-    await page$(page).locator('[data-mm-on="md-gym"]').uncheck();
+    await page$(page).locator('[data-mm-on="md-gym"]').click();
     await page$(page).locator('[data-mm-save]').click();
     await expect(cards(page)).toHaveCount(7);
     // a command reaches the mock

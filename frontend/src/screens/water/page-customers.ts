@@ -172,7 +172,7 @@ export class WaterCustomersPage extends LitElement {
   private renderCard() {
     const c = this.card;
     const blocked = !!c && (c.account_count > 0 || c.energy_account_count > 0);
-    return html`<sw-sheet open wide .heading=${c ? wt('customerCard') : wt('newCustomer')} data-customer-card @close=${() => navigate(BASE)}>
+    return html`<sw-sheet open wide solid .heading=${c ? wt('customerCard') : wt('newCustomer')} data-customer-card @close=${() => navigate(BASE)}>
       <div class="col">
         ${this.cardSt === 'loading' ? skeletonCard(4) : this.cardSt === 'error' ? html`<sw-state-panel state="error" compact heading=${wt('loadCustomerError')} actionLabel=${wt('retry')} @action=${() => void this.loadCard(this.segments[0])}></sw-state-panel>` : html`
           <div class="form">${this.field('name', 'cName', { wide: true })}${this.field('customer_number', 'cNumber', { ltr: true })}${this.field('tax_id', 'cTaxId', { ltr: true })}

@@ -123,6 +123,7 @@ const tokens: TokenTable = {
   '--sw-glass-blur': same('blur(28px) saturate(1.4)'),
   '--sw-glass-blur-nav': same('blur(22px) saturate(1.3)'),
   '--sw-glass-blur-sheet': same('blur(36px) saturate(1.5)'),
+  '--sw-sheet-alpha-min': same('0'), // PHONE-SHEET-2480: a glass skin - its sheet blurs, so the transparency dial keeps reaching it
   '--sw-glass-sheen': lt(
     'linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.14) 38%, rgba(255, 255, 255, 0) 72%)',
     'linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0) 46%)',

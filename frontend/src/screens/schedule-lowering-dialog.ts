@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import type { LoweringSummary } from './schedule-edit-logic';
 import { tr } from '../i18n/msg/automation';
@@ -72,11 +73,8 @@ export class ScheduleLoweringDialog extends LitElement {
       font-size: var(--sw-fs-md);
       cursor: pointer;
     }
-    label.ack input {
-      inline-size: 18px;
-      block-size: 18px;
-      margin: 2px 0 0;
-      accent-color: var(--sw-danger);
+    label.ack sw-toggle {
+      flex: none;
     }
     .code {
       display: flex;
@@ -144,9 +142,10 @@ export class ScheduleLoweringDialog extends LitElement {
 
   render() {
     const lowering = this.summary.lowering !== false;
+    const ackText = lowering ? tr('אני מבין שהפעולה תתבצע אוטומטית, ומאשר.') : tr('אני מאשר את הפעולה הרגישה.');
     return html`<sw-dialog ?open=${this.open} heading=${lowering ? tr('תזמון שפותח או מנטרל') : tr('תזמון של פעולה רגישה')} data-lowering-dialog @close=${this.close}>
       <div class="warn ${lowering ? '' : 'soft'}" role="alert" data-lowering-warning><sw-icon name="warning" size="20"></sw-icon><div>${this.sentence()}</div></div>
-      <label class="ack"><input type="checkbox" data-lowering-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} /><span>${lowering ? tr('אני מבין שהפעולה תתבצע אוטומטית, ומאשר.') : tr('אני מאשר את הפעולה הרגישה.')}</span></label>
+      <label class="ack"><sw-toggle size="sm" labelHidden in-label label=${ackText} data-lowering-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = toggled(e))}></sw-toggle><span>${ackText}</span></label>
       ${this.needsCode
         ? html`<div class="code"><label for="alarm-code">${tr('קוד האזעקה')}</label><input id="alarm-code" type="password" inputmode="numeric" autocomplete="off" data-lowering-code .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} /><small>${tr('הקוד נבדק פעם אחת ואינו נשמר בתזמון.')}</small></div>`
         : nothing}

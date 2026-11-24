@@ -214,12 +214,17 @@ export class FrigateReviewCard extends LitElement {
     }
     .state[data-review-state='new'] {
       background: var(--sw-accent);
+      /* A11Y-AUDIT-2490: the ink of an accent fill (white on the dark scheme's light accent read 2.5:1); the dot follows it */
+      color: var(--sw-text-inverse);
+    }
+    .state[data-review-state='new'] i {
+      background: currentColor;
     }
     .state i {
       inline-size: 6px;
       block-size: 6px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-on-video);
     }
     .over {
       position: absolute;
@@ -241,7 +246,7 @@ export class FrigateReviewCard extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
       min-inline-size: 0;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      text-shadow: 0 1px 2px color-mix(in srgb, var(--sw-video-shadow-ink) 50%, transparent);
     }
     time {
       flex: none;

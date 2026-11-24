@@ -16,7 +16,7 @@ import type { Camera } from '../api/types';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-field';
 import '../components/sw-steps';
 import '../components/sw-tabs';
@@ -248,7 +248,7 @@ export class InvestigateRules extends LitElement {
       ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">${tr('התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.<שירות> עם הכותרת Arx.')}</div>` : nothing}
       <div class="two">
         <sw-field label=${tr('בעלות')}><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>${tr('מקומי (המערכת מפעילה)')}</option><option value="ha" ?selected=${b.owner === 'ha'}>${tr('תשתית המערכת (הפניה בלבד)')}</option></select></sw-field>
-        ${b.owner === 'ha' ? html`<sw-field label=${tr('מזהה אוטומציה בתשתית המערכת')}><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> ${tr('פעיל')}</label>`}
+        ${b.owner === 'ha' ? html`<sw-field label=${tr('מזהה אוטומציה בתשתית המערכת')}><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('פעיל')} .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = toggled(ev)))}></sw-toggle> ${tr('פעיל')}</label>`}
       </div>
       <div class="hint">${tr('הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות תשתית המערכת אינו מופעל כאן (בעלים אחד לכל אוטומציה).')}</div>
       <div class="dryhead"><sw-button size="sm" icon="refresh" data-rule-dryrun ?disabled=${this.dryBusy} @click=${() => this.dryRun()}>${this.dryBusy ? tr('מריץ…') : tr('הרצה יבשה על 24 שעות')}</sw-button>${dry ? html`<span class="hint" data-dryrun-result>${tr('{n} אירועים נבדקו', { n: dry.evaluated })} · <strong>${dry.would_fire.length}</strong> ${tr('התראות היו נוצרות')} · ${tr('{n} נחסמו בהשהיה', { n: dry.suppressed.length })} · ${tr('{n} לא תאמו', { n: dry.not_matched })}</span>` : nothing}</div>
@@ -478,7 +478,7 @@ export class InvestigateRules extends LitElement {
                   <div class="ic"><sw-icon .name=${ic.icon} size=${18}></sw-icon></div>
                   <div class="txt"><b>${r.name}</b><small>${r.trigger} · ${r.scope} · ${r.action}</small></div>
                   <span class="last">${tr('הופעל:')} ${r.last}</span>
-                  <sw-toggle ?checked=${r.enabled} label=""></sw-toggle>
+                  <sw-toggle ?checked=${r.enabled} labelHidden label=${`${tr('פעיל')} · ${r.name}`}></sw-toggle>
                   <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>${tr('עריכה')}</sw-button>
                   <sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>
                 </div>`;

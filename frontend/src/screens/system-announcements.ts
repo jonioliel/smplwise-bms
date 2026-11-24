@@ -3,7 +3,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-state-panel';
 import '../components/sw-icon';
 import '../components/sw-table';
@@ -250,7 +250,7 @@ export class SystemAnnouncements extends LitElement {
         <input type="number" step="1" inputmode="numeric" min=${ANNOUNCE_SCREEN_RANGE.critical_close_s[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_close_s[1]} data-announce-screens-critical-close aria-label=${t.screensCriticalClose} .value=${String(sc.critical_close_s)} @change=${(e: Event) => this.screenNumber('critical_close_s', e)} /></div>` : nothing}
       <div class="area">${t.screensList}</div>
       ${opts.length ? opts.map((o) => html`<div class="row" data-announce-screen=${o.key}>
-        <label class="pick"><input type="checkbox" .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: (e.target as HTMLInputElement).checked })} />${o.name}
+        <label class="pick"><sw-toggle size="sm" labelHidden in-label label=${o.name} .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: toggled(e) })}></sw-toggle>${o.name}
           <span class="muted">${o.kind === 'board' ? t.screensKindBoard : t.screensKindWall}</span></label>
         <span class="inl">
           <sw-field><select data-announce-screen-area aria-label=${t.screensArea} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { area_id: (e.target as HTMLSelectElement).value || null })}>
@@ -315,7 +315,7 @@ export class SystemAnnouncements extends LitElement {
     const on = !!this.data?.config.enabled && !!this.data?.config.engine;
     return html`${[...groups].map(([k, rows]) => html`<div class="area">${k}</div>${rows.map((s) => html`
       <div class="row" data-announce-speaker=${s.key}>
-        <label class="pick"><input type="checkbox" .checked=${s.allowed} data-announce-allow @change=${(e: Event) => void this.toggleSpeaker(s, (e.target as HTMLInputElement).checked)} />${s.name}</label>
+        <label class="pick"><sw-toggle size="sm" labelHidden in-label label=${s.name} .checked=${s.allowed} data-announce-allow @change=${(e: Event) => void this.toggleSpeaker(s, toggled(e))}></sw-toggle>${s.name}</label>
         <sw-button size="sm" data-announce-test ?disabled=${!s.allowed || !on || this.busy !== ''} @click=${() => void this.run(`t:${s.key}`, () => announceTest({ scope: 'device', ref: s.key, language: announceLang() }))}>${t.testAction}</sw-button>
       </div>`)}`)}`;
   }

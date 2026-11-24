@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
 import '../components/sw-button';
-import '../components/sw-toggle';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -367,8 +367,8 @@ export class TicketsRulesSettings extends LitElement {
       <label class="fld wide">${rlt('fOnClear')}<select class="in" data-rule-field="on_clear" @change=${onSel('on_clear')}>
         <option value="comment" ?selected=${r.on_clear === 'comment'}>${rlt('onClearComment')}</option>
         <option value="comment_close" ?selected=${r.on_clear === 'comment_close'}>${rlt('onClearClose')}</option></select></label>
-      <div class="checks wide"><label><input type="checkbox" data-rule-field="enabled" .checked=${r.enabled}
-        @change=${(e: Event) => this.set('enabled', (e.target as HTMLInputElement).checked)} /> ${rlt('fEnabled')}</label></div>
+      <div class="checks wide"><label><sw-toggle size="sm" labelHidden in-label label=${rlt('fEnabled')} data-rule-field="enabled" .checked=${r.enabled}
+        @change=${(e: Event) => this.set('enabled', toggled(e))}></sw-toggle> ${rlt('fEnabled')}</label></div>
       <div class="acts wide">
         <sw-button size="sm" variant="primary" data-rule-save ?disabled=${this.busy} @click=${() => void this.saveRule()}>${rlt('save')}</sw-button>
         <sw-button size="sm" data-rule-test-draft ?disabled=${this.busy} @click=${() => this.testDraft()}>${rlt('test')}</sw-button>

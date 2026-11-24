@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { gotoApp } from './helpers/app-ready';
 
 // DEVTYPE (owner 2026-10-09): הגדרות › חשמל והתקנים › סוגי התקנים against a MOCKED wire contract of smplwise/routers/devices.py
 // (GET devices/device-types, PUT devices/entities/{id}/device-type, POST devices/device-types). Invented devices, no secrets.
@@ -76,7 +77,7 @@ async function setup(page: Page) {
 
 test('settings > devices: the device-type list - per-row choice overrides the name guess, back to automatic, group change, search', async ({ page }) => {
   const { calls } = await setup(page);
-  await page.goto('/?design=a#/system/diagnostics?tab=devices');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=devices'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-app system-diagnostics devices-type-admin');
   await expect(card.locator('[data-device-types]')).toBeVisible();
   const visible = (sel: string) => card.locator(sel).locator('visible=true').first();
@@ -120,25 +121,25 @@ test('settings > devices: the device-type list - per-row choice overrides the na
 
 test('settings > devices: a fixed valve / water heater can be included in "הדלק הכל" per device (SEC246 L2)', async ({ page }) => {
   const { calls } = await setup(page);
-  await page.goto('/?design=a#/system/diagnostics?tab=devices');
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=devices'); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   const card = page.locator('sw-app system-diagnostics devices-type-admin');
   await expect(card.locator('[data-device-types]')).toBeVisible();
   const visible = (sel: string) => card.locator(sel).locator('visible=true').first();
 
   // automatic types (even a name that reads as a tap) never show the switch: only the administrator's fixed type counts
-  await expect(card.locator('input[data-type-bulk-on]')).toHaveCount(0);
+  await expect(card.locator('sw-toggle[data-type-bulk-on]')).toHaveCount(0);
   await visible('select[data-type-select="switch.tap"]').selectOption('valve');
   await expect.poll(() => calls.length).toBe(1);
-  const box = visible('input[data-type-bulk-on="switch.tap"]');
-  await expect(box).not.toBeChecked();
+  const box = visible('sw-toggle[data-type-bulk-on="switch.tap"]');
+  await expect(box).not.toHaveAttribute('checked');
   await expect(card.locator('[data-entity="switch.tap"] label.bulk-on').locator('visible=true')).toContainText('לכלול בהדלק הכל');
-  await box.check();
+  await box.click();
   await expect.poll(() => calls.length).toBe(2);
   expect(calls[1]).toEqual({ method: 'PUT', path: 'devices/entities/switch.tap/bulk-on', body: { allowed: true } });
-  await expect(visible('input[data-type-bulk-on="switch.tap"]')).toBeChecked();
+  await expect(visible('sw-toggle[data-type-bulk-on="switch.tap"]')).toHaveAttribute('checked', '');
   // a plain type has no such switch
   await visible('select[data-type-select="switch.relay3"]').selectOption('light');
   await expect.poll(() => calls.length).toBe(3);
-  await expect(card.locator('input[data-type-bulk-on="switch.relay3"]')).toHaveCount(0);
+  await expect(card.locator('sw-toggle[data-type-bulk-on="switch.relay3"]')).toHaveCount(0);
   await expect(card).not.toContainText(/Home Assistant|\bHA\b/);
 });

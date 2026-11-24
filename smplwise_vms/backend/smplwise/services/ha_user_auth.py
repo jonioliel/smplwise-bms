@@ -51,6 +51,7 @@ from ..rbac import Principal
 from . import redact
 from .session_cache import attach_if_live, take_queued
 from .tickets import ratelimit as _ratelimit
+from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.remote")
 
@@ -1880,3 +1881,17 @@ def reset_for_tests() -> None:
 
     local_identity.reset_for_tests()
     app_session.reset_for_tests()
+
+
+def _reset_for_tests() -> None:
+    """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
+    with _cache_lock:
+        _rejected.clear()
+    _core_base.clear()
+    _xff_refused.clear()
+    _REVOKED_TABLE["seen"] = False
+    LIMITER.clear()  # group 5: the sign-in hit windows (in memory; a fresh process restores them from its own database)
+    REFUSAL_AUDITS.clear()
+
+
+register_reset(__name__, ("LIMITER", "REFUSAL_AUDITS", "_REVOKED_TABLE", "_core_base", "_rejected", "_xff_refused"), _reset_for_tests)  # SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

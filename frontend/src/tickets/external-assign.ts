@@ -1,4 +1,5 @@
 import { css, html, nothing, type ReactiveController, type ReactiveControllerHost, type TemplateResult } from 'lit';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
@@ -265,11 +266,11 @@ export class ExternalAssign implements ReactiveController {
           ${headed ? html`<span class="xgh" data-group="contacts">${tt('hdSeg_contacts')}</span>` : nothing}${repeat(others, (c) => c.id, (c) => this.row(t, c))}</div>`
         : html`<div class="muted" data-contacts-none>${tt('ctNone')}</div>`}
       ${chosen ? html`<div class="xopts" data-contact-options>
-        <label class="chk"><input type="checkbox" data-require-code .checked=${this.requireCode} ?disabled=${chosen.require_code || this.lend.busy()}
-          @change=${(e: Event) => { this.requireCode = (e.target as HTMLInputElement).checked; void this.loadPreview(t); }} />${tt('asgRequireCode')}</label>
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tt('asgRequireCode')} data-require-code .checked=${this.requireCode} ?disabled=${chosen.require_code || this.lend.busy()}
+          @change=${(e: Event) => { this.requireCode = toggled(e); void this.loadPreview(t); }}></sw-toggle>${tt('asgRequireCode')}</label>
         ${chosen.require_code ? html`<span class="muted xnote">${tt('asgRequireCodeLocked')}</span>` : this.requireCode ? html`<span class="muted xnote">${tt('asgRequireCodeNote')}</span>` : nothing}
-        ${p?.share_history.available ? html`<label class="chk"><input type="checkbox" data-share-history .checked=${this.shareHistory}
-          @change=${(e: Event) => { this.shareHistory = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${tt('asgShareHistory')}</label>` : nothing}
+        ${p?.share_history.available ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tt('asgShareHistory')} data-share-history .checked=${this.shareHistory}
+          @change=${(e: Event) => { this.shareHistory = toggled(e); this.host.requestUpdate(); }}></sw-toggle>${tt('asgShareHistory')}</label>` : nothing}
         ${this.costChoice()}
         ${this.navChoice(t)}
         ${this.accessChoice()}
@@ -293,8 +294,8 @@ export class ExternalAssign implements ReactiveController {
     return html`<span class="muted" data-assign-channel=${p.channel}>${tIcon(p.channel === 'email' ? 'note' : 'send')}${l.via}</span>
       ${l.down ? html`<span class="muted" data-assign-down>${tIcon('warning')}${l.down}</span>` : nothing}
       ${l.hours ? html`<span class="muted" data-assign-hours>${tIcon('clock')}${l.hours}</span>
-        <label class="chk"><input type="checkbox" data-assign-send-now .checked=${this.sendNow ?? l.sendNowDefault} ?disabled=${this.lend.busy()}
-          @change=${(e: Event) => { this.sendNow = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />${mtt('sendNow')}</label>` : nothing}`;
+        <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${mtt('sendNow')} data-assign-send-now .checked=${this.sendNow ?? l.sendNowDefault} ?disabled=${this.lend.busy()}
+          @change=${(e: Event) => { this.sendNow = toggled(e); this.host.requestUpdate(); }}></sw-toggle>${mtt('sendNow')}</label>` : nothing}`;
   }
 
   /** The "send now" the assignment carries: only outside the send hours, the person's choice or the preview's default. */
@@ -318,16 +319,16 @@ export class ExternalAssign implements ReactiveController {
   private navChoice(t: TicketDetail): TemplateResult | typeof nothing {
     const sw = navSwitch(this.navKnown, this.locationNav);
     if (!sw.visible) return nothing;
-    return html`<label class="chk" data-nav-switch><input type="checkbox" data-location-nav .checked=${sw.checked} ?disabled=${this.lend.busy()}
-      @change=${(e: Event) => { this.locationNav = (e.target as HTMLInputElement).checked; void this.loadPreview(t); }} />
+    return html`<label class="chk" data-nav-switch><sw-toggle size="sm" labelHidden in-label label=${loct('navOn')} data-location-nav .checked=${sw.checked} ?disabled=${this.lend.busy()}
+      @change=${(e: Event) => { this.locationNav = toggled(e); void this.loadPreview(t); }}></sw-toggle>
       <span><b>${loct('navOn')}</b><small class="muted">${loct('navOnSub')}</small></span></label>`;
   }
 
   /** GRANTS3-295: the "access needed" tick (hidden unless the preview offers it). */
   private accessChoice(): TemplateResult | typeof nothing {
     if (!this.preview?.access_needed?.available) return nothing;
-    return html`<label class="chk" data-access-needed-switch><input type="checkbox" data-access-needed .checked=${this.accessNeeded} ?disabled=${this.lend.busy()}
-      @change=${(e: Event) => { this.accessNeeded = (e.target as HTMLInputElement).checked; this.host.requestUpdate(); }} />
+    return html`<label class="chk" data-access-needed-switch><sw-toggle size="sm" labelHidden in-label label=${tt('asgAccessNeeded')} data-access-needed .checked=${this.accessNeeded} ?disabled=${this.lend.busy()}
+      @change=${(e: Event) => { this.accessNeeded = toggled(e); this.host.requestUpdate(); }}></sw-toggle>
       <span><b>${tt('asgAccessNeeded')}</b><small class="muted">${tt('asgAccessNeededSub')}</small></span></label>`;
   }
 

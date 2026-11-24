@@ -34,7 +34,7 @@ from smplwise.errors import ApiError
 from smplwise.services import intercom_authority as ia
 from smplwise.services import intercom_client, intercom_sync, wiskey_channels
 from smplwise.services import wiskey_door_tech as dt
-from support.waiting import wait_for
+from support.waiting import ManualClock, time_shim, wait_for
 
 API = "/api/v1/access-control/stations"
 NEW_CODE = "86420975"  # sentinels: a test fails if either ever appears outside the frame sent to the fake
@@ -496,9 +496,18 @@ def test_a_wiskey_without_the_command_gets_nothing(wx, monkeypatch):
 
 # ---------------------------------------------------------------- Arx's limits
 
+def _pinned_cooldown_clock(monkeypatch) -> ManualClock:
+    """TIMING-LANE-2480: the cool-down reads `time.monotonic()` of services/wiskey_door_tech.py; pinned here, two posts in a row are
+    0 s apart on any machine (on a loaded gate runner two real requests drifted past the 3 s cool-down and the second one was sent)."""
+    clock = ManualClock()
+    monkeypatch.setattr(dt, "time", time_shim(monotonic=clock))
+    return clock
+
+
 def test_the_cooldown_after_a_send_and_not_after_a_refusal(wx, monkeypatch):
     fake, c, _s, *_ = wx
     monkeypatch.setattr(dt, "COOLDOWN_S", 3.0)
+    clock = _pinned_cooldown_clock(monkeypatch)
     assert post(c, "entry-a/doors/1/hold", revision=0, policy=POLICY).status_code == 200
     again = post(c, "entry-a/doors/1/hold", revision=1, policy=POLICY)
     assert again.status_code == 429 and again.json()["code"] == "door_tech_cooldown" and again.json()["details"]["outcome"] == "not_sent"
@@ -506,6 +515,10 @@ def test_the_cooldown_after_a_send_and_not_after_a_refusal(wx, monkeypatch):
     bad = post(c, "entry-c/doors/2/hold", revision=0, policy={**POLICY, "name": ""})
     assert bad.status_code == 422
     assert post(c, "entry-c/doors/2/hold", revision=0, policy=POLICY).status_code == 200, "a refusal before sending starts no cool-down"
+    clock.advance(2.9)
+    assert post(c, "entry-a/doors/1/hold", revision=1, policy=POLICY).json()["code"] == "door_tech_cooldown", "still inside the 3 s"
+    clock.advance(0.2)
+    assert post(c, "entry-a/doors/1/hold", revision=1, policy=POLICY).status_code == 200, "the cool-down ends after COOLDOWN_S"
 
 
 def test_the_code_window_and_the_station_slot(wx, monkeypatch):
@@ -528,6 +541,7 @@ def test_the_code_window_and_the_station_slot(wx, monkeypatch):
 def test_the_view_says_who_may_write_what_this_wiskey_offers_and_the_recent_writes(wx, monkeypatch):
     fake, c, _s, *_ = wx
     monkeypatch.setattr(dt, "COOLDOWN_S", 3.0)
+    _pinned_cooldown_clock(monkeypatch)  # the second hold below is inside the cool-down on any machine
     v = c.get(f"{API}/entry-c/door-tech", headers=as_user("root")).json()
     assert v["allowed"] is True and v["reason"] == "system.configure" and v["online"] is True
     assert v["locks"] == [{"door": 1, "name": "Gate"}, {"door": 2, "name": "Barrier"}]

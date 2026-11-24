@@ -91,8 +91,8 @@ export class MediaPlayerCard extends LitElement {
       inset: -35%;
       filter: blur(var(--mm-art-glow-blur)) saturate(1.5);
       opacity: var(--mm-art-glow-alpha);
-      -webkit-mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
-      mask-image: linear-gradient(180deg, #000 22%, transparent 88%);
+      -webkit-mask-image: var(--mm-fade-art);
+      mask-image: var(--mm-fade-art);
     }
     .gbox::after {
       content: '';
@@ -213,7 +213,7 @@ export class MediaPlayerCard extends LitElement {
       inset-block-end: 6px;
       block-size: 3px;
       border-radius: var(--sw-r-pill);
-      background: rgba(255, 255, 255, 0.25);
+      background: var(--mm-on-art-track);
       z-index: 3;
       overflow: hidden;
     }
@@ -235,7 +235,7 @@ export class MediaPlayerCard extends LitElement {
       font-size: var(--sw-fs-2xs);
       font-weight: 700;
       color: var(--sw-on-video);
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      text-shadow: 0 1px 4px color-mix(in srgb, var(--sw-video-shadow-ink) 40%, transparent);
     }
     .cov .live i {
       inline-size: 6px;
@@ -255,7 +255,7 @@ export class MediaPlayerCard extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.32);
+      background: var(--mm-on-art-pending);
       z-index: 4;
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
       backdrop-filter: var(--sw-perf-blur, blur(3px));
@@ -264,7 +264,7 @@ export class MediaPlayerCard extends LitElement {
       inline-size: 26px;
       block-size: 26px;
       border-radius: 50%;
-      border: 3px solid rgba(255, 255, 255, 0.35);
+      border: 3px solid var(--mm-on-art-spinner);
       border-top-color: var(--sw-on-video);
       animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
@@ -572,11 +572,15 @@ export class MediaPlayerCard extends LitElement {
       background: var(--sw-video-scrim-strong);
       color: var(--sw-on-video);
     }
+    /* COLOR-LITERAL-A-2480: the Bubble skin's quiet well under the player keys and pills, written once (the same literal) */
+    :host([data-skin='bubble']) {
+      --mpc-well: rgba(0, 0, 0, 0.1);
+    }
     :host([data-skin='bubble']) .pk.idle,
     :host([data-skin='bubble']) .pw,
     :host([data-skin='bubble']) .rb,
     :host([data-skin='bubble']) .vb {
-      background: rgba(0, 0, 0, 0.1);
+      background: var(--mpc-well);
       color: inherit;
     }
     :host([data-skin='bubble']) .pw.on {
@@ -600,7 +604,7 @@ export class MediaPlayerCard extends LitElement {
       min-block-size: var(--sw-touch-desktop);
       border: 0;
       border-radius: var(--sw-r-pill);
-      background: rgba(0, 0, 0, 0.1);
+      background: var(--mpc-well);
       color: inherit;
       box-shadow: none;
       padding-inline: 12px;
@@ -617,7 +621,7 @@ export class MediaPlayerCard extends LitElement {
     :host([data-skin='bubble']) .vmorph sw-pill {
       flex: 1 1 120px;
       min-inline-size: 0;
-      --pill-base: rgba(0, 0, 0, 0.1);
+      --pill-base: var(--mpc-well);
       --sw-pill-h: 44px;
     }
     :host([data-skin='bubble']) .pcard.morph .cov {

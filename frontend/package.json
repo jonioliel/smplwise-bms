@@ -18,6 +18,7 @@
     "report:budget": "node scripts/bundle-budget.mjs",
     "report:api-client": "node scripts/api-client-check.mjs",
     "report:unused-exports": "node scripts/unused-exports.mjs",
+    "report:a11y": "node scripts/a11y-report.mjs --run",
     "report:gates": "npm run report:budget && npm run report:api-client && npm run report:unused-exports",
     "gate:budget": "node scripts/bundle-budget.mjs --dir dist --enforce",
     "gate:unused-exports": "node scripts/unused-exports.mjs --enforce",
@@ -25,6 +26,7 @@
     "shots": "playwright test -c playwright.config.ts",
     "visual": "node scripts/visual.mjs",
     "visual:test": "node --test scripts/visual.test.mjs",
+    "a11y:test": "node --test scripts/a11y-report.test.mjs",
     "sourcemaps:test": "node --test scripts/sourcemaps-archive.test.mjs"
   },
   "dependencies": {
@@ -36,6 +38,7 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
     "@types/three": "^0.186.0",
+    "axe-core": "4.14.0",
     "eslint": "10.13.0",
     "eslint-plugin-lit": "2.3.1",
     "gltf-validator": "2.0.0-dev.3.10",

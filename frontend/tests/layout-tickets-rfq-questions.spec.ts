@@ -73,7 +73,7 @@ test.describe('RFQ questions layout (RFQQUESTIONS)', () => {
     await dlg.locator('[data-rfq-answer-text]').fill('כן, אפשר לתאם.');
     await dlg.locator('[data-rfq-answer-scope="all"] input').check();
     await expect(dlg.locator('[data-rfq-answer-shown]')).toBeVisible();
-    await expect(dlg.locator('[data-rfq-answer-named]')).not.toBeChecked();
+    await expect(dlg.locator('[data-rfq-answer-named]')).not.toHaveAttribute('checked');
     await page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-answer-preview]`).click();
     const confirm = page.locator(`${S} tickets-rfq-board tickets-rfq-question-dialog [data-rfq-question-dialog="confirm"]`);
     await expect(confirm.locator('[data-rfq-answer-to]').first()).toBeVisible();

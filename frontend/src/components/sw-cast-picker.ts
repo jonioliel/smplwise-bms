@@ -153,6 +153,8 @@ export class SwCastPicker extends LitElement {
       --sw-seg-fw: var(--sw-fw-regular);
       --sw-seg-on-fw: var(--sw-fw-regular);
       --sw-seg-on-fg: var(--sw-seg-key-ink, light-dark(var(--sw-accent, var(--sw-text)), var(--sw-accent-text)));
+      /* CR-SEG-MODULE-LOOK-2470: the sw-segmented default is the module look now; this key keeps the old default values it used */
+      --sw-seg-on-bg: var(--sw-seg-key, var(--sw-surface));
     }
     .body {
       overflow: auto;

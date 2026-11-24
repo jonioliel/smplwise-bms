@@ -97,10 +97,11 @@ test.describe('TKUI1 drawer layout', () => {
     }
   });
 
-  test('five skins x light / dark: one scroller, no overflow, the block and the tabs fixed above the scroller', async ({ page }, info) => {
-    test.skip(info.project.name === 'tablet', 'desktop and phone');
-    for (const skin of SKINS)
-      for (const scheme of ['light', 'dark'] as const) {
+  // FLAKY-SWEEP-2480: one test per skin and scheme (ten page loads shared one 60 s budget: a timeout on desktop in the 2.46.0 gate)
+  for (const skin of SKINS)
+    for (const scheme of ['light', 'dark'] as const)
+      test(`five skins x light / dark: one scroller, no overflow, the block and the tabs fixed above the scroller [${skin} ${scheme}]`, async ({ page }, info) => {
+        test.skip(info.project.name === 'tablet', 'desktop and phone');
         await open(page, `/tickets/all?t=${ID}`, skin, scheme);
         const s = await scrollers(page);
         expect(s, `${skin}/${scheme}`).toEqual(['div.body']);
@@ -111,8 +112,7 @@ test.describe('TKUI1 drawer layout', () => {
         expect(after?.y, `${skin}/${scheme}: the status block is fixed`).toBe(before?.y);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, `${skin}/${scheme}: horizontal overflow`).toBeLessThanOrEqual(1);
-      }
-  });
+      });
 
   test('keyboard and screen reader: tab list, arrows, badge in the name, one live sentence, the menu, 44 px on the phone', async ({ page }) => {
     await open(page, `/tickets/all?t=${ID}`);

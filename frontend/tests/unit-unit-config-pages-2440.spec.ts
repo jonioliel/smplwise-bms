@@ -20,6 +20,12 @@ test('an address relative to the baseURL is a page spec, as an absolute app addr
   expect(PAGE_SPEC.test('const HOME = ' + q + '/?design=a#/home' + q + ';')).toBe(true);
 });
 
+test('the gotoApp helper with an app address is a page spec (TRIAL-2480, after FLAKY-SWEEP-2480)', () => {
+  expect(PAGE_SPEC.test('await gotoApp(page, ' + q + '/?design=a#/system/diagnostics?tab=devices' + q + ');')).toBe(true);
+  expect(PAGE_SPEC.test('await gotoApp(page, ' + q + './#/devices' + q + ');')).toBe(true);
+  expect(PAGE_SPEC.test(fs.readFileSync(path.join(testsDir, 'unit-device-types-admin-ui.spec.ts'), 'utf8'))).toBe(true);
+});
+
 test('an own origin, a data URL or plain text is not a page spec', () => {
   expect(PAGE_SPEC.test('await page.goto(`${ORIGIN}/arx/`);')).toBe(false);
   expect(PAGE_SPEC.test(goto('about:blank'))).toBe(false);

@@ -133,16 +133,19 @@ export class SwTabs extends LitElement {
       display: none;
     }
     :host([data-fade='left']) .vp {
-      -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade));
-      mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade));
+      --_mask: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade));
+      -webkit-mask-image: var(--_mask);
+      mask-image: var(--_mask);
     }
     :host([data-fade='right']) .vp {
-      -webkit-mask-image: linear-gradient(to left, transparent 0, transparent 8px, #000 var(--_fade));
-      mask-image: linear-gradient(to left, transparent 0, transparent 8px, #000 var(--_fade));
+      --_mask: linear-gradient(to left, transparent 0, transparent 8px, #000 var(--_fade));
+      -webkit-mask-image: var(--_mask);
+      mask-image: var(--_mask);
     }
     :host([data-fade='both']) .vp {
-      -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
-      mask-image: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
+      --_mask: linear-gradient(to right, transparent 0, transparent 8px, #000 var(--_fade), #000 calc(100% - var(--_fade)), transparent calc(100% - 8px), transparent 100%);
+      -webkit-mask-image: var(--_mask);
+      mask-image: var(--_mask);
     }
     /* the scroll arrows: one per reading side, drawn only while that side hides tabs (data-more). A mouse affordance - the keyboard
        walks the tabs with the arrow keys and a finger swipes - so they are hidden from assistive technology and take no focus. */

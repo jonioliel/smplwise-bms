@@ -71,17 +71,109 @@ def _apply_rows(pw, iid: str) -> dict[str, dict]:
     return {f"{r['station_id']}:{r['relay']}": r for r in pw.rows("SELECT * FROM door_emergency_doors WHERE incident_id = ? AND phase = 'apply'", iid)}
 
 
+class DeadlineClock:
+    """TIMING-LANE-2480: the clock of door_emergency's deadlines, moved only by the test. `call_with_deadline` waits `done.wait(deadline_s)`
+    and the dispatcher `futures_wait(timeout=deadline_s + DISPATCH_GRACE_S)`; patched here (door_emergency's own `threading.Event`, its
+    `futures_wait` and the call budget's clock - no product constant), those waits end when the event is set / every future is done, or
+    when `advance` moves this clock past their timeout - never because a loaded machine ran slowly. Every wait carries HANG_GUARD_S of
+    real time only to fail a broken test instead of hanging it.
+
+    Counters for the test: `answered` - timed waits that ended because the call answered; `waiting` - timed waits in progress;
+    `late` - events set after their wait had already timed out (a hung call answering after its deadline)."""
+
+    HANG_GUARD_S = 60.0
+
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.cond = threading.Condition()
+        self.answered = self.waiting = self.late = 0
+
+    def advance(self, seconds: float) -> None:
+        with self.cond:
+            self.now += seconds
+            self.cond.notify_all()
+
+    def _block(self, ready, timeout: float | None) -> bool:  # under self.cond
+        end = None if timeout is None else self.now + timeout
+        guard = time.monotonic() + self.HANG_GUARD_S
+        while not ready() and (end is None or self.now < end):
+            if time.monotonic() > guard:
+                raise AssertionError("a door-emergency wait hung (test guard)")
+            self.cond.wait(1.0)
+        return bool(ready())
+
+    def wait_for(self, pred, what: str) -> None:
+        with self.cond:
+            if not self._block(pred, None):
+                raise AssertionError(what)
+
+    def event_class(self):
+        clock = self
+
+        class Event:
+            def __init__(self) -> None:
+                self._flag = self._expired = False
+
+            def is_set(self) -> bool:
+                return self._flag
+
+            def set(self) -> None:
+                with clock.cond:
+                    self._flag = True
+                    clock.late += self._expired
+                    clock.cond.notify_all()
+
+            def wait(self, timeout: float | None = None) -> bool:
+                with clock.cond:
+                    timed = timeout is not None
+                    clock.waiting += timed
+                    try:
+                        ok = clock._block(lambda: self._flag, timeout)
+                    finally:
+                        clock.waiting -= timed
+                    if timed:
+                        clock.answered += ok
+                        self._expired = not ok
+                    return ok
+
+        return Event
+
+    def futures_wait(self, fs, timeout: float | None = None, return_when=None):
+        from concurrent.futures import wait as real_wait
+
+        fs = list(fs)
+        for f in fs:
+            f.add_done_callback(lambda _f: self.advance(0))  # wakes the wait below, moves nothing
+        with self.cond:
+            self._block(lambda: all(f.done() for f in fs), timeout)
+        return real_wait(fs, timeout=0)
+
+    def install(self, monkeypatch) -> None:
+        import types
+
+        from smplwise.services import wiskey_call_budget as budget
+
+        shim = types.SimpleNamespace(**{k: getattr(threading, k) for k in dir(threading) if not k.startswith("__")})
+        shim.Event = self.event_class()
+        monkeypatch.setattr(de, "threading", shim)  # door_emergency's own name only; `threading` itself is untouched
+        monkeypatch.setattr(de, "futures_wait", self.futures_wait)
+        monkeypatch.setattr(budget, "_clock", lambda: self.now)
+
+
 def test_four_hung_doors_do_not_hold_back_the_other_four(em, monkeypatch):
+    """Four doors hang, four answer: the four answer while the hung four still wait for their deadline (each hung door on a worker of
+    its own, nothing sent behind one), the hung four end UNKNOWN `deadline` once it passes, the retry path is not stuck behind them, and
+    their late answers change nothing. TIMING-LANE-2480: clock-free - the deadline is DeadlineClock's, moved by the test only once the
+    four answering doors have answered (the 0.5 s of wall clock of before, and the elapsed bound, failed on the loaded gate runner)."""
     pw, gate = em
     monkeypatch.setattr(de, "DISPATCH_INLINE", False)
     monkeypatch.setattr(de, "ENGINE_DEADLINE_S", 0.5)
+    clock = DeadlineClock()
+    clock.install(monkeypatch)
     keys = [d.key for d in pw.doors]
     engine = Hanging(set(keys[:4]), gate)
     monkeypatch.setattr(dwe, "EMERGENCY_ENGINE_FACTORY", lambda s: engine)
-    # GATE2360-B: which dispatcher worker claimed (and then sent) each door. "Behind the hung four" means a worker that sent a hung
-    # door - blocked in it until the 0.5 s per-call deadline - sent one of doors 5-8 afterwards. The earlier wall-clock check (all
-    # first calls within 0.5 s) measured the same thing indirectly and failed on the loaded gate machine, where the eight claim
-    # writes before the sends alone spread over 1.3 s with every door on its own worker.
+    # GATE2360-B: which dispatcher worker claimed (and then sent) each door, in claim order
     workers: list[tuple[str, str]] = []
     real_claim = de._claim  # noqa: SLF001
 
@@ -90,18 +182,21 @@ def test_four_hung_doors_do_not_hold_back_the_other_four(em, monkeypatch):
         return real_claim(db, incident_id, phase, station_id, relay)
 
     monkeypatch.setattr(de, "_claim", claim)
-    started = time.monotonic()
     iid = pw.press().json()["incident"]["id"]
-    inc = _wait_settled(pw, iid)
-    elapsed = time.monotonic() - started
-    first_calls = {k: t for _, k, t in engine.calls}
-    assert set(first_calls) == set(keys), "all eight doors were sent"
+    # doors 5-8 answer while the hung four are still in flight: no deadline has passed, so nothing of theirs waited behind a hung call
+    clock.wait_for(lambda: clock.answered == 4 and clock.waiting == 4, "the four answering doors did not answer while the hung four were in flight")
+    assert {k for _, k, _ in engine.calls} == set(keys), "all eight doors were sent"
+    assert pw.get(f"/doors/emergency/incidents/{iid}").json()["incident"]["state"] == "applying", "the hung four hold the incident until their deadline"
     hung_workers = {t for k, t in workers if k in keys[:4]}
-    assert len(hung_workers) == 4 and not [k for k, t in workers if k in keys[4:] and t in hung_workers],         "doors 5-8 went out at once, not behind the hung four"
+    assert len(hung_workers) == 4, "every hung door on a worker of its own"
+    behind = [k for i, (k, t) in enumerate(workers) if k in keys[4:] and any(t2 == t and k2 in keys[:4] for k2, t2 in workers[:i])]
+    assert not behind, f"doors sent behind a hung door on the same worker: {behind}"
+    clock.advance(de.ENGINE_DEADLINE_S)  # the per-call deadline passes; nothing else moves (the dispatcher's grace never runs out)
+    inc = _wait_settled(pw, iid)
     rows = _apply_rows(pw, iid)
     assert all((rows[k]["state"], rows[k]["code"]) == ("unknown", "deadline") for k in keys[:4])
     assert all(rows[k]["state"] == "acknowledged" for k in keys[4:])
-    assert inc["state"] == "in_effect_partial" and elapsed < 0.5 + de.DISPATCH_GRACE_S + 2
+    assert inc["state"] == "in_effect_partial", "settled at the per-call deadline, without waiting out the dispatcher's grace"
 
     # the retry path gets its own executor: it is not stuck behind the four calls that still hang
     pw.t[0] = pw.now() + dt.timedelta(seconds=de.RETRY_GAP_S + 1)
@@ -112,7 +207,7 @@ def test_four_hung_doors_do_not_hold_back_the_other_four(em, monkeypatch):
     # the hung calls finally answer: their late answers are discarded, nothing changes
     n = len(engine.calls)
     gate.set()
-    time.sleep(0.2)
+    clock.wait_for(lambda: clock.late == 4, "the four hung calls never ended")
     assert len(engine.calls) == n and all(r["state"] == "acknowledged" for r in _apply_rows(pw, iid).values())
 
 

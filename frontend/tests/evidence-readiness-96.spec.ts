@@ -44,7 +44,8 @@ test.describe('readiness screen', () => {
   for (const scheme of ['light', 'dark'] as const) {
     for (const s of SIZES) {
       test(`the page never scrolls (${s.w}x${s.h}, ${scheme}) even with many checks`, async ({ page }, info) => {
-        test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
+        // (worded without the gate's single-project header marker: in the first 70 lines it would limit the WHOLE file to desktop)
+        test.skip(info.project.name !== 'desktop', 'the desktop project alone runs the whole sweep');
         await page.setViewportSize({ width: s.w, height: s.h });
         await installReadinessMock(page, { extraChecks: 20 });
         await open(page, scheme);
@@ -94,6 +95,10 @@ test.describe('readiness screen', () => {
     const mock = await installReadinessMock(page);
     await open(page);
     const root = page.locator('system-readiness');
+    // below 900 px the screen shows one pane at a time (READY96 9af400591): the hand-over card lives in the third pane
+    await expect(root.locator('[data-readiness]')).toBeVisible();
+    const panes = root.locator('[data-panes]');
+    if (await panes.isVisible()) await panes.getByRole('tab', { name: 'מסירה והיסטוריה' }).click();
     await expect(root.locator('[data-below-advice]')).toBeVisible();
     const btn = root.locator('[data-handover-btn]');
     await expect(btn).toBeEnabled();

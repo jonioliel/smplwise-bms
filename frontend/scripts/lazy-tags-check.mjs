@@ -131,6 +131,19 @@ const NOT_IN_ENTRY = [
   'screens/mapping-assistant.ts', // the assistant and its slices (system-mapping loads them when it is first opened)
   'screens/mapping-decide.ts',
   'screens/mapping-rules.ts',
+  // PERF-2490: the heaviest on-demand parts the entry chunk still carried (docs/changes/PERF-2490.md)
+  'components/media-remote.ts', // the home media widget's drawer (home-widgets loads it once the widget has a device to open)
+  'components/media-player-panel.ts',
+  'components/device-activity.ts', // the device popup (shell/lazy-overlays.ts, first OPEN_EVENT or the idle warm-up)
+  'maintenance/close-prompt.ts', // the plan-closing prompt (shell/lazy-overlays.ts, first sw:ticket-closed)
+  'components/sw-passkeys.ts', // the user menu's second factor section (with sw-second-factor)
+  'shell/sw-home-personal.ts', // the user menu's "המסך שלי" section
+  'screens/system-cast.ts', // #/multimedia/cast (lazy-screens.ts) and the multimedia settings
+  'screens/schedule-create-dialog.ts', // the schedules screens import their own dialogs
+  'screens/schedule-lowering-dialog.ts',
+  'screens/schedules-week-view.ts',
+  'pwa/notifications-settings.ts', // #/system/notifications only (system-notifications imports it)
+  'api/automations.ts', // the launcher runs a scene / script through import() (api/launcher.ts runLaunch)
 ];
 for (const m of NOT_IN_ENTRY) {
   const f = path.join(ROOT, ...m.split('/'));
@@ -142,8 +155,10 @@ for (const f of eager) {
   for (const tag of uses.get(f) ?? []) {
     if (!defines.has(tag)) continue; // a tag defined nowhere in src (third party, a demo string): not this check's business
     if (!definedIn(tag, eager)) {
-      // allowed when this very module triggers the defining chunk itself (the sw-app route loader, a `void import()` beside the tag)
-      const own = [...(lazyEdges.get(f) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag))) || (routeRenderers.has(f) && routeMap.has(tag));
+      // allowed when this very module triggers the defining chunk itself (the sw-app route loader, a `void import()` beside the tag) -
+      // or a helper it imports directly does it for it (PERF-2490: sw-app's overlays, shell/lazy-overlays.ts). One hop only, as below.
+      const starters = [f, ...(eagerEdges.get(f) ?? [])];
+      const own = starters.some((x) => [...(lazyEdges.get(x) ?? [])].some((r) => groups.get(r)?.has(defines.get(tag)))) || (routeRenderers.has(f) && routeMap.has(tag));
       if (!own) findings.push(`eager ${rel(f)} uses <${tag}> defined lazily in ${rel(defines.get(tag))}`);
     }
   }

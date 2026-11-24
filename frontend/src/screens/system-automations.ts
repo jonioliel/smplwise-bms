@@ -29,6 +29,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/system-a';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
+import '../components/sw-field';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -486,9 +487,9 @@ export class SystemAutomations extends LitElement {
       ${d.device_test_enabled ? html`
         ${this.row(tr('בדיקה על ההתקן: בסיום'), tr('מה קורה להתקנים שהופעלו בבדיקה'), seg('device_test_end', d.device_test_end, [['ask', tr('לשאול')], ['restore', tr('להחזיר')], ['keep', tr('להשאיר')]], (v) => this.set({ device_test_end: v })))}
         ${this.row(tr('בדיקה על ההתקן לפעולה רגישה'), tr('כמו היום: לפי הרשאת הפעלה ידנית'), html`<span class="tag" data-device-test-sensitive><sw-icon name="lock" size=${12}></sw-icon>${tr('לפי הרשאה')}</span>`)}` : nothing}
-      ${this.row(tr('"מי במבנה" באוטומציות'), tr('החיישן שמדווח אם יש מישהו במבנה'), html`<select class="sel" aria-label=${tr('מי במבנה')} data-presence-entity @change=${(e: Event) => this.set({ presence_entity: (e.target as HTMLSelectElement).value })}>
+      ${this.row(tr('"מי במבנה" באוטומציות'), tr('החיישן שמדווח אם יש מישהו במבנה'), html`<sw-field><select class="sel" aria-label=${tr('מי במבנה')} data-presence-entity @change=${(e: Event) => this.set({ presence_entity: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!d.presence_entity}>${tr('כבוי')}</option>
-        ${this.presenceCandidates().map((id) => html`<option value=${id} ?selected=${id === d.presence_entity}>${id}</option>`)}</select>`)}
+        ${this.presenceCandidates().map((id) => html`<option value=${id} ?selected=${id === d.presence_entity}>${id}</option>`)}</select></sw-field>`)}
     </sw-card>`;
   }
 

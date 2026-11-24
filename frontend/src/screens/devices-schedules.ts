@@ -15,6 +15,10 @@ import { PAGE_SIZE_DEFAULT, clampPage, fittedPageSize, loadScreenDisplay, measur
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { pl } from '../i18n/polish';
 import './schedule-drawer';
+// PERF-2490: the dialogs and the week view this screen renders are its own imports now (they left the shell's entry chunk)
+import './schedule-lowering-dialog';
+import './schedule-create-dialog';
+import './schedules-week-view';
 import type { ScheduleActions } from './schedule-drawer';
 import type { DropdownItem } from '../components/sw-dropdown';
 import { aIcon, type AutomationIconName } from '../components/automation-icons';

@@ -132,7 +132,8 @@ def test_booking_preview(cc):
     booked = ok(cc.post(f"{API}/calendar/events", json=body), 201)
     taken = ok(cc.post(f"{API}/calendar/events/preview", json=body))
     assert [c["event_id"] for c in taken["conflicts"]] == [booked["event"]["id"]]
-    assert set(taken["conflicts"][0]) == {"event_id", "calendar_id", "start", "end", "state"}
+    assert set(taken["conflicts"][0]) == {"event_id", "calendar_id", "start", "end", "state", "title"}  # RESPONSE-HINTS-2480: + title (additive)
+    assert taken["conflicts"][0]["title"] == "פגישה"  # the caller (the administrator) may read it
     assert all(set(s) == {"start", "end"} for s in taken["suggestions"])
     # a person who may not book in the calendar is refused (the audited 403); preview writes nothing
     bind(cc, cc.settings_obj, "vic", "viewer", "installation", "*")

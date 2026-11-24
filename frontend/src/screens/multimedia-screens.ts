@@ -7,6 +7,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/media-screen-card';
+import '../components/media-remote'; // PERF-2490: rendered by tag here, its own import now (it left the entry chunk with the home widgets)
 import '../components/media-bulk-dialog';
 import '../components/sw-pager';
 import '../components/sw-page';
@@ -150,8 +151,8 @@ export class MultimediaScreens extends MediaCardsScreenBase<MediaStatus, MediaDe
       padding: 6px 18px;
       /* the first chip lines up with the title above: the fade's room hangs outside the text edge */
       margin-inline-start: -18px;
-      -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
-      mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+      -webkit-mask-image: var(--mm-fade-row);
+      mask-image: var(--mm-fade-row);
       user-select: none;
       touch-action: pan-x;
     }

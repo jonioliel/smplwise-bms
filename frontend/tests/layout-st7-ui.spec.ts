@@ -7,7 +7,8 @@ import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 // x light / dark x widths 320..1440, over the mocked backend (tests/st7-ui-mocks.ts): the realistic-3D settings card (both targets)
 // and, from 768 px (the plan editor is desktop-only), the editor's material field (wall, object, room), the north card and the
 // walk positions card. FAILS on escape / overflow / floating / clipped / target. Every new control is sized by the desktop touch
-// dial (--sw-touch-desktop, 44 px), so no target finding is filtered here, unlike the older settings screens.
+// dial (--sw-touch-desktop, 44 px), so no target finding is filtered here, unlike the older settings screens - except the sw-segmented
+// dials (TARGET_SKIP below: the owner's 28 px module key on a desktop).
 //   npm run build && npx playwright test tests/layout-st7-ui.spec.ts --project=desktop --workers=1     (LAYOUT_QUICK=1: 320/768/1440)
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 768, 1440] : [320, 390, 768, 1024, 1280, 1440];
@@ -18,6 +19,10 @@ const ED = 'explore-plan-editor';
 // the shell's own rows and the host screens' chrome are measured by their own specs
 const SKIP = '.vh, nav.sections, nav.sectabs, .subnav, .tabpair, sw-tabs, header sw-button, sw-plan-canvas, .rail, .bar, .legend, .levelbar, .floorchip';
 const BUBBLE = '.row, .seg, .range, .swatch, .matreset, .walkrow, .northrow, .matf, .site';
+// RELEASE-2480-TRAIN: the settings card's dials are sw-segmented in the module look (SEG-MODULE-LOOK-2480, owner Q5 / Q6 22.11): a 28 px
+// key on a desktop, 44 px under a finger (the card's pointer: coarse rule). The keys are exempt from the target rule only (they are still
+// measured for escape / overflow / clipped / floating); the component's own contract is in unit-sw-segmented / pixel-sw-segmented.
+const TARGET_SKIP = 'sw-segmented';
 
 function report(name: string, runs: number, results: Finding[], errors: string[]) {
   const { byCls, lines } = summarize(results);
@@ -41,7 +46,7 @@ async function sweep(page: Page, results: Finding[], widths: number[], ctx: stri
     await page.setViewportSize({ width: w, height: height(w) });
     await settle(page);
     runs++;
-    results.push(...(await page.evaluate(inPageCheck, { ctx: `${ctx} ${w}`, bubble: BUBBLE, skip: SKIP, within })));
+    results.push(...(await page.evaluate(inPageCheck, { ctx: `${ctx} ${w}`, bubble: BUBBLE, skip: SKIP, targetSkip: TARGET_SKIP, within })));
   }
   return runs;
 }

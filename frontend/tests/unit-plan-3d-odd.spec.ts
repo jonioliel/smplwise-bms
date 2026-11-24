@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { buildScene, type SceneDescription } from '../src/map/scene-builder';
 import { houseInput, houseLabels } from './lookdev/house';
+import { realisticDescription } from './helpers/plan-3d-wait';
 
 /*
  * Plan Studio 6, the five oddities the 2.4.10 integrator saw in the level-3 pictures (docs/release/2.4.10-INTEGRATION-NOTES.md,
@@ -59,7 +60,7 @@ async function showHouse(el: Locator, rung: 'lite' | 'realistic', level: string 
   const desc = buildScene(houseInput({ level, walk, realistic: true }));
   await el.locator(rung === 'lite' ? '[data-quality-3-lite]' : '[data-quality-3]').click();
   await expect(el).toHaveAttribute('data-rung', rung);
-  await expect.poll(() => el.evaluate((n) => !!(n as unknown as Probe).description?.real), { timeout: 30000 }).toBe(true);
+  await realisticDescription(el); // FLAKY-SWEEP-2480: waited for inside the page (helpers/plan-3d-wait.ts), no Node-side poll budget
   await el.evaluate((n, a) => {
     const e = n as unknown as Probe;
     e.walkable = true;

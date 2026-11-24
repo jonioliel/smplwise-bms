@@ -292,7 +292,10 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
         assert hop in st, st
 
 
-def _hold_write_lock(app, seconds: float):
+def _hold_write_lock(app, seconds: float | None):
+    """Hold SQLite's write lock for `seconds`, or (None) until the caller sets the returned `release` - event-driven: the lock is
+    held exactly as long as the scenario needs it, however slowly a loaded machine serves the request in between (HANG_GUARD_S only
+    frees a test that would otherwise hang)."""
     held = threading.Event()
     release = threading.Event()
 
@@ -300,7 +303,7 @@ def _hold_write_lock(app, seconds: float):
         with app.state.db.connection(label="lat1 holder") as conn:
             conn.execute("UPDATE settings SET value = value WHERE key = 'permission_revision'")
             held.set()
-            release.wait(seconds)
+            release.wait(HANG_GUARD_S if seconds is None else seconds)
 
     t = threading.Thread(target=holder, daemon=True)
     t.start()
@@ -309,6 +312,7 @@ def _hold_write_lock(app, seconds: float):
 
 
 HOLD_S = 1.5
+HANG_GUARD_S = 120.0  # a hang guard, never part of a scenario's timing
 
 
 def _dispatch_under_held_write_lock(lat_app, hold_s: float = HOLD_S):
@@ -370,11 +374,11 @@ def test_the_recorded_command_leaves_promptly_once_the_write_lock_is_free(lat_ap
 
 
 def test_a_command_whose_record_cannot_be_written_in_time_is_never_sent(lat_app):
-    """SEC246 L3: a write lock held past the record budget -> 503 busy (retryable), nothing reaches Home Assistant, no record."""
-    from smplwise.routers import ha as ha_router
-
+    """SEC246 L3: a write lock held past the record budget -> 503 busy (retryable), nothing reaches Home Assistant, no record.
+    TIMING-LANE-2480: the lock is held until the request has answered (it was PENDING_WAIT_S + 2 s of wall clock: on a loaded gate
+    runner the request reached its record wait late, the holder let go first, and the command was recorded and sent - a 202)."""
     app, c, fake = lat_app
-    t, release = _hold_write_lock(app, ha_router.PENDING_WAIT_S + 2.0)
+    t, release = _hold_write_lock(app, None)
     try:
         t0 = time.perf_counter()
         body = _body(0, "switch.turn_on")

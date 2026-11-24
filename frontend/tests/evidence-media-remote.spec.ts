@@ -453,8 +453,8 @@ test.describe('the remote editor ("עריכת השלט")', () => {
     await expect(R(page).locator('[data-mr-editor]')).toBeVisible();
     await shots(page, 'remote-editor-light');
     // hide "אחרונים", fold "ניגון", rename a source
-    await R(page).locator('[data-ed-section="recent"] [role="switch"]').click();
-    await R(page).locator('[data-ed-section="pbk"] input[type="checkbox"]').check();
+    await R(page).locator('[data-ed-section="recent"] sw-toggle:not([data-ed-fold]) [role="switch"]').click();
+    await R(page).locator('[data-ed-section="pbk"] sw-toggle[data-ed-fold]').click();
     const name = R(page).locator('[data-ed-item="HDMI1"] input[type="text"]');
     await name.fill('HDMI 1 · ממיר');
     await R(page).locator('[data-ed-save]').click();
@@ -467,7 +467,7 @@ test.describe('the remote editor ("עריכת השלט")', () => {
     await run();
     await expect(R(page).locator('[data-ed-reset]')).toBeVisible();
     await R(page).locator('[data-ed-scope="default"]').click();
-    await R(page).locator('[data-ed-section="nums"] [role="switch"]').click();
+    await R(page).locator('[data-ed-section="nums"] sw-toggle:not([data-ed-fold]) [role="switch"]').click();
     await R(page).locator('[data-ed-save]').click();
     await expect(R(page).locator('[data-mr-state="on"]')).toBeVisible();
     expect(await sent(page)).toEqual([]); // the editor never sends a command to a screen

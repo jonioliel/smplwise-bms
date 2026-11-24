@@ -30,6 +30,8 @@ export class ElecBillPaper extends LitElement {
 
   static styles = css`
     ${hostBlockStyles}
+    /* COLOR-LITERAL-B-2480: the print-paper inks this sheet repeats, one value in both schemes (the paper is white whatever the UI) */
+    :host { --bp-white: #fff; --bp-ink: #1d2433; --bp-ink-2: #5b6a85; --bp-rule: #e3e7ef; }
     .wrap {
       display: flex;
       justify-content: center;
@@ -44,8 +46,8 @@ export class ElecBillPaper extends LitElement {
     .paper {
       inline-size: 794px;
       min-block-size: 1123px;
-      background: #fff;
-      color: #1d2433;
+      background: var(--bp-white);
+      color: var(--bp-ink);
       box-shadow: 0 6px 30px rgba(0, 0, 0, 0.18);
       padding: 56px 52px 40px;
       font-family: 'Heebo', Arial, sans-serif;
@@ -69,10 +71,10 @@ export class ElecBillPaper extends LitElement {
     h1 {
       margin: 0;
       font-size: 22px;
-      color: #1d2433;
+      color: var(--bp-ink);
     }
     .sub {
-      color: #5b6a85;
+      color: var(--bp-ink-2);
       font-size: 12px;
     }
     .biz {
@@ -87,8 +89,8 @@ export class ElecBillPaper extends LitElement {
       inline-size: 64px;
       block-size: 64px;
       border-radius: 12px;
-      background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 60%, #fff));
-      color: #fff;
+      background: linear-gradient(135deg, var(--acc), color-mix(in srgb, var(--acc) 60%, var(--bp-white)));
+      color: var(--bp-white);
       display: grid;
       place-items: center;
       font-weight: 800;
@@ -100,7 +102,7 @@ export class ElecBillPaper extends LitElement {
       inline-size: 100%;
       block-size: 100%;
       object-fit: contain;
-      background: #fff;
+      background: var(--bp-white);
     }
     .two {
       display: grid;
@@ -118,7 +120,7 @@ export class ElecBillPaper extends LitElement {
       justify-content: space-between;
       align-items: center;
       margin-block-start: 18px;
-      background: color-mix(in srgb, var(--acc) 9%, #fff);
+      background: color-mix(in srgb, var(--acc) 9%, var(--bp-white));
       border-radius: 10px;
       padding: 14px 18px;
     }
@@ -135,10 +137,10 @@ export class ElecBillPaper extends LitElement {
       text-align: start;
       padding: 7px 9px;
       font-size: 12px;
-      color: #1d2433;
+      color: var(--bp-ink);
     }
     td {
-      border-block-end: 1px solid #e3e7ef;
+      border-block-end: 1px solid var(--bp-rule);
       padding: 7px 9px;
     }
     .n {
@@ -158,26 +160,26 @@ export class ElecBillPaper extends LitElement {
     .tot td {
       font-weight: 800;
       font-size: 16px;
-      border-block-start: 2px solid #1d2433;
+      border-block-start: 2px solid var(--bp-ink);
       border-block-end: 0;
     }
     .note {
       margin-block-start: 12px;
-      color: #5b6a85;
+      color: var(--bp-ink-2);
       font-size: 11.5px;
     }
     .note b {
-      color: #1d2433;
+      color: var(--bp-ink);
     }
     .sec {
       margin-block-start: 18px;
       font-weight: 700;
-      color: #1d2433;
+      color: var(--bp-ink);
     }
     .foot {
       margin-block-start: auto;
       padding-block-start: 8px;
-      border-block-start: 1px solid #e3e7ef;
+      border-block-start: 1px solid var(--bp-rule);
       display: flex;
       justify-content: space-between;
       color: #8a94a8;

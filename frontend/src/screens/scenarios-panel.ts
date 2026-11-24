@@ -1,6 +1,7 @@
 import { uiLocale } from '../i18n/locale';
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
@@ -514,7 +515,7 @@ export class ScenariosPanel extends LitElement {
       <div slot="footer" class="foot">
         ${manage && e.id ? html`<button type="button" class="btn" data-scen-delete @click=${() => (this.dialog = 'delete')}>${sct('delete')}</button>` : nothing}
         <span class="grow"></span>
-        ${manage ? html`<label class="hint"><input type="checkbox" .checked=${this.sim} @change=${(ev: Event) => (this.sim = (ev.target as HTMLInputElement).checked)} />${sct('simulate')}</label>
+        ${manage ? html`<label class="hint"><sw-toggle size="sm" labelHidden in-label label=${sct('simulate')} .checked=${this.sim} @change=${(ev: Event) => (this.sim = toggled(ev))}></sw-toggle>${sct('simulate')}</label>
           <button type="button" class="btn" data-scen-test ?disabled=${this.busy} @click=${() => void this.runDry()}>${sct('test')}</button>
           <button type="button" class="btn primary" data-scen-save ?disabled=${this.busy || !this.name.trim()} @click=${() => void this.save()}>${sct('save')}</button>
           ${e.id ? html`<button type="button" class="btn" data-scen-toggle ?disabled=${this.busy || (!e.enabled && this.dirty())} title=${!e.enabled && !e.tested_version ? sct('testFirst') : ''} @click=${() => void this.toggle(e, !e.enabled)}>${e.enabled ? sct('disable') : sct('enable')}</button>` : nothing}` : nothing}

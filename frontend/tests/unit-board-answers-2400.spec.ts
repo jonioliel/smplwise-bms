@@ -76,7 +76,7 @@ test('Q16: Hebrew and English text for every key, no platform words', () => {
 test('Q16 + Q17: the wiring - the checkbox sends <kind>_inverted, the screen passes the lists, the card is the administrator\'s', () => {
   const el = read('src/notices/info-sources.ts');
   expect(el).toContain('${canInvert(id) ? html`<label class="inv"');
-  expect(el).toContain('this.send({ [`${kind}_inverted`]: toggleInvert(list, inv, id, (e.target as HTMLInputElement).checked) })');
+  expect(el).toContain('this.send({ [`${kind}_inverted`]: toggleInvert(list, inv, id, toggled(e)) })');
   expect(el).toContain('data-info-source-invert');
   const screen = read('src/screens/system-notices.ts');
   expect(screen).toContain('.inverted=${{ parking: st.parking_inverted ?? [], gym: st.gym_inverted ?? [] }}');

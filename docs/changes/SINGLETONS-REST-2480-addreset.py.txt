@@ -1,0 +1,34 @@
+"""usage: addreset.py <tag> <spec.json>   spec: {relative module file: {"attrs": [...], "body": [lines], "register": optional existing fn name}}"""
+import ast, json, sys
+from pathlib import Path
+ROOT = Path("C:/cloude/smplwise-singrest/smplwise_vms/backend/smplwise")
+tag, spec = sys.argv[1], json.load(open(sys.argv[2]))
+for rel, s in spec.items():
+    p = ROOT / rel
+    src = p.read_text(encoding="utf-8")
+    assert "register_reset" not in src, rel
+    depth = rel.count("/")
+    dots = "." * (depth + 1)
+    lines = src.split("\n")
+    tree = ast.parse(src)
+    last = 0
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            last = node.end_lineno
+        elif isinstance(node, ast.Expr) and isinstance(getattr(node, "value", None), ast.Constant):
+            continue
+        else:
+            break
+    assert last, rel
+    lines.insert(last, f"from {dots}test_reset import register_reset")
+    out = "\n".join(lines).rstrip("\n") + "\n"
+    attrs = ", ".join(f'"{a}"' for a in s["attrs"]) + ("," if len(s["attrs"]) == 1 else "")
+    if s.get("register"):
+        fn = s["register"]
+    else:
+        fn = "_reset_for_tests"
+        out += "\n\ndef _reset_for_tests() -> None:\n    \"\"\"Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it).\"\"\"\n"
+        out += "".join(f"    {b}\n" for b in s["body"])
+    out += f"\n\nregister_reset(__name__, ({attrs}), {fn})  # {tag}: module-level tables (tests/test_singletons_registered.py)\n"
+    p.write_text(out, encoding="utf-8", newline="\n")
+    print("ok", rel)

@@ -23,6 +23,7 @@ import { unmappedDoorsNotice } from './lock-reason';
 import { can } from '../api/session';
 import { tr } from '../i18n/msg/system-a';
 import { errLineStyles } from '../styles/fragments';
+import '../components/sw-field';
 
 const cardCss = css`
   :host {
@@ -140,6 +141,10 @@ const cardCss = css`
     .ctl select {
       flex: 1 1 auto;
       max-inline-size: none;
+    }
+    /* NATIVE-SELECT-A-2480: the select sits in the shared field; the field takes the select's place in the line */
+    .ctl sw-field {
+      flex: 1 1 auto;
     }
   }
 `;
@@ -305,10 +310,10 @@ export class SwDoorSetup extends LitElement {
     return html`<div class="row" data-door-map=${lock.entity_id}>
       <div class="who"><span class="name">${lock.name}</span><sw-badge kind=${st.tone} label=${st.text}></sw-badge></div>
       <div class="ctl">
-        <select aria-label=${tr('ממסר עבור {name}', { name: lock.name })} @change=${(e: Event) => (this.picks = { ...this.picks, [lock.entity_id]: (e.target as HTMLSelectElement).value })}>
+        <sw-field><select aria-label=${tr('ממסר עבור {name}', { name: lock.name })} @change=${(e: Event) => (this.picks = { ...this.picks, [lock.entity_id]: (e.target as HTMLSelectElement).value })}>
           <option value="" ?selected=${!pick}>${tr('בחירת ממסר')}</option>
           ${options.map((o) => html`<option value=${o.value} ?selected=${o.value === pick}>${o.label}</option>`)}
-        </select>
+        </select></sw-field>
         <sw-button size="sm" variant="primary" data-door-map-save ?disabled=${this.busy || !target || (lock.mapping?.valid && pick === current)}
           @click=${() => target && this.run(() => setDoorMapping(lock.entity_id, target.station_id, target.relay))}>${tr('שמירה')}</sw-button>
         ${lock.mapping ? html`<sw-button size="sm" variant="ghost" data-door-map-clear ?disabled=${this.busy} @click=${() => this.run(() => clearDoorMapping(lock.entity_id))}>${tr('ביטול שיוך')}</sw-button>` : nothing}
@@ -350,9 +355,9 @@ export class SwDoorSetup extends LitElement {
         ${m.stations.length
           ? m.stations.map((s) => html`<div class="row" data-door-placement=${s.name}>
               <div class="who"><span class="name">${s.name}</span>${s.online ? nothing : html`<span class="sub">${tr('התחנה לא זמינה')}</span>`}</div>
-              <select aria-label=${tr('מיקום {name}', { name: s.name })} ?disabled=${this.busy} @change=${(e: Event) => this.run(() => placeStation(s.id, parsePlacement((e.target as HTMLSelectElement).value)))}>
+              <sw-field><select aria-label=${tr('מיקום {name}', { name: s.name })} ?disabled=${this.busy} @change=${(e: Event) => this.run(() => placeStation(s.id, parsePlacement((e.target as HTMLSelectElement).value)))}>
                 ${places.map((o) => html`<option value=${o.value} ?selected=${o.value === placementValue(s.placement)}>${o.label}</option>`)}
-              </select>
+              </select></sw-field>
             </div>`)
           : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין תחנות')} hint=${m.has_copy ? tr('WisKey לא מסר תחנות.') : tr('נתוני WisKey אינם זמינים כרגע.')}></sw-state-panel>`}
       </sw-card>

@@ -2,6 +2,7 @@ import { deepActive, holdsTab, pushLayer, removeLayer, takesEscape, trapTab } fr
 import { deepFocusables } from '../components/sw-drawer';
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -272,7 +273,7 @@ export class CalQuickCreate extends LitElement {
       <div class="qr"><sw-icon name="clock" size="16"></sw-icon><div class="qv"><span>${DAY_LONG[d.day.getDay()]} ${ddmm(d.day)}</span>
         <span class="tm ltr"><input type="time" lang=${dateInputLang()} step=${step} aria-label=${tr('שעת התחלה')} data-cal-qc="from" .value=${mm(d.s)} ?disabled=${d.allDay} @change=${(e: Event) => this.time('s', (e.target as HTMLInputElement).value)}><span>–</span>
           <input type="time" lang=${dateInputLang()} step=${step} aria-label=${tr('שעת סיום')} data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
-        <label class="ck"><input type="checkbox" data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay((e.target as HTMLInputElement).checked)}>${tr('כל היום')}</label></div></div>
+        <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${tr('כל היום')} data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay(toggled(e))}></sw-toggle>${tr('כל היום')}</label></div></div>
       <div class="qr"><sw-icon name="pin" size="16"></sw-icon><div class="qv"><span class="sel" style=${`--h:${colorVar(cal?.color)}`}><span class="dot"></span>
           <select aria-label=${tr('יומן')} data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>
           <sw-icon name="chevronDown" size="14"></sw-icon></span>${cal?.floor_name || (cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage') ? html`<span class="muted">${[cal?.floor_name, cal && cal.approval_mode !== 'none' && cal.my_role !== 'manage' ? tr('באישור') : ''].filter(Boolean).join(' · ')}</span>` : nothing}</div></div>

@@ -19,6 +19,7 @@ import { settingsPlainRowStyles, settingsPreviewColStyles, settingsPreviewButton
 import { okLineStyles } from '../styles/fragments';
 import { tr } from '../i18n/msg/system-b';
 import { ToastController } from '../components/toast-controller';
+import '../components/sw-field';
 
 const newCustomId = (): string => `custom-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
@@ -390,10 +391,10 @@ export class SystemPaletteEditor extends LitElement {
         <input type="text" data-palette-name maxlength="40" placeholder=${tr('שם הערכה')} aria-label=${tr('שם הערכה')} .value=${d.name.he} @input=${(e: Event) => (this.draft = { ...d, name: { ...d.name, he: (e.target as HTMLInputElement).value } })} />
         ${existing
           ? nothing
-          : html`<select data-palette-base aria-label=${tr('התחלה מערכה')} @change=${(e: Event) => this.rebase((e.target as HTMLSelectElement).value)}>
+          : html`<sw-field><select data-palette-base aria-label=${tr('התחלה מערכה')} @change=${(e: Event) => this.rebase((e.target as HTMLSelectElement).value)}>
               <option value="">${tr('התחל מ…')}</option>
               ${allPalettes().map((p) => html`<option value=${p.id}>${p.name.he}</option>`)}
-            </select>`}
+            </select></sw-field>`}
         <sw-segmented label=${tr('מצב תצוגה')} value=${this.scheme} @change=${(e: CustomEvent<SegmentedChange>) => (this.scheme = e.detail.value as 'light' | 'dark')}
           .options=${[{ value: 'light', label: tr('בהיר'), attrs: { 'data-palette-scheme': 'light' } }, { value: 'dark', label: tr('כהה'), attrs: { 'data-palette-scheme': 'dark' } }]}></sw-segmented>
       </div>

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url, SKINS, type TicketsMock, type TicketsMockOptions } from './tickets-mocks';
+import { appReady } from './helpers/app-ready';
 
 // TKUI1 (2.6.0) evidence: the v5 request drawer from the REAL build against the mock layer (fake data) - the status block, the one sentence,
 // the role-resolved primary, the four tabs, the three sizes and the phone sheets, the full page, the settings rows, the default tab and the
@@ -17,6 +18,7 @@ async function go(page: Page, hash: string, o: TicketsMockOptions = {}, scheme: 
   const mock = await installTicketsMock(page, o);
   await page.goto('about:blank');
   await page.goto(url(hash, skin, scheme));
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's own wait keeps its budget
   return mock;
 }
 

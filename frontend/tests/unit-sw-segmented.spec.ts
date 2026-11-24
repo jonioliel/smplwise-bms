@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segmentedFocusStep, segmentedTabStop } from '../src/components/segmented-logic';
+import { segmentedFocusStep, segmentedTabStop, segmentedWrapped } from '../src/components/segmented-logic';
 
 // CR-CMP2-SELECTS-2450 (owner N11, 19.11): the shared segmented control `sw-segmented` - its keyboard rule (node), its contract (the
 // source), and the screens that adopted it (no hand-built `.seg` group comes back there). The look is pinned by
@@ -67,22 +67,36 @@ test.describe('sw-segmented: the contract in the source', () => {
 
   test('accessible: a named group of toggle buttons (aria-pressed), the arrows move the focus', () => {
     expect(src).toMatch(/role=\$\{radio \? 'radiogroup' : 'group'\} aria-label=\$\{this\.label \|\| nothing\}/);
-    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked) and the aria-pressed the look reads
+    // CR-CMP2-SEGMENTED-B-2450: a radio group keeps its radios (role + aria-checked); A11Y-AUDIT-2490 (owner N51): a radio carries no
+    // aria-pressed beside aria-checked (axe aria-allowed-attr), a plain group's toggle keys keep aria-pressed
     expect(src).toMatch(/const on = o\.value === this\.value;/);
     expect(src).toMatch(/role=\$\{radio \? 'radio' : nothing\} aria-checked=\$\{radio \? String\(on\) : nothing\}/);
-    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{on \? 'true' : 'false'\}/);
+    expect(src).toMatch(/<button type="button" part=\$\{on \? 'key key-on' : 'key'\} class=\$\{cls \|\| nothing\} aria-pressed=\$\{radio \? nothing : on \? 'true' : 'false'\}/);
     expect(src).toMatch(/@keydown=\$\{this\.onKey\}/);
     expect(src).toMatch(/button:focus-visible \{\s*outline: var\(--sw-focus-w, 2px\) solid var\(--sw-focus\);/);
   });
 
-  test('the look is the settings key (POLISH4-WP1) and reads the --sw-seg-* knobs; the chosen key is the dark-safe light pill', () => {
+  test('the look is the module look (CR-SEG-MODULE-LOOK-2470) and reads the --sw-seg-* knobs; the chosen key is the dark-safe light pill', () => {
     const settings = read('styles/settings.ts');
     // the same knobs as styles/settings.ts settingsSegStyles, so a glass host that sets them draws the same through the shadow root
     for (const knob of ['--sw-seg-border', '--sw-seg-radius', '--sw-seg-track', '--sw-seg-pad', '--sw-seg-gap', '--sw-seg-btn-radius', '--sw-seg-h', '--sw-seg-divider', '--sw-seg-on-bg', '--sw-seg-on-fg', '--sw-seg-on-shadow']) {
       expect(src, knob).toContain(`var(${knob}`);
       expect(settings, knob).toContain(`var(${knob}`);
     }
-    expect(src).toMatch(/\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-accent-text\)\)\);/);
+    // CR-SEG-MODULE-LOOK-2470 (owner, 20.11): the default is the modules' common key - the chosen key on the solid surface in the text
+    // ink (the light pill in dark), a pill track with pill keys, 28 px keys with 12 px sides, 13 px labels, regular / semibold chosen
+    // the chosen key reads either marker (a radio's aria-checked, a toggle key's aria-pressed) - A11Y-AUDIT-2490
+    expect(src).toMatch(/\.seg button\[aria-checked='true'\],\s+\.seg button\[aria-pressed='true'\] \{[^}]*background: var\(--sw-seg-on-bg, var\(--sw-seg-key, var\(--sw-surface-solid\)\)\);[^}]*color: var\(--sw-seg-on-fg, var\(--sw-seg-key-ink, var\(--sw-text\)\)\);/);
+    expect(src).toMatch(/border-radius: var\(--sw-seg-radius, var\(--sw-r-pill\)\);/);
+    expect(src).toMatch(/border-radius: var\(--sw-seg-btn-radius, var\(--sw-r-pill\)\);/);
+    expect(src).toMatch(/min-block-size: var\(--sw-seg-h, 28px\);\s*padding: 0 var\(--sw-seg-key-pad, 12px\);/);
+    expect(src).toMatch(/font-size: var\(--sw-seg-fs, var\(--sw-fs-sm\)\);\s*font-weight: var\(--sw-seg-fw, var\(--sw-fw-regular\)\);/);
+    // the chosen key is semibold unless the host set a weight for the keys (then it keeps that weight, as before)
+    expect(src).toMatch(/font-weight: var\(--sw-seg-on-fw, var\(--sw-seg-fw, var\(--sw-fw-semibold\)\)\);/);
+    // a phone (coarse pointer): the default key is 44 px tall; a compact key stays 28 px with the 44 px target around it
+    expect(src).toMatch(/:host\(:not\(\[size='sm'\]\)\) button \{\s*min-block-size: var\(--sw-seg-h, 44px\);/);
+    // the settings key of 2.45.0 is gone from the defaults
+    expect(src).not.toMatch(/var\(--sw-seg-h, 34px\)|var\(--sw-seg-key-pad, 14px\)|var\(--sw-seg-radius, var\(--sw-r-md\)\)/);
     // tokens only: no colour literal
     expect(src.split('static styles')[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
   });
@@ -106,7 +120,8 @@ test.describe('sw-segmented: the contract in the source', () => {
   });
 
   test('touch and motion: a 44 px tall target on a coarse pointer, hover only under a hovering pointer, no motion when reduced', () => {
-    expect(src).toMatch(/@media \(max-width: 767px\) and \(pointer: coarse\) \{\s*button::before \{/);
+    // CR-SEG-MODULE-LOOK-2470: the default key grows to 44 px there first, then the target rule
+    expect(src).toMatch(/@media \(max-width: 767px\) and \(pointer: coarse\) \{\s*:host\(:not\(\[size='sm'\]\)\) button \{[^}]*\}\s*button::before \{/);
     expect(src).toMatch(/- 44px\) \/ 2\)\)/);
     expect(src).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*button:hover/);
     expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
@@ -287,7 +302,8 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     expect(styles).not.toMatch(/#[0-9a-f]{3,8}|rgba?\(/i);
     expect(src).toMatch(/background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
     expect(src).toMatch(/color: var\(--sw-chipc-on-fg, var\(--sw-text-inverse\)\);/);
-    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*min-block-size: max\(44px,/);
+    // CMP2-POLISH-2480: 44 px unless the host keeps its own height (--sw-chipc-touch-h); the hit area is 44 px either way (see below)
+    expect(src).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\),/);
     expect(src).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*button \{\s*transition-duration: 0ms;/);
     expect(src).toMatch(/\.row \{[^}]*flex-wrap: wrap;/);
   });
@@ -303,6 +319,7 @@ test.describe('sw-chip-choice: the contract in the source and its adopters', () 
     // home panel's summary tiles are a `multi` row
     'screens/investigate-events.ts',
     'shell/sw-home-personal.ts',
+    // (CMP2-POLISH-2480, owner N47: the generator routing drawers' recipient / channel choosers stay checkbox boxes - not adopted)
   ];
   test('adoption: these screens draw their single-choice chip rows with sw-chip-choice (no hand-built `.seg` row comes back)', () => {
     const bad: string[] = [];
@@ -327,4 +344,67 @@ test('sw-tabs: an item keeps its data-* hooks on its tab, a warning dot can be n
   expect(sync).toMatch(/<sw-tabs variant="pill" group-label=\$\{tr\('ספק'\)\} data-provider-tabs/);
   expect(sync).toMatch(/attrs: \{ 'data-provider-tab': p \}/);
   expect(sync).not.toMatch(/role="tablist"/);
+});
+
+test.describe('sw-segmented: a wrapped track is a rounded box, not a fat pill (SEG-WRAP-2480)', () => {
+  test('wrapped is true only when the keys sit on more than one line', () => {
+    expect(segmentedWrapped([])).toBe(false);
+    expect(segmentedWrapped([3])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3.4])).toBe(false);
+    expect(segmentedWrapped([3, 3, 3, 35])).toBe(true);
+  });
+  test('the source measures the keys, sets the wrapped attribute and caps the track radius at the large token', () => {
+    const src = read('components/sw-segmented.ts');
+    expect(src).toContain('new ResizeObserver(this.measureWrap)');
+    expect(src).toMatch(/:host\(\[wrapped\]\) \.seg \{\s*border-radius: min\(var\(--sw-seg-radius, var\(--sw-r-pill\)\), var\(--sw-r-lg\)\);/);
+    // the keys keep their own radius (no rule for the wrapped state touches the buttons)
+    expect(src).not.toMatch(/:host\(\[wrapped\]\) button/);
+  });
+});
+
+// CMP2-POLISH-2480 (lead decision 23.11 on the owner's look rule: every module keeps its own look): the events centre's chip rows keep
+// the accent-filled chosen chip of 2.47.0 - the selected-chip setting look of CR-CMP2-POLISH-2470 (`selected-look="setting"`) was
+// reverted and the option removed (no other user); the generator routing drawers' choosers stay checkbox boxes.
+test.describe('sw-chip-choice: the module look kept, the events centre, the generator choosers', () => {
+  const src = read('components/sw-chip-choice.ts');
+  const styles = src.split('static styles')[1];
+
+  test('no selected-look option: the chosen chip is the accent fill (the --sw-chipc-on-* knobs), no settings selected-chip look', () => {
+    expect(src).not.toContain('selected-look');
+    expect(src).not.toContain('styles/chip-selected');
+    expect(styles).toMatch(/button\[aria-pressed='true'\] \{\s*background: var\(--sw-chipc-on-bg, var\(--sw-accent\)\);/);
+  });
+
+  test('the events centre: both chip rows draw the module look (no selected-look attribute)', () => {
+    const ev = read('screens/investigate-events.ts');
+    expect(ev.match(/<sw-chip-choice class="evc" label=/g) ?? []).toHaveLength(2);
+    expect(ev).not.toContain('selected-look');
+    expect(ev).toContain('data-events-ack-filter');
+    expect(ev).toContain('data-events-view');
+  });
+  // CMP2-POLISH-2480 (owner N48, 23.11): the events centre's chips are 28 px on a phone again, the finger keeps a 44 px hit area
+  test('coarse pointer: a chip grows to 44 px unless the host keeps its height (--sw-chipc-touch-h); the hit area stays 44 px', () => {
+    expect(styles).toMatch(/@media \(pointer: coarse\) \{\s*button \{\s*position: relative;\s*min-block-size: max\(var\(--sw-chipc-touch-h, 44px\), var\(--sw-chipc-h, 32px\)\);/);
+    expect(styles).toMatch(/button::after \{\s*content: '';\s*position: absolute;\s*inset-inline: 0;\s*inset-block: min\(0px, calc\(\(100% - 44px\) \/ 2\)\);/);
+    const ev = read('screens/investigate-events.ts');
+    expect(ev).toMatch(/sw-chip-choice\.evc \{[^}]*--sw-chipc-h: 28px;\s*--sw-chipc-touch-h: 28px;/);
+  });
+
+  // CMP2-POLISH-2480 (owner N47, 23.11): the generator routing drawers keep the module's checkbox boxes - the square stays, the chosen
+  // box takes the accent wash and rim; the sw-chip-choice chooser of CR-CMP2-POLISH-2470 was reverted
+  test('the generator routing drawers: the recipient / channel choosers are checkbox boxes (the square kept), the hooks kept', () => {
+    const r = read('generator/gen-routing.ts');
+    expect(r).not.toContain('<sw-chip-choice');
+    // two drawers x (roles, users, channels) - each a box of <label><input type="checkbox"> rows
+    expect(r.match(/<div class="chooser" data-roles>\$\{data\.roles\.map\(\(r\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser users" data-users>\$\{users\.map\(\(u\) => chk\(/g) ?? []).toHaveLength(2);
+    expect(r.match(/<div class="chooser" data-channels>/g) ?? []).toHaveLength(2);
+    expect(r.match(/<input type="checkbox" \.checked=\$\{on\}/g) ?? []).toHaveLength(2);
+    // the inbox is always on and cannot be turned off
+    expect(r).toContain('<label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>');
+    const st = read('generator/gen-styles.ts');
+    expect(st).toMatch(/\.chooser \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    expect(st).toMatch(/\.chooser label\.on \{\s*border-color: var\(--sw-accent\);\s*background: var\(--sw-accent-soft\);/);
+    expect(st).not.toContain('.chooser sw-chip-choice');
+  });
 });

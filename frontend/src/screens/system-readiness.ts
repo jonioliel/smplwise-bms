@@ -6,6 +6,7 @@ import { tr } from '../i18n/msg/system-b';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
 import '../components/sw-button';
+import { toggled } from '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
@@ -18,6 +19,7 @@ import {
   type DemoDataset, type DemoInfo, type DemoScenario, type KpiKey, type ReadinessCheck, type ReadinessReport, type ReadinessStatus,
 } from '../api/readiness';
 import { SkinController } from '../design/skin';
+import '../components/sw-field';
 
 const STATUS_ICON: Record<ReadinessStatus, string> = { ok: 'check', attention: 'info', blocked: 'warning', pending: 'clock', not_applicable: 'minus' };
 const RING_R = 54;
@@ -250,7 +252,7 @@ export class SystemReadiness extends LitElement {
       ${done
         ? nothing
         : html`<div class="form"><label>${tr('שם הלקוח')}<input class="inp" type="text" maxlength="120" .value=${this.customer} @input=${(e: Event) => (this.customer = (e.target as HTMLInputElement).value)} data-customer></label>
-            <label class="inline"><input type="checkbox" .checked=${this.printed} @change=${(e: Event) => (this.printed = (e.target as HTMLInputElement).checked)}>${tr('המדריך המודפס נמסר')}</label></div>`}
+            <label class="inline"><sw-toggle size="sm" labelHidden in-label label=${tr('המדריך המודפס נמסר')} data-readiness-printed .checked=${this.printed} @change=${(e: Event) => (this.printed = toggled(e))}></sw-toggle>${tr('המדריך המודפס נמסר')}</label></div>`}
       ${!done && !h.advice_met ? html`<p class="warn" data-below-advice><sw-icon name="info" size=${13}></sw-icon>${h.blockers.length ? tr('המסירה תירשם כמוקדמת: ציון {score} ו־{n} חסמים.', { score: r.score, n: h.blockers.length }) : tr('המסירה תירשם כמוקדמת: ציון {score}.', { score: r.score })}</p>` : nothing}
       <div class="btns"><sw-button size="sm" variant=${done ? 'secondary' : 'primary'} ?disabled=${this.busy} data-handover-btn @click=${() => void this.recordHandover(!done)}>${done ? tr('ביטול רישום המסירה') : h.advice_met ? tr('רישום מסירה') : tr('רישום מסירה מוקדמת')}</sw-button></div>
     </div>`;
@@ -281,9 +283,9 @@ export class SystemReadiness extends LitElement {
     const blocked = isApi() && d !== null && !d.can_run;
     return html`<sw-dialog ?open=${this.demoOpen} heading=${tr('מצב הדגמה')} subheading=${tr('התקנה לדוגמה על מסד נתונים נפרד')} ?locked=${this.busy} @close=${() => (this.demoOpen = false)} data-demo-dialog>
       <div class="sform">
-        <label><span>${tr('מערך נתונים')}</span><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></label>
-        <label><span>${tr('תרחיש')}</span><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></label>
-        <label><span>${tr('משך')}</span><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? tr('עד 24 שעות (מקסימום)') : tr('{n} ש׳', { n: h })}</option>`)}</select></label>
+        <label><span>${tr('מערך נתונים')}</span><sw-field><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></sw-field></label>
+        <label><span>${tr('תרחיש')}</span><sw-field><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></sw-field></label>
+        <label><span>${tr('משך')}</span><sw-field><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? tr('עד 24 שעות (מקסימום)') : tr('{n} ש׳', { n: h })}</option>`)}</select></sw-field></label>
         <p class="warn"><sw-icon name="warning" size=${14}></sw-icon>${tr('הנתונים מדומים ונפרדים מההתקנה האמיתית. פעולות למצלמות, לדלתות ולמכשירים חסומות. כל המשתמשים רואים שההדגמה פועלת. ההדגמה מסתיימת בעצמה, ואיתחול המערכת מסיים אותה. הפעלה ויציאה נרשמות באודיט.')}</p>
         ${blocked ? html`<p class="err" role="alert" data-demo-denied>${tr('אין לך הרשאה להפעיל הדגמה (נדרשת ההרשאה "הפעלת מצב הדגמה").')}</p>` : nothing}
         ${this.demoError ? html`<p class="err" role="alert" data-demo-error>${this.demoError}</p>` : nothing}
@@ -481,13 +483,15 @@ export class SystemReadiness extends LitElement {
       background: var(--sw-danger);
       color: var(--sw-text-inverse);
     }
+    /* CMP2-POLISH-2480 (owner N49): the warning / success badges keep their colours, the label is the dark ink of that colour
+       (--sw-on-warning / --sw-on-success, >= 4.5:1) - white on green / orange was under 3:1 */
     .badge.attention {
       background: var(--sw-warning);
-      color: var(--sw-text-inverse);
+      color: var(--sw-on-warning);
     }
     .badge.ok {
       background: var(--sw-success);
-      color: var(--sw-text-inverse);
+      color: var(--sw-on-success);
     }
     .badge.pending {
       background: var(--sw-unknown);

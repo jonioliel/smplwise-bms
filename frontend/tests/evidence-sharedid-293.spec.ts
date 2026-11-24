@@ -28,7 +28,9 @@ async function boot(page: Page, o: ExternalOptions & { scheme?: 'light' | 'dark'
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('about:blank');
-  await page.goto(url(o.hash ?? '/wiskey/external', 'classic', o.scheme ?? 'light'));
+  // SCROLL-AUDIT-2480: the grants list pages on a desktop (owner rule: a control screen never scrolls); these checks look for
+  // particular rows (and open their drawers), so the page load asks for the "scroll" mode of long lists (every row drawn, as before)
+  await page.goto(url(o.hash ?? '/wiskey/external', 'classic', o.scheme ?? 'light').replace('#', '&long_lists=scroll#'));
   await expect(page.locator(`${SCREEN} .kpis`).first()).toBeVisible({ timeout: 30_000 });
   return { mock, errors };
 }
@@ -50,7 +52,7 @@ test('the list: KPIs, states, verified only with proof, the banners and the side
   await expect(s.locator('.gl-r[data-ui-state="accepted"]')).toHaveCount(2); // one of them carries a widening that waits
   await expect(s.locator('[data-banner="revoking"]')).toBeVisible();
   await expect(s.locator('[data-digest-panel]')).toBeVisible();
-  await expect(s.locator('[data-extended-identity="locked"] input')).toBeDisabled();
+  await expect(s.locator('[data-extended-identity="locked"] sw-toggle')).toHaveAttribute('disabled', ''); // HAND-SWITCH-2480: the locked checkbox is a switch now
   const text = await s.innerText();
   expect(text).not.toMatch(/אינטרקום|intercom/i); // decision 1
   expect(text).not.toMatch(/913\d{3}/); // no PIN-like value anywhere

@@ -198,8 +198,9 @@ export class MultimediaPlayers extends MediaCardsScreenBase<PlayerStatus, Player
       }
       /* scrolled: the cards slide out under a soft fade instead of a hard cut against the filters */
       .scr.scrolled {
-        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
-        mask-image: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
+        --_mask: linear-gradient(180deg, transparent 0, #000 var(--sw-s-5));
+        -webkit-mask-image: var(--_mask);
+        mask-image: var(--_mask);
       }
     }
     @media (min-width: 1100px) and (min-height: 560px) {

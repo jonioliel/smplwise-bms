@@ -30,6 +30,8 @@ const PHONE = '(max-width: 767px)';
  * (`--sw-overlay`, `--sw-backdrop-blur`); solid `--sw-surface-solid` when the browser cannot blur or the OS asks for less
  * transparency (the classic skin's resting alpha is 1, so there it is simply a dialog). Opening is a spring (`--sw-t-sheet`,
  * `--sw-ease-thumb`), the content "focuses in"; `prefers-reduced-motion` removes every transition.
+ * PHONE-SHEET-2480: the look dial writes the alpha on <html> for every skin, so a skin without a sheet blur also sets
+ * `--sw-sheet-alpha-min: 1` (tokens.ts) and its sheet stays opaque at any dial value; the glass skins set 0.
  * Accessibility: `role="dialog"` + `aria-modal` (not inline), focus moves to the first focusable (else the close button), Tab and
  * Shift+Tab wrap inside (through shadow roots and slots), Escape and a press on the backdrop close, focus returns to the opener.
  * Events: `close` when it closes (any way). Slots: default (body), `head` (a pill or title row under the grabber), `footer` (a fixed
@@ -96,7 +98,9 @@ export class SwSheet extends LitElement {
       display: flex;
       flex-direction: column;
       border-radius: var(--sw-r-xl);
-      background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha));
+      /* PHONE-SHEET-2480: never below the skin's floor (--sw-sheet-alpha-min): 1 in a skin with no sheet blur, so the page and the phone's
+         bottom bar do not read through an unblurred sheet; 0 in the glass skins (the dial alone, as before) */
+      background: rgba(var(--sw-sheet-rgb), max(var(--sw-sheet-alpha), var(--sw-sheet-alpha-min, 0)));
       -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
       backdrop-filter: var(--sw-glass-blur-sheet);
       box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3);
@@ -183,6 +187,12 @@ export class SwSheet extends LitElement {
       place-items: center;
       cursor: pointer;
       padding: 0;
+      /* PHONE-SHEET-2480: on an opaque sheet the translucent --sw-layer fill vanishes (white on white), so the button takes the hairline of
+         the opaque dialog's round close button: 1 px where the skin floor makes the sheet opaque, none on the glass sheets (floor 0) */
+      box-shadow: inset 0 0 0 calc(var(--sw-sheet-alpha-min, 0) * 1px) var(--sw-menu-border);
+    }
+    :host([solid]) .x {
+      box-shadow: inset 0 0 0 1px var(--sw-menu-border);
     }
     @media (hover: hover) and (pointer: fine) {
       .x:hover {
@@ -208,8 +218,9 @@ export class SwSheet extends LitElement {
       flex-direction: column;
       gap: 12px;
       scrollbar-width: thin;
-      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
-      mask-image: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+      --_mask: linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+      -webkit-mask-image: var(--_mask);
+      mask-image: var(--_mask);
     }
     .body > ::slotted(*) {
       flex-shrink: 0;

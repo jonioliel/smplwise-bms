@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { url } from './generator-mocks';
 import { settle } from './helpers/settle';
+import { appReady } from './helpers/app-ready';
 
 // CALENDARS-UI-2310 slice C: הגדרות › יומנים (every tab; a change persists, the reset, the retention confirm, the purge with the typed word),
 // הגדרות › חיבורי יומן (the "המשך" of a connection that needs a new authorisation follows the setting; flags keep / cancel) and the resident
@@ -22,11 +23,15 @@ async function open(page: Page, hash: string, scheme: 'light' | 'dark' = 'light'
   await page.clock.setFixedTime(CLOCK);
   await page.goto('about:blank');
   await page.goto(url(hash, 'classic', scheme));
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts); the screen's checks keep their 5 s
 }
 
 /** Owner rule 2026-10-24: no page scroll in a control screen, and nothing wider than the window. */
 async function fits(page: Page) {
-  await page.waitForTimeout(250);
+  // FLAKY-SWEEP-2480: the panels measure how many rows fit on the next frame and re-render once more when that changes (see
+  // toSetting): two settles wait for exactly that, instead of a fixed 250 ms that a loaded runner overran
+  await settle(page);
+  await settle(page);
   const m = await page.evaluate(() => {
     const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
     return { sh: main?.scrollHeight ?? 0, ch: main?.clientHeight ?? 0, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth };
@@ -95,7 +100,7 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     await expect(page.locator(`${S} [data-overlap="first_holds"]`)).toHaveAttribute('aria-checked', 'true');
     await page.locator(`${S} [data-overlap="block"]`).click();
     await expect(page.locator(`${S} [data-overlap="block"]`)).toHaveAttribute('aria-checked', 'true');
-    await expect(opt(page, 'override_scope', 'both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'override_scope', 'both')).toHaveAttribute('aria-checked', 'true');
     if (!phone()) await expect(page.locator(`${S} [data-override]`)).toHaveCount(2);
     await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=behavior"]`).click();
     await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=overlap"]`).click();
@@ -107,6 +112,9 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     const keys = ['menu_position', 'contested_order', 'allow_displace', 'displace_approver', 'phone_time_picker', 'tablet_panels', 'resident_pending_display', 'resident_rooms',
       'sync_conflict_display', 'reauth_mode', 'purge_confirm', 'loading_style', 'resident_cancel_until'];
     const seen = new Set<string>();
+    // FLAKY-SWEEP-2480: the rows load asynchronously (demo data); read the first page only once they are there - read before, the
+    // first page counted nothing and "הבא" turned past it, so `menu_position` (its first row) was never seen (gates 2.43.9 x2)
+    await expect(page.locator(`${S} [data-calset-rows] > *`).first()).toBeVisible();
     for (let i = 0; i < 20; i += 1) { // AUDIT30-F5: 44 px touch controls on the phone - 13 pages there (was 9)
       await fits(page); // waits for the panel's measure: the rows per page are settled before they are read
       for (const k of await page.locator(`${S} [data-setting]`).evaluateAll((els) => els.map((e) => e.getAttribute('data-setting') ?? ''))) seen.add(k);
@@ -117,17 +125,17 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     for (const k of keys) expect(seen, k).toContain(k);
     // the placement has three options, the side rail by default (owner, 2026-10-30 night)
     await open(page, '/system/calendars?tab=behavior'); // back on the first page (a hash-only goto keeps the page turned above)
-    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${S} [data-setting="menu_position"] [data-opt]`)).toHaveCount(3);
     await expect(page.locator(`${S} [data-setting="menu_position"] .sub`)).toContainText('ברירת מחדל: סרגל צד');
     await opt(page, 'menu_position', 'both').click();
-    await expect(opt(page, 'menu_position', 'both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'both')).toHaveAttribute('aria-checked', 'true');
     await page.locator(`${S} [data-reset="menu_position"]`).click();
-    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'menu_position', 'rail')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${S} [data-reset="menu_position"]`)).toHaveCount(0);
     // answer 11B: automatic first come is the default
     await toSetting(page, 'contested_order');
-    await expect(opt(page, 'contested_order', 'first_come')).toHaveAttribute('aria-pressed', 'true');
+    await expect(opt(page, 'contested_order', 'first_come')).toHaveAttribute('aria-checked', 'true');
     // auto-move of a displaced booking was not built: shown, not selectable
     await open(page, '/system/calendars?tab=behavior');
     await toSetting(page, 'displaced');

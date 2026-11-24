@@ -1,6 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { FRIGATE_CAM_LIST, FRIGATE_CAMERAS, FRIGATE_STATUS, FRIGATE_VENDOR_DETAILS, REVIEW_ITEMS } from '../src/fixtures/frigate';
 import type { ReviewItem } from '../src/api/frigate';
+import { appReady } from './helpers/app-ready';
 
 // NN5-F1B: one MOCKED backend for the Frigate screens (settings connection test, recorder health, the review screen, the live wall's
 // refreshing stills). The routes are those of routers/frigate.py of pilot/NN5-F1A-backend (read at 0edf1bad); the server's own rules
@@ -561,7 +562,7 @@ function f2bRoute(m: FrigateMock, p: string, method: string, bodyOf: () => unkno
 export async function openApp(page: Page, hash: string, query = ''): Promise<void> {
   await page.goto('about:blank');
   await page.goto(`/?design=a${query}#${hash}`);
-  await page.waitForSelector('sw-app');
+  await appReady(page); // FLAKY-SWEEP-2480: the shell's first load is over (helpers/app-ready.ts), not just the element in the page
 }
 
 /** FRGS: the config schema as routers/frigate_config.py serves it (the server's rules are test_frigate_config.py; this proves the screens). */

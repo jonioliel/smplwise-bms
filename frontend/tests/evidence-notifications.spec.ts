@@ -488,8 +488,10 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
       await expect(sys(page).locator('[data-pol-row]')).toHaveCount(28); // every source of CR §5
       await expect(sys(page).locator('[data-pol-count]')).toHaveText('24 מתוך 28 פעילים'); // the rule-only sources and alarm.state are off by default
     }
-    // the reserved channels are slots, never switches
-    await expect(sys(page).locator('[data-pol-row="sensor.leak"] .chip.soon').first()).toHaveAttribute('aria-disabled', 'true');
+    // the reserved channels are slots, never switches (A11Y-AUDIT-2490: the Companion chip is a named image, not a disabled control)
+    const soon = sys(page).locator('[data-pol-row="sensor.leak"] .chip.soon').first();
+    await expect(soon).toHaveAttribute('role', 'img');
+    await expect(soon).not.toHaveAttribute('aria-disabled');
     await expect(sys(page).locator('[data-pol-row="sensor.leak"] [data-pol-ch="sensor.leak:inbox"]')).toHaveCount(0);
     // the owner's second choice lives here: schedule / automation failures go to the administrators or to everyone who sees them
     await expect(sec(page, 'sources').locator('[data-failures-audience="admins"]')).toHaveAttribute('aria-pressed', 'true');
@@ -778,7 +780,9 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(l.locator('[data-fail-card="email"]')).toContainText('נשלחו');
     await expect(l.locator('[data-log-window]')).toHaveText('14 יום'); // the table's window; the panel's cards say "24 שעות"
     await expect(l.locator('[data-fail-card="webpush"] .ch')).toContainText('24 שעות');
-    await expect(l.locator('[data-log-row]')).toHaveCount(14);
+    await expect(l.locator('[data-log-row]')).toHaveCount(15); // RESPONSE-HINTS-2480: + one spoken announcement
+    await expect(l.locator('[data-fail-card="announce"] .ch')).toContainText('הכרזה');
+    await expect(l.locator('[data-log-row]').filter({ hasText: 'הכרזה' })).toHaveCount(1); // the channel as text, no pictogram
     await expect(l.locator('[data-log-filter="failed"] small')).toHaveText('3');
     await l.locator('[data-log-filter="failed"]').click();
     await expect(l.locator('[data-log-row]')).toHaveCount(3);

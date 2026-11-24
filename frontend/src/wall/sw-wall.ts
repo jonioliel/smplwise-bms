@@ -804,7 +804,7 @@ export class SwWall extends LitElement {
       gap: calc(18px * var(--s, 1));
       align-items: center;
       direction: rtl;
-      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+      text-shadow: 0 2px 14px color-mix(in srgb, var(--sw-video-shadow-ink) 75%, transparent);
     }
     .takeover .titles b {
       display: block;
@@ -856,7 +856,7 @@ export class SwWall extends LitElement {
       inset-block-end: calc(28px * var(--s, 1));
       inset-inline-end: calc(32px * var(--s, 1));
       text-align: end;
-      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+      text-shadow: 0 2px 14px color-mix(in srgb, var(--sw-video-shadow-ink) 75%, transparent);
       color: var(--sw-on-video);
       direction: rtl;
     }

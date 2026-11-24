@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { toggled } from '../components/sw-toggle';
 import { nt, type NtKey } from '../i18n/notices';
 import { nc } from '../i18n/notice-chips';
 import { INFO_KINDS, infoRows, moveInfo, needsSource, toggleInfo, type InfoKind, type SourceKind } from './info-chips-model';
@@ -53,9 +54,9 @@ export class NoticeDisplayInfo extends LitElement {
     const any = this.value.length > 0;
     const rows = infoRows(this.value);
     return html`<div class="blk" data-info-picker>
-      <label class="ck"><input type="checkbox" data-info-show .checked=${this.show} @change=${(e: Event) => this.dispatchEvent(new CustomEvent<boolean>('info-show-change', { detail: (e.target as HTMLInputElement).checked, bubbles: true, composed: true }))}>${nt('infoShow')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('infoShow')} data-info-show .checked=${this.show} @change=${(e: Event) => this.dispatchEvent(new CustomEvent<boolean>('info-show-change', { detail: toggled(e), bubbles: true, composed: true }))}></sw-toggle>${nt('infoShow')}</label>
       <p class="help" data-info-help>${nt('infoOldBoards')}</p>
-      <label class="ck"><input type="checkbox" .checked=${any} @change=${(e: Event) => this.emit((e.target as HTMLInputElement).checked ? [...INFO_KINDS] : [])}>${nt('blkInfo')}</label>
+      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkInfo')} .checked=${any} @change=${(e: Event) => this.emit(toggled(e) ? [...INFO_KINDS] : [])}></sw-toggle>${nt('blkInfo')}</label>
       <ol class="ord" data-info-order>${rows.map((r) => {
         const name = nt(LABEL[r.kind]);
         return html`<li data-info-row=${r.kind} data-on=${String(r.on)}>
