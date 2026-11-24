@@ -369,6 +369,8 @@ def test_the_public_sign_in_challenge_does_not_tell_whether_a_key_exists(arx):
     assert anon.post(SIGN_IN_CHALLENGE, json={"key_id": "nope"}).status_code == 422
     assert anon.post(CHALLENGE, json={"purpose": "register"}).status_code == 401  # the other routes need a signed-in user
     assert anon.get(KEYS).status_code == 401
+    # the local channel (Ingress) has no sign-in: the uniform 404, before the body is read
+    assert TestClient(arx.app).post("/api/v1/auth/device-keys/sign-in/challenge", json={}).status_code == 404
 
 
 # ---------------------------------------------------------------- settings, backup, privacy

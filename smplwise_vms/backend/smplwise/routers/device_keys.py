@@ -29,6 +29,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from .. import guarded_route
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
@@ -101,12 +102,19 @@ def challenge(body: ChallengeBody, request: Request, principal: Principal = Depe
             "allowed_auth_kinds": dk.allowed_kinds(conn)}
 
 
+def _remote_only(request: Request) -> None:
+    """The public sign-in challenge exists on the remote channel only (a sign-in with a second factor happens there); the local channel
+    answers the uniform 404 before the body is read (guard-first, smplwise/guarded_route.py, review PUB-07)."""
+    if not is_remote(request):
+        raise ApiError(404, "not_found", "Not found")
+
+
 class SignInChallengeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key_id: str = Field(pattern=dk.KEY_ID_PATTERN)
 
 
-@router.post("/auth/device-keys/sign-in/challenge", **wire(W.DeviceKeySignInChallenge))
+@guarded_route.post(router, _remote_only, "/auth/device-keys/sign-in/challenge", **wire(W.DeviceKeySignInChallenge))
 def sign_in_challenge(body: SignInChallengeBody, request: Request) -> dict[str, Any]:
     """Public: the sign-in has not happened yet. The answer never says whether the key exists (the check is at the sign-in, after the
     first factor identified the user); a payload carries no user id."""
