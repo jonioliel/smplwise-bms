@@ -107,7 +107,24 @@ Not run on the workstation by rule (memory): ruff, tsc, eslint, every Playwright
 
 ### 4.2 Runner (slot B, ONE job `~/work/mfasecfix_run.sh`, queued 2026-11-24 ~08:44 UTC via `setsid nohup ~/work/slotb.sh`)
 
-RUNNER_PLACEHOLDER
+First lease (~11:37 UTC): **wasted by my own script** - the worktree step failed (`git fetch` / `worktree add` chained with `&&`)
+and the job ran in `~/smplwisebms` with every file "MISSING"; killed by me, the stray `~/smplwisebms/node_modules` symlink it made was
+unlinked (nothing else changed there: `git status` clean). The script now aborts when the worktree / checkout fails. Re-queued; the
+lease started 11:48:52 UTC at `e2cd064a0` (log: `~/work/mfasecfix-out/summary.txt`, per-step logs beside it).
+
+| Step | Result |
+|---|---|
+| the 22 MFA / auth files, one pytest process each (`SW_WIRE_STRICT=1`) | **20 green**: secfix 17, secreview 8, stepup 22, gates 19, passkeys 26, tokens 22, recovery 21, policy 70, devicekey 19, attest 23, second_factor 23, followups 11, local_passkeys 73, wxh4 22, service_identity 47, service_identity_extended 89, migrations 4, bill ledger 25, security_review_220 37, secfix2_pub07 35 |
+| `test_local_auth_inventory.py` | 1 failed / 3 passed: `GET /auth/tokens` (slice 6) resolves the identity inside its handler and was not listed (red since slice 6; that slice's runner job never ran) -> listed in `IN_HANDLER` (`c4fb5d22a`), workstation **4 passed** |
+| `test_migrations_263_upgrade.py` | 1 failed / 1 passed: `test_the_release_numbers_are_contiguous_and_final` - 0217 / 0218 belong to the 2.50 rows, not on this branch (expected, as slice 7 recorded; green once the release train carries them in order). Not changed. |
+| `gen_wire_types.py --check` / `api_inventory.py` | exit 0 / exit 0, no diff |
+| `ruff check smplwise` + the two new test files | `smplwise` clean; 32 findings in the two test files: 31 F811 (the fixture-import pattern every MFA test file uses - e.g. `test_mfa_passkeys_2490.py` + `test_mfa_devicekey_2490.py` give 74 of the same) and 1 F841 (fixed, `c4fb5d22a`) |
+| `tsc --noEmit` | **exit 0** |
+| eslint (MFA components, api, i18n, specs) | exit 0 (4 "file ignored" warnings for the spec files) |
+| node unit `unit-step-up-client.spec.ts` | **6 passed** |
+| Playwright desktop + mobile `--workers=2`: `unit-mfa-secfix-2500`, `unit-mfa-train-2500`, `unit-step-up-ui`, `unit-mfa-passkeys-2490`, `unit-mfa-recovery-codes-2490`, `evidence-access-tokens`, `evidence-second-factor`, `unit-second-factor-admin-ui` | **60 passed, 2 failed, 20 skipped** (the shot tests without `SW_SHOTS_DIR`). Failed: `unit-mfa-passkeys-2490` "the authenticator code answers the step-up; a wrong code says so; cancel sends nothing" (desktop + mobile) - after cancelling the in-place proof the row stayed armed, so the remove button never came back (slice 4's component; never run on a runner before). Fixed in `sw-passkeys.ts` (cancel also disarms the row, `c4fb5d22a`); **re-run NOT_RUN** (one job per agent). |
+| compare shots after / before (`unit-mfa-secfix-2500` "shots", base `6f40529bb`) | 4 + 4 files; page `private/planning/mfa_secfix_compare_2026-11-24.html` (built by `private/planning/mfa_secfix_compare_build_2026-11-24.py`) |
+| backend families: 168 files (auth / identity / remote / passkey / second factor / step-up / access / app session / bridge key / backup / security / wire / settings / migration / rbac / alarm / door / emergency / notify policy / privacy / delegation) in shards of 40 | **NOT_RUN to the end within the time box**: shard 0 was at 13 % at 12:41 UTC (about 70 minutes per shard). The lease keeps running; results land in `~/work/mfasecfix-out/summary.txt` (`chunk_00..04` lines + `chunk_*.log` / `.xml`). |
 
 ## 5. Owner answers applied (questions page 24.11, relayed by the lead)
 
