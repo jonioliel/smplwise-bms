@@ -6,13 +6,24 @@ Keys:
 - `doorpath.<table>.<code>` - services/door_path.py: an item's kind, origin, approver state, run guard, conversion suggestion, the
   reasons a step could not be resolved, and the fallback labels of a door with no name (`relay`, `door_unmapped`, `door_unknown`);
 - `doorconv.<table>.<code>` - services/door_conversion.py: an item's category, the actions, the list's empty states, why an action is
-  not offered (`why.*`), the refusals of an action / an undo (`err.*`), and the weekday letters of the hand-over preview (`day.*`).
+  not offered (`why.*`), the refusals of an action / an undo (`err.*`), and the weekday letters of the hand-over preview (`day.*`);
+- `doorguard.<name>` (DOOR-BLOCKS-I18N-2510) - services/door_run_guard.py: the run / enable refusals of an item that opens a door
+  (`not_yet` and the four sentences built around it), the door authority's "no permission", "use the automations screen", and an
+  unavailable station of a converted run;
+- `doorblocks.<table>.<code>` (DOOR-BLOCKS-I18N-2510) - services/door_blocks.py: why an entity cannot be released (`refuse.*`) and the
+  refusals of a release note (`note.*`).
 
 Hebrew exactly as those modules wrote it before this change (each module checks at import that its own table equals these words, so a
 Hebrew reader's bytes cannot drift). English written by hand with the words of the frontend's English catalogue
-(frontend/src/i18n/lang/en/i18n/msg/system-a.ts: "Disable and record", "Convert to an Arx door task", "Move to a fixed opening window",
-"No items that open a door were found", "Manual check", "Run blocked"; automation.ts / components.ts: "Created outside the system",
-"Unknown source", "Schedule", "Scene", "Script", "Automation"; misc.ts "Approved").
+(frontend/src/i18n/lang/en/i18n/msg/system-a.ts: "Disable and record", "Convert to an Arx door task", "No items that open a door were
+found", "Manual check", "Run blocked", "The station is unavailable"; automation.ts / components.ts: "Created outside the system",
+"Unknown source", "Schedule", "Scene", "Script", "Automation"; misc.ts "Approved", "access-control"; door-blocks.ts "Release",
+"Released", "Blocked", "intercom door", "The reason is too long (up to {max} characters)").
+
+"חלון פתיחה" is "door window" in English everywhere (DOOR-BLOCKS-I18N-2510): the frontend's own catalogue of the feature
+(frontend/src/i18n/lang/en/i18n/door-windows.ts: "Door windows", "New door window"; nav-labels.ts "Door windows") and the default name
+of a handed-over window (services/default_names.py `door_window` = "Door window"). The preview first wrote "opening window" here; the
+frontend's three hand-over sentences of msg/system-a.ts were aligned in the same change.
 
 Day names: the English is the existing short-day table `services/default_names.DAY_SHORT["en"]` (the same words as the automation
 sentences' `auto.wd.*`), not a second list. Its Hebrew cannot be reused: those tables write the letters with a geresh (U+05F3, "א׳")
@@ -21,7 +32,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from ..i18n import Msg, register, t
+from ..i18n import CATALOGUE, Msg, register, t
 from .default_names import DAY_SHORT
 
 DAY_KEYS: tuple[str, ...] = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")  # door window weekdays: 0 = Sunday .. 6
@@ -92,7 +103,7 @@ DOOR_CONVERSION: dict[str, tuple[str, str]] = {
     # door_conversion.ACTION_TEXT
     "action.disable": ("השבתה ורישום", "Disable and record"),
     "action.convert_event_job": ("הסבה למשימת דלת של Arx", "Convert to an Arx door task"),
-    "action.hand_over_program": ("העברה לחלון פתיחה קבוע", "Move to a fixed opening window"),
+    "action.hand_over_program": ("העברה לחלון פתיחה קבוע", "Move to a fixed door window"),
     # door_conversion.STATE_TEXT (`items` is an empty text, not a catalogue entry)
     "state.no_wiskey": ("אין במערכת דלתות של בקרת הכניסה - אין מה לבדוק.", "The system has no access-control doors - there is nothing to check."),
     "state.nothing_found": ("לא נמצאו פריטים שפותחים דלת. אין מה להשבית או להסב.", "No items that open a door were found. There is nothing to disable or convert."),
@@ -119,15 +130,15 @@ DOOR_CONVERSION: dict[str, tuple[str, str]] = {
     "why.has_conditions": ("לתזמון יש תנאים", "The schedule has conditions"),
     "why.weekdays_unknown": ("ימי התזמון אינם מוכרים", "The schedule's days are not recognised"),
     "why.time_not_fixed": ("שעת התזמון אינה שעה קבועה", "The schedule's time is not a fixed time"),
-    "why.no_end_time": ("לתזמון אין שעת סיום - חלון פתיחה צריך שעת סיום", "The schedule has no end time - an opening window needs an end time"),
+    "why.no_end_time": ("לתזמון אין שעת סיום - חלון פתיחה צריך שעת סיום", "The schedule has no end time - a door window needs an end time"),
     "why.mixed_schedule": ("בתזמון יש גם פעולות אחרות", "The schedule also has other actions"),
-    "why.window_too_long": ("החלון ארוך מהמותר לחלון פתיחה", "The window is longer than an opening window may be"),
+    "why.window_too_long": ("החלון ארוך מהמותר לחלון פתיחה", "The window is longer than a door window may be"),
     "why.quiet_hours": ("החלון נוגע בשעות השקטות", "The window touches the quiet hours"),
     "why.overlap": ("שני חלונות חופפים באותו יום", "Two windows overlap on the same day"),
     "why.too_many_per_day": ("יותר מדי חלונות ביום אחד", "Too many windows on one day"),
-    "why.invalid_time": ("שעה לא תקינה לחלון פתיחה", "Not a valid time for an opening window"),
+    "why.invalid_time": ("שעה לא תקינה לחלון פתיחה", "Not a valid time for a door window"),
     "why.invalid_name": ("שם התזמון אינו מתאים לשם חלון", "The schedule's name does not suit a window name"),
-    "why.exterior_not_allowed": ("דלת חיצונית אינה יכולה להיות בחלון פתיחה", "An exterior door cannot be in an opening window"),
+    "why.exterior_not_allowed": ("דלת חיצונית אינה יכולה להיות בחלון פתיחה", "An exterior door cannot be in a door window"),
     "why.handled": ("כבר טופל - אפשר לבטל את הפעולה הקודמת", "Already handled - the previous action can be undone"),
     "why.invalid": ("הפריט אינו מתאים", "The item is not suitable"),
     # the refusals of an action (`act`) and of an undo (`undo`): the error envelope renders them in the requester's language
@@ -140,14 +151,54 @@ DOOR_CONVERSION: dict[str, tuple[str, str]] = {
     "err.already_undone": ("הפעולה כבר בוטלה.", "The action was already undone."),
     "err.item_gone": ("הפריט כבר לא קיים.", "The item no longer exists."),
     "err.stale_disabled": ("הפריט השתנה מאז ההשבתה - אי אפשר להחזיר אותו אוטומטית.", "The item changed since it was disabled - it cannot be restored automatically."),
-    "err.program_in_use": ("חלון הפתיחה שנוצר פעיל - יש להשהות אותו קודם.", "The opening window that was created is active - pause it first."),
+    "err.program_in_use": ("חלון הפתיחה שנוצר פעיל - יש להשהות אותו קודם.", "The door window that was created is active - pause it first."),
     # the hand-over preview's weekdays (`program.days_text`): Hebrew letters with an ASCII apostrophe, as always; English from DAY_SHORT
     **{f"day.{d}": (he, DAY_SHORT["en"][d]) for d, he in zip(DAY_KEYS, ("א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"))},
     "day_sep": (" ", ", "),
 }
 
+# DOOR-BLOCKS-I18N-2510: services/door_run_guard.py. `{not_yet}` is the `not_yet` text itself (a `Msg` param, rendered in the same
+# language), so each sentence is exactly the f-string the module wrote before.
+DOOR_GUARD: dict[str, tuple[str, str]] = {
+    "not_yet": ("פתיחת דלתות מאוטומציה עדיין לא נתמכת", "Opening doors from an automation is not supported yet"),
+    "not_converted": ("לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. {not_yet}.", "Cannot run: the item opens an access-control door. {not_yet}."),
+    "unresolvable": ("לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. {not_yet}.", "Cannot run: the item may open an access-control door. {not_yet}."),
+    "enable_not_converted": ("לא ניתן להפעיל: הפריט פותח דלת של בקרת הכניסה. {not_yet}; אפשר לכבות אותו.",
+                             "Cannot turn on: the item opens an access-control door. {not_yet}; it can be turned off."),
+    "enable_unresolvable": ("לא ניתן להפעיל: ייתכן שהפריט פותח דלת של בקרת הכניסה. {not_yet}; אפשר לכבות אותו.",
+                            "Cannot turn on: the item may open an access-control door. {not_yet}; it can be turned off."),
+    "no_permission": ("אין הרשאה לפתוח דלת זו", "No permission to open this door"),
+    "use_automations": ("הפריט כולל פתיחת דלת; מפעילים אותו ממסך האוטומציות.", "The item includes a door opening; run it from the automations screen."),
+    "station_unavailable": ("התחנה לא זמינה", "The station is unavailable"),
+}
+
+# DOOR-BLOCKS-I18N-2510: services/door_blocks.py (`GET /doors/blocks` and the refusals of `PUT /doors/blocks/entities/{entity_id}`)
+DOOR_BLOCKS: dict[str, tuple[str, str]] = {
+    # door_blocks.REFUSALS: why an entity cannot be released
+    "refuse.unknown_entity": ("ההתקן לא נמצא.", "The device was not found."),
+    "refuse.wiskey_door": ("מנעול אינטרקום הוא דלת ואינו ניתן לשחרור.", "An intercom lock is a door and cannot be released."),
+    "refuse.door_mapped": ("ההתקן משויך לדלת אינטרקום ואינו ניתן לשחרור. אפשר לבטל קודם את השיוך.",
+                           "The device is mapped to an intercom door and cannot be released. You can remove the mapping first."),
+    "refuse.not_blocked": ("ההתקן אינו חסום.", "The device is not blocked."),
+    # door_blocks.NOTE_ERRORS: a release the list cannot store (`{n}`: door_overrides.NOTE_MAX / MAX_ENTRIES)
+    "note.note_required": ("נדרשת סיבה לשחרור (לפחות 3 תווים).", "A reason for the release is required (at least 3 characters)."),
+    "note.note_too_long": ("הסיבה ארוכה מדי (עד {n} תווים).", "The reason is too long (up to {n} characters)."),
+    "note.bad_entity": ("מזהה ההתקן אינו תקין.", "The device ID is not valid."),
+    "note.too_many": ("אי אפשר לשחרר יותר מ-{n} התקנים.", "No more than {n} devices can be released."),
+}
+
 register("doorpath", DOOR_PATH)
 register("doorconv", DOOR_CONVERSION)
+register("doorguard", DOOR_GUARD)
+register("doorblocks", DOOR_BLOCKS)
+
+
+def as_msg(key: str, he: str, **params: object) -> Msg:
+    """The `Msg` `key` with `params` - its string is the Hebrew a module wrote. `he` is the module's own Hebrew template (its `{slot}`s
+    are the params' places); one that differs from the catalogue is a bug: refused at import."""
+    if CATALOGUE[key]["he"] != he:
+        raise ValueError(f"{key}: the catalogue's Hebrew differs from the module's text")
+    return t(key, **params)
 
 
 def as_msgs(prefix: str, table: Mapping[str, str]) -> dict[str, str]:
