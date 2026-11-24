@@ -49,6 +49,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.updateLayoutParams
+import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -261,7 +262,7 @@ class WebActivity : LockedActivity() {
     private fun installBridge() {
         val rules = setOf(serverOrigin)
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
-        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { view, message, sourceOrigin, isMainFrame, _ ->
+        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { view, message, sourceOrigin, isMainFrame, reply ->
             // origin, main frame, and the page shown must be one of the server's Arx pages (not the platform UI at /)
             if (!BridgePolicy.accept(serverUrl, serverOrigin, sourceOrigin.toString(), isMainFrame, view.url, dev)) return@addWebMessageListener
             val raw = message.data ?: return@addWebMessageListener
@@ -273,7 +274,7 @@ class WebActivity : LockedActivity() {
                 } catch (e: JSONException) {
                     return@execute
                 }
-                runOnUiThread { if (!isDestroyed) onBridgeMessage(msg) }
+                runOnUiThread { if (!isDestroyed) onBridgeMessage(msg, reply) }
             }
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -282,16 +283,108 @@ class WebActivity : LockedActivity() {
         }
     }
 
-    private fun onBridgeMessage(msg: JSONObject) {
+    private fun onBridgeMessage(msg: JSONObject, reply: JavaScriptReplyProxy) {
         if (locked) return
         val type = msg.optString("type")
         if (type !in BridgePolicy.MESSAGE_TYPES) return
+        if (type in BridgePolicy.DEVICE_KEY_TYPES) {
+            onDeviceKey(type, msg, reply)
+            return
+        }
         when (type) {
             "switchServer" -> if (NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)) openServers()
             "blob" -> onBlob(msg)
             "blobError" -> if (msg.optString("url") == pendingBlobUrl) {
                 pendingBlobUrl = null
                 toast(if (msg.optString("reason") == "too_large") R.string.download_too_large else R.string.download_failed)
+            }
+        }
+    }
+
+    // ---- the phone key (MFA-DEVICEKEY-2490; DeviceKey.kt) -------------------------------------------------------------
+
+    private var deviceKeyBusy = false
+
+    /**
+     * The page's phone-key calls (window.ArxApp.deviceKey): status, create (needs a tap), sign (the phone's own prompt shows the
+     * action text; only a payload for this server and this app's key is signed - DeviceKeyPolicy.acceptable), setKeyId, remove (needs
+     * a tap). One prompt at a time. Every call is answered once with `deviceKeyResult` {id, ok, ...}; no key material but the public key.
+     */
+    private fun onDeviceKey(type: String, msg: JSONObject, reply: JavaScriptReplyProxy) {
+        val id = msg.optString("id").take(16)
+        val alias = DeviceKeyPolicy.alias(serverOrigin)
+        fun answer(ok: Boolean, fill: JSONObject.() -> Unit = {}) {
+            val out = JSONObject().put("type", "deviceKeyResult").put("id", id).put("ok", ok).apply(fill)
+            try {
+                reply.postMessage(out.toString())
+            } catch (e: Exception) {
+                // the page went away
+            }
+        }
+        fun fail(reason: String) = answer(false) { put("error", reason) }
+        val activated = NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)
+        when (type) {
+            "deviceKeyStatus" -> {
+                val exists = DeviceKey.exists(alias)
+                val kind = DeviceKey.kind(this, alias)
+                answer(true) {
+                    put("available", DeviceKey.canSign(this@WebActivity, DeviceKeyPolicy.effectiveKind(null, Build.VERSION.SDK_INT)))
+                    put("exists", exists)
+                    put("keyId", if (exists) DeviceKey.keyId(this@WebActivity, alias) ?: JSONObject.NULL else JSONObject.NULL)
+                    put("authKind", if (exists) kind else DeviceKeyPolicy.effectiveKind(null, Build.VERSION.SDK_INT))
+                }
+            }
+            "deviceKeyCreate" -> {
+                if (!activated) return fail("no_gesture")
+                val kind = DeviceKeyPolicy.effectiveKind(msg.optString("authKind"), Build.VERSION.SDK_INT)
+                if (!DeviceKey.canSign(this, kind)) return fail("unavailable")
+                io.execute {
+                    val result = try {
+                        DeviceKey.create(this, alias, kind)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    runOnUiThread {
+                        if (result == null) {
+                            fail("error")
+                        } else {
+                            DeviceKey.setKind(this, alias, kind)
+                            answer(true) { put("publicKey", result); put("authKind", kind) }
+                        }
+                    }
+                }
+            }
+            "deviceKeySign" -> {
+                if (deviceKeyBusy) return fail("busy")
+                val payload = msg.optString("payload")
+                if (DeviceKeyPolicy.acceptable(payload, serverOrigin, DeviceKey.keyId(this, alias)) == null) return fail("refused")
+                deviceKeyBusy = true
+                DeviceKey.sign(
+                    this, alias, payload,
+                    title = getString(R.string.device_key_prompt_title),
+                    subtitle = DeviceKeyPolicy.promptText(msg.optString("text"), getString(R.string.device_key_prompt_default)),
+                    negative = getString(R.string.cancel),
+                ) { outcome ->
+                    deviceKeyBusy = false
+                    when (outcome) {
+                        is DeviceKey.Outcome.Signed -> answer(true) { put("signature", outcome.signature) }
+                        is DeviceKey.Outcome.Failed -> {
+                            if (outcome.reason == "invalidated") toast(R.string.device_key_invalidated)
+                            fail(outcome.reason)
+                        }
+                    }
+                }
+            }
+            "deviceKeySetId" -> {
+                val keyId = msg.optString("keyId")
+                if (!DeviceKeyPolicy.isKeyId(keyId) || !DeviceKey.exists(alias)) return fail("refused")
+                DeviceKey.setKeyId(this, alias, keyId)
+                answer(true)
+            }
+            "deviceKeyDelete" -> {
+                if (!activated) return fail("no_gesture")
+                DeviceKey.delete(this, alias)
+                answer(true)
             }
         }
     }

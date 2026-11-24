@@ -130,6 +130,7 @@ API_PREFIX = "/api/v1"
 METHOD_TOTP = "totp"
 METHOD_PASSKEY = "passkey"  # MFA-PASSKEYS-2490 (slice 4): a WebAuthn assertion on a step-up challenge (services/user_passkeys)
 METHOD_RECOVERY = "recovery_code"  # MFA-RECOVERY-CODES-2490: a one-time recovery code, accepted by `verify` in place of the code
+METHOD_DEVICE_KEY = "device_key"  # MFA-DEVICEKEY-2490 (slice 8): a phone-key signature on a step-up challenge (services/device_keys)
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
@@ -309,15 +310,20 @@ def session_key(request: Any, principal: Any) -> str | None:
 
 
 def methods_of(conn: sqlite3.Connection, user_id: str) -> list[str]:
-    """The step-up methods this user can use now: the authenticator-app code, and (MFA-PASSKEYS-2490, slice 4) a passkey that counts
+    """The step-up methods this user can use now: the authenticator-app code, (MFA-PASSKEYS-2490, slice 4) a passkey that counts
     as a factor for this user (services/user_passkeys.counts: made for the current public address, the all-users switch for a user
-    who is not an Arx-only identity). A user with only a passkey therefore has a method and is gated."""
+    who is not an Arx-only identity), and (MFA-DEVICEKEY-2490, slice 8) an active phone key of the Android app (services/device_keys).
+    A user with only a passkey or only a phone key therefore has a method and is gated - a phone-key-only user in a browser too,
+    where the phone key cannot answer (the change is then made from the app, or the user adds the authenticator code)."""
+    from . import device_keys
     from . import second_factor as sf
     from . import user_passkeys
 
     out = [METHOD_TOTP] if sf.is_enrolled(conn, user_id) else []
     if user_passkeys.counts(conn, user_id):
         out.append(METHOD_PASSKEY)
+    if device_keys.has_active(conn, user_id):
+        out.append(METHOD_DEVICE_KEY)
     return out
 
 

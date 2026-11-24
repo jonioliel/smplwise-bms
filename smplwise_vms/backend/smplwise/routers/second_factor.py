@@ -21,6 +21,8 @@
 
 The enrolment's confirm answer carries the first batch of recovery codes (shown once). Removing one's own factor accepts a recovery
 code in place of the current code (the lost-phone path); removing or resetting the factor deletes the codes.
+                                                MFA-DEVICEKEY-2490: {method: "device_key", challenge_id, key_id, signature} answers a
+                                                `step_up` challenge of `POST auth/device-keys/challenge` (routers/device_keys.py)
 
 The factor is applied to the remote sign-in (services/ha_user_auth.exchange). Codes and secrets are never logged or audited;
 audit rows carry the method and the target user only. Code attempts are limited (5 wrong in 5 minutes lock the user for
@@ -277,10 +279,12 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code)$")
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code|device_key)$")
     code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp / recovery_code
-    challenge_id: str | None = Field(default=None, max_length=64)  # method passkey (MFA-PASSKEYS-2490)
+    challenge_id: str | None = Field(default=None, max_length=80)  # method passkey (MFA-PASSKEYS-2490) / device_key (MFA-DEVICEKEY-2490)
     assertion: dict[str, Any] | None = None  # method passkey: PublicKeyCredential.toJSON() of the assertion
+    key_id: str | None = Field(default=None, max_length=40)  # method device_key
+    signature: str | None = Field(default=None, max_length=120)  # method device_key: base64url ECDSA P-256 signature of the payload
     action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
 
 
@@ -296,6 +300,11 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         from ..services import user_passkeys
 
         return user_passkeys.verify(conn, request, principal, body.challenge_id, body.assertion, body.action, _rid(request))
+    if body.method == step_up.METHOD_DEVICE_KEY:  # MFA-DEVICEKEY-2490: a phone-key signature of a step-up challenge
+        from . import device_keys
+
+        return device_keys.verify_step_up(conn, request, principal, challenge_id=body.challenge_id, key_id=body.key_id,
+                                          signature=body.signature, action=body.action)
     if not body.code:
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
     from ..services.user_passkeys import FACTOR_ACTIONS

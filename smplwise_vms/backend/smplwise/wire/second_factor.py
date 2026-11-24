@@ -81,14 +81,14 @@ class StepUpStatus(WireModel):
     local_channel: bool
     applies: bool
     reason: Literal["off", "local_channel", "bearer_token", "no_method"] | None
-    methods: list[Literal["totp", "passkey"]]  # MFA-PASSKEYS-2490: a passkey that counts for the user
+    methods: list[Literal["totp", "passkey", "device_key"]]  # MFA-PASSKEYS-2490: a passkey that counts; MFA-DEVICEKEY-2490: an active phone key
     valid_until: str | None
 
 
 class StepUpProof(WireModel):
     """`POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0).
     `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490)."""
-    method: Literal["totp", "passkey", "recovery_code"]  # MFA-PASSKEYS-2490, MFA-RECOVERY-CODES-2490
+    method: Literal["totp", "passkey", "recovery_code", "device_key"]  # MFA-PASSKEYS-2490, MFA-RECOVERY-CODES-2490, MFA-DEVICEKEY-2490
     minutes: int
     valid_until: str | None
 

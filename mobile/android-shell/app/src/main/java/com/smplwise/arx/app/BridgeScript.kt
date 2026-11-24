@@ -14,7 +14,10 @@ package com.smplwise.arx.app
  *    per-screen [token], which lives in a closure the page cannot read. Nothing is resumed on unlock; the page decides.
  * 2. The Arx interface - only under the server's Arx path, never on the platform's own pages:
  *
- *        window.ArxApp = { platform: 'android', shell: 'webview', version: '<versionName>', switchServer() }
+ *        window.ArxApp = { platform: 'android', shell: 'webview', version: '<versionName>', switchServer(),
+ *                          deviceKey: { status(), create({authKind}), sign(payload, text), setKeyId(id), remove() } }
+ *
+ *    (`deviceKey`, MFA-DEVICEKEY-2490: promises answered through the listener's reply port; see DeviceKey.kt)
  *
  *    and the helper for downloads the page builds (`blob:` URLs, e.g. the audit CSV): the WebView's download callback
  *    cannot fetch a blob and the site's CSP (`connect-src`) refuses a fetch of it, so the script keeps the most recent
@@ -31,6 +34,8 @@ object BridgeScript {
     const val MAX_MESSAGE_CHARS = MAX_BLOB_BYTES / 3 * 4 + 64 * 1024
     const val MAX_BLOBS = 16
     const val BLOB_KEEP_MS = 120_000
+    /** A phone-key call the app has not answered by then is given up by the page (the prompt itself may take a while). */
+    const val DEVICE_KEY_TIMEOUT_MS = 120_000
 
     fun source(version: String, serverPath: String, token: String): String {
         val native = BridgePolicy.NATIVE_OBJECT
@@ -152,12 +157,41 @@ object BridgeScript {
     r.readAsDataURL(b);
   }
   Object.defineProperty(window, '__arxSaveBlob', { value: saveBlob });
+  // the phone key (MFA-DEVICEKEY-2490): every call is one message, answered once by the app with deviceKeyResult {id, ok, ...}
+  var waiting = {};
+  var seq = 0;
+  function onReply(e) {
+    var m;
+    try { m = JSON.parse(String(e.data)); } catch (x) { return; }
+    if (!m || m.type !== 'deviceKeyResult' || !waiting[m.id]) return;
+    var w = waiting[m.id];
+    delete waiting[m.id];
+    if (m.ok) w.resolve(m); else w.reject(new Error(String(m.error || 'failed')));
+  }
+  if (nat.addEventListener) nat.addEventListener('message', onReply); else nat.onmessage = onReply;
+  function ask(m) {
+    return new Promise(function (resolve, reject) {
+      var id = 'k' + (++seq);
+      waiting[id] = { resolve: resolve, reject: reject };
+      m.id = id;
+      send(m);
+      setTimeout(function () { if (waiting[id]) { delete waiting[id]; reject(new Error('timeout')); } }, $DEVICE_KEY_TIMEOUT_MS);
+    });
+  }
+  var deviceKey = Object.freeze({
+    status: function () { return ask({ type: 'deviceKeyStatus' }); },
+    create: function (o) { return ask({ type: 'deviceKeyCreate', authKind: String((o && o.authKind) || '') }); },
+    sign: function (payload, text) { return ask({ type: 'deviceKeySign', payload: String(payload), text: String(text || '') }); },
+    setKeyId: function (k) { return ask({ type: 'deviceKeySetId', keyId: String(k) }); },
+    remove: function () { return ask({ type: 'deviceKeyDelete' }); }
+  });
   Object.defineProperty(window, 'ArxApp', {
     value: Object.freeze({
       platform: 'android',
       shell: 'webview',
       version: $versionJson,
-      switchServer: function () { send({ type: 'switchServer' }); }
+      switchServer: function () { send({ type: 'switchServer' }); },
+      deviceKey: deviceKey
     })
   });
 })();

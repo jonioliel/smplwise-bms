@@ -64,6 +64,8 @@ PUBLIC_ON_LOCAL: dict[tuple[str, str], int] = {
     ("POST", "/api/v1/auth/local/passkey/options"): 404,
     ("POST", "/api/v1/auth/local/passkey"): 404,
     ("GET", "/.well-known/assetlinks.json"): 404,
+    # MFA-DEVICEKEY-2490: the phone key's sign-in challenge, remote channel only, guard-first (device_keys.py)
+    ("POST", "/api/v1/auth/device-keys/sign-in/challenge"): 404,
     # notice boards: the board token is in the path (notices.py)
     ("GET", "/api/v1/notices/display/{slug}"): 404,
     ("GET", "/api/v1/notices/display/{slug}/logo/company"): 404,
@@ -79,7 +81,7 @@ PUBLIC_ON_LOCAL: dict[tuple[str, str], int] = {
 
 
 def test_the_public_set_is_the_reviewed_38():
-    assert len(PUBLIC_ON_LOCAL) == 38
+    assert len(PUBLIC_ON_LOCAL) == 39  # 38 + MFA-DEVICEKEY-2490's remote-only sign-in challenge
 
 
 def _sweep_client(settings, tmp_path) -> TestClient:

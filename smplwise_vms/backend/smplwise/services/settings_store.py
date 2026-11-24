@@ -432,6 +432,10 @@ DEFAULTS: dict[str, str] = {
     "security.factor_policy_mode": "report",
     "security.factor_wall_exempt": "on",
     "security.remote_long_lived_tokens": "allow",
+    # MFA-DEVICEKEY-2490 (owner q23 b; services/device_keys.py): what a new phone key of the Android app may need for each signature -
+    # `biometric_or_screen_lock` (default: a fingerprint / face OR the phone's screen code) or `biometric` (fingerprint / face only).
+    # A key already registered keeps the kind it was made with. Never restored from a backup.
+    "security.device_key_auth": "biometric_or_screen_lock",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
