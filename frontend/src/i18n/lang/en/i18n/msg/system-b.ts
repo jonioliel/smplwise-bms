@@ -1533,7 +1533,7 @@ export const en = {
   // MULTI-BUILDING-NEXT-2500: the building filter of the lists (screens/system-mapping.ts)
   'מוצג': 'Shown',
   'סינון לפי בניין ברשימות': 'Building filter in lists',
-  'כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.': 'While multi-building is on, the electricity meters, the schedules, the shared rooms, the plan editor's device search and the global search offer a building choice. Display only: it does not change who sees what.',
+  'כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.': 'While multi-building is on, the electricity meters, the schedules, the shared rooms, the plan editor\'s device search and the global search offer a building choice. Display only: it does not change who sees what.',
   'הרשימות מוצגות לכל האתר, בלי בחירת בניין.': 'The lists show the whole site, without a building choice.',
   'הגדרת הסינון לפי בניין עודכנה.': 'The building filter setting was updated.',
 };
