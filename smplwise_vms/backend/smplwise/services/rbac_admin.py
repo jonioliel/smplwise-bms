@@ -648,8 +648,16 @@ def full_authority(conn: sqlite3.Connection, principal: Principal) -> bool:
 
 
 def assigns_anywhere(conn: sqlite3.Connection, principal: Principal) -> bool:
-    """rbac.assign at some scope - the coarse gate a delegated administrator passes (the real checks are per item)."""
-    return "rbac.assign" in permissions_anywhere(conn, principal)
+    """rbac.assign at some scope - the coarse gate a delegated administrator passes (the real checks are per item).
+    MFA-STEPUP-GATES-2490: this grant skips require(), so it calls the step-up hook itself - a permissions change of a delegated
+    administrator (DELETE /access/bindings/{id}, the group routes) needs a fresh proof like the installation-wide one (a GET, a
+    read-only preview and a caller outside a request are never gated)."""
+    held = "rbac.assign" in permissions_anywhere(conn, principal)
+    if held:
+        from . import step_up
+
+        step_up.on_grant(conn, principal, "rbac.assign")
+    return held
 
 
 def delegation_block(conn: sqlite3.Connection, role_id: str) -> str | None:

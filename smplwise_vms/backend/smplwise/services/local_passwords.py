@@ -172,9 +172,10 @@ def _scrypt(secret: bytes, salt: bytes, prof: Profile) -> bytes:
     return hashlib.scrypt(secret, salt=salt, n=1 << prof.log_n, r=prof.r, p=prof.p, dklen=32, maxmem=prof.maxmem)
 
 
-def hash_password(password: str) -> tuple[str, int]:
-    """(PHC string, params_version) of a password that already passed the policy. Never logs anything."""
-    prof = current_profile()
+def hash_password(password: str, profile: Profile | None = None) -> tuple[str, int]:
+    """(PHC string, params_version) of a password that already passed the policy. Never logs anything. `profile`: a caller hashing
+    a machine-made secret with its own cost (services/recovery_codes.py); `verify` reads the cost back from the PHC string."""
+    prof = profile or current_profile()
     secret = normalize(password).encode("utf-8")
     salt = secrets.token_bytes(16)
     with _SEM:

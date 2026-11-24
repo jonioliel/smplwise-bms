@@ -98,6 +98,7 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "CalendarAttendees": ("wire-calendar-attendees.ts", ("calendar_attendees",)),
     "CameraImageHealth": ("wire-camera-image-health.ts", ("camera_image_health",)),
     "CameraSuggest": ("wire-camera-suggest.ts", ("camera_suggest",)),
+    "DeviceKeys": ("wire-device-keys.ts", ("device_keys",)),  # MFA-DEVICEKEY-2490
     "DeviceLayouts": ("wire-device-layouts.ts", ("device_layouts",)),
     "DoorAutomations": ("wire-door-automations.ts", ("door_automations",)),
     "Exports": ("wire-exports.ts", ("exports",)),
@@ -130,6 +131,8 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "Push": ("wire-push.ts", ("push",)),
     "Recordings": ("wire-recordings.ts", ("recordings",)),
     "SecondFactor": ("wire-second-factor.ts", ("second_factor",)),
+    "AccessTokens": ("wire-access-tokens.ts", ("access_tokens",)),  # MFA-TOKENS-2490: the user's own token list
+    "FactorPolicy": ("wire-factor-policy.ts", ("factor_policy",)),  # MFA-POLICY-2490: the sign-in factor policy and its compliance view
     "Skins": ("wire-skins.ts", ("skins",)),
     "Storage": ("wire-storage.ts", ("storage",)),
     "TicketsAdminSettings": ("wire-tickets-admin-settings.ts", ("tickets_admin_settings",)),

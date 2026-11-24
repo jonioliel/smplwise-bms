@@ -189,7 +189,7 @@ test('administrator reset: an administrator who has a factor types their own cur
   await code.fill('222333');
   await shot(page, 'k11-admin-reset-step-up');
   await box.locator('[data-sf-admin-confirm]').click();
-  await expect(box.locator('[data-sf-message]')).toHaveText('האימות הדו־שלבי אופס');
+  await expect(box.locator('[data-sf-message]')).toHaveText('האימות הדו־שלבי אופס: הוסרו אפליקציית האימות, מפתחות הגישה, מפתחות הטלפון וקודי השחזור');
   const deletes = mock.calls.filter((c) => c.method === 'DELETE');
   expect(deletes.map((c) => c.stepUp)).toEqual(['999999', '222333']);
   expect(errors).toEqual([]);

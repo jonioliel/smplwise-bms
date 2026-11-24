@@ -226,6 +226,18 @@ const he = {
   pwAdminRemote: 'למשתמש עם הרשאות ניהול קובעים סיסמה רק בכניסה מקומית.',
   usernameHint: 'אנגלית קטנה, ספרות, נקודה, קו תחתון או מקף. 3 עד 32 תווים.',
   fillUsernameName: 'יש למלא שם משתמש ושם תצוגה.',
+  // MFA-PASSKEYS-2490: passkeys for every user, renaming, the in-place confirmation of a factor change
+  passkeyFactorNoteUser: 'מפתח גישה מאשר את הזהות שלך לפני שינויים רגישים, במקום קוד מאפליקציית האימות. הוא פועל עם טביעת אצבע, זיהוי פנים או קוד המכשיר.',
+  passkeyRemoveConfirmUser: 'להסיר את מפתח הגישה {name}?',
+  passkeyLastFactor: 'זו הדרך האחרונה לאשר את הזהות בחשבון. אחרי ההסרה לא תתבקש אישור נוסף עד שתוסיף מפתח או קוד.',
+  passkeyRename: 'שינוי שם',
+  passkeyRenameSave: 'שמירה',
+  passkeyRenamed: 'השם נשמר.',
+  passkeyConfirmTitle: 'כדי לשנות את מפתחות הגישה, אשר שוב את הזהות.',
+  passkeyConfirmWithPasskey: 'אישור במפתח גישה',
+  passkeyConfirmCode: 'קוד מאפליקציית האימות',
+  passkeyConfirmCodeGo: 'אישור בקוד',
+  passkeyConfirmNone: 'אין כאן דרך לאשר: פתח את המערכת בכתובת הגישה מרחוק, או היכנס מחדש ונסה שוב.',
 } as const;
 
 type Key = keyof typeof he;

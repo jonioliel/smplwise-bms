@@ -9,6 +9,7 @@ import '../components/sw-button';
 import '../components/sw-tabs';
 import '../components/sw-field';
 import { toggled } from '../components/sw-toggle';
+import '../components/sw-step-up-status';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { sa } from '../i18n/search-access';
@@ -1683,13 +1684,36 @@ export class SystemDiagnostics extends LitElement {
     </sw-fold-cards>`;
   }
 
+  /** MFA-STEPUP-TRAIN-2490 (owner decisions 2026-11-22, Q45/Q46 + note): the step-up switch (off = the code only at sign-in), how long one
+   * confirmation counts, and whether the local network asks too; the caller's own confirmation below. Saved with the tab's save row
+   * (PATCH settings) - which itself needs a fresh confirmation while step-up is on. */
+  private renderStepUp(ro: boolean) {
+    const on = String(this.value('security.step_up') ?? 'off') !== 'off';
+    const local = String(this.value('security.step_up_local') ?? 'off') === 'on';
+    const minutes = Number(this.value('security.step_up_minutes') ?? 5);
+    return html`<sw-card heading=${t('stepUp.settingsHeading')} subheading=${t('stepUp.settingsSub')} data-card="remote.step-up" data-step-up-settings>
+        <div class="row" data-step-up-row="switch"><span class="lbl">${t('stepUp.switchLabel')}<span class="muted">${t('stepUp.switchHint')}</span></span>
+          <sw-toggle data-set-step-up="security.step_up" .checked=${on} ?disabled=${ro} label=${t('stepUp.switchLabel')} labelHidden
+            @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+        <div class="row" data-step-up-row="minutes"><span class="lbl">${t('stepUp.minutesLabel')}<span class="muted">${t('stepUp.minutesHint')}</span></span>
+          <sw-field class="ctl"><input type="number" min="0" max="30" step="1" data-ltr data-set-step-up="security.step_up_minutes" .value=${String(minutes)} ?disabled=${ro || !on}
+            @change=${(e: Event) => this.set('security.step_up_minutes', Math.min(30, Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0))))} /></sw-field></div>
+        <div class="row" data-step-up-row="local"><span class="lbl">${t('stepUp.localLabel')}<span class="muted">${t('stepUp.localHint')}</span></span>
+          <sw-toggle data-set-step-up="security.step_up_local" .checked=${local} ?disabled=${ro || !on} label=${t('stepUp.localLabel')} labelHidden
+            @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_local', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+        ${isApi()
+          ? html`<div class="row" data-step-up-row="mine"><span class="lbl">${t('stepUp.mineLabel')}<span class="muted"><sw-step-up-status></sw-step-up-status></span></span></div>`
+          : nothing}
+      </sw-card>`;
+  }
+
   /** הגדרות › גישה מרחוק (CR-008 SmplWise Arx, owner decisions D4/D5/D7/D8 of 2026-09-29): who may sign in through
    * `https://<HA hostname>/arx`, how the browser keeps the sign-in, and the remote video policy. The channel itself is the
    * add-on option remote_access; the per-user flag lives in משתמשים והרשאות. system.configure edits. */
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'security.second_factor_policy', 'remote.max_live_streams', 'remote.wall_profile', 'app.android_url', 'app.android_version', 'app.android_sha256'] as const;
+    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'security.second_factor_policy', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local', 'remote.max_live_streams', 'remote.wall_profile', 'app.android_url', 'app.android_version', 'app.android_sha256'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -1719,6 +1743,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row" data-second-factor-policy-row><span class="lbl">${t('secondFactor.policyLabel')}</span>
           ${sel('security.second_factor_policy', 'optional', [['optional', t('secondFactor.policyOptional')], ['admins', t('secondFactor.policyAdmins')]])}</div>
       </sw-card>
+      ${this.renderStepUp(ro)}
       <sw-card heading=${tr('הורדת אפליקציית Android')} subheading=${tr('מוצגת במסך הכניסה רק למי שנכנס ממכשיר Android, ורק כשהוגדרה כתובת. ריק = לא מוצגת.')} data-card="remote.android-download" data-android-download-settings>
         <div class="row"><span class="lbl">${tr('כתובת הורדה')}<span class="muted">${tr('https בלבד')}</span></span>
           <sw-field class="ctl"><input type="url" inputmode="url" maxlength="2000" placeholder="https://" data-ltr data-set-remote="app.android_url" .value=${v('app.android_url', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_url', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>

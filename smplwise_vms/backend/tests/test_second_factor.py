@@ -56,6 +56,9 @@ def arx(settings, tmp_path, monkeypatch):
     a.flag("u-owner")
     bind_raw(a, "u-owner", "system_admin")
     bind_raw(a, "dev-joni", "system_admin")  # the local developer identity administers the installation
+    # MFA-SECFIX-2500: `security.step_up` is OFF by default since the owner's answer Q2 = b; the second-factor tests run with the
+    # owner's switch ON (what they were written for). The default-off behaviour has its own tests (test_mfa_secfix_2500.py).
+    a.setting("security.step_up", "on")
     yield a
     hua.reset_for_tests()
 
@@ -225,7 +228,8 @@ def test_admin_reset_is_audited_and_needs_system_configure(arx):
     listed = admin.get("/api/v1/auth/second-factor/users").json()
     assert [u["user_id"] for u in listed["users"]] == ["u-viewer"] and listed["policy"] == "optional"
     r = admin.delete("/api/v1/auth/second-factor/users/u-viewer")
-    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True}
+    # MFA-SECFIX-2500 SR-2: the answer also counts every factor kind removed (the code came with 10 recovery codes)
+    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10}
     row = arx.audit("auth.second_factor.reset")[-1]
     details = json.loads(row["details_json"])
     assert row["actor_user_id"] == "dev-joni" and row["resource_id"] == "u-viewer" and details["removed"] is True and details["method"] == "totp"

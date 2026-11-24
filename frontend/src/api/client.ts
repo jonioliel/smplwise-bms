@@ -74,6 +74,44 @@ export function setUnauthorizedHandler(fn: (() => Promise<boolean>) | null): voi
   onUnauthorized = fn;
 }
 
+/** MFA-STEPUP-TRAIN-2490: what the server's central step-up gate says with its 403 `step_up_required` (services/step_up.py). Only an
+ * answer that names `verify_path` comes from that gate; the bridge-key reveal's own 403 of the same code asks for its code itself. */
+export interface StepUpDetails {
+  action?: string;
+  methods?: string[];
+  minutes?: number;
+  verify_path?: string;
+  /** MFA-PASSKEYS-2490: where a passkey challenge is asked (`auth/step-up/challenge`); the dialog offers the passkey when `methods`
+   * lists it. */
+  challenge_path?: string;
+}
+
+/** MFA-TRAIN-2500: a request that confirms its own step-up in place (My Account's passkey changes, components/sw-passkeys.ts, which
+ * offers the passkey and the code next to the change) sets this header; the client takes it off before the request leaves and leaves
+ * that answer's 403 `step_up_required` to the screen - never the shell dialog too (one prompt per change, the retry-once rule of the
+ * screen). The header never reaches the server. */
+export const STEP_UP_INLINE = 'X-Sw-Step-Up-Inline';
+
+/** MFA-STEPUP-TRAIN-2490: on a 403 `step_up_required` from the central gate the shell asks for the authenticator code
+ * (shell/step-up.ts); true = a fresh proof was recorded, retry the request ONCE. Never a second prompt for the retried request. */
+let onStepUp: ((details: StepUpDetails) => Promise<boolean>) | null = null;
+export function setStepUpHandler(fn: ((details: StepUpDetails) => Promise<boolean>) | null): void {
+  onStepUp = fn;
+}
+
+/** The gate's details when this answer is the central step-up refusal, else null. Reads a clone: the answer stays readable. */
+async function stepUpRefusal(res: Response): Promise<StepUpDetails | null> {
+  if (res.status !== 403) return null;
+  try {
+    const b = JSON.parse(await res.clone().text()) as { code?: unknown; details?: unknown };
+    if (b?.code !== 'step_up_required' || !b.details || typeof b.details !== 'object') return null;
+    const d = b.details as StepUpDetails;
+    return typeof d.verify_path === 'string' ? d : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One HTTP answer, read to its text (a 204 carries none). */
 interface RawReply {
   status: number;
@@ -87,8 +125,15 @@ interface RawReply {
 async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const inline = headers.has(STEP_UP_INLINE); // MFA-TRAIN-2500: the screen confirms this one itself
+  headers.delete(STEP_UP_INLINE);
   let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  if (res.status === 403 && onStepUp && !inline) {
+    const details = await stepUpRefusal(res);
+    // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
+    if (details && (await onStepUp(details))) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  }
   return res;
 }
 

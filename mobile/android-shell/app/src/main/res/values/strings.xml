@@ -114,4 +114,8 @@
     <string name="error_scope">השרת הפנה את האפליקציה לאתר אחר, שאינו חלק משרת זה. הכתובת לא נפתחה באפליקציה.</string>
     <string name="error_other_title">לא ניתן לפתוח את השרת</string>
     <string name="error_other">משהו השתבש בטעינה. נסו שוב.</string>
+    <!-- MFA-DEVICEKEY-2490: the phone key (DeviceKey.kt) -->
+    <string name="device_key_prompt_title">אישור עם מפתח הטלפון</string>
+    <string name="device_key_prompt_default">אישור הפעולה ב־SmplWise Arx</string>
+    <string name="device_key_invalidated">מפתח הטלפון בוטל כי נוספה לטלפון טביעת אצבע או פנים חדשה. צריך לרשום אותו מחדש בחשבון שלי.</string>
 </resources>

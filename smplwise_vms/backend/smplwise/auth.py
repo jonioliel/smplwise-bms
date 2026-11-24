@@ -42,6 +42,15 @@ def _track(request: Request, conn: sqlite3.Connection) -> None:
     if conns is None:
         conns = request.state.sw_conns = []
     conns.append(conn)
+    from .services import step_up
+
+    step_up.attach(conn, request)  # MFA-STEPUP-TRAIN-2490: rbac.require finds the request of a connection (detached when it closes)
+
+
+def _untrack(conn: sqlite3.Connection) -> None:
+    from .services import step_up
+
+    step_up.detach(conn)
 
 
 PRE_RESOLVED = "sw_principal"  # request.state key: the remote principal resolved before the write transaction
@@ -155,7 +164,10 @@ async def get_conn(request: Request):
     exit_limiter = anyio.CapacityLimiter(1)
     try:
         _track(request, conn)
-        yield conn
+        try:
+            yield conn
+        finally:
+            _untrack(conn)  # before the connection goes back to the pool (another request may lease it next)
     except Exception as exc:  # the handler's error: Database.connection decides commit (ApiError) or rollback
         if not await anyio.to_thread.run_sync(cm.__exit__, type(exc), exc, exc.__traceback__, limiter=exit_limiter):
             raise
@@ -172,7 +184,10 @@ def get_read_conn(request: Request):
     db: Database = request.app.state.db
     with db.connection(mode="read", label=conn_label(request)) as conn:
         _track(request, conn)
-        yield conn
+        try:
+            yield conn
+        finally:
+            _untrack(conn)
 
 
 def remote_first(request: Request) -> None:

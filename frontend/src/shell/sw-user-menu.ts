@@ -6,6 +6,7 @@ import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-remote-sessions';
+import '../components/sw-access-tokens'; // MFA-TOKENS-2490: החשבון שלי › אסימוני גישה
 // CR-SHELL-LAZY-2436 (review 07:F24): <sw-second-factor> is imported when its section is first opened (onFactorToggle)
 import '../components/sw-native-device-card';
 import { nativeCan } from '../arx/native-app';
@@ -77,6 +78,7 @@ export class SwUserMenu extends LitElement {
   @state() private level: 'main' | 'account' = 'main';
   /** The sign-ins list loads only while its section is open (it asks the server). */
   @state() private sessionsOpen = false;
+  @state() private tokensOpen = false;
   /** The WisKey start choices section (WisKey rc.37) loads only while it is open. */
   @state() private wiskeyOpen = false;
   /** VIDEO-TRANSPORT-2400: החשבון שלי › וידאו (the viewer's own live transport) */
@@ -448,6 +450,7 @@ export class SwUserMenu extends LitElement {
    * mounted and loaded, and the flag disagrees with what the person sees. */
   private closeSections() {
     this.sessionsOpen = false;
+    this.tokensOpen = false;
     this.wiskeyOpen = false;
     this.videoOpen = false;
     this.langOpen = false;
@@ -523,13 +526,14 @@ export class SwUserMenu extends LitElement {
     const video = this.api && !this.gated && canAnywhere('video.live') && cap('live_video'); // VIDEO-2403: no live video, no transport choice
     // I18N-EN-SWITCH-2438: the interface language - for every signed-in user (stored on the server, so only with a backend)
     const lang = this.api;
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video, lang };
+    // MFA-TOKENS-2490: the signed-in user's own access tokens (Home Assistant's read-only, the app's saved sign-ins revocable)
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, tokens: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video, lang };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video || acc.lang;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.tokens || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video || acc.lang;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -630,6 +634,12 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-sessions @toggle=${(e: Event) => (this.sessionsOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="users" size=${18}></sw-icon></span><span class="txt">${tr('הכניסות שלי')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.sessionsOpen ? html`<sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.tokens
+          ? html`<li><details data-my-tokens @toggle=${(e: Event) => (this.tokensOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="lock" size=${18}></sw-icon></span><span class="txt">${tr('אסימוני גישה')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.tokensOpen ? html`<sw-access-tokens></sw-access-tokens>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.staff

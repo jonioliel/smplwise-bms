@@ -183,6 +183,11 @@ def _begin(act: _Action, kind: dt.Kind, raw: bytes, model: type, extra: dict[str
                                   details={"permission": dt.DOOR_ADMIN, "alternative": dt.SYSTEM_CONFIGURE, "reason": g.reason}))
     rbac.note_grant(g.decision, g.reason)
     act.details["granted_by"] = g.reason
+    if g.reason == dt.SYSTEM_CONFIGURE:
+        # MFA-STEPUP-GATES-2490: the door's technical settings granted by system.configure (without require()) are a settings change
+        from ..services import step_up
+
+        step_up.on_grant(conn, principal, dt.SYSTEM_CONFIGURE)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "שינוי טכני בדלת דורש אישור מפורש.", details={"kind": kind.name}))
     available, why = dt.available(intercom_sync.SYNC.api_facts(settings_of(request)), kind)

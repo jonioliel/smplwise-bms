@@ -58,7 +58,8 @@ export interface LocalSignInUser {
 
 /**
  * `GET /auth/passkeys`: the summary, whether the session counts as a fresh sign-in (and for how many more seconds) and whether a
- * TOTP factor is enrolled.
+ * TOTP factor is enrolled. MFA-PASSKEYS-2490: `user_kind` - `local` (an Arx-only identity: the sign-in modes apply) or `user` (any
+ * other user, while `security.passkeys_all_users` is on: no sign-in modes; `recent_auth` = this session holds a step-up proof now).
  */
 export interface OwnPasskeys {
   available: boolean;
@@ -72,6 +73,7 @@ export interface OwnPasskeys {
   recent_auth: boolean;
   recent_auth_left_s: number;
   totp: boolean;
+  user_kind: "local" | "user";
 }
 
 /**
@@ -156,6 +158,19 @@ export interface RequestOptions {
   allowCredentials: CredentialDescriptor[];
 }
 
+/**
+ * `POST /auth/step-up/challenge` (MFA-PASSKEYS-2490): a passkey step-up for the caller - the challenge's public id (sent back with the
+ * assertion to `POST /auth/step-up/verify {method: "passkey", challenge_id, assertion, action?}`), the action it is bound to, how
+ * many seconds it lives (single use), the caller's step-up methods and the WebAuthn request options.
+ */
+export interface StepUpChallenge {
+  challenge_id: string;
+  action: string;
+  expires_in: number;
+  methods: ("totp" | "passkey")[];
+  webauthn: AssertionOptions;
+}
+
 /** `DELETE /identity/local-users/{id}/passkeys/{pk_id}`: the user id, what the removal did, then the summary. */
 export interface UserPasskeyRemoved {
   user_id: string;
@@ -199,6 +214,7 @@ export interface LocalPasskeysRoutes {
   "DELETE /api/v1/auth/passkeys/{pk_id}": PasskeyRemoved;
   "PUT /api/v1/auth/passkeys/first": PasskeySummary;
   "PUT /api/v1/auth/passkeys/only": PasskeySummary;
+  "POST /api/v1/auth/step-up/challenge": StepUpChallenge;
   "PUT /api/v1/identity/local-users/{user_id}/passkey-only": UserPasskeys;
   "GET /api/v1/identity/local-users/{user_id}/passkeys": UserPasskeys;
   "DELETE /api/v1/identity/local-users/{user_id}/passkeys/{pk_id}": UserPasskeyRemoved;

@@ -300,7 +300,10 @@ ACTIONS: dict[str, dict[str, Any]] = {
     # (routers/alarm.py) adds it to the service data only, so it never reaches ha_actions.arguments_json or the audit.
     "alarm_control_panel.alarm_arm_night": _a("alarm_control_panel", "alarm_arm_night", "דריכת לילה", expect="armed_night", risk="attention"),
     "alarm_control_panel.alarm_arm_vacation": _a("alarm_control_panel", "alarm_arm_vacation", "דריכת חופשה", expect="armed_vacation", risk="attention"),
-    "alarm_control_panel.alarm_arm_custom_bypass": _a("alarm_control_panel", "alarm_arm_custom_bypass", "דריכה עם עקיפה", expect="armed_custom_bypass", risk="attention"),
+    # MFA-SECFIX-2500 (slice 3 finding 3, docs/security/HA_IDENTITY_RBAC_HE.md: arming with a bypass needs `alarm.bypass`): general entity
+    # control never implies it - the generic device route asks for the grant at the entity (403 grant_required), as for disarm
+    "alarm_control_panel.alarm_arm_custom_bypass": _a("alarm_control_panel", "alarm_arm_custom_bypass", "דריכה עם עקיפה", expect="armed_custom_bypass", risk="attention",
+                                                      grant="alarm.bypass"),
     # CR-015 (multimedia, MEDIA_API.md 5.2): what the remote needs beyond the rows above. Every one is `route: "media"`: it is
     # sent only by POST /multimedia/devices/{key}/commands, which resolves the endpoint, the profile code and the permission;
     # the generic route refuses them (409 use_media_screen) and the catalogue never lists them. No power key, no

@@ -1,5 +1,5 @@
 /** USR2 phase 4: passkeys of an Arx-only (local) identity (routers/local_passkeys.py). Lists never carry a credential id or a key. */
-import { api, get, patch, post, put } from './client';
+import { STEP_UP_INLINE, api, get, patch, put } from './client';
 import type * as PkWire from './generated/wire-local-passkeys';
 
 /* The shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/local_passkeys.py, generated into
@@ -7,17 +7,21 @@ import type * as PkWire from './generated/wire-local-passkeys';
 export type PasskeyView = PkWire.Passkey;
 
 /** A user's passkeys and modes; the caller's own answer (`ownPasskeys`) adds whether the session is a fresh sign-in and whether TOTP is
- * enrolled - optional here so one state type serves both screens. */
-export type PasskeySummary = PkWire.PasskeySummary & Partial<Pick<PkWire.OwnPasskeys, 'recent_auth' | 'recent_auth_left_s' | 'totp'>>;
+ * enrolled - optional here so one state type serves both screens. MFA-PASSKEYS-2490: `user_kind` (`local` = an Arx-only identity,
+ * `user` = any other user, passkeys for all users). */
+export type PasskeySummary = PkWire.PasskeySummary & Partial<Pick<PkWire.OwnPasskeys, 'recent_auth' | 'recent_auth_left_s' | 'totp' | 'user_kind'>>;
 
 export const ownPasskeys = () => get<PkWire.OwnPasskeys>('auth/passkeys');
-export const registrationOptions = () => post<PkWire.RegistrationOptions>('auth/passkeys/register/options');
+/** MFA-TRAIN-2500: the own factor changes (add, remove) confirm a step-up in place (components/sw-passkeys.ts offers the passkey and the
+ * code next to the change), so their 403 `step_up_required` is left to that screen, not the shell dialog (api/client.ts STEP_UP_INLINE). */
+const INLINE = { [STEP_UP_INLINE]: '1' };
+export const registrationOptions = () => api<PkWire.RegistrationOptions>('auth/passkeys/register/options', { method: 'POST', headers: INLINE });
 export const registerPasskey = (credential: Record<string, unknown>, label?: string) =>
-  post<PkWire.PasskeyRegistered>('auth/passkeys/register', { credential, ...(label ? { label } : {}) });
+  api<PkWire.PasskeyRegistered>('auth/passkeys/register', { method: 'POST', headers: INLINE, body: JSON.stringify({ credential, ...(label ? { label } : {}) }) });
 // CR-FE-DEAD-CODE-2442 (O15 a): no caller yet - kept; built ahead by USR2 phase 4 (passkeys).
 export const renamePasskey = (id: string, label: string) => patch<PasskeySummary>(`auth/passkeys/${encodeURIComponent(id)}`, { label });
 export const removePasskey = (id: string, code?: string) =>
-  api<PkWire.PasskeyRemoved>(`auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', ...(code ? { body: JSON.stringify({ code }) } : {}) });
+  api<PkWire.PasskeyRemoved>(`auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', headers: INLINE, ...(code ? { body: JSON.stringify({ code }) } : {}) });
 export const setPasskeyFirst = (on: boolean) => put<PasskeySummary>('auth/passkeys/first', { on });
 
 /** Administration: identity.directory.read to list, identity.local.manage to remove (with the administrator's own TOTP code when enrolled). */

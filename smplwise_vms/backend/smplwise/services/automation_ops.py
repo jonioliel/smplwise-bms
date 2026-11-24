@@ -1169,6 +1169,11 @@ def _door_plan(w: W, kind: str, item_id: str, confirm: bool) -> "door_run_guard.
     door_run_guard.authorize_plan(w.conn, w.principal, plan, dev_mode=bool(getattr(w.settings, "dev_user", None)))
     if plan.doors and confirm is not True:
         raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
+    if plan.doors:
+        from . import step_up
+
+        # MFA-STEPUP-GATES-2490: a run that opens doors needs a fresh step-up proof, once for the run - before it starts
+        step_up.guard_action(w.conn, w.request, w.principal, step_up.ACTION_DOOR_OPEN)
     return plan
 
 

@@ -222,6 +222,7 @@ export const en = {
   'המסך שלי': 'My screen',
   'וידאו': 'Video',
   'הכניסות שלי': 'My sign-ins',
+  'אסימוני גישה': 'Access tokens', // MFA-TOKENS-2490
   'נייד לקישורי עבודה': 'Mobile number for work links',
   'החלף שרת': 'Switch server',
 

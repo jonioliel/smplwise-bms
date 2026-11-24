@@ -279,6 +279,12 @@ export interface ProductSettings {
   'security.second_factor_policy'?: 'optional' | 'admins';
   /** Security review 2.2.0 H1: 'enforce' (default) asks a new bearer sign-in (the phone app's own calls) for the factor too; 'off' = the pre-2.2.1 bearer path. */
   'security.second_factor_bearer'?: 'enforce' | 'off';
+  /** MFA-STEPUP-TRAIN-2490: 'on' (default) = a change of settings, users or permissions needs a fresh code; 'off' = the code only at sign-in. */
+  'security.step_up'?: 'on' | 'off';
+  /** How long one confirmation counts, 0-30 minutes (default 5; 0 = every change). */
+  'security.step_up_minutes'?: number;
+  /** 'on' = the local channel (Ingress) asks too; 'off' (default) = the local network stays the way back in. */
+  'security.step_up_local'?: 'on' | 'off';
   /** CR-008 P2: live streams one remote sign-in may hold open at once (default 16); the next one is refused (429). */
   'remote.max_live_streams'?: number;
   /** The stream the camera wall plays on the remote channel (default 'sub'; LAN / Ingress use media.wall_profile). */
