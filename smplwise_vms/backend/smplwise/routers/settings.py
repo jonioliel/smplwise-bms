@@ -275,6 +275,10 @@ class SettingsPatch(BaseModel):
     security_step_up: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up")  # MFA-STEPUP-TRAIN-2490
     security_step_up_minutes: int | None = Field(default=None, ge=0, le=30, alias="security.step_up_minutes")
     security_step_up_local: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_local")
+    security_factor_policy: str | None = Field(default=None, pattern="^(optional|admins|sensitive|all)$", alias="security.factor_policy")  # MFA-POLICY-2490
+    security_factor_policy_mode: str | None = Field(default=None, pattern="^(report|enforce)$", alias="security.factor_policy_mode")
+    security_factor_wall_exempt: str | None = Field(default=None, pattern="^(on|off)$", alias="security.factor_wall_exempt")
+    security_remote_long_lived_tokens: str | None = Field(default=None, pattern="^(allow|refuse_under_policy|refuse)$", alias="security.remote_long_lived_tokens")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
     security_local_identity_extended: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity_extended")  # SVCIDENT2: system_admin; on = local channel only, off = any channel (AMEND273)

@@ -91,6 +91,7 @@ class HaUser:
     is_owner: bool
     is_admin: bool
     mfa: bool
+    mfa_modules: tuple[str, ...] = ()  # MFA-POLICY-2490: the ids of the ENABLED HA MFA modules (auth_mfa_seen.modules_json)
 
 
 class TokenInvalid(Exception):
@@ -269,8 +270,10 @@ async def validate_token(settings: Settings, token: str, client_ip: str | None =
             uid = r.get("id")
             if not isinstance(uid, str) or not uid:
                 raise HaUnavailable("auth/current_user without an id")
-            mfa = any(isinstance(m, dict) and m.get("enabled") for m in (r.get("mfa_modules") or []))
-            return HaUser(id=uid, name=str(r.get("name") or ""), is_owner=bool(r.get("is_owner")), is_admin=bool(r.get("is_admin")), mfa=mfa)
+            enabled = [m for m in (r.get("mfa_modules") or []) if isinstance(m, dict) and m.get("enabled")]
+            modules = tuple(str(m.get("id") or "")[:40] for m in enabled if m.get("id"))[:10]
+            return HaUser(id=uid, name=str(r.get("name") or ""), is_owner=bool(r.get("is_owner")), is_admin=bool(r.get("is_admin")), mfa=bool(enabled),
+                          mfa_modules=modules)
     except (TokenInvalid, HaUnavailable):
         raise
     except Exception as exc:  # noqa: BLE001 - a dropped socket, a timeout, a malformed frame
@@ -1115,9 +1118,65 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
     if sf.is_enrolled(conn, principal.user_id):
         return "code"
     # TFA2: the per-user / per-role override on top of the global policy; `required` and no factor = the enrolment-required answer
-    if sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)[0] == "required":
-        return "enroll"
+    value, source = sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)
+    if value == "required":
+        # MFA-POLICY-2490: required by the (enforced) sign-in factor policy alone -> HA's own MFA with provenance may satisfy it
+        # (services/mfa_provenance; checked by the caller, which may still answer enrolment-required); the legacy rules keep theirs
+        return "ha_mfa" if source == "policy" else "enroll"
     return "none"
+
+
+def long_lived_check_needed(conn, principal: Principal, replaces: str | None) -> bool:
+    """MFA-POLICY-2490: a NEW remote sign-in (not the rotation of the caller's own live cookie session) under a long-lived-token rule
+    other than `allow` (owner decision Q48: `allow` is the default) must find out whether its token is a long-lived one."""
+    from . import factor_policy
+
+    old = STORE.get(replaces) if replaces else None
+    if old is not None and old.principal.user_id == principal.user_id and old.via == "cookie":
+        return False
+    return factor_policy.long_lived_check_needed(conn, principal)
+
+
+async def provenance_gate(settings: Settings, db: Any, token: str, client_id: str, ha_user: HaUser, *,
+                          need_mfa: bool, need_llat: bool) -> tuple[ApiError | None, str, dict[str, Any]]:
+    """MFA-POLICY-2490: the HA side of a NEW remote sign-in, only when the sign-in factor policy or the long-lived-token rule asks
+    for it (both off by default: no HA call, no change). Returns (refusal or None, audit reason, audit details). Reads HA's
+    `auth/refresh_tokens` with the user's own token (read-only). HA unreachable -> 503, fail closed (design 9)."""
+    from . import factor_policy
+    from . import mfa_provenance as prov
+
+    def first_seen() -> str | None:
+        prov.observe(db, ha_user)  # what HA reports now (a row while MFA is on, none while it is off)
+        with db.connection(mode="read", label="auth mfa seen") as conn:
+            row = prov.seen(conn, ha_user.id)
+        return row["first_seen_at"] if row is not None else None
+
+    seen_at = await _in_thread(first_seen)
+    if need_mfa and not need_llat and not ha_user.mfa:  # HA reports no MFA now: nothing to read at HA
+        from . import second_factor as sf
+
+        return (ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE, details={"provenance": prov.NO_HA_MFA}),
+                "second_factor_enrollment_required", {"provenance": prov.NO_HA_MFA})
+    try:
+        verdict = await prov.check(settings, token, client_id=client_id, first_seen_at=seen_at, ha_mfa=ha_user.mfa)
+    except HaUnavailable:
+        return ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True), "ha_unavailable", {}
+    details: dict[str, Any] = {"provenance": verdict.reason}
+    if need_llat and factor_policy.is_long_lived(token, verdict.token_type):
+        return ApiError(403, "long_lived_token_refused", factor_policy.LONG_LIVED_REFUSED_HE), "long_lived_token", details
+    if need_mfa and not verdict.ok:
+        from . import second_factor as sf
+
+        message = factor_policy.SIGN_IN_AGAIN_HE if verdict.reason == prov.BEFORE_MFA_SEEN else sf.ENROLL_REQUIRED_HE
+        return (ApiError(403, "second_factor_enrollment_required", message, details={"provenance": verdict.reason}),
+                "second_factor_enrollment_required", details)
+    return None, "", ({"second_factor": "ha_mfa", **details} if need_mfa else details)
+
+
+async def _in_thread(fn: Callable[[], Any]) -> Any:
+    from starlette.concurrency import run_in_threadpool
+
+    return await run_in_threadpool(fn)
 
 
 BEARER_FACTOR_KEY = "security.second_factor_bearer"
@@ -1197,21 +1256,33 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
 
     replaces = session_id_of(settings, conn_like)
 
-    def decide() -> tuple[Principal, ApiError | None, str | None, str]:
+    def decide() -> tuple[Principal, ApiError | None, str | None, str, bool]:
         with db.connection(mode="read", label="auth/session") as conn:
             principal = dataclasses.replace(build_principal(conn, ha_user), via="cookie")
             if chain_revoked(conn, token):
-                return principal, unauthenticated("remote_session_revoked", REVOKED_HE), None, "none"
+                return principal, unauthenticated("remote_session_revoked", REVOKED_HE), None, "none", False
             refusal = policy_refusal(conn, principal, ha_user)
             if refusal:
-                return principal, refusal, None, "none"
-            return principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces)
+                return principal, refusal, None, "none", False
+            return (principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces),
+                    long_lived_check_needed(conn, principal, replaces))
 
-    principal, refusal, basis, factor = await run_in_threadpool(decide)
+    principal, refusal, basis, factor, need_llat = await run_in_threadpool(decide)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
+    factor_meta: dict[str, Any] = {}
+    if factor == "ha_mfa" or need_llat:  # MFA-POLICY-2490 (both off by default)
+        gate, reason, factor_meta = await provenance_gate(settings, db, token, arx_client_id(settings, conn_like), ha_user,
+                                                          need_mfa=factor == "ha_mfa", need_llat=need_llat)
+        if gate is not None:
+            if gate.status == 503:
+                raise gate
+            await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **factor_meta}))
+            raise gate
+        if factor == "ha_mfa":
+            factor = "none"
     if factor == "enroll":
         from . import second_factor as sf
 
@@ -1236,7 +1307,10 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             touch_user(conn, principal, force=True)
         if not session.continued:
             _record_sign_in(db, principal, meta)
-        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis})
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
+        from . import mfa_provenance  # MFA-POLICY-2490: what HA reports about this user's MFA (auth_mfa_seen; throttled)
+
+        mfa_provenance.observe(db, ha_user)
 
     await run_in_threadpool(touch_and_audit)
     return session, max(1, int(exp - time.time()))
@@ -1338,7 +1412,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
-    factor, enforced = "none", True
+    factor, enforced, need_llat = "none", True, False
     with db.connection(mode="read", label="remote bearer") as conn:
         principal = dataclasses.replace(build_principal(conn, ha_user), via="bearer")
         if chain_revoked(conn, token):
@@ -1351,6 +1425,8 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         if refusal is None and s is None and not STORE.sign_in_verified(iss_hash(token), principal.user_id):
             factor = second_factor_need(conn, principal, None)
             enforced = bearer_factor_enforced(conn)
+        if refusal is None and s is None:
+            need_llat = long_lived_check_needed(conn, principal, None)  # MFA-POLICY-2490 (`allow` by default: never)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
@@ -1360,7 +1436,19 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         s.ha_user = ha_user
         return s
     factor_meta: dict[str, Any] = {}
-    if factor != "none" and not enforced:
+    need_mfa = factor == "ha_mfa" and enforced
+    if need_mfa or need_llat:  # MFA-POLICY-2490: HA MFA with provenance / the long-lived-token rule (both off by default)
+        gate, reason, factor_meta = asyncio.run(provenance_gate(settings, db, token, arx_client_id(settings, request), ha_user,
+                                                                need_mfa=need_mfa, need_llat=need_llat))
+        if gate is not None:
+            if gate.status == 503:
+                raise gate
+            raise rejected(reason, gate, principal)
+        if need_mfa:
+            factor = "ha_mfa_ok"
+    if factor == "ha_mfa_ok":
+        pass
+    elif factor != "none" and not enforced:
         factor_meta = {"second_factor_skipped": factor}  # security.second_factor_bearer = off (the owner's choice)
     elif factor == "enroll":
         from . import second_factor as sf
@@ -1376,11 +1464,14 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
     if factor_meta.get("second_factor_skipped"):
         s.factor_checked = False
-    elif factor == "code":
+    elif factor in ("code", "ha_mfa_ok"):
         STORE.mark_factor_verified(s.iss_hash, principal.user_id)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
+        from . import mfa_provenance  # MFA-POLICY-2490: auth_mfa_seen (throttled)
+
+        mfa_provenance.observe(db, ha_user)
     return s
 
 
@@ -1832,6 +1923,9 @@ async def revalidate_once(db: Any, settings: Settings, validate: Callable[..., A
         if reason is None:
             s.last_validated = time.time()
             s.ha_user = ha_user
+            from . import mfa_provenance  # MFA-POLICY-2490: auth_mfa_seen follows HA (throttled: at most hourly per user)
+
+            await run_in_threadpool(mfa_provenance.observe, db, ha_user)
             continue
         STORE.drop(s.sid)
         dropped += 1
@@ -1880,6 +1974,9 @@ def reset_for_tests() -> None:
     _core_base.clear()
     _xff_refused.clear()
     _REVOKED_TABLE["seen"] = False
+    from . import mfa_provenance  # MFA-POLICY-2490: the throttle of the auth_mfa_seen writes
+
+    mfa_provenance.reset_for_tests()
     from . import app_session, local_identity
 
     local_identity.reset_for_tests()

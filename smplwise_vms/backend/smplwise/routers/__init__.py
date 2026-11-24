@@ -244,6 +244,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("nvr_batch", "nvr"),  # CR-020 S2C: multi-camera stream batches (background runner)
     Load("remote"),
     Mount("second_factor", "remote"),  # K11: the optional TOTP second factor (own enrolment, admin reset)
+    Mount("factor_policy", "remote"),  # MFA-POLICY-2490: the sign-in factor policy - overrides and the compliance view (report mode by default)
     Mount("capture_lease", "access"),  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
     Mount("bridge_key", "system"),  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
     Mount("wiskey_pairing", "system"),  # WISKEY-PAIRING-2382: Arx <-> WisKey pairing status, probe, guided re-pair

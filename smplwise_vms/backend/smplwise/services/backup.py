@@ -272,6 +272,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days"
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # MFA-STEPUP-TRAIN-2490: the step-up switch, its window and its channel are security policy - a restore must never weaken them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
+# MFA-POLICY-2490: the sign-in factor policy, its mode, the wall exemption and the long-lived-token rule - a restore never changes them
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_policy", "security.factor_policy_mode", "security.factor_wall_exempt", "security.remote_long_lived_tokens"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
