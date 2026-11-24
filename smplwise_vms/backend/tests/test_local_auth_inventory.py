@@ -191,6 +191,9 @@ OUTSIDE_PRINCIPAL = {
 # the remote channel's own session list, 401 on the local channel).
 IN_HANDLER: set[tuple[str, str]] = {
     ("GET", "/api/v1/auth/sessions"), ("DELETE", "/api/v1/auth/sessions"), ("DELETE", "/api/v1/auth/sessions/{session_id}"),
+    # MFA-TOKENS-2490 (found by MFA-SECFIX-2500's runner job): the own token list resolves the identity first inside its async handler
+    # (routers/access_tokens.list_tokens -> _who, 401 for an anonymous caller) so it can read HA's list with the caller's own token
+    ("GET", "/api/v1/auth/tokens"),
 }
 
 

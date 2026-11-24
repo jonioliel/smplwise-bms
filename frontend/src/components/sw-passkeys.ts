@@ -256,7 +256,7 @@ export class SwPasskeys extends LitElement {
           </form>`
         : nothing}
       ${!byPasskey && !byCode ? html`<span class="lbl" data-pk-step-up-none>${lit('passkeyConfirmNone')}</span>` : nothing}
-      <span><sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-pk-step-up-cancel @click=${() => { this.need = null; this.code = ''; }}>${lit('cancel')}</sw-button></span>
+      <span><sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-pk-step-up-cancel @click=${() => { this.need = null; this.code = ''; this.armed = ''; }}>${lit('cancel')}</sw-button></span>
     </div>`;
   }
 
