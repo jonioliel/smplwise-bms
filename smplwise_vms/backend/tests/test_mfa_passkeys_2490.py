@@ -309,6 +309,20 @@ def test_factor_changes_still_need_a_proof_while_step_up_is_off(arx, clock):
     assert len(arx.client.get(PK).json()["credentials"]) == 2
 
 
+def test_the_authenticator_code_proves_a_factor_change_while_step_up_is_off(arx, clock):
+    local = configure(arx)
+    enrol(arx, arx.owner)
+    assert local.patch("/api/v1/settings", json={"security.step_up": "off"}).status_code == 200
+    clock.advance(6)
+    assert arx.client.post(REG_OPTS).json()["code"] == "step_up_required"
+    bump_step(arx, "u-owner")
+    r = arx.client.post(VERIFY, json={"method": "totp", "code": code_now(arx, "u-owner"), "action": upk.ACTION_REGISTER})
+    assert r.status_code == 200, r.text
+    assert arx.client.post(REG_OPTS).status_code == 200
+    bump_step(arx, "u-owner")  # an ordinary action stays "not applicable" while the switch is off
+    assert arx.client.post(VERIFY, json={"method": "totp", "code": code_now(arx, "u-owner"), "action": "system.configure"}).json()["code"] == "step_up_not_applicable"
+
+
 def test_zero_minutes_a_passkey_proof_is_good_for_one_change(arx, clock):
     configure(arx)
     auth, _ = add_passkey(arx, arx.owner)

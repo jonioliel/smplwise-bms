@@ -278,7 +278,12 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         return user_passkeys.verify(conn, request, principal, body.challenge_id, body.assertion, body.action, _rid(request))
     if not body.code:
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
-    reason = step_up.not_applicable(conn, request, principal)
+    from ..services.user_passkeys import FACTOR_ACTIONS
+
+    if body.action in FACTOR_ACTIONS:  # MFA-PASSKEYS-2490: a passkey change needs a proof whatever the switch / channel says
+        reason = None if step_up.methods_of(conn, principal.user_id) else "no_method"
+    else:
+        reason = step_up.not_applicable(conn, request, principal)
     if reason == "no_method":
         raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)
     if reason is not None:
