@@ -924,7 +924,11 @@ test.describe('the home screen against the devices fixture backend', () => {
       await mine.locator('[data-home-personal-dir="c"]').click();
       await expect(hw).toHaveAttribute('layout', 'row', { timeout: 20000 });
       // a widget off, another in a size of their own, another first
-      await mine.locator('[data-home-personal-on="weather"]').uncheck();
+      // HAND-SWITCH-HOME-PERSONAL-2500: the widget's on / off is a sw-toggle (the host carries the hook and reflects `checked`)
+      const weatherOn = mine.locator('[data-home-personal-on="weather"]');
+      await expect(weatherOn).toHaveAttribute('checked', '');
+      await weatherOn.click();
+      await expect(weatherOn).not.toHaveAttribute('checked', '');
       await mine.locator('[data-home-personal-size="clock:s"]').click();
       await mine.locator('[data-home-personal-earlier="alarm"]').click();
       await expect.poll(() => cardIds(p), { timeout: 20000 }).not.toContain('weather');
