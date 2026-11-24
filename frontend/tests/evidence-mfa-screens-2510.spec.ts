@@ -221,7 +221,7 @@ test('shots: the three screens, light and dark', async ({ page }) => {
       await page.screenshot({ path: path.join(SHOTS, `${name}-${vp}-${scheme}.png`) });
     };
     // 1. the account level: the security section when it exists (after), else the second factor section (before)
-    await page.goto('/?design=a#/live/cameras');
+    await page.goto('/?design=a#/system/access');
     await page.waitForSelector('sw-app');
     await page.locator(isPhone(page) ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
     const menu = page.locator('sw-app sw-user-menu [data-profile-menu-panel]');

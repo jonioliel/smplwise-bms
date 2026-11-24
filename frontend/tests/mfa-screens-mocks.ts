@@ -100,6 +100,8 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     if (p === 'identity/users') return json(route, { users: [user('u-admin', 'מנהל', 'admin', true), user('u-dana', 'דנה כהן', 'dana'), user('u-ron', 'רון לוי', 'ron'), user('u-maya', 'מאיה אברהם', 'maya')], directory: { paired: true, last_directory_at: null, users: 4 }, revision: 1, can_assign: true, remote_policy: 'flag' });
     if (p === 'access/roles') return json(route, { roles: [], labels: {}, sensitive: [] });
     if (p === 'access/groups') return json(route, { groups: [], can_manage: true, delegated: false });
+    const alarmUser = p.match(/^alarm\/users\/([^/]+)$/);
+    if (alarmUser && method === 'GET') return json(route, { user_id: decodeURIComponent(alarmUser[1]), arm_policy: 'no_code', disarm_policy: 'code_required', pin_set: false, pin_set_at: null, pin_set_by: null, code_mode: 'personal_pin' });
     // my own factors
     if (p === 'auth/second-factor' && method === 'GET') return json(route, { enabled: true, enabled_at: '2026-11-01T08:00:00Z', last_used_at: '2026-11-24T07:00:00Z' });
     if (p === 'auth/recovery-codes' && method === 'GET') return json(route, { available: true, remaining: 3, total: 10, created_at: '2026-11-01T08:00:00Z', last_used_at: '2026-11-20T08:00:00Z', low: true, low_at: 3 });
@@ -163,7 +165,7 @@ export const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) <= 8
 
 /** החשבון שלי › אבטחה, open. */
 export async function openSecurity(page: Page) {
-  await page.goto('/?design=a#/live/cameras');
+  await page.goto('/?design=a#/system/access'); // a page this mock serves (the users list), not an error state behind the menu
   await page.waitForSelector('sw-app');
   await page.locator(isPhone(page) ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
   const menu = page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
