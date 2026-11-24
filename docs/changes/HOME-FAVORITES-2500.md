@@ -51,6 +51,19 @@ a "+ הוסף" hole appears). The refresh (`run_remote.sh preview ... pixel-home
 SW_WORKERS=1) is queued on runner slot B and had not started when this note was written (slot B busy with other jobs); the
 refreshed *-linux.png files must be reviewed and committed before this branch joins a train.
 
+Pixel baseline refresh - DONE (TRIAL-2500, runner slot B, 24.11 00:33-00:36 UTC, at b802a3228, `vite build` + `vite preview`,
+`npx playwright test tests/pixel-home-auditfix-2437.spec.ts tests/pixel-home-fb-2431.spec.ts tests/pixel-home-gaps-2436.spec.ts
+--project=desktop --project=mobile --workers=1`, GATE_LANES.md section 2 procedure):
+- check run (no update): 22 passed, 4 skipped, **2 failed** - exactly `auditfix-room-dark-768` (2242 px differ) and
+  `auditfix-room-light-768` (1265 px differ); every other baseline of the three specs unchanged;
+- `--update-snapshots=changed`: only those two `*-768-desktop-linux.png` files rewritten;
+- verify run (no update): 24 passed, 4 skipped, 0 failed.
+Review of the diff images: every changed pixel is inside the favourites grid (rows 2-4): the tiles keep their order (the printer
+strip and the corner lamp move to the 4th row instead of back-filling), and two "+ הוסף" holes appear (row 2 left, row 4 wide) -
+the intended Q78 change. The climate, curtain, scenes, header, chips and bottom bar are pixel-identical. One side note: in light only,
+the empty area under the left column (below the wide hole) differs by at most 3 of 255 per channel (imperceptible; under the
+comparison threshold). Committed: the two PNGs.
+
 ## Known limits
 
 - The drag is verified with mouse pointer events in Chromium; not on a physical tablet (touch pointer events follow the same path, `touch-action: none` while editing).
