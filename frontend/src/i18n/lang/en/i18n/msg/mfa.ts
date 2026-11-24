@@ -99,9 +99,9 @@ export const en = {
   'את מפתח הטלפון אפשר לאשר רק מתוך אפליקציית Android.': 'The phone key can confirm only from inside the Android app.',
   'אפליקציה': 'App code',
   // RELEASE-2510-TRAIN: the remote-access tab's pointer and the administrator's reset with the typed username (MFA-RESET-HARDENING-2510)
-  'ההגדרות נמצאות במשתמשים והרשאות › אימות דו־שלבי': 'The settings are in Users and permissions › Two-step verification',
+  'ההגדרות נמצאות במשתמשים והרשאות ‹ אימות דו־שלבי': 'The settings are in Users and permissions ‹ Two-step verification',
   'פתיחה': 'Open',
-  'את דרכי האימות שלך מסירים בחשבון שלי › אבטחה.': 'Your own sign-in methods are removed in My account › Security.',
+  'את דרכי האימות שלך מסירים בחשבון שלי ‹ אבטחה.': 'Your own sign-in methods are removed in My account ‹ Security.',
   'המשתמש לא נמצא.': 'The user was not found.',
   'איפוס דרכי אימות של משתמש אחר מותר רק מהרשת המקומית.': "Resetting another user's sign-in methods is allowed only from the local network.",
   'זה מנהל המערכת האחרון שיכול להיכנס מרחוק, ולכן אי אפשר לאפס את דרכי האימות שלו.': "This is the last system administrator who can sign in remotely, so their sign-in methods cannot be reset.",

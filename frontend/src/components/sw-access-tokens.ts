@@ -117,10 +117,10 @@ export class SwAccessTokens extends LitElement {
     if (d.ha_listed || d.ha_reason === 'local_user') return nothing;
     const text =
       d.ha_reason === 'local_channel'
-        ? tr('רשימת האסימונים של Home Assistant מוצגת בכניסה מרחוק. כאן מוצג רק מה ש־Arx ראה.')
+        ? tr('רשימת האסימונים של תשתית המערכת מוצגת בכניסה מרחוק. כאן מוצג רק מה ש־Arx ראה.')
         : d.ha_reason === 'ha_unavailable'
-          ? tr('Home Assistant לא זמין כרגע. מוצג מה ש־Arx ראה.')
-          : tr('הכניסה הזו אינה מחזיקה אסימון של Home Assistant. מוצג מה ש־Arx ראה.');
+          ? tr('תשתית המערכת לא זמינה כרגע. מוצג מה ש־Arx ראה.')
+          : tr('הכניסה הזו אינה מחזיקה אסימון של תשתית המערכת. מוצג מה ש־Arx ראה.');
     return html`<div class="muted" data-tokens-note=${d.ha_reason ?? ''}>${text}</div>`;
   }
 
@@ -141,11 +141,11 @@ export class SwAccessTokens extends LitElement {
       ${longLived
         ? html`<div class="warn" role="note" data-long-lived-note>
             <sw-icon name="warning" size=${14}></sw-icon>
-            <span>${tr('אסימון ארוך טווח נכנס בלי אימות חוזר לפני שינויים. אם אינך מזהה אותו, בטל אותו ב־Home Assistant.')}</span>
+            <span>${tr('אסימון ארוך טווח נכנס בלי אימות חוזר לפני שינויים. אם אינך מזהה אותו, בטל אותו בתשתית המערכת.')}</span>
           </div>`
         : nothing}
       ${d.ha_reason !== 'local_user' && (ha.length || !d.ha_listed)
-        ? html`<div class="muted" data-ha-hint>${tr('את אסימוני Home Assistant מבטלים ב־Home Assistant: פרופיל › אבטחה. Arx לא משנה אותם.')}</div>`
+        ? html`<div class="muted" data-ha-hint>${tr('את אסימוני תשתית המערכת מבטלים בתשתית המערכת: פרופיל ‹ אבטחה. Arx לא משנה אותם.')}</div>`
         : nothing}
       ${app.length > 1
         ? html`<div class="foot">

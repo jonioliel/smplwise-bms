@@ -119,8 +119,8 @@ test('my tokens: HA tokens read-only, the long-lived one marked, the app sign-in
   await expect(ll.locator('[data-used-in-arx]')).toBeVisible();
   await expect(ll).toContainText('203.0.113.0/24');
   await expect(section.locator('[data-current]')).toHaveCount(1);
-  await expect(section.locator('[data-long-lived-note]')).toContainText('בטל אותו ב־Home Assistant');
-  await expect(section.locator('[data-ha-hint]')).toContainText('פרופיל › אבטחה');
+  await expect(section.locator('[data-long-lived-note]')).toContainText('בטל אותו בתשתית המערכת');
+  await expect(section.locator('[data-ha-hint]')).toContainText('פרופיל ‹ אבטחה');
   const apps = section.locator('[data-kind="app"]');
   await expect(apps).toHaveCount(2);
   await expect(apps.locator('[data-revoke-token]')).toHaveCount(2);
@@ -157,7 +157,7 @@ test('without Home Assistant\'s list the section says so and shows what Arx saw'
   skipTablet();
   await setup(page, { listed: false, reason: 'ha_unavailable' });
   const section = await openSection(page);
-  await expect(section.locator('[data-tokens-note="ha_unavailable"]')).toContainText('Home Assistant לא זמין כרגע');
+  await expect(section.locator('[data-tokens-note="ha_unavailable"]')).toContainText('תשתית המערכת לא זמינה כרגע');
   await expect(section.locator('[data-source="arx"][data-kind="long_lived"]')).toHaveCount(1);
   await expect(section.locator('[data-ha-hint]')).toBeVisible();
 });

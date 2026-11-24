@@ -94,8 +94,10 @@ test('the device popup, the user menu and the floor link dialog import their on-
   expect(da).not.toContain('screens/schedule-editor.ts');
   expect(da).not.toContain('tickets/ticket-create.ts');
   expect(dynamicImports('components/device-activity.ts')).toEqual(expect.arrayContaining(['../screens/schedule-editor', '../tickets/ticket-create']));
+  // RELEASE-2510-TRAIN: MFA-SCREENS-2510's security section (<sw-account-security>, which carries sw-second-factor) is the lazy chunk now
   expect(staticImports('shell/sw-user-menu.ts')).not.toContain('components/sw-second-factor.ts');
-  expect(dynamicImports('shell/sw-user-menu.ts')).toContain('../components/sw-second-factor');
+  expect(staticImports('shell/sw-user-menu.ts')).not.toContain('components/sw-account-security.ts');
+  expect(dynamicImports('shell/sw-user-menu.ts')).toContain('../components/sw-account-security');
   expect(staticImports('xsection/sw-floor-home-link.ts')).not.toContain('xsection/sw-xsection.ts');
   expect(dynamicImports('xsection/sw-floor-home-link.ts')).toContain('./sw-xsection');
 });
@@ -106,7 +108,7 @@ test('GATE2342: a lazily imported tag is rendered only once its definition is th
   expect(da).toMatch(/customElements\.get\('schedule-editor'\)/);
   expect(da).toMatch(/customElements\.get\('ticket-create'\)/);
   const menu = code('shell/sw-user-menu.ts');
-  expect(menu).toMatch(/this\.factorReady \? html`<sw-second-factor><\/sw-second-factor>/);
+  expect(menu).toMatch(/this\.factorReady \? html`<sw-account-security><\/sw-account-security>/);
   // schedule-editor is no longer the eager exception of the lazy-screens header: its route is a lazy screen like the others
   expect(read('shell/lazy-screens.ts')).not.toContain('Not listed: schedule-editor');
   expect(Object.keys((await import('../src/shell/lazy-screens')).LAZY_SCREENS)).toContain('schedule-editor');

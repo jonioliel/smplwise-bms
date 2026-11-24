@@ -976,7 +976,7 @@ export const he = {
     minutesLabel: 'משך האישור (דקות)',
     minutesHint: '0 עד 30 · 0 = בכל שינוי · ברירת מחדל 5',
     localLabel: 'גם ברשת המקומית',
-    localHint: 'כבוי: בכניסה מתוך Home Assistant וברשת המקומית לא נשאלים, כדרך חזרה למערכת',
+    localHint: 'כבוי: ברשת המקומית לא נשאלים, כדרך חזרה למערכת',
     mineLabel: 'האישור שלך',
     mineValid: 'מאושר עד {time}',
     mineNone: 'לא מאושר כרגע · יתבקש בשינוי הבא',

@@ -34,7 +34,9 @@ test('the home widgets, the user menu and the launcher fetch their on-demand par
   const menu = staticImports('shell/sw-user-menu.ts');
   expect(menu).not.toContain('../components/sw-passkeys');
   expect(menu).not.toContain('./sw-home-personal');
-  expect(dynamicImports('shell/sw-user-menu.ts')).toEqual(expect.arrayContaining(['../components/sw-passkeys', './sw-home-personal']));
+  // RELEASE-2510-TRAIN: MFA-SCREENS-2510's security section (<sw-account-security>, which carries sw-passkeys) is the lazy chunk now
+  expect(menu).not.toContain('../components/sw-account-security');
+  expect(dynamicImports('shell/sw-user-menu.ts')).toEqual(expect.arrayContaining(['../components/sw-account-security', './sw-home-personal']));
   expect(code('shell/sw-user-menu.ts')).toMatch(/this\.homeReady \? html`<sw-home-personal>/);
   expect(staticImports('api/launcher.ts')).not.toContain('./automations');
   expect(dynamicImports('api/launcher.ts')).toContain('./automations');

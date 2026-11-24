@@ -1691,7 +1691,7 @@ export class SystemDiagnostics extends LitElement {
    * Second factor (sw-factor-policy-admin). This tab keeps only a pointer to it: the card's heading and explanation, one line, one button. */
   private renderStepUp() {
     return html`<sw-card heading=${t('stepUp.settingsHeading')} subheading=${t('stepUp.settingsSub')} data-card="remote.step-up" data-step-up-settings data-step-up-pointer>
-        <div class="row" data-step-up-row="moved"><span class="lbl">${trm('ההגדרות נמצאות במשתמשים והרשאות › אימות דו־שלבי')}</span>
+        <div class="row" data-step-up-row="moved"><span class="lbl">${trm('ההגדרות נמצאות במשתמשים והרשאות ‹ אימות דו־שלבי')}</span>
           <sw-button size="sm" data-step-up-open-factor @click=${() => navigate('/system/access', { tab: 'factor' })}>${trm('פתיחה')}</sw-button></div>
       </sw-card>`;
   }

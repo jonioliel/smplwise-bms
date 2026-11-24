@@ -25,7 +25,7 @@ export function typedMatches(check: FactorResetCheck | null | undefined, typed: 
 export const refused = (check: FactorResetCheck | null | undefined): boolean => !!check && !check.allowed;
 
 const REASON: Record<string, () => string> = {
-  self: () => tr('את דרכי האימות שלך מסירים בחשבון שלי › אבטחה.'),
+  self: () => tr('את דרכי האימות שלך מסירים בחשבון שלי ‹ אבטחה.'),
   user_unknown: () => tr('המשתמש לא נמצא.'),
   local_only: () => tr('איפוס דרכי אימות של משתמש אחר מותר רק מהרשת המקומית.'),
   last_admin: () => tr('זה מנהל המערכת האחרון שיכול להיכנס מרחוק, ולכן אי אפשר לאפס את דרכי האימות שלו.'),

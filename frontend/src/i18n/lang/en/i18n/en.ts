@@ -488,7 +488,7 @@ export const en = {
     minutesLabel: 'Confirmation lasts (minutes)',
     minutesHint: '0 to 30 · 0 = every change · default 5',
     localLabel: 'On the local network too',
-    localHint: 'Off: no question when signed in through Home Assistant or on the local network, as a way back into the system',
+    localHint: 'Off: no question on the local network, as a way back into the system',
     mineLabel: 'Your confirmation',
     mineValid: 'Confirmed until {time}',
     mineNone: 'Not confirmed now · asked at the next change',
