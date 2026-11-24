@@ -34,6 +34,16 @@
             "msg": "Input should be a valid integer",
             "type": "int_type"
           }
+        ],
+        "fields": [
+          "proof.ts"
+        ],
+        "problems": [
+          {
+            "code": "int_type",
+            "field": "proof.ts",
+            "message": "חייב להיות מספר שלם"
+          }
         ]
       },
       "retryable": false,
