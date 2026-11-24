@@ -35,7 +35,7 @@ async function mount(page: Page, step: 'factor' | 'lfactor', methods: ('totp' | 
     async ({ step, methods, reenrol }) => {
       const src = '/src/arx/arx-login.ts';
       await import(/* @vite-ignore */ src);
-      const el = document.createElement('arx-login') as Login;
+      const el = document.createElement('arx-login') as unknown as Login;
       el.recoveryReenrol = reenrol;
       document.body.innerHTML = '';
       document.body.appendChild(el);

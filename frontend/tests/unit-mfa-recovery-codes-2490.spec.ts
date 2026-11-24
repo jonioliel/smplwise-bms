@@ -193,7 +193,7 @@ test('the sign-in code step switches to a recovery code (letters, a placeholder)
   await page.evaluate(async () => {
     const src = '/src/arx/arx-login.ts';
     await import(/* @vite-ignore */ src);
-    const el = document.createElement('arx-login') as HTMLElement & { step: string };
+    const el = document.createElement('arx-login') as unknown as HTMLElement & { step: string };
     el.step = 'factor';
     document.body.appendChild(el);
   });
@@ -231,7 +231,7 @@ test('compare shots: the section with the factor on, and the sign-in code step',
   await page.evaluate(async () => {
     const src = '/src/arx/arx-login.ts';
     await import(/* @vite-ignore */ src);
-    const el = document.createElement('arx-login') as HTMLElement & { step: string };
+    const el = document.createElement('arx-login') as unknown as HTMLElement & { step: string };
     el.step = 'factor';
     document.body.innerHTML = '';
     document.body.appendChild(el);
