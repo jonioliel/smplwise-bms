@@ -199,3 +199,47 @@ Built on design section 12/14; every slice is one agent row, ships behind the sw
 | runner | `ruff check smplwise` (pyflakes lane) | All checks passed |
 
 NOT_RUN: the full backend suite (the release gate's slot A only), every Playwright / pixel suite (no UI in this slice), any lab check.
+
+## 10. Slice 2 - STEPUP-UI (branch `pilot/MFA-STEPUP-UI-2490`, cut from `pilot/MFA-STEPUP-2490` at `fb9a3ac1e`)
+
+Built to the recommendations of section 7 while the owner answers (1a, 2a, 3a, 4a, 5a, 6a); each lives in one place and is easy to
+change: 1a / 3a / 4a / 5a are server rules (`services/step_up.py`: `not_applicable`, `GATED_PERMISSIONS`) the UI only reflects through
+`GET auth/step-up`; 2a = slices 1 and 2 travel together (no default flip here); 6a = the card follows the tab's own `system.configure`
+edit rule (`ro`), nothing extra.
+
+What the user sees:
+
+- **The code dialog.** Any API call refused by the central gate (403 `step_up_required` whose details carry `verify_path`) opens
+  `sw-step-up-dialog`: the system's own `sw-dialog` (skin, RTL, focus trap, phone layout unchanged), a sentence saying why, how long the
+  confirmation lasts ("5 minutes" or "one change" when the window is 0), the 6-digit field (the same look as the code field of
+  החשבון שלי › אימות דו־שלבי), cancel and confirm. Enter confirms. A wrong or locked code keeps the dialog open with the server's own
+  message and clears the field. The right code calls `POST auth/step-up/verify` (with the gate's `action`), the dialog closes, and the
+  client sends the ORIGINAL request exactly once more; cancel / Escape / ✕ / backdrop send nothing more and the screen shows the
+  server's refusal as it does today. A second refusal of the retried request is final (no loop, no blind retry). Several requests
+  refused at once share one dialog. The bridge-key reveal's own 403 (same code, no `verify_path`) is left to its screen.
+- **Settings › גישה מרחוק › "אישור לפני שינויים רגישים"** (a new card right after the remote-access card that holds the second-factor
+  policy): `security.step_up` (sw-toggle), `security.step_up_minutes` (sw-field number, 0-30), `security.step_up_local` (sw-toggle);
+  the last two are disabled while step-up is off. Saved with the tab's existing save row - which itself needs a confirmation while
+  step-up is on (switching it off is a gated change). Under them, "האישור שלך": confirmed until HH:MM / not confirmed now / why it does
+  not apply here (off, local network, token, no authenticator app) - `sw-step-up-status`, refreshed after every confirmation.
+- Hebrew and English strings (`he.ts` section `stepUp`, `lang/en/i18n/en.ts`); Arabic / Russian fall back to Hebrew like every new key.
+
+Files: `frontend/src/api/client.ts` (`setStepUpHandler`, the retry-once), `src/api/second-factor.ts` (`stepUpStatus`, `verifyStepUp`),
+`src/api/media.ts` (the three keys), `src/shell/step-up.ts` (installed in `src/main.ts`), `src/components/sw-step-up-dialog.ts`
+(lazy chunk), `src/components/sw-step-up-status.ts`, `src/screens/system-diagnostics.ts` (`renderStepUp`), `src/i18n/he.ts`,
+`src/i18n/lang/en/i18n/en.ts`, `tests/unit-step-up-client.spec.ts`, `tests/unit-step-up-ui.spec.ts`.
+
+Compare page (Hebrew): `private/planning/mfa_stepup_ui_compare_2026-11-24.html` (main checkout), screenshots from the runner.
+
+### Slice 2 tests
+
+| Where | Command | Result |
+|---|---|---|
+| workstation | `npx tsc --noEmit -p frontend` | exit 0 |
+| workstation | `node scripts/unused-exports.mjs --enforce` | OK (no export outside the baseline) |
+| workstation | `node scripts/lazy-tags-check.mjs` | OK |
+| workstation | `npx eslint` on the changed files | clean |
+| workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-step-up-client.spec.ts` | 5 passed |
+| runner | `tests/unit-step-up-ui.spec.ts` (page spec: wrong code, retry once, cancel, off switch), build, related remote-tab specs, compare shots | covered by the MFA-SECFIX run at the merged head of `pilot/MFA-TRAIN-2500` (not run on this branch) |
+
+The compare page `private/planning/mfa_stepup_ui_compare_2026-11-24.html` was not made: its screenshots come from that runner run.
