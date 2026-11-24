@@ -369,3 +369,13 @@ def test_the_wire_models_name_the_new_shapes():
 
     assert set(W.RecoveryStatus.model_fields) == {"available", "remaining", "total", "created_at", "last_used_at", "low", "low_at"}
     assert "codes" in W.RecoveryBatch.model_fields and "recovery_codes" in W.FactorEnabled.model_fields
+
+
+def test_the_verify_body_names_passkey_but_this_branch_refuses_it(arx, clock):
+    """The method pattern is shared with slice 4 (MFA-PASSKEYS-2490); without its challenge a passkey proof is refused, never read as a code."""
+    enrol_with_codes(arx, arx.owner)
+    clock.advance(6)
+    bump_step(arx, "u-owner")
+    r = arx.client.post(VERIFY, json={"method": "passkey", "code": code_now(arx, "u-owner")})
+    assert r.status_code == 409 and r.json()["code"] == "step_up_no_method" and title(arx, "x").status_code == 403
+    assert arx.client.post(VERIFY, json={"method": "sms", "code": "123456"}).status_code == 422

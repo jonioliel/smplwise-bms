@@ -276,7 +276,7 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|recovery_code)$")
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code)$")  # the shape slice 4 (passkeys) shares
     code: str = Field(min_length=1, max_length=16)
     action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
 
@@ -297,6 +297,10 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
     if step_up.session_key(request, principal) is None:
         raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
     details = {"method": body.method, "action": body.action or ""}
+    if body.method == "passkey":
+        # MFA-PASSKEYS-2490 (slice 4) answers a passkey proof through its challenge; on this branch there is none to verify against -
+        # refused, never checked as an authenticator code
+        raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE, details={"method": "passkey"})
     try:
         if body.method == step_up.METHOD_RECOVERY:
             # MFA-RECOVERY-CODES-2490: a one-time recovery code (spent here). Only the recovery-code shape is checked under this method:

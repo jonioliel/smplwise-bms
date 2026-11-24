@@ -1,7 +1,7 @@
 -- MFA-RECOVERY-CODES-2490 (MFA-STEPUP-TRAIN-2490 slice 7; owner decision Q49, 2026-11-22: 10 recovery codes per user, each usable once).
 -- Additive only: the previous version ignores the table (rollback = the codes simply stop working; the authenticator code is unchanged).
--- Number 0219: main ends at 0216; 0217 / 0218 are taken by the 2.50 rows (camera discovery origin, multi-building home). RENUMBER AT
--- MERGE only if the order changed.
+-- Number 0220 (the lead's train allocation, 2026-11-24): main ends at 0216; 0217 / 0218 are the 2.50 rows (camera discovery origin,
+-- multi-building home), 0219 is slice 6 (TOKENS), 0221 slice 5 (POLICY), 0222 slice 8 (DEVICEKEY). RENUMBER AT MERGE only if the order changed.
 
 -- One row per code. Only a scrypt PHC hash of the canonical code is stored (services/local_passwords.py, a lighter profile than the
 -- passwords: a code carries 40 random bits and is never chosen by a person); the code itself is shown once, at generation, and never
