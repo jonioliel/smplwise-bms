@@ -91,6 +91,15 @@ test.describe('pixel-stable: home next (wall notice board, wall settings)', () =
     await admin.waitFor();
     await admin.locator('[data-home-subtabs] [role="tab"]', { hasText: 'מסכי קיר' }).click();
     await expect(admin.locator('[data-wall-notice-new]')).toBeVisible();
-    await compare(page, info, admin.locator('[data-home-wall-settings]'), 'home-next-wall-settings');
+    if (info.project.name !== 'mobile') {
+      await compare(page, info, admin.locator('[data-home-wall-settings]'), 'home-next-wall-settings');
+      return;
+    }
+    // RELEASE-2510-TRAIN: on the phone the three cards stack into one ~1,200 px column taller than the viewport, and its element capture
+    // was not stable (1179 vs 1229 px, an empty band at the top where the page scrolled under the app's bars). The phone baseline is the
+    // card this row changed - the screen takeover card with the "how long a notice is new" row - scrolled into view, inside the viewport.
+    const card = admin.locator('[data-home-wall-settings] section.card:has([data-wall-notice-new])');
+    await card.scrollIntoViewIfNeeded();
+    await compare(page, info, card, 'home-next-wall-settings-takeover');
   });
 });

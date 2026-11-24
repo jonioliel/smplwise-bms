@@ -88,7 +88,7 @@ a.wx { color: inherit; min-block-size: var(--hit); padding-inline: 10px; border-
 /* ---- notices */
 .transit { flex: none; display: flex; align-items: center; gap: 16px; padding: 0 18px; min-block-size: 52px; font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 0; }
 .transit > .hi { inline-size: 20px; block-size: 20px; flex: none; } .transit > b { color: var(--hs-heading); font-weight: 600; flex: none; } .tr { flex: 0 1 auto; } .tr b { color: var(--hs-heading); font-weight: 600; }
-.ncard { display: grid; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: start; gap: 6px; padding: 16px 20px; text-align: start; overflow: hidden; color: var(--hs-text); inline-size: 100%; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
+.hs .ncard { display: grid; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: start; gap: 6px; padding: 16px 20px; text-align: start; overflow: hidden; color: var(--hs-text); inline-size: 100%; transition: transform 120ms var(--hs-ease), background-color var(--hs-t-med) ease; }
 .nh { display: flex; align-items: center; gap: 10px; min-inline-size: 0; max-inline-size: 100%; }
 .newp { flex: none; background: var(--hs-accent); color: var(--hs-on-accent, var(--hs-white)); font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 .pinp { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ct); font-size: 13px; font-weight: 600; } .pinp .hi { inline-size: 16px; block-size: 16px; }
@@ -220,7 +220,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .week { gap: 4px; } .wd { min-block-size: 54px; border-radius: 12px; } .wd b { font-size: 17px; } .cev { grid-template-columns: 56px minmax(0, 1fr) auto; } .ct b { font-size: 18px; }
   .ovl .week.mini { inline-size: 100%; gap: 2px; } .ovl .week.mini .wd { min-inline-size: 0; min-block-size: 48px; }
   .bk .door-list { grid-template-rows: repeat(2, minmax(0, 1fr)) auto; gap: 8px; flex: 1.1 1 0; } .bk > .pane { flex: 1 1 0; }
-  .transit { min-block-size: 44px; padding: 0 12px; gap: 8px; } .ncard { padding: 10px 14px; gap: 3px; } .nb { -webkit-line-clamp: 2; font-size: 13px; }
+  .transit { min-block-size: 44px; padding: 0 12px; gap: 8px; } .hs .ncard { padding: 10px 14px; gap: 3px; } .nb { -webkit-line-clamp: 2; font-size: 13px; }
   .md-body { display: flex; flex-direction: column; gap: 8px; } .md-now { flex: 1 1 auto; padding: 10px 14px; gap: 6px 12px; grid-template-rows: auto auto auto auto auto; } .art { inline-size: 60px; border-radius: 14px; } .md-t b { font-size: 18px; } .md-prog { display: none; }
   .md-ctl { gap: 18px; } .md-ctl .rb.xl { inline-size: 60px; block-size: 60px; } .md-src .chip2 { padding: 0 12px !important; font-size: 14px; min-block-size: 44px; } .volr input { block-size: 44px; }
   .md-list { flex: none; grid-template-rows: repeat(2, 60px) auto; gap: 8px; }
