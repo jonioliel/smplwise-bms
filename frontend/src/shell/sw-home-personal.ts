@@ -33,6 +33,8 @@ import { firstRead, noChoices, readOwnChoices } from './home-personal-read';
 import type { AreaRowChange } from '../screens/area-row-editor';
 import '../components/sw-segmented';
 import '../components/sw-chip-choice';
+// HAND-SWITCH-HOME-PERSONAL-2500 (owner Q32): a widget's own on / off is the compact switch (HAND-SWITCH-2480), not a check box
+import { toggled } from '../components/sw-toggle';
 import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import type { SegmentedChange } from '../components/sw-segmented';
 
@@ -133,6 +135,10 @@ export class SwHomePersonal extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
+    }
+    /* HAND-SWITCH-HOME-PERSONAL-2500: the widget's on / off switch keeps its 32 x 18 track beside the name */
+    .check sw-toggle {
+      flex: none;
     }
     .grow {
       flex: 1;
@@ -424,7 +430,7 @@ export class SwHomePersonal extends LitElement {
         const size = own.size ?? null;
         return html`<div class="w" data-home-personal-widget=${id}>
           <div class="row">
-            <label class="check"><input type="checkbox" data-home-personal-on=${id} .checked=${on} ?disabled=${this.busy} @change=${(e: Event) => this.setOn(id, (e.target as HTMLInputElement).checked)} /><span class="lbl">${WIDGET_NAME[id]}</span></label>
+            <label class="check"><sw-toggle size="sm" labelHidden in-label label=${WIDGET_NAME[id]} data-home-personal-on=${id} .checked=${on} ?disabled=${this.busy} @change=${(e: Event) => this.setOn(id, toggled(e))}></sw-toggle><span class="lbl">${WIDGET_NAME[id]}</span></label>
             <span class="grow"></span>
             <button type="button" class="ib" data-home-personal-earlier=${id} aria-label=${tr('הקדם את {name}', { name: WIDGET_NAME[id] })} ?disabled=${this.busy || i === 0} @click=${() => this.move(id, i - 1)}>↑</button>
             <button type="button" class="ib" data-home-personal-later=${id} aria-label=${tr('אחר את {name}', { name: WIDGET_NAME[id] })} ?disabled=${this.busy || i === order.length - 1} @click=${() => this.move(id, i + 1)}>↓</button>
