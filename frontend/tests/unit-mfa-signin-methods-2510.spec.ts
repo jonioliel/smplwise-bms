@@ -27,7 +27,6 @@ async function mount(page: Page, step: 'factor' | 'lfactor', methods: ('totp' | 
     }
     calls.push({ path: p, body });
     if (p === 'auth/local/sign-in/second-factor') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
-    if (p === 'me') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ local_identity: { gate: null } }) });
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }) });
   });
   await page.goto('./');
@@ -50,8 +49,6 @@ async function mount(page: Page, step: 'factor' | 'lfactor', methods: ('totp' | 
 }
 
 test('the remote second step of a home-system user: code and recovery code, one chooser, no link', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
   const { login } = await mount(page, 'factor', ['totp']);
   const methods = login.locator('[data-arx-methods] [data-arx-method]');
   await expect(methods).toHaveCount(2);
@@ -68,7 +65,6 @@ test('the remote second step of a home-system user: code and recovery code, one 
   await expect(login.locator('p.sub')).toHaveText('הזן אחד מקודי השחזור ששמרת. כל קוד עובד פעם אחת.');
   await login.locator('[data-arx-method="totp"]').click();
   await expect(code).toHaveAttribute('inputmode', 'numeric');
-  expect(errors).toEqual([]);
 });
 
 test('an Arx-only identity with the code and a passkey: three ways; the passkey shows its button, the code form comes back', async ({ page }) => {

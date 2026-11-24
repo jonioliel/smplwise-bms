@@ -37,7 +37,7 @@ const settle = async <T,>(p: Promise<T>): Promise<T | null> => {
  * first (authenticator app on / off, passkeys, phone keys, recovery codes left, long-lived tokens), then each factor's own block, as each
  * slice built it: the authenticator code with its recovery codes (sw-second-factor, slice 7's count + regenerate), passkeys
  * (sw-passkeys, slice 4), phone keys (sw-device-keys: read-only list + revoke, slice 8) and access tokens (sw-access-tokens, slice 6).
- * The blocks keep their own look; this element only gathers them and adds the overview. The overview is a snapshot of the moment the
+ * The blocks keep their own look (sw-passkeys brings its own heading); this element only gathers them and adds the overview. The overview is a snapshot of the moment the
  * section opened, read again after a phone key was revoked or a step-up proof was recorded. Loaded lazily by the user menu (it carries
  * the QR code library through sw-second-factor).
  */
@@ -100,7 +100,7 @@ export class SwAccountSecurity extends LitElement {
     return html`
       ${this.renderOverview()}
       <section data-sec-block="totp" aria-labelledby="h-totp"><h3 id="h-totp">${tr('אפליקציית אימות וקודי שחזור')}</h3><sw-second-factor></sw-second-factor></section>
-      <section data-sec-block="passkeys" aria-labelledby="h-pk"><h3 id="h-pk">${tr('מפתחות גישה')}</h3><sw-passkeys></sw-passkeys></section>
+      <section data-sec-block="passkeys"><sw-passkeys></sw-passkeys></section>
       <section data-sec-block="device-keys" aria-labelledby="h-dk"><h3 id="h-dk">${tr('מפתחות טלפון')}</h3><sw-device-keys></sw-device-keys></section>
       <section data-sec-block="tokens" aria-labelledby="h-tk"><h3 id="h-tk">${tr('אסימוני גישה')}</h3><sw-access-tokens></sw-access-tokens></section>
     `;
