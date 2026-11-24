@@ -53,6 +53,7 @@ Still to board (in progress when the train was assembled; merged when pushed): s
 | 9c91fca72 | Design ratchet (`scripts/design_ratchet_baseline.json`) raised with `--update --allow-raise` in its own commit; **kept by the lead's decision (24.11)** - tokenising these literals is a later cleanup row, not a blocker. The rows were cut from 2.47.0 and checked against its baseline (color 2497, px 25485, hand-switch 359); 2.48.0 lowered it afterwards. Per file, `origin/main` (v2.49.0) -> train (`design_ratchet.py --files`, both trees): **color-literal 1984 -> 1986**: `home/home-styles-extra.ts` 0 -> 1 (HOME-FAVORITES-2500: the fallback shadow inside `var(--hs-shadow-3, 0 12px 32px rgb(0 0 0 / .35))` of the lifted favourite tile while dragging, Q77), `home/home-wall-rest-styles.ts` 0 -> 1 (HOME-WALL-NIGHT-2500: `#000` of the night dimming layer `.wdim`, Q73). **px-literal 25462 -> 25612**: `components/camera-discovery-dialog.ts` 0 -> 87 (ONVIF-UI-2500: the new "find cameras on the network" wizard), `home/home-wall-rest-styles.ts` 0 -> 43 (HOME-WALL-NIGHT-2500: the new wall panel rest screen and takeover), `home/home-styles-extra.ts` 68 -> 80 (HOME-FAVORITES-2500: the "+ add" hole cell and the drag lift / drop outline, Q77-Q78), `home/sw-home-admin.ts` 91 -> 99 (the wall panel settings tab: HOME-WALL-NIGHT-2500 +7, HOME-NEXT-2500 +1 for the "new for" setting). hand-switch was raised 161 -> 163 here (camera-discovery-dialog +3, sw-home-personal -1) and lowered back to 161 in c33d4cd4e. Every other count unchanged |
 | 4377d886b | `en/i18n/msg/system-b.ts`: MULTI-BUILDING-NEXT-2500's building filter note ("the plan editor's device search") closed its single-quoted string early - a syntax error that breaks esbuild / vite on the merged tree and on the row itself (found by `unit-i18n-en-ratchet-2490`). Escaped. A TypeScript parse of the 104 frontend `.ts` files the train changes finds no other syntax error |
 | c33d4cd4e | Design ratchet hand-switch 163 -> 161 (`--update`, as HAND-SWITCH-HOME-EDIT-2500's note recommends): that row turns the home editor's widget on / off check boxes into the compact switch, so the merged count equals the 2.49.0 baseline again. The camera wizard's "same user for all" box stays a check box for now (see section 5) |
+| 38c1cfb21 | Static checks of the merged tree (runner job at a2786355e): `screens/devices-building.ts` - HAND-SWITCH-HOME-EDIT-2500 lost the space between `.draft=${d}` and `.candidates=` when it added `?busy=`, so lit bound `${d}.candidates=${...}` as one string to `.draft` and never set `.candidates` (a real bug; ESLint `lit/no-invalid-html`) - space restored. `unused-exports --enforce`: 6 new file-local exports (`BfChoice` MB-NEXT, `NoticeAge` HOME-NEXT, `NightDim` / `Takeover` / `ALARM_TAKEOVER` / `URGENT` HOME-WALL-NIGHT) - `export` dropped, no run-time change. `tsc -p tsconfig.tests.json` (test-only): `home-wall-night-2500.spec.ts` route callback typed `Promise<void>` while `page.route` answers `Promise<Disposable>` on Playwright 1.63 -> `Promise<unknown>`; `evidence-mb-home-2500.spec.ts` two `expect()` joined by `&&` -> two statements. Workstation after the fix: ESLint 0 errors, `unused-exports --enforce` OK (47 / 52) |
 
 ## 3. Release commits
 
@@ -84,7 +85,18 @@ Workstation (Python 3.12, Node 24.21.0, `node_modules` junction to the main chec
 | `project_status.py --write` | - | NOT_RUN: no `management/` file changed on this train (the lead owns those) |
 
 Runner (slot B/C via `~/work/slotb.sh ~/work/rel2500_tests.sh origin/release/2500-train ~/work/rel2500_specs.txt`, own worktree
-`~/work/rel2500`, results `~/work/rel2500-out/`): PENDING.
+`~/work/rel2500`, results `~/work/rel2500-out/`), run 1 at a2786355e, started 11:30Z (after ~1.5 h in the slot queue):
+
+| Check | Result |
+|---|---|
+| `tsc -p tsconfig.json` / `tsconfig.scripts.json` | exit 0 / 0 |
+| `tsc -p tsconfig.tests.json` | 3 errors (two stale spec typings) - fixed in 38c1cfb21, NOT re-run |
+| `vite build` / bundle budget | rc 0 (29 s) / OK |
+| `unused-exports.mjs --enforce` | FAIL (6 file-local) - fixed in 38c1cfb21, OK on the workstation |
+| ESLint `src` | 1 error (devices-building.ts, a real bug) - fixed in 38c1cfb21 |
+| `i18n-split-langs.mjs --dry` | 0 tables to move (the pack index regenerated at the ONVIF-UI merge is current) |
+| `check:phone-skip` / `i18n_missing_keys.mjs` | ok / rc 0 |
+| Node unit suite, rows' browser specs (50 files, desktop + mobile), full backend in 4 shards | **NOT_RUN - BLOCKED: the runner's disk is full** (`/` 100%, 72 MB - 889 MB free; `ENOSPC` on every write; the backend shards answered `E` on every test that writes). The job was stopped and its temp folders and `dist` removed; nothing else touched (the space is held by `~/work` ~159 GB and `/tmp/pytest-of-sw` 7.6 GB of other jobs) |
 
 ## 5. Lead steps before the release gate
 
