@@ -161,4 +161,14 @@ user, `POST auth/step-up/challenge`), `smplwise/routers/second_factor.py` (verif
 
 ## 6. Tests (real runs)
 
-See section 6 at the end of the branch (filled from the server run).
+| Where | Command | Result |
+|---|---|---|
+| workstation (Windows, repo venv, `SW_WIRE_STRICT=1`), one file at a time | `pytest tests/test_mfa_passkeys_2490.py` (switch, HA enrolment, gating, challenge binding user / session / action / id / expiry / single use, signature / origin / RP id / counter / UV refusals, factor changes while step-up is off for passkey and code, removal proof, 0-minute mode, rename audit, Ingress, audit hygiene, Arx-only identity) | **26 passed** (final state, `2f6e947bb`) |
+| workstation | `pytest tests/test_local_passkeys.py` | 73 passed |
+| workstation | `pytest tests/test_mfa_stepup_2490.py tests/test_passkey_only.py` | 32 passed |
+| workstation | `ruff check smplwise` | All checks passed |
+| workstation | `scripts/gen_wire_types.py`, `scripts/api_inventory.py` | regenerated and committed (`cb1d7c38f`) |
+| runner slot B | `~/work/mfapk_run1.sh` (quick files, tsc, eslint, Playwright `unit-mfa-passkeys-2490.spec.ts` + `evidence-second-factor.spec.ts` desktop + mobile `--workers=2` with a CDP virtual authenticator, compare shots after / before, ~150 backend files in 6 shards, ruff, wire `--check`) | **NOT_RUN at the time of writing: queued behind ~12 slot-B jobs (each ~2 h)**; output will land in `~/work/mfapasskeys-out/summary.txt` |
+
+NOT_RUN: tsc, eslint, every Playwright spec (the new spec included), the compare screenshots, the backend families beyond the four
+files above, the full backend suite, any real device, any lab check.
