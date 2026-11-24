@@ -7,7 +7,9 @@ The two sign-in routes answer with their own JSONResponse (they set cookies); th
 validate a returned Response) and `tests/test_wire_local_identity_2450.py` fits their real bodies strictly."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Discriminator, Tag
 
 from . import WireModel
 
@@ -162,9 +164,15 @@ class LocalUserCreated(WireModel):
     link: LocalLink | None
 
 
+def _link_kind(v: Any) -> str:
+    """A queued link is the one with `via` (the WhatsApp channel); the shown link has `path`. Telling them apart first keeps the model
+    that does not fit from logging a drift for a correct answer (NOTICE-WIRE-DRIFT-2490)."""
+    return "queued" if (v.get("via") if isinstance(v, dict) else getattr(v, "via", None)) is not None else "shown"
+
+
 class LocalUserLink(WireModel):
     user_id: str
-    link: LocalLink | LocalLinkQueued
+    link: Annotated[Annotated[LocalLink, Tag("shown")] | Annotated[LocalLinkQueued, Tag("queued")], Discriminator(_link_kind)]
 
 
 class LocalUserDeleted(WireModel):

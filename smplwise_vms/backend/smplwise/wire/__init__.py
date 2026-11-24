@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Annotated, Any, Union
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 log = logging.getLogger(__name__)
 _REPORTED: set[tuple[str, str]] = set()
@@ -86,3 +86,11 @@ def wire(model: Any) -> dict[str, Any]:
 # A JSON number whose int / float type is the value's own (a reading, a ratio, a stored number): pydantic's smart union keeps `1` as `1`
 # and `1.0` as `1.0`, where a plain `float` field would turn `1` into `1.0` and an `int` field `2.0` into `2`. TypeScript: `number`.
 Num = int | float
+
+
+def tagged(tag: str, *models: Any) -> Any:
+    """A route that answers one of several shapes told apart by a `Literal` field the route always sets (`full: true | false`): the union
+    is discriminated on that field, so only the matching model validates the answer. A plain union tries every member, and in production
+    every member that does not fit logs a drift for an answer that is correct (NOTICE-WIRE-DRIFT-2490). The field must be a `Literal` in
+    every member. The route answers a 500 when the tag is missing, so use it only where the route itself writes the tag."""
+    return Annotated[Union[models], Field(discriminator=tag)]  # noqa: UP007 - a union built from a tuple

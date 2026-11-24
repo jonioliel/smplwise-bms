@@ -148,6 +148,8 @@ def wire_models(response_model: Any) -> tuple[type, ...]:
     """The WireModel classes of a route's response model: the model, or the members of a union of models; () for anything else."""
     from smplwise.wire import WireModel
 
+    if typing.get_origin(response_model) is typing.Annotated:  # wire.tagged(): a union discriminated on a literal field
+        response_model = typing.get_args(response_model)[0]
     union = isinstance(response_model, types.UnionType) or typing.get_origin(response_model) is typing.Union
     members = typing.get_args(response_model) if union else (response_model,)
     if members and all(isinstance(m, type) and issubclass(m, WireModel) for m in members):
