@@ -68,6 +68,7 @@ EXEMPT_ROUTES = frozenset({
 
 API_PREFIX = "/api/v1"
 METHOD_TOTP = "totp"
+METHOD_PASSKEY = "passkey"  # MFA-PASSKEYS-2490 (slice 4): a WebAuthn assertion on a step-up challenge (services/user_passkeys)
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
@@ -213,10 +214,16 @@ def session_key(request: Any, principal: Any) -> str | None:
 
 
 def methods_of(conn: sqlite3.Connection, user_id: str) -> list[str]:
-    """The step-up methods this user can use now (slice 1: the authenticator-app code)."""
+    """The step-up methods this user can use now: the authenticator-app code, and (MFA-PASSKEYS-2490, slice 4) a passkey that counts
+    as a factor for this user (services/user_passkeys.counts: made for the current public address, the all-users switch for a user
+    who is not an Arx-only identity). A user with only a passkey therefore has a method and is gated."""
     from . import second_factor as sf
+    from . import user_passkeys
 
-    return [METHOD_TOTP] if sf.is_enrolled(conn, user_id) else []
+    out = [METHOD_TOTP] if sf.is_enrolled(conn, user_id) else []
+    if user_passkeys.counts(conn, user_id):
+        out.append(METHOD_PASSKEY)
+    return out
 
 
 def not_applicable(conn: sqlite3.Connection, request: Any, principal: Any) -> str | None:
@@ -294,6 +301,14 @@ def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str)
         if at is not None and now - at <= window:
             return True
     return False
+
+
+def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any) -> bool:
+    """MFA-PASSKEYS-2490: does the caller's session hold a proof right now (the window, a one-shot proof - then spent - or a local
+    sign-in that showed the factor within the window)? For the factor changes that need a proof whatever the switch says (adding a
+    passkey to an account that already has a factor, removing one): not the gate, so neither the switch nor the channel matter."""
+    key = session_key(request, principal)
+    return key is not None and _satisfied(conn, request, principal, key)
 
 
 # ---------------------------------------------------------------- proofs

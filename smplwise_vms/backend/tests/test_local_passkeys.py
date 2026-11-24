@@ -99,7 +99,9 @@ def test_unavailable_without_a_public_address(px):
 
 
 def test_passkey_routes_are_for_local_identities_only(px):
+    """With `security.passkeys_all_users` off (MFA-PASSKEYS-2490; on by default, owner Q50) passkeys stay an Arx-only feature."""
     px.configure()
+    assert px.admin.patch("/api/v1/settings", json={"security.passkeys_all_users": "off"}).status_code == 200
     px.flag("u-viewer")
     px.bind("u-viewer", "viewer")
     assert px.login(px.viewer).status_code == 200

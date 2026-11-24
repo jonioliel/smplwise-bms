@@ -11,7 +11,9 @@
                                                 an administrator who has a factor sends their own current code
                                                 (X-Arx-Second-Factor or {code}); the target's remote sign-ins end
 `GET    auth/step-up`                           MFA-STEPUP-TRAIN-2490: the step-up switch, window and the caller's current proof
-`POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up)
+`POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up);
+                                                MFA-PASSKEYS-2490: {method: "passkey", challenge_id, assertion} answers a challenge of
+                                                `POST auth/step-up/challenge` (routers/local_passkeys.py, services/user_passkeys.py)
 
 The factor is applied to the remote sign-in (services/ha_user_auth.exchange). Codes and secrets are never logged or audited;
 audit rows carry the method and the target user only. Code attempts are limited (5 wrong in 5 minutes lock the user for
@@ -255,8 +257,10 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^totp$")
-    code: str = Field(min_length=1, max_length=16)
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey)$")
+    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp
+    challenge_id: str | None = Field(default=None, max_length=64)  # method passkey (MFA-PASSKEYS-2490)
+    assertion: dict[str, Any] | None = None  # method passkey: PublicKeyCredential.toJSON() of the assertion
     action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (audit only)
 
 
@@ -268,6 +272,12 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
     action, never the code. Wrong codes count towards the factor's lockout (5 in 5 minutes); the route is rate-limited per user."""
     if not hua.LIMITER.hit(f"stepup:{principal.user_id}", STEP_UP_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    if body.method == step_up.METHOD_PASSKEY:  # MFA-PASSKEYS-2490: the assertion of a step-up challenge (services/user_passkeys.verify)
+        from ..services import user_passkeys
+
+        return user_passkeys.verify(conn, request, principal, body.challenge_id, body.assertion, body.action, _rid(request))
+    if not body.code:
+        raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
     reason = step_up.not_applicable(conn, request, principal)
     if reason == "no_method":
         raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)
