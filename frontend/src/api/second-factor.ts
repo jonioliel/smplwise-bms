@@ -30,3 +30,9 @@ export type FactorOverrides = Omit<SfWire.Overrides, 'user' | 'role'> & {
 export const factorOverrides = () => get<FactorOverrides>('auth/second-factor/overrides');
 export const setFactorOverride = (kind: 'user' | 'role', subjectId: string, policy: FactorOverride) =>
   put<FactorOverrides & Pick<SfWire.OverrideSet, 'kind' | 'subject_id' | 'policy'>>(`auth/second-factor/overrides/${kind}/${encodeURIComponent(subjectId)}`, { policy });
+
+/** MFA-STEPUP-TRAIN-2490: step-up before a change of settings, users or permissions. The status says whether it applies to this
+ * session and until when the current proof counts; `verifyStepUp` turns a current code into a proof on this session (server-side). */
+export type StepUpStatus = SfWire.StepUpStatus;
+export const stepUpStatus = () => get<StepUpStatus>('auth/step-up');
+export const verifyStepUp = (code: string, action?: string) => post<SfWire.StepUpProof>('auth/step-up/verify', { method: 'totp', code, ...(action ? { action } : {}) });
