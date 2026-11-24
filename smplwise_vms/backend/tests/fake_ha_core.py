@@ -40,6 +40,9 @@ def make_jwt(exp: float, sub: str = "refresh-id") -> str:
     return f"{header}.{payload}.{_b64(secrets.token_bytes(24))}"
 
 
+LONG_LIVED_LIFETIME_S = 3650 * 86400  # HA's default lifespan of a long-lived access token (days -> seconds)
+
+
 @dataclass
 class FakeUser:
     id: str
@@ -59,6 +62,7 @@ class _Refresh:
     client_id: str
     revoked: bool = False
     token_type: str = "normal"  # HA's RefreshToken.token_type: normal | long_lived_access_token | system
+    client_name: str | None = None  # a long-lived token's name (HA's profile asks for one)
 
 
 @dataclass
@@ -83,21 +87,23 @@ class FakeHaCore:
 
     # ---------------------------------------------------------- tokens
 
-    def issue(self, user_id: str, client_id: str | None = "http://testserver/arx/", token_type: str = "normal") -> dict[str, Any]:
+    def issue(self, user_id: str, client_id: str | None = "http://testserver/arx/", token_type: str = "normal", client_name: str | None = None) -> dict[str, Any]:
         """A refresh token and a first access token for `user_id` (what a finished login flow ends with). CR-008 P2:
         `token_type="long_lived_access_token"` (client_id None) models a long-lived token from the HA profile, another
-        client_id a sign-in of another client (the Companion app, HA's own UI)."""
+        client_id a sign-in of another client (the Companion app, HA's own UI). MFA-TOKENS-2490: like HA, a long-lived token's
+        access token lives its lifespan (LONG_LIVED_LIFETIME_S, HA's default 3650 days), a normal one `access_lifetime_s`."""
         with self.lock:
-            rt = _Refresh(token=secrets.token_hex(32), user_id=user_id, client_id=client_id or "", token_type=token_type)
+            rt = _Refresh(token=secrets.token_hex(32), user_id=user_id, client_id=client_id or "", token_type=token_type, client_name=client_name)
             self._refresh[rt.token] = rt
         return self._access_for(rt)
 
     def _access_for(self, rt: _Refresh) -> dict[str, Any]:
-        exp = time.time() + self.access_lifetime_s
+        lifetime = LONG_LIVED_LIFETIME_S if rt.token_type == "long_lived_access_token" else self.access_lifetime_s
+        exp = time.time() + lifetime
         token = make_jwt(exp, sub=rt.token[:12])
         with self.lock:
             self._access[token] = (rt.token, exp)
-        return {"access_token": token, "expires_in": self.access_lifetime_s, "refresh_token": rt.token, "token_type": "Bearer", "ha_auth_provider": "homeassistant"}
+        return {"access_token": token, "expires_in": lifetime, "refresh_token": rt.token, "token_type": "Bearer", "ha_auth_provider": "homeassistant"}
 
     def revoke_refresh(self, refresh_token: str) -> None:
         """What deleting the client in the HA profile (or `action=revoke`) does: its access tokens stop working."""
@@ -347,7 +353,7 @@ class FakeCoreSocket:
             # HA core auth/__init__.py websocket_refresh_tokens: the connection user's live refresh tokens (id, client_id,
             # type, ...); the fake's ids are the first 12 characters of the token, as in the access tokens' `iss`
             with self.core.lock:
-                mine = [{"id": r.token[:12], "client_id": r.client_id or None, "client_name": None, "client_icon": None, "type": r.token_type,
+                mine = [{"id": r.token[:12], "client_id": r.client_id or None, "client_name": r.client_name, "client_icon": None, "type": r.token_type,
                          "created_at": "2026-09-29T00:00:00+00:00", "is_current": False, "last_used_at": None, "last_used_ip": None,
                          "auth_provider_type": "homeassistant"} for r in self.core._refresh.values() if r.user_id == self.user.id and not r.revoked]
             self.out.append(json.dumps({"id": msg.get("id"), "type": "result", "success": True, "result": mine}))
