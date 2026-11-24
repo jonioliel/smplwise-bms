@@ -73,7 +73,7 @@ def test_h1_a_new_bearer_sign_in_of_an_enrolled_user_needs_the_code(arx):
     assert r.status_code == 401 and r.json()["code"] == "second_factor_invalid"
     assert arx.audit("auth.second_factor.failed")
     # the review's proof of concept: the bearer could remove the factor without any code - not any more
-    r = app.delete("/arx/api/v1/auth/second-factor/users/u-viewer", headers=_auth(token))
+    r = app.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", headers=_auth(token), json={"confirm": "dana"})
     assert r.status_code == 401
     with arx.db.connection(mode="read") as conn:
         assert sf.is_enrolled(conn, "u-viewer")
@@ -186,24 +186,24 @@ def test_m1_an_enrolled_administrator_shows_their_own_code(arx):
     enrol(arx, arx.viewer)
     _enrol_directly(arx, "dev-joni")
     local = TestClient(arx.app)
-    r = local.delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 403 and r.json()["code"] == "second_factor_step_up_required"
-    r = local.delete("/api/v1/auth/second-factor/users/u-viewer", headers={HEADER: "000000"})
+    r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", headers={HEADER: "000000"}, json={"confirm": "dana"})
     assert r.status_code == 400 and r.json()["code"] == "second_factor_invalid"
     denied = [a for a in arx.audit("auth.second_factor.reset") if a["decision"] == "denied"]
     assert denied and denied[-1]["reason"] == "step_up_invalid"
     with arx.db.connection(mode="read") as conn:
         assert sf.is_enrolled(conn, "u-viewer")
-    r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"code": code_now(arx, "dev-joni")})
+    r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"code": code_now(arx, "dev-joni"), "confirm": "dana"})
     # MFA-SECFIX-2500 SR-2: the answer also counts every factor kind removed (the code came with 10 recovery codes)
-    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10}
+    assert r.status_code == 200 and r.json() | {"sign_ins_ended": 0, "device_credentials_ended": 0} == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10, "sign_ins_ended": 0, "device_credentials_ended": 0, "must_enroll": True, "resets_left": 2}
     row = arx.audit("auth.second_factor.reset")[-1]
     assert row["decision"] == "allowed" and json.loads(row["details_json"])["step_up"] is True
 
 
 def test_m1_an_administrator_without_a_factor_resets_as_before(arx):
     enrol(arx, arx.viewer)
-    r = TestClient(arx.app).delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = TestClient(arx.app).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200 and r.json()["removed"] is True
 
 
@@ -236,7 +236,7 @@ def test_m4_an_administrator_reset_ends_the_target_sign_ins(arx):
     enrol(arx, arx.viewer)
     viewer_client = arx.client
     assert viewer_client.get(ME).status_code == 200
-    r = TestClient(arx.app).delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = TestClient(arx.app).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200
     assert viewer_client.get(ME).status_code == 401
     rows = [a for a in arx.audit("auth.remote_session.revoked") if a["reason"] == "second_factor_reset"]

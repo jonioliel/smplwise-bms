@@ -128,7 +128,8 @@ def test_t6_second_factor_reset_by_an_administrator_revokes_the_actor(lease_worl
         assert c.get("/api/v1/me", headers=as_user(user)).status_code == 200  # bootstrap first (it bumps the revision)
     w.step(0.25)
     lease = w.issue(actor="dev-sam", station="entry-a")
-    r = c.delete("/api/v1/auth/second-factor/users/dev-sam", headers=as_user("joni"))
+    confirm = c.get("/api/v1/auth/second-factor/users/dev-sam/reset-check", headers=as_user("joni")).json()["confirm_text"]  # MFA-RESET-HARDENING-2510
+    r = c.request("DELETE", "/api/v1/auth/second-factor/users/dev-sam", headers=as_user("joni"), json={"confirm": confirm})
     assert r.status_code == 200, r.text
     w.step(0.25)
     assert w.row(lease.lease_ref)["reason"] == "second_factor_changed"

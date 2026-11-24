@@ -202,7 +202,13 @@ def upload_backup(request: Request, file: UploadFile = File(...), principal: Pri
 
 @router.post("/backups/{name}/restore")
 def restore_backup(name: str, body: RestoreIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    from ..services import step_up
+
+    # MFA-RESET-HARDENING-2510: a restore is a conditional once-action - while step-up applies, a once-proof (asked by the gate inside
+    # require(), instead of the 5-minute window); with step-up off nothing beyond what it always asked
+    step_up.declare_once(request, step_up.ONCE_RESTORE)
     require(conn, principal, "backup.manage", INSTALLATION)
+    step_up.require_once_when_on(conn, request, principal, step_up.ONCE_RESTORE)
     if body.confirm != "RESTORE":
         raise ApiError(422, "confirm_required", "לאישור השחזור יש להקליד RESTORE.")
     p = _path(request, name)

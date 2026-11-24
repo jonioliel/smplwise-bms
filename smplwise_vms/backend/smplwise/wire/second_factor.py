@@ -27,8 +27,12 @@ class FactorEnabled(FactorStatus):
 
 
 class OwnFactor(FactorStatus):
-    """`GET /auth/second-factor`: the status and the installation's policy."""
+    """`GET /auth/second-factor`: the status and the installation's policy. MFA-RESET-HARDENING-2510: `must_enroll` = an administrator
+    reset this account's factors and none was enrolled since; `must_enroll_enforced` = and the factor policy requires one, so the next
+    remote sign-in goes to enrolment (the account screen asks the user to enrol again)."""
     policy: Policy
+    must_enroll: bool
+    must_enroll_enforced: bool
 
 
 class Enrolment(WireModel):
@@ -48,6 +52,8 @@ class EnrolledUsers(WireModel):
     policy: Policy
     users: list[EnrolledUser]
     """Every user with an active factor, by user id."""
+    must_enroll: list[str]
+    """MFA-RESET-HARDENING-2510: the users whose factors an administrator reset and who have not enrolled one since."""
 
 
 class Overrides(WireModel):
@@ -76,6 +82,49 @@ class FactorReset(WireModel):
     passkeys: int
     device_keys: int
     recovery_codes: int
+    # MFA-RESET-HARDENING-2510: the target's sign-ins ended (HA, Arx-only, phone app), the phone credentials ended (device token + push),
+    # `must_enroll` (always true: the next sign-in enrols again when the policy requires a factor), the caller's resets left this hour
+    sign_ins_ended: int
+    device_credentials_ended: int
+    must_enroll: bool
+    resets_left: int
+
+
+class ResetFactors(WireModel):
+    """What a reset would remove now: the authenticator code (active or pending), passkeys, active phone keys, unused recovery codes."""
+    totp: bool
+    passkeys: int
+    device_keys: int
+    recovery_codes: int
+
+
+class OnceStepUp(WireModel):
+    """The once-action's step-up details (services/step_up.once_details): verify with this action, then send the request once."""
+    action: str
+    methods: list[Literal["totp", "passkey", "device_key"]]
+    minutes: int
+    once: bool
+    verify_path: str
+
+
+class FactorResetCheck(WireModel):
+    """`GET /auth/second-factor/users/{id}/reset-check` (MFA-RESET-HARDENING-2510): the preflight of the reset for the dialog. `allowed`
+    false names the first refusal the reset would meet (`reason`): `self` (the caller's own account - use `disable`), `user_unknown`,
+    `local_only` (`security.factor_reset_channel` = local and this request is remote), `last_admin` (the last system administrator who
+    can sign in remotely), `rate_limited` (3 resets per administrator per hour). `confirm_text` = what to type into `confirm` (the
+    username, else the user id). `remote` = this request came from outside. `must_enroll_after` = the user's factor policy requires a
+    factor, so their next remote sign-in goes to enrolment. `step_up` = the once-action details (the administrator's own proof)."""
+    user_id: str
+    allowed: bool
+    reason: Literal["self", "user_unknown", "local_only", "last_admin", "rate_limited"] | None
+    confirm_text: str
+    channel: Literal["any", "local"]
+    remote: bool
+    resets_left: int
+    rate_max: int
+    factors: ResetFactors
+    must_enroll_after: bool
+    step_up: OnceStepUp
 
 
 class StepUpStatus(WireModel):

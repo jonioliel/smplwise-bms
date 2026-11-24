@@ -276,7 +276,7 @@ def test_an_administrators_reset_deletes_the_users_codes(arx):
     from fastapi.testclient import TestClient
 
     local = TestClient(arx.app)  # the developer identity (system_admin, no factor of its own) on the local channel
-    r = local.delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = local.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200 and r.json()["removed"] is True
     assert rows(arx, "SELECT COUNT(*) AS n FROM auth_recovery_codes WHERE user_id = 'u-viewer'") == [{"n": 0}]
 
@@ -284,7 +284,7 @@ def test_an_administrators_reset_deletes_the_users_codes(arx):
 def test_an_administrators_reset_does_not_take_a_recovery_code_as_the_admins_own_code(arx):
     enrol_with_codes(arx, arx.viewer)
     admin_codes = enrol_with_codes(arx, arx.owner)
-    r = arx.client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", headers={HEADER: admin_codes[0]})
+    r = arx.client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", headers={HEADER: admin_codes[0]}, json={"confirm": "dana"})
     assert r.status_code in (400, 403) and rows(arx, "SELECT enabled FROM auth_totp WHERE user_id = 'u-viewer'") == [{"enabled": 1}]
     assert arx.client.get(CODES).json()["remaining"] == 10  # the admin's code was not spent
 

@@ -46,6 +46,7 @@ DELETE_ROWS: tuple[tuple[str, str], ...] = (
     ("identity_links", "local_user_id"), ("group_members", "user_id"), ("auth_totp", "user_id"), ("auth_totp_failures", "user_id"),
     ("auth_recovery_codes", "user_id"),  # MFA-RECOVERY-CODES-2490
     ("auth_device_keys", "user_id"),  # MFA-DEVICEKEY-2490
+    ("auth_factor_resets", "user_id"),  # MFA-RESET-HARDENING-2510
     ("user_prefs", "user_id"), ("plan_view_prefs", "user_id"), ("automation_prefs", "user_id"), ("ticket_saved_views", "user_id"),
     ("push_subscriptions", "user_id"), ("push_prefs", "user_id"), ("mobile_push_messages", "user_id"), ("mobile_presence_events", "user_id"),
     ("mobile_devices", "user_id"), ("notification_recipients", "user_id"), ("notification_deliveries", "user_id"),

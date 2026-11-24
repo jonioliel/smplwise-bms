@@ -106,6 +106,8 @@ NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "a
                                    "auth_device_keys",
                                    # MFA-SECFIX-2500 SR-6: passkeys too - a restore never brings back a removed one
                                    "auth_webauthn_credentials",
+                                   # MFA-RESET-HARDENING-2510: who must enrol again after an administrator's reset (runtime state of this box)
+                                   "auth_factor_resets",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",
@@ -289,6 +291,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_policy", "security.factor_poli
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_auth"}
 # MFA-DEVICEKEY-ATTEST-2490: the phone-key attestation mode (off | preferred | required) - a restore must never weaken it
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_attestation"}
+# MFA-RESET-HARDENING-2510: from which channel an administrator may reset another user's factors (owner Q53) - never from an archive
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_reset_channel"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
