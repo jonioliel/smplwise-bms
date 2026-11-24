@@ -47,7 +47,7 @@ def test_sr1_a_passkey_only_administrator_resets_another_users_factor_without_an
     tp.add_passkey(arx, arx.owner)  # the system administrator's only factor is a passkey
     clock.advance(6)  # the registration's own proof ran out: a stolen session of the administrator from now on
     assert title(arx, "x").status_code == 403  # an ordinary settings change IS gated for this administrator
-    r = arx.client.delete(RESET_VIEWER)
+    r = arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"})
     assert r.status_code == 403, f"the factor of another user was removed with no proof at all: {r.status_code} {r.text}"
 
 
@@ -59,7 +59,7 @@ def test_sr2_an_administrators_factor_reset_leaves_the_users_passkey_as_a_factor
     tp.configure(arx)
     tp.add_passkey(arx, arx.viewer)
     admin = TestClient(arx.app)  # the local developer identity, system_admin
-    assert admin.delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
+    assert admin.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).status_code == 200
     with arx.db.connection(mode="read") as conn:
         left = step_up.methods_of(conn, "u-viewer")
     assert left == [], f"after 'reset the second factor' the account still has the step-up methods {left}"
@@ -72,7 +72,7 @@ def test_sr2_an_administrators_factor_reset_leaves_the_users_phone_key_active(ar
         conn.execute("INSERT INTO auth_device_keys(id, user_id, label, spki, fp, auth_kind, created_at) VALUES (?, ?, '', ?, ?, ?, ?)",
                      ("dk_" + "0" * 24, "u-viewer", b"\x00", "f" * 64, "biometric", "2026-11-24T00:00:00Z"))
     admin = TestClient(arx.app)
-    assert admin.delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
+    assert admin.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).status_code == 200
     with arx.db.connection(mode="read") as conn:
         assert not dk.has_active(conn, "u-viewer"), "the phone key survives the reset and still answers sign-in and step-up"
 

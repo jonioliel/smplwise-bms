@@ -106,6 +106,18 @@ ONCE_ROUTES: dict[tuple[str, str], str] = {
     ("DELETE", "/identity/local-users/{user_id}/passkeys/{pk_id}"): ONCE_PASSKEY,
 }
 ONCE_ACTIONS = frozenset(ONCE_ROUTES.values())
+# MFA-RESET-HARDENING-2510 (design 4.2 `security.step_up_once_actions`; slice 3's open question 7; owner Q5 "never ask for
+# re-confirmation unless I switched it on"): the once-actions that apply ONLY while step-up applies to the caller (`not_applicable` is
+# None - the switch on, the channel covered, a method to prove with). Then the 5-minute window does not count for them: each call needs
+# a once-proof (the own current code in `X-Arx-Second-Factor`, or `auth/step-up/verify {action}` just before). With step-up off (the
+# default) they ask nothing, as before the train. A route declares its once-action BEFORE it authorises (`declare_once`), so the
+# central gate asks for the once-proof instead of a window proof (one prompt); `require_once_when_on` is the explicit check.
+ONCE_ADMIN_ROLE = "rbac.system_admin.assign"  # a binding of the `system_admin` role (allow) - the single, group and bulk binding routes
+ONCE_RESTORE = "backup.restore"  # a backup restore - local archive (routers/backup) and off-box copy (routers/backup_offbox)
+STEP_UP_ONCE_ACTIONS = frozenset({ONCE_ADMIN_ROLE, ONCE_RESTORE})
+ANY_ONCE_ACTIONS = ONCE_ACTIONS | STEP_UP_ONCE_ACTIONS
+ONCE_DECLARED_ATTR = "sw_step_up_once"  # request.state: the conditional once-action this request performs
+ONCE_DONE_ATTR = "sw_step_up_once_ok"  # request.state: that once-action was proved (or did not apply) in this request
 # The caller's own factor changes: each needs a proof whatever `security.step_up` says (slices 4, 7, 8).
 FACTOR_CHANGE_ACTIONS = frozenset({"auth.second_factor.enroll", "auth.recovery_codes.regenerate", "auth.passkey.register", "auth.passkey.remove",
                                    "auth.device_key.register", "auth.device_key.revoke"})
@@ -114,7 +126,7 @@ FACTOR_CHANGE_ACTIONS = frozenset({"auth.second_factor.enroll", "auth.recovery_c
 # one leaked code cannot be laundered into something lasting. Removing one's own lost passkey / phone key stays possible with it
 # (the lost-device path, as removing the authenticator code with a recovery code - slice 7's `disable`).
 FACTOR_ADD_ACTIONS = frozenset({"auth.second_factor.enroll", "auth.recovery_codes.regenerate", "auth.passkey.register", "auth.device_key.register"})
-NO_RECOVERY_ACTIONS = ONCE_ACTIONS | FACTOR_ADD_ACTIONS
+NO_RECOVERY_ACTIONS = ANY_ONCE_ACTIONS | FACTOR_ADD_ACTIONS
 EXEMPT_ROUTES = frozenset(ONCE_ROUTES)
 
 # MFA-STEPUP-GATES-2490: write-method routes that authorise a gated permission but change nothing (previews, checks, dry runs,
@@ -612,6 +624,10 @@ def guard(conn: sqlite3.Connection, request: Any, principal: Any, permission: st
     state = getattr(request, "state", None)
     if state is not None and getattr(state, STATE_ATTR, None) == "ok":
         return
+    declared = getattr(state, ONCE_DECLARED_ATTR, None) if state is not None else None
+    if declared in STEP_UP_ONCE_ACTIONS:  # MFA-RESET-HARDENING-2510: a once-proof instead of the window (one prompt)
+        require_once_when_on(conn, request, principal, declared)
+        return
     if not_applicable(conn, request, principal) is None:
         key = session_key(request, principal)
         if key is None or not _satisfied(conn, request, principal, key):
@@ -620,17 +636,62 @@ def guard(conn: sqlite3.Connection, request: Any, principal: Any, permission: st
         setattr(state, STATE_ATTR, "ok")
 
 
-def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: str) -> None:
+def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: str, *, once: bool = False, reason: str = "step_up_required",
+            error: ApiError | None = None) -> None:
     from .. import correlation_id
     from ..audit import audit
     from ..db import read_mode, rollback_and_restart
 
     if not read_mode(conn) and conn.in_transaction:
         rollback_and_restart(conn)  # nothing the request wrote before the gate stays (an ApiError commits)
-    audit(conn, actor=principal, action="auth.step_up.required", decision="denied", resource_type="step_up", resource_id=permission,
-          reason="step_up_required", request_id=correlation_id.of(request),
-          details={"permission": permission, "method": request.scope.get("method") or "", "route": _route(request)})
+    details = {"permission": permission, "method": request.scope.get("method") or "", "route": _route(request), **({"once": True} if once else {})}
+    audit(conn, actor=principal, action="auth.step_up.required" if error is None else "auth.step_up.failed", decision="denied",
+          resource_type="step_up", resource_id=permission, reason=reason, request_id=correlation_id.of(request), details=details)
+    if error is not None:
+        raise error
+    if once:
+        raise ApiError(403, "step_up_required", ONCE_REQUIRED_HE, details=once_details(conn, principal, permission))
     raise required_error(conn, principal, permission)
+
+
+ONCE_REQUIRED_HE = "לפעולה הזו צריך לאשר שוב את הזהות בכל פעם: בקוד הנוכחי מאפליקציית האימות, במפתח גישה או במפתח הטלפון."
+
+
+def declare_once(request: Any, action: str) -> None:
+    """MFA-RESET-HARDENING-2510: this request performs the conditional once-action `action` (STEP_UP_ONCE_ACTIONS). Called by the route
+    BEFORE its authorisation, so the gate that runs inside require() asks for a once-proof instead of a window proof."""
+    assert action in STEP_UP_ONCE_ACTIONS, action
+    state = getattr(request, "state", None)
+    if state is not None:
+        setattr(state, ONCE_DECLARED_ATTR, action)
+
+
+def require_once_when_on(conn: sqlite3.Connection, request: Any, principal: Any, action: str) -> None:
+    """MFA-RESET-HARDENING-2510: the conditional once-action `action` - only when step-up applies to this caller (`not_applicable` is
+    None; with `security.step_up` off, the default, nothing is asked: owner Q5). Then the caller's own current code in
+    `X-Arx-Second-Factor` or a once-proof of `auth/step-up/verify {action}` within ONE_SHOT_S - never the window. Missing: the request's
+    writes are rolled back, `auth.step_up.required` (once) is audited and 403 `step_up_required` answers with `once: true`. A wrong
+    code: audited `auth.step_up.failed`, 400 `second_factor_invalid` / 429 `second_factor_locked`. Once per request and action."""
+    assert action in STEP_UP_ONCE_ACTIONS, action
+    if request is None:
+        return
+    state = getattr(request, "state", None)
+    if state is not None and getattr(state, ONCE_DONE_ATTR, None) == action:
+        return
+    if not_applicable(conn, request, principal) is None:
+        from . import second_factor as sf
+
+        try:
+            once_proof(conn, request, principal, action, None)
+        except OnceProofMissing:
+            _refuse(conn, request, principal, action, once=True)
+        except sf.SecondFactorError as exc:
+            status = 429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409
+            _refuse(conn, request, principal, action, once=True, reason=f"step_up_{exc.code}",
+                    error=ApiError(status, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked"))
+    if state is not None:
+        setattr(state, ONCE_DONE_ATTR, action)
+        setattr(state, STATE_ATTR, "ok")
 
 
 def on_grant(conn: sqlite3.Connection, principal: Any, permission: str) -> None:
@@ -697,7 +758,7 @@ def once_proof(conn: sqlite3.Connection, request: Any, principal: Any, action: s
     the caller has no step-up method (the route decides: the factor reset goes on as before, the bridge-key reveal refuses).
     Raises OnceProofMissing without either, and second_factor.SecondFactorError for a wrong code (the route maps and audits both,
     as before). A window proof or a sign-in proof never counts here."""
-    if action not in ONCE_ACTIONS:
+    if action not in ANY_ONCE_ACTIONS:
         raise ValueError(action)
     if not methods_of(conn, principal.user_id):
         return None

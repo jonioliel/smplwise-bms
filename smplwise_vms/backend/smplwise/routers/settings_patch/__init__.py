@@ -54,6 +54,7 @@ VALIDATORS: dict[str, Handler] = {
     "security.local_public_url": identity.public_url,
     "security.local_passkey_": identity.passkey_settings,  # security.local_passkey_first, security.local_passkey_android
     "security.passkeys_all_users": identity.passkeys_all_users,  # MFA-PASSKEYS-2490
+    "security.factor_reset_channel": identity.factor_reset_channel,  # MFA-RESET-HARDENING-2510
     "privacy.local_purge": identity.local_purge,  # and privacy.local_purge_confirm, privacy.local_purge_days
     "tickets.enabled": modules.tickets_switch,
     "maintenance.enabled": modules.maintenance_switch,

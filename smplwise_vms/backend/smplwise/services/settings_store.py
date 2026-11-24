@@ -440,6 +440,11 @@ DEFAULTS: dict[str, str] = {
     # offline against the pinned Google roots - `off` (not checked), `preferred` (default: recorded, never refused), `required` (only a
     # hardware-attested key registers and counts). A settings change (step-up gated). Never restored from a backup.
     "security.device_key_attestation": "preferred",
+    # MFA-RESET-HARDENING-2510 (owner Q53, NOT the recommendation; services/factor_reset.py): from which channel an administrator may reset
+    # another user's authentication methods - `any` (default: from anywhere, with the administrator's own fresh approval, a typed
+    # confirmation, 3 per hour) or `local` (the local network only). A system administrator changes it; widening it back to `any` only
+    # from the local channel. Never restored from a backup.
+    "security.factor_reset_channel": "any",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,

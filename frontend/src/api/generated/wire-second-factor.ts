@@ -12,6 +12,7 @@ export interface EnrolledUser {
 export interface EnrolledUsers {
   policy: "optional" | "admins";
   users: EnrolledUser[];
+  must_enroll: string[];
 }
 
 /** A fresh secret (base32, no padding), the otpauth URI for the authenticator app and the issuer name; not active until confirmed. */
@@ -44,6 +45,32 @@ export interface FactorReset {
   passkeys: number;
   device_keys: number;
   recovery_codes: number;
+  sign_ins_ended: number;
+  device_credentials_ended: number;
+  must_enroll: boolean;
+  resets_left: number;
+}
+
+/**
+ * `GET /auth/second-factor/users/{id}/reset-check` (MFA-RESET-HARDENING-2510): the preflight of the reset for the dialog. `allowed`
+ * false names the first refusal the reset would meet (`reason`): `self` (the caller's own account - use `disable`), `user_unknown`,
+ * `local_only` (`security.factor_reset_channel` = local and this request is remote), `last_admin` (the last system administrator who
+ * can sign in remotely), `rate_limited` (3 resets per administrator per hour). `confirm_text` = what to type into `confirm` (the
+ * username, else the user id). `remote` = this request came from outside. `must_enroll_after` = the user's factor policy requires a
+ * factor, so their next remote sign-in goes to enrolment. `step_up` = the once-action details (the administrator's own proof).
+ */
+export interface FactorResetCheck {
+  user_id: string;
+  allowed: boolean;
+  reason: "self" | "user_unknown" | "local_only" | "last_admin" | "rate_limited" | null;
+  confirm_text: string;
+  channel: "any" | "local";
+  remote: boolean;
+  resets_left: number;
+  rate_max: number;
+  factors: ResetFactors;
+  must_enroll_after: boolean;
+  step_up: OnceStepUp;
 }
 
 /** The caller's own factor: whether it is active, when it was enabled and last used (null while it is not active). */
@@ -51,6 +78,15 @@ export interface FactorStatus {
   enabled: boolean;
   enabled_at: string | null;
   last_used_at: string | null;
+}
+
+/** The once-action's step-up details (services/step_up.once_details): verify with this action, then send the request once. */
+export interface OnceStepUp {
+  action: string;
+  methods: ("totp" | "passkey" | "device_key")[];
+  minutes: number;
+  once: boolean;
+  verify_path: string;
 }
 
 /** `PUT /auth/second-factor/overrides/{kind}/{id}`: the change and every override after it. */
@@ -69,12 +105,18 @@ export interface Overrides {
   role: Record<string, string>;
 }
 
-/** `GET /auth/second-factor`: the status and the installation's policy. */
+/**
+ * `GET /auth/second-factor`: the status and the installation's policy. MFA-RESET-HARDENING-2510: `must_enroll` = an administrator
+ * reset this account's factors and none was enrolled since; `must_enroll_enforced` = and the factor policy requires one, so the next
+ * remote sign-in goes to enrolment (the account screen asks the user to enrol again).
+ */
 export interface OwnFactor {
   enabled: boolean;
   enabled_at: string | null;
   last_used_at: string | null;
   policy: "optional" | "admins";
+  must_enroll: boolean;
+  must_enroll_enforced: boolean;
 }
 
 /** `POST /auth/recovery-codes`: the new batch (`XXXX-XXXX`), shown in this answer ONCE; the previous batch no longer works. */
@@ -101,6 +143,14 @@ export interface RecoveryStatus {
   last_used_at: string | null;
   low: boolean;
   low_at: number;
+}
+
+/** What a reset would remove now: the authenticator code (active or pending), passkeys, active phone keys, unused recovery codes. */
+export interface ResetFactors {
+  totp: boolean;
+  passkeys: number;
+  device_keys: number;
+  recovery_codes: number;
 }
 
 /**
@@ -137,6 +187,7 @@ export interface SecondFactorRoutes {
   "GET /api/v1/auth/second-factor/users": EnrolledUsers;
   "GET /api/v1/auth/second-factor/overrides": Overrides;
   "PUT /api/v1/auth/second-factor/overrides/{kind}/{subject_id}": OverrideSet;
+  "GET /api/v1/auth/second-factor/users/{user_id}/reset-check": FactorResetCheck;
   "DELETE /api/v1/auth/second-factor/users/{user_id}": FactorReset;
   "GET /api/v1/auth/step-up": StepUpStatus;
   "POST /api/v1/auth/step-up/verify": StepUpProof;

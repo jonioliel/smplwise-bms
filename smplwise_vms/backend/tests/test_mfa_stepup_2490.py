@@ -286,7 +286,7 @@ def test_routes_with_their_own_code_check_are_left_to_it(arx, clock):
     clock.advance(6)
     bump_step(arx, "u-owner")
     # the administrator's reset demands the administrator's own current code on every call (stricter than the window)
-    r = arx.client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", json={"code": code_now(arx, "u-owner")})
+    r = arx.client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", json={"code": code_now(arx, "u-owner"), "confirm": "dana"})
     assert r.status_code == 200, r.text
     assert arx.audit("auth.step_up.required") == []
 

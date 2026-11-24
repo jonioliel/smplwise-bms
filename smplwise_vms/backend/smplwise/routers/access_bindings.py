@@ -36,6 +36,10 @@ def list_bindings(principal: Principal = Depends(current_principal_ro), conn: sq
 
 @router.post("/access/bindings", status_code=201, **wire(W.BindingCreated))
 def create_binding(body: BindingBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    if body.role_id == "system_admin" and body.effect == "allow":
+        from ..services import step_up
+
+        step_up.declare_once(request, step_up.ONCE_ADMIN_ROLE)  # MFA-RESET-HARDENING-2510: the gate asks a once-proof (step-up on only)
     validate_binding(conn, principal, body, request)
     bid, rev = insert_binding(conn, principal, request, body)
     if body.effect == "deny":

@@ -195,7 +195,7 @@ def _owner_signed_in_with_a_target(arx, clock) -> None:
 def test_the_factor_reset_needs_a_proof_on_every_call_and_a_window_never_counts(arx, clock):
     _owner_signed_in_with_a_target(arx, clock)
     assert verify(arx, "u-owner").status_code == 200  # a window proof (settings) ...
-    r = arx.client.request("DELETE", RESET)
+    r = arx.client.request("DELETE", RESET, json={"confirm": "dana"})
     assert r.status_code == 403 and r.json()["code"] == "second_factor_step_up_required"  # ... does not count for a once-action
     d = r.json()["details"]
     assert d["once"] is True and d["action"] == "auth.second_factor.reset" and d["minutes"] == 0 and d["methods"] == ["totp"]
@@ -203,19 +203,19 @@ def test_the_factor_reset_needs_a_proof_on_every_call_and_a_window_never_counts(
     assert v.status_code == 200 and v.json()["minutes"] == 0 and v.json()["valid_until"]
     ok = arx.audit("auth.step_up.ok")[-1]
     assert details(ok)["once"] is True and details(ok)["action"] == "auth.second_factor.reset"
-    assert arx.client.request("DELETE", RESET).status_code == 200  # the once-proof, consumed by this call
-    again = arx.client.request("DELETE", RESET)
+    assert arx.client.request("DELETE", RESET, json={"confirm": "dana"}).status_code == 200  # the once-proof, consumed by this call
+    again = arx.client.request("DELETE", RESET, json={"confirm": "dana"})
     assert again.status_code == 403 and again.json()["code"] == "second_factor_step_up_required"  # never twice
     assert arx.audit("auth.step_up.required") == []  # the window gate leaves the route to its own check
 
 
 def test_the_inline_code_still_works_and_a_wrong_one_is_audited_as_before(arx, clock):
     _owner_signed_in_with_a_target(arx, clock)
-    r = arx.client.request("DELETE", RESET, json={"code": "000000"})
+    r = arx.client.request("DELETE", RESET, json={"code": "000000", "confirm": "dana"})
     assert r.status_code == 400 and r.json()["code"] == "second_factor_invalid"
     assert arx.audit("auth.second_factor.reset")[-1]["reason"] == "step_up_invalid"
     bump_step(arx, "u-owner")
-    assert arx.client.request("DELETE", RESET, headers={"X-Arx-Second-Factor": code_now(arx, "u-owner")}).status_code == 200
+    assert arx.client.request("DELETE", RESET, headers={"X-Arx-Second-Factor": code_now(arx, "u-owner")}, json={"confirm": "dana"}).status_code == 200
 
 
 def test_a_once_proof_is_bound_to_its_action_session_and_time(arx, clock):
@@ -242,7 +242,7 @@ def test_a_once_proof_is_available_whatever_the_switch(arx, clock):
     arx.setting("security.step_up", "off")
     assert verify(arx, "u-owner").json()["code"] == "step_up_not_applicable"  # no window proofs while off ...
     assert verify(arx, "u-owner", action="auth.second_factor.reset").status_code == 200  # ... but the reset still asks, as it always did
-    assert arx.client.request("DELETE", RESET).status_code == 200
+    assert arx.client.request("DELETE", RESET, json={"confirm": "dana"}).status_code == 200
 
 
 # ---------------------------------------------------------------- the gaps of slice 1

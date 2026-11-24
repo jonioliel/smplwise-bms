@@ -209,6 +209,12 @@ def _bind(conn: sqlite3.Connection, principal: Principal, request: Request, ha_u
 @router.post("/ha-users", status_code=201, **wire(W.HaUserCreated))
 def create(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     action = "ha_users.create"
+    if body.role_id == "system_admin":
+        from ..services import step_up
+
+        # MFA-RESET-HARDENING-2510: a new system administrator - the conditional once-action, proved by the gate inside _guard_write
+        # BEFORE anything is created at Home Assistant (a once-proof while step-up applies; nothing with step-up off)
+        step_up.declare_once(request, step_up.ONCE_ADMIN_ROLE)
     _guard_write(conn, principal, request, action)
     settings = _ha_settings(request, conn)
     if body.request_key:

@@ -222,6 +222,13 @@ SOURCES: tuple[Source, ...] = (
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
     # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
     _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך: הוסרו אפליקציית האימות, מפתחות הגישה, מפתחות הטלפון וקודי השחזור. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אימות מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
+    # MFA-RESET-HARDENING-2510 (owner Q53; design 4.6 / 8.3 `security.factors_reset`: the user AND the managers): an administrator reset
+    # another user's authentication methods - the managers are told too, so a reset made from outside with a stolen administrator
+    # session does not go unseen. Content-free like the other notices to the managers (never a username or a person; the audit row
+    # `auth.second_factor.reset` names who and whom).
+    _s("security.second_factor_reset_by_admin", "מנהל איפס דרכי אימות של משתמש", "security", "alert", "בוצע איפוס דרכי אימות",
+       "מנהל איפס את דרכי האימות של משתמש ({channel}). כל הכניסות של המשתמש נותקו. פרטים באודיט.", window_s=3600, who="managers",
+       subject="system", resolves=False),
     # MFA-DEVICEKEY-2490 (design 8.3): a phone key was added to the account - the account's own user is told on every device (never the key,
     # never the label they typed)
     # MFA-SECFIX-2500 SR-3: an authenticator app or a passkey was added to the account - the account's own user is told on every device

@@ -1130,10 +1130,29 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
         # same header)
         if device_keys.has_active(conn, principal.user_id):
             return "code"
+        from . import factor_reset
+
+        # MFA-RESET-HARDENING-2510: after an administrator's reset (`must_enroll`) the user enrols an Arx factor again - HA's own MFA
+        # no longer satisfies the policy until they do (owner Q14: a recovery-code sign-in never sets this)
+        if factor_reset.must_enroll(conn, principal.user_id):
+            return FACTOR_ENROLL_AFTER_RESET
         # MFA-POLICY-2490: required by the (enforced) sign-in factor policy alone -> HA's own MFA with provenance may satisfy it
         # (services/mfa_provenance; checked by the caller, which may still answer enrolment-required); the legacy rules keep theirs
         return "ha_mfa" if source == "policy" else "enroll"
     return "none"
+
+
+FACTOR_ENROLL_AFTER_RESET = "enroll_after_reset"  # MFA-RESET-HARDENING-2510: `enroll`, because an administrator reset the factors
+
+
+def enrollment_required(factor: str) -> ApiError:
+    """The 403 `second_factor_enrollment_required` of a new remote sign-in that must enrol first; after an administrator's reset its
+    details say so (`must_enroll`, reason `admin_reset`) for the sign-in screen."""
+    from . import second_factor as sf
+
+    if factor == FACTOR_ENROLL_AFTER_RESET:
+        return ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE, details={"must_enroll": True, "reason": "admin_reset"})
+    return ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE)
 
 
 def long_lived_check_needed(conn, principal: Principal, replaces: str | None) -> bool:
@@ -1308,10 +1327,8 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             raise gate
         if factor == "ha_mfa":
             factor = "none"
-    if factor == "enroll":
-        from . import second_factor as sf
-
-        raise await rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
+    if factor in ("enroll", FACTOR_ENROLL_AFTER_RESET):
+        raise await rejected("second_factor_enrollment_required", enrollment_required(factor), principal)
     answered: str | None = None
     if factor == "code":
         answered = await _check_second_factor(app_state, settings, conn_like, principal, meta)
@@ -1479,10 +1496,8 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         pass
     elif factor != "none" and not enforced:
         factor_meta = {"second_factor_skipped": factor}  # security.second_factor_bearer = off (the owner's choice)
-    elif factor == "enroll":
-        from . import second_factor as sf
-
-        raise rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
+    elif factor in ("enroll", FACTOR_ENROLL_AFTER_RESET):
+        raise rejected("second_factor_enrollment_required", enrollment_required(factor), principal)
     elif factor == "code":
         answered = _check_second_factor_sync(db, settings, request, principal, meta)  # MFA-DEVICEKEY-2490: which factor answered
         factor_meta = {"second_factor": answered}

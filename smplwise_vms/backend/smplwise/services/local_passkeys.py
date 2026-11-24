@@ -424,6 +424,9 @@ def register(conn: Any, settings: Any, request: Any, s: Any, body: Any, label: s
     _audit(conn, actor=s.principal, action="auth.local.passkey.registered", decision="allowed", resource_id=s.user_id,
            details={"passkey": pk, "alg": reg.alg, "synced": reg.backup_eligible, "uv": reg.uv, "first_factor": first_factor,
                     "other_sessions_ended": ended, "device_tokens_revoked": tokens}, request_id=request_id)
+    from . import factor_reset
+
+    factor_reset.enrolled(conn, s.user_id)  # MFA-RESET-HARDENING-2510: a factor again - the must_enroll of an administrator's reset ends
     return {"passkey": view(conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone(), relying[0], li.holds_admin(conn, s.user_id)),
             "first_factor": first_factor, "other_sessions_ended": ended}
 

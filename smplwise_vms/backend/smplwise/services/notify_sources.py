@@ -728,6 +728,20 @@ def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))
 
 
+CHANNEL_NAMES_HE = {"remote": "מרחוק", "local": "מהרשת המקומית"}
+
+
+@safe
+def second_factor_reset_by_admin(conn: sqlite3.Connection, user_id: str, *, remote: bool) -> None:
+    """MFA-RESET-HARDENING-2510: an administrator reset another user's authentication methods (routers/second_factor.admin_reset, inside
+    its transaction): the MANAGERS get `security.second_factor_reset_by_admin` (the catalogue's `managers` rule on a `system` subject).
+    Content-free: the channel only - never the user, the administrator or a secret (the audit row carries the ids)."""
+    notify.emit_full(conn, notify.Signal("security.second_factor_reset_by_admin", "system", "installation",
+                                         dedupe_key=f"security.second_factor_reset_by_admin:{notify.new_id()}",
+                                         params={"channel": CHANNEL_NAMES_HE["remote" if remote else "local"]},
+                                         link="#/system/notifications", origin={"kind": "second_factor"}))
+
+
 FACTOR_NAMES_HE = {"totp": "אפליקציית אימות", "passkey": "מפתח גישה"}
 
 

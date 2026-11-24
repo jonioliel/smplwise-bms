@@ -262,6 +262,9 @@ def register(conn: sqlite3.Connection, request: Any, principal: Any, body: Any, 
     from . import notify_sources
 
     notify_sources.second_factor_added(conn, uid, "passkey")  # MFA-SECFIX-2500 SR-3: the user hears of it on every device
+    from . import factor_reset
+
+    factor_reset.enrolled(conn, uid)  # MFA-RESET-HARDENING-2510: a factor again - the must_enroll of an administrator's reset ends
     row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone()
     return {"passkey": lpk.view(row, relying[0], _admin(conn, uid)), "first_factor": first_factor, "other_sessions_ended": ended}
 
@@ -417,7 +420,7 @@ def verify(conn: sqlite3.Connection, request: Any, principal: Any, cid: str | No
 
     uid = principal.user_id
     act = action or ""
-    once_actions = getattr(step_up, "ONCE_ACTIONS", frozenset())  # MFA-STEPUP-GATES-2490, when merged
+    once_actions = getattr(step_up, "ANY_ONCE_ACTIONS", frozenset())  # MFA-STEPUP-GATES-2490 (+ MFA-RESET-HARDENING-2510)
     once = act in once_actions and hasattr(step_up, "mark_once")
     if not step_up.methods_of(conn, uid):
         raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)

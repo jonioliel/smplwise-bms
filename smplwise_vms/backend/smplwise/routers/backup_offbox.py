@@ -559,9 +559,12 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """STEP 2 (destructive): needs the stage id of step 1 and `confirm == "RESTORE"`. Writes a pre-restore safety archive, then runs
     the existing restore (schema-newer refusal, encrypted sensitive section, capture-lease cancellation, ...)."""
+    from ..services import step_up
     from .backup import _sensitive_error  # the one translation of a backup-password problem
 
+    step_up.declare_once(request, step_up.ONCE_RESTORE)  # MFA-RESET-HARDENING-2510: a once-proof while step-up applies (see routers/backup)
     require(conn, principal, "backup.manage", INSTALLATION)
+    step_up.require_once_when_on(conn, request, principal, step_up.ONCE_RESTORE)
     if body.confirm != "RESTORE":
         raise ApiError(422, "confirm_required", "לאישור השחזור יש להקליד RESTORE.")
     try:

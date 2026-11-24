@@ -7,9 +7,13 @@
 `GET    auth/second-factor/users`               system.configure: who has an active factor + the policy
 `GET    auth/second-factor/overrides`            system.configure: the per-user / per-role policy overrides (TFA2)
 `PUT    auth/second-factor/overrides/{kind}/{id} {policy}`  system.configure: kind user|role, policy inherit|optional|required - audited
-`DELETE auth/second-factor/users/{user_id}`     system.configure: reset (remove) ANOTHER user's factor from any channel - audited;
+`DELETE auth/second-factor/users/{user_id} {confirm, code?}`  system.configure: reset (remove) EVERY factor of ANOTHER user - audited;
                                                 an administrator who has a factor sends their own current code
-                                                (X-Arx-Second-Factor or {code}); the target's remote sign-ins end
+                                                (X-Arx-Second-Factor or {code}) or a once-proof; MFA-RESET-HARDENING-2510: the typed
+                                                username (`confirm`), the channel setting, 3 per administrator per hour, never the last
+                                                administrator who can sign in remotely; every sign-in and device credential of the
+                                                target ends; the user and the managers are told; the user must enrol again
+`GET    auth/second-factor/users/{user_id}/reset-check`  MFA-RESET-HARDENING-2510: the preflight of that reset (services/factor_reset.check)
 `GET    auth/step-up`                           MFA-STEPUP-TRAIN-2490: the step-up switch, window and the caller's current proof
 `POST   auth/step-up/verify {method, code}`     MFA-STEPUP-TRAIN-2490: a current code -> a step-up proof on THIS session (services/step_up);
                                                 MFA-PASSKEYS-2490: {method: "passkey", challenge_id, assertion} answers a challenge of
@@ -41,7 +45,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
-from ..services import capture_lease, notify_sources, presence
+from ..services import capture_lease, factor_reset, notify_sources, presence
 from ..services import recovery_codes as rc
 from ..services import second_factor as sf
 from ..services import second_factor_store as store
@@ -96,7 +100,10 @@ def _fail(exc: sf.SecondFactorError) -> ApiError:
 
 @router.get("/auth/second-factor", **wire(W.OwnFactor))
 def own_status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return {**sf.status(conn, principal.user_id), "policy": sf.policy(conn)}
+    # MFA-RESET-HARDENING-2510: an administrator reset this account's factors and none was enrolled since (`must_enroll`); with the
+    # factor policy requiring one, the next remote sign-in goes to enrolment (`must_enroll_enforced`)
+    return {**sf.status(conn, principal.user_id), "policy": sf.policy(conn), "must_enroll": factor_reset.must_enroll(conn, principal.user_id),
+            "must_enroll_enforced": factor_reset.enforced(conn, principal.user_id)}
 
 
 @router.post("/auth/second-factor/enroll", **wire(W.Enrolment))
@@ -137,6 +144,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
         ended += local_identity.on_factor_enabled(conn, settings_of(request), request, principal)
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
     notify_sources.second_factor_added(conn, principal.user_id, "totp")  # MFA-SECFIX-2500 SR-3: the user hears of it on every device
+    factor_reset.enrolled(conn, principal.user_id)  # MFA-RESET-HARDENING-2510: a factor again - the reset's must_enroll ends
     step_up.note_proof(request, principal, "totp")  # MFA-STEPUP-TRAIN-2490: the first code was just shown in this session
     # MFA-RECOVERY-CODES-2490 (owner Q49): the first batch of one-time recovery codes, shown once in this answer and never again
     codes, voided = rc.generate(conn, principal.user_id)
@@ -173,7 +181,8 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
 @router.get("/auth/second-factor/users", **wire(W.EnrolledUsers))
 def list_users(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
-    return {"policy": sf.policy(conn), "users": [{"user_id": uid, **info} for uid, info in sorted(sf.enrolled_users(conn).items())]}
+    return {"policy": sf.policy(conn), "users": [{"user_id": uid, **info} for uid, info in sorted(sf.enrolled_users(conn).items())],
+            "must_enroll": factor_reset.must_enroll_users(conn)}  # MFA-RESET-HARDENING-2510: reset by an administrator, not enrolled since
 
 
 @router.get("/auth/second-factor/overrides", **wire(W.Overrides))
@@ -243,23 +252,68 @@ def require_step_up(conn: sqlite3.Connection, request: Request, principal: Princ
 
 class ResetBody(BaseModel):
     code: str | None = Field(default=None, max_length=16)
+    # MFA-RESET-HARDENING-2510: the target's username, typed by the administrator (services/factor_reset.confirm_text)
+    confirm: str | None = Field(default=None, max_length=200)
+
+
+def _reset_refused(conn: sqlite3.Connection, request: Request, principal: Principal, target: str, reason: str, status: int, code: str,
+                   message: str, **details: Any) -> ApiError:
+    """MFA-RESET-HARDENING-2510: one audited refusal of the reset (`auth.second_factor.reset`, denied, the reason; never a typed value
+    or a code). An ApiError commits, so the row survives the refusal."""
+    audit(conn, actor=principal, action=factor_reset.ACTION, decision="denied", resource_type="user", resource_id=target, reason=reason,
+          request_id=_rid(request), details={"method": "totp", **details})
+    return ApiError(status, code, message, details=details or None)
+
+
+@router.get("/auth/second-factor/users/{user_id}/reset-check", **wire(W.FactorResetCheck))
+def admin_reset_check(user_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
+                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """MFA-RESET-HARDENING-2510: the preflight of `DELETE auth/second-factor/users/{user_id}` for the reset dialog - may the reset go
+    ahead now (else the first refusal it would meet), the username to type, the channel setting, the resets left this hour, what would
+    be removed, whether the user must enrol again, the step-up details of the once-action. Reads only (no proof spent, nothing written)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    if len(user_id) > 200:
+        raise ApiError(404, "user_unknown", factor_reset.UNKNOWN_HE)
+    return factor_reset.check(conn, request, principal, user_id)
 
 
 @router.delete("/auth/second-factor/users/{user_id}", **wire(W.FactorReset))
 def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Recovery for a lost authenticator (owner decision 2026-10-06: an administrator may reset from anywhere). Removes the
-    user's factor - active or pending - so their next sign-in needs no code; they can enrol again. Audited with the actor and
-    the target; the removed secret is gone.
+    """Recovery for a lost authenticator (owner decision 2026-10-06, kept by Q53 on 2026-11-22: an administrator may reset from
+    anywhere). Removes EVERY factor of the user (MFA-SECFIX-2500 SR-2) so their next sign-in needs no code; they enrol again.
 
-    Security review 2.2.0: never the caller's own factor (M1 - that is `disable`, which needs a current code); an
-    administrator who has a factor shows their OWN current code (`X-Arx-Second-Factor`, or `{"code"}` in the body) - a
-    stolen session or cookie alone cannot strip anyone's factor; the target's remote sign-ins end (M4)."""
+    Security review 2.2.0: never the caller's own factor (M1 - that is `disable`, which needs a current code); an administrator who
+    has a factor shows their OWN current code (`X-Arx-Second-Factor`, or `{"code"}` in the body) or a once-proof - a stolen session or
+    cookie alone cannot strip anyone's factor; the target's sign-ins end (M4).
+
+    MFA-RESET-HARDENING-2510 (services/factor_reset.py), checked in this order, each refusal audited, all before the proof is read:
+    the channel setting `security.factor_reset_channel`, the typed username (`{"confirm"}`), the last administrator who can sign in
+    remotely, 3 resets per administrator per hour. After the reset: every sign-in and device credential of the target ends (the
+    administrator's "sign out everywhere"), the user AND the managers are told, and the user must enrol again (`must_enroll`)."""
     require(conn, principal, "system.configure", INSTALLATION)
     if len(user_id) > 200:
-        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
+        raise ApiError(404, "user_unknown", factor_reset.UNKNOWN_HE)
     if user_id == principal.user_id:
-        raise ApiError(409, "second_factor_self_reset", SELF_RESET_HE)
+        raise _reset_refused(conn, request, principal, user_id, "self", 409, "second_factor_self_reset", SELF_RESET_HE)
+    expected = factor_reset.confirm_text(conn, user_id)
+    if expected is None:
+        raise ApiError(404, "user_unknown", factor_reset.UNKNOWN_HE)
+    if factor_reset.channel_refuses(conn, request):
+        raise _reset_refused(conn, request, principal, user_id, "local_only", 403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE,
+                             channel=factor_reset.CHANNEL_LOCAL)
+    typed = body.confirm if body else None
+    if not (typed or "").strip():
+        raise _reset_refused(conn, request, principal, user_id, "confirm_required", 422, "factor_reset_confirm_required",
+                             factor_reset.CONFIRM_REQUIRED_HE, field="confirm")
+    if not factor_reset.confirm_matches(expected, typed):
+        raise _reset_refused(conn, request, principal, user_id, "confirm_mismatch", 422, "factor_reset_confirm_mismatch",
+                             factor_reset.CONFIRM_MISMATCH_HE, field="confirm")
+    if factor_reset.last_admin_blocks(conn, user_id, remote_on=factor_reset.remote_on(request)):
+        raise _reset_refused(conn, request, principal, user_id, "last_admin", 409, "factor_reset_last_admin", factor_reset.LAST_ADMIN_HE)
+    if factor_reset.resets_left(conn, principal.user_id) <= 0:
+        raise _reset_refused(conn, request, principal, user_id, "rate_limited", 429, "factor_reset_rate_limited", factor_reset.RATE_LIMITED_HE,
+                             limit=factor_reset.RATE_MAX, window_s=factor_reset.RATE_WINDOW_S)
     _limit(principal)
     require_step_up(conn, request, principal, body.code if body else None, action="auth.second_factor.reset", target=user_id)
     was_active = sf.is_enrolled(conn, user_id)
@@ -270,18 +324,30 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     was_active = was_active or bool(wiped["passkeys"] or wiped["device_keys"])
     step_up.forget_user(user_id)  # MFA-STEPUP-TRAIN-2490: the target's step-up proofs end with the factor (once-proofs too)
     capture_lease.on_authority_change("second_factor_changed", user_ids=[user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
-    ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=_rid(request))
+    rid = _rid(request)
+    ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=rid)
     tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
+    # MFA-RESET-HARDENING-2510: the administrator's "sign out everywhere" (routers/remote revoke-all) - the push registrations of the
+    # user's phones end too, so a phone the reset is meant to shut out stops receiving notices at once
+    devices = presence.end_on_sign_out(conn, user_id, "second_factor_reset", everywhere=True, actor=principal, request_id=rid)
     from ..services import local_identity
 
     ended += local_identity.on_factor_reset(conn, user_id)  # USR2: a local user's sessions end with the factor (`factor_reset`)
+    factor_reset.mark_must_enroll(conn, user_id, by=principal.user_id)  # MFA-RESET-HARDENING-2510: the next sign-in enrols again
     if was_active:
         notify_sources.second_factor_reset(conn, user_id)  # TFA2: the user hears of it in their inbox - no actor, no secret
-    _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended,
-           device_tokens_revoked=tokens, user_notified=was_active, totp_removed=wiped["totp"], passkeys_removed=wiped["passkeys"],
-           device_keys_revoked=wiped["device_keys"], recovery_codes_removed=wiped["recovery_codes"])
+    from ..remote_channel import is_remote
+
+    remote = bool(is_remote(request))
+    notify_sources.second_factor_reset_by_admin(conn, user_id, remote=remote)  # MFA-RESET-HARDENING-2510: and so do the managers
+    left = max(factor_reset.resets_left(conn, principal.user_id) - 1, 0)  # this reset's own audit row is written just below
+    _audit(conn, request, principal, factor_reset.ACTION, user_id, removed=removed, step_up=bool(step_up.methods_of(conn, principal.user_id)),
+           sign_ins_ended=ended, device_tokens_revoked=tokens, device_credentials_ended=devices, user_notified=was_active, managers_notified=True,
+           totp_removed=wiped["totp"], passkeys_removed=wiped["passkeys"], device_keys_revoked=wiped["device_keys"],
+           recovery_codes_removed=wiped["recovery_codes"], must_enroll=True, reset_channel=factor_reset.channel(conn), resets_left=left)
     return {"user_id": user_id, "removed": removed, "totp": wiped["totp"], "passkeys": wiped["passkeys"], "device_keys": wiped["device_keys"],
-            "recovery_codes": wiped["recovery_codes"]}
+            "recovery_codes": wiped["recovery_codes"], "sign_ins_ended": ended, "device_credentials_ended": devices, "must_enroll": True,
+            "resets_left": left}
 
 
 # ---------------------------------------------------------------- step-up (MFA-STEPUP-TRAIN-2490, services/step_up.py)
@@ -323,7 +389,9 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
                                           signature=body.signature, action=body.action)
     if not body.code:
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
-    once = body.action in step_up.ONCE_ACTIONS  # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel
+    # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel (MFA-RESET-HARDENING-2510: also the once-actions
+    # that apply only while step-up is on - a role change to system administrator, a backup restore)
+    once = body.action in step_up.ANY_ONCE_ACTIONS
     # MFA-PASSKEYS-2490: a factor change needs a proof whatever the switch / channel says (MFA-SECFIX-2500: every factor change -
     # passkeys, phone keys, a new batch of recovery codes - step_up.FACTOR_CHANGE_ACTIONS)
     if once or body.action in step_up.FACTOR_CHANGE_ACTIONS:

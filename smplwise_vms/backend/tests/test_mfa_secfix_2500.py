@@ -67,10 +67,10 @@ def test_sr2_the_reset_removes_every_factor_kind_and_says_so(arx, cheap_hashes):
     with arx.db.connection(mode="read") as conn:
         assert step_up.methods_of(conn, "u-viewer") == ["totp", "passkey", "device_key"]
     admin = TestClient(arx.app)  # the local developer identity, system_admin (Ingress: no step-up of its own needed)
-    r = admin.delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = admin.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 1, "device_keys": 1, "recovery_codes": 10}
+    assert {k: body[k] for k in ("user_id", "removed", "totp", "passkeys", "device_keys", "recovery_codes")} == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 1, "device_keys": 1, "recovery_codes": 10}
     with arx.db.connection(mode="read") as conn:
         assert step_up.methods_of(conn, "u-viewer") == [] and not dk.has_active(conn, "u-viewer")
         assert conn.execute("SELECT COUNT(*) FROM auth_recovery_codes WHERE user_id = 'u-viewer'").fetchone()[0] == 0
@@ -85,7 +85,7 @@ def test_sr2_the_reset_removes_every_factor_kind_and_says_so(arx, cheap_hashes):
 def test_sr2_the_reset_ends_the_targets_proofs(arx, clock):
     enrol(arx, arx.viewer)  # the enrolment's first code is a fresh proof of the viewer's session
     assert any(m.user_id == "u-viewer" for m in step_up._MARKS.values())
-    assert TestClient(arx.app).delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
+    assert TestClient(arx.app).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).status_code == 200
     assert not any(m.user_id == "u-viewer" for m in step_up._MARKS.values())
 
 
@@ -140,7 +140,7 @@ def test_w1_a_recovery_code_is_refused_for_a_once_action_and_not_spent(arx, cloc
     for action in sorted(step_up.NO_RECOVERY_ACTIONS):
         r = arx.client.post(VERIFY, json={"method": "recovery_code", "code": codes[0], "action": action})
         assert r.status_code == 409 and r.json()["code"] == "step_up_method_refused", (action, r.text)
-    assert arx.client.delete(RESET_VIEWER).status_code == 403  # no once-proof came of it
+    assert arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"}).status_code == 403  # no once-proof came of it
     # the code was not spent: it still makes an ordinary window proof
     assert arx.client.post(VERIFY, json={"method": "recovery_code", "code": codes[0]}).status_code == 200
     assert title(arx, "x").status_code == 200
@@ -217,17 +217,17 @@ def test_w2_a_phone_key_only_administrator_does_a_once_action(arx, clock):
     phone = tdk.Phone()
     assert tdk.register(arx, phone).status_code == 200  # the administrator's only factor
     clock.advance(6)
-    assert arx.client.delete(RESET_VIEWER).status_code == 403  # a once-action needs its once-proof
+    assert arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"}).status_code == 403  # a once-action needs its once-proof
     tdk.prove(arx, phone, "system.configure")  # a window proof never counts for a once-action
-    assert arx.client.delete(RESET_VIEWER).status_code == 403
+    assert arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"}).status_code == 403
     c = tdk.step_up_challenge(arx, phone, step_up.ONCE_RESET)
     v = tdk.verify(arx, phone, c, action=step_up.ONCE_RESET)
     assert v.status_code == 200 and v.json()["minutes"] == 0, v.text
     row = arx.audit("auth.step_up.ok")[-1]
     assert '"once": true' in row["details_json"] and '"device_key"' in row["details_json"]
-    r = arx.client.delete(RESET_VIEWER)
+    r = arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"})
     assert r.status_code == 200 and r.json()["removed"] is True, r.text
-    assert arx.client.delete(RESET_VIEWER).status_code == 403  # used once
+    assert arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"}).status_code == 403  # used once
 
 
 # ---------------------------------------------------------------- alarm.bypass on the generic device route
@@ -307,6 +307,6 @@ def test_with_step_up_off_only_what_2490_asked_is_asked(arx, clock):
     assert title(arx, "free").status_code == 200
     st = arx.client.get(f"{API}/auth/step-up").json()
     assert st["applies"] is False and st["reason"] == "off"  # the physical gates (guard_action) use the same answer
-    r = arx.client.delete(RESET_VIEWER)  # the once-action asks on every call, as before the train
+    r = arx.client.request("DELETE", RESET_VIEWER, json={"confirm": "dana"})  # the once-action asks on every call, as before the train
     assert r.status_code == 403 and r.json()["code"] == "second_factor_step_up_required"
     assert arx.audit("auth.step_up.required") == []

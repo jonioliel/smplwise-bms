@@ -262,7 +262,7 @@ def test_the_table_names_declared_settings_and_no_prefix_twice():
     from smplwise.routers import settings_patch
     from smplwise.routers.settings_patch import content, ui
 
-    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS) + 18
+    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS) + 20
     declared = [f.alias for f in SettingsPatch.model_fields.values()]
     for prefix in settings_patch.VALIDATORS:
         assert any(alias.startswith(prefix) for alias in declared), prefix
@@ -279,7 +279,7 @@ def test_the_tables_are_in_the_order_of_the_one_long_function():
         "devices.floor_row", "home.screen", "plan.surfaces", "plan.view", "site.", "plan.bakes", "schedules.classes", "automations.",
         "multimedia.remote_default", "app.android_",
         "schedules.allow_disarm", "update.apply_enabled", "security.local_identity", "security.local_identity_extended",
-        "security.local_public_url", "security.local_passkey_", "privacy.local_purge", "tickets.enabled", "maintenance.enabled",
+        "security.local_public_url", "security.local_passkey_", "security.passkeys_all_users", "security.factor_reset_channel", "privacy.local_purge", "tickets.enabled", "maintenance.enabled",
         "docread.enabled", "emergency_readiness.enabled", "schedules.shabbat_sensor", "map.default_floor", "home.title", "home.floor_order",
         "home.widgets", "time.zone", "ai.provider",
     ]

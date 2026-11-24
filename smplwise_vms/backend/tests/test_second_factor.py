@@ -221,15 +221,15 @@ def test_admin_reset_is_audited_and_needs_system_configure(arx):
     enrol(arx, arx.viewer)
     viewer_client = arx.client
     # a viewer may not reset anyone's factor (here: their own is only removable with a code)
-    r = viewer_client.delete("/arx/api/v1/auth/second-factor/users/u-viewer")
+    r = viewer_client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 403
     assert viewer_client.get("/arx/api/v1/auth/second-factor/users").status_code == 403
     admin = TestClient(arx.app)  # local developer identity bound as system_admin
     listed = admin.get("/api/v1/auth/second-factor/users").json()
     assert [u["user_id"] for u in listed["users"]] == ["u-viewer"] and listed["policy"] == "optional"
-    r = admin.delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = admin.request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     # MFA-SECFIX-2500 SR-2: the answer also counts every factor kind removed (the code came with 10 recovery codes)
-    assert r.status_code == 200 and r.json() == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10}
+    assert r.status_code == 200 and r.json() | {"sign_ins_ended": 0, "device_credentials_ended": 0} == {"user_id": "u-viewer", "removed": True, "totp": True, "passkeys": 0, "device_keys": 0, "recovery_codes": 10, "sign_ins_ended": 0, "device_credentials_ended": 0, "must_enroll": True, "resets_left": 2}
     row = arx.audit("auth.second_factor.reset")[-1]
     details = json.loads(row["details_json"])
     assert row["actor_user_id"] == "dev-joni" and row["resource_id"] == "u-viewer" and details["removed"] is True and details["method"] == "totp"
@@ -240,7 +240,7 @@ def test_admin_reset_is_audited_and_needs_system_configure(arx):
 def test_admin_reset_works_from_the_remote_channel_too(arx):
     enrol(arx, arx.viewer)
     assert fresh_login(arx, arx.owner).status_code == 200  # the administrator, signed in remotely (no factor of their own)
-    r = arx.client.delete("/arx/api/v1/auth/second-factor/users/u-viewer")
+    r = arx.client.request("DELETE", "/arx/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200 and r.json()["removed"] is True
     row = arx.audit("auth.second_factor.reset")[-1]
     assert row["actor_user_id"] == "u-owner" and json.loads(row["details_json"])["channel"] == "remote"

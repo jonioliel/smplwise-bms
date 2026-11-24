@@ -190,8 +190,9 @@ def register(body: RegisterBody, request: Request, principal: Principal = Depend
           request_id=_rid(request), details={"user_id": principal.user_id, "fp": dk.fingerprint_prefix(row), "auth_kind": row["auth_kind"],
                                              "platform": row["platform"], "attested": dk.attested_of(row),
                                              "attestation_mode": dka.mode(conn), **_attest_why(row)})
-    from ..services import notify_sources
+    from ..services import factor_reset, notify_sources
 
+    factor_reset.enrolled(conn, principal.user_id)  # MFA-RESET-HARDENING-2510: a factor again - the reset's must_enroll ends
     try:
         notify_sources.device_key_added(conn, principal.user_id)  # design 8.3: the user hears of it on every device
     except Exception:  # noqa: BLE001 - a notice never undoes a registration (emit_full rolled its own savepoint back)
@@ -234,7 +235,7 @@ def verify_step_up(conn: sqlite3.Connection, request: Request, principal: Princi
     so a phone-key-only administrator can still do them; a factor change of the caller's own (step_up.FACTOR_CHANGE_ACTIONS) needs a
     proof whatever the switch says too."""
     act = action or ""
-    once = act in step_up.ONCE_ACTIONS
+    once = act in step_up.ANY_ONCE_ACTIONS  # MFA-RESET-HARDENING-2510: the conditional once-actions too
     if once or act in step_up.FACTOR_CHANGE_ACTIONS:
         reason = None if step_up.methods_of(conn, principal.user_id) else "no_method"
     else:
