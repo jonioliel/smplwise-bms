@@ -12,7 +12,7 @@ export type { Severity } from './types'; // CR-API-PATHS-2439 (07:F21): one defi
 /* The answers of the module-gated routes are the backend's response models (smplwise_vms/backend/smplwise/wire/notices.py), generated into
  * ./generated/wire-notices.ts: a field the server renames or drops is a compile error here (code review 07:F8 step 2). Kept by hand on
  * purpose: the audience (a stored document), a board's `display` (the TV page's own document, notice-tv/tv-logic), the TV option defaults,
- * and the answers of the routes that answer while the module is off (module, settings, logos, news sources - not modelled yet). Fields an
+ * and the answers of the routes that answer while the module is off (module, settings, logos - not modelled yet; the news sources are). Fields an
  * older server lacks stay optional (`can.delete`, the list defaults past `default_severity`, the audience options' `areas`). */
 
 export interface Audience {
@@ -77,25 +77,15 @@ interface NoticesSettings {
   gym_inverted?: string[];
 }
 
-/** NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list). */
-export interface NewsSource {
-  id: string;
-  name: string;
-  url: string;
-  enabled?: boolean;
-  has_logo?: boolean;
-  /** a stamped relative URL of the signed-in logo route ('' without a logo) */
-  logo_url?: string;
-  custom?: boolean;
-  /** NOTICE-NEWS-FEEDS-2500: ISO UTC of the feed's last good fetch; null while no board fetched it since the add-on started (absent from an older backend) */
-  last_ok_at?: string | null;
-  /** NOTICE-NEWS-FEEDS-2500: the reason code of the last failed fetch (status, size, xml, timeout, ...); null after a success */
-  last_error?: string | null;
-}
-export interface NewsSourcesAnswer {
+/**
+ * NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list;
+ * `logo_url` = a stamped relative URL of the signed-in logo route, '' without a logo). NOTICE-NEWS-FEEDS-2500: the backend's model
+ * (Wire.NoticeNewsSource) with `last_ok_at` / `last_error`, the feed's health; every field past the address stays optional (an older
+ * backend, and the settings document that carries the same rows).
+ */
+export type NewsSource = Pick<Wire.NoticeNewsSource, 'id' | 'name' | 'url'> & Partial<Omit<Wire.NoticeNewsSource, 'id' | 'name' | 'url'>>;
+export interface NewsSourcesAnswer extends Omit<Wire.NoticeNewsSources, 'sources'> {
   sources: NewsSource[];
-  max: number;
-  name_max: number;
 }
 
 export interface SettingsResponse {
