@@ -178,7 +178,7 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     const del = p.match(/^auth\/second-factor\/users\/(.+)$/);
     if (del && method === 'DELETE') {
       const id = decodeURIComponent(del[1]);
-      if ((body as { confirm?: string } | null)?.confirm !== (USERNAMES[id] ?? id)) return json(route, err('factor_reset_confirm_mismatch', 'שם המשתמש שהוקלד אינו תואם לחשבון. האיפוס לא בוצע.', { field: 'confirm' }), 422);
+      if (((body as { confirm?: string } | null)?.confirm ?? '').trim().toLowerCase() !== (USERNAMES[id] ?? id)) return json(route, err('factor_reset_confirm_mismatch', 'שם המשתמש שהוקלד אינו תואם לחשבון. האיפוס לא בוצע.', { field: 'confirm' }), 422);
       st.enrolled.delete(id);
       st.factors[id] = { totp: false, passkeys: 0, device_keys: 0, recovery: 0 };
       return json(route, { user_id: id, removed: true, totp: false, passkeys: 2, device_keys: 0, recovery_codes: 0 });
