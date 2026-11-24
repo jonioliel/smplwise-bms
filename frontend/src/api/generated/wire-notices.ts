@@ -163,6 +163,31 @@ export interface NoticeDeleted {
   deleted: true;
 }
 
+/**
+ * NOTICERSS-295: one row of the installation's editable news (RSS) source list (services/notices/news_sources.listing); `custom` =
+ * a raw URL a board stored that the list does not hold yet. NOTICE-NEWS-FEEDS-2500: the feed's health from the news cache -
+ * `last_ok_at` (ISO UTC) of its last good fetch and `last_error` (a short reason code: status, size, xml, timeout, dns, tls, network,
+ * encoding, empty, redirect, ...), both null while no board fetched it since the add-on started.
+ */
+export interface NoticeNewsSource {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  has_logo: boolean;
+  logo_url: string;
+  custom: boolean;
+  last_ok_at: string | null;
+  last_error: string | null;
+}
+
+/** `/notices/news-sources` (GET, PUT, and the logo PUT / DELETE): the list in display order, then its limits. */
+export interface NoticeNewsSources {
+  sources: NoticeNewsSource[];
+  max: number;
+  name_max: number;
+}
+
 export interface NoticeNonReader {
   user_id: string;
   name: string;
@@ -377,4 +402,8 @@ export interface NoticesRoutes {
   "PUT /api/v1/notices/boards/{board_id}/photo": NoticeSlides;
   "DELETE /api/v1/notices/boards/{board_id}/photo-night": NoticeSlides;
   "DELETE /api/v1/notices/boards/{board_id}/photo": NoticeSlides;
+  "GET /api/v1/notices/news-sources": NoticeNewsSources;
+  "PUT /api/v1/notices/news-sources": NoticeNewsSources;
+  "PUT /api/v1/notices/news-sources/{source_id}/logo": NoticeNewsSources;
+  "DELETE /api/v1/notices/news-sources/{source_id}/logo": NoticeNewsSources;
 }

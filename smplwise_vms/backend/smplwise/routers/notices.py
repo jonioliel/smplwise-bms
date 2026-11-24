@@ -262,15 +262,16 @@ def _news_out(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"sources": news_sources.listing(conn), "max": news_sources.SOURCES_MAX, "name_max": news_sources.NAME_MAX}
 
 
-@open_router.get("/notices/news-sources")
+@open_router.get("/notices/news-sources", **wire(W.NoticeNewsSources))
 def get_news_sources(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The news-source list with each feed's health (NOTICE-NEWS-FEEDS-2500: last good fetch, last failure reason)."""
     can = _can(conn, principal)
     if not (can["configure"] or can["boards"]):
         require(conn, principal, "system.configure", INSTALLATION)
     return _news_out(conn)
 
 
-@open_router.put("/notices/news-sources")
+@open_router.put("/notices/news-sources", **wire(W.NoticeNewsSources))
 def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The whole list at once (the order sent is the order shown). A raw-URL feed of a board that is sent here is adopted under its name."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -284,7 +285,7 @@ def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal
     return _news_out(conn)
 
 
-@open_router.put("/notices/news-sources/{source_id}/logo")
+@open_router.put("/notices/news-sources/{source_id}/logo", **wire(W.NoticeNewsSources))
 def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     from ..services.bill_pdf_logo import LogoError
@@ -301,7 +302,7 @@ def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...)
     return _news_out(conn)
 
 
-@open_router.delete("/notices/news-sources/{source_id}/logo")
+@open_router.delete("/notices/news-sources/{source_id}/logo", **wire(W.NoticeNewsSources))
 def delete_news_logo(source_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     try:

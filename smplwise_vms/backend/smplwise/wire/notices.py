@@ -1,6 +1,7 @@
 """Response models of the notice board API (routers/notices.py `router`, `/api/v1/notices...`; CR-NOTICE106 and its follow-ups). Only the
-module-gated `router` is modelled here: the routes that answer while the module is off (`open_router`: module state, settings, logos,
-news sources) and the login-free TV routes (`display_router`, `page_router`) are not part of this family.
+module-gated `router` is modelled here, plus the JSON news-source routes of `open_router` (NOTICE-NEWS-FEEDS-2500); the other routes
+that answer while the module is off (`open_router`: module state, settings, logos) and the login-free TV routes (`display_router`,
+`page_router`) are not part of this family.
 
 Field order is the order the router builds its dicts in. Documents other modules own pass through as `dict[str, Any]` / `Any`: a board's
 `display` (services/notices/model.normalize_display), the TV option defaults, a notice's `audience`, the TV feed of the Settings preview
@@ -346,3 +347,26 @@ class NoticeSlideCreated(WireModel):
     slides: list[NoticeSlide]
     limit: int
     seconds: NoticeSlideRange
+
+
+class NoticeNewsSource(WireModel):
+    """NOTICERSS-295: one row of the installation's editable news (RSS) source list (services/notices/news_sources.listing); `custom` =
+    a raw URL a board stored that the list does not hold yet. NOTICE-NEWS-FEEDS-2500: the feed's health from the news cache -
+    `last_ok_at` (ISO UTC) of its last good fetch and `last_error` (a short reason code: status, size, xml, timeout, dns, tls, network,
+    encoding, empty, redirect, ...), both null while no board fetched it since the add-on started."""
+    id: str
+    name: str
+    url: str
+    enabled: bool
+    has_logo: bool
+    logo_url: str
+    custom: bool
+    last_ok_at: str | None
+    last_error: str | None
+
+
+class NoticeNewsSources(WireModel):
+    """`/notices/news-sources` (GET, PUT, and the logo PUT / DELETE): the list in display order, then its limits."""
+    sources: list[NoticeNewsSource]
+    max: int
+    name_max: int

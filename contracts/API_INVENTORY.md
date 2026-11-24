@@ -1207,7 +1207,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | notices | GET | `/api/v1/notices/display/{slug}/slide/{slide_id}` |  |
 | notices | GET | `/api/v1/notices/display/{slug}/transit` | BUSTIMES-295: the bus-times digest (a digest of the server's cache with its age; the third party is never called from here). |
 | notices | GET | `/api/v1/notices/module` |  |
-| notices | GET | `/api/v1/notices/news-sources` |  |
+| notices | GET | `/api/v1/notices/news-sources` | The news-source list with each feed's health (NOTICE-NEWS-FEEDS-2500: last good fetch, last failure reason). |
 | notices | PUT | `/api/v1/notices/news-sources` | The whole list at once (the order sent is the order shown). A raw-URL feed of a board that is sent here is adopted under its name. |
 | notices | DELETE | `/api/v1/notices/news-sources/{source_id}/logo` |  |
 | notices | GET | `/api/v1/notices/news-sources/{source_id}/logo` |  |
