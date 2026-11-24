@@ -309,6 +309,9 @@ class RemoteSession:
     # security review 2.2.0 H1: False only for a bearer session made while security.second_factor_bearer = off skipped a
     # check the user owed (a code or the admins policy); such a session never vouches for a later sign-in of its HA sign-in
     factor_checked: bool = True
+    # MFA-TOKENS-2490: a bearer session's token kind (services/access_tokens.kind_of: long_lived | short_lived | unknown), fixed at
+    # creation from the claims of the token HA just accepted; step-up exempts only long_lived (owner decision Q48). "" for a cookie session
+    token_kind: str = ""
     # review M3: one re-check against HA at a time per session, and none before this time after HA was unreachable
     recheck_after: float = 0.0
     recheck_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
@@ -381,7 +384,7 @@ class SessionStore:
             self._revoked_iss.update(hashes)
 
     def create(self, principal: Principal, ha_user: HaUser, token: str, token_exp: float, client_ip: str, replaces: str | None = None,
-               via: str = "cookie", meta: dict[str, str] | None = None, client_id: str = "") -> RemoteSession:
+               via: str = "cookie", meta: dict[str, str] | None = None, client_id: str = "", token_kind: str = "") -> RemoteSession:
         """A new session. A cookie session with `replaces` = the sid the browser presented (a rotation after a token
         refresh): that session ends now (security review M2) and its open WebSockets move to the new one instead of
         being closed. A bearer session (CR-008 P2) joins the chain of the same sign-in (the token's refresh-token id), so
@@ -392,7 +395,8 @@ class SessionStore:
         s = RemoteSession(sid=secrets.token_urlsafe(32), principal=principal, token=token, token_exp=token_exp, ha_user=ha_user,
                           client_ip=client_ip, created_at=now, last_used=now, last_validated=now, via=via, chain_started=now,
                           last_ip=client_ip, country=meta.get("country", ""), user_agent=meta.get("user_agent", ""), iss_hash=iss_hash(token),
-                          token_key=token_hash(token) if via == "bearer" else "", client_id=client_id)
+                          token_key=token_hash(token) if via == "bearer" else "", client_id=client_id,
+                          token_kind=token_kind if via == "bearer" else "")
         s.chain = s.sid if via == "cookie" else "b:" + (s.iss_hash or s.token_key)
         with self._lock:
             if s.iss_hash and s.iss_hash in self._revoked_iss:
@@ -1358,6 +1362,9 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     if s is not None:
         s.last_validated = time.time()
         s.ha_user = ha_user
+        from . import access_tokens
+
+        access_tokens.note_bearer_use(db, s, first=False)  # MFA-TOKENS-2490: "last used in Arx" (throttled)
         return s
     factor_meta: dict[str, Any] = {}
     if factor != "none" and not enforced:
@@ -1369,8 +1376,11 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     elif factor == "code":
         _check_second_factor_sync(db, settings, request, principal, meta)
         factor_meta = {"second_factor": "totp"}
+    from . import access_tokens
+
+    kind = access_tokens.kind_of(token)  # MFA-TOKENS-2490: HA accepted the token above, so its lifetime claims are HA's own
     try:
-        s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta, client_id=arx_client_id(settings, request))
+        s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta, client_id=arx_client_id(settings, request), token_kind=kind)
     except ChainRevoked:  # review M2: revoked while this request was validating the token
         _remember_rejected(token)
         raise rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
@@ -1378,9 +1388,14 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         s.factor_checked = False
     elif factor == "code":
         STORE.mark_factor_verified(s.iss_hash, principal.user_id)
+        from . import step_up
+
+        step_up.note_sign_in_factor(s)  # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
-        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None,
+               meta={**meta, "basis": basis, "token_kind": kind, **factor_meta})
+    access_tokens.note_bearer_use(db, s, first=True)  # MFA-TOKENS-2490: the token list; its first use ever is audited once
     return s
 
 

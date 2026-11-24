@@ -236,11 +236,13 @@ def test_the_off_switch_asks_the_factor_only_at_sign_in(arx, clock):
     assert fresh_login(arx, arx.owner).status_code == 401
 
 
-def test_a_bearer_token_from_outside_is_exempt(arx, clock):
+def test_a_long_lived_bearer_token_from_outside_is_exempt(arx, clock):
+    # MFA-TOKENS-2490 narrowed the exemption to LONG-LIVED tokens (a short-lived bearer is gated: tests/test_mfa_tokens_2490.py)
     owner_enrolled_and_stale(arx, clock)
     bump_step(arx, "u-owner")
     bearer = TestClient(arx.app)  # a native client: Authorization on every request, no cookie
-    headers = {"Authorization": f"Bearer {arx.token(arx.owner)}", HEADER: code_now(arx, "u-owner")}
+    token = arx.core.issue("u-owner", client_id=None, token_type="long_lived_access_token")["access_token"]
+    headers = {"Authorization": f"Bearer {token}", HEADER: code_now(arx, "u-owner")}
     r = bearer.patch(SETTINGS, json={"home.title": "token"}, headers=headers)
     assert r.status_code == 200, r.text
     clock.advance(30)

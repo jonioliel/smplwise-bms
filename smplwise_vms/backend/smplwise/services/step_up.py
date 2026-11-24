@@ -25,7 +25,8 @@ Settings: `security.step_up` on (default, the owner's decision) | off (only the 
 (default 5; 0 = every action: a verified proof is good for ONE gated request within ONE_SHOT_S, sign-in proofs do not count);
 `security.step_up_local` off (default: the local channel, Ingress, keeps today's behaviour - CR-011 E) | on.
 
-Not gated (slice 1): a bearer caller (an HA access token on every request: long-lived tokens stay allowed, owner decision Q48); a
+Not gated (slice 1): a bearer caller with a LONG-LIVED HA access token (owner decision Q48; MFA-TOKENS-2490 narrowed slice 1's exemption
+of every bearer caller - a short-lived bearer token is gated like a session, services/access_tokens.kind_of); a
 user with no step-up method (no authenticator code enrolled: current behaviour kept, an open question in
 docs/changes/MFA-STEPUP-TRAIN-2490.md); the two routes that already demand their own per-action code (`EXEMPT_ROUTES`)."""
 from __future__ import annotations
@@ -227,7 +228,12 @@ def not_applicable(conn: sqlite3.Connection, request: Any, principal: Any) -> st
         if not local_channel(conn):
             return "local_channel"
     elif getattr(principal, "via", "") == "bearer":
-        return "bearer_token"  # owner decision Q48: a long-lived token from outside stays allowed, as today
+        from . import access_tokens
+
+        # owner decision Q48: a long-lived token from outside stays allowed, as today. MFA-TOKENS-2490 narrowed slice 1's exemption of
+        # every bearer caller to the long-lived ones: a short-lived (or unreadable) bearer token is gated like a session
+        if access_tokens.exempt(access_tokens.session_kind(request)):
+            return "bearer_token"
     if not methods_of(conn, principal.user_id):
         return "no_method"
     return None
