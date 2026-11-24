@@ -7,8 +7,9 @@ import type * as PkWire from './generated/wire-local-passkeys';
 export type PasskeyView = PkWire.Passkey;
 
 /** A user's passkeys and modes; the caller's own answer (`ownPasskeys`) adds whether the session is a fresh sign-in and whether TOTP is
- * enrolled - optional here so one state type serves both screens. */
-export type PasskeySummary = PkWire.PasskeySummary & Partial<Pick<PkWire.OwnPasskeys, 'recent_auth' | 'recent_auth_left_s' | 'totp'>>;
+ * enrolled - optional here so one state type serves both screens. MFA-PASSKEYS-2490: `user_kind` (`local` = an Arx-only identity,
+ * `user` = any other user, passkeys for all users). */
+export type PasskeySummary = PkWire.PasskeySummary & Partial<Pick<PkWire.OwnPasskeys, 'recent_auth' | 'recent_auth_left_s' | 'totp' | 'user_kind'>>;
 
 export const ownPasskeys = () => get<PkWire.OwnPasskeys>('auth/passkeys');
 export const registrationOptions = () => post<PkWire.RegistrationOptions>('auth/passkeys/register/options');
