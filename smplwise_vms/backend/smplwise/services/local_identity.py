@@ -1266,6 +1266,7 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
 
 
 def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | None, code: str, request_id: str | None) -> SignInResult:
+    from . import recovery_codes as rc
     from . import second_factor as sf
     from .ha_user_auth import _record_sign_in, mask_address, request_meta
 
@@ -1280,21 +1281,25 @@ def second_factor_step(db: Any, settings: Settings, conn_like: Any, pid: str | N
             drop_pending(pid)
             raise ApiError(401, "second_factor_expired", PENDING_EXPIRED_HE)
         principal = Principal(user_id=user["id"], username=user["username"], display_name=user["display_name"] or user["username"], source="local", via="cookie")
+        method = "totp"
         try:
-            sf.verify(conn, settings, user["id"], code)
+            # MFA-RECOVERY-CODES-2490: a one-time recovery code is accepted in place of the authenticator code (spent on success)
+            method = rc.verify_factor(conn, settings, user["id"], code, "local_sign_in")
         except sf.SecondFactorError as exc:
             err = exc
         if err is None:
             drop_pending(pid)
             value, s = create_session(conn, settings, conn_like, user["id"], factor=True, meta=meta)
+            if method == rc.METHOD:
+                rc.audit_use(conn, principal, "local_sign_in", request_id)
             _audit(conn, actor=principal, action="auth.local.sign_in.succeeded", decision="allowed",
-                   details={"kind": s.kind, "ip": mask_address(meta.get("client_ip", "")), "country": meta.get("country", ""), "factor": "totp",
+                   details={"kind": s.kind, "ip": mask_address(meta.get("client_ip", "")), "country": meta.get("country", ""), "factor": method,
                             "id": public_id(s.chain_id)}, request_id=request_id)
             cred = conn.execute("SELECT must_change FROM auth_local_credentials WHERE user_id = ?", (user["id"],)).fetchone()
         else:
             _audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied",
                    reason={"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid"),
-                   details={"method": "totp", "step": "local_sign_in"}, request_id=request_id)
+                   details={"method": rc.METHOD if rc.canonical(code) is not None else "totp", "step": "local_sign_in"}, request_id=request_id)
     if err is not None:
         if err.code != "invalid":
             drop_pending(pid)

@@ -1140,6 +1140,7 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
     `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
     Failures are audited (the method and the reason only, never the code). Blocking (the database)."""
+    from . import recovery_codes as rc
     from . import second_factor as sf
 
     code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
@@ -1148,14 +1149,17 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
     err: sf.SecondFactorError | None = None
     with db.connection(label="auth/session second factor") as conn:
         try:
-            sf.verify(conn, settings, principal.user_id, code)
+            # MFA-RECOVERY-CODES-2490: a one-time recovery code is accepted in place of the authenticator code (spent on success)
+            if rc.verify_factor(conn, settings, principal.user_id, code, "sign_in") == rc.METHOD:
+                rc.audit_use(conn, principal, "sign_in")
         except sf.SecondFactorError as exc:
             err = exc
     if err is None:
         return
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
-    _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": "totp"}, action="auth.second_factor.failed", subject=principal.user_id)
+    method = rc.METHOD if rc.canonical(code) is not None else "totp"
+    _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": method}, action="auth.second_factor.failed", subject=principal.user_id)
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
 
 

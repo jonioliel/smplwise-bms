@@ -68,6 +68,7 @@ EXEMPT_ROUTES = frozenset({
 
 API_PREFIX = "/api/v1"
 METHOD_TOTP = "totp"
+METHOD_RECOVERY = "recovery_code"  # MFA-RECOVERY-CODES-2490: a one-time recovery code, accepted by `verify` in place of the code
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 REQUIRED_HE = "לפני שינוי הגדרות, משתמשים או הרשאות צריך לאשר שוב את הזהות: הזן את הקוד הנוכחי מאפליקציית האימות."
@@ -294,6 +295,13 @@ def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str)
         if at is not None and now - at <= window:
             return True
     return False
+
+
+def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any) -> bool:
+    """MFA-RECOVERY-CODES-2490: whether the caller's session holds a proof that counts right now (a one-shot proof is spent by this
+    check). For a self-service factor action (a new batch of recovery codes) that asks for a fresh step-up whatever the switch says."""
+    key = session_key(request, principal)
+    return key is not None and _satisfied(conn, request, principal, key)
 
 
 # ---------------------------------------------------------------- proofs

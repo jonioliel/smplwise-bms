@@ -10,7 +10,8 @@ export type Enrolment = SfWire.Enrolment;
 
 export const secondFactorStatus = () => get<SecondFactorStatus>('auth/second-factor');
 export const startEnrolment = () => post<Enrolment>('auth/second-factor/enroll');
-export const confirmEnrolment = (code: string) => post<SfWire.FactorStatus>('auth/second-factor/confirm', { code });
+/** The answer carries the first batch of one-time recovery codes (MFA-RECOVERY-CODES-2490), shown once and never readable again. */
+export const confirmEnrolment = (code: string) => post<SfWire.FactorEnabled>('auth/second-factor/confirm', { code });
 export const disableSecondFactor = (code: string) => post<SfWire.FactorStatus>('auth/second-factor/disable', { code });
 export const factorUsers = () => get<SfWire.EnrolledUsers>('auth/second-factor/users');
 /** An administrator who has a factor sends their own current code (security review 2.2.0 M1); never their own user id (that is `disable`). */
@@ -30,3 +31,14 @@ export type FactorOverrides = Omit<SfWire.Overrides, 'user' | 'role'> & {
 export const factorOverrides = () => get<FactorOverrides>('auth/second-factor/overrides');
 export const setFactorOverride = (kind: 'user' | 'role', subjectId: string, policy: FactorOverride) =>
   put<FactorOverrides & Pick<SfWire.OverrideSet, 'kind' | 'subject_id' | 'policy'>>(`auth/second-factor/overrides/${kind}/${encodeURIComponent(subjectId)}`, { policy });
+
+/** MFA-RECOVERY-CODES-2490: how many of the caller's recovery codes remain (never a code). */
+export type RecoveryStatus = SfWire.RecoveryStatus;
+export const recoveryStatus = () => get<RecoveryStatus>('auth/recovery-codes');
+/** A new batch (the old one stops working). The server wants a fresh step-up: the current authenticator code is sent along. */
+export const regenerateRecoveryCodes = (code: string) => post<SfWire.RecoveryBatch>('auth/recovery-codes', { code });
+/** The typed text can be a recovery code (`XXXX-XXXX`, Crockford base32; O / I / L read as 0 / 1 / 1) - mirrors services/recovery_codes.canonical. */
+export function isRecoveryCode(raw: string): boolean {
+  const text = raw.toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  return /^[0-9A-HJKMNP-TV-Z]{8}$/.test(text);
+}
