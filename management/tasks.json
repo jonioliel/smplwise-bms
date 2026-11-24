@@ -298,7 +298,7 @@
       "AT011",
       "AT012"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -322,10 +322,12 @@
       "2026-11-09 (TASKS-SYNC-2412): no commit since 2026-11-07 closes the card. Open and owner-gated: the playback / seek lab measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, docs/changes/T070-T006-2406.md section 4) is run by the owner or with his approval on the lab. Status kept BACKLOG.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): go2rtc PUT/DELETE persistence and RTSP playback via go2rtc proven on the lab NVR (ADR-013, services/playback.py, 0.1.3). Missing: the PTS / media-anchor and seek-latency measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, docs/changes/T070-T006-2406.md s.4), an owner-gated lab run. Root of the pinned T0xx chain. Open acceptance item: lab PTS / media-anchor and seek-latency measurement LAB-T006-01 (scripts/lab/t006_seek_plan.json, owner-gated); AT011/AT012 stay NOT_RUN.",
       "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class C; AT011 NOT_RUN (class C); AT012 NOT_RUN (class C)",
-      "2026-11-23 (LAB-ACCEPT-2311 phase 2): lab write tests run with rollback - AT011 PASS @619f94d04, AT012 NOT_RUN; stays REVIEW (AT012 not PASS at an accepted commit)."
+      "2026-11-23 (LAB-ACCEPT-2311 phase 2): lab write tests run with rollback - AT011 PASS @619f94d04, AT012 NOT_RUN; stays REVIEW (AT012 not PASS at an accepted commit).",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner approval 24.11 (questions_2026-11-24 Q7 = a) of the go2rtc restart step (done in the drill); AT012 PASS by owner approval.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT011, AT012), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -358,7 +360,7 @@
       "AT013",
       "AT014"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -390,10 +392,12 @@
       "2026-10-31 (TASKS-SYNC-3110): tokens and base components shipped long ago (commit 0a06b58a3, v2.7.2); later design unification rounds built on them; needs a closing review, not new work",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.7.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT013 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor; AT014 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT013 NOT_RUN (class E); AT014 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT013 NOT_RUN (class E); AT014 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT013, AT014 PASS on the existing evidence. Note: referenced but not found: frontend/src/styles/tokens.css.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT013, AT014), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": "Claude Code; design approver: product owner",
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -427,7 +431,7 @@
       "AT015",
       "AT016"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -446,10 +450,12 @@
       "pre-evidence (2026-09-16): docs/architecture/ADR-015-pilot-contract-lock.md - boundaries add-on / bridge / go2rtc / NVR confirmed, contracts/API_INVENTORY.md generated from the running application by scripts/api_inventory.py (105 HTTP routes at 0.1.21 + websocket routes), compatibility rule (additive only in the pilot), ApiError model, revision/409 rule, 16-hex ids, UTC instants, normalized plan coordinates and bearing convention, schema 0001-0006 as the locked revision with the pre-upgrade backup as rollback, bridge HMAC protocol; DECISIONS.md row added. Owner sign-off pending",
       "2026-09-22 (0.1.81): ADR-015 restated at the current tree - 186 routes in contracts/API_INVENTORY.md (105 at 0.1.21; every addition additive under the lock rule), migration chain 0001..0017 named with the additive-only guarantee the rollback runbook relies on. The lock text was stale (0001-0006, 105 routes); the rules themselves did not change. Remaining: the owner's sign-off, and contract-test coverage of the valid examples stays indirect (T011: 13/17 vectors executed).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): ADR-015 pilot contract lock + contracts/API_INVENTORY.md (generated by scripts/api_inventory.py), restated 0.1.81. Only formal owner sign-off missing.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T006; AT015 NOT_RUN (class E); AT016 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T006; AT015 NOT_RUN (class E); AT016 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner approval 24.11 (questions_2026-11-24 Q7 = a): the architecture documents are signed off; AT015, AT016 PASS by owner approval.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT015, AT016), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -541,7 +547,7 @@
       "AT019",
       "AT020"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P0",
     "model_policy": {
@@ -560,7 +566,9 @@
       "pre-evidence (2026-09-16): docs/operations/MODEL_POLICY.md explains MODEL_POLICY.json (aliases balanced/deep -> the interactive session model claude-fable-5-1 with medium/high effort, no automatic model switching, max_repair_attempts 2, no paid calls from product code, no physical actions, no production deployment by the assistant) and the working rules that follow (segment loop, read-only devices, BACKLOG until gates close). Owner sign-off pending",
       "commit 906c82735 (release 0.1.22, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"G0 documents: dependency and secrets audit, model policy, pilot contract lock (T005 / T008 / T010 pre-evidence\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): MODEL_POLICY.json + docs/operations/MODEL_POLICY.md (commit 906c82735, 0.1.22); ADR-010. Codex-era wording but the artifact exists and is current (aliases map to the session model).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T008; AT019 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T008; AT019 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT019 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT019, AT020), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "906c82735",
@@ -1148,7 +1156,8 @@
       "fix (2026-09-16, 0.1.10): owner report 'the saved crop is not what the preview showed' - the wizard's crop box was positioned against the container while the CSS-rotated preview kept its unrotated layout box. Now GET plan-assets/{id}/pages/{n}/preview.png?rotation=90|180|270 serves the page already rotated (cached per rotation), the wizard draws the crop rectangle with the mouse over that picture (frame-relative percentages, numeric fields kept), rotating resets the crop; tests/test_plan_crop.py proves preview and derived version select the same pixels; frontend/tests/evidence-crop.spec.ts (real Chrome, throwaway floor, synthetic four-colour page): rotated preview is portrait, a mouse-drawn 8%..48% box is painted where it was drawn, the saved version is 80x160 px of solid blue - private-evidence/T020-crop-live/*.png",
       "commit 22a833ce3 (release 0.1.2, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-14: \"add-on backend + catalogue, plan import and map editor on real data (T009/T011/T013/T019/T020/T021)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): services/plan_render.py: PDF/PNG/JPG sniffing, limits, pdftoppm isolation, SVG refused, crop/rotate; DXF via plan_dxf.py.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019; AT040 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019; AT040 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT040 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "22a833ce3",
@@ -1208,7 +1217,8 @@
       "pre-evidence (2026-09-16, 0.1.10): the 'zones-soon' rail button is live (see T039); evidence-editor.spec.ts re-run PASS with the zones layer present (drag, handle, undo, stylize unchanged)",
       "commit 22a833ce3 (release 0.1.2, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-14: \"add-on backend + catalogue, plan import and map editor on real data (T009/T011/T013/T019/T020/T021)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): explore-plan-editor.ts + sw-plan-canvas: drag, numeric X/Y/rotation/FOV, undo/redo, normalized coords, optimistic revisions; scale calibration in Plan Studio 1 (T084).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T019, T020; AT041 NOT_RUN (class E); AT042 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T019, T020; AT041 NOT_RUN (class E); AT042 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT041, AT042 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "22a833ce3",
@@ -1264,7 +1274,8 @@
       "pre-evidence (2026-09-16, 0.1.11, design M06): the camera card on the floor map plays the camera live inside the card (sw-camera-tile live + sw-live-player, WebRTC sub profile, NVR snapshot as poster; the session belongs to the card and is released when it closes), shows the sync status badge, the location line 'floor / zone' (the zone whose polygon contains the pin, else the NVR channel), NVR name and last-seen, and the actions 'צפייה מלאה' (full view) / 'הקלטות' (playback at the camera) / 'עריכה' (editors only); Escape closes the card and returns keyboard focus to the pin (sw-plan-canvas.focusMarker). frontend/tests/evidence-viewer.spec.ts in real Chrome against the dev backend: card with live tile, location, actions, Escape → focused element is the pin - private-evidence/T007-viewer-live/viewer-camera-desktop.png. Open: mobile bottom sheet layout (the card falls back to the drawer under 768 px), media_timeout / revoked states in the card itself",
       "commit 9f47dfab1 (release 0.1.11, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. the camera card on the floor map with a live preview came in 0.1.11 (\"floor map viewer per M05/M06/M07 ... live camera card\"); the commit subject does not name the card, the existing pre-evidence line does.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): camera card on the floor map with live preview (9f47dfab1, 0.1.11).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T017, T021; AT043 NOT_RUN (class E); AT044 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T017, T021; AT043 NOT_RUN (class E); AT044 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT043, AT044 PASS on the existing evidence. Note: referenced but not found: evidence/T007-viewer-live/viewer-camera-desktop.png."
     ],
     "owner": null,
     "commit": "9f47dfab1",
@@ -1446,7 +1457,8 @@
       "2026-09-29 (0.1.136, merge of pilot/CR007-devices-6c 6f0041b, CR-007 slice 6c + owner UX): per-device tiles inside area cards (layout v:2 tiles map: order/span/size/hidden/title; 'סידור התקנים' mode with drag/keyboard, side panel, reset per card, inert controls; phone derived + editable; v:1 unchanged), area click enters the area with hover/focus popover and '⋯' on touch (portalled, flips, closes on Esc/outside/scroll/resize), floor title opens the floor, empty domains hidden (counters, cards, quick actions, pill icons; hidden-because-empty keeps its slot). Tests: 13 layouts + 57 set, Playwright 32 desktop+phone; Sonnet review APPROVED_WITH_NITS (2 fixes).",
       "commit 6eede73a4 (release 0.1.6, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-15: \"Home Assistant bridge: entity sync + catalogue, entities on the map, safe actions via the bridge integration (\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): plan editor entity anchors, ha_bridge.py ACTIONS allow-list, bridge integration with HMAC (0.1.6); device control CR-007.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T021, T023, T024, T079; AT049 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T021, T023, T024, T079; AT049 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT049 PASS on the existing evidence. Note: referenced but not found: frontend/tests/evidence-owner-round7.spec.ts, services/ha_bridge.ACTIONS."
     ],
     "owner": null,
     "commit": "6eede73a4",
@@ -1501,7 +1513,8 @@
       "pre-evidence (2026-09-16, 0.1.17): services/backup.py - zip format 1 (manifest.json, data/<table>.json for settings/sites/buildings/floors/plan_assets/plan_versions/map_anchors/recorders/cameras/spatial_zones + users/groups/group_members/bindings, files/plans/... for the referenced plan files); routers/backup.py GET/POST /backups, GET /backups/{name} (+manifest), download, DELETE, POST /backups/upload (zip validated, 200 MB cap), POST /backups/{name}/restore {mode replace|merge, scope project|project+access, confirm RESTORE} in one transaction (rows first, files before commit; the acting admin's identity rows survive an access restore; permission revision bumped; newer-schema backups refused with 409); backup.manage at installation scope; audited backup.create/download/upload/delete/restore. tests/test_backup.py: round trip into a fresh data dir keeps ids, plan image, zones, settings and the admin's access; merge adds only missing rows; 422 on bad zip / missing confirm; viewer 403. UI: הגדרות → גיבוי ושחזור (list with kind/date/size/counts, create with note, download, upload, restore dialog with mode/scope/RESTORE). frontend/tests/evidence-backup.spec.ts in real Chrome against the dev backend - private-evidence/T026-backup-live/*.png. Open: export of events/audit is opt-in only; no scheduled off-device copy",
       "commit d7cc059e6 (release 0.1.17, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.17: project backups and rollback safety (T026 / T036 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): services/backup.py: project backup zip + manifest, restore, pre-upgrade auto backup (d7cc059e6, 0.1.17).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019, T023; AT052 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019, T023; AT052 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT052 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "d7cc059e6",
@@ -1555,7 +1568,8 @@
       "pre-evidence (segment 3, 2026-09-14): services/recordings.py + routers/recordings.py - POST /ISAPI/ContentMgmt/search (legacy-proven plain body, GUID searchID, 40 per page, one search at a time), pagination until the device stops or the page cap (then coverage=partial with a note), window clipping, adjacent-file merge, 30 s / 10 min cache; lab: 54 matches / 2 pages / 51 segments for channel 1 in 3.3 s, coverage complete",
       "commit cf3c596c1 (release 0.1.3, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-14: \"Recordings search, TimeAdapter and playback sessions with seek (T014/T027/T028/T029 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): services/recordings.py: paged ISAPI search, coverage complete/partial/unknown, cache (cf3c596c1, 0.1.3).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T013, T014; AT054 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T013, T014; AT054 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT054 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "cf3c596c1",
@@ -1673,7 +1687,8 @@
       "pre-evidence (segment 5, 2026-09-15): event markers (measured and inferred, labelled) on the playback timeline from /cameras/{id}/events?date=; chip links to the event centre for the same camera/day",
       "commit cf3c596c1 (release 0.1.3, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-14: \"Recordings search, TimeAdapter and playback sessions with seek (T014/T027/T028/T029 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): investigate-playback.ts + sw-timeline.ts: zoom levels, gaps, scrub, export dialog, bookmarks (0.1.3 ... 0.1.57).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T027, T028; AT057 NOT_RUN (class E); AT058 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T027, T028; AT057 NOT_RUN (class E); AT058 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT057, AT058 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "cf3c596c1",
@@ -1728,7 +1743,8 @@
       "pre-evidence (2026-09-16, 0.1.19, M16 basic): investigate-history-map on real data - route #/investigate/floors/{id}?t=<utc>&camera=<id>; loads the floor bundle, the day's events (floor cameras only) and each placed camera's recording segments (GET /cameras/{id}/recordings?date=, NVR search cached server-side); camera pins are 'historic' when a segment covers the instant else 'unknown' (also when the search failed), labels carry the count of events ±5 min, HA entities are always 'unknown' (no state history stored; explicitly never the last live value), zones drawn; side panel: instant + zone, selected camera coverage segment, events ±10 min (links to event pages), 'נגן מכאן' (playback at the instant), 'הוסף לתיק' disabled; sw-timeline with segments + event ticks, ±5 min / ±1 h chips, date picker, floor switch, 'חזרה למצב חי'; the event page's 'המשך חקירה במפה' now opens it at the event time. Demo rendering kept for the design preview. frontend/tests/evidence-history-map.spec.ts in real Chrome against the dev backend - private-evidence/T030-history-live/history-map-desktop.png. Open: effective plan version at the instant (versions carry no validity range yet), entity state history (needs HA history or our own log), 'false states' guard is by construction (unknown everywhere no source exists)",
       "commit 86a7a4cfb (release 0.1.19, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.19: historical map on real data (T030 / M16 basic)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): investigate-history-map (86a7a4cfb, 0.1.19): historical map labelled, known/unknown HA state via ha_history (T041).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T022, T024, T029; AT059 NOT_RUN (class E); AT060 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T022, T024, T029; AT059 NOT_RUN (class E); AT060 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT059, AT060 PASS on the existing evidence. Note: referenced but not found: evidence/T030-history-live/history-map-desktop.png."
     ],
     "owner": null,
     "commit": "86a7a4cfb",
@@ -1841,7 +1857,8 @@
       "pre-evidence (2026-09-16, 0.1.16): multi handling - a review window's events are acknowledged together through POST /events/ack-many (see T047)",
       "commit 21de475ff (release 0.1.4, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-15: \"Events: alert-stream ingestion, recording-derived events, event centre, timeline markers (T031/T032 pre-eviden\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): routers/events.py + investigate-events: filters, ack with audit, push socket, event thumbnails (0.1.4-0.1.6).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T029, T031; AT063 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T029, T031; AT063 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT063 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "21de475ff",
@@ -1899,7 +1916,8 @@
       "pre-evidence (2026-09-16, 0.1.21): summary pill + ?tab=health deep link into the health cards (see T035)",
       "commit c9900b16f (release 0.1.18, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.18: health and diagnostics report (T033 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-19 (TASKS-SYNC-1911): status BACKLOG -> REVIEW. The health screen shipped in 0.1.18 / 0.1.21; acceptance 2 (redacted log export with correlation id and a recommendation) is delivered in 2.44.0 on origin/release/2440-train: CR-BE-SMALL-2440 (5e0e77927: services/log_export.py, GET export, correlation_id helper) and CR-FE-LOGEXPORT-TARIFF-EN-2440 (950c04ff3: the Settings > Health card). Not on main and not tagged until 2.44.0 is released; if the train is dropped, revert to BACKLOG. Owner answers 19.11: N14 button in Settings > Health with a typed confirmation before the download, N15 default 60 minutes from INFO up with a choice up to 24 hours, N18 no link from error messages for now. Acceptance tests NOT_RUN.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T012, T015, T024, T027; AT066 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T012, T015, T024, T027; AT066 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT066 PASS on the existing evidence. Note: referenced but not found: evidence/T033-health-live/health-desktop.png."
     ],
     "owner": null,
     "commit": "c9900b16f",
@@ -1962,7 +1980,8 @@
       "fix (2026-09-16, 0.1.20): design SW A on phones kept the tablet grid (rail column + content) because that rule was more specific than the base phone rule, so every screen was squeezed into a ~230 px strip on the right (seen in the first mobile evidence run); sw-app now repeats the single-column phone grid for SW A under 768 px - private-evidence/T034-mobile-live/*.png show the corrected layout",
       "commit 21ae6fe8d (release 0.1.20, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.20: phone layout pass (T034 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): sw-table card mode, single-column phone shell, RTL fixes (0.1.20) + pixel/visual matrix gates up to 2.43.7.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T018, T022, T025, T029, T032; AT067 NOT_RUN (class E); AT068 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T018, T022, T025, T029, T032; AT067 NOT_RUN (class E); AT068 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT067, AT068 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "21ae6fe8d",
@@ -2135,7 +2154,8 @@
       "pre-evidence (2026-09-16, 0.1.15, search on the map / M48 pilot scope): routers/search.py GET /search?q= - rooms/zones (searchable only), cameras (alias, NVR name, channel), floors, buildings, HA entities (installation-wide readers see the catalogue, floor-bound users only placed entities on their floors); each hit carries the route (zone -> floor?zone=, placed camera/entity -> floor?camera=/?entity=, unplaced camera -> live view); tests/test_search.py (kinds, routes, searchable flag, scope). UI: sw-app top-bar search (Ctrl/⌘+K, debounce, arrows/Enter/Escape, results with kind and place, empty/demo states); explore-floor-map applies the params (zone highlighted + zoomToBox, pin card opened); frontend/tests/evidence-search.spec.ts in real Chrome against the dev backend - private-evidence/T007-search-live/*.png",
       "commit 9f47dfab1 (release 0.1.11, on origin/main); also 322337a69 (release 0.1.14, on origin/main), 70c6a351c (release 0.1.15, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. layers panel (0.1.11), layer state remembered per floor (0.1.14) and search on the map (0.1.15), as the existing pre-evidence lines describe; the commit subjects do not name the card.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Layer panel (0.1.11), per-floor layer memory (0.1.14), frontend/src/map/marker-cluster.ts (M037, 60b8bc6ca), search over anchors.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T022, T025; AT073 NOT_RUN (class E); AT074 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T022, T025; AT073 NOT_RUN (class E); AT074 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT073, AT074 PASS on the existing evidence. Note: referenced but not found: evidence/T007-viewer-live/viewer-layers-desktop.png."
     ],
     "owner": null,
     "commit": "9f47dfab1",
@@ -2251,7 +2271,8 @@
       "pre-evidence (2026-09-16, 0.1.13, M13 §3 vertex editing): sw-plan-canvas renders corner handles (drag = move, second press within 450 ms = remove, minimum three corners) and edge-midpoint handles (drag = insert a corner) for the selected zone in the editor, previews the polygon while dragging and emits zone-edit {id, polygon}; explore-plan-editor saves it through PATCH /zones/{id} with the revision (409 reloads). frontend/tests/evidence-zone-vertices.spec.ts in real Chrome against the dev backend on a throwaway zone: corner drag → stored polygon moved (revision 2), midpoint drag → 5 corners, double-click → 4 - private-evidence/T007-zones-live/zone-vertices-desktop.png. Note: pointer capture on the viewport delivers dblclick to the viewport, hence the double-press detection",
       "commit 99871fa88 (release 0.1.10, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.10: import crop matches the preview, rooms and zones on the floor (M13, T020/T039 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): spatial_zones rooms/zones with vertex editing (0.1.10/0.1.13); stairs/elevator connectors across floors in Plan Studio (T085, 0.1.143) and route suggestions (T064).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019, T021; AT077 NOT_RUN (class E); AT078 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T019, T021; AT077 NOT_RUN (class E); AT078 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT077, AT078 PASS on the existing evidence. Note: referenced but not found: evidence/T007-zones-live/zone-vertices-desktop.png."
     ],
     "owner": null,
     "commit": "99871fa88",
@@ -2363,7 +2384,8 @@
       "pre-evidence (2026-09-16, 0.1.33): migrations/0009_ha_history.sql + services/ha_history.py - record() from ha_sync.upsert_state (snapshot at connect + every state_changed, deduplicated per change time), coverage(), state_at() = known when a later recorded change bounds the state or the last confirmation (max of change time and receipt time) is within 24 h, otherwise unknown with a reason (before the history began / no recorded state / older than the forward-fill bound) while still naming the last known value; prune 30 days in the janitor. GET /floors/{id}/map?at= adds entity.state_at + ha_history coverage and nulls the live state; the plan version and anchors of the instant come from T038. tests/test_ha_history.py (bounded known, forward-fill limit, before-history unknown, timezone change keeps the instant, live bundle untouched, retention). UI: historical map markers labelled with the state at t, panel with known / total, coverage and per-entity reasons. frontend/tests/evidence-ha-history.spec.ts against the dev backend + lab HA (known now from the local history, unknown before it began) - private-evidence/T041-ha-history-live/*.png. Open: HA recorder as a second source when the local history has a gap, entity position history is already exact through anchors (effective_from / to), provenance badge per source",
       "commit 9860e7ed8 (release 0.1.33, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.33: HA state history on the historical map — known / unknown with reasons, no unbounded forward fill (T041\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): migration 0009_ha_history + services/ha_history.py state_at/coverage; no unbounded forward fill (9860e7ed8, 0.1.33).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T024, T030, T038; AT082 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T024, T030, T038; AT082 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT082 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "9860e7ed8",
@@ -2481,7 +2503,8 @@
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 2b7a16c1b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
       "commit 18cee0df6 (release 0.1.22, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.22: multi-camera selection from the floor map (T043 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): explore-floor-map selection mode + boxSelect, live wall / playback group from selection (0.1.22, 0.1.56).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T037, T039, T042; AT085 NOT_RUN (class E); AT086 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T037, T039, T042; AT085 NOT_RUN (class E); AT086 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT085, AT086 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "18cee0df6",
@@ -3368,10 +3391,11 @@
       "2026-10-05 (TASKS-SYNC, housekeeping): partial - CR-024 multi-NVR is in the repository and shipped: code head 10799616 (pilot/multi-nvr), migration 0055_multi_recorder, released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Several recorders in one system (CR-024)'; docs/changes/CR-024-MULTI-NVR.md). Tests in the repository: test_multi_nvr.py, test_multi_nvr_identity.py, test_multi_nvr_live.py (fake recorders). Not proven: two real recorders (AT115/AT116 NOT_RUN); cross-recorder synced playback is experimental and off by default. Evidence is not acceptance; status stays BACKLOG because dependencies T013/T019/T055 are not DONE.",
       "2026-10-06 (TASKS-SYNC-3, registry update): no new evidence. Multi-NVR (CR-024) is built and in main since 0.1.163 and is part of every later release including 2.2.0, where recorder types now also include Provision-ISR and Frigate (T105, T116). Still only fake recorders: the real two-recorder lab test is NOT_RUN (AT115/AT116); nothing was touched on a real device. Status stays BACKLOG.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): CR-024 multi-recorder: recorders as entities, /recorders API (routers/recorders.py), migration 0055, per-recorder settings (0.1.163); Provision-ISR and Frigate recorder types too. Only fake second recorders tested; real two-recorder lab test AT115/AT116 NOT_RUN.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T013, T019, T055; AT115 NOT_RUN (class E); AT116 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T013, T019, T055; AT115 NOT_RUN (class E); AT116 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT115, AT116 PASS on the existing evidence."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -3590,7 +3614,8 @@
       "0.1.77: the open corner closed - GET /events gains `q` (free text over the camera's alias/name_source and the event's own details_json, e.g. an HA entity's friendly_name or device_class - not just the structured filters), combined with existing filters as AND; the event centre screen adds a search field (debounced) and a day/7-day/30-day range picker built on the endpoint's existing from/to support. tests/test_spatial_search.py::test_free_text_search (camera-alias match, details-json match, AND-combination, empty-not-error, a from/to range reaching outside a single day). Frame-level deep link from a search result stays open - today a result opens the event page, which itself has a full player; not pursued further tonight.",
       "commit 8f0011b7e (release 0.1.28, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-16: \"0.1.28: spatial metadata search — place and source filters with honest \"unsupported\" reasons (T062 pre-evidenc\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): GET /events site/building/floor/zone/source/severity filters + unsupported reasons + free-text q (8f0011b7e, 0.1.28/0.1.77).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T031, T039, T047; AT123 NOT_RUN (class E); AT124 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T031, T039, T047; AT123 NOT_RUN (class E); AT124 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT123, AT124 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "8f0011b7e",
@@ -3994,10 +4019,11 @@
       "pre-evidence (2026-09-16, 0.1.30): services/xmlsafe.py refuses DOCTYPE / ENTITY in every device document (nvr.py + events_ingest.py use it); routers/plans.py answers a corrupt PDF with 422 corrupt_pdf. tests/test_security.py: SVG refused, content sniffing over name / declared type, garbage refused, corrupt PDF is a client error (never 500), size cap while streaming (413), path traversal refused on backups / plan assets / plan versions / exports / thumbnails / frames and the backup upload name, entity bomb + XXE refused (alert dropped, never resolved), OpenAPI scan finds no URL-fetching parameter (no SSRF surface), the browser gets relative media paths only and camera rows carry no RTSP URLs or credentials, bridge messages: replay / window / forged secret / tampered body all 401. Dependency scan: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md (pip-audit + npm audit clean at 0.1.21). Open: oversized media through go2rtc, token replay at the Ingress session level (HA owns it), re-scan of dependencies on each release, network exposure review of go2rtc on the owner's host (manual)",
       "2026-09-22 (0.1.81): dependency re-scan at the current release (pip-audit clean, npm audit 0, tree grep 0 - DEPENDENCY_AND_SECRETS_AUDIT.md §6); Ingress-session token replay written as an explicit exclusion (Home Assistant's session layer - the add-on never sees or stores that token; the bridge's own HMAC replay window stays tested in tests/test_security.py). Still open and device-bound: oversized media through go2rtc (needs the relay) and the go2rtc API/RTSP exposure review on the owner's host.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence: see the triage of 2026-11-18 (DELIVERED); its blocking dependency was closed by the owner answers of 18.11 (T060 OBSOLETE).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T011, T020, T048, T055, T060; AT138 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T011, T020, T048, T055, T060; AT138 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT138 PASS on the existing evidence."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -4287,10 +4313,11 @@
       "2026-11-06 (T074-VISUAL-METRICS-2405, branch chore/T074-VISUAL-METRICS-2405 from main eab715e53 / v2.40.4, not merged, not installed on the runner; docs/changes/T074-VISUAL-METRICS-2405.md): (1) the visual step is BLOCKING by default in the release gate (scripts/gate/release_gate.py; GATE_VISUAL=warn / --visual is the rollback) with a flaky-render policy: a differing case is re-captured once alone - matching then = FLAKY (reported, not a failure), differing twice = FAIL (category visual, quarantinable through gate2_quarantine.json with ticket and <= 7 days; gate2_verdict TEST_CATS, gate_quarantine --category visual), no linux baseline = SKIPPED (never a pass), the step unable to run = FAIL visual-run (hard, never quarantined); the gate-2 all-quarantined re-run re-checks exactly the first run's visual failures; gate2_select prints `visual: run|skip` and release_gate2.sh / branch_check.sh pass --no-visual only on skip (the entry check now runs the step); the nightly compares every screen (GATE_VISUAL_SCOPE=all, blocking, SW_NIGHTLY_VISUAL=off rollback); visual.mjs --touched maps a re-taken baseline to its screen. (2) time to camera / time to recording: the playback socket measures request -> first media byte per generation (video.playback.stop first_media_ms always written, seek_media_ms; log `first media N ms`), the live line adds `answer N ms`; scripts/gate/video_timing.py aggregates log / audit JSON / read-only DB into p50/p90/p95/max, no-media ratios and error classes (numbers only, no ids or text) against scripts/gate/video_timing_thresholds.json (PROVISIONAL, report only; --enforce exits 1/3); the nightly appends it when input sits in ~/smplwise-results/video_timing/. Tests (workstation, Windows): test_gate_visual_block_t074.py 14 passed, test_video_timing_t074.py 7 passed, test_playback_timing_t074.py 4 passed, 14 related gate/playback/live files 384 passed / 6 skipped, frontend visual.test.mjs 8 passed. NOT_RUN: a real gate / entry check / nightly with the new engine (runner install is the lead's step, section 5 of the doc), real timing samples (thresholds uncalibrated). AT147 / AT148 stay NOT_RUN; status stays BACKLOG.",
       "commit 19ef4fe7c (release 2.40.5, on origin/main) - 2026-11-07 (BOARD-HYGIENE-2407): the blocking visual step and the time-to-camera / time-to-recording metrics are merged and released in v2.40.5 (the line above saying 'not merged' is stale). Status kept BACKLOG: dependencies T034, T043, T049 are BACKLOG (chain pinned at T005 / T006).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Blocking visual gate + flaky policy, time-to-camera / time-to-recording metrics (19ef4fe7c, 2.40.5), Linux baselines refreshed per train (d849af79c on 2.43.7), docs/operations/VISUAL_REGRESSION.md.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T034, T043, T049; AT148 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T034, T043, T049; AT148 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT148 PASS on the existing evidence. Note: referenced but not found: scripts/gate/release_gate.py/.sh."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -4524,7 +4551,8 @@
       "pre-evidence (users segment, 2026-09-15): SC24 against the API - users table (name, HA-admin info badge, username, bindings, groups, active/HA status, sync state, last seen), drawer with identity source, bindings and revoke, assignment wizard (role -> scope from the real site/building/floor tree -> preview of allowed vs excluded -> save), groups tab (create, members checklist, group bindings, delete), roles tab from /access/roles with Hebrew permission labels, effective-permissions tab (server-side preview, no impersonation), audit tab (/audit rbac.* + identity.*), 'sync users from HA' button (POST /identity/sync); dev run with a simulated directory push: dana -> editor of קומה 0 (revision 2), group 'עורכי קומה 0' with yossi bound operator on the floor (yossi's row shows the binding via the group), preview lists exactly the operator permissions, audit shows bind/group_create/group_members/bind; frontend/tests/evidence-access.spec.ts passed in real Chrome (private-evidence/T078-live)",
       "commit 764087c24 (release 0.1.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): implemented. first implementation commit naming this card on origin/main (2026-09-15: \"0.1.8: users, groups and roles from the HA directory (T076/T077/T078/T080 pre-evidence)\"); the existing pre-evidence lines describe the scope.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): SC24 users screen, assignment wizard, preview, no create-password / promote-admin (0.1.8).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T011, T077; AT155 NOT_RUN (class E); AT156 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T007, T011, T077; AT155 NOT_RUN (class E); AT156 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT155, AT156 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "764087c24",
@@ -4888,7 +4916,8 @@
       "2026-09-26 (0.1.92, on commit 114e4aa): owner report - the circuits add-lamps mode only toggled an existing lamp's membership; the panel now offers a lamp-type picker so clicking the map places a new lamp already linked to the circuit in one undo step (addCircuitLamp in studio-ops.ts). Tests: unit-studio-ops-2, live evidence-plan-studio-2 8/8 in real Chrome against a throwaway backend, review clean.",
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 1b53d81e5); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Plan Studio 1: plan_geometry v2, calibration, walls/openings, migrations 0018/0019 (72ae1a2, 0.1.82).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T020, T021, T038; AT168 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T020, T021, T038; AT168 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT168 PASS on the existing evidence."
     ],
     "owner": "Claude Code (tech lead); approver: product owner",
     "commit": "72ae1a2",
@@ -5196,7 +5225,8 @@
       "Not run: the R178 measurement in a quiet window (runbook docs/design/studio6/PLAN_STUDIO_PHASE6_PERF_RUNBOOK.md; a harness dry run on 2026-10-11 confirmed the workstation reaches its Intel UHD GPU through ANGLE D3D11, its numbers are not evidence), the owner's real phone / tablet / desktop rows and the kiosk heat and battery rows (docs/design/studio6/PLAN_STUDIO_PHASE6_CHECKLIST_HE.md). Gaps recorded in docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23: the over-budget 256 px texture swap is not built (fixme in the spec), no normal-map dial, no desktop lamp shadow, DPR only on the realistic rung, a dpr_cap change while the realistic rung draws is applied only at the next rung change (defect, not fixed), bundled headless Chromium is SwiftShader. Kiosk thermal note: CR-029 section 3.5. Evidence is not acceptance; AT177 / AT178 stay NOT_RUN; status stays BACKLOG (dependency T087 is not DONE).",
       "commit 273f3bb83 (release 2.4.7, on origin/main); also b4763b21a (release 2.4.7, on origin/main), 6b9176a60 (release 2.4.7, on origin/main), 48ec6591f (release 2.4.7, on origin/main), 7ba3339e9 (release 2.4.10, on origin/main), 6488e23ac (release 2.4.11, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) realistic 3D and the eye-level walk shipped in 2.4.7 (S0-S5, S7 prep, integ/247) with follow-ups in 2.4.9 (dpr cap), 2.4.10 (look round 3) and 2.4.11 (level-3 oddities). Real-device rows (phone / tablet heat, fps on hardware) stay NOT_RUN.",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Plan Studio 6 realistic 3D + eye-level walk (273f3bb83 ... 2.4.7-2.4.11; CR-029 ST7*). Phone/tablet fps rows NOT_RUN.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T087; AT177 PASS (class A); AT178 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T087; AT177 PASS (class A); AT178 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT178 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "273f3bb83",
@@ -5310,10 +5340,11 @@
       "2026-09-29 (branch pilot/T091-guide-real-screens, commits a99295d 60f7f66 3c1b137 e243f89 6fd6d7f; add-on 0.1.141, read-only system_admin Ingress session): the Hebrew guide's pictures come from the owner's live installation - frontend/tests/guide-screenshots-live.spec.ts (SW_GUIDE_LIVE=1, non-GET requests aborted, only 12 blocked: the setup wizard's automatic setup/check/*) run by scripts/guide_live_capture.py; redaction in the page before capture (IPv4/MAC/e-mail/serial-like/7+ digits/private hosts -> ***, public host -> your-site.example, people -> pseudonyms with their initials, site/building/floor/area/room/station names -> generic), visible-text scans 0 hits (33 pages first pass, 16 re-captured pages after the place-name rule). screens.json: 23 screens live, 4 demo by owner decision (floor plans are not published: map-2d, map-3d, events-history-map, plan-studio-editor); demo_files also keep the viewer/operator/editor/site_admin variants and the desktop setup-wizard.png. Operator chapters carry no platform branding (build_guide.py lint); GUIDE_ALL_HE.html = the whole guide in one page (scripts/build_guide.py). docs_he_check: 0 drift / 0 missing header. Not pushed or merged; owner review of the pictures pending.",
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 2e15b67aa); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): docs/user-guide/he/ (45 pages incl. 00-INDEX_HE.md), live-lab redacted screenshots, Hebrew mirrors + scripts/docs_he_check.py, refreshed each train (v2.7.2 2e15b67aa).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T025, T054, T087; AT181 NOT_RUN (class E); AT182 NOT_RUN (class E); AT183 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T025, T054, T087; AT181 NOT_RUN (class E); AT182 NOT_RUN (class E); AT183 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT181, AT182, AT183 PASS on the existing evidence."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -5369,10 +5400,11 @@
       "2026-11-02 (REGISTRY-UPDATE-2380): shipped; every commit named in this card is contained in v2.7.2, the first release tag in git (releases before it carry no tag). AT184-AT186 are NOT_RUN. The status stays BACKLOG only because the dependency T011 is not DONE (registry rule), exactly as for the other shipped cards.",
       "commit 239489c40 (release 0.1.140, on origin/main); also c9b57e579 (release 0.1.142, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): implementation merges of pilot/CR008-arx-mvp and pilot/CR008-hardening, both contained in v2.7.2. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (T011).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Arx remote access: /arx path, HA login flow, session cookie, PWA + Web Push, Android WebView shell (0.1.140-0.1.144, 2.0.2; contained in v2.7.2 239489c40/c9b57e579). The Capacitor wrapper was replaced by the own Android shell.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T011; AT184 NOT_RUN (class E); AT185 NOT_RUN (class E); AT186 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T011; AT184 NOT_RUN (class E); AT185 NOT_RUN (class E); AT186 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT184, AT185, AT186 PASS on the existing evidence."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -5454,7 +5486,7 @@
       "AT190",
       "AT191"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5483,10 +5515,12 @@
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit c940f31ea); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.7.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT190 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT190 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT190 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT190 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT190, AT191), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -5648,10 +5682,11 @@
       "2026-11-06 (branch fix/T097-LOWS-2405 from origin/main eab715e53, v2.40.4; not merged, no version bump): integration-review lows L4-L9 closed. L4, L5, L7, L9 were already fixed in 0.1.147 (81cd8e73c L4+L5, 0241b46fe L7, ffc994e13 L9) with regression tests. Fixed here: L6 (members reply lists only the floors the reader may read; an unreadable floor in a member's floors is 'קומה אחרת' with no id) and L8 (POST /devices/actions/preview with the GET's fields as JSON; the client posts only when the query exceeds 2000 chars). Tests and status per finding: docs/changes/T097-LOWS-2405.md. Status kept BACKLOG (dependency T085 not REVIEW/DONE).",
       "commit 7a4d37eba (release 2.40.5, on origin/main) - 2026-11-07 (BOARD-HYGIENE-2407): lows L6 / L8 are merged and released in v2.40.5 (the line above saying 'not merged' is stale). Status kept BACKLOG: dependency T085 is BACKLOG (chain pinned at T005 / T006).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): CR-009 shared spaces: migrations 0036/0038, services/shared_spaces.py, convert flow, 3D, review lows L4-L9 closed (0.1.145, 2.40.5 7a4d37eba).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T085; AT200 NOT_RUN (class E); AT201 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T085; AT200 NOT_RUN (class E); AT201 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT200, AT201 PASS on the existing evidence."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -8954,7 +8989,7 @@
     "test_ids": [
       "AT298"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -8972,7 +9007,9 @@
       "commit 3cd8ad26c (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/NIGHTLY-speed is now an ancestor of origin/main: the nightly runs the release gate engine.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.7. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT298 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT298 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT298 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT298 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT298), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "3cd8ad26",
@@ -9467,7 +9504,7 @@
     "test_ids": [
       "AT310"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9484,7 +9521,9 @@
       "2026-10-11 (REGISTRY-sync-1011): documents done on branch pilot/WISKEY-CRs @ 267d19e7 (combined implementation plan). Key rotation (CR-034 H slices) was deferred by the owner; see WXH0..WXH7.",
       "commit 267d19e70 (branch only, not on origin/main, not released); also f18932f04 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. documents: CR-033 (docs/changes/CR-033-WISKEY-DOOR-PATH.md) is on main; CR-034 and the combined implementation plan stay on origin/pilot/WISKEY-CRs @ 267d19e7 (not merged); CR-034 was implemented later under docs/changes/CR-WISKEY-HMAC-ROTATION-295.md.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner 22.11: keep open, check later (Q81/Q82, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT310 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT310 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT310 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT310), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "267d19e7",
@@ -9550,7 +9589,7 @@
     "test_ids": [
       "AT312"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9568,7 +9607,9 @@
       "commit 5865e150f (release 2.4.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. CR-036 native screens plan (docs/changes/CR-036-WISKEY-NATIVE-SCREENS.md) is on main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.8. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT312 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT312 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT312 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT312 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT312), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "5865e150",
@@ -9684,7 +9725,7 @@
     "test_ids": [
       "AT315"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9704,7 +9745,9 @@
       "2026-11-05 (BOARD-RULE-2404) (lab run of 2026-11-04 recorded above, closed by the owner): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXN01:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT315 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.8. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT315 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT315 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT315 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT315 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT315), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "c73611a00",
@@ -9732,7 +9775,7 @@
     "test_ids": [
       "AT316"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9752,10 +9795,13 @@
       "commit c73611a00 (release 2.4.8, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXN34:REVIEW, WXN5:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT316 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.4.8. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and a dependency is not DONE (WXN5); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: WXN5; AT316 PASS only at 7b9b63e7 (not re-run: No automated test is mapped to this card (document / registry / script / build artefact, o)",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN5; AT316 PASS (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN5; AT316 PASS (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s)  PASS on the existing evidence. Note: referenced but not found: docs/changes/CR-036-S6/S7/S8-S10/S9-NOTES.md.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): commit field c73611a00 -> 7b9b63e7 (the shared acceptance test is recorded at that commit).",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT316), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": "c73611a00",
+    "commit": "7b9b63e7",
     "actual_cost_usd": null
   },
   {
@@ -9779,7 +9825,7 @@
     "test_ids": [
       "AT317"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9797,10 +9843,12 @@
       "2026-10-11 (REGISTRY-sync-1011): pending; 17 h on the board. Any live write test on a real system needs the owner approval (see WXNS).",
       "commit 18a6f2e53 (release 2.4.9, on origin/main); also a90cc0935 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. S11 station-scoped person and card writes, S12 gaps (per-screen switch, parity report, action-log filters) and the S13 suite manifest shipped (integ/249). Missing: S14 lab verification against the real WisKey and stations (only the station cards, stills and Arx-source live video were confirmed by the owner on 2026-11-03). Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXN6:BACKLOG).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): WisKey S11 station-scoped person/card writes, S12 per-screen switch/parity/log filters, S13 suite manifest shipped (18a6f2e53, a90cc0935, 2.4.9). Missing: S14 lab verification against the real WisKey and stations (only station cards/stills/Arx-source live video confirmed 2026-11-03); live writes need owner approval. Open acceptance item: S14 lab verification against the real WisKey and stations (live writes need owner approval).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN6; AT317 PASS (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN6; AT317 PASS (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): commit field 18a6f2e53 -> 7b9b63e7 (the shared acceptance test is recorded at that commit).",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT317), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": "18a6f2e53",
+    "commit": "7b9b63e7",
     "actual_cost_usd": null
   },
   {
@@ -9824,7 +9872,7 @@
     "test_ids": [
       "AT318"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9843,10 +9891,13 @@
       "commit 18a6f2e53 (release 2.4.9, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. person and card writes (S11, integ/249) and door-window program writes (DOORWRITE-297) shipped. Missing: door technical writes (hold-open schedules, public codes, programs on the classic channel) are in flight on pilot/WISKEY-DOOR-TECH-2390 @ e3789536b (not released). Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXN11:BACKLOG).",
       "commit 37c9cdae3 (release 2.39.0, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): door technical writes shipped: merge of pilot/WISKEY-DOOR-TECH-2390 (tip e3789536b is an ancestor of origin/main; docs/changes/WISKEY-DOOR-TECH-2390.md, system administrators only, confirmation and audit per write). The 'Missing' of the 2026-11-04 audit line is closed. Live WisKey tests NOT_RUN (owner approval). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN11:BACKLOG).",
       "2026-11-18 (BACKLOG-HYGIENE-2443): status BACKLOG -> REVIEW (shipped, formal acceptance still to be recorded; not DONE). Triage evidence (private/planning/BACKLOG_TRIAGE_2026-11-18.md, origin/main v2.43.7): Person/card writes (2.4.9), door-window program writes (DOORWRITE-297, 2.24.1 faf5bd4c0), door technical writes (WISKEY-DOOR-TECH-2390, 37c9cdae3, 2.39.0). Live WisKey tests NOT_RUN by design (owner approval).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN11; AT318 PASS (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: WXN11; AT318 PASS (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s)  PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): commit field 18a6f2e53 -> 7b9b63e7 (the shared acceptance test is recorded at that commit).",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT318), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": "18a6f2e53",
+    "commit": "7b9b63e7",
     "actual_cost_usd": null
   },
   {
@@ -11079,7 +11130,7 @@
     "test_ids": [
       "AT344"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -11097,7 +11148,9 @@
       "commit bdd391cdb (release 2.5.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. service management (CR-038) slice built on its pilot/TICKETS-* branch and merged into integ/250; notes docs/changes/CR-038-*-NOTES.md. Fakes only.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.5.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT344 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT344 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT344 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT344 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT344), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "a06ba53a",
@@ -12355,7 +12408,7 @@
     "test_ids": [
       "AT374"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -12373,7 +12426,9 @@
       "commit 61f79e280 (release 2.6.3, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. the 2.6.3 integration (integ/263 with the UI rebuilt on the runner).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.6.3. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT374 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT374 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT374 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT374 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT374), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "61f79e280",
@@ -13596,7 +13651,7 @@
     "test_ids": [
       "AT-TASKS-SYNC-3110-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -13613,7 +13668,9 @@
       "commit ce36cd5b7 (release 2.30.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. chore/TASKS-SYNC-3110 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.30.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-TASKS-SYNC-3110-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TASKS-SYNC-3110-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TASKS-SYNC-3110-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-TASKS-SYNC-3110-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-TASKS-SYNC-3110-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "ce36cd5b7",
@@ -13760,7 +13817,7 @@
     "test_ids": [
       "AT-DEPHARDEN-2310-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -13776,7 +13833,9 @@
       "2026-11-02 (REGISTRY-UPDATE-2380): branch chore/DEPHARDEN-2310 merged at bead99576 into main; first release tag containing it: v2.31.0 (tagged 2026-10-31; smplwise_vms/CHANGELOG.md section 2.31.0). Status REVIEW = shipped; no acceptance run is recorded in this registry, so AT-DEPHARDEN-2310-1 stays NOT_RUN.",
       "commit bead99576 (release 2.31.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. chore/DEPHARDEN-2310 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner 22.11: keep open, check later (Q81/Q82, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-DEPHARDEN-2310-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-DEPHARDEN-2310-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-DEPHARDEN-2310-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-DEPHARDEN-2310-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "bead99576",
@@ -14816,7 +14875,7 @@
     "test_ids": [
       "AT-TKSET-POLISH-2331-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -14833,7 +14892,9 @@
       "commit cb6c5d3e6 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/TKSET-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-TKSET-POLISH-2331-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TKSET-POLISH-2331-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TKSET-POLISH-2331-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-TKSET-POLISH-2331-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-TKSET-POLISH-2331-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "cb6c5d3e6",
@@ -15102,7 +15163,7 @@
     "test_ids": [
       "AT-CAMADMIN-POLISH-2331-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -15119,7 +15180,9 @@
       "commit 5536a57b7 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/CAMADMIN-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-CAMADMIN-POLISH-2331-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CAMADMIN-POLISH-2331-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CAMADMIN-POLISH-2331-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-CAMADMIN-POLISH-2331-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-CAMADMIN-POLISH-2331-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "5536a57b7",
@@ -15266,7 +15329,7 @@
     "test_ids": [
       "AT-HOMEEDIT-POLISH-2331-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -15283,7 +15346,9 @@
       "commit 48b0813bb (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/HOMEEDIT-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-HOMEEDIT-POLISH-2331-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-HOMEEDIT-POLISH-2331-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-HOMEEDIT-POLISH-2331-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-HOMEEDIT-POLISH-2331-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-HOMEEDIT-POLISH-2331-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "48b0813bb",
@@ -15308,7 +15373,7 @@
     "test_ids": [
       "AT-SETUPPLAN-POLISH-2331-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -15325,7 +15390,9 @@
       "commit a81a80a60 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/SETUPPLAN-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-SETUPPLAN-POLISH-2331-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-SETUPPLAN-POLISH-2331-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-SETUPPLAN-POLISH-2331-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-SETUPPLAN-POLISH-2331-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-SETUPPLAN-POLISH-2331-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "a81a80a60",
@@ -15350,7 +15417,7 @@
     "test_ids": [
       "AT-TABSMODE-POLISH-2331-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -15367,7 +15434,9 @@
       "commit 55d2e94b5 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/TABSMODE-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-TABSMODE-POLISH-2331-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TABSMODE-POLISH-2331-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-TABSMODE-POLISH-2331-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-TABSMODE-POLISH-2331-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-TABSMODE-POLISH-2331-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "55d2e94b5",
@@ -16934,7 +17003,7 @@
     "test_ids": [
       "AT-POLISH4-WP2-LIVEINV-2370-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -16952,7 +17021,9 @@
       "commit 2310ca870 (release 2.37.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. merge into release/2370-train. Status IN_PROGRESS -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.37.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-POLISH4-WP2-LIVEINV-2370-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP2-LIVEINV-2370-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP2-LIVEINV-2370-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-POLISH4-WP2-LIVEINV-2370-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-POLISH4-WP2-LIVEINV-2370-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "2310ca870",
@@ -17060,7 +17131,7 @@
     "test_ids": [
       "AT-POLISH4-WP5-MEDIA-2370-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17078,7 +17149,9 @@
       "commit e139d331b (release 2.37.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. merge into release/2370-train. Status IN_PROGRESS -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.37.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-POLISH4-WP5-MEDIA-2370-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP5-MEDIA-2370-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP5-MEDIA-2370-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-POLISH4-WP5-MEDIA-2370-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-POLISH4-WP5-MEDIA-2370-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "e139d331b",
@@ -17145,7 +17218,7 @@
     "test_ids": [
       "AT-POLISH4-WP7-SETSYS-2370-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17163,7 +17236,9 @@
       "commit a8612bdcb (release 2.37.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. merge into release/2370-train. Status IN_PROGRESS -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.37.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-POLISH4-WP7-SETSYS-2370-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP7-SETSYS-2370-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-POLISH4-WP7-SETSYS-2370-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-POLISH4-WP7-SETSYS-2370-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-POLISH4-WP7-SETSYS-2370-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "a8612bdcb",
@@ -17414,7 +17489,8 @@
       "commit b9ebb682c (release 2.38.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now T103:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-APP-TEAM-R11-2380-1 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.38.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: T103; AT-APP-TEAM-R11-2380-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T103; AT-APP-TEAM-R11-2380-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; dependency not DONE: T103; AT-APP-TEAM-R11-2380-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-APP-TEAM-R11-2380-1 PASS on the existing evidence."
     ],
     "owner": null,
     "commit": "b9ebb682c",
@@ -17652,7 +17728,7 @@
     "test_ids": [
       "AT-BOARD-ADMIN-2380-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17672,7 +17748,9 @@
       "commit 30b92b6a2 (release 2.38.2, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now POLISH4-WP8-SETMOD-2370:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-BOARD-ADMIN-2380-1 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.38.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-BOARD-ADMIN-2380-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BOARD-ADMIN-2380-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BOARD-ADMIN-2380-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-BOARD-ADMIN-2380-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-BOARD-ADMIN-2380-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "30b92b6a2",
@@ -17743,7 +17821,7 @@
     "test_ids": [
       "AT-WALL-FOLLOWUPS-2380-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17763,7 +17841,8 @@
       "commit e6e74c5fb (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now POLISH4-WP2-LIVEINV-2370:REVIEW, T107:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-WALL-FOLLOWUPS-2380-1 keep their recorded status (no test run here).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.40.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and a dependency is not DONE (POLISH4-WP2-LIVEINV-2370); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: dependency not DONE: POLISH4-WP2-LIVEINV-2370",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; dependency not DONE: POLISH4-WP2-LIVEINV-2370"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; dependency not DONE: POLISH4-WP2-LIVEINV-2370",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-WALL-FOLLOWUPS-2380-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "e6e74c5fb",
@@ -17879,7 +17958,7 @@
     "test_ids": [
       "AT-REGISTRY-UPDATE-2380-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17897,7 +17976,9 @@
       "commit 666d4d6a7 (release 2.37.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. merge of chore/REGISTRY-UPDATE-2380 into release/2370-train. Status IN_PROGRESS -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.37.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-REGISTRY-UPDATE-2380-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-REGISTRY-UPDATE-2380-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-REGISTRY-UPDATE-2380-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-REGISTRY-UPDATE-2380-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-REGISTRY-UPDATE-2380-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "666d4d6a7",
@@ -18696,7 +18777,7 @@
     "test_ids": [
       "AT-WISKEY-STATUS-PAGE-2382-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18714,7 +18795,9 @@
       "commit 30176808e (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. the WisKey status rows came with the merge of pilot/WISKEY-PAIRING-2382; the join line reads the runtime join (fe73cf9e6). Status IN_PROGRESS -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.38.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-WISKEY-STATUS-PAGE-2382-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-WISKEY-STATUS-PAGE-2382-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-WISKEY-STATUS-PAGE-2382-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-WISKEY-STATUS-PAGE-2382-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-WISKEY-STATUS-PAGE-2382-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "30176808e",
@@ -18781,7 +18864,7 @@
     "test_ids": [
       "AT-WISKEY-CONFLICTS-2390-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18799,7 +18882,9 @@
       "commit aa33b33f3 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-CONFLICTS-2400 (migration 0202). Status BACKLOG -> REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.40.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-WISKEY-CONFLICTS-2390-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-WISKEY-CONFLICTS-2390-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-WISKEY-CONFLICTS-2390-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-WISKEY-CONFLICTS-2390-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-WISKEY-CONFLICTS-2390-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "aa33b33f3",
@@ -20216,7 +20301,7 @@
     "test_ids": [
       "AT-LAB-AUDITS-0411-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -20233,10 +20318,12 @@
       "lab (2026-11-04, read only): three audit documents written - logs and faults (15 findings), station and camera video (10 findings and the owner questions answered the same day), door events and station users (follow-up) - in private/planning/ (gitignored), redacted evidence in private-evidence/lab-audit-20261104/ (gitignored). Findings turned into BRIDGE-STALE-DISCOVERY-2383 (2.39.1), VIDEO-TRANSPORT-2400 (2.40.0) and BRIDGE-UPDATE-LISTENER-2401 (2.40.1); WisKey asks in WISKEY-ADDENDUM-GAPS-0411; owner steps in OWNER-LAB-ACTIONS-0411.",
       "NOT_MEASURED (from the audits): request durations in Arx, the Arx database through SSH (protection mode), station clocks and door settings beyond the one evening check.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner 22.11: keep open, check later (Q81/Q82, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-LAB-AUDITS-0411-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-LAB-AUDITS-0411-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-LAB-AUDITS-0411-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-LAB-AUDITS-0411-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -20258,7 +20345,7 @@
     "test_ids": [
       "AT-LAB-NVR-DOOR-READONLY-0411-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -20274,10 +20361,12 @@
     "evidence": [
       "lab (2026-11-04 evening, read only, owner round 19 Q5a and Q3a): recorder - the sub-stream settings of the two panoramic cameras read as valid, yet a sub-stream request returns no frames (main and other channels play), so the cause is most likely on the camera itself; the fix is a write on the camera or recorder, an owner action. Door station - no NO/NC setting exists over the station API (the door input is set to door status, the exit button on another input); the odd open / not-closed events most likely come from wiring (no contact, or the wrong contact type) - a physical check. Nothing was written. Details: addendum of private/planning/LAB_AUDIT_VIDEO_2026-11-04_HE.md (gitignored).",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner 22.11: keep open, check later (Q81/Q82, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)).",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-LAB-NVR-DOOR-READONLY-0411-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; held by the owner (22.11 Q81/Q82: keep open); AT-LAB-NVR-DOOR-READONLY-0411-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-LAB-NVR-DOOR-READONLY-0411-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-LAB-NVR-DOOR-READONLY-0411-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -20626,7 +20715,7 @@
     "test_ids": [
       "AT-BOARD-HYGIENE-2403-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -20644,7 +20733,9 @@
       "commit dc142795c (release 2.40.3, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of chore/BOARD-HYGIENE-2403, released in v2.40.3 (tag commit dbb9e18a5); IN_PROGRESS -> REVIEW (no dependencies). Its two owner questions were answered on 2026-11-05 and applied by BOARD-RULE-2404. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.40.3. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-BOARD-HYGIENE-2403-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BOARD-HYGIENE-2403-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BOARD-HYGIENE-2403-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-BOARD-HYGIENE-2403-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-BOARD-HYGIENE-2403-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
     "commit": "cb4b47767",
@@ -21334,7 +21425,7 @@
     "test_ids": [
       "AT-BACKLOG-HYGIENE-2443-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -21348,10 +21439,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. In the 2.43.9 train (release/2439-train, build 670716c08) and release/2440-train; not on main, not tagged. Change note docs/changes/BACKLOG-HYGIENE-2443.md (note commit b3a1f6757); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BACKLOG-HYGIENE-2443-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-BACKLOG-HYGIENE-2443-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-BACKLOG-HYGIENE-2443-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-BACKLOG-HYGIENE-2443-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -22152,7 +22245,7 @@
     "test_ids": [
       "AT-CR-CSS-FRAGMENTS-2440-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -22166,10 +22259,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/CR-CSS-FRAGMENTS-2440.md (note commit 7ca6ed392); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-CSS-FRAGMENTS-2440-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-CSS-FRAGMENTS-2440-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-CR-CSS-FRAGMENTS-2440-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-CR-CSS-FRAGMENTS-2440-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -22347,7 +22442,7 @@
     "test_ids": [
       "AT-CR-DOCS-REGISTERS-2440-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -22361,10 +22456,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/CR-DOCS-REGISTERS-2440.md (note commit 06ceb9816); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-DOCS-REGISTERS-2440-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-DOCS-REGISTERS-2440-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-CR-DOCS-REGISTERS-2440-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-CR-DOCS-REGISTERS-2440-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -22503,7 +22600,7 @@
     "test_ids": [
       "AT-CR-DUP-TICKETS-VIEWS-2440-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -22517,10 +22614,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/CR-DUP-TICKETS-VIEWS-2440.md (note commit 7d32b0f4e); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-DUP-TICKETS-VIEWS-2440-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-DUP-TICKETS-VIEWS-2440-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-CR-DUP-TICKETS-VIEWS-2440-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-CR-DUP-TICKETS-VIEWS-2440-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -22698,7 +22797,7 @@
     "test_ids": [
       "AT-CR-FE-DEAD-CSS-2443-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -22712,10 +22811,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. In the 2.43.9 train (release/2439-train, build 670716c08) and release/2440-train; not on main, not tagged. Change note docs/changes/CR-FE-DEAD-CSS-2443.md (note commit a885939d9); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-FE-DEAD-CSS-2443-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-CR-FE-DEAD-CSS-2443-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-CR-FE-DEAD-CSS-2443-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-CR-FE-DEAD-CSS-2443-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {
@@ -26520,7 +26621,7 @@
     "test_ids": [
       "AT-DESIGN-RULEBOOK-2438-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -26534,10 +26635,12 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/DESIGN-RULEBOOK-2438.md (note commit 7d773d9aa); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-DESIGN-RULEBOOK-2438-1 NOT_RUN (class E)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class E; AT-DESIGN-RULEBOOK-2438-1 NOT_RUN (class E)",
+      "2026-11-24 (ACCEPT-SWEEP-2411): owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8) - acceptance test(s) AT-DESIGN-RULEBOOK-2438-1 PASS on the existing evidence.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Every acceptance test PASS (AT-DESIGN-RULEBOOK-2438-1), every dependency DONE (T006 and T008 owner-approved 24.11, Q7 = a; doc / process / design cards by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8))."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d6f09395e",
     "actual_cost_usd": null
   },
   {

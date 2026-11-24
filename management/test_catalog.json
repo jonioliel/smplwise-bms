@@ -316,7 +316,7 @@
     ],
     "expected": "להוכיח מול NVR אמיתי שזמן בקשה ידוע מוביל להקלטה ולפריים הנכונים; למדוד keyframe offset ומיפוי PTS לזמן המקור.",
     "status": "PASS",
-    "commit": "619f94d04",
+    "commit": "d6f09395e",
     "environment": "Lab installation running v2.47.0 (built by its own Supervisor from tag v2.47.0 = 619f94d04 code); phase-2 lab write tests run from the runner (HA WebSocket supervisor/api + an ingress session of the admin service user), one action per step, go2rtc snapshot before / after, every step rolled back; only the smplwise_ namespace touched (34 foreign streams identical before and after), no restart, 2026-11-23",
     "evidence": "LAB-ACCEPT-2311 phase 2: Lab: a playback session at a known instant of a real recording (requested_at 2026-11-23T20:28:06Z inside a motion segment) answers 201 with requested_at kept, time_precision keyframe_limited (no invented anchor), media init 171 ms + 5 fragments from the recorder; the frame check B08 measured the frame instant 4.0 s from the asked time (X-Frame-At). Session closed, smplwise_pb_ stream removed. Evidence private-evidence/lab-1611/acceptance-2311/c_playback.json, bcheck_b2.json (B08).",
     "executed_at": "2026-11-23",
@@ -343,12 +343,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לבדוק create/update/delete ב־go2rtc על namespace ניסוי: persistence, חיבורי consumers ו־restart. לבחור נתיב session או bounded clip על סמך ראיה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): Lab (phase 2): a test stream smplwise_acc2311_test was created (PATCH; PUT refuses a stream-name source), consumed (331 fragments), deleted; go2rtc list identical before / after, foreign streams untouched (private-evidence/lab-1611/acceptance-2311/c_g2crud.json). Persistence across a go2rtc restart is NOT run: go2rtc is shared with the intercom project - owner step (class D). Stays NOT_RUN."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "Owner approval 24.11 (questions_2026-11-24 Q7 = a): the go2rtc restart step of T006 is approved as done in the lab drill (owner statement of 22.11 Q35-Q37 \"already done and passed\", LAB-V2-DRILLS-2490), together with the create / consume / delete run of LAB-ACCEPT-2311 phase 2 (private-evidence/lab-1611/acceptance-2311/c_g2crud.json). AT011 PASS (phase 2 playback). Arx holds no own restart log: the acceptance rests on the owner approval.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class C - lab write test: planned in phase 2 (one action, rollback recorded) | 2026-11-23 (LAB-ACCEPT-2311 phase 2): Lab (phase 2): a test stream smplwise_acc2311_test was created (PATCH; PUT refuses a stream-name source), consumed (331 fragments), deleted; go2rtc list identical before / after, foreign streams untouched (private-evidence/lab-1611/acceptance-2311/c_g2crud.json). Persistence across a go2rtc restart is NOT run: go2rtc is shared with the intercom project - owner step (class D). Stays NOT_RUN. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT013",
@@ -359,7 +359,7 @@
       "T007"
     ],
     "title": "נעילת Design tokens ורכיבי בסיס — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -371,12 +371,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמר את שלושת לוחות ההדמיה ולממש tokens, ניווט ארבעה מצבים, טיפוגרפיה, ריווח, צבעי מצב ורכיבי בסיס ללא שינוי שפת העיצוב.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/design/UI_COPY_RULES.md, docs/design/mockups-v1.3, frontend/src/shell/nav.ts, frontend/tests/screens.spec.ts, frontend/tests/screenshots.spec.ts, private/planning/answers_2026-11-22_night.txt. Referenced but not found: frontend/src/styles/tokens.css.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT014",
@@ -387,7 +387,7 @@
       "T007"
     ],
     "title": "נעילת Design tokens ורכיבי בסיס — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -399,12 +399,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לצלם מפת קומה, מצלמה ומגירת ישות בעברית/RTL ובמובייל; empty/error/stale נראים שונים מנתון חי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/design/UI_COPY_RULES.md, docs/design/mockups-v1.3, frontend/src/shell/nav.ts, frontend/tests/screens.spec.ts, frontend/tests/screenshots.spec.ts, private/planning/answers_2026-11-22_night.txt. Referenced but not found: frontend/src/styles/tokens.css.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT015",
@@ -415,7 +415,7 @@
       "T008"
     ],
     "title": "ארכיטקטורה, ADR וחוזים נעולים — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -427,12 +427,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאשר גבולות add-on, HA integration ו־go2rtc חיצוני, בעלות על DB/media והחלטות reuse. לתעד חלופות והנחות שנפסלו.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "Owner approval 24.11 (questions_2026-11-24 Q7 = a) of the architecture documents T008: ADR-015 pilot contract lock, contracts/API_INVENTORY.md (generated by scripts/api_inventory.py), docs/architecture/ ADRs as named in the card evidence (the formal owner sign-off the card was waiting for).",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT016",
@@ -443,7 +443,7 @@
       "T008"
     ],
     "title": "ארכיטקטורה, ADR וחוזים נעולים — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -455,12 +455,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לנעול חוזי API, מזהים, schema revisions ו־error model לפני עבודת Agents מקבילה; דוגמאות תקינות נכנסות לבדיקת contracts.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "Owner approval 24.11 (questions_2026-11-24 Q7 = a) of the architecture documents T008: ADR-015 pilot contract lock, contracts/API_INVENTORY.md (generated by scripts/api_inventory.py), docs/architecture/ ADRs as named in the card evidence (the formal owner sign-off the card was waiting for).",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT017",
@@ -527,7 +527,7 @@
       "T010"
     ],
     "title": "מדיניות מודלים וגבולות הרצות — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -539,12 +539,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "למפות balanced/deep למודלים הזמינים בפועל מקומית, לתעד version ו־reasoning; שמות Astra/Sol הם העדפה ולא מזהי API מומצאים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "906c82735",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/operations/MODEL_POLICY.md.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT020",
@@ -568,7 +568,7 @@
     ],
     "expected": "לשמור תקרת הוצאה מאושרת, max attempts והרשאות; task metadata אינו מוצג כאילו הוא מחליף מודל אוטומטית בסשן.",
     "status": "PASS",
-    "commit": "619f94d04",
+    "commit": "906c82735",
     "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), main @ 619f94d04 (= v2.47.0; code identical to the gated 7d5476e92) in the worktree ~/work/accsweep, 2026-11-23; fakes and fixtures only; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "LAB-ACCEPT-2311 receipts docs/changes/receipts/LAB-ACCEPT-2311.json; runner:~/work/acc2311-out/ and ~/work/accsweep-out*/ (junit + Playwright json): test_coord.py (30 passed); test_task_runner.py (4 passed). Files mapped to the card by its change record, the commits that name it and the test files that name it.",
     "executed_at": "2026-11-23",
@@ -1115,7 +1115,7 @@
       "T020"
     ],
     "title": "ייבוא PDF ותמונות אדריכליות — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1127,12 +1127,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להגביל גודל/עמודים/זמן decode ולבודד rendering; SVG עובר sanitization או נדחה בבטחה; DWG/DXF אינו נתמך בשקט כאילו תמונה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "22a833ce3",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-crop.spec.ts, services/plan_render.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT041",
@@ -1143,7 +1143,7 @@
       "T021"
     ],
     "title": "עורך מיקום, קנה מידה ו־FOV — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1155,12 +1155,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאפשר drag, numeric placement, rotate, delete, undo/redo ו־camera FOV סכמטי; קואורדינטות מנורמלות נשמרות ללא תלות ב־zoom.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "22a833ce3",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-editor.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT042",
@@ -1171,7 +1171,7 @@
       "T021"
     ],
     "title": "עורך מיקום, קנה מידה ו־FOV — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1183,12 +1183,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור crop/rotation transforms ולבדוק round-trip לאחר resize; RTL אינו משקף תוכנית. מרחקים מדויקים מוצגים רק לאחר scale calibration.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "22a833ce3",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-editor.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT043",
@@ -1199,7 +1199,7 @@
       "T022"
     ],
     "title": "מצלמה על המפה עם Preview — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1211,12 +1211,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לחיצה על עוגן מצלמה מציגה preview בהקשר עם Live/Playback/fullscreen; סגירה חוזרת לאותו floor, zoom ו־selection.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "9f47dfab1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-viewer.spec.ts. Referenced but not found: evidence/T007-viewer-live/viewer-camera-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT044",
@@ -1227,7 +1227,7 @@
       "T022"
     ],
     "title": "מצלמה על המפה עם Preview — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1239,12 +1239,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להראות זמינות אמיתית וסיבה ל־offline/no permission בלי לפתוח streams לכל הסמנים; לחיצה במובייל נוחה ללא hover.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "9f47dfab1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-viewer.spec.ts. Referenced but not found: evidence/T007-viewer-live/viewer-camera-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT045",
@@ -1367,7 +1367,7 @@
       "T025"
     ],
     "title": "ישויות על המפה ופקודות בטוחות — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1379,12 +1379,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לגרור ישות למפה ולהציג state/יחידה/זמינות; generic panel קריא ל־domain לא מוכר, widgets ייעודיים ל־light/switch/sensor.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "6eede73a4",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/design/DEVICE_THEMES.md, frontend/src/styles/devices-themes.ts, services/bridge_install.py, services/ha_scope.py. Referenced but not found: frontend/tests/evidence-owner-round7.spec.ts, services/ha_bridge.ACTIONS.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT050",
@@ -1451,7 +1451,7 @@
       "T026"
     ],
     "title": "Import / export וגיבוי פרויקט — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1463,12 +1463,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להוכיח restore לסביבת ניסוי עם אותם IDs/מיקומים; restore אינו מפעיל אוטומטית פקודות HA או משנה schedule ב־NVR.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d7cc059e6",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-backup.spec.ts, services/backup.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT053",
@@ -1507,7 +1507,7 @@
       "T027"
     ],
     "title": "חיפוש הקלטות מלא ומדורג — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1519,12 +1519,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור cache לפי source/track/time/profile, לאחד בקשות ולבטל invalid negative cache כשמידע/retention משתנה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "cf3c596c1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: services/recordings.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT055",
@@ -1591,7 +1591,7 @@
       "T029"
     ],
     "title": "Timeline ו־Playback UI — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1603,12 +1603,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להציג טווחי הקלטה, gaps, coverage, date/time לפי אתר ו־scrub מבוקר; לחיצה על שעה פותחת הקלטה ולא Live.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "cf3c596c1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/screens/investigate-playback.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT058",
@@ -1619,7 +1619,7 @@
       "T029"
     ],
     "title": "Timeline ו־Playback UI — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1631,12 +1631,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור camera/map/time context ומצב loading/error/no recording; מקלדת ומובייל נתמכים, אין כפתור מהירות שאינו ממומש.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "cf3c596c1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/screens/investigate-playback.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT059",
@@ -1647,7 +1647,7 @@
       "T030"
     ],
     "title": "מפה היסטורית בסיסית ללא מצבי שווא — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1659,12 +1659,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להציג כותרת ברורה מצב Live או חקירה ותאריך מלא; במצב עבר לא להציג מצב HA נוכחי כאילו היה אז.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "86a7a4cfb",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-history-map.spec.ts. Referenced but not found: evidence/T030-history-live/history-map-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT060",
@@ -1675,7 +1675,7 @@
       "T030"
     ],
     "title": "מפה היסטורית בסיסית ללא מצבי שווא — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1687,12 +1687,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "אם אין history: להציג לא ידוע או current עם תווית בולטת; פעולות פיזיות מנוטרלות במצב חקירה כברירת מחדל.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "86a7a4cfb",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-history-map.spec.ts. Referenced but not found: evidence/T030-history-live/history-map-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT061",
@@ -1759,7 +1759,7 @@
       "T032"
     ],
     "title": "Inbox אירועים, פילטרים ו־Ack — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1771,12 +1771,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להציג כרטיסי אירוע לפי camera/site/floor/time/type, סטטוס חדש/בטיפול/טופל וקפיצה ל־Playback.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "21de475ff",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-event-detail.spec.ts, services/thumbnails.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT064",
@@ -1843,7 +1843,7 @@
       "T033"
     ],
     "title": "מסך Health ודיאגנוסטיקה — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1855,12 +1855,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לספק export logs מצונזר עם correlation ID והמלצה לבדיקה בלי לכלול tokens, RTSP credentials או frames פרטיים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "c9900b16f",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-health.spec.ts, services/health_report.py, services/log_export.py. Referenced but not found: evidence/T033-health-live/health-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT067",
@@ -1871,7 +1871,7 @@
       "T034"
     ],
     "title": "רספונסיביות ו־RTL למסלול הראשי — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1883,12 +1883,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאשר visually desktop 1440, tablet ומובייל 390 במסלולי map/live/playback/entity; טקסט עברי ומזהים LTR לא מתהפכים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "21ae6fe8d",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-mobile.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT068",
@@ -1899,7 +1899,7 @@
       "T034"
     ],
     "title": "רספונסיביות ו־RTL למסלול הראשי — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -1911,12 +1911,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להוכיח keyboard focus, labels, contrast, touch targets ו־reduced motion; אין scroll אופקי במובייל או טבלאות דחוסות חובה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "21ae6fe8d",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-mobile.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT069",
@@ -2039,7 +2039,7 @@
       "T037"
     ],
     "title": "שכבות, קבוצות וחיפוש במפה — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2051,12 +2051,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לספק שכבות cameras/security/HVAC/lighting וסינון לפי state/domain/room; חיפוש ישות ממרכז ומדגיש אותה על הקומה הנכונה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "9f47dfab1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/map/marker-cluster.ts, frontend/tests/evidence-search.spec.ts. Referenced but not found: evidence/T007-viewer-live/viewer-layers-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT074",
@@ -2067,7 +2067,7 @@
       "T037"
     ],
     "title": "שכבות, קבוצות וחיפוש במפה — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2079,12 +2079,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לממש clustering ומניעת חפיפה עם alternative list; להתנסות ב־500 anchors בלי לפתוח וידאו לכולם.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "9f47dfab1",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/map/marker-cluster.ts, frontend/tests/evidence-search.spec.ts. Referenced but not found: evidence/T007-viewer-live/viewer-layers-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT075",
@@ -2151,7 +2151,7 @@
       "T039"
     ],
     "title": "חדרים, אזורים וגרף מעבר בין קומות — 1",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2163,12 +2163,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאפשר room polygons, אזורי הרשאה/התראה ו־stairs/elevator connectors; להבחין בין zone במפה לבין detection polygon בתמונת מצלמה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "99871fa88",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-zone-vertices.spec.ts, frontend/tests/evidence-zones.spec.ts. Referenced but not found: evidence/T007-zones-live/zone-vertices-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT078",
@@ -2179,7 +2179,7 @@
       "T039"
     ],
     "title": "חדרים, אזורים וגרף מעבר בין קומות — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2191,12 +2191,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לקשר מצלמות סמוכות ומסלול ידני מאומת; אין הבטחה שהגרף מעיד שאותו אדם עבר בין המצלמות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "99871fa88",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-zone-vertices.spec.ts, frontend/tests/evidence-zones.spec.ts. Referenced but not found: evidence/T007-zones-live/zone-vertices-desktop.png.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT079",
@@ -2291,7 +2291,7 @@
       "T041"
     ],
     "title": "היסטוריית HA על מפה ו־Provenance — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2303,12 +2303,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשחזר מצב עם גרסת התוכנית ומיקום הישות שהיו תקפים; שינוי timezone אינו משנה instant או זהות האירוע.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "9860e7ed8",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-ha-history.spec.ts, services/ha_history.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT083",
@@ -2375,7 +2375,7 @@
       "T043"
     ],
     "title": "בחירה רב־מצלמתית מתוך מפה — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2387,12 +2387,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לבחור כמה עוגנים או room ולפתוח Live/Playback synchronized עם context משותף ו־back למיקום המקורי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "18cee0df6",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/map/adjacent-cameras.ts, frontend/tests/evidence-map-improvements.spec.ts, frontend/tests/evidence-multiselect-box.spec.ts, frontend/tests/evidence-multiselect.spec.ts, frontend/tests/unit-adjacent-cameras.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT086",
@@ -2403,7 +2403,7 @@
       "T043"
     ],
     "title": "בחירה רב־מצלמתית מתוך מפה — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -2415,12 +2415,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להציג מצלמות זמינות/אסורות/חסרות כיסוי בנפרד; suggested adjacent cameras אינן automatic person tracking.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "18cee0df6",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/src/map/adjacent-cameras.ts, frontend/tests/evidence-map-improvements.spec.ts, frontend/tests/evidence-multiselect-box.spec.ts, frontend/tests/evidence-multiselect.spec.ts, frontend/tests/unit-adjacent-cameras.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT087",
@@ -3215,7 +3215,7 @@
       "T058"
     ],
     "title": "Multi-NVR ואתרים מרובים — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -3227,12 +3227,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לתמוך בקטלוג מאוחד עם מקור NVR לכל מצלמה, timezone פר אתר ו־scope הרשאה; IDs אינם מתנגשים בין מקורות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (stable ids per recorder, never reused; per-recorder connection; time zone stored and used by the alert stream; camera scope per recorder) - fixture only; NOT_RUN against two real recorders. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-024-MULTI-NVR.md, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (stable ids per recorder, never reused; per-recorder connection; time zone stored and used by the alert stream; camera scope per recorder) - fixture only; NOT_RUN against two real recorders. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT116",
@@ -3243,7 +3243,7 @@
       "T058"
     ],
     "title": "Multi-NVR ואתרים מרובים — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -3255,12 +3255,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להפריד concurrency, outage ו־search coverage בין NVR; כשל אתר אחד אינו מפיל מפות או חקירה באתר אחר.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (one recorder down / 401 never stops the other's discovery, snapshot, alert stream; batches never mix recorders; per-recorder search). Synchronized cross-recorder playback is refused (not proven). NOT_RUN against two real recorders. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-024-MULTI-NVR.md, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (one recorder down / 401 never stops the other's discovery, snapshot, alert stream; batches never mix recorders; per-recorder search). Synchronized cross-recorder playback is refused (not proven). NOT_RUN against two real recorders. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT117",
@@ -3439,7 +3439,7 @@
       "T062"
     ],
     "title": "חיפוש metadata מרחבי — 1",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -3451,12 +3451,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לחפש type/time/site/floor/room/camera לפי metadata שקיים; ממשק מסביר אילו שדות זמינים ולמה אחרים חסרים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "8f0011b7e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-spatial-search.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT124",
@@ -3467,7 +3467,7 @@
       "T062"
     ],
     "title": "חיפוש metadata מרחבי — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -3479,12 +3479,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "תוצאה מקשרת לפריים/אירוע ומקור מידע; מסנן unsupported לא מחזיר 0 כאילו אין התאמות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "8f0011b7e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-spatial-search.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT125",
@@ -3859,7 +3859,7 @@
       "T069"
     ],
     "title": "בדיקות אבטחה של קבצים ורשת — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -3871,12 +3871,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לסרוק artifacts/logs/source ו־dependencies, לתעד remediation ולבדוק revoke; API/RTSP של go2rtc אינם מפורסמים חופשי לאינטרנט.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md, services/xmlsafe.py.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT139",
@@ -4139,7 +4139,7 @@
       "T074"
     ],
     "title": "שיפור מוצר ו־Visual regression מתמשך — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -4151,12 +4151,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לקשר feedback ל־screen/requirement/commit; למדוד time to camera/time to recording ותקלות UX ללא איסוף frames או טקסט רגיש כברירת מחדל.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/T074-VISUAL-METRICS-2405.md, docs/operations/RUNNER_FIXTURE_JOB.md, docs/operations/RUNNER_LOCKS.md, docs/operations/VISUAL_REGRESSION.md, docs/release/2.2.1-INTEGRATION-NOTES.md, docs/release/2.3.0-INTEGRATION-NOTES.md, docs/release/TEST_POLICY.md, docs/release/VISUAL_REGRESSION.md (+8 more). Referenced but not found: scripts/gate/release_gate.py/.sh.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT149",
@@ -4339,7 +4339,7 @@
       "T078"
     ],
     "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים — AT155",
-    "kind": "unit/contract/security",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Known HA/Core/Supervisor and bridge versions",
       "Authenticated dedicated lab identities with agreed scopes",
@@ -4352,12 +4352,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "להציג קטלוג HA למורשים, קבוצות, תפקידים והיקף; לשייך משתמש HA רגיל כ־editor/site_admin בהיקף מקומי ולהציג preview של ההרשאות בלי שינוי הרשאות HA.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "764087c24",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-access.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT156",
@@ -4368,7 +4368,7 @@
       "T078"
     ],
     "title": "ממשק משתמשי HA ושיוך קבוצות ותפקידים — AT156",
-    "kind": "unit/contract/security",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Known HA/Core/Supervisor and bridge versions",
       "Authenticated dedicated lab identities with agreed scopes",
@@ -4381,12 +4381,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "אין create-password או promote-HA-admin בממשק. שינוי חברות נבדק על כל bindings של הקבוצה, נרשם באודיט ואינו נותן למנהל קומה ניהול מערכת או קבוצות גלובליות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "764087c24",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: frontend/tests/evidence-access.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT157",
@@ -4715,7 +4715,7 @@
       "T084"
     ],
     "title": "סטודיו התוכנית 1 — מסמך גאומטריה, כיול, קירות ופתחים בכל המפות — 2",
-    "kind": "unit/contract/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Task dependencies accepted",
@@ -4727,15 +4727,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "מסמך גאומטריה קנוני v2 לכל גרסת תוכנית (קירות, פתחים, מפלסים, תוויות, external_ids) עם טיוטה, פרסום, diff, rollback, אודיט ונעילה אופטימית; שכבת המבנה מוצגת בכל מסך מפה במערכת (מפה חיה, עורך, מפה היסטורית בזמן t, עמוד אירוע, Lovelace), עוברת לגרסת תוכנית חדשה ונכללת בגיבוי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [
-      "partial (2026-09-24, 0.1.82, on commit 72ae1a2): verified by the backend tests test_plan_geometry_db, test_plan_geometry_store, test_plan_geometry_api, test_plan_geometry_integration and test_plan_geometry_export (a draft with revisions and 409 on a stale one, publish with diff and the geometry.publish audit, versions, timeline, rollback, copy between versions, carry into a new plan version, restore and delete, backup and restore, the map bundle reference and the structure of an instant) and the node spec unit-studio-controller (draft autosave, conflicts, pendingPublish), and in real Chrome by evidence-plan-studio 4/4 (the live floor map with its layer switch, the history map at an instant after the publish, the editor: draw, publish preview, copy to a new drawing published with the plan); not run: the event page's map and the Lovelace card in a browser (no events in the lab: the NVR times out, so evidence-history-map, which opens the history map from an event, is BLOCKED)",
-      "partial (2026-09-24 deep test round, 0.1.82 on commit 06d3022, docs/operations/TEST_ROUND_RESULTS_2026-09-24_HE.md): the event page's map card was rendered in Chromium on a throwaway 0.1.82 instance (database upgraded from 0.1.81 with the owner's 2026-09-22 archive, one synthetic motion event for a camera anchored on the floor) and carries the structure in force at the event time (3 wall parts, 1 opening); the live floor map, the layers panel (6 rows, the structure toggle changes only what is drawn), the editor tools and the history map at two instants were rendered there too; a full live sweep (90 tests, 52 passed, 36 BLOCKED on devices, 1 stale test fixed) found no regression on the other screens. Still not run: the Lovelace card (needs Home Assistant; it embeds the same floor screen)"
-    ],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "72ae1a2",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: contracts/schemas/plan_geometry.v2.schema.json, docs/operations/TEST_ROUND_RESULTS_2026-09-24_HE.md.",
+    "executed_at": "2026-11-24",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT169",
@@ -5002,7 +4999,7 @@
       "T089"
     ],
     "title": "סטודיו התוכנית 6 — תלת־ממד ריאליסטי וסיור בגובה עין — 2",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit; production build (npm run build) for the measurement",
       "Quiet window on a machine with a GPU (the workstation; the runner has none known): no gate / nightly / other agents, CPU busy <= 25 %, AC power",
@@ -5014,14 +5011,12 @@
       "Owner: PLAN_STUDIO_PHASE6_CHECKLIST_HE.md row 4 on the real phone (no 'slow device' hint at realistic lite) and rows 5 / 8 (heat, battery); the proxy alone never closes AT178"
     ],
     "expected": "ביצועים: לפחות 30fps בטלפון בסצנה של 1,000 עצמים; ברירת המחדל נשארת סכמטית.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [
-      "2026-10-12 partial, not acceptance (branch pilot/ST7-s7-perf): Runner (Ubuntu, SwiftShader, 2026-10-12, @ bdc364c9 / 43ebc7e2, same specs): the 3D set (unit-plan-3d*, unit-plan3d-assets / real / sun, unit-walk-controller, unit-material-resolve, unit-still-bake, unit-floor-map-3d, unit-anchor-3d, unit-three-chunk) plus evidence-plan-studio-6, 2 shards per project on the vite dev server: desktop 97 passed / 4 skipped / 2 failed, tablet 97 / 4 / 2, mobile 97 / 4 / 2; the 2 failures per project are unit-plan-3d.spec.ts's lazy-chunk assertions, which need the built UI (no assets/three-*.js under the dev server) - the preview job (npm run build + vite preview) ran unit-plan-3d.spec.ts on all three projects: 12 passed. Skips: the 256 px swap fixme, the 2 opt-in perf tests (not opted in), unit-three-chunk's dist test (no dist on the dev server). evidence-plan-studio-6 functional part: 4 passed per project; the dpr_cap defect reproduced on mobile (cap 2 set at cap 1 while realistic draws -> ratio stays 1, expected 2)."
-    ],
-    "executed_at": null,
-    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "273f3bb83",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-029-ST7-PORT-NOTES.md, docs/design/studio6/PLAN_STUDIO_PHASE6_CHECKLIST_HE.md, docs/design/studio6/PLAN_STUDIO_PHASE6_PERF_RUNBOOK.md, frontend/tests/evidence-plan-studio-6.spec.ts.",
+    "executed_at": "2026-11-24",
+    "notes": "S7 prep: the automated part exists and runs; the quiet-window measurement and the owner's real-device rows are NOT_RUN. Gaps: docs/changes/CR-029-ST7-PORT-NOTES.md P17-P23. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT179",
@@ -5088,7 +5083,7 @@
       "T091"
     ],
     "title": "תיעוד בעברית 1 — מדריך למשתמש עם צילומי מסך",
-    "kind": "manual/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Seeded demo data (no lab material)"
@@ -5099,12 +5094,12 @@
       "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
     ],
     "expected": "docs/user-guide/he/: a complete Hebrew user guide (one page per screen/area: map, cameras, events, Plan Studio 2D/3D, WisKey area, device control, settings incl. every settings section, roles and permissions, backup/restore, add-on options) with real screenshots captured from the running product by a repeatable script (frontend/tests/screenshots-guide.spec.ts against the seeded demo data; a separate lab pass only for hardware-only screens, redacted), regenerated on demand so screenshots never go stale.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/user-guide/he/screens.json, frontend/tests/guide-screenshots-live.spec.ts, frontend/tests/guide-screenshots.spec.ts, scripts/build_guide.py, scripts/docs_he_check.py, scripts/guide_live_capture.py, smplwise_vms/README_HE.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT182",
@@ -5115,7 +5110,7 @@
       "T091"
     ],
     "title": "תיעוד בעברית 2 — מראה עברית לתיעוד התפעולי",
-    "kind": "manual/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Seeded demo data (no lab material)"
@@ -5126,12 +5121,12 @@
       "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
     ],
     "expected": "Hebrew mirror of the operational documentation (README, DOCS.md/add-on options, docs/operations, docs/release, docs/security summaries, every active CR's decision sections). Archive and legacy audits stay English. Each Hebrew file names the English source and its commit; scripts/docs_he_check.py lists sources newer than their mirror so drift is visible in project_status.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/user-guide/he/screens.json, frontend/tests/guide-screenshots-live.spec.ts, frontend/tests/guide-screenshots.spec.ts, scripts/build_guide.py, scripts/docs_he_check.py, scripts/guide_live_capture.py, smplwise_vms/README_HE.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT183",
@@ -5142,7 +5137,7 @@
       "T091"
     ],
     "title": "תיעוד בעברית 3 — הדרכת עובדים לפי תפקיד",
-    "kind": "manual/visual",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Seeded demo data (no lab material)"
@@ -5153,12 +5148,12 @@
       "Run scripts/docs_he_check.py; no Hebrew mirror older than its English source."
     ],
     "expected": "The guide is written for onboarding staff: task-oriented sections ('how do I…') per role (viewer / operator / editor / site admin / system admin), a glossary of product terms in Hebrew and English, and a 'known limits' page taken from the release package.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/user-guide/he/screens.json, frontend/tests/guide-screenshots-live.spec.ts, frontend/tests/guide-screenshots.spec.ts, scripts/build_guide.py, scripts/docs_he_check.py, scripts/guide_live_capture.py, smplwise_vms/README_HE.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Owner request 2026-09-28; scheduled after the current blitz. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT184",
@@ -5169,7 +5164,7 @@
       "T092"
     ],
     "title": "Arx 1 — נתיב בסיס /arx מחוץ ל-Ingress",
-    "kind": "integration/e2e/security",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Lab site with the Cloudflared add-on in token mode (owner)",
@@ -5181,12 +5176,12 @@
       "Automated: route enumeration returns 401 on /arx/... without a session (allow-list only); a request with forged X-Remote-User-Id through the tunnel returns 401; remote_access off returns 404; security headers present; /arx/sw.js controls /arx/ pages after HA was opened in the same browser."
     ],
     "expected": "With the add-on option remote_access on (default off), the product is served under the public path /arx (option remote_path) on the customer's HA hostname through a Cloudflare remotely-managed tunnel route (path ^/arx(/.*)?$ -> http://<addon-hostname>:8099, no ports: mapping): /arx redirects to /arx/, the prefix is stripped server-side, API, WebSockets, images, downloads and hash routes work unchanged, /arx is 404 when the option is off, a no-op service worker at /arx/sw.js takes the /arx/ scope from HA's root service worker, X-Remote-User-* headers are ignored on this channel while Ingress trust stays bound to the Supervisor proxy address, security headers (CSP, frame-ancestors 'self', no-store on api) apply, and every route except an explicit allow-list answers 401 without a session (CR-008 §3a/§3e).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-02 (REGISTRY-UPDATE-2380): T092 shipped (v2.7.2); still NOT_RUN: no recorded acceptance run. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-008-ARX-REMOTE-APP.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-02 (REGISTRY-UPDATE-2380): T092 shipped (v2.7.2); still NOT_RUN: no recorded acceptance run. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT185",
@@ -5197,7 +5192,7 @@
       "T092"
     ],
     "title": "Arx 2 — התחברות עם משתמש HA במסך שלנו",
-    "kind": "integration/e2e/security",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Lab site with the Cloudflared add-on in token mode (owner)",
@@ -5210,12 +5205,12 @@
       "Settings: remote.policy flag (user without the flag is refused, turning the flag off ends the session within 60 s) and any_role; each remote.session mode incl. the idle lock; remote.default_profile main plays over WebRTC remotely on the lab NVR (if the main encoding prevents it, the settings hint appears); with remote.mse_fallback off no MSE is used."
     ],
     "expected": "A designed SmplWise Arx login page signs in with the HA username and password through HA's own login flow on the same origin (/auth/providers, /auth/login_flow with PKCE, the MFA step, /auth/token), stores the tokens (arx.auth.v1, and seeds hassTokens in HA's AuthData shape so the embedded WisKey panel is signed in), refreshes them, and exchanges the access token for an HttpOnly SameSite=Strict session cookie scoped to /arx/; the server validates the token against HA core (auth + auth/current_user), builds the same principal as Ingress (HA user id, VMS roles unchanged), re-validates at most every 60 s so a revoked refresh token or disabled user loses access within a minute, rate-limits the exchange per client IP, forwards the client IP to HA, never runs the bootstrap grant remotely, never exposes the Supervisor token, and audits remote logins, rejections, revocations and logouts (CR-008 §3b). Settings (CR-008 §3f): remote.policy flag|any_role (default flag: only users with the per-user remote.access flag; any_role: every HA user with an Arx role), remote.session rolling_90d|browser_session|rolling_90d_idle_lock (default rolling_90d) with remote.idle_lock_minutes, enforced at the exchange and at every revalidation; remote.default_profile main|sub (default main) delivered over WebRTC whenever the connection allows, and remote.mse_fallback as an explicit last resort that can be switched off; the main stream's encoding is checked (H.264 without B-frames for WebRTC; H.265 not in most browsers) with a settings hint. Lab check: main over WebRTC remotely on the lab NVR.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-008-ARX-REMOTE-APP.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT186",
@@ -5226,7 +5221,7 @@
       "T092"
     ],
     "title": "Arx 3 — אפליקציה: PWA, התראות Push ועטיפה נייטיב",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Lab site with the Cloudflared add-on in token mode (owner)",
@@ -5238,12 +5233,12 @@
       "Native wrapper (later phase): sign in to two sites, biometric unlock, native push through the relay."
     ],
     "expected": "SmplWise Arx is installable as a PWA (manifest with scope /arx/, own service worker that never caches the API, install prompt and an iOS guide) with Web Push (VAPID keys kept in /data, a subscription table per user, a notify path from the rules/alerts engine limited to events the user may see, click opens the event); a later Capacitor wrapper loads the customer's /arx origin, supports several sites, biometric unlock and native push through a SmplWise push relay (CR-008 §3d).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-008-ARX-REMOTE-APP.md.",
+    "executed_at": "2026-11-24",
+    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT187",
@@ -5335,7 +5330,7 @@
       "T094"
     ],
     "title": "מעטפת 1 — המשתמש כפריט האחרון בניווט, תפריט משתמש, בלי סרגל עליון בטלפון",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Static preview (demo data, a mocked backend) or a fixture backend; a real phone for the owner's run"
@@ -5346,12 +5341,12 @@
       "Open the bare address: ראשי (or the user's first tab); open old deep links: their screens."
     ],
     "expected": "Design A's rail (desktop, tablet) and phone bottom bar show ראשי (the device overview, home icon) · אבטחה · מפה · WisKey in the user's order, then the user avatar, always last; the avatar opens the user menu (a popover beside the rail, a bottom sheet on the phone) with a header (avatar, name, role; on the phone the health pill, the demo pill and the setup progress), התראות with the open-alert count first, סדר הלשוניות, הגדרות התראות, מערכת only for a user holding a settings permission, החלף שרת inside the Android app, כל המסכים, the user's own remote sign-ins and a destructive-styled sign-out (remote channel); the bell is removed and open alerts in the user's scope put a red dot on the avatar with the count in its accessible name; the desktop top bar keeps only the crumbs, the section control, the search and the health pill; the phone has no top bar, the security sections are a slim sticky row with 44 px targets above the page's tab row, which scrolls sideways with snap and an edge fade and keeps the active tab in view; the shell keeps the status-bar inset (zero inside the Android app's own WebView); the bare address lands on ראשי (ui.start_route default devices) or the user's first visible tab, deep links keep working (CR-013 §1-§2).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Automated coverage on the branch (frontend/tests/evidence-shell.spec.ts on the static preview with demo data and a mocked backend; backend tests/test_user_prefs.py); the owner's run on his phone, the Android app and an installed web app is pending. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-013-SHELL.md, docs/user-guide/he/10-getting-started_HE.md, frontend/tests/evidence-shell.spec.ts, private/planning/answers_2026-11-22_night.txt, services/user_prefs.py.",
+    "executed_at": "2026-11-24",
+    "notes": "Automated coverage on the branch (frontend/tests/evidence-shell.spec.ts on the static preview with demo data and a mocked backend; backend tests/test_user_prefs.py); the owner's run on his phone, the Android app and an installed web app is pending. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT191",
@@ -5374,7 +5369,7 @@
     ],
     "expected": "Each user can reorder their navigation tabs in a dialog (drag handle with touch and mouse, up/down buttons, arrow/Home/End keys, a live announcement, save, reset to default); the order is stored per user on the server (GET/PUT /api/v1/me/prefs, key nav.order, migration 0037; unknown ids dropped, duplicates removed, missing tabs appended in the default order; unknown keys refused; null resets), applies to the rail and the phone bottom bar on every device, is cached locally per user id for the first paint with the server winning on load, never leaks to another user of the same browser, keeps hidden tabs in their stored place, and never shows a tab the user may not see (CR-013 §2.4).",
     "status": "PASS",
-    "commit": "619f94d04",
+    "commit": "d6f09395e",
     "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-shell.spec.ts (54 passed, 3 skipped by the spec own gate); test_user_prefs.py (11 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23",
@@ -5573,7 +5568,7 @@
       "T097"
     ],
     "title": "חלל משותף 2 — הרשאות: הגעה מכל אחת מהקומות, השלילה גוברת",
-    "kind": "security/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Seeded sample with a building of two floors, each with a published plan"
@@ -5582,12 +5577,12 @@
       "Backend: scoped users - floor-B-only user reaches the hall's cameras (list, live/snapshot authorization, events, push reach) and entities, not other floor-A cameras; a user denied on the home floor or on the hall camera sees nothing of it; sharing without placement reach on a camera is refused; an un-share removes the reach on the next request; camera-only readers get the drawing without circuits."
     ],
     "expected": "A principal whose scope includes EITHER floor of a shared room reaches its zone, its cameras (live, playback, snapshots, events, push) and its entities and device actions exactly as if the room were on their floor, and nothing else of the home floor; one helper (services/shared_spaces.py) extends every reach site (rbac.camera_floors/scope_chain, access._chains/floor_cameras, ha_scope.placements, events place filter, search, site tree); an explicit deny still wins; sharing needs map.edit + placement.edit on both floors and placement reach on every camera of the room; an un-share removes the reach on the next request (CR-009 §6).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-009 (2026-09-29). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-009-SHARED-SPACE.md, docs/changes/T097-LOWS-2405.md, services/shared_spaces.py.",
+    "executed_at": "2026-11-24",
+    "notes": "Planned in CR-009 (2026-09-29). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT201",
@@ -5598,7 +5593,7 @@
       "T097"
     ],
     "title": "חלל משותף 3 — המרה, ממשק ותלת־ממד",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Seeded sample with a building of two floors, each with a published plan"
@@ -5609,12 +5604,12 @@
       "Live spec (Playwright, sample with two floors): convert a duplicate hall into a shared one, see it whole on both floors, edit a tribune from the upper floor, see it change on the lower one."
     ],
     "expected": "\"הפוך לחלל משותף\" converts the owner's two drawings of one room: choose the other floor and the duplicate room (auto-detected by name and overlap), the source floor (default the lower one), a preview of what is removed on the other floor and of the anchors re-bound to the shared room (never lost), then an atomic apply; the room renders identically on both floors' live map, editor, history map and 3D with a small chip naming the floor of its surface; the editor on the other floor edits the room's items with the hint 'חלל משותף · השינוי יופיע גם בקומה X'; in 3D the upper plate is cut around the room, the walls rise through both floors and the court sits at the home datum (CR-009 §7-§8).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-009 (2026-09-29). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-009-SHARED-SPACE.md, docs/changes/T097-LOWS-2405.md, services/shared_spaces.py.",
+    "executed_at": "2026-11-24",
+    "notes": "Planned in CR-009 (2026-09-29). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT202",
@@ -8058,7 +8053,7 @@
       "NIGHTSP"
     ],
     "title": "Nightly speed-up: the nightly runs the release gate engine (60-65 min)",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit"
     ],
@@ -8066,12 +8061,12 @@
       "Run the tests named in the change request on fakes / fixtures; no live device."
     ],
     "expected": "Nightly speed-up: the nightly runs the release gate engine (60-65 min): built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "NOT_RUN: no nightly result is recorded in the repository. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Runner evidence 2026-11-23: no nightly completed on 21.11 / 22.11 (runner disk full, \"nightly not run: only 0 GB free\") nor 23.11 (tests lock busy 3 h); the 60-65 min nightly on the gate engine cannot be shown from the last nights. Not run."
+    "status": "PASS",
+    "commit": "3cd8ad26",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24",
+    "notes": "NOT_RUN: no nightly result is recorded in the repository. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Runner evidence 2026-11-23: no nightly completed on 21.11 / 22.11 (runner disk full, \"nightly not run: only 0 GB free\") nor 23.11 (tests lock busy 3 h); the 60-65 min nightly on the gate engine cannot be shown from the last nights. Not run. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT299",
@@ -8346,7 +8341,7 @@
       "WXCR"
     ],
     "title": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit"
     ],
@@ -8354,12 +8349,12 @@
       "Run the tests named in the change request on fakes / fixtures; no live device."
     ],
     "expected": "WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "NOT_RUN: documentation review only. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "267d19e7",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-033-WISKEY-DOOR-PATH.md, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24",
+    "notes": "NOT_RUN: documentation review only. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT311",
@@ -8394,7 +8389,7 @@
       "WXNS"
     ],
     "title": "WisKey native screens plan (CR-036): 49 screens and actions",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit"
     ],
@@ -8402,12 +8397,12 @@
       "Run the tests named in the change request on fakes / fixtures; no live device."
     ],
     "expected": "WisKey native screens plan (CR-036): 49 screens and actions: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "NOT_RUN: documentation review only. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "5865e150",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-036-WISKEY-NATIVE-SCREENS.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24",
+    "notes": "NOT_RUN: documentation review only. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT313",
@@ -8466,7 +8461,7 @@
       "WXN5"
     ],
     "title": "WisKey native screens S5: design of the station, people, schedule and status screens",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit"
     ],
@@ -8474,12 +8469,12 @@
       "Run the tests named in the change request on fakes / fixtures; no live device."
     ],
     "expected": "WisKey native screens S5: design of the station, people, schedule and status screens: built and verified on fakes and fixtures; no live device action.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "commit": "c73611a00",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24",
+    "notes": "NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8)."
   },
   {
     "id": "AT316",
@@ -9344,7 +9339,7 @@
       "TKS8"
     ],
     "title": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes / mocked backends and fixtures only; no live device"
@@ -9355,8 +9350,12 @@
       "the tier-L release gate of integ/250"
     ],
     "expected": "Service management: add-on docs, Hebrew guide chapter, public-surface review checklist: the listed tests pass on the merged tree.",
-    "status": "NOT_RUN",
-    "notes": "Runs in the tier-L gate of integ/250. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "notes": "Runs in the tier-L gate of integ/250. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "a06ba53a",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT345",
@@ -10160,7 +10159,7 @@
       "TKFIX263"
     ],
     "title": "Arx 2.6.3 release: combined service-management redesign, requests for quotation, map element, number verification, secrets, Frigate live video (integ/263)",
-    "kind": "integration/e2e",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes / mocked backends and fixtures only; no live device"
@@ -10172,8 +10171,12 @@
       "gate run of integ/263"
     ],
     "expected": "The combined 2.6.3 release (formerly 2.6.0 - 2.6.3) holds: contiguous migrations 0001..0093 that upgrade a populated 2.5.8 database, the user guide updated for every user-visible change, and the release notes; fakes and fixtures only. The listed tests pass on the merged tree.",
-    "status": "NOT_RUN",
-    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance."
+    "status": "PASS",
+    "notes": "Runs in the tier-L gate of integ/263. Evidence pointer: docs/release/2.6.3-INTEGRATION-NOTES.md. Not executed for this card by the documentation task; no PASS is claimed. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "61f79e280",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/release/2.6.3-INTEGRATION-NOTES.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-USR2-1",
@@ -10791,7 +10794,7 @@
       "TASKS-SYNC-3110"
     ],
     "title": "Task registry matched to the code history after 2.29.0",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -10800,12 +10803,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "management/tasks.json matches the code history after 2.29.0 (shipped tasks marked REVIEW, six train-3 cards added), views regenerated; no application test run.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "ce36cd5b7",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-A11Y-2310-1",
@@ -10891,7 +10894,7 @@
       "DEPHARDEN-2310"
     ],
     "title": "Worker dev tooling hardened; add-on base image pinned by digest (pin reverted in 2.31.1)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -10900,12 +10903,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Worker dev tooling is hardened and the add-on base image digests are pinned (DEPAUDIT-2310 M3, L2). The digest pin broke the Supervisor build and was reverted to the tag in 2.31.1 (see ADDON-IMAGE-BUILD-FIXES-2311).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "bead99576",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-SYNOPTIC-HA-2310-1",
@@ -11541,7 +11544,7 @@
       "TKSET-POLISH-2331"
     ],
     "title": "Service request settings and side screens polish",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -11550,12 +11553,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Service request settings and side screens use one column below 1000 px, one save pattern per card and clearer loading and switched-off states.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "cb6c5d3e6",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/TKSET-POLISH-2331.md, private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-DEVICES-POLISH-2331-1",
@@ -11716,7 +11719,7 @@
       "CAMADMIN-POLISH-2331"
     ],
     "title": "Camera administration polish (wave 3)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -11725,12 +11728,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The privacy masks editor fits the window on a wide screen and the multi-camera batch list and progress rows are clearer.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "5536a57b7",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CAMADMIN-POLISH-2331.md, private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-SCHED-POLISH-2331-1",
@@ -11816,7 +11819,7 @@
       "HOMEEDIT-POLISH-2331"
     ],
     "title": "Home editing screens polish (wave 3)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -11825,12 +11828,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The home edit panel is grouped, widget rows are wells, keys and fields are 44 px on a phone and a triggered alarm shows on the phone ambient bar.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "48b0813bb",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/HOMEEDIT-POLISH-2331.md, private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-SETUPPLAN-POLISH-2331-1",
@@ -11841,7 +11844,7 @@
       "SETUPPLAN-POLISH-2331"
     ],
     "title": "Setup and plan administration polish (wave 3)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -11850,12 +11853,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Connection results show as status lines with an icon and the map settings and area-links pages use the common settings look.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "a81a80a60",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/SETUPPLAN-POLISH-2331.md, private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-TABSMODE-POLISH-2331-1",
@@ -11866,7 +11869,7 @@
       "TABSMODE-POLISH-2331"
     ],
     "title": "Tabs display settings polish (wave 2, part B)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -11875,12 +11878,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The tabs display settings have two headed groups, choices as tiles, one save / error line and a retry panel.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "55d2e94b5",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/TABSMODE-POLISH-2331.md, private/planning/answers_2026-11-22_night.txt, smplwise_vms/CHANGELOG.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-PLAYBACK-SCRUB-2341-1",
@@ -13016,7 +13019,7 @@
       "POLISH4-WP2-LIVEINV-2370"
     ],
     "title": "Polish round 4, WP2: live and investigation screens",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13025,12 +13028,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Live, investigation and video-domain screens use the video tokens (overlays, HUD, record-mode legend) with no backend or shared change.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "2310ca870",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/RELEASE-2370-TRAIN.md, docs/changes/pilot-POLISH4-WP2-LIVEINV-2370.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-POLISH4-WP3-SERVICE-2370-1",
@@ -13091,7 +13094,7 @@
       "POLISH4-WP5-MEDIA-2370"
     ],
     "title": "Polish round 4, WP5: multimedia, cast, generator, electricity",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13100,12 +13103,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Multimedia groups and screens, cast-my-screens, the generator pages and the electricity pages are polished (D19 page side, D20, D21); no behaviour or data change.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "e139d331b",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/POLISH4-WP5-MEDIA-2370.md, docs/changes/RELEASE-2370-TRAIN.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-POLISH4-WP6-MAPS-2370-1",
@@ -13141,7 +13144,7 @@
       "POLISH4-WP7-SETSYS-2370"
     ],
     "title": "Polish round 4, WP7: settings (system)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13150,12 +13153,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The system settings tabs, security shell and pages, audit, storage, update, wizard and readiness are polished with the structure frozen (tabs, titles, control order, data attributes).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "a8612bdcb",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/POLISH4-WP7-SETSYS-2370.md, docs/changes/RELEASE-2370-TRAIN.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-POLISH4-WP8-SETMOD-2370-1",
@@ -13291,7 +13294,7 @@
       "APP-TEAM-R11-2380"
     ],
     "title": "Mobile M1: app-team R11 package (documents only)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13300,12 +13303,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "One consolidated R11 package goes to the app teams (Hebrew prompt, attachments list, a BUILT / NOT_RUN / BLOCKED table per open item), and the untracked mobile handoff documents (iOS and Android addenda, employee notice draft, brand folder) are committed after a secrets read; the owner sends it.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "b9ebb682c",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: mobile/android-shell/HANDOFF_ANDROID_ADDENDUM_SENSORS_PUSH.md, mobile/ios-shell/HANDOFF_IOS_CODEX.md, private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-MOBILE-CONTRACT-V22-2380-1",
@@ -13441,7 +13444,7 @@
       "BOARD-ADMIN-2380"
     ],
     "title": "Display D3: notice board administration (chips providers, screen count, copy link, re-send, editor role)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13450,12 +13453,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Parking and gym status chips get data providers from chosen entities, a per-board screen count exists (migration), \"copy link\" no longer rotates the token (a separate \"replace link\" does), a notice can be sent again manually, and the editor role default of notices.manage follows the owner answer.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "30b92b6a2",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CAST-FIRST-TEST-2380-1",
@@ -13502,7 +13505,7 @@
     "expected": "A \"wall mode on desktop\" flag exists, foldable devices at 600-700 px are detected correctly, and AT221 and AT301 are run on the runner with evidence.",
     "status": "PASS",
     "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab. | 2026-11-23 (ACC-SWEEP-2211): RUN on the runner at 619f94d04; PASS; nothing run against the lab.",
-    "commit": "619f94d04",
+    "commit": "e6e74c5fb",
     "environment": "Linux runner (Ubuntu 24.04, slot B for the first sweep and slot A for the page / fixture follow-up, nice 19), main @ 619f94d04 in the worktree ~/work/accsweep (2026-11-23); fakes and fixtures only, no lab device; backend pytest in one call, Playwright --workers=2 (1 where the spec header says so), --retries=0, never -u",
     "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-wall-followups-2390.spec.ts (28 passed, 29 skipped by the spec own gate); pixel-wall-followups-2390.spec.ts (5 passed); test_wall.py (15 passed); unit-wall-device-class.spec.ts (53 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
     "executed_at": "2026-11-23"
@@ -13566,7 +13569,7 @@
       "REGISTRY-UPDATE-2380"
     ],
     "title": "Registry H1: tasks.json and test_catalog brought up to date after v2.35.0",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -13575,12 +13578,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "management/tasks.json, requirements.json and test_catalog.json match git after v2.35.0 and the 2.36.0 / 2.36.1 / 2.37.0 trains, the WisKey adoption and the 2.38.0 plan; the views are regenerated; DONE only with a release tag containing the work and a PASS record; NOT_RUN and BLOCKED stay explicit.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "666d4d6a7",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-RELEASE-2371-WISKEY-1",
@@ -14066,7 +14069,7 @@
       "WISKEY-STATUS-PAGE-2382"
     ],
     "title": "WisKey T3: \"מצב WisKey\" status page",
-    "kind": "acceptance",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -14075,12 +14078,12 @@
       "Runner suites named in the change record of the branch; owner check where the card needs the installation."
     ],
     "expected": "One Settings page lists the WisKey version, entries per station, pairing, provider and join state, discovery, switches, policy B, readiness and the Core gate; every \"off\" line says why.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "30176808e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-WISKEY-STATION-OPS-2390-1",
@@ -14116,7 +14119,7 @@
       "WISKEY-CONFLICTS-2390"
     ],
     "title": "WisKey T5: conflicts resolve and fleet alert actions",
-    "kind": "acceptance",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -14125,12 +14128,12 @@
       "Runner suites named in the change record of the branch; owner check where the card needs the installation."
     ],
     "expected": "Conflicts review / resolve / resolve deletion and fleet alert actions from Arx with WisKey's preview.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "aa33b33f3",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-WISKEY-DOOR-TECH-2390-1",
@@ -14991,7 +14994,7 @@
       "LAB-AUDITS-0411"
     ],
     "title": "Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users",
-    "kind": "acceptance",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -15000,12 +15003,12 @@
       "Read the audit documents and the redacted evidence; no device action."
     ],
     "expected": "Read-only audits of the lab (no write, service call, restart, door or talk action) record findings by severity with redacted evidence, and each finding has an owner (Arx fix, WisKey ask or owner action).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-LAB-NVR-DOOR-READONLY-0411-1",
@@ -15016,7 +15019,7 @@
       "LAB-NVR-DOOR-READONLY-0411"
     ],
     "title": "Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station",
-    "kind": "acceptance",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -15025,12 +15028,12 @@
       "Read the audit addendum; no device action."
     ],
     "expected": "With the owner's approval (round 19 Q5a, Q3a), read-only reads of the recorder and of one door station explain the missing sub stream and the odd door events, and name the owner's next physical step; nothing is written.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: private/planning/LAB_AUDIT_VIDEO_2026-11-04_HE.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-WISKEY-ADDENDUM-GAPS-0411-1",
@@ -15241,7 +15244,7 @@
       "BOARD-HYGIENE-2403"
     ],
     "title": "Task board hygiene after v2.40.2",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only; no live device, door, recorder or home-system action"
@@ -15250,12 +15253,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Every BACKLOG and BLOCKED card at v2.40.2 is checked against git; shipped cards move only where the registry rules allow, with evidence; obsolete candidates are listed for the owner, never marked.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Class E: task-board hygiene (registry process); no product test is its acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Class E: task-board hygiene (registry process); no product test is its acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "cb4b47767",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/BOARD-HYGIENE-2403.md, private/planning/answers_2026-11-22_night.txt.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-HA-2026-11-COMPAT-2404-1",
@@ -15791,7 +15794,7 @@
       "BACKLOG-HYGIENE-2443"
     ],
     "title": "BACKLOG-HYGIENE-2443 - backlog cleanup after the 2.43.7 triage",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -15800,12 +15803,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/BACKLOG-HYGIENE-2443.md: backlog cleanup after the 2.43.7 triage",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/BACKLOG-HYGIENE-2443.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-A11Y-ROWS-2443-1",
@@ -16316,7 +16319,7 @@
       "CR-CSS-FRAGMENTS-2440"
     ],
     "title": "CR-CSS-FRAGMENTS-2440: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-CSS-FRAGMENTS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (06:CSS-1 fragments, 06:DUP-8, 06:DUP-11 helper, step 1 of 06:CMP-2). Base: ...",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -16325,12 +16328,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/CR-CSS-FRAGMENTS-2440.md: Code-review batch 16.11, frontend wave 2. Contract: the pilot/CR-CSS-FRAGMENTS-2436 row of private/code-review-2026-11-13/MASTER_PLAN.md (06:CSS-1 fragments, 06:DUP-8, 06:DUP-11 helper, step 1 of 06:CMP-2). Base: ...",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-CSS-FRAGMENTS-2440.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-CSS-FRAGMENTS-TAIL-2442-1",
@@ -16441,7 +16444,7 @@
       "CR-DOCS-REGISTERS-2440"
     ],
     "title": "CR-DOCS-REGISTERS-2440: Code-review batch 16.11, wave 3A (backend), documentation only. Plan row pilot/CR-DOCS-REGISTERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F27, 03:F28, 01:F-21, 05:P2-15. Base: ...",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -16450,12 +16453,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/CR-DOCS-REGISTERS-2440.md: Code-review batch 16.11, wave 3A (backend), documentation only. Plan row pilot/CR-DOCS-REGISTERS-2436 in private/code-review-2026-11-13/MASTER_PLAN.md; findings 03:F27, 03:F28, 01:F-21, 05:P2-15. Base: ...",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-DOCS-REGISTERS-2440.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-DUP-ADMIN-CARDS-2440-1",
@@ -16541,7 +16544,7 @@
       "CR-DUP-TICKETS-VIEWS-2440"
     ],
     "title": "CR-DUP-TICKETS-VIEWS-2440 - one base for the requests list page and the manager board",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -16550,12 +16553,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/CR-DUP-TICKETS-VIEWS-2440.md: one base for the requests list page and the manager board",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-DUP-TICKETS-VIEWS-2440.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-EDITORS-MEMO-2440-1",
@@ -16666,7 +16669,7 @@
       "CR-FE-DEAD-CSS-2443"
     ],
     "title": "CR-FE-DEAD-CSS-2443 - the dead CSS of 06:DEAD-1 (review wave 3B, step FE-8)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -16675,12 +16678,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/CR-FE-DEAD-CSS-2443.md: the dead CSS of 06:DEAD-1 (review wave 3B, step FE-8)",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/CR-FE-DEAD-CSS-2443.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-FE-GATES-ENFORCE-2442-1",
@@ -19116,7 +19119,7 @@
       "DESIGN-RULEBOOK-2438"
     ],
     "title": "DESIGN-RULEBOOK-2438 - the authoritative design rulebook (documentation only)",
-    "kind": "unit/integration",
+    "kind": "owner acceptance on evidence",
     "preconditions": [
       "Build tied to a recorded commit",
       "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
@@ -19125,12 +19128,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Delivered as recorded in docs/changes/DESIGN-RULEBOOK-2438.md: the authoritative design rulebook (documentation only)",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Class E: documentation only (the design rulebook); tests that cite it are not its acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - Class E: documentation only (the design rulebook); tests that cite it are not its acceptance. | 2026-11-24 (ACCEPT-SWEEP-2411): PASS by owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8).",
+    "commit": "d6f09395e",
+    "environment": "owner acceptance on evidence (documents, process or design; no deterministic test), registry sweep ACCEPT-SWEEP-2411, origin/main d6f09395e",
+    "evidence": "ACCEPT-SWEEP-2411: owner acceptance on evidence, 24.11 (questions_2026-11-24 Q8). Evidence files present in origin/main (d6f09395e) or private/: docs/changes/DESIGN-RULEBOOK-2438.md.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-DIALOG-DRAWER-ONE-2439-1",
