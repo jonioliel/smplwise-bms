@@ -45,10 +45,12 @@ class PasskeySummary(WireModel):
 
 class OwnPasskeys(PasskeySummary):
     """`GET /auth/passkeys`: the summary, whether the session counts as a fresh sign-in (and for how many more seconds) and whether a
-    TOTP factor is enrolled."""
+    TOTP factor is enrolled. MFA-PASSKEYS-2490: `user_kind` - `local` (an Arx-only identity: the sign-in modes apply) or `user` (any
+    other user, while `security.passkeys_all_users` is on: no sign-in modes; `recent_auth` = this session holds a step-up proof now)."""
     recent_auth: bool
     recent_auth_left_s: int
     totp: bool
+    user_kind: Literal["local", "user"]
 
 
 class RelyingParty(WireModel):
@@ -110,6 +112,17 @@ class RequestOptions(WireModel):
 class AssertionOptions(WireModel):
     """The public options routes (the second sign-in step, passwordless sign-in)."""
     publicKey: RequestOptions
+
+
+class StepUpChallenge(WireModel):
+    """`POST /auth/step-up/challenge` (MFA-PASSKEYS-2490): a passkey step-up for the caller - the challenge's public id (sent back with the
+    assertion to `POST /auth/step-up/verify {method: "passkey", challenge_id, assertion, action?}`), the action it is bound to, how
+    many seconds it lives (single use), the caller's step-up methods and the WebAuthn request options."""
+    challenge_id: str
+    action: str
+    expires_in: int
+    methods: list[Literal["totp", "passkey"]]
+    webauthn: AssertionOptions
 
 
 class PasskeyRegistered(WireModel):

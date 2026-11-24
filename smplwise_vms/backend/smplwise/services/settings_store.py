@@ -419,6 +419,11 @@ DEFAULTS: dict[str, str] = {
     "security.step_up": "on",
     "security.step_up_minutes": "5",
     "security.step_up_local": "off",
+    # MFA-PASSKEYS-2490 (owner decision 2026-11-22, Q50 "passkeys for all users"; services/user_passkeys.py): on = every user who signs
+    # in to Arx (Home Assistant users too, not only Arx-only identities) may add passkeys in My Account, and they count as a step-up
+    # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not
+    # count). System administrators only; audited; never restored from a backup.
+    "security.passkeys_all_users": "on",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,

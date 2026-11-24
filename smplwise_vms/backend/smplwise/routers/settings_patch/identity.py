@@ -165,6 +165,28 @@ def passkey_settings(patch: Patch) -> None:
         changes[key] = value
 
 
+def passkeys_all_users(patch: Patch) -> None:
+    """MFA-PASSKEYS-2490 (owner Q50): whether every user may add passkeys and have them count as a step-up method. It shapes how users
+    prove who they are, so - like the Arx-only passkey settings - only a system administrator changes it; every attempt is audited.
+    Not local-only: it never widens who can sign in (passwordless stays an Arx-only-identity feature), and switching it is a settings
+    change, so the step-up gate already asks for a fresh proof."""
+    changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
+    key = "security.passkeys_all_users"
+    if key not in changes:
+        return
+    if changes[key] == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
+        changes.pop(key)
+        return
+    from ...rbac import is_system_admin
+
+    if not is_system_admin(conn, principal.user_id):
+        audit(conn, actor=principal, action="security.passkeys_all_users", decision="denied", resource_type="installation", resource_id="*",
+              reason="not_system_admin", request_id=_rid(request), details={"to": changes[key]})
+        raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את ההגדרה של מפתחות גישה לכל המשתמשים.")
+    audit(conn, actor=principal, action="security.passkeys_all_users", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=_rid(request), details={"to": changes[key]})
+
+
 def local_purge(patch: Patch) -> None:
     changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
     purge_confirm = changes.pop("privacy.local_purge_confirm", None)
