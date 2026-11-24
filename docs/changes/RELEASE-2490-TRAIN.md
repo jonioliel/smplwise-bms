@@ -104,3 +104,15 @@ Runner slot A (`~/work/rel2490_tests.sh fd63bc2af`, under `~/.smplwise-tests.loc
 
 Gate 2 on the runner (`~/gate2/release_gate2.sh release/2490-train`) - the lead runs it. Use the memory-safe flags
 (`GATE_BACKEND_SHARDS=4 GATE_PW_SLOTS=8 GATE_PW_MAX_WORKERS=4`).
+
+| Run | Head | Mode | Result |
+|---|---|---|---|
+| 1 | f73c20728 | FULL, memory-safe (`GATE_BACKEND_SHARDS=4 GATE_PW_SLOTS=8 GATE_PW_MAX_WORKERS=4`), started 24.11 05:57Z after the runner reboot (the nightly run before it was lost when the runner ran out of memory) | **PASS in 171 min**: tsc, build, fe_static (3), release_check, addon_build 0 failed; preview 23,430 passed; dev 1,124; fixture 28; visual 72; pixel 380; backend 44,633 passed; 0 real failures, 0 run errors, 10 flaky (failed once, passed alone); peak load 45.8 |
+
+Flaky in run 1 (each passed alone; none changed): `evidence-device-activity.spec.ts:182` [desktop], `evidence-grantsmin-295.spec.ts:58`
+[desktop], `evidence-multibuilding-home-2330.spec.ts:124` [tablet], `evidence-wiskey-stations.spec.ts:547` [desktop],
+`evidence-nvr-h264-bulk.spec.ts:54` [desktop], `layout-worstcase-screens-297.spec.ts:55` [desktop], `layout-elevators-widget-297.spec.ts:91`
+[mobile], `test_wire_routers_b_2450::test_the_generated_client_types_are_current` (order-dependent, also seen before the gate),
+`test_secfix2_pub04_portal_start_worker` x2 (timing). Section 5 item 3 (zero-test batch) did not happen.
+Gate report: `~/smplwise-results/gate_release-2490-train_f73c20728.gate2.md` (runner). Release ready; the owner pre-approved publish and
+lab install on 24.11 ("כן, מאשר מראש").
