@@ -185,7 +185,7 @@ def test_a_cookie_sign_in_is_not_a_token_use(arx):
 
 # ---------------------------------------------------------------- the list
 
-def test_the_list_shows_has_tokens_read_only_and_what_arx_saw(arx, monkeypatch):
+def test_the_list_shows_ha_tokens_read_only_and_what_arx_saw(arx, monkeypatch):
     issued = long_lived(arx, arx.viewer, "Node-RED")
     assert TestClient(arx.app).get("/arx/api/v1/me", headers=bearer(issued["access_token"])).status_code == 200
     arx.core.issue("u-viewer", client_id="https://home-assistant.io/android")  # the Companion app: an HA sign-in Arx never saw
