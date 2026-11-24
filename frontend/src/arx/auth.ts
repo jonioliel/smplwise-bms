@@ -45,6 +45,9 @@ export interface RemoteConfig {
   local_password_min?: number;
   /** USR2 phase 4: passkey-only sign-in is allowed (owner switch on and a public address set). */
   local_passkey_first?: boolean;
+  /** MFA-SCREENS-2510 (owner answer 2026-11-24 Q14: not yet): a recovery-code sign-in asks to set up the authenticator again. No
+   * server sends it today; absent = off. */
+  recovery_reenrol?: boolean;
 }
 
 interface ArxTokens {

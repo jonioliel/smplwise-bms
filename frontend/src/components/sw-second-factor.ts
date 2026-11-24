@@ -445,6 +445,7 @@ export class SwSecondFactorUser extends LitElement {
       this.armed = false;
       this.ownCode = '';
       this.message = t('secondFactor.adminResetDone');
+      this.dispatchEvent(new CustomEvent('factors-changed', { bubbles: true, composed: true })); // MFA-SCREENS-2510: the drawer's factor list reads again
     } catch (err) {
       this.error = describeError(err);
     } finally {

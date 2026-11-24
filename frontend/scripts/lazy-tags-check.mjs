@@ -113,6 +113,7 @@ const NOT_IN_ENTRY = [
   'screens/schedule-editor.ts', // the device popup's schedule editor (components/device-activity)
   'tickets/ticket-create.ts', // the device popup's new-ticket form
   'components/sw-second-factor.ts', // the user menu's second factor section, with its QR library
+  'components/sw-account-security.ts', // MFA-SCREENS-2510: the user menu's security section (it carries sw-second-factor)
   'arx/boot.ts', // the remote start-up (main.ts, only on the remote channel)
   'arx/arx-login.ts',
   'arx/arx-welcome.ts',

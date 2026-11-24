@@ -133,6 +133,7 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "SecondFactor": ("wire-second-factor.ts", ("second_factor",)),
     "AccessTokens": ("wire-access-tokens.ts", ("access_tokens",)),  # MFA-TOKENS-2490: the user's own token list
     "FactorPolicy": ("wire-factor-policy.ts", ("factor_policy",)),  # MFA-POLICY-2490: the sign-in factor policy and its compliance view
+    "UserFactors": ("wire-user-factors.ts", ("user_factors",)),  # MFA-SCREENS-2510: one user's factors (the user drawer)
     "Skins": ("wire-skins.ts", ("skins",)),
     "Storage": ("wire-storage.ts", ("storage",)),
     "TicketsAdminSettings": ("wire-tickets-admin-settings.ts", ("tickets_admin_settings",)),
