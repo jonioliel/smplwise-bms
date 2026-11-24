@@ -27262,7 +27262,7 @@
     "test_ids": [
       "AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27276,7 +27276,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 head 4e528f019 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md on main. Merged, but the card's own acceptance test AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 head 4e528f019 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md on main. Merged, but the card's own acceptance test AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Merged commit 4e528f019 is in origin/main (v2.48.0 / earlier release); every acceptance test PASS (AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1) - runner at d6f09395e (v2.48.0), receipt docs/changes/receipts/ACCEPT-SWEEP-2411.json; dependencies DONE."
     ],
     "owner": null,
     "commit": "4e528f019",
@@ -27301,7 +27302,7 @@
     "test_ids": [
       "AT-CR-SHELL-EXTRACT-B-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27316,7 +27317,8 @@
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-SHELL-EXTRACT-B-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
       "2026-11-19 (TASKS-SYNC-1911): owner answer N5 of 19.11 (private/planning/questions_2026-11-19.html) approved two further sw-app.ts extracts (the floating-window history management and the 'your permissions were updated' notice) as a new task; this row covers it, no separate card.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-SHELL-EXTRACT-B-2450 head 36f1f259a is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-SHELL-EXTRACT-B-2450.md on main. Merged, but the card's own acceptance test AT-CR-SHELL-EXTRACT-B-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-SHELL-EXTRACT-B-2450 head 36f1f259a is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-SHELL-EXTRACT-B-2450.md on main. Merged, but the card's own acceptance test AT-CR-SHELL-EXTRACT-B-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Merged commit 36f1f259a is in origin/main (v2.48.0 / earlier release); every acceptance test PASS (AT-CR-SHELL-EXTRACT-B-2450-1) - runner at d6f09395e (v2.48.0), receipt docs/changes/receipts/ACCEPT-SWEEP-2411.json; dependencies DONE."
     ],
     "owner": null,
     "commit": "36f1f259a",
@@ -27380,7 +27382,7 @@
     "test_ids": [
       "AT-CR-BE-COMPLEXITY-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27394,7 +27396,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-BE-COMPLEXITY-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-BE-COMPLEXITY-2450 head e5b7ab627 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-BE-COMPLEXITY-2450.md on main. Merged, but the card's own acceptance test AT-CR-BE-COMPLEXITY-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-BE-COMPLEXITY-2450 head e5b7ab627 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-BE-COMPLEXITY-2450.md on main. Merged, but the card's own acceptance test AT-CR-BE-COMPLEXITY-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Merged commit e5b7ab627 is in origin/main (v2.48.0 / earlier release); every acceptance test PASS (AT-CR-BE-COMPLEXITY-2450-1) - runner at d6f09395e (v2.48.0), receipt docs/changes/receipts/ACCEPT-SWEEP-2411.json; dependencies DONE."
     ],
     "owner": null,
     "commit": "e5b7ab627",
@@ -27496,7 +27499,7 @@
     "test_ids": [
       "AT-SHARED-CHECKBOX-2480-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27510,7 +27513,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q31 = yes, confirmed as its own row. Branch pilot/SHARED-CHECKBOX-2480 exists (2 commits ahead of main 619f94d04); nothing run or released.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 83b0fd3e2); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/SHARED-CHECKBOX-2480 head 3d35ce1c9 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-SHARED-CHECKBOX-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 83b0fd3e2); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/SHARED-CHECKBOX-2480 head 3d35ce1c9 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-SHARED-CHECKBOX-2480-1 has no per-card PASS record (the gate run is not mapped to it).",
+      "2026-11-24 (ACCEPT-SWEEP-2411): REVIEW -> DONE. Merged commit 3d35ce1c9 is in origin/main (v2.48.0 / earlier release); every acceptance test PASS (AT-SHARED-CHECKBOX-2480-1) - runner at d6f09395e (v2.48.0), receipt docs/changes/receipts/ACCEPT-SWEEP-2411.json; dependencies DONE."
     ],
     "owner": null,
     "commit": "3d35ce1c9",

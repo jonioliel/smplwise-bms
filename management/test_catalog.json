@@ -19600,12 +19600,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Response models and the generated client consumption (code-review 07:F8 step 2): delivered on pilot/CR-RESPONSE-MODELS-CONSUMPTION-2450 with a change note docs/changes/CR-RESPONSE-MODELS-CONSUMPTION-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-24 (ACCEPT-SWEEP-2411): RUN; PASS at d6f09395e (runner).",
+    "commit": "4e528f019",
+    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), origin/main @ d6f09395e (= v2.48.0, gate run 3 PASS at 09acc2db4) in the worktree ~/work/acc2411, 2026-11-24; fakes and fixtures only, no lab; backend pytest in chunks of 25 files (one process each), Playwright --workers=2 (1 where the classifier says so), --retries=0, never -u",
+    "evidence": "ACCEPT-SWEEP-2411 receipts docs/changes/receipts/ACCEPT-SWEEP-2411.json; runner:~/work/as2411-out/ (junit + Playwright json): test_wire_consumption_2450.py (13 passed); test_be_twins_2440.py (35 passed); test_routers_table_2440.py (10 passed); test_security.py (5 passed); test_singletons_registered.py (4 passed); test_bill_pdf.py (90 passed)",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-SHELL-EXTRACT-B-2450-1",
@@ -19625,12 +19625,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440: delivered on pilot/CR-SHELL-EXTRACT-B-2450 with a change note docs/changes/CR-SHELL-EXTRACT-B-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-24 (ACCEPT-SWEEP-2411): RUN; PASS at d6f09395e (runner).",
+    "commit": "36f1f259a",
+    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), origin/main @ d6f09395e (= v2.48.0, gate run 3 PASS at 09acc2db4) in the worktree ~/work/acc2411, 2026-11-24; fakes and fixtures only, no lab; backend pytest in chunks of 25 files (one process each), Playwright --workers=2 (1 where the classifier says so), --retries=0, never -u",
+    "evidence": "ACCEPT-SWEEP-2411 receipts docs/changes/receipts/ACCEPT-SWEEP-2411.json; runner:~/work/as2411-out/ (junit + Playwright json): unit-shell-extract-b-2450.spec.ts (15 passed); unit-perf-home-devices.spec.ts (8 passed)",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-CMP2-SELECTS-2450-1",
@@ -19675,12 +19675,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Backend complexity extractions (code-review programme 3.6): delivered on pilot/CR-BE-COMPLEXITY-2450 with a change note docs/changes/CR-BE-COMPLEXITY-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-24 (ACCEPT-SWEEP-2411): RUN; PASS at d6f09395e (runner).",
+    "commit": "e5b7ab627",
+    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), origin/main @ d6f09395e (= v2.48.0, gate run 3 PASS at 09acc2db4) in the worktree ~/work/acc2411, 2026-11-24; fakes and fixtures only, no lab; backend pytest in chunks of 25 files (one process each), Playwright --workers=2 (1 where the classifier says so), --retries=0, never -u",
+    "evidence": "ACCEPT-SWEEP-2411 receipts docs/changes/receipts/ACCEPT-SWEEP-2411.json; runner:~/work/as2411-out/ (junit + Playwright json): test_contacts_fields_char_2450.py (7 passed); test_health_report.py (1 passed); test_health_report_char_2450.py (2 passed); test_media_model_char_2450.py (196 passed); test_notice_delete_295.py (20 passed); test_notice_remove_295.py (3 passed); test_notices_106.py (43 passed); test_notices_push_295.py (15 passed); test_nvr_less.py (54 passed); test_o20_deleted_place_2450.py (12 passed); test_rbac_eval_2438.py (16 passed); test_singletons_registered.py (4 passed)",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-T068-EDGE-2450-1",
@@ -19750,12 +19750,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Shared checkbox component for the checkboxes that remain checkboxes: one shared checkbox component gives the remaining checkboxes a uniform look; focus, RTL and pixel baselines are covered.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-24 (ACCEPT-SWEEP-2411): RUN; PASS at d6f09395e (runner).",
+    "commit": "3d35ce1c9",
+    "environment": "Linux runner (Ubuntu 24.04, slot B, nice 19), origin/main @ d6f09395e (= v2.48.0, gate run 3 PASS at 09acc2db4) in the worktree ~/work/acc2411, 2026-11-24; fakes and fixtures only, no lab; backend pytest in chunks of 25 files (one process each), Playwright --workers=2 (1 where the classifier says so), --retries=0, never -u",
+    "evidence": "ACCEPT-SWEEP-2411 receipts docs/changes/receipts/ACCEPT-SWEEP-2411.json; runner:~/work/as2411-out/ (junit + Playwright json): unit-sw-checkbox-2480.spec.ts (7 passed); pixel-sw-checkbox.spec.ts (22 passed, 5 skipped by the spec own gate)",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-GEN-UNITS-FIELD-2490-1",

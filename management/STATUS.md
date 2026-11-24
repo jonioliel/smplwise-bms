@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-23T23:58:39.996075+00:00
+Generated: 2026-11-24T07:56:59.527823+00:00
 
 Tasks: 651 | Requirements: 765 | Tests: 782 | Screens: 32
 
@@ -11,9 +11,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Status counts
 - BACKLOG: 16
 - BLOCKED: 27
-- DONE: 440
+- DONE: 444
 - IN_PROGRESS: 14
-- REVIEW: 154
+- REVIEW: 150
 
 ## Release scope counts
 - BETA: 20
@@ -673,13 +673,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RELEASE-2440-TRAIN](tasks/RELEASE-2440-TRAIN.md) | V1 | DONE | RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate | — |
 | [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | REVIEW | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
 | [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | REVIEW | SQL out of the remaining routers (code-review programme 3.6) | — |
-| [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | REVIEW | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
-| [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | REVIEW | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
+| [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | DONE | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
+| [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | DONE | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
 | [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | REVIEW | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
-| [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | REVIEW | Backend complexity extractions (code-review programme 3.6) | — |
+| [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | DONE | Backend complexity extractions (code-review programme 3.6) | — |
 | [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
 | [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | IN_PROGRESS | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
-| [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | REVIEW | Shared checkbox component for the checkboxes that remain checkboxes | — |
+| [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | DONE | Shared checkbox component for the checkboxes that remain checkboxes | — |
 | [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | IN_PROGRESS | Generator settings: units move from the field label into the field frame | — |
 | [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | IN_PROGRESS | Tickets table paging; case details stay a scrolling document | — |
 | [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | REVIEW | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
