@@ -475,7 +475,11 @@ test.describe('the home screen against the devices fixture backend', () => {
       // the row's own switch (in the sheet)
       await b.locator('[data-home-drawer-toggle]').click();
       await expect(b.locator('[data-home-drawer]')).toBeVisible();
-      await b.locator('[data-home-phone-on="alarm"]').uncheck();
+      // HAND-SWITCH-HOME-EDIT-2500: "הצג בנייד" is a sw-toggle (the host carries the hook and reflects `checked`)
+      const alarmPhoneOn = b.locator('[data-home-phone-on="alarm"]');
+      await expect(alarmPhoneOn).toHaveAttribute('checked', '');
+      await alarmPhoneOn.click();
+      await expect(alarmPhoneOn).not.toHaveAttribute('checked', '');
       await expect(b.locator('[data-home-ghost="alarm"]')).toBeVisible();
       await savedWait(page);
       const cfg = (await settings(request))['home.widgets'];

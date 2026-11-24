@@ -20,6 +20,8 @@ import { elt } from '../i18n/elevators';
 import { settingsSegStyles } from '../styles/settings';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
+// HAND-SWITCH-HOME-EDIT-2500: a widget's two on / off choices ("הצג", "הצג בנייד") are the compact switch, as the personal list
+import { toggled } from '../components/sw-toggle';
 import { tr } from '../i18n/msg/screens';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
@@ -73,6 +75,9 @@ export class HomeEditPanel extends LitElement {
   @property() open: WidgetId | '' = '';
   /** HOME-EDIT-DRAWER-2351: drawn inside the edit drawer - no card of its own (the drawer is the card). */
   @property({ type: Boolean, reflect: true }) flat = false;
+  /** HAND-SWITCH-HOME-EDIT-2500: the layout bar's "שמור" is on its way (the screen passes its layout controller's busy flag) - the
+   * widgets' on / off switches wait, as the personal list's do. */
+  @property({ type: Boolean }) busy = false;
   @state() private dragFloor = '';
 
   /* HOMEEDIT-POLISH-2331: the settings ladder of R5-SYSTEM-297 / HOMEFABLE-297 - the panel is the card (radius lg, shadow 2 + the light
@@ -225,6 +230,10 @@ export class HomeEditPanel extends LitElement {
       .check:has(input:disabled) {
         color: var(--sw-text-3);
         cursor: default;
+      }
+      /* HAND-SWITCH-HOME-EDIT-2500: a widget's on / off switch keeps its 32 x 18 track beside the name */
+      .check sw-toggle {
+        flex: none;
       }
       /* the widgets: one list of wells */
       .wl {
@@ -615,7 +624,7 @@ export class HomeEditPanel extends LitElement {
     const last = this.listed.length - 1;
     return html`<div class=${classMap({ w: true, off: !w.on, open })} data-home-wrow=${id}>
       <div class="w-top">
-        <label class="check"><input type="checkbox" data-home-toggle=${id} .checked=${w.on} @change=${(e: Event) => this.setWidget(id, { on: (e.target as HTMLInputElement).checked } as never)} aria-label=${tr('הצג {name}', { name: WIDGET_NAME[id] })} /><span class="w-name">${WIDGET_NAME[id]}</span></label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('הצג {name}', { name: WIDGET_NAME[id] })} data-home-toggle=${id} .checked=${w.on} ?disabled=${this.busy} @change=${(e: Event) => this.setWidget(id, { on: toggled(e) } as never)}></sw-toggle><span class="w-name">${WIDGET_NAME[id]}</span></label>
         <sw-segmented label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })} value=${w.sizes[d.direction]} ?disabled=${!w.on} @change=${(e: CustomEvent<SegmentedChange>) => this.setConfig((c) => (c[id].sizes[d.direction] = e.detail.value as Size))}
           .options=${SIZES.map((s: Size) => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-home-wsize': `${id}:${s}` } }))}></sw-segmented>
         <span class="grow"></span>
@@ -625,7 +634,7 @@ export class HomeEditPanel extends LitElement {
       </div>
       <div class="w-phone" data-home-wphone=${id}>
         <span class="pl">${tr('בנייד')}</span>
-        <label class="check"><input type="checkbox" data-home-phone-on=${id} .checked=${widgetOn(w, true)} aria-label=${tr('הצג בנייד: {name}', { name: WIDGET_NAME[id] })} @change=${(e: Event) => this.setPhoneOn(id, (e.target as HTMLInputElement).checked)} />${tr('הצג')}</label>
+        <label class="check"><sw-toggle size="sm" labelHidden in-label label=${tr('הצג בנייד: {name}', { name: WIDGET_NAME[id] })} data-home-phone-on=${id} .checked=${widgetOn(w, true)} ?disabled=${this.busy} @change=${(e: Event) => this.setPhoneOn(id, toggled(e))}></sw-toggle>${tr('הצג')}</label>
         <select data-home-phone-size=${id} aria-label=${tr('גודל בנייד: {name}', { name: WIDGET_NAME[id] })} ?disabled=${!widgetOn(w, true)} @change=${(e: Event) => this.setWidget(id, { phone_size: ((e.target as HTMLSelectElement).value || null) as Size | null } as never)}>
           <option value="" ?selected=${!w.phone_size}>${tr('אוטומטי ({size})', { size: SIZE_LABEL[widgetSize({ ...w, phone_size: null }, d.direction, true)] })}</option>
           ${SIZES.map((s: Size) => html`<option value=${s} ?selected=${w.phone_size === s}>${SIZE_LABEL[s]}</option>`)}
