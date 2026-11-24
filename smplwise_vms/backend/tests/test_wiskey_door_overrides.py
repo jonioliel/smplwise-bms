@@ -815,3 +815,20 @@ def test_door_blocks_i18n_2510_every_text_has_a_key_and_no_hebrew_literal_is_lef
     fe = (REPO / "frontend" / "src" / "i18n" / "lang" / "en" / "i18n" / "msg" / "system-a.ts").read_text(encoding="utf-8")
     assert "'העברה לחלון פתיחה קבוע': 'Move to a fixed door window'," in fe and "'הועבר לחלון פתיחה': 'Moved to a door window'," in fe
     assert "opening window" not in fe.lower()
+    # DOOR-WINDOW-TERM-2510: the role names, the permission descriptions and the notification event names say "door window" too;
+    # their Hebrew is unchanged (the import-time checks of rbac_text / rbac_admin_text / notify_policy_text compare it to the old words)
+    pinned = {
+        "role.door_windows_manager": ("ניהול חלונות פתיחה", "Manage door windows"),
+        "role.door_windows_guard": ("הפסקת חלון פתיחה", "Stop a door window"),
+        "perm.access.windows.manage": ("בקרת כניסה: ניהול חלונות פתיחה של דלתות (שעות פתיחה מתוזמנות)",
+                                       "Access control: manage door windows (scheduled opening hours)"),
+        "perm.access.windows.cancel": ("בקרת כניסה: הפסקת חלון פתיחה פעיל ואימות ידני שהדלת חזרה למצב רגיל",
+                                       "Access control: stop an active door window and confirm by hand that the door returned to normal"),
+        "notify.label.door.relock_unconfirmed": ("חלון פתיחה: חזרה למצב רגיל לא אושרה", "Door window: return to normal not confirmed"),
+        "notify.label.door.window_not_started": ("חלון פתיחה לא התחיל", "Door window did not start"),
+        "notify.label.door.window_overridden": ("חלון פתיחה הופסק ידנית", "Door window stopped manually"),
+        "notify.label.door.windows.simulated": ("חלון פתיחה לפי אירוע (מצב הדגמה)", "Door window by event (demo mode)"),
+    }
+    for key, (he, en) in pinned.items():
+        assert (CATALOGUE[key]["he"], CATALOGUE[key]["en"]) == (he, en), key
+    assert not [k for k, e in CATALOGUE.items() if "opening window" in e["en"].lower()], "one English word for a door window"
