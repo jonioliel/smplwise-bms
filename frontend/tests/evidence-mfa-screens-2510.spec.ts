@@ -115,7 +115,7 @@ test('users & permissions › second factor: the policy, the compliance view and
   expect(await axe(page, ['sw-factor-policy-admin'])).toEqual([]);
 
   // a different policy, not saved: the server's preview of it ("these users would have to enrol")
-  await tab.locator('sw-dropdown[data-fp-policy]').click();
+  await tab.locator('sw-dropdown[data-fp-policy] [data-dropdown-chip]').click();
   await page.locator('[role="option"]', { hasText: 'חובה לכולם' }).first().click();
   await expect(comp).toHaveAttribute('data-fp-preview', 'all');
   await expect(comp.locator('[data-fp-preview-note]')).toContainText('חובה לכולם');
@@ -235,7 +235,7 @@ test('shots: the three screens, light and dark', async ({ page }) => {
     await page.waitForTimeout(800);
     if (await page.locator('sw-factor-policy-admin [data-fp-admin]').count()) {
       await shot('policy');
-      await page.locator('sw-factor-policy-admin sw-dropdown[data-fp-policy]').click();
+      await page.locator('sw-factor-policy-admin sw-dropdown[data-fp-policy] [data-dropdown-chip]').click();
       await page.locator('[role="option"]', { hasText: 'חובה לכולם' }).first().click();
       await expect(page.locator('sw-factor-policy-admin [data-fp-preview-note]')).toBeVisible();
       await page.locator('sw-factor-policy-admin [data-fp-compliance]').scrollIntoViewIfNeeded();

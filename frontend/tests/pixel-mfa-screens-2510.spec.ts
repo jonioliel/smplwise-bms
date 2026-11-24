@@ -33,7 +33,7 @@ test.describe('pixel: second-factor screens', () => {
   test('classic is pixel-stable: the policy tab with the preview of an unsaved policy', async ({ page }, info) => {
     await installMfaMock(page);
     const tab = await openPolicyTab(page);
-    await tab.locator('sw-dropdown[data-fp-policy]').click();
+    await tab.locator('sw-dropdown[data-fp-policy] [data-dropdown-chip]').click();
     await page.locator('[role="option"]', { hasText: 'חובה לכולם' }).first().click();
     await expect(tab.locator('[data-fp-preview-note]')).toBeVisible();
     await shoot(page, info, 'mfa-policy-preview');
