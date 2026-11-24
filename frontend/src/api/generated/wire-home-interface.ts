@@ -35,6 +35,13 @@ export interface HomeInstallSettings {
   default_mode: "full_all" | "home_regular" | "choose";
   kiosk_exit: "code" | "none";
   wallpaper: "none" | "gallery" | "gallery_image";
+  wall_rest: "on" | "off";
+  wall_rest_after: "2" | "1" | "5" | "10" | "15";
+  wall_night: "on" | "off";
+  wall_night_start: string;
+  wall_night_end: string;
+  wall_night_dim: "medium" | "soft" | "strong";
+  wall_takeover: "alarm_urgent" | "alarm" | "call_only";
 }
 
 /** A light, or a switch typed as a light (`kind`), as the caller may see it. */
@@ -112,6 +119,7 @@ export interface HomePolicy {
   wallpaper: "none" | "gallery" | "gallery_image";
   guests: boolean;
   room_wallpapers: Record<string, string>;
+  wall: HomeWallSettings;
 }
 
 /** The person's own favourites (room key -> items) and layout (stored documents), and the administrator's favourites seed. */
@@ -199,6 +207,21 @@ export interface HomeUserPolicy {
   admin: boolean;
   guests: boolean;
   can_invite: boolean;
+}
+
+/**
+ * HOME-WALL-NIGHT-2500: the wall panel's rest screen (`rest`, after `rest_after_min` minutes without a touch), its night window
+ * (`night`, local HH:MM `night_start` .. `night_end` in the installation's zone; start == end = no window) with how strongly the screen
+ * is dimmed, and which events take the screen over (a door call always does, and comes first).
+ */
+export interface HomeWallSettings {
+  rest: boolean;
+  rest_after_min: number;
+  night: boolean;
+  night_start: string;
+  night_end: string;
+  night_dim: "medium" | "soft" | "strong";
+  takeover: "alarm_urgent" | "alarm" | "call_only";
 }
 
 /** The first available weather entity: the rounded outside temperature (null when it reports none) and the condition in Hebrew. */

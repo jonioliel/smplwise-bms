@@ -293,10 +293,14 @@ def test_gate_passes_on_a_database_from_before_0211():
 
 # ---------------------------------------------------------------- HOME-SIMPLE-2421
 
+# HOME-WALL-NIGHT-2500 (owner 22.11, Q70 / Q71 / Q73 / Q74): the wall panel's settings at install
+WALL_DEFAULTS = {"wall_rest": "on", "wall_rest_after": "2", "wall_night": "on", "wall_night_start": "23:00", "wall_night_end": "06:00",
+                 "wall_night_dim": "medium", "wall_takeover": "alarm_urgent"}
+
 def test_new_default_is_full_for_everyone_and_the_setting_changes_it(app):
     c = _client(app)
     bind(c, app[1], "dana", "operator", "installation", "*")
-    assert c.get("/api/v1/home/settings").json()["settings"] == {"default_mode": "full_all", "kiosk_exit": "code", "wallpaper": "none"}
+    assert c.get("/api/v1/home/settings").json()["settings"] == {"default_mode": "full_all", "kiosk_exit": "code", "wallpaper": "none", **WALL_DEFAULTS}
     user = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]
     assert user["interface"] == "full" and user["default_interface"] == "full" and user["choose"] is False
     assert c.put("/api/v1/home/settings", json={"default_mode": "home_regular"}).status_code == 200
@@ -438,3 +442,37 @@ def test_overview_locks_carry_the_unlock_reason(app):
     # the same reason the devices panel says for this caller (the one function door_authority.unlock_reason)
     panel = c.get("/api/v1/ha/entities/lock.front").json()
     assert lock["unlock_reason"] == panel["unlock_reason"] and lock["can_unlock"] is (panel["unlock_reason"] == "ok")
+
+
+# ---------------------------------------------------------------- HOME-WALL-NIGHT-2500
+
+def test_wall_panel_rest_night_and_takeover_defaults_reach_the_panel(app):
+    """Owner 22.11: rest screen on after 2 minutes, night 23:00-06:00, dim only, takeover = alarm + urgent notice - as the policy says."""
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    wall = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["wall"]
+    assert wall == {"rest": True, "rest_after_min": 2, "night": True, "night_start": "23:00", "night_end": "06:00", "night_dim": "medium", "takeover": "alarm_urgent"}
+    view = c.get("/api/v1/home/settings").json()
+    assert view["values"]["wall_rest_after"] == ["2", "1", "5", "10", "15"] and view["values"]["wall_takeover"] == ["alarm_urgent", "alarm", "call_only"]
+    assert "wall_night_start" not in view["values"]  # a time, not a list of values
+
+
+def test_wall_panel_settings_change_validate_and_audit(app):
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    body = {"wall_rest": "off", "wall_rest_after": "10", "wall_night": "on", "wall_night_start": "22:30", "wall_night_end": "07:15", "wall_night_dim": "strong", "wall_takeover": "alarm"}
+    r = c.put("/api/v1/home/settings", json=body)
+    assert r.status_code == 200 and {k: r.json()["settings"][k] for k in body} == body
+    wall = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["wall"]
+    assert wall == {"rest": False, "rest_after_min": 10, "night": True, "night_start": "22:30", "night_end": "07:15", "night_dim": "strong", "takeover": "alarm"}
+    for bad in ({"wall_night_start": "24:00"}, {"wall_night_end": "7:00"}, {"wall_night_start": "23:60"}, {"wall_rest_after": "3"}, {"wall_takeover": "everything"}, {"wall_night_dim": "off"}):
+        assert c.put("/api/v1/home/settings", json=bad).status_code == 422, bad
+    assert c.put("/api/v1/home/settings", headers=as_user("dana"), json={"wall_rest": "on"}).status_code == 403
+    with app[0].state.db.connection() as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE action = 'home_interface.settings.set'").fetchall()
+        assert len(rows) == 1 and '"wall_night_start": "22:30"' in rows[0]["details_json"]
+        # a stored value that is not a time (an old or hand-edited row) reads as the default; the service refuses it too
+        conn.execute("UPDATE settings SET value = 'late' WHERE key = 'home.wall_night_end'")
+        assert hi.install_settings(conn)["wall_night_end"] == "06:00"
+        with pytest.raises(hi.HomeInterfaceError):
+            hi.set_install_settings(conn, {"wall_night_start": "2300"})

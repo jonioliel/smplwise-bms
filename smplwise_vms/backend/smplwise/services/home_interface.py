@@ -74,7 +74,20 @@ INSTALL_VALUES: dict[str, tuple[str, ...]] = {
     "default_mode": ("full_all", "home_regular", "choose"),
     "kiosk_exit": ("code", "none"),
     "wallpaper": ("none", "gallery", "gallery_image"),
+    # HOME-WALL-NIGHT-2500 (owner 22.11, Q70 / Q71 / Q73 / Q74 = the recommendation): the wall panel's rest screen (on by default, after
+    # 2 minutes without a touch), its night mode (fixed hours, 23:00-06:00 by default, editable; at night the screen is only dimmed - a
+    # layer drawn by the page, no device API) and which events take the whole screen over (the alarm and an urgent notice; a door
+    # call always comes first and is not a setting). The first value listed is the default.
+    "wall_rest": ("on", "off"),
+    "wall_rest_after": ("2", "1", "5", "10", "15"),
+    "wall_night": ("on", "off"),
+    "wall_night_dim": ("medium", "soft", "strong"),
+    "wall_takeover": ("alarm_urgent", "alarm", "call_only"),
 }
+INSTALL_KEYS.update({k: f"home.{k}" for k in ("wall_rest", "wall_rest_after", "wall_night", "wall_night_dim", "wall_takeover")})
+# HOME-WALL-NIGHT-2500: the night window's two local wall times (the installation's zone, HH:MM, 24 h); start == end = no window
+INSTALL_TIMES: dict[str, tuple[str, str]] = {"wall_night_start": ("home.wall_night_start", "23:00"), "wall_night_end": ("home.wall_night_end", "06:00")}
+HM_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
 LEGACY_FROZEN_BY = "migration:0212"
 # the built-in gallery (drawn by the frontend from CSS gradients only - no picture files); the server only checks the names
 GALLERY = ("dusk", "tide", "dune", "moss", "ember", "slate", "aurora", "linen")
@@ -188,16 +201,35 @@ def install_settings(conn: sqlite3.Connection) -> dict[str, str]:
     for k, key in INSTALL_KEYS.items():
         v = get_setting(conn, key)
         out[k] = v if v in INSTALL_VALUES[k] else INSTALL_VALUES[k][0]
+    for k, (key, default) in INSTALL_TIMES.items():
+        v = get_setting(conn, key)
+        out[k] = v if isinstance(v, str) and HM_RE.match(v) else default
     return out
 
 
 def set_install_settings(conn: sqlite3.Connection, body: dict[str, Any]) -> dict[str, str]:
     for k, v in body.items():
-        if k not in INSTALL_KEYS or v not in INSTALL_VALUES[k]:
+        if k in INSTALL_TIMES:
+            if not isinstance(v, str) or not HM_RE.match(v):
+                raise HomeInterfaceError(422, "validation", "שעה לא תקינה בהגדרות מסך הקיר (HH:MM).")
+        elif k not in INSTALL_KEYS or v not in INSTALL_VALUES[k]:
             raise HomeInterfaceError(422, "validation", "ערך לא מוכר בהגדרות הממשק הביתי.")
     for k, v in body.items():
-        set_setting(conn, INSTALL_KEYS[k], v)
+        set_setting(conn, INSTALL_TIMES[k][0] if k in INSTALL_TIMES else INSTALL_KEYS[k], v)
     return install_settings(conn)
+
+
+def wall_settings(inst: dict[str, str]) -> dict[str, Any]:
+    """HOME-WALL-NIGHT-2500: what a wall panel needs of the installation settings (sent with the policy, so the panel needs no admin read)."""
+    return {
+        "rest": inst["wall_rest"] == "on",
+        "rest_after_min": int(inst["wall_rest_after"]),
+        "night": inst["wall_night"] == "on",
+        "night_start": inst["wall_night_start"],
+        "night_end": inst["wall_night_end"],
+        "night_dim": inst["wall_night_dim"],
+        "takeover": inst["wall_takeover"],
+    }
 
 
 def default_policy(admin: bool, mode: str = "full_all") -> dict[str, Any]:
@@ -265,6 +297,7 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         # HOME-V3-P1-2430: the administrator marked this person for guest invitations; the room wallpapers set for everyone
         "guests": bool(pol.get("guests")),
         "room_wallpapers": _room_walls(conn, inst["wallpaper"]),
+        "wall": wall_settings(inst),  # HOME-WALL-NIGHT-2500
     }
 
 
