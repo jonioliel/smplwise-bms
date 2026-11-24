@@ -197,7 +197,7 @@ function downloadCodes(codes: string[]) {
 @customElement('sw-second-factor')
 export class SwSecondFactor extends LitElement {
   /** The own status (confirm / disable answer without the installation policy, which this card does not show). */
-  @state() private status: Omit<SecondFactorStatus, 'policy'> | null = null;
+  @state() private status: Pick<SecondFactorStatus, 'enabled' | 'enabled_at' | 'last_used_at'> | null = null; // RELEASE-2510-TRAIN: the answers of disable / confirm carry no must_enroll
   @state() private enrolment: Enrolment | null = null;
   @state() private disabling = false;
   @state() private code = '';
