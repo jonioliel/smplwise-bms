@@ -85,8 +85,7 @@ def _dump(model: str, keys: list[str]) -> None:
         return
     try:
         with open(path, "a", encoding="utf8") as f:
-            f.writelines(f"{model}	{k}
-" for k in keys)
+            f.writelines(f"{model}\t{k}\n" for k in keys)
     except OSError:
         pass
 
