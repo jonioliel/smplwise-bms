@@ -196,7 +196,9 @@ def test_strict_refuses_the_whole_batch_names_the_problem_and_never_echoes_the_v
     r = c.post(f"{API}/presence/devices/{did}/events", json={"events": [good, bad]}, headers=tok)
     assert r.status_code == 400 and r.json()["code"] == "invalid_event", r.text
     d = r.json()["details"]
-    assert d == {"field": "value.charging_state", "reason": "invalid_value", "sensor": "battery", "client_event_id": "s-bad", "contract_version": "2.2"}
+    # ADR-019 family 2 (additive): `fields` + `problems` next to the v2.2 keys, which stay
+    assert d == {"field": "value.charging_state", "reason": "invalid_value", "sensor": "battery", "client_event_id": "s-bad", "contract_version": "2.2",
+                 "fields": ["value.charging_state"], "problems": [{"field": "value.charging_state", "code": "invalid_value"}]}
     assert SENTINEL not in r.text and r.json()["retryable"] is False
     assert _stored(app, did) == {}  # the whole batch was refused
     for i, case in enumerate(EXAMPLES["invalid"]):
@@ -204,6 +206,7 @@ def test_strict_refuses_the_whole_batch_names_the_problem_and_never_echoes_the_v
             continue
         r = c.post(f"{API}/presence/devices/{did}/events", json={"events": [_ev(f"i{i:03d}", case["sensor"], case["value"])]}, headers=tok)
         assert r.status_code == 400 and r.json()["details"]["field"] == case["field"] and r.json()["details"]["reason"] == case["reason"], (case["name"], r.text)
+        assert r.json()["details"]["problems"] == [{"field": case["field"], "code": case["reason"]}], (case["name"], r.text)
     r = c.post(f"{API}/presence/devices/{did}/events", json={"events": [_ev("loc1", "location", {"lat": 32.0, "lon": 34.8})]}, headers=tok)
     assert r.status_code == 400 and r.json()["details"]["field"] == "value.lat"
     # conforming values pass unchanged

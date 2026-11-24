@@ -7,7 +7,12 @@ it differs from the drafts in `mobile/ios-shell/HANDOFF_IOS_CODEX.md` section 6 
 `docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md` section 9). Codex extends the local mock (`mobile/ios-shell/tools/`) to
 this shape; the mock never points at the lab.
 
-Changelog: **v2.2 (MOBILE-CONTRACT-V22-2380, 2026-11-02; additive, backward compatible)** - one `value` shape per sensor (section 4.1:
+Changelog: **v2.3 note (ADR019-FAMILY2-2500, 2026-11-24; additive, backward compatible; `contract_version` stays `2.2` until the
+v2.3 text is released)** - every refusal of these routes that names a field (`400 invalid_name` / `invalid_platform` /
+`invalid_install_id` / `invalid_notice_version` / `invalid_event` / `invalid_relay_token`, the `422 validation` answers) also
+carries `details.fields` (the field names; `lat/lon` is `["lat", "lon"]`), and the strict value refusal of section 4.1 also
+`details.problems = [{field, code: <reason>}]` (ADR-019). `details.field`, `reason` and the other keys stay as they are; an app
+may keep reading them. **v2.2 (MOBILE-CONTRACT-V22-2380, 2026-11-02; additive, backward compatible)** - one `value` shape per sensor (section 4.1:
 keys, enums, `confidence` / `proximity` / `charging_state` lists, battery level unknown = `null`) with a server setting
 `presence.value_check` = `off` (default, the 2.1 behaviour) | `normalize` | `strict`; `GET presence/config` adds `contract_version` and
 `sensors.value_check`, and `sensors.intervals_s` now carries a default for every sensor but `location` (section 2.2); the status object's
@@ -26,7 +31,8 @@ cannot be muted (section 7.3). v1 was the first implemented text.
 
 - Base path: `/arx/api/v1` on the remote channel (the app's normal path); `/api/v1` on the Ingress channel.
 - JSON bodies, UTC ISO-8601 instants with `Z`. Error envelope: `{code, user_message (Hebrew), retryable, correlation_id,
-  details}`; the `code`s below are stable.
+  details}`; the `code`s below are stable. A refusal that names a field carries `details.fields` (names) and may carry
+  `details.problems` (`{field, code, message?}`) - ADR-019, v2.3 note; the older `details.field` is still sent.
 - Two credentials:
   - **session** - the Arx session cookie the web view holds after sign-in (or an HA bearer token, as any remote client);
   - **device token** - `Authorization: Bearer arxd_…` (43 base64url characters after the prefix), shown once by the

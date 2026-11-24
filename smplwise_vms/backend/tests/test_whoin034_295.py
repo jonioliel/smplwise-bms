@@ -288,6 +288,8 @@ def test_places_validate_place_on_floors_and_areas_and_never_store_an_ssid(world
     for bad in bad_cases:
         r = c.put(f"{API}/presence/settings", json=bad)
         assert r.status_code == 422, (bad, r.text)
+        d = r.json()["details"]  # ADR-019 family 2: the canonical `fields`, the legacy `field` still sent
+        assert d["fields"] == [d["field"]], (bad, d)
     # one save is validated as a whole: a bad beacon keeps the geofences of the same save from being written
     before = c.get(f"{API}/presence/settings").json()["settings"]
     r = c.put(f"{API}/presence/settings", json={"sites": [SITE, {"id": "site_new", "name": "חדש", "lat": 31.0, "lon": 34.0}], "beacons": [{"uuid": "bad", "site_id": "site_new"}]})

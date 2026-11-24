@@ -33,7 +33,7 @@ from typing import Any
 import httpx
 
 from ..db import Database, get_setting, new_id, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..relay_url import check_relay_url
 from . import notify, notify_channels, notify_settings, push
 from .notify_policy import CATEGORIES
@@ -125,9 +125,9 @@ def server_id(conn: sqlite3.Connection) -> str:
 
 def register(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, platform: Any, relay_token: Any, app_version: Any) -> dict[str, Any]:
     if platform not in ("ios", "android"):
-        raise ApiError(400, "invalid_platform", "הפלטפורמה אינה מוכרת (ios / android).", details={"field": "platform"})
+        raise field_error("הפלטפורמה אינה מוכרת (ios / android).", ["platform"], code="invalid_platform", status=400, legacy={"field": "platform"})
     if not isinstance(relay_token, str) or not RELAY_TOKEN_RE.match(relay_token):
-        raise ApiError(400, "invalid_relay_token", "אסימון הממסר אינו תקין.", details={"field": "relay_token"})
+        raise field_error("אסימון הממסר אינו תקין.", ["relay_token"], code="invalid_relay_token", status=400, legacy={"field": "relay_token"})
     now = now_iso()
     # One relay token is one phone. When the same phone registers it for another device row of this server (another user signed in on
     # it, or a re-registered device), the older rows stop receiving: a push would otherwise reach a phone that fetches text with another
@@ -144,7 +144,7 @@ def register(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, pla
 
 def set_muted(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, muted: Any) -> dict[str, Any]:
     if not isinstance(muted, list) or any(m not in CATEGORIES for m in muted) or len(muted) > len(CATEGORIES):
-        raise ApiError(422, "validation", "קטגוריה לא מוכרת ברשימת ההשתקה.", details={"field": "muted", "known": list(CATEGORIES)})
+        raise field_error("קטגוריה לא מוכרת ברשימת ההשתקה.", ["muted"], legacy={"field": "muted"}, extra={"known": list(CATEGORIES)})
     import json
 
     conn.execute("UPDATE mobile_devices SET push_muted_json = ?, last_seen_at = ? WHERE id = ?", (json.dumps(sorted(set(muted))), now_iso(), device["id"]))

@@ -181,14 +181,16 @@ def _problems(problems: Iterable[dict[str, Any]] | None) -> list[dict[str, str]]
 
 
 def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[dict[str, Any]] | None = None, code: str = "validation",
-                status: int = 422, legacy: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> ApiError:
+                status: int = 422, legacy: dict[str, Any] | None = None, extra: dict[str, Any] | None = None,
+                cls: type[ApiError] = ApiError) -> ApiError:
     """ADR-019 (Step 0, item 2): a refusal about one or more input fields, in the one field-error envelope (D1).
 
     `details.fields` lists the field names (dotted paths of the request model, never a Hebrew label), each once - the fields of
     `problems` are added in their order; `details.problems` is `[{field, code, message?}]` when the caller has per-field reasons.
     `legacy` is the key a family sent before its migration (`{"field": "to"}`, `{"key": ...}`), sent next to the canonical ones
     until its readers moved (ADR-019 Step 1 (d)); `extra` holds the endpoint's own details (`message_en`, limits, `reason`, ...),
-    which are not part of the decision. Neither may carry `fields` / `problems`: the canonical keys are this helper's."""
+    which are not part of the decision. Neither may carry `fields` / `problems`: the canonical keys are this helper's.
+    `cls` is the family's own `ApiError` subclass (`PresenceError`) where a router catches that class (ADR019-FAMILY2-2500)."""
     for name, part in (("legacy", legacy), ("extra", extra)):
         if part and ("fields" in part or "problems" in part):
             raise ValueError(f"field_error: `{name}` must not carry the canonical keys")
@@ -196,7 +198,7 @@ def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[
     details: dict[str, Any] = {**(legacy or {}), **(extra or {}), "fields": _unique([*fields, *(p["field"] for p in probs)])}
     if probs:
         details["problems"] = probs
-    return ApiError(status, code, message, details=details)
+    return cls(status, code, message, details=details)
 
 
 class ServiceInvalid(ValueError):
