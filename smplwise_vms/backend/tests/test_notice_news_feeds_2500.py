@@ -180,7 +180,7 @@ def _store(conn, rows) -> None:
     set_setting(conn, news_sources.KEY, json.dumps(rows, ensure_ascii=False))
 
 
-def test_a_saved_list_with_the_dead_address_reads_the_new_one_and_customs_are_untouched(settings):
+def test_a_saved_list_with_the_dead_address_reads_the_new_one_and_customs_are_untouched(settings, client):  # client: the migrated database
     db = Database(settings.db_path)
     custom = "https://www.calcalist.co.il/GeneralRSS/0,16335,L-3674,00.xml"  # a manager's own (also dead) address: never rewritten
     rows = [{"id": "calcalist", "name": "כלכליסט", "url": OLD, "enabled": True},
@@ -209,7 +209,7 @@ def test_saving_the_list_stores_the_new_address(settings, client):
         assert json.loads(get_setting(conn, news_sources.KEY, ""))[0]["url"] == NEW
 
 
-def test_when_the_list_already_has_the_new_address_the_retired_row_is_left_out(settings):
+def test_when_the_list_already_has_the_new_address_the_retired_row_is_left_out(settings, client):  # client: the migrated database
     db = Database(settings.db_path)
     with db.connection() as conn:
         _store(conn, [{"id": "calcalist", "name": "כלכליסט", "url": OLD, "enabled": True},
