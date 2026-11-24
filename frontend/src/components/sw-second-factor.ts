@@ -3,7 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import qrcode from 'qrcode-generator';
 import './sw-button';
 import { describeError } from '../api/client';
-import { confirmEnrolment, disableSecondFactor, factorOverrides, factorUsers, isRecoveryCode, recoveryStatus, regenerateRecoveryCodes, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type RecoveryStatus, type SecondFactorStatus } from '../api/second-factor';
+import { confirmEnrolment, disableSecondFactor, factorOverrides, factorResetCheck, factorUsers, isRecoveryCode, recoveryStatus, regenerateRecoveryCodes, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type FactorResetCheck, type RecoveryStatus, type SecondFactorStatus } from '../api/second-factor';
+import { refused, renderResetConfirm, resetConfirmStyles, resetErrorText, typedMatches } from './factor-reset-confirm';
 import { t, tf } from '../i18n/he';
 import { dayText } from '../api/day-format';
 
@@ -397,14 +398,19 @@ export class SwSecondFactorUser extends LitElement {
   /** The administrator's OWN factor is on: the reset needs their current code (security review 2.2.0 M1). */
   @state() private stepUp = false;
   @state() private ownCode = '';
+  /** RELEASE-2510-TRAIN: the reset's preflight (undefined while read, null when unreadable) and the username the administrator typed. */
+  @state() private check: FactorResetCheck | null | undefined = undefined;
+  @state() private typed = '';
 
-  static styles = SHARED;
+  static styles = [SHARED, resetConfirmStyles];
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('userId')) {
       this.since = undefined;
       this.armed = false;
       this.ownCode = '';
+      this.typed = '';
+      this.check = undefined;
       this.message = '';
       void this.load();
     }
@@ -428,26 +434,33 @@ export class SwSecondFactorUser extends LitElement {
     this.armed = true;
     this.error = '';
     this.ownCode = '';
-    try {
-      this.stepUp = (await secondFactorStatus()).enabled;
-    } catch {
-      this.stepUp = false;
-    }
+    this.typed = '';
+    this.check = undefined;
+    const id = this.userId;
+    const [own, check] = await Promise.allSettled([secondFactorStatus(), factorResetCheck(id)]);
+    if (id !== this.userId) return;
+    this.stepUp = own.status === 'fulfilled' && own.value.enabled;
+    this.check = check.status === 'fulfilled' ? check.value : null;
+  }
+
+  private ready(): boolean {
+    return !refused(this.check) && typedMatches(this.check, this.typed) && (!this.stepUp || /^\d{6}$/.test(this.ownCode));
   }
 
   private async reset() {
-    if (this.stepUp && !/^\d{6}$/.test(this.ownCode)) return;
+    if (!this.ready()) return;
     this.busy = true;
     this.error = '';
     try {
-      await resetFactor(this.userId, this.stepUp ? this.ownCode : undefined);
+      await resetFactor(this.userId, this.typed, this.stepUp ? this.ownCode : undefined);
       this.since = null;
       this.armed = false;
       this.ownCode = '';
+      this.typed = '';
       this.message = t('secondFactor.adminResetDone');
       this.dispatchEvent(new CustomEvent('factors-changed', { bubbles: true, composed: true })); // MFA-SCREENS-2510: the drawer's factor list reads again
     } catch (err) {
-      this.error = describeError(err);
+      this.error = resetErrorText(err);
     } finally {
       this.busy = false;
     }
@@ -459,12 +472,13 @@ export class SwSecondFactorUser extends LitElement {
     return html`<div class="row" data-sf-admin>
         <span class="state" data-sf-admin-state>${t('secondFactor.on')}${this.since ? html` <small>${t('secondFactor.since')} ${when(this.since)}</small>` : nothing}</span>
         ${this.armed
-          ? html`<span><sw-button size="sm" variant="danger" data-sf-admin-confirm ?disabled=${this.busy || (this.stepUp && !/^\d{6}$/.test(this.ownCode))} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>
+          ? html`<span>${refused(this.check) ? nothing : html`<sw-button size="sm" variant="danger" data-sf-admin-confirm ?disabled=${this.busy || !this.ready()} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>`}
               <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.armed = false)}>${t('secondFactor.cancel')}</sw-button></span>`
           : html`<sw-button size="sm" variant="secondary" data-sf-admin-reset @click=${() => void this.arm()}>${t('secondFactor.adminReset')}</sw-button>`}
       </div>
       ${this.armed ? html`<div class="lbl">${t('secondFactor.adminResetConfirm')}</div>` : nothing}
-      ${this.armed && this.stepUp
+      ${this.armed ? renderResetConfirm(this.check, this.typed, (v) => (this.typed = v), () => void this.reset()) : nothing}
+      ${this.armed && this.stepUp && !refused(this.check)
         ? html`<form @submit=${(e: Event) => { e.preventDefault(); void this.reset(); }}>
             <input data-sf-admin-code inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label=${t('secondFactor.adminStepUp')}
               placeholder="000000" .value=${this.ownCode} @input=${(e: Event) => (this.ownCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} />

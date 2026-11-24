@@ -14,10 +14,15 @@ export const startEnrolment = () => post<Enrolment>('auth/second-factor/enroll')
 export const confirmEnrolment = (code: string) => post<SfWire.FactorEnabled>('auth/second-factor/confirm', { code });
 export const disableSecondFactor = (code: string) => post<SfWire.FactorStatus>('auth/second-factor/disable', { code });
 export const factorUsers = () => get<SfWire.EnrolledUsers>('auth/second-factor/users');
-/** An administrator who has a factor sends their own current code (security review 2.2.0 M1); never their own user id (that is `disable`). */
-export const resetFactor = (userId: string, ownCode?: string) =>
+/** MFA-RESET-HARDENING-2510: the reset's preflight (may it go ahead, the username to type, what it removes); reads only. */
+export type FactorResetCheck = SfWire.FactorResetCheck;
+export const factorResetCheck = (userId: string) => get<FactorResetCheck>(`auth/second-factor/users/${encodeURIComponent(userId)}/reset-check`);
+/** An administrator who has a factor sends their own current code (security review 2.2.0 M1); never their own user id (that is `disable`).
+ * MFA-RESET-HARDENING-2510: `confirm` = the target's username as the administrator typed it (required; the server compares it). */
+export const resetFactor = (userId: string, confirm: string, ownCode?: string) =>
   api<SfWire.FactorReset>(`auth/second-factor/users/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
+    body: JSON.stringify({ confirm }),
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
 

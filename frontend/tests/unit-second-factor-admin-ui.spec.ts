@@ -75,10 +75,18 @@ async function setup(page: Page): Promise<Mock> {
       else st.overrides[kind][id] = body.policy;
       return json(route, { kind, subject_id: id, policy: body.policy, ...st.overrides });
     }
+    // RELEASE-2510-TRAIN (MFA-RESET-HARDENING-2510): the reset's preflight names the username to type
+    const chk = p.match(/^auth\/second-factor\/users\/([^/]+)\/reset-check$/);
+    if (chk && method === 'GET') {
+      const id = decodeURIComponent(chk[1]);
+      return json(route, { user_id: id, allowed: true, reason: null, confirm_text: id.replace(/^u-/, ''), channel: 'any', remote: false, resets_left: 3, rate_max: 3,
+        factors: { totp: st.enrolled.has(id), passkeys: 0, device_keys: 0, recovery_codes: 0 }, must_enroll_after: false,
+        step_up: { action: 'auth.second_factor.reset', methods: ['totp'], minutes: 0, once: true, verify_path: 'auth/step-up/verify' } });
+    }
     const del = p.match(/^auth\/second-factor\/users\/(.+)$/);
     if (del && method === 'DELETE') {
       const id = decodeURIComponent(del[1]);
-      st.calls.push({ method, path: p, body: null });
+      st.calls.push({ method, path: p, body: req.postDataJSON() });
       const removed = st.enrolled.delete(id);
       return json(route, { user_id: id, removed });
     }
@@ -117,11 +125,14 @@ test('user drawer: the reset button asks first, cancel keeps the factor, confirm
   await expect(row.locator('[data-sf-admin-state]')).toContainText('פעיל');
   expect(mock.enrolled.has('u-dana')).toBe(true);
 
-  // confirm: the right user id goes to the right route and the row turns into the done message
+  // confirm: the username typed (RELEASE-2510-TRAIN), the right user id goes to the right route and the row turns into the done message
   await row.locator('[data-sf-admin-reset]').click();
+  await expect(row.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
+  await expect(row.locator('[data-reset-removes]')).toContainText('אפליקציית האימות');
+  await row.locator('[data-reset-confirm-text]').fill('dana');
   await row.locator('[data-sf-admin-confirm]').click();
   await expect(row.locator('[data-sf-message]')).toBeVisible();
-  expect(mock.calls.filter((c) => c.method === 'DELETE')).toEqual([{ method: 'DELETE', path: 'auth/second-factor/users/u-dana', body: null }]);
+  expect(mock.calls.filter((c) => c.method === 'DELETE')).toEqual([{ method: 'DELETE', path: 'auth/second-factor/users/u-dana', body: { confirm: 'dana' } }]);
   expect(mock.enrolled.has('u-dana')).toBe(false);
 
   // a user without a factor shows "off" and no reset button
@@ -139,6 +150,7 @@ test('user drawer: a failed reset shows the error and keeps the factor on screen
   const drawer = await openUser(page, 'דנה כהן');
   const row = drawer.locator('[data-second-factor-user]');
   await row.locator('[data-sf-admin-reset]').click();
+  await row.locator('[data-reset-confirm-text]').fill('dana');
   await row.locator('[data-sf-admin-confirm]').click();
   await expect(row.locator('[role="alert"]')).toContainText('אין הרשאה');
   await expect(row.locator('[data-sf-admin-state]')).toContainText('פעיל');

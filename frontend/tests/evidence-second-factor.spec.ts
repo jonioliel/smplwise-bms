@@ -181,6 +181,9 @@ test('administrator reset: an administrator who has a factor types their own cur
   const code = box.locator('[data-sf-admin-code]');
   await expect(code).toBeVisible();
   await expect(box.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
+  // RELEASE-2510-TRAIN: the username is typed (no preflight in this mock: the field is still asked, the server compares it)
+  await box.locator('[data-reset-confirm-text]').fill('viewer');
+  await expect(box.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
   await code.fill('111');
   await expect(box.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
   await code.fill('999999');
@@ -192,5 +195,6 @@ test('administrator reset: an administrator who has a factor types their own cur
   await expect(box.locator('[data-sf-message]')).toHaveText('האימות הדו־שלבי אופס: הוסרו אפליקציית האימות, מפתחות הגישה, מפתחות הטלפון וקודי השחזור');
   const deletes = mock.calls.filter((c) => c.method === 'DELETE');
   expect(deletes.map((c) => c.stepUp)).toEqual(['999999', '222333']);
+  expect(deletes.map((c) => c.body)).toEqual([{ confirm: 'viewer' }, { confirm: 'viewer' }]);
   expect(errors).toEqual([]);
 });

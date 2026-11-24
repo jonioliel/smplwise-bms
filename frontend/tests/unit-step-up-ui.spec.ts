@@ -6,7 +6,8 @@ import path from 'node:path';
 // smplwise/routers/second_factor.py (auth/step-up, auth/step-up/verify) and PATCH settings with the central gate's 403 (invented
 // users, no secrets). Covered: the dialog opens on the gate's 403, a wrong code keeps it open with the server's message, the right
 // code records a proof and the save is re-sent exactly once, cancel sends nothing more and shows the refusal, the off switch saves
-// security.step_up = off and then nothing is asked, the settings card shows the three settings and the caller's confirmation.
+// security.step_up = off and then nothing is asked. RELEASE-2510-TRAIN: the settings card moved to Users & permissions › Second factor
+// (evidence-mfa-screens-2510.spec.ts); here the remote tab's pointer, and the dialog flow on another remote setting.
 //   SW_UNIT_PAGES=1 SW_BASE_URL=http://127.0.0.1:4173/ npx playwright test -c playwright.unit.config.ts tests/unit-step-up-ui.spec.ts --workers=1
 // SW_SHOTS_DIR=<dir> also writes the before/after screenshots of the compare page (desktop + phone, light + dark).
 
@@ -70,10 +71,13 @@ async function setup(page: Page, over: Record<string, unknown> = {}): Promise<Mo
   return st;
 }
 
+// RELEASE-2510-TRAIN (lead decision on MFA-SCREENS-2510 question 1): the step-up settings live only in Users & permissions › Second factor
+// (evidence-mfa-screens-2510.spec.ts covers the switch, the minutes and the local switch there); the remote-access tab keeps a pointer card.
+// The dialog flow below is the gate's, whatever setting is saved: here the remote tab's "who may sign in remotely".
 async function openRemote(page: Page) {
   await page.goto('/?design=a#/system/diagnostics?tab=remote');
   await page.waitForSelector('sw-app system-diagnostics');
-  const card = page.locator('system-diagnostics [data-step-up-settings]');
+  const card = page.locator('system-diagnostics [data-step-up-pointer]');
   await expect(card).toBeVisible();
   return card;
 }
@@ -81,30 +85,28 @@ async function openRemote(page: Page) {
 const dialog = (page: Page) => page.locator('sw-step-up-dialog');
 const save = (page: Page) => page.locator('system-diagnostics [data-save-remote]');
 
-async function changeTitleLikeSetting(page: Page) {
-  // any setting of the tab: the minutes field (5 -> 10)
-  const minutes = page.locator('system-diagnostics input[data-set-step-up="security.step_up_minutes"]');
-  await minutes.fill('10');
-  await minutes.dispatchEvent('change');
+async function changeRemoteSetting(page: Page) {
+  await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
   await expect(save(page)).not.toHaveAttribute('disabled', '');
 }
 
-test('the settings card shows the switch, the minutes and the local switch with the stored values and the own confirmation', async ({ page }) => {
+test('the remote-access tab keeps only a pointer to the second-factor tab: no step-up switch, minutes or local switch here', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await setup(page);
   const card = await openRemote(page);
-  await expect(card.locator('sw-toggle[data-set-step-up="security.step_up"]')).toHaveAttribute('checked', '');
-  await expect(card.locator('input[data-set-step-up="security.step_up_minutes"]')).toHaveValue('5');
-  await expect(card.locator('sw-toggle[data-set-step-up="security.step_up_local"]')).not.toHaveAttribute('checked', '');
-  await expect(card.locator('[data-step-up-mine="none"]')).toContainText('לא מאושר כרגע');
+  await expect(card).toHaveAttribute('subheading', /מאפליקציית האימות/);
+  await expect(page.locator('system-diagnostics [data-set-step-up]')).toHaveCount(0);
+  await expect(card.locator('[data-step-up-row="moved"]')).toContainText('אימות דו־שלבי');
   expect(errors).toEqual([]);
+  await card.locator('[data-step-up-open-factor]').click();
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#/system/access?tab=factor');
 });
 
 test('a wrong code keeps the dialog open with the message; the right code saves, the save is sent once more and only once', async ({ page }) => {
   const mock = await setup(page);
   await openRemote(page);
-  await changeTitleLikeSetting(page);
+  await changeRemoteSetting(page);
   await save(page).click();
   const d = dialog(page);
   await expect(d.locator('[data-step-up-code]')).toBeVisible();
@@ -120,17 +122,16 @@ test('a wrong code keeps the dialog open with the message; the right code saves,
   await d.locator('[data-step-up-code]').fill(GOOD);
   await d.locator('[data-step-up-code]').press('Enter');
   await expect(d).toHaveCount(0);
-  await expect.poll(() => mock.patches).toEqual([{ 'security.step_up_minutes': 10 }]);
+  await expect.poll(() => mock.patches).toEqual([{ 'remote.policy': 'any_role' }]);
   expect(mock.refused).toBe(1);
   expect(mock.verifies).toEqual([{ code: '111111', action: 'system.configure' }, { code: GOOD, action: 'system.configure' }]);
   await expect(page.locator('system-diagnostics .foot .ok')).toBeVisible();
-  await expect(page.locator('system-diagnostics [data-step-up-mine="valid"]')).toBeVisible();
 });
 
 test('cancel sends nothing more and the save row shows the refusal; the change stays to try again', async ({ page }) => {
   const mock = await setup(page);
   await openRemote(page);
-  await changeTitleLikeSetting(page);
+  await changeRemoteSetting(page);
   await save(page).click();
   const d = dialog(page);
   await expect(d.locator('[data-step-up-cancel]')).toBeVisible();
@@ -143,31 +144,10 @@ test('cancel sends nothing more and the save row shows the refusal; the change s
   await expect(save(page)).not.toHaveAttribute('disabled', '');
 });
 
-test('the off switch: switching step-up off is itself confirmed once, after that nothing is asked', async ({ page }) => {
-  const mock = await setup(page);
-  const card = await openRemote(page);
-  await card.locator('sw-toggle[data-set-step-up="security.step_up"]').click();
-  await expect(card.locator('input[data-set-step-up="security.step_up_minutes"]')).toBeDisabled();
-  await save(page).click();
-  await dialog(page).locator('[data-step-up-code]').fill(GOOD);
-  await dialog(page).locator('[data-step-up-confirm]').click();
-  await expect.poll(() => mock.patches).toEqual([{ 'security.step_up': 'off' }]);
-  // off: the next change goes straight through, no dialog
-  mock.until = null;
-  await card.locator('sw-toggle[data-set-step-up="security.step_up"]').click();
-  await save(page).click();
-  await expect.poll(() => mock.patches.length).toBe(2);
-  await expect(dialog(page)).toHaveCount(0);
-  expect(mock.refused).toBe(1);
-});
-
-test('with step-up off on the server no dialog ever opens; the dependent fields are disabled', async ({ page }) => {
+test('with step-up off on the server no dialog ever opens', async ({ page }) => {
   const mock = await setup(page, { 'security.step_up': 'off' });
-  const card = await openRemote(page);
-  await expect(card.locator('[data-step-up-mine="off"]')).toBeVisible();
-  await expect(card.locator('input[data-set-step-up="security.step_up_minutes"]')).toBeDisabled();
-  await expect(card.locator('sw-toggle[data-set-step-up="security.step_up_local"]')).toHaveAttribute('disabled', '');
-  await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
+  await openRemote(page);
+  await changeRemoteSetting(page);
   await save(page).click();
   await expect.poll(() => mock.patches).toEqual([{ 'remote.policy': 'any_role' }]);
   await expect(dialog(page)).toHaveCount(0);
@@ -197,8 +177,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${base}-settings.png` });
       if (!hasCard) return; // the "before" build: no card, no dialog
-      await card.locator('input[data-set-step-up="security.step_up_minutes"]').fill('10');
-      await card.locator('input[data-set-step-up="security.step_up_minutes"]').dispatchEvent('change');
+      await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
       await save(page).click();
       await expect(dialog(page).locator('[data-step-up-code]')).toBeVisible();
       await page.waitForTimeout(300);

@@ -194,14 +194,38 @@ test('user drawer: a user with passkeys but no authenticator code - the reset, w
   await expect(f.locator('[data-sf-admin-state]')).toContainText('כבוי');
   await f.locator('[data-uf-reset]').click();
   await expect(f.locator('[data-uf-reset-confirm]')).toBeVisible();
-  // the administrator has an authenticator code: the confirm waits for six digits
+  // RELEASE-2510-TRAIN: the preflight says what goes and what happens; the username must be typed (MFA-RESET-HARDENING-2510)
+  await expect(f.locator('[data-reset-removes]')).toContainText('מפתחות גישה: 2');
+  await expect(f.locator('[data-reset-after]')).toContainText('יצטרך להגדיר אימות דו־שלבי מחדש');
+  await expect(f.locator('[data-reset-confirm-label]')).toContainText('ron');
+  // the administrator has an authenticator code: the confirm waits for six digits AND the typed username
   await expect(f.locator('[data-uf-reset-confirm]')).toHaveAttribute('disabled', '');
   await f.locator('[data-uf-code]').fill(GOOD);
+  await expect(f.locator('[data-uf-reset-confirm]')).toHaveAttribute('disabled', '');
+  await f.locator('[data-reset-confirm-text]').fill('rn');
+  await expect(f.locator('[data-uf-reset-confirm]')).toHaveAttribute('disabled', '');
+  await f.locator('[data-reset-confirm-text]').fill(' Ron ');
+  await expect(f.locator('[data-uf-reset-confirm]')).not.toHaveAttribute('disabled', '');
   await f.locator('[data-uf-reset-confirm]').click();
   await expect(f.locator('[data-uf-message]')).toBeVisible();
   await expect(f.locator('[data-uf="passkeys"]')).toContainText('אין');
-  expect(mock.calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual(['auth/second-factor/users/u-ron']);
+  const deletes = mock.calls.filter((c) => c.method === 'DELETE');
+  expect(deletes.map((c) => c.path)).toEqual(['auth/second-factor/users/u-ron']);
+  expect(deletes.map((c) => c.body)).toEqual([{ confirm: ' Ron ' }]);
+  expect(mock.calls.filter((c) => c.path === 'auth/second-factor/users/u-ron/reset-check')).toHaveLength(1);
   expect(errors).toEqual([]);
+});
+
+test('user drawer: the reset preflight refuses (the last administrator who can sign in remotely) - no confirm button, nothing sent', async ({ page }) => {
+  skipTablet();
+  const mock = await installMfaMock(page, { resetRefusal: 'last_admin' });
+  const drawer = await openUserDrawer(page, 'רון לוי');
+  const f = drawer.locator('sw-user-factors');
+  await f.locator('[data-uf-reset]').click();
+  await expect(f.locator('[data-reset-refused="last_admin"]')).toContainText('מנהל המערכת האחרון');
+  await expect(f.locator('[data-uf-reset-confirm]')).toHaveCount(0);
+  await expect(f.locator('[data-reset-confirm-text]')).toHaveCount(0);
+  expect(mock.calls.filter((c) => c.method === 'DELETE')).toEqual([]);
 });
 
 // ---------------------------------------------------------------- the step-up dialog's other methods (MFA-SECFIX-2500 open question 5)

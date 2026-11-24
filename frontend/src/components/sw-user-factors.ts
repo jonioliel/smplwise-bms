@@ -3,8 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-icon';
 import './sw-second-factor';
-import { describeError } from '../api/client';
-import { resetFactor, secondFactorStatus } from '../api/second-factor';
+import { factorResetCheck, resetFactor, secondFactorStatus, type FactorResetCheck } from '../api/second-factor';
+import { refused, renderResetConfirm, resetConfirmStyles, resetErrorText, typedMatches } from './factor-reset-confirm';
 import { userFactors, type UserFactors } from '../api/factor-screens';
 import { t } from '../i18n/he';
 import { tr } from '../i18n/msg/mfa';
@@ -38,6 +38,9 @@ export class SwUserFactors extends LitElement {
   @state() private busy = false;
   @state() private stepUp = false;
   @state() private ownCode = '';
+  /** RELEASE-2510-TRAIN: the reset's preflight (undefined while read, null when unreadable) and the username the administrator typed. */
+  @state() private check: FactorResetCheck | null | undefined = undefined;
+  @state() private typed = '';
   @state() private error = '';
   @state() private message = '';
 
@@ -58,6 +61,8 @@ export class SwUserFactors extends LitElement {
       this.data = undefined;
       this.armed = false;
       this.ownCode = '';
+      this.typed = '';
+      this.check = undefined;
       this.error = '';
       this.message = '';
       void this.load();
@@ -80,25 +85,32 @@ export class SwUserFactors extends LitElement {
     this.armed = true;
     this.error = '';
     this.ownCode = '';
-    try {
-      this.stepUp = (await secondFactorStatus()).enabled;
-    } catch {
-      this.stepUp = false;
-    }
+    this.typed = '';
+    this.check = undefined;
+    const id = this.userId;
+    const [own, check] = await Promise.allSettled([secondFactorStatus(), factorResetCheck(id)]);
+    if (id !== this.userId) return;
+    this.stepUp = own.status === 'fulfilled' && own.value.enabled;
+    this.check = check.status === 'fulfilled' ? check.value : null;
+  }
+
+  private ready(): boolean {
+    return !refused(this.check) && typedMatches(this.check, this.typed) && (!this.stepUp || /^\d{6}$/.test(this.ownCode));
   }
 
   private async reset() {
-    if (this.stepUp && !/^\d{6}$/.test(this.ownCode)) return;
+    if (!this.ready()) return;
     this.busy = true;
     this.error = '';
     try {
-      await resetFactor(this.userId, this.stepUp ? this.ownCode : undefined);
+      await resetFactor(this.userId, this.typed, this.stepUp ? this.ownCode : undefined);
       this.armed = false;
       this.ownCode = '';
+      this.typed = '';
       this.message = t('secondFactor.adminResetDone');
       await this.load();
     } catch (err) {
-      this.error = describeError(err);
+      this.error = resetErrorText(err);
     } finally {
       this.busy = false;
     }
@@ -112,18 +124,18 @@ export class SwUserFactors extends LitElement {
     // the authenticator row (sw-second-factor-user) carries the reset while the code is on; here only for the other factors
     const others = d.passkeys > 0 || d.device_keys > 0 || d.recovery.total > 0;
     if (d.totp.enabled || !others) return nothing;
-    const ready = !this.stepUp || /^\d{6}$/.test(this.ownCode);
     return html`<div class="reset" data-uf-reset-box>
       ${this.armed
         ? html`<div class="lbl">${t('secondFactor.adminResetConfirm')}</div>
-            ${this.stepUp
+            ${renderResetConfirm(this.check, this.typed, (v) => (this.typed = v), () => void this.reset())}
+            ${this.stepUp && !refused(this.check)
               ? html`<form @submit=${(e: Event) => { e.preventDefault(); void this.reset(); }}>
                   <input data-uf-code inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label=${t('secondFactor.adminStepUp')}
                     placeholder="000000" .value=${this.ownCode} @input=${(e: Event) => (this.ownCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} />
                 </form>
                 <div class="lbl">${t('secondFactor.adminStepUp')}</div>`
               : nothing}
-            <span class="acts"><sw-button size="sm" variant="danger" data-uf-reset-confirm ?disabled=${this.busy || !ready} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>
+            <span class="acts">${refused(this.check) ? nothing : html`<sw-button size="sm" variant="danger" data-uf-reset-confirm ?disabled=${this.busy || !this.ready()} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>`}
               <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.armed = false)}>${t('secondFactor.cancel')}</sw-button></span>`
         : html`<sw-button size="sm" variant="secondary" data-uf-reset @click=${() => void this.arm()}>${t('secondFactor.adminReset')}</sw-button>`}
     </div>`;
@@ -149,7 +161,7 @@ export class SwUserFactors extends LitElement {
       ${this.error ? html`<div class="err" role="alert" data-uf-error>${this.error}</div>` : nothing}`;
   }
 
-  static styles = css`
+  static styles = [resetConfirmStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -227,7 +239,7 @@ export class SwUserFactors extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
     }
-  `;
+  `];
 }
 
 declare global {

@@ -52,9 +52,13 @@ interface Mock {
   /** the step-up methods the gate's 403 lists (the shell dialog offers what it can of them) */
   methods: string[];
   verifies: Record<string, unknown>[];
+  /** RELEASE-2510-TRAIN: the reset preflight's refusal (`last_admin`, `rate_limited`, ...); undefined = allowed */
+  resetRefusal?: 'self' | 'user_unknown' | 'local_only' | 'last_admin' | 'rate_limited';
 }
 
-export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader' | 'methods'>> = {}): Promise<Mock> {
+const USERNAMES: Record<string, string> = { 'u-admin': 'admin', 'u-dana': 'dana', 'u-ron': 'ron', 'u-maya': 'maya' };
+
+export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader' | 'methods' | 'resetRefusal'>> = {}): Promise<Mock> {
   const st: Mock = {
     calls: [],
     settings: { 'ui.design': 'a', 'security.factor_policy': 'admins', 'security.factor_policy_mode': 'report', 'security.factor_wall_exempt': 'on', 'security.remote_long_lived_tokens': 'allow', 'security.step_up': 'off', 'security.step_up_minutes': 5, 'security.step_up_local': 'off', ...(over.settings ?? {}) },
@@ -70,6 +74,7 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     },
     enrolled: new Set(['u-dana']),
     reader: over.reader ?? false,
+    resetRefusal: over.resetRefusal,
     methods: over.methods ?? ['totp'],
     verifies: [],
   };
@@ -161,9 +166,19 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     if (p === 'auth/second-factor/users' && method === 'GET')
       return json(route, { policy: 'optional', users: [...st.enrolled].map((id) => ({ user_id: id, enabled_at: '2026-11-01T08:00:00Z', last_used_at: null })) });
     if (p === 'auth/second-factor/overrides' && method === 'GET') return json(route, { policy: 'optional', user: {}, role: {} });
+    // RELEASE-2510-TRAIN (MFA-RESET-HARDENING-2510): the reset's preflight and the typed username; `resetRefusal` makes the preflight say no
+    const chk = p.match(/^auth\/second-factor\/users\/([^/]+)\/reset-check$/);
+    if (chk && method === 'GET') {
+      const id = decodeURIComponent(chk[1]);
+      const f = st.factors[id] ?? { totp: false, passkeys: 0, device_keys: 0, recovery: 0 };
+      return json(route, { user_id: id, allowed: !st.resetRefusal, reason: st.resetRefusal ?? null, confirm_text: USERNAMES[id] ?? id, channel: 'any', remote: false, resets_left: 3, rate_max: 3,
+        factors: { totp: f.totp, passkeys: f.passkeys, device_keys: f.device_keys, recovery_codes: f.recovery }, must_enroll_after: id === 'u-ron' || id === 'u-maya',
+        step_up: { action: 'auth.second_factor.reset', methods: ['totp'], minutes: 0, once: true, verify_path: 'auth/step-up/verify' } });
+    }
     const del = p.match(/^auth\/second-factor\/users\/(.+)$/);
     if (del && method === 'DELETE') {
       const id = decodeURIComponent(del[1]);
+      if ((body as { confirm?: string } | null)?.confirm !== (USERNAMES[id] ?? id)) return json(route, err('factor_reset_confirm_mismatch', 'שם המשתמש שהוקלד אינו תואם לחשבון. האיפוס לא בוצע.', { field: 'confirm' }), 422);
       st.enrolled.delete(id);
       st.factors[id] = { totp: false, passkeys: 0, device_keys: 0, recovery: 0 };
       return json(route, { user_id: id, removed: true, totp: false, passkeys: 2, device_keys: 0, recovery_codes: 0 });

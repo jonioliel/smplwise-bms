@@ -129,9 +129,8 @@ const dialog = (page: Page) => page.locator('sw-step-up-dialog');
 const save = (page: Page) => page.locator('system-diagnostics [data-save-remote]');
 
 async function changeAndSave(page: Page) {
-  const minutes = page.locator('system-diagnostics input[data-set-step-up="security.step_up_minutes"]');
-  await minutes.fill('10');
-  await minutes.dispatchEvent('change');
+  // RELEASE-2510-TRAIN: the step-up settings moved to Users & permissions › Second factor; any remote-tab setting goes through the gate
+  await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
   await expect(save(page)).not.toHaveAttribute('disabled', '');
   await save(page).click();
 }
@@ -154,7 +153,7 @@ test('a passkey-only administrator: only the passkey button; the passkey proof r
 
   await pk.click();
   await expect(d).toHaveCount(0);
-  await expect.poll(() => st.patches).toEqual([{ 'security.step_up_minutes': 10 }]);
+  await expect.poll(() => st.patches).toEqual([{ 'remote.policy': 'any_role' }]);
   expect(st.refused).toBe(1);
   expect(st.challenges).toEqual([{ action: 'system.configure' }]);
   expect(st.verifies).toEqual([{ method: 'passkey', code: undefined, challenge_id: 'suc_train', action: 'system.configure' }]);
@@ -177,7 +176,7 @@ test('both methods: the passkey and the code are offered; the code path is uncha
   await d.locator('[data-step-up-code]').fill(GOOD);
   await d.locator('[data-step-up-confirm]').click();
   await expect(d).toHaveCount(0);
-  await expect.poll(() => st.patches).toEqual([{ 'security.step_up_minutes': 10 }]);
+  await expect.poll(() => st.patches).toEqual([{ 'remote.policy': 'any_role' }]);
   expect(st.refused).toBe(1);
   expect(st.challenges).toEqual([]);
   expect(st.verifies).toEqual([{ method: 'totp', code: GOOD, challenge_id: undefined, action: 'system.configure' }]);
@@ -196,7 +195,7 @@ test('a refused passkey keeps the dialog open with the message; the next try pas
 
   await d.locator('[data-step-up-passkey]').click();
   await expect(d).toHaveCount(0);
-  await expect.poll(() => st.patches).toEqual([{ 'security.step_up_minutes': 10 }]);
+  await expect.poll(() => st.patches).toEqual([{ 'remote.policy': 'any_role' }]);
   expect(st.refused).toBe(1);
   expect(st.challenges).toHaveLength(2); // every try asks a fresh single-use challenge
   expect(st.verifies.map((v) => v.method)).toEqual(['passkey', 'passkey']);
