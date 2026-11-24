@@ -89,7 +89,7 @@ async function setup(page: Page, over: Partial<Mock> = {}): Promise<Mock> {
           rp: { id: 'localhost', name: 'SmplWise Arx' }, user: { id: b64u('u-dana-handle'), name: 'dana', displayName: 'דנה' }, challenge: st.challenge,
           pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }], timeout: 60000, attestation: 'none',
           authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' },
-          excludeCredentials: st.creds.map((c) => ({ type: 'public-key', id: c.rawId })),
+          excludeCredentials: [], // the server lists the user's passkeys here; one virtual device plays both of them in this spec
         },
         user_verification_required: false,
       });
