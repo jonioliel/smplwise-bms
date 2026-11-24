@@ -708,7 +708,8 @@ export class ArxLogin extends LitElement {
     const all = this.methods();
     if (all.length < 2) return nothing;
     const current = this.passkeyChosen ? 'passkey' : this.recoveryCode ? 'recovery' : 'totp';
-    const label = { totp: trm('קוד מהאפליקציה'), passkey: trm('מפתח גישה'), recovery: t('secondFactor.recoveryCodeLabel') };
+    // three keys on a phone are narrow: the app's code is "אפליקציה" there, "קוד מהאפליקציה" beside one other key
+    const label = { totp: all.length > 2 ? trm('אפליקציה') : trm('קוד מהאפליקציה'), passkey: trm('מפתח גישה'), recovery: t('secondFactor.recoveryCodeLabel') };
     return html`<div class="modes methods n${all.length}" role="group" aria-label=${trm('דרך האימות')} data-arx-methods>
       ${all.map((m) => html`<button type="button" class="mode ${m === current ? 'on' : ''}" aria-pressed=${m === current ? 'true' : 'false'} ?disabled=${this.busy}
         data-arx-method=${m} @click=${() => void this.chooseMethod(m)}>${label[m]}</button>`)}

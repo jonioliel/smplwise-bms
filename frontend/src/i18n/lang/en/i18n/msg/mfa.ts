@@ -97,4 +97,5 @@ export const en = {
   'ממתין לטלפון…': 'Waiting for the phone…',
   'אישור במפתח הטלפון': 'Confirm with the phone key',
   'את מפתח הטלפון אפשר לאשר רק מתוך אפליקציית Android.': 'The phone key can confirm only from inside the Android app.',
+  'אפליקציה': 'App code',
 };
