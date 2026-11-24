@@ -188,6 +188,12 @@ def test_off_nothing_new_runs_and_reach_is_todays(bulk_app, monkeypatch, state):
 
     for fn in ("entity_targets", "area_targets", "mapping_changed"):
         monkeypatch.setattr(building_scope, fn, never)
+    # MULTI-BUILDING-NEXT-2500: with the switch on, the lists' building filter reads the mapping for DISPLAY (it only narrows, like the
+    # home site view); this test guards the REACH path, so the filter is turned off by its own setting here
+    if state == "map_only":
+        from smplwise.services import building_filter
+
+        monkeypatch.setattr(building_filter, "filter_mode", lambda _conn: "off")
     with app.state.db.connection() as conn:
         wide, floors = ha_scope.visible_floors(conn, ha_scope_principal(conn, "dev-opa"), "devices.read")
         assert not wide and floors.mapped == frozenset()
