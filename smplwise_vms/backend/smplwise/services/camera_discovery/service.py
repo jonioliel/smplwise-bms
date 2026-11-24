@@ -28,7 +28,9 @@ starts (range, number of addresses, engines) and completed in place when it ends
 `denied` rows with the reason. `camera.discovery.identify` - one row per press (device count, results by class, same_for_all).
 `camera.discovery.cancel`.
 
-The routes, wire models, settings registration and the add step are the ONVIF-API row; they call this module."""
+The routes (routers/camera_discovery.py), the wire models and the settings registration are the ONVIF-API row (ONVIF-API-2500); the
+add step waits for the stream addresses of the ONVIF-CLIENT row. A refusal about request fields names them (ADR-019 D1: `details.fields`
+and `details.problems`, FIELDS_OF); a 429 is retryable and carries `retry_after_s` (the route adds the Retry-After header)."""
 from __future__ import annotations
 
 import collections
@@ -59,7 +61,8 @@ log = logging.getLogger("smplwise.camera_discovery")
 PERMISSION = "system.configure"
 ENGINES = ("unicast",)  # Q55
 
-# settings (registered and validated by the ONVIF-API row; read here with their defaults and clamped)
+# settings (registered in services/settings_store.DEFAULTS and validated by PATCH /settings - ONVIF-API-2500; read here with their
+# defaults and clamped, so a value stored before the validation existed is still safe)
 K_MODE = "cameras.discovery"  # off | manual
 K_RANGE_MAX = "cameras.discovery_range_max"  # a prefix length (/20../28) - never more than ranges.MAX_ADDRESSES addresses
 K_ALLOWED = "cameras.discovery_allowed_ranges"  # csv CIDRs; empty = the site networks
@@ -100,8 +103,23 @@ MSG = {
 }
 
 
-def _error(status: int, code: str, **details: Any) -> ApiError:
-    return ApiError(status, code, MSG.get(code, MSG["range_invalid"]), details=details or None)
+# ADR-019 D1 (ONVIF-API-2500): a refusal about request fields names them - `details.fields` (names) and `details.problems`
+# ([{field, code, message}], `code` = the refusal's own code) - next to its endpoint extras (`max_addresses`, `retry_after_s`)
+FIELDS_OF: dict[str, tuple[str, ...]] = {
+    "range_invalid": ("range",),
+    "range_too_large": ("range",),
+    "range_refused": ("range",),
+    "device_unknown": ("device_ids",),
+    "same_for_all_required": ("same_for_all",),
+}
+
+
+def _error(status: int, code: str, *, fields: tuple[str, ...] | None = None, **details: Any) -> ApiError:
+    message = MSG.get(code, MSG["range_invalid"])
+    names = list(fields if fields is not None else FIELDS_OF.get(code, ()))
+    if names:
+        details = {"fields": names, "problems": [{"field": f, "code": code, "message": message} for f in names], **details}
+    return ApiError(status, code, message, retryable=status == 429, details=details or None)
 
 
 # ---------------------------------------------------------------- the policy (settings)
@@ -193,7 +211,20 @@ class Device:
         return {"id": self.id, "address": self.address, "port": self.port, "engines": list(self.engines), "kind": self.kind, "known": self.known,
                 **({"known_ref": self.known_ref} if self.known_ref else {}), "addable": self.addable, "manufacturer": self.manufacturer,
                 "model": self.model, "name": self.name, "firmware": self.firmware, "clock_offset_s": self.clock_offset_s, "auth": self.auth,
-                "has_service": self.target is not None}
+                "has_service": self.target is not None, **({"recorder_prefill": self.recorder_prefill()} if self.offer_recorder else {})}
+
+    @property
+    def offer_recorder(self) -> bool:
+        """Q59: a device that looks like a recorder and is not this installation's recorder already - "add as a recorder"."""
+        return self.kind == "nvr" and self.known not in ("recorder", "behind_recorder")
+
+    def recorder_prefill(self) -> dict[str, Any]:
+        """What the recorder wizard is opened with (ONVIF-API-2500): the address and the HTTP port that answered, the vendor when
+        the device says it is one Arx has an adapter for, a suggested name. Never a credential: the wizard asks for them."""
+        maker = (self.manufacturer or "").strip().lower()
+        name = " ".join(x for x in (self.manufacturer, self.model) if x) or None
+        return {"host": self.address, "http_port": self.port or 80, **({"vendor": "hikvision"} if maker.startswith("hikvision") else {}),
+                **({"name": name[:80]} if name else {})}
 
 
 @dataclass
@@ -225,6 +256,11 @@ class Job:
         return {"found": len(devs), "cameras": sum(d.kind == "camera" for d in devs), "recorders": sum(d.kind == "nvr" for d in devs),
                 "unknown": sum(d.kind == "unknown" for d in devs), "known": sum(d.known != "none" for d in devs),
                 "addable": sum(d.addable for d in devs)}
+
+    def summary(self) -> dict[str, Any]:
+        with self.lock:
+            return {"id": self.id, "state": self.state, "range": self.range, "engines": list(self.engines), "started_at": self.started_at,
+                    "finished_at": self.finished_at, "progress": {"checked": self.checked, "total": self.total}, "counts": self.counts()}
 
     def view(self) -> dict[str, Any]:
         with self.lock:
@@ -432,6 +468,23 @@ class Manager:
 
     # ------------------------------------------------------------ view / cancel
 
+    def list_scans(self, conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
+        """The scans this person may see (their own; every scan for a system administrator), newest first, without the devices -
+        what the scan screen needs to find a running scan again after a reload (ONVIF-API-2500)."""
+        require(conn, principal, PERMISSION, INSTALLATION)
+        self._expire()
+        with self._lock:
+            jobs = sorted(self._jobs.values(), key=lambda j: j.started_mono, reverse=True)
+        admin: bool | None = None
+        out = []
+        for job in jobs:
+            if job.owner_id != principal.user_id:
+                admin = is_system_admin(conn, principal.user_id) if admin is None else admin
+                if not admin:
+                    continue
+            out.append(job.summary())
+        return {"scans": out}
+
     def get(self, conn: sqlite3.Connection, principal: Principal, scan_id: Any) -> dict[str, Any]:
         require(conn, principal, PERMISSION, INSTALLATION)
         return self._job(conn, principal, scan_id).view()
@@ -457,9 +510,10 @@ class Manager:
         job = self._job(conn, principal, scan_id)
         if job.state not in ("running", "done"):
             raise _error(409, "scan_not_active")
-        if (not isinstance(username, str) or not isinstance(password, str) or not username.strip() or not password
-                or len(username) > onvif_http.USER_MAX or len(password) > onvif_http.PASSWORD_MAX):
-            raise _error(422, "credentials_invalid")
+        bad = tuple(name for name, value, cap in (("username", username, onvif_http.USER_MAX), ("password", password, onvif_http.PASSWORD_MAX))
+                    if not isinstance(value, str) or not (value.strip() if name == "username" else value) or len(value) > cap)
+        if bad:
+            raise _error(422, "credentials_invalid", fields=bad)  # names the field only: never the value
         ids = list(dict.fromkeys(device_ids)) if isinstance(device_ids, list) and all(isinstance(x, str) for x in device_ids) else []
         if not ids or len(ids) > MAX_IDENTIFY_DEVICES:
             raise _error(422, "device_unknown")
