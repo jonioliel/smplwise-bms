@@ -66,8 +66,8 @@ Runs (real results):
 
 | Check | Where | Result |
 |---|---|---|
-| `tests/test_wxd10_door_jobs.py` (whole file, 16 tests incl. the two new ones), main `.venv`, Python 3.12 | workstation | PENDING |
-| `tests/test_i18n_backend_2490.py` (the 2.49 backend catalogue scan: every key Hebrew + English, English without Hebrew, same slots - it now covers `doorconv` / `doorpath`) | workstation | PENDING |
-| `tests/test_singletons_registered.py` | workstation | PENDING |
-| `ruff check` on the four changed Python files | workstation | PENDING |
-| Runner slot B job: lint, `gen_wire_types --check`, the door / i18n backend test files | runner | PENDING |
+| `tests/test_wxd10_door_jobs.py` (whole file, 16 tests incl. the two new ones), main `.venv`, Python 3.12 | workstation | **16 passed** (16 dots, exit 0) |
+| `tests/test_i18n_backend_2490.py` (the 2.49 backend catalogue scan: every key Hebrew + English, English without Hebrew, same slots - it now covers `doorconv` / `doorpath`) | workstation | **14 passed** (107 s) |
+| `tests/test_singletons_registered.py` | workstation | **exit 0** (no failure) |
+| `ruff check` (ruff 0.17.5, py -3.12) on the four changed package files | workstation | **all checks passed**; the test file shows the 4 old F811/F841 findings on lines this change does not touch |
+| Runner slot B job `~/work/doori18n_job.sh` (log `~/work/doori18n_job.log`): `scripts/gate/lint_backend.py --strict`, `scripts/gen_wire_types.py --check`, 27 backend test files in 3 shards (every door / door-path / conversion / door-blocks file, the three `test_i18n_backend_2490*` files, `test_singletons_registered`) | runner | **NOT_RUN** - queued 08:18 UTC behind the 2.49.0 gate (ended ~08:50 UTC) and 15-20 other slot-B jobs; at 11:18 UTC it had not started. Left queued: the log fills when it runs. |
