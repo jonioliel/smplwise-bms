@@ -9,7 +9,7 @@
    why (the second signal added by this row), the ingest queue stays bounded and accounted for, and once space returns writes
    work, the warning clears by itself, committed rows are intact and `integrity_check` is ok.
 2. Home Assistant dropping and coming back with live /ha/ws subscribers (three cycles, 25 pushes in each): every push is delivered once,
-   the connection-state frames are exactly [disconnected, connected] per cycle, no subscriber is left behind, no queue grows.
+   the connection-state frames are disconnected (once per refused attempt) then exactly one connected per cycle, no subscriber is left behind, no queue grows.
 3. A stalled /events/ws and /ha/ws subscriber (never reads) while events keep coming: its queue stays at its cap, ingest never
    blocks, and the loss is counted.
 4. The NVR delivering the same alert again after a reconnect: one event row, not two.
@@ -127,15 +127,16 @@ def test_g1_a_real_full_database_under_load(settings, monkeypatch, real_size_cap
         assert c.get("/healthz").status_code == 200
         assert c.get("/api/v1/events").status_code == 200, "reads keep working"
         refusals = []
-        for method, url, body in (("patch", "/api/v1/settings", {"storage.min_free_mb": 900}),
-                                  ("patch", "/api/v1/settings", {"events.retention_days": 400}),
-                                  ("post", "/api/v1/events/ack-many", {"ids": sorted(committed)[:1]})):
-            r = getattr(c, method)(url, json=body)
-            refusals.append((url, r.status_code, r.json().get("code")))
+        for n in range(600):  # one small row each time: the slack of the last pages runs out within a few dozen
+            r = c.post("/api/v1/sites", json={"name": f"edge {n} " + "x" * 100})
+            refusals.append((r.status_code, r.json().get("code")))
             if r.status_code == 507:
                 assert set(r.json()) >= ENVELOPE and r.json()["code"] == "storage_full" and r.json()["retryable"] is False, r.text
-        assert refusals[0][1] == 507, refusals
-        assert all(code in (507, 422, 403, 404, 200) for _u, code, _c in refusals), refusals
+                assert r.json()["details"] == {"storage": "full"} and "אחסון התוסף מלא" in r.json()["user_message"], r.text
+                break
+        assert refusals[-1][0] == 507, f"no write was refused: {refusals}"
+        assert all(code in (200, 201) for code, _c in refusals[:-1]), refusals
+        assert c.post("/api/v1/sites", json={"name": "y" * 100}).status_code == 507, "and it stays refused"
         # the health signals: disk_usage still shows free space (not faked) - the refusal itself is what says it
         item = summary_items(c).get("storage")
         assert item is not None and item["status"] == "error" and "מסרב" in item["label"], item
@@ -223,7 +224,7 @@ def test_g2_ha_drop_with_live_subscribers_three_cycles(settings, monkeypatch):
             states = [f["connected"] for f in frames if f.get("type") == "ha_sync_state"]
             ids = [f["entity"]["entity_id"] for f in pushed if f["entity"]["entity_id"].startswith("sensor.burst_")]
             assert sorted(ids) == sorted(f"sensor.burst_{cycle}_{i}" for i in range(25)), "every push exactly once, none replayed after the reconnect"
-            assert states == [False, True], states
+            assert states[0] is False and states[-1] is True and states.count(True) == 1, states  # one "disconnected" per refused attempt, one "connected"
             assert sub.qsize() == 0
             per_cycle.append({"cycle": cycle, "pushes": len(ids), "state_frames": states, "threads": own_threads(started_before)})
         assert all(x["threads"] == per_cycle[0]["threads"] for x in per_cycle), per_cycle
