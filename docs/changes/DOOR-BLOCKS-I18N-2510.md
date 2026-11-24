@@ -72,4 +72,12 @@ Runs (real results):
 
 | Check | Where | Result |
 |---|---|---|
-| RESULTS_PENDING | | |
+| `tests/test_wiskey_door_overrides.py` (whole file, 24 tests incl. the three new ones), main `.venv`, Python 3.12 | workstation | **24 passed** (24 dots, exit 0) |
+| `tests/test_wxd10_door_jobs.py` (whole file, the preview tests) - first run | workstation | **1 failed**: the preview's Hebrew-literal scan did not know the new `doorguard` / `doorblocks` tables now in the catalogue file; the scan's allowed set now includes them |
+| `tests/test_wxd10_door_jobs.py` - after that fix | workstation | **exit 0** (no failure) |
+| `tests/test_i18n_backend_2490.py` (the whole-catalogue scan: Hebrew + English, English without Hebrew, same slots) | workstation | **exit 0** (no failure) |
+| `ruff check` (ruff 0.17.5) on the four changed package files | workstation | **clean**; the two test files show only their old F811 / F841 findings (fixture re-imports, unused locals) on lines this change does not touch - the base shows the same two in `test_wiskey_door_overrides.py` |
+| Runner slot B job `~/work/doorblocks_job.sh` (log `~/work/doorblocks_job.log`): `scripts/gate/lint_backend.py --strict`, `scripts/gen_wire_types.py --check`, 20 backend test files in 3 shards (every door / door-path / conversion / door-blocks file, the three `test_i18n_backend_2490*` files, `test_singletons_registered`), each shard with its own `--basetemp` removed afterwards; the job removes its own worktree at the end | runner | **NOT_RUN** - queued 14:10 UTC behind the 2.50 release backend run and about 13 other slot-B jobs; at 15:15 UTC it had not started. Left queued: the log fills when it runs. |
+
+`frontend`: only three English values of `msg/system-a.ts` changed (no key, no code); no frontend check was run (tsc / vitest / Playwright are
+runner-only tonight) - **NOT_RUN**.
