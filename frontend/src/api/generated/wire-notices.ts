@@ -47,6 +47,7 @@ export interface NoticeBoard {
   item_count: number;
   created_at: string;
   updated_at: string;
+  news_unset: boolean;
 }
 
 /** A board as a notice manager without notices.boards sees it (the compose dialog's chips). */
@@ -92,6 +93,7 @@ export interface NoticeBoardFeed {
   slides?: unknown;
   control?: unknown;
   announcement?: unknown;
+  news_unset?: boolean;
 }
 
 /** A notice on a board: the brief fields, its state and its position on the board. */
