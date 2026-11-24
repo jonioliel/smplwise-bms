@@ -148,4 +148,5 @@ integration.
 | workstation | `pytest tests/test_wire_route_coverage_2460.py` / `test_routers_table_2440.py` | **5 passed** / **10 passed** |
 | workstation | `pytest tests/test_wire_routers_d_2470.py` | 69 passed, **1 failed**: `test_the_generated_client_types_are_current` reports `wire-generator.ts` stale only when the whole file runs; alone it passes and `scripts/gen_wire_types.py --check` exits 0. Order-dependent, in the generator family this branch does not touch - not caused here (see the runner run). |
 | workstation | `scripts/gen_wire_types.py --check` | exit 0 |
-| runner slot B | auth / security / settings backend files (52 files, 4 shards) + `ruff check smplwise`, one combined job `~/work/mfapolicy_job.sh` | see below |
+| runner slot B | auth / security / settings backend files (52 files, 4 shards) + `ruff check smplwise`, one combined job `~/work/mfapolicy_job.sh` | **NOT_RUN**: queued 04:32 UTC, lost in the runner's out-of-memory reboot (~05:55 UTC), re-queued once 05:57 UTC at `5f600505c`; still waiting for slot B at 07:28 UTC (gate running, five jobs ahead). The job stays queued; its log is `~/work/mfapolicy-out/job.log`, per-shard logs / junit `~/work/mfapolicy-out/shard{1..4}.{log,xml}`, ruff `~/work/mfapolicy-out/ruff.log`. |
+| workstation | `ruff` | NOT_RUN (not installed in the workstation environment; part of the queued runner job) |
