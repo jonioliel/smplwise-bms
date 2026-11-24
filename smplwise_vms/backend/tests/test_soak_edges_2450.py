@@ -474,6 +474,7 @@ def test_f1_sqlite_full_under_the_background_writers(settings, monkeypatch, full
     (each failure counted / raised as storage-full, never a crash), the API still reads, a write answers 507, the summary says the
     disk is full. Once space is freed the same writers store again, every row committed before the fault is still there and
     the database is intact."""
+    monkeypatch.setattr(dbmod, "STORAGE_REFUSAL_WINDOW_S", 1.0)  # the "writes are refused" warning outlives the fault by this long (T068-EDGE-2450)
     s = replace(settings, nvr_host="nvr.test", nvr_user="u", nvr_password="p")
     app = create_app(s)
     c = TestClient(app)
@@ -527,7 +528,7 @@ def test_f1_sqlite_full_under_the_background_writers(settings, monkeypatch, full
     after = _events(db)
     assert {e["id"] for e in committed} <= {e["id"] for e in after}, "rows committed before the fault are kept"
     assert len(after) == 4 and _mirror(db, "light.edge") == "off"
-    assert "storage" not in summary_items(c)
+    wait_for(lambda: "storage" not in summary_items(c), timeout=10, what="the storage warning clears once the refusals stop")
     assert c.patch("/api/v1/settings", json={"storage.min_free_mb": 900}).status_code == 200
     stats = q.stats()
     assert stats["accepted"] == stats["processed"] + stats["failed"] + stats["coalesced"] + stats["dropped"] + stats["depth"], stats

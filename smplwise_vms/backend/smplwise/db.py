@@ -336,7 +336,34 @@ def is_storage_full(exc: BaseException) -> bool:
     """T035: SQLite could not write because the data disk is full (SQLITE_FULL, "database or disk is full")."""
     if not isinstance(exc, sqlite3.OperationalError):
         return False
-    return getattr(exc, "sqlite_errorcode", None) == SQLITE_FULL or "disk is full" in str(exc).lower()
+    full = getattr(exc, "sqlite_errorcode", None) == SQLITE_FULL or "disk is full" in str(exc).lower()
+    if full:
+        _note_storage_refusal()
+    return full
+
+
+STORAGE_REFUSAL_WINDOW_S = 120.0  # a refusal this recent still counts as "the disk is full" for the health summary
+_LAST_REFUSAL = "\0last refusal"  # key of the last refusal's time in _storage_full_log (one table, one per-test reset)
+
+
+def _note_storage_refusal() -> None:
+    """T068-EDGE-2450: every handler of a refused write asks `is_storage_full`; the time of the latest refusal is what
+    `recent_storage_refusal_age` reports. It is the health summary's second source: a volume can refuse writes (quota, reserved
+    blocks, a database size limit) while `disk_usage` still shows free space."""
+    with _storage_full_lock:
+        _storage_full_log[_LAST_REFUSAL] = [time.monotonic(), 0]
+
+
+def recent_storage_refusal_age() -> float | None:
+    """Seconds since the latest write refused for lack of space, or None when none in the last STORAGE_REFUSAL_WINDOW_S. The writers
+    that run all the time (alerts, HA states) refuse every second while the disk is full, so the answer stays fresh; once space is
+    back they stop and it clears by itself."""
+    with _storage_full_lock:
+        entry = _storage_full_log.get(_LAST_REFUSAL)
+    if entry is None:
+        return None
+    age = time.monotonic() - entry[0]
+    return age if age <= STORAGE_REFUSAL_WINDOW_S else None
 
 
 STORAGE_FULL_LOG_EVERY_S = 60.0

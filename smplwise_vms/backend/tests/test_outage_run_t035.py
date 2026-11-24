@@ -632,6 +632,9 @@ def test_s07_disk_full(feed, monkeypatch, full_disk, bridge):
     bare 500 and a misleading "busy"); the top bar says the disk is full (T035 fix: only the administrator's report did).
     Once space is freed everything works again, and nothing refused while full is sent afterwards."""
     gate: dict[str, Any] = {}
+    from smplwise import db as _dbmod
+
+    monkeypatch.setattr(_dbmod, "STORAGE_REFUSAL_WINDOW_S", 1.0)  # T068-EDGE-2450: the "writes are refused" warning outlives the fault by this long
     app, s, fakes, c = start_feed(feed, monkeypatch, gate)
     b_app, b_s, b_c, far = bridge
     full_disk["full"] = True
@@ -650,7 +653,10 @@ def test_s07_disk_full(feed, monkeypatch, full_disk, bridge):
     full_disk["full"] = False  # space freed
     app.state.db.invalidate_pool()
     b_app.state.db.invalidate_pool()
-    assert "storage" not in summary_items(c)
+    deadline = time.monotonic() + 10
+    while "storage" in summary_items(c) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    assert "storage" not in summary_items(c), "the storage warning clears once the refusals stop"
     assert unlocks(fakes) == 0 and far["delivered"] == [], "nothing refused while full was sent later"
     assert release(c).status_code == 200 and unlocks(fakes) == 1
     assert unlock(b_c, "full-click").status_code == 202 and len(far["delivered"]) == 1, "the refused click left no record: it may be pressed again"
