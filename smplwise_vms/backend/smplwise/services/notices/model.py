@@ -496,6 +496,14 @@ def load_display(raw_json: str | None) -> dict[str, Any]:
     return normalize_display(raw)
 
 
+def news_unset(display: dict[str, Any]) -> bool:
+    """NOTICE-NEWS-EMPTY-2500: the news block is on but the board chose no source - the TV then draws no news at all (display.build_feed
+    builds no `news` block), so the board editor, the boards table and the Settings preview say so instead of a silently empty TV."""
+    blocks = display.get("blocks") if isinstance(display.get("blocks"), dict) else {}
+    news = display.get("news") if isinstance(display.get("news"), dict) else {}
+    return bool(blocks.get("news")) and not news.get("feeds")
+
+
 def clean_slug(value: Any) -> str:
     s = str(value or "").strip().lower()
     if not SLUG_RE.match(s):

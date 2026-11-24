@@ -50,6 +50,7 @@ class NoticeBoard(WireModel):
     item_count: int
     created_at: str
     updated_at: str
+    news_unset: bool  # NOTICE-NEWS-EMPTY-2500: the news block is on and no source is chosen (the TV shows no news)
     building_id: str | None = None  # MULTI-BUILDING-HOME-2500 (Q68): the board's building (absent = the whole site)
 
 
@@ -133,6 +134,7 @@ class NoticeBoardFeed(WireModel):
     slides: Any = None
     control: Any = None
     announcement: Any = None
+    news_unset: bool = False  # NOTICE-NEWS-EMPTY-2500: the preview only (never the TV's own feed) - news on, no source chosen
 
 
 class NoticeTransitDigest(WireModel):

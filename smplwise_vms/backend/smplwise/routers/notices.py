@@ -420,10 +420,21 @@ def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal =
 
 
 def _board_out(b: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
-    return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": model.load_display(b["display_json"]),
+    display = model.load_display(b["display_json"])
+    return {"id": b["id"], "name": b["name"], "slug": b["slug"], "enabled": bool(b["enabled"]), "display": display,
             "has_token": bool(b["token_hash"]), "has_stored_link": bool(b.get("token_sealed")), "token_rotated_at": b["token_rotated_at"], "last_seen_at": b["last_seen_at"],
             "item_count": counts.get(b["id"], 0), "created_at": b["created_at"], "updated_at": b["updated_at"],
+            "news_unset": model.news_unset(display),  # NOTICE-NEWS-EMPTY-2500: news on, no source chosen (the TV shows no news)
             **({"building_id": b["building_id"]} if b.get("building_id") else {})}  # MULTI-BUILDING-HOME-2500 (Q68): only when set
+
+
+def _news_audit(conn: sqlite3.Connection, before: list[dict[str, Any]], after: list[dict[str, Any]]) -> dict[str, Any]:
+    """NOTICE-NEWS-EMPTY-2500: a display save records how many news sources the board had before and after, and which ones were removed -
+    by the source list's id only, never a URL (a raw-URL feed the list does not know is recorded as "custom")."""
+    kept = {f["url"] for f in after}
+    by_url = {s["url"]: s["id"] for s in news_sources.load(conn)}
+    removed = [f.get("id") or by_url.get(f["url"]) or "custom" for f in before if f["url"] not in kept]
+    return {"news_feeds_before": len(before), "news_feeds_after": len(after), "news_feeds_removed": removed}
 
 
 def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
@@ -516,9 +527,12 @@ def patch_board(board_id: str, body: BoardPatch, request: Request, principal: Pr
         fit = {k: cols["display"].get(k) for k in model.TV_FIT_KEYS if cols["display"].get(k) != before.get(k)}
         if fit:
             details["tv_fit"] = fit
-        old = {f["url"] for f in model.load_display(b["display_json"])["news"]["feeds"]}
+        old = {f["url"] for f in before["news"]["feeds"]}
         curated = news_sources.allowed_urls(conn)
         details["custom_feeds_added"] = len([f for f in cols["display"]["news"]["feeds"] if f["url"] not in old and f["url"] not in curated])
+        details.update(_news_audit(conn, before["news"]["feeds"], cols["display"]["news"]["feeds"]))
+        if model.news_unset(cols["display"]):
+            details["news_unset"] = True
     audit(conn, actor=principal, action=action, decision="allowed", resource_type="notice_board", resource_id=b["id"], request_id=_rid(request), details=details)
     return {"board": _board_out(nb, store.item_counts(conn))}
 

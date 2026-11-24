@@ -92,6 +92,9 @@ export class SystemNotices extends LitElement {
       .blk .sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-inline-start: 22px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .feed { display: flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm); }
       .feed .flg { inline-size: 36px; block-size: 22px; object-fit: contain; background: #fff; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm, 4px); padding: 1px 3px; box-sizing: border-box; }
+      /* NOTICE-NEWS-EMPTY-2500: news on, no source chosen - the module's warning line under the news switch, aligned with its sub rows */
+      .alert[data-news-unset] { align-items: center; flex-wrap: wrap; margin-inline-start: 22px; }
+      .alert[data-news-unset] > span { flex: 1 1 220px; min-inline-size: 0; }
       .feed .u { color: var(--sw-text-3); font-size: var(--sw-fs-xs); direction: ltr; unicode-bidi: isolate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 260px; }
       .link { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
       .link code { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; direction: ltr; text-align: start; font-size: var(--sw-fs-xs); color: var(--sw-text); }
@@ -133,6 +136,8 @@ export class SystemNotices extends LitElement {
   @state() private feedPick = '';
   @state() private feedUrl = '';
   @state() private confirmDelete = false;
+  /** NOTICE-NEWS-EMPTY-2500: the index of the board's last news source while its removal waits for the confirmation (news on only). */
+  @state() private confirmLastFeed: number | null = null;
   /** The board whose link is about to be replaced ("החלף קישור"). BOARD-MGMT-2381: `legacy` = the request came from "העתק קישור" on a board
    * whose link has no stored copy - the dialog says why it cannot be copied; nothing is replaced without this confirmation. */
   @state() private confirmRotate: { board: Board; copy: boolean; legacy?: boolean } | null = null;
@@ -288,7 +293,7 @@ export class SystemNotices extends LitElement {
     if (this.error && !this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="error" heading=${nt('saveError')} hint=${this.error} actionLabel=${nt('retry')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     if (!this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     return html`<sw-page heading="" data-notices-settings>${this.boardId && this.detail ? this.boardPage() : this.overview()}</sw-page>
-      ${this.createDialog()} ${this.linkDialog()} ${this.rotateDialog()} ${this.deleteDialog()} ${this.composeDialog()}
+      ${this.createDialog()} ${this.linkDialog()} ${this.rotateDialog()} ${this.deleteDialog()} ${this.lastFeedDialog()} ${this.composeDialog()}
       ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (2382 train: the notice board's toasts) */}>${this.toast}</div>` : nothing}`;
   }
 
@@ -415,6 +420,22 @@ export class SystemNotices extends LitElement {
     return html`<span class="badge" data-look=${look}>${label}</span>`;
   }
 
+  /** NOTICE-NEWS-EMPTY-2500: the board's news block is on and it has no source - the TV shows no news. The server says so (`news_unset`);
+   * an older server's answer is read from the display itself. */
+  private newsUnset(b: Board): boolean {
+    if (typeof b.news_unset === 'boolean') return b.news_unset;
+    return !!b.display?.blocks?.news && !b.display.news?.feeds?.length;
+  }
+
+  /** The warning chip of such a board: the shared table's warn tone inside the table, the module's warn badge on the phone card and the
+   * board line. */
+  private newsUnsetChip(b: Board, inTable = false) {
+    if (!this.newsUnset(b)) return nothing;
+    return inTable
+      ? html` <span class="chip" data-tone="warn" data-news-unset-chip title=${nt('newsUnset')}>${nt('newsUnsetChip')}</span>`
+      : html`<span class="badge" data-look="warn" data-news-unset-chip title=${nt('newsUnset')}>${nt('newsUnsetChip')}</span>`;
+  }
+
   private summary(b: Board): string {
     const d = b.display;
     if (!d) return '';
@@ -428,7 +449,7 @@ export class SystemNotices extends LitElement {
    * Enter / Space on the row's tab stop; the arrows walk the rows); a key in the row stops its own click. */
   private boardsTable() {
     const cols: TableColumn<Board>[] = [
-      { key: 'state', label: nt('bState'), kind: 'status', render: (b) => this.seenBadge(b, true) },
+      { key: 'state', label: nt('bState'), kind: 'status', render: (b) => html`${this.seenBadge(b, true)}${this.newsUnsetChip(b, true)}` },
       { key: 'name', label: nt('bName'), kind: 'truncate', cellTitle: (b) => b.name, render: (b) => html`<span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span>` },
       { key: 'slug', label: nt('bAddress'), kind: 'muted', render: (b) => html`<bdi dir="ltr">/b/${b.slug}</bdi>` },
       { key: 'items', label: nt('bItems'), kind: 'num', render: (b) => String(b.item_count ?? 0) },
@@ -484,7 +505,7 @@ export class SystemNotices extends LitElement {
   }
 
   private boardCard(b: Board) {
-    return html`<div class="card" tabindex="0" role="link" data-board-card=${b.slug} @click=${() => this.goBoard(b)} @keydown=${activateKeydown(() => this.goBoard(b))}><div class="row">${this.seenBadge(b)}<span class="ltr mut">/b/${b.slug}</span></div><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></div>`;
+    return html`<div class="card" tabindex="0" role="link" data-board-card=${b.slug} @click=${() => this.goBoard(b)} @keydown=${activateKeydown(() => this.goBoard(b))}><div class="row">${this.seenBadge(b)}${this.newsUnsetChip(b)}<span class="ltr mut">/b/${b.slug}</span></div><span class="t1">${b.name}</span><span class="t2">${this.summary(b)}</span></div>`;
   }
 
   private goBoard(b: Board): void {
@@ -559,7 +580,7 @@ export class SystemNotices extends LitElement {
     const b = d.board;
     const tabs = [{ id: 'general', label: nt('tabGeneral') }, { id: 'display', label: nt('tabDisplay') }, { id: 'notices', label: `${nt('tabNotices')} (${d.notices.length})` }];
     return html`
-      <div class="top"><div><h1>${b.name}</h1><p class="sub"><a href=${NOTICES_SETTINGS_HREF}>${nt('back')}</a> · <span class="ltr">/b/${b.slug}</span> · ${agoText(b.last_seen_at, Date.now())}</p></div><span class="sp"></span>
+      <div class="top"><div><h1>${b.name}</h1><p class="sub"><a href=${NOTICES_SETTINGS_HREF}>${nt('back')}</a> · <span class="ltr">/b/${b.slug}</span> · ${agoText(b.last_seen_at, Date.now())} ${this.newsUnsetChip(b)}</p></div><span class="sp"></span>
         <div class="meta">
           <sw-button icon="eye" data-tv-open @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('openTv')}</sw-button>
           ${this.canCopyLink() ? html`<sw-button icon="copy" data-copy-link @click=${() => void this.copyLink(b)}>${nt('copyLink')}</sw-button>` : nothing}
@@ -688,8 +709,10 @@ export class SystemNotices extends LitElement {
             <div class="sub">${s.weather_entity ? html`<span class="ltr mut">${s.weather_entity}</span>` : html`<span class="mut">${nt('blkWeatherNoEntity')}</span>`}
               <span>${nt('hoursAhead')}</span><sw-field class="short"><select data-v=${String(d.weather.hours)} @change=${(e: Event) => this.setD({ weather: { hours: Number((e.target as HTMLSelectElement).value) } })}>${[3, 5, 8].map((h) => html`<option value=${String(h)}>${h}</option>`)}</select></sw-field></div></div>
           <div class="blk"><label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('blkNews')} .checked=${d.blocks.news} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, news: toggled(e) } })}></sw-toggle>${nt('blkNews')}</label>
+            ${d.blocks.news && !d.news.feeds.length ? html`<div class="alert" role="status" data-news-unset><sw-icon name="warning" size="14"></sw-icon><span>${nt('newsUnset')}</span>
+              ${this.allFeeds().length ? html`<sw-button size="sm" icon="plus" data-news-add-all @click=${() => this.addAllFeeds()}>${nt('newsAddAll')}</sw-button>` : nothing}</div>` : nothing}
             <div class="sub">${d.news.feeds.map((f, i) => { const v = feedView(f, s.news_sources); return html`<div class="feed" data-feed=${f.url}>${v.logo ? html`<img class="flg" alt="" src=${v.logo}>` : html`<sw-icon name="link" size="12"></sw-icon>`}<b>${shortName(v.name)}</b>${v.known ? nothing : html`<span class="chip">${nt('nsCustomTag')}</span>`}
-                <sw-button size="sm" variant="ghost" @click=${() => this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } })}>${nt('remove')}</sw-button></div>`; })}
+                <sw-button size="sm" variant="ghost" data-feed-remove @click=${() => this.removeFeed(i)}>${nt('remove')}</sw-button></div>`; })}
               <sw-field class="short"><select data-v=${this.feedPick} @change=${(e: Event) => (this.feedPick = (e.target as HTMLSelectElement).value)}><option value="">${nt('feedPick')}</option>
                 ${s.news_sources.filter((f) => f.enabled !== false).map((f) => html`<option value=${f.url}>${f.name}${f.custom ? ' · ' + nt('nsCustomTag') : ''}</option>`)}${s.news_custom ? html`<option value="custom">${nt('feedCustom')}</option>` : nothing}</select></sw-field>
               ${this.feedPick === 'custom' ? html`<sw-field><input class="ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}></sw-field>` : nothing}
@@ -723,6 +746,45 @@ export class SystemNotices extends LitElement {
     this.setD({ news: { ...d.news, feeds: [...d.news.feeds, feed] }, blocks: { ...d.blocks, news: true } });
     this.feedPick = '';
     this.feedUrl = '';
+  }
+
+  /** NOTICE-NEWS-EMPTY-2500: the enabled sources of the installation's list as board feeds (a board-stored raw URL the list has not adopted -
+   * `custom` - is left out: it is not a list source and the server refuses it while custom feeds are off). */
+  private allFeeds(): { id: string; name: string; url: string }[] {
+    return (this.s?.settings.news_sources ?? []).filter((f) => f.enabled !== false && !f.custom).map((f) => ({ id: f.id, name: f.name, url: f.url }));
+  }
+
+  /** "הוספת כל המקורות": the list's enabled sources the board does not have yet, in the list's order, up to the board's 6 (as addFeed). */
+  private addAllFeeds(): void {
+    const d = this.draft;
+    if (!d) return;
+    const have = new Set(d.news.feeds.map((f) => f.url));
+    const feeds = [...d.news.feeds, ...this.allFeeds().filter((f) => !have.has(f.url))].slice(0, 6);
+    if (feeds.length === d.news.feeds.length) return;
+    this.setD({ news: { ...d.news, feeds }, blocks: { ...d.blocks, news: true } });
+  }
+
+  /** A source's "הסרה". The board's LAST source while news is on asks first: without a source the TV shows no news at all. */
+  private removeFeed(i: number): void {
+    const d = this.draft;
+    if (!d) return;
+    if (d.blocks.news && d.news.feeds.length === 1 && this.confirmLastFeed === null) {
+      this.confirmLastFeed = i;
+      return;
+    }
+    this.setD({ news: { ...d.news, feeds: d.news.feeds.filter((_x, k) => k !== i) } });
+  }
+
+  private lastFeedDialog() {
+    const i = this.confirmLastFeed;
+    return html`<sw-dialog ?open=${i !== null} heading=${nt('newsLastQ')} @close=${() => (this.confirmLastFeed = null)} data-news-last-confirm>
+      <p>${nt('newsLastBody')}</p>
+      <sw-button slot="footer" data-news-last-cancel @click=${() => (this.confirmLastFeed = null)}>${nt('cancel')}</sw-button>
+      <sw-button slot="footer" variant="danger" data-news-last-go @click=${() => {
+        const k = this.confirmLastFeed;
+        if (k !== null) this.removeFeed(k);
+        this.confirmLastFeed = null;
+      }}>${nt('remove')}</sw-button></sw-dialog>`;
   }
 
   private noticesTab() {

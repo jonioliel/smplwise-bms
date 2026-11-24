@@ -436,6 +436,8 @@ def preview_feed(conn: sqlite3.Connection, board: dict[str, Any], display: dict[
         if logos:
             doc["board"]["logos"] = logos
             doc["board"]["brand"] = brand
+    # NOTICE-NEWS-EMPTY-2500: news on and no source chosen - the TV shows no news; the Settings screens say so (never in the TV's own feed)
+    doc["news_unset"] = model.news_unset(display if display is not None else model.load_display(board["display_json"]))
     return doc
 
 
