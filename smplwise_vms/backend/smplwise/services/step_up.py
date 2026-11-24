@@ -303,12 +303,24 @@ def _satisfied(conn: sqlite3.Connection, request: Any, principal: Any, key: str)
     return False
 
 
-def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any) -> bool:
-    """MFA-PASSKEYS-2490: does the caller's session hold a proof right now (the window, a one-shot proof - then spent - or a local
-    sign-in that showed the factor within the window)? For the factor changes that need a proof whatever the switch says (adding a
-    passkey to an account that already has a factor, removing one): not the gate, so neither the switch nor the channel matter."""
+def fresh_proof(conn: sqlite3.Connection, request: Any, principal: Any, *, local_sign_in: bool = True) -> bool:
+    """MFA-PASSKEYS-2490: does the caller's session hold a proof right now (the window, a one-shot proof - then spent - or, unless
+    `local_sign_in` is False, a local sign-in that showed the factor within the window)? For the factor changes that need a proof
+    whatever the switch says (adding a passkey to an account that already has a factor, removing one): not the gate, so neither the
+    switch nor the channel matter. `local_sign_in=False`: only a proof given in this session (an Arx-only identity's passkey removal
+    keeps its own fresh-sign-in rule for the sign-in part)."""
     key = session_key(request, principal)
-    return key is not None and _satisfied(conn, request, principal, key)
+    if key is None:
+        return False
+    if local_sign_in:
+        return _satisfied(conn, request, principal, key)
+    m = _get(key)
+    if m is None or m.user_id != principal.user_id:
+        return False
+    if m.one_shot:
+        return _now() - m.at <= ONE_SHOT_S and _consume(key, m)
+    window = minutes(conn) * 60
+    return window > 0 and _now() - m.at <= window
 
 
 # ---------------------------------------------------------------- proofs

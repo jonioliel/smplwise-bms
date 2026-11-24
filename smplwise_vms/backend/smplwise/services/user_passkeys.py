@@ -277,7 +277,7 @@ def removal_proof(conn: sqlite3.Connection, request: Any, principal: Any, code: 
         return "code"
     if local_session is not None and lpk.recent_auth(conn, local_session):
         return "recent_sign_in"
-    if step_up.fresh_proof(conn, request, principal):
+    if step_up.fresh_proof(conn, request, principal, local_sign_in=local_session is None):
         return "step_up"
     if local_session is not None:
         raise ApiError(403, "reauth_required", lpk.REAUTH_HE)
