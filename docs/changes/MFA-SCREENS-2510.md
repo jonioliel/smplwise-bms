@@ -102,7 +102,39 @@ RESULTS: see section 3 (filled from the runner job `~/work/mfascreens_run.sh`, o
 
 ## 3. Test results (real runs)
 
-PENDING
+Workstation (Windows; no tsc / vite / Playwright / pytest suites on the PC by the night's rules): esbuild syntax pass of every changed
+TS file - ok; `py_compile` + `ruff` of the new backend files - ok (the test file's F811 on the `arx` fixture import is the pattern of
+every second-factor test; CI lints `smplwise` only).
+
+**Runner job 1** (`~/work/mfascreens_run.sh`, slot B, 11:49-12:42 UTC, head `f9de5d23a`, base `92d3b6edd`):
+
+| Check | Result |
+|---|---|
+| `gen_wire_types.py --check` / API inventory / `i18n-split-langs` | rc 0 / 0 diff lines / 0 diff lines |
+| backend shard 0 (`test_mfa_screens_2510` + route tables + wire D + singletons + step-up gates ratchet) | **cut by its 30-min timeout at 70 %** (the runner was loaded): 1 F = `test_factors_counted_and_no_secret_in_the_answer` - a fixture bug (the `auth_mfa_seen` row lacked the NOT NULL `last_seen_at`), fixed in `3548328fe`; every other test that ran passed. The fixed test: NOT_RUN |
+| backend shards 1-2 (41 auth / wire / route-char files) | **NOT_RUN** - stopped by me to reach the frontend part in the same lease |
+| ruff `smplwise` | All checks passed |
+| `tsc --noEmit -p .` | 0 errors |
+| `tsc -p tsconfig.tests.json` | 3 x TS2352 (`as` casts of `arx-login` in the two sign-in page specs; 2 of them already in slice 7's spec) - fixed in `45b202c20`; re-run NOT_RUN |
+| eslint (changed src files) | 0 errors (6 "file ignored" warnings for spec files) |
+| lazy-tags-check | OK (`notInEntry` 21, the new security chunk listed) |
+| unused-exports | FAIL, 3 entries - all in `src/api/step-up-passkey.ts` (slice 4 / train, same at the base): not this slice |
+| design ratchet | px-literal 25510 vs baseline 25485 - **the same count at the base** (`92d3b6edd`): no new debt from this slice; native-select / hand-switch / scroll-container unchanged |
+| node unit (lang packs, i18n core) | 19 passed |
+| build / bundle-budget | rc 0 / rc 0 |
+| `evidence-mfa-screens-2510` desktop + mobile | 13 passed, 2 skipped (shots), **1 failed**: mobile policy test - the dropdown was clicked on its host's centre and missed the chip; fixed (`[data-dropdown-chip]`), re-run NOT_RUN |
+| pixel (write, then re-check) | 5 passed, 1 failed (same mobile dropdown click). The written baselines were looked at (screens fine) but **not committed**: they showed an unrelated error state behind the menu, the mock and the page were fixed afterwards, so the final baselines are NOT_RUN |
+| regression evidence (access tokens, second factor, arx sessions, menu opaque, shell) desktop + mobile | 133 passed, 23 skipped |
+| unit page specs (sign-in chooser, recovery codes, admin UI, step-up UI, MFA train, SECFIX, passkeys) | 27 passed, 11 skipped, **3 failed**: 2 x `unit-mfa-passkeys-2490` (the job ran on `127.0.0.1`, the spec's WebAuthn rp id is `localhost` - environmental, the train ran it on `localhost`); 1 x the new sign-in spec's page-error assertion caught the demo shell's own errors (assertion removed - the chooser checks themselves passed) |
+| compare shots after / before | sign-in: 2+2 passed; screens: before 2 passed, after 2 failed (the same mobile dropdown click; desktop pictures up to the preview were written) |
+
+**Runner job 2** (`~/work/mfascreens_run2.sh`: the fixes, the step-up dialog's phone key / recovery code (1.5), tsc, eslint, unit-exports,
+evidence + pixel baselines, unit page specs on `localhost`, full compare pictures): queued 12:44 UTC, **NOT_RUN** - slot B did not reach it
+within 3 hours (long release / review jobs held the slots); stopped at 15:45 UTC, worktrees removed. Everything after `f9de5d23a`
+(the step-up dialog additions included) is therefore checked only by the esbuild syntax pass. The script stays on the runner for a re-run.
+
+Compare page: `C:\cloude\smplwisebms\private\planning\mfa_screens_compare_2026-11-24.html` (job 1's pictures: before complete; after
+complete for the sign-in step, desktop light for the account, policy and preview screens; the rest marked "no picture").
 
 ## 4. Open questions (recommendation first)
 
@@ -113,3 +145,8 @@ PENDING
    setting `security.recovery_reenrol` (default off) in remote-config, nothing else to build in the screens [recommended]; (b) drop the hook.
 3. **Passkey as the home-system user's remote sign-in factor** (slice 4 open question 1): the chooser offers code / recovery code there.
    (a) add the passkey key to the chooser in the row that builds that sign-in path [recommended]; (b) leave as is.
+4. **Re-run of job 2 before this branch joins the train** (the dialog additions, the fixed specs and the final pixel baselines were not
+   run). (a) re-queue `~/work/mfascreens_run2.sh` as is (one slot-B lease, ~45 min; it writes the baselines to
+   `~/work/mfascreens-out2/snapshots` for review before they are committed) [recommended]; (b) fold it into the train's gate run.
+5. **The phone key in the step-up dialog was never exercised on a real phone** (the specs fake `window.ArxApp.deviceKey`). (a) check it
+   in the app at the next lab install with the owner [recommended]; (b) accept the fake-bridge specs.
