@@ -53,7 +53,22 @@ notice read for the panel's account, so the next person in the family saw nothin
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+Only what is listed as run was run; everything else is NOT_RUN.
+
+| Command | Where | Result |
+|---|---|---|
+| `playwright -c playwright.unit.config.ts tests/unit-home-next-2500.spec.ts` (7 new: the hours setting and its fallbacks, wall panel vs own screen, the 48-hour boundary, no time / start time / future time, "read" mode, the takeover window) | PC, one file | 7 passed |
+| `playwright -c playwright.unit.config.ts tests/unit-home-wall-night-2500.spec.ts` (2 expectations extended with `noticeNewH`) | PC, one file | 14 passed |
+| `playwright -c playwright.unit.config.ts tests/unit-i18n-home.spec.ts` (the English table is complete) | PC, one file | 6 passed |
+| `scripts/gen_wire_types.py` | runner | regenerated `wire-home-interface.ts` / `wire-me.ts` (committed 0c63c6e5e); a second run at the tip changed nothing |
+| `pytest tests/test_home_interface.py` + the three wire `--check` files (1 new test, 3 expectations extended) | runner slot B, 24.11 04:24 UTC | NOT_RUN to the end: killed by its 25-minute timeout; 41 tests had passed and none had failed when it stopped (runner load average 160-210, 164 sessions) |
+| `tsc --noEmit`, `eslint` on the changed files | runner slot B | NOT_RUN: timed out (15 / 10 minutes) under the same load |
+| browser `tests/home-next-2500.spec.ts` (7 tests x desktop / tablet / phone) + `home-wall-night-2500.spec.ts`, `--workers=2` | runner | NOT_RUN (the run was stopped before this step to relieve the runner; a second queued run, `~/work/hn_run2.sh`, did not start before the runner stopped answering SSH) |
+| pixel `tests/pixel-home-next-2500.spec.ts` (new; wall board + sheet light / dark, settings tab; desktop 1440 + phone 390) | runner | NOT_RUN: no Linux baselines yet; generate with `-u --workers=1` and review before the branch joins a train (until then the spec skips, it does not fail) |
+| captures `tests/home-next-2500-shots.spec.ts` (`SW_SHOTS=1`, before = c0fb81e2e, after = this branch) | runner | NOT_RUN; the owner page `private/planning/home_next_compare_2026-11-24.html` (local, not in Git) has the text and the image slots only |
+
+The runner script that does all of the above in order (tsc, eslint, unit, build, the browser specs on the three sizes, the pixel
+baselines and check, the backend file, the captures before / after) is `~/work/hn_run2.sh` on the runner; its log is `~/work/hn_run2.out`.
 
 ## Known limits
 
