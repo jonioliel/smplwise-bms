@@ -44,7 +44,13 @@ Still to board (in progress when the train was assembled; merged when pushed): s
 | 20 | `pilot/HAND-SWITCH-HOME-EDIT-2500` (on HAND-SWITCH-HOME-PERSONAL) | 2c019f37f | 444dda163 | none. Workstation: `unit-hand-switch-home-edit-2500` **4 passed**; its `-shots` spec added to the train's runner list |
 | 21 | `pilot/NOTICE-NEWS-EMPTY-2500` | 9cad89813 | 60fc78e3d | `routers/notices.py` `_board_out` and `wire/notices.py` `NoticeBoard`: the row's `news_unset` (+ its `_news_audit` helper) and MULTI-BUILDING-HOME's conditional `building_id` - both (the required field before the optional one); `wire-notices.ts` regenerated. Workstation: `test_notice_news_empty_2500` **6 passed** |
 | 22 | `pilot/NOTICE-NEWS-FEEDS-2500` (cut from v2.49.0) | 0b08c1fe3, then the final head 2f0dcfd7f | cbc5951b1, db8920a06 | none (the board patch / preview of NOTICE-NEWS-EMPTY and the row's news-source routes / wire / editor kept). API inventory unchanged (1922). Its committed `API_INVENTORY.md` merged into the 2.50.0 one without a change |
-| - | `pilot/RESPONSE-MODELS-E-2500` | - | - | not pushed yet |
+| 23 | `pilot/HOME-NEXT-2500` again (a later commit of a row already on the train) | 966557e10 | d72ec0561 | none: its Linux pixel baselines and the runner verification note. One baseline differs on the merged tree - refreshed in caa206d62 (section 2) |
+
+Not on this train: `pilot/RESPONSE-MODELS-E-2500` (54bc7c122) - lead decision 24.11: its full backend run was still running after 14 h; it
+moves to 2.51. A trial merge onto the train (local only, not pushed) showed three conflicts (the generator list of `gen_wire_types.py` -
+both blocks; `camera_sources.py` - merged by the recorded resolution; `wire-home-interface.ts` - regenerated) and the response-model
+ratchet unchanged (901 unmodelled routes = its baseline: the 2.50 rows' new routes already have models). The 2.50.0 CHANGELOG does not
+mention it.
 
 ## 2. Fix and housekeeping commits on the train
 
@@ -60,13 +66,15 @@ Still to board (in progress when the train was assembled; merged when pushed): s
 | a5b91b572 | Backend run 3 (section 4), the five that failed twice: `contracts/fixtures/app_session/exchange_validation.json` rewritten with `ARX_WRITE_FIXTURES=1` (ADR019-STEP0's additive `details.fields` / `problems`, the only diff); `docs/user-guide/he/46-tickets_HE.md` 2.49.0 section used the old item name ("טבלת הקריאות" -> "טבלת בקשות השירות", owner rename; `GUIDE_ALL_HE.html` rebuilt, `--check` up to date); `tests/ip_literal_allowlist.txt` + the camera-discovery guard tests (ONVIF-DISCOVER / API / CLIENT / UI) and the news-feed SSRF case (NOTICE-NEWS-FEEDS), with reasons - none of their addresses is a lab host (checked against the private lab file, 0 matches); design ratchet px-literal 25612 -> 25614 (lead decision: merged counts) - `screens/system-notices.ts` +2, NOTICE-NEWS-EMPTY's "news on without a source" alert (`margin-inline-start: 22px`, `flex: 1 1 220px`). Workstation: `test_app_session_fixtures_sx25::test_exchange_validation`, `test_tickets_naming`, `test_no_ip_literals`, `test_release_check`, `test_build_guards_2438` all pass |
 | 8e1e42f63, abd271ecf | `tests/evidence-mb-next-2500.spec.ts` (never run before boarding; found by the compare agent at 6bc957320, 3 of 8 failed): meters - the building filter is a radio `sw-segmented`, whose key carries `aria-checked` only since A11Y-AUDIT-2490 (2.48), the spec read `aria-pressed`; rooms on the phone - a person who manages no calendar gets the resident flow there (CALENDARS-UI-2310 `phoneResident`, unchanged since 2.47), not the rooms view, so the mock user is now a calendar administrator. No product change: the filter selects (rooms / schedules narrowed the lists). Runner: 8 of 8 pass at 2d62885f6 |
 | 2d62885f6 | `tests/hand-switch-home-personal-2500-shots.spec.ts` (compare captures, `SW_SHOTS=1` only): the phone has no rail, so the capture presses the bottom bar's "me" (`[data-nav-me]`) there |
+| caa206d62 | `pixel-home-next-2500` "wall settings tab" (`home-next-wall-settings-1440-desktop-linux.png`): HOME-NEXT wrote it on its 2.47-based branch; on the train 516 px (1%) differ, all inside the segmented keys (2.48's segmented key look). Diff image reviewed; refreshed on the runner with `--update-snapshots=changed` for that one test, then verified without `-u`: desktop + mobile **10 passed**. The other 9 baselines of the row unchanged |
 
 ## 3. Release commits
 
 | Commit | What |
 |---|---|
 | c73ca77b0 | release: 2.50.0 - version (`config.yaml`, `Dockerfile`, `smplwise/__init__.py`), bilingual CHANGELOG (new / improved / fixed / how to turn it on / install), API inventory 1910 -> 1922 routes. Migrations 0217 and 0218 (additive). Bridge unchanged (0.10.8): no home-system restart |
-| - | release: 2.50.0 - rebuilt UI (pending: after the last row boards) |
+| fdec3124b | release: 2.50.0 - rebuilt UI at d72ec0561 (every row merged; the later commits change a pixel baseline and docs only - `frontend/src` and `smplwise/` are byte-identical to d72ec0561, so the shipped `www` matches the head): `~/work/build_ui2500.sh` (a copy of `build_ui2490.sh`, run as `rel2500_tests_buildui.sh` for the slot priority), archive sha256 `5c803f5639b3a9e25d5fff66e35a83b3e70b1f9ddb122f6e95047cf2972f80a4`, copied with `ssh` WITHOUT the `sed` redaction stage and verified after the copy; 0 `.map` files, 0 `sourceMappingURL` in `www` / `www-public` (358 maps archived on the runner, `smplwise-results/sourcemaps/2.50.0`) |
+
 
 ## 4. Checks before the gate
 
@@ -123,7 +131,14 @@ Compare-page captures (lead request): `~/work/rel2500-shots/` on the runner - `n
    tokenising them is a later cleanup row. Follow-up for that row: the camera wizard's "same user for all" check box is an on/off option -
    under the HAND-SWITCH-2480 rule it should be the compact switch (a row change with its own compare page).
 2. MULTI-BUILDING-NEXT-2500's own branch still has the syntax error fixed in `4377d886b` (only matters if the row is rebuilt).
-3. Runner disk: the backend's per-test temp folders fill the disk (20 GB at 40% of one full run with the default retention). The gate's
-   backend shards should run with `-o tmp_path_retention_policy=failed` (as run 3 did) or with a basetemp it removes, or keep 40+ GB free.
+3. **Gate disk setting.** One full backend run with pytest's default temp retention keeps every test's `tmp_path`: the 4 shards' basetemps
+   reached 20 GB at about 40% (runner free space 43 -> 19 GB in an hour; earlier the same day the runner hit 100% and every job failed with
+   ENOSPC). With `-o tmp_path_retention_policy=failed` (a passed test's folder is removed at its teardown) and the basetemp + `TMPDIR`
+   inside the job's own folder removed on exit, run 3's whole backend stayed under 100 MB. Recommendation: give the gate's backend
+   shards `-o tmp_path_retention_policy=failed` (and a `--basetemp` it removes), and start the gate with at least 40 GB free.
 4. Flaky, not changed: camera-discovery "whole flow" axe colour-contrast inside the wizard (failed once under load in run 4b, passed alone
    at the row head and at the train head); the four backend ids of run 3 that passed on the retry.
+
+## 6. Release gate
+
+Left for the lead (gate 2 on the runner, `~/gate2/release_gate2.sh release/2500-train`; see section 5 item 3 for the disk setting).
