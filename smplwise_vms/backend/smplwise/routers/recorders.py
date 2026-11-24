@@ -32,6 +32,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
 from ..services import autosync, confirm_words, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
+from ..services import default_names as dn
 from ..services import recorders_store as store
 from ..services.recorders import registry
 from ..wire import recorders as W
@@ -283,7 +284,7 @@ def update_recorder(recorder_id: str, request: Request, background: BackgroundTa
     body: PatchIn = nc._parse(request, raw, PatchIn)
     row = _known(conn, recorder_id)
     if row is None:  # the first recorder before its first discovery: create its row so the change has somewhere to live
-        autosync.ensure_recorder(conn, recorder_id=PRIMARY)
+        autosync.ensure_recorder(conn, recorder_id=PRIMARY, lang=dn.lang_of(conn, principal))  # I18N-DEFAULT-NAMES-2490
         row = _row(conn, PRIMARY)
     changes: dict[str, Any] = {}
     if body.name is not None:
@@ -329,7 +330,7 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
         raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{nc.REMOVE_WORD}\".", details={"field": "confirm_text"})
     nc._require_revision(body.if_revision, conn, recorder_id)
     if _row(conn, recorder_id) is None:
-        autosync.ensure_recorder(conn, recorder_id=recorder_id)
+        autosync.ensure_recorder(conn, recorder_id=recorder_id, lang=dn.lang_of(conn, principal))
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id, recorder_id)
     audit(conn, actor=principal, action="nvr.recorder.remove", decision="allowed", resource_type="recorder", resource_id=recorder_id, request_id=_rid(request),
           details={"revision": revision, "cameras_disabled": disabled, "confirm_word": confirm_word})

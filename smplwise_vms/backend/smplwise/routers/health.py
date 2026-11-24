@@ -16,6 +16,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
 from ..db import database_of, lock_stats, permission_revision, pool_stats, unlocked
 from ..errors import ApiError
+from ..i18n import lang_of, localize
 from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
@@ -177,14 +178,14 @@ def health_report(request: Request, fresh: bool = False, principal: Principal = 
     settings = settings_of(request)
     with unlocked(conn):
         report = health_report_svc.build(settings, conn, probe=True)
-    return report
+    return localize(report, lang_of(conn, principal))  # I18N-BACKEND-2490: labels and details in the user's interface language
 
 
 @router.get("/health/summary")
 def health_summary(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What the top bar shows every signed-in user: cached states only, no device probes, no details that a
     non-administrator should not see (labels are operator wording, never addresses or credentials)."""
-    return health_report_svc.summary(settings_of(request), conn)
+    return localize(health_report_svc.summary(settings_of(request), conn), lang_of(conn, principal))  # I18N-BACKEND-2490
 
 
 class LogExportBody(BaseModel):

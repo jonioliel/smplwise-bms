@@ -35,6 +35,7 @@ from ..mode import ensure_nvr, nvr_ready as _nvr_ready  # NVR-less mode: 409 nvr
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
 from ..services import bundle_import
+from ..services import default_names as dn
 from ..services import cases_store as store
 from ..services.safe_paths import case_file  # BACKEND-SAFETY-2435: stored file paths stay inside their root
 from ..services import signing
@@ -477,7 +478,8 @@ def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, princip
         cid, created = case["id"], False
     else:
         local = parse_utc(ev["occurred_at"]).astimezone(zone(setting_value(conn, "time.zone"))).strftime("%d.%m %H:%M")
-        title = (body.title or "").strip() or f"מסלול מוצע · {ev.get('camera_name') or 'אירוע'} · {local}"
+        lang = dn.lang_of(conn, principal)  # I18N-EN-2490 (owner N53): the default title in the caller's language (the tag stays Hebrew)
+        title = (body.title or "").strip() or dn.name("case.route", lang, camera=ev.get('camera_name') or dn.name("case.route_event", lang), time=local)
         cid, created = new_id(), True
         store.insert_open_case(conn, cid, title[:120], "", "open", json.dumps(["מסלול מוצע"], ensure_ascii=False), principal.user_id, principal.username, now)
         audit(conn, actor=principal, action="case.create", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request), details={"title": title[:120], "status": "open", "from": "route_confirm"})
@@ -902,13 +904,14 @@ async def import_bundle(request: Request, name: str | None = Query(None, max_len
     keyring = signing.load_keyring(settings)
     db: Database = request.app.state.db
     min_free = _min_free(conn)
+    import_lang = dn.lang_of(conn, principal)  # I18N-EN-2490 (owner N53): a bundle without a case title is named in the caller's language
     if not _TRANSFER_LOCK.acquire(blocking=False):
         raise _busy()
     try:
         with unlocked(conn):
             up = await _receive_bundle(request, settings, cap, name, min_free)
             try:
-                return await run_in_threadpool(_import_bundle, db, settings, up, principal, _rid(request), local_iid, keyring, cap, min_free)
+                return await run_in_threadpool(_import_bundle, db, settings, up, principal, _rid(request), local_iid, keyring, cap, min_free, import_lang)
             finally:
                 up["path"].unlink(missing_ok=True)
     finally:
@@ -916,7 +919,7 @@ async def import_bundle(request: Request, name: str | None = Query(None, max_len
 
 
 def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], principal: Principal, rid: str | None, local_iid: str | None,
-                   keyring: dict[str, Any], cap: int, min_free: int = 0) -> dict[str, Any]:
+                   keyring: dict[str, Any], cap: int, min_free: int = 0, import_lang: str = "he") -> dict[str, Any]:
     sha = up["sha256"]
 
     def refused(status: int, code: str, message: str, audit_reason: str, **details: Any) -> ApiError:
@@ -959,7 +962,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
         prov = bundle_import.provenance(manifest, report, up, stored, principal, now)
         rows = bundle_import.plan_items(manifest, stored, sha, (report.get("origin") or {}).get("installation_id"))
         src_case = manifest.get("case") if isinstance(manifest.get("case"), dict) else {}
-        title = (bundle_svc._s(src_case.get("title"), 120) or "").strip() or "תיק מיובא"
+        title = (bundle_svc._s(src_case.get("title"), 120) or "").strip() or dn.name("case.imported", import_lang)
         description = (bundle_svc._s(src_case.get("description"), 4000) or "")
         tags = _clean_tags([bundle_svc.clean_text(t) for t in src_case.get("tags") or [] if isinstance(t, str)] if isinstance(src_case.get("tags"), list) else [])
         with db.connection(label="POST /cases/bundles/import") as w:

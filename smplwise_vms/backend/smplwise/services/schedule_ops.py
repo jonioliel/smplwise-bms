@@ -23,6 +23,7 @@ from ..audit import audit
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
+from . import default_names as dn
 from . import door_path_guard as guard
 from . import door_run_guard, ha_bridge, ha_sync, schedule_identity, service_identity
 from . import schedule_model as model
@@ -873,7 +874,9 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         if confirm is not True:
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         remaining = [d for d in resolved if d not in moving]
-        new_name = ((name or "").strip() or f"{core['name'] or view.display_name(core, w.ctx)} · {' '.join(DAY_SHORT[d] for d in moving)}")[:model.MAX_NAME]
+        lang = dn.lang_of(w.conn, w.principal)  # I18N-EN-2490 (owner N53): the moved days in the caller's language
+        new_name = ((name or "").strip() or dn.name("schedule.split", lang, name=core['name'] or view.display_name(core, w.ctx),
+                                                    days=' '.join(dn.day_short(d, lang) for d in moving)))[:model.MAX_NAME]
         # the new schedule is a CREATE: the same checks, code and confirmation as any other (review M1)
         _no_locked_conditions(w, core, "לפצל")
         nd = draft_from_core(core)

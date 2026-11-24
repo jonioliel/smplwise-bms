@@ -1,6 +1,6 @@
 """Setup wizard API (T071): the six steps install → NVR → Home Assistant → go2rtc → floor → camera with their evidence,
 explanations and links (services/setup_wizard.py). Both routes need system.configure at installation scope; nothing
-here writes to a device."""
+here writes to a device. I18N-BACKEND-2490: the answer is rendered in the requesting user's interface language (smplwise/i18n.py)."""
 from __future__ import annotations
 
 import sqlite3
@@ -12,6 +12,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError, not_found
+from ..i18n import lang_of, localize, t
 from ..rbac import INSTALLATION, Principal, require
 from ..services import setup_wizard as wizard
 from ._common import rid as _rid
@@ -24,7 +25,7 @@ def setup_state(request: Request, principal: Principal = Depends(current_princip
     """Every step's status without a device probe: the add-on's own facts, the last on-demand check of a device step
     (kept `live_ttl_s`) or what the background jobs know. Cheap enough for the shell's "complete the setup" hint."""
     require(conn, principal, "system.configure", INSTALLATION)
-    return wizard.build_state(settings_of(request), conn, principal.source)
+    return localize(wizard.build_state(settings_of(request), conn, principal.source), lang_of(conn, principal))
 
 
 @router.post("/setup/check/{step}")
@@ -34,7 +35,7 @@ def setup_check(step: str, request: Request, principal: Principal = Depends(curr
     `check_every_s` (429 `check_rate_limited` with `retry_after_s`); audited as `setup.check` with the outcome."""
     require(conn, principal, "system.configure", INSTALLATION)
     if step not in wizard.STEPS:
-        raise not_found("שלב האשף לא נמצא.")
+        raise not_found(t("wizard.step_not_found"))
     previous = wizard.rate_limit(principal.user_id, step)
     settings = settings_of(request)
     try:
@@ -52,4 +53,4 @@ def setup_check(step: str, request: Request, principal: Principal = Depends(curr
     audit(conn, actor=principal, action="setup.check", decision="allowed", resource_type="installation", resource_id="*",
           request_id=_rid(request),
           details={"step": step, "status": result["status"], "source": result["source"], "problem": (result["problem"] or {}).get("code")})
-    return {**state, "checked": step}
+    return localize({**state, "checked": step}, lang_of(conn, principal))

@@ -21,6 +21,7 @@ from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database, is_busy, is_storage_full
 from .errors import ApiError, validation_payload
+from .i18n import DEFAULT_LANG, request_lang, t
 from .mode import is_ha_only
 from .services import log_export
 from . import recorder_scope
@@ -163,9 +164,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(CorrelationId)  # the same place in the stack as the former @app.middleware("http") (innermost of ours)
 
+    async def error_lang(request: Request) -> str:
+        # I18N-BACKEND-2490: the requester's interface language for the envelope's user_message (smplwise/i18n.py), read off the event
+        # loop; Hebrew without a resolved user or on any failure
+        from starlette.concurrency import run_in_threadpool
+
+        return await run_in_threadpool(request_lang, request)
+
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
-        return JSONResponse(status_code=exc.status, content=exc.payload(correlation_id.of(request) or ""))
+        lang = await error_lang(request) if exc.translatable() else DEFAULT_LANG
+        return JSONResponse(status_code=exc.status, content=exc.payload(correlation_id.of(request) or "", lang=lang))
 
     @app.exception_handler(sqlite3.OperationalError)
     async def storage_full(request: Request, exc: sqlite3.OperationalError):
@@ -179,12 +188,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             cid = correlation_id.of(request) or correlation_id.new()
             log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
             return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
-                                content={"code": "database_busy", "user_message": "המערכת עמוסה כרגע והפעולה לא הושלמה. יש לנסות שוב בעוד רגע.",
+                                content={"code": "database_busy", "user_message": t("error.database_busy").render(await error_lang(request)),
                                          "retryable": True, "correlation_id": cid, "details": {"retry_after_s": BUSY_RETRY_AFTER_S}})
         if not is_storage_full(exc):
             raise exc
         log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
-        return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": "אחסון התוסף מלא, ולכן לא ניתן לשמור. יש לפנות מקום בדיסק של התוסף.",
+        return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": t("error.storage_full").render(await error_lang(request)),
                                                       "retryable": False, "correlation_id": correlation_id.of(request) or "", "details": {"storage": "full"}})
 
     @app.exception_handler(StarletteHTTPException)
@@ -196,7 +205,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
         # the same envelope as every other error, so a screen can show why a save was refused
-        return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), correlation_id.of(request) or ""))
+        return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), correlation_id.of(request) or "", lang=await error_lang(request)))
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception):
@@ -207,7 +216,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cid = correlation_id.of(request) or correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
         log.error("unexpected error: %s %s -> %s (correlation id %s)", request.method, request.url.path, type(exc).__name__, cid)
         return JSONResponse(status_code=500, headers={correlation_id.HEADER: cid},
-                            content={"code": "internal_error", "user_message": "אירעה שגיאה בלתי צפויה. יש לנסות שוב; אם השגיאה חוזרת, יש לפנות לתמיכה עם מזהה הבקשה.",
+                            content={"code": "internal_error", "user_message": t("error.internal_error").render(await error_lang(request)),
                                      "retryable": False, "correlation_id": cid, "details": {}})
 
     # CR-MAIN-ROUTERS-TABLE-2440 (review 05:P2-05): the routers are mounted from the ordered table routers.ROUTERS - the order is

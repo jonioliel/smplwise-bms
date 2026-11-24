@@ -7,8 +7,10 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Callable
 
+from ..i18n import cat, join, t
 from . import automation_model as model
 from . import automation_policy as pol
+from . import automation_trace_text  # noqa: F401 - registers `trace.*` (I18N-BACKEND-2490, third pass)
 from .timeutil import parse_utc
 
 _DROP_KEYS = frozenset({"user_id", "parent_id", "context_id", "context", "refresh_token_id"})
@@ -56,18 +58,19 @@ def run_result(entry: dict[str, Any]) -> str:
 
 
 def describe_trigger(description: str | None, name_of: Callable[[str], str]) -> str:
-    """HA's trigger description ("state of binary_sensor.x", "time", ...) in Hebrew."""
+    """HA's trigger description ("state of binary_sensor.x", "time", ...) as a sentence part (I18N-BACKEND-2490: a `Msg` - its string
+    value is the Hebrew - in the reader's language at the route's edge; an unknown description is HA's own words, data)."""
     d = (description or "").strip()
     if not d:
-        return "הפעלה"
-    for prefix, fmt in (("state of ", "שינוי ב־{}"), ("numeric state of ", "שינוי ערך ב־{}"), ("template", None)):
+        return t("trace.trigger")
+    for prefix, key in (("state of ", "trace.change_in"), ("numeric state of ", "trace.value_change_in"), ("template", None)):
         if d.startswith(prefix):
             rest = d[len(prefix):].strip()
-            return fmt.format(name_of(rest) if rest else "") if fmt else "תבנית"
-    words = {"time": "שעה קבועה", "time pattern": "דפוס זמן", "sun": "שמש", "homeassistant": "הפעלת המערכת", "event": "אירוע", "webhook": "קריאה חיצונית", "zone": "אזור", "mqtt": "הודעה", "manual": "הרצה ידנית"}
+            return t(key, name=name_of(rest) if rest else "") if key else t("trace.template")
+    words = {"time": "time", "time pattern": "time_pattern", "sun": "sun", "homeassistant": "homeassistant", "event": "event", "webhook": "webhook", "zone": "zone", "mqtt": "mqtt", "manual": "manual"}
     for k, v in words.items():
         if d == k or d.startswith(k + " "):
-            return v
+            return t(f"trace.kind.{v}")
     return d[:60]
 
 
@@ -87,11 +90,11 @@ def summary(entry: dict[str, Any], name_of: Callable[[str], str], tz: Any) -> di
     result = run_result(entry)
     desc = describe_trigger(entry.get("trigger") if isinstance(entry.get("trigger"), str) else None, name_of)
     when = local_time(at, tz)
-    sentence = f"רצה ב־{when} · {desc}" if when else f"רצה · {desc}"
+    sentence = t("trace.ran_at", when=when, desc=desc) if when else t("trace.ran", desc=desc)
     if result == "error":
-        sentence += " · נעצרה בשגיאה"
+        sentence = cat(sentence, t("trace.suffix_error"))
     elif result == "not_triggered":
-        sentence += " · התנאים לא התקיימו"
+        sentence = cat(sentence, t("trace.suffix_not_met"))
     return {"run_id": str(entry.get("run_id") or ""), "at": at or "", "finished_at": _iso(ts.get("finish")), "result": result, "sentence": sentence}
 
 
@@ -130,13 +133,13 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
         res = first.get("result")
         is_condition_path = p.startswith("conditions.") or ".conditions." in p or ".if." in p
         if is_condition_path and isinstance(res, dict) and "result" in res:
-            conditions.append({"path": p, "sentence": sentences.get(p) or "תנאי", "passed": bool(res["result"])})
+            conditions.append({"path": p, "sentence": sentences.get(p) or t("trace.condition"), "passed": bool(res["result"])})
     for p in order:  # a condition used as a step: its sentence comes from the block, its verdict from the result
         first = elements[p]["first"]
         res = first.get("result")
         if (p.startswith("actions.") or p.startswith("sequence.")) and not (".conditions." in p or ".if." in p) and isinstance(res, dict) and set(res) <= {"result", "entities"} and "result" in res:
             if not any(c["path"] == p for c in conditions):
-                conditions.append({"path": p, "sentence": sentences.get(p) or "תנאי", "passed": bool(res["result"])})
+                conditions.append({"path": p, "sentence": sentences.get(p) or t("trace.condition"), "passed": bool(res["result"])})
     # steps: the config's own order, every step listed
     stamps = [(p, elements[p]["first"].get("timestamp")) for p in order]
     steps: list[dict[str, Any]] = []
@@ -162,14 +165,14 @@ def detail(entry: dict[str, Any], *, step_paths: list[str], sentences: dict[str,
     user_id = ctx.get("user_id") if isinstance(ctx.get("user_id"), str) else None
     parent = "user" if user_id else ("automation" if ctx.get("parent_id") else "system")
     when = local_time(at, tz)
-    bits = [f"רצה ב־{when} כי {trig_sentence}" if when else f"רצה כי {trig_sentence}"]
+    bits = [t("trace.ran_at_because", when=when, sentence=trig_sentence) if when else t("trace.ran_because", sentence=trig_sentence)]
     for c in conditions[:3]:
-        bits.append(f"התנאי '{c['sentence']}' {'עבר' if c['passed'] else 'לא עבר'}")
+        bits.append(t("trace.cond_passed" if c["passed"] else "trace.cond_failed", sentence=c["sentence"]))
     done = [s["sentence"] for s in steps if s["result"] == "done" and s["sentence"] and s["depth"] == 0][:2]
     if done:
-        bits.append("ביצעה: " + ", ".join(done))
+        bits.append(t("trace.did", steps=join(", ", done)))
     if result == "error":
-        bits.append("נעצרה בשגיאה")
+        bits.append(t("trace.stopped_error"))
     return {"run_id": base["run_id"], "at": at or "", "finished_at": finish, "duration_ms": _ms(ts.get("start"), ts.get("finish")) if finish else None, "result": result,
-            "sentence": "; ".join(bits), "trigger": {"sentence": trig_sentence, "path": trig_path, "description": trigger_desc}, "conditions": conditions, "steps": steps,
+            "sentence": join("; ", bits), "trigger": {"sentence": trig_sentence, "path": trig_path, "description": trigger_desc}, "conditions": conditions, "steps": steps,
             "variables": variables, "context": {"user": user_name(user_id), "parent": parent}}

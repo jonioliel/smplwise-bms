@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
+from ..i18n import DEFAULT_LANG, lang_of, localize
 from ..rbac import INSTALLATION, Principal, require
 from ..services import automation_ops as ops
 from ..services import automation_policy as pol
@@ -196,8 +197,16 @@ def _bridge_runner(request: Request, conn: sqlite3.Connection, principal: Princi
     return _writer(request, conn, principal)
 
 
-def _reply(result: tuple[int, dict[str, Any]]) -> JSONResponse:
-    return JSONResponse(status_code=result[0], content=result[1])
+def _out(conn: sqlite3.Connection, principal: Principal, value: Any) -> Any:
+    """I18N-BACKEND-2490: the sentences and labels of an answer (`Msg`s, services/automation_text.py) in the requester's interface language;
+    a Hebrew reader gets them as they are (their string value is the Hebrew)."""
+    lang = lang_of(conn, principal)
+    return value if lang == DEFAULT_LANG else localize(value, lang)
+
+
+def _reply(result: tuple[int, dict[str, Any]], conn: sqlite3.Connection | None = None, principal: Principal | None = None) -> JSONResponse:
+    content = result[1] if conn is None or principal is None else _out(conn, principal, result[1])
+    return JSONResponse(status_code=result[0], content=content)
 
 
 def _require_any(conn: sqlite3.Connection, principal: Principal, perms: tuple[str, ...], extra: tuple[str, ...] = ()) -> None:
@@ -278,7 +287,7 @@ def automations_status(request: Request, principal: Principal = Depends(current_
     a = scope.Access(conn, principal)
     if a.any_of((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_RUN, scope.SCRIPT_MANAGE, "ha.entity.control", "devices.control")):
         store.MIRROR.ensure(conn)
-    return view.status_payload(conn, principal)
+    return _out(conn, principal, view.status_payload(conn, principal))
 
 
 @router.get("/automations/catalog")
@@ -290,7 +299,7 @@ def catalog(request: Request, principal: Principal = Depends(current_principal),
     ctx = _ctx(request, conn, principal)
     if ctx.cfg["automations.enabled"] != "true":
         raise ApiError(409, "feature_disabled", "האוטומציות כבויות בהגדרות המערכת.")
-    return view.catalog_payload(ctx, q, floor, area, cls)
+    return _out(conn, principal, view.catalog_payload(ctx, q, floor, area, cls))
 
 
 @router.get("/automations/templates")
@@ -298,31 +307,31 @@ def templates(request: Request, principal: Principal = Depends(current_principal
     """§3.1 row 5 - the gallery (manage)."""
     _bind(request)
     _require_any(conn, principal, (scope.MANAGE,))
-    return view.templates_payload(_ctx(request, conn, principal, sync=False))
+    return _out(conn, principal, view.templates_payload(_ctx(request, conn, principal, sync=False)))
 
 
 @router.get("/automations/trash")
 def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 20 - the trash the caller may see (30 days, setting `automations.trash_days`)."""
-    return ops.trash_list(_writer(request, conn, principal))
+    return _out(conn, principal, ops.trash_list(_writer(request, conn, principal)))
 
 
 @router.post("/automations/trash/{trash_id}/restore")
 def restore_trash(trash_id: str, request: Request, principal: Principal = Depends(_authoring_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, RestoreBody)
-    return _reply(ops.restore_trash(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm))
+    return _reply(ops.restore_trash(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm), conn, principal)
 
 
 @router.post("/automations/trash/{trash_id}/purge")
 def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(_authoring_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, PurgeBody)
-    return ops.purge_trash(_writer(request, conn, principal), trash_id, body.confirm)
+    return _out(conn, principal, ops.purge_trash(_writer(request, conn, principal), trash_id, body.confirm))
 
 
 @router.get("/automations/review")
 def review(request: Request, principal: Principal = Depends(_auto_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 22 - the administrator's review list (installation-wide automation.manage)."""
-    return runs.review(_ctx(request, conn, principal))
+    return _out(conn, principal, runs.review(_ctx(request, conn, principal)))
 
 
 @router.get("/automations/compat")
@@ -332,7 +341,7 @@ def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.C
     docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4: never a call to Home Assistant, never a write. The settings
     screen's administrator (`system.configure`, installation scope) only."""
     require(conn, principal, "system.configure", INSTALLATION)
-    return ha_compat.scan(conn)
+    return _out(conn, principal, ha_compat.scan(conn))
 
 
 @router.post("/automations/preview")
@@ -346,7 +355,7 @@ def preview(request: Request, principal: Principal = Depends(_view_any_gate), ra
         raise ApiError(422, "validation", "יש לשלוח draft או config (בדיוק אחד).", details={"fields": ["draft", "config"]})
     w = _writer(request, conn, principal)
     store.MIRROR.ensure(conn)
-    return ops.preview(w, body.kind, body.id, body.draft, body.config)
+    return _out(conn, principal, ops.preview(w, body.kind, body.id, body.draft, body.config))
 
 
 @router.post("/automations/scene/capture")
@@ -374,7 +383,7 @@ def capture_scene(request: Request, principal: Principal = Depends(_scene_manage
         for e in taken:
             if not ctx.access.allowed(scope.SCENE_MANAGE, e):
                 raise ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.", details={"entity_id": e})
-        return {"members": members, "skipped": skipped}
+        return _out(conn, principal, {"members": members, "skipped": skipped})
 
 
 @router.get("/automations")
@@ -389,7 +398,7 @@ def list_items(
         _view_gate_check(kind)(conn, principal)  # `?kind=automation` without automation.manage is the 403 (a list without `kind` simply leaves automations out)
     ctx = _ctx(request, conn, principal)
     filters = {"kind": kind, "q": q, "floor": floor, "area": area, "state": state, "sensitive": sensitive, "source": source, "mine": mine, "label": label, "category": category}
-    return view.list_payload(ctx, filters, sort, limit, offset)
+    return _out(conn, principal, view.list_payload(ctx, filters, sort, limit, offset))
 
 
 @router.post("/automations/{kind}")
@@ -397,7 +406,7 @@ def create_item(kind: str, request: Request, principal: Principal = Depends(_kin
     """§3.1 row 7."""
     kind = _kind(kind)
     body = _parse(request, raw, CreateBody)
-    return _reply(ops.create(_bridge_writer(request, conn, principal), kind, body.draft, body.enabled, body.confirm, body.client_request_id))
+    return _reply(ops.create(_bridge_writer(request, conn, principal), kind, body.draft, body.enabled, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.get("/automations/{kind}/{item_id}")
@@ -406,7 +415,7 @@ def get_item(kind: str, item_id: str, request: Request, principal: Principal = D
     kind = _kind(kind)
     ctx = _ctx(request, conn, principal)
     row, rd, facts = view.get_item(ctx, kind, item_id)
-    return view.detail_item(ctx, view.Env(ctx), row, rd, facts)
+    return _out(conn, principal, view.detail_item(ctx, view.Env(ctx), row, rd, facts))
 
 
 @router.put("/automations/{kind}/{item_id}/code")
@@ -414,7 +423,7 @@ def update_code(kind: str, item_id: str, request: Request, principal: Principal 
     """§3.1 row 9."""
     kind = _kind(kind)
     body = _parse(request, raw, CodeBody)
-    return _reply(ops.update_code(_bridge_writer(request, conn, principal), kind, item_id, body.config, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.update_code(_bridge_writer(request, conn, principal), kind, item_id, body.config, body.base_revision, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.put("/automations/{kind}/{item_id}/meta")
@@ -422,7 +431,7 @@ def put_meta(kind: str, item_id: str, request: Request, principal: Principal = D
     """§3.1 row 21 - the caller's own pin / favourite; `hidden` (integration scenes) by an administrator."""
     kind = _kind(kind)
     body = _parse(request, raw, MetaBody)
-    return ops.put_meta(_writer(request, conn, principal), kind, item_id, body.pinned, body.favourite, body.hidden)
+    return _out(conn, principal, ops.put_meta(_writer(request, conn, principal), kind, item_id, body.pinned, body.favourite, body.hidden))
 
 
 @router.put("/automations/{kind}/{item_id}")
@@ -430,21 +439,21 @@ def update_item(kind: str, item_id: str, request: Request, principal: Principal 
     """§3.1 row 8."""
     kind = _kind(kind)
     body = _parse(request, raw, UpdateBody)
-    return _reply(ops.update(_bridge_writer(request, conn, principal), kind, item_id, body.draft, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.update(_bridge_writer(request, conn, principal), kind, item_id, body.draft, body.base_revision, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/{kind}/{item_id}/delete")
 def delete_item(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     kind = _kind(kind)
     body = _parse(request, raw, DeleteBody)
-    return _reply(ops.delete(_bridge_writer(request, conn, principal), kind, item_id, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.delete(_bridge_writer(request, conn, principal), kind, item_id, body.base_revision, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/{kind}/{item_id}/copy")
 def copy_item(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     kind = _kind(kind)
     body = _parse(request, raw, CopyBody)
-    return _reply(ops.copy_item(_bridge_writer(request, conn, principal), kind, item_id, body.name, body.client_request_id))
+    return _reply(ops.copy_item(_bridge_writer(request, conn, principal), kind, item_id, body.name, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/{kind}/{item_id}/dry-run")
@@ -457,66 +466,66 @@ def dry_run(kind: str, item_id: str, request: Request, principal: Principal = De
     row, rd, facts = view.get_item(ctx, kind, item_id)
     if body.draft is not None:
         _manage_check_for(kind, conn, principal)  # an unsaved edit is the editor's: a script runner / scene activator checks the stored item only (security review 2026-10-02)
-        return view.dry_run_draft(ctx, row, rd, body.draft)
-    return view.dry_run(ctx, row, rd, facts)
+        return _out(conn, principal, view.dry_run_draft(ctx, row, rd, body.draft))
+    return _out(conn, principal, view.dry_run(ctx, row, rd, facts))
 
 
 @router.post("/automations/automation/{item_id}/enable")
 def enable_automation(item_id: str, request: Request, principal: Principal = Depends(_auto_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ToggleBody)
-    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), item_id, True, body.confirm, body.client_request_id))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), item_id, True, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/automation/{item_id}/disable")
 def disable_automation(item_id: str, request: Request, principal: Principal = Depends(_auto_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ToggleBody)
-    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), item_id, False, body.confirm, body.client_request_id))
+    return _reply(ops.set_enabled(_bridge_writer(request, conn, principal), item_id, False, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/automation/{item_id}/run")
 def run_automation(item_id: str, request: Request, principal: Principal = Depends(_auto_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, RunBody)
-    return _reply(ops.run_automation(_bridge_runner(request, conn, principal), item_id, body.skip_condition, body.confirm, body.client_request_id))
+    return _reply(ops.run_automation(_bridge_runner(request, conn, principal), item_id, body.skip_condition, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/script/{item_id}/run")
 def run_script(item_id: str, request: Request, principal: Principal = Depends(_script_run_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ScriptRunBody)
-    return _reply(ops.run_script(_bridge_runner(request, conn, principal), item_id, body.fields, body.confirm, body.client_request_id))
+    return _reply(ops.run_script(_bridge_runner(request, conn, principal), item_id, body.fields, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/script/{item_id}/stop")
 def stop_script(item_id: str, request: Request, principal: Principal = Depends(_script_run_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, StopBody)
-    return _reply(ops.stop_script(_bridge_writer(request, conn, principal), item_id, body.client_request_id))
+    return _reply(ops.stop_script(_bridge_writer(request, conn, principal), item_id, body.client_request_id), conn, principal)
 
 
 @router.post("/automations/scene/{item_id}/apply")
 def apply_scene(item_id: str, request: Request, principal: Principal = Depends(_scene_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, ApplyBody)
-    return _reply(ops.apply_scene(_bridge_runner(request, conn, principal), item_id, body.confirm, body.client_request_id))
+    return _reply(ops.apply_scene(_bridge_runner(request, conn, principal), item_id, body.confirm, body.client_request_id), conn, principal)
 
 
 @router.get("/automations/{kind}/{item_id}/runs")
 def list_runs(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 18 - `RunSummary[]` from the stored traces."""
-    return runs.runs_list(_ctx(request, conn, principal), _kind(kind), item_id)
+    return _out(conn, principal, runs.runs_list(_ctx(request, conn, principal), _kind(kind), item_id))
 
 
 @router.get("/automations/{kind}/{item_id}/runs/{run_id}")
 def get_run(kind: str, item_id: str, run_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 18 - one `RunTrace`, complete (owner decision 9ג)."""
-    return runs.run_detail(_ctx(request, conn, principal), _kind(kind), item_id, run_id)
+    return _out(conn, principal, runs.run_detail(_ctx(request, conn, principal), _kind(kind), item_id, run_id))
 
 
 @router.get("/automations/{kind}/{item_id}/versions")
 def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 19 - the history (last `automations.versions_keep`)."""
-    return ops.versions_list(_writer(request, conn, principal), _kind(kind), item_id)
+    return _out(conn, principal, ops.versions_list(_writer(request, conn, principal), _kind(kind), item_id))
 
 
 @router.post("/automations/{kind}/{item_id}/versions/{version_id}/restore")
 def restore_version(kind: str, item_id: str, version_id: int, request: Request, principal: Principal = Depends(_kind_manager_gate), raw: bytes = Depends(_raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body = _parse(request, raw, VersionRestoreBody)
-    return _reply(ops.restore_version(_bridge_writer(request, conn, principal), _kind(kind), item_id, version_id, body.base_revision, body.confirm, body.client_request_id))
+    return _reply(ops.restore_version(_bridge_writer(request, conn, principal), _kind(kind), item_id, version_id, body.base_revision, body.confirm, body.client_request_id), conn, principal)

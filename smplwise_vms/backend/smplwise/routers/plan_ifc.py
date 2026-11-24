@@ -25,6 +25,7 @@ from ..db import new_id, unlocked
 from ..errors import ApiError, conflict
 from ..rbac import Principal, require
 from ..services import geometry_store as store
+from ..services import default_names as dn
 from ..services import plan_catalog, plan_ifc, plan_ifc_read, wall_path
 from ..services import plan_geometry as pg
 from ..services import plan_package as pkg_svc
@@ -103,7 +104,7 @@ def import_ifc(version_id: str, request: Request, level_id: str | None = Query(d
     if v["status"] == "archived":
         raise conflict("archived_version", "גרסה מהארכיון אינה ניתנת לעריכה; שחזר אותה קודם.")
     scale, status = _calibrated(v)
-    doc, _row = store.working_doc(conn, v)
+    doc, _row = store.working_doc(conn, v, dn.lang_of(conn, principal))
     if level_id is not None:
         level = next((lv for lv in doc["levels"] if lv.get("id") == level_id), None)
         if level is None:

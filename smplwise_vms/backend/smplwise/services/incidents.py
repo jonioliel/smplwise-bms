@@ -696,7 +696,7 @@ def _open_from_alarm(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any
     return row
 
 
-def alarm_location(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any] | None = None) -> tuple[sqlite3.Row | None, str]:
+def alarm_location(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any] | None = None, *, lang: str = "he") -> tuple[sqlite3.Row | None, str]:
     """(anchor, title) of an alarm panel's incident: the first open zone of the panel placed on a floor plan, else the panel's own anchor,
     else none; the title names the zone (or the panel). Used by the automatic hook and by the alarm screen's manual button."""
     from . import alarm as alarm_svc
@@ -719,7 +719,9 @@ def alarm_location(conn: sqlite3.Connection, panel_id: str, new: dict[str, Any] 
         anchor = anchor_of(conn, "ha_entity", panel_id)
     attrs = (new or {}).get("attributes") or {}
     pname = (panel or {}).get("name") or attrs.get("friendly_name") or panel_id
-    title = f"אזעקת פריצה · {zone_name}" if zone_name else f"אזעקת פריצה · {pname}"
+    from . import default_names as dn  # I18N-EN-2490 (owner N53): the button's caller language; the automatic hook stays Hebrew
+
+    title = dn.name("incident.burglary_at", lang, name=zone_name or pname)
     return anchor, title
 
 

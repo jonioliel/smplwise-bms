@@ -25,6 +25,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
+from ..i18n import lang_of, localize, localize_for
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
 from ..services import ha_user_admin as hua
 from ..services import ha_users_store as store, revocation, secrets_store
@@ -126,7 +127,7 @@ def would_strand_admins(conn: sqlite3.Connection, user_id: str) -> bool:
 
 def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict[str, Any]:
     creator = store.user_names(conn, r["created_by"])
-    return {
+    return localize_for(conn, principal, {  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
         "ha_user_id": r["ha_user_id"],
         "username": r["username"],
         "display_name": r["display_name"],
@@ -141,7 +142,7 @@ def _row(conn: sqlite3.Connection, r: sqlite3.Row, principal: Principal) -> dict
         "created_at": r["created_at"],
         "created_by_name": (creator["display_name"] or creator["username"]) if creator else None,
         "is_self": r["ha_user_id"] == principal.user_id,
-    }
+    })
 
 
 # ---------------------------------------------------------------- read
@@ -158,8 +159,8 @@ def list_managed(request: Request, principal: Principal = Depends(current_princi
         "actor_ha_admin": actor_is_ha_admin(conn, principal),
         "transport": hua.transport_kind(_ha_settings(request, conn)),
         "access": _access(conn),
-        "roles": [{"id": rid, "name": role_name(conn, rid)} for rid in sorted(roles)],
-        "scopes": [s for s in acc.assign_scopes(conn, principal) if s["type"] in ("installation", "site", "building", "floor")],
+        "roles": localize_for(conn, principal, [{"id": rid, "name": role_name(conn, rid)} for rid in sorted(roles)]),  # I18N-BACKEND-2490 (third pass): role / scope names in the reader's language
+        "scopes": localize([s for s in acc.assign_scopes(conn, principal) if s["type"] in ("installation", "site", "building", "floor")], lang_of(conn, principal)),
         "password": {"min_length": hua.PASSWORD_MIN, "max_length": hua.PASSWORD_MAX},
         "limit": MAX_MANAGED,
     }

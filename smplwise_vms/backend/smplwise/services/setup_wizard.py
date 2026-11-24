@@ -38,6 +38,8 @@ from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
+from ..i18n import Msg, t
+from . import setup_wizard_text  # noqa: F401 - registers the wizard's texts (I18N-BACKEND-2490)
 from . import autosync, bridge_install, bridge_keys as bk, events_ingest, ha_client, ha_sync, nvr, nvr_system, stream_codecs
 from . import go2rtc as g2
 from .timeutil import site_zone_name, zone
@@ -45,14 +47,10 @@ from ..mode import installation_mode, is_ha_only
 from ..test_reset import register_reset
 
 STEPS = ("install", "nvr", "ha", "go2rtc", "floor", "camera")
-TITLES = {
-    "install": "התקנת ה־Add-on",
-    "nvr": "חיבור ל־NVR",
-    "ha": "Home Assistant והגשר",
-    "go2rtc": "go2rtc (וידאו חי)",
-    "floor": "קומה ותוכנית",
-    "camera": "מצלמה על המפה",
-}
+# I18N-BACKEND-2490: every user-visible text below is a `Msg` (services/setup_wizard_text.py): its str value is the Hebrew the wizard
+# always wrote, and routers/setup.py renders it in the requesting user's language. The cached probe results (`_live`) hold `Msg`s, so
+# one cached check serves a Hebrew and an English administrator alike.
+TITLES = {step: t(f"wizard.title.{step}") for step in ("install", "nvr", "ha", "go2rtc", "floor", "camera")}
 DEVICE_STEPS = ("nvr", "ha", "go2rtc")
 # 2.6.0 TKWIZHINT: a step the installation works without. It stays visible in the wizard (labelled optional) but never keeps the shell hint alive.
 OPTIONAL_STEPS = frozenset({"floor", "camera"})
@@ -71,15 +69,15 @@ _go2rtc_ok: dict[str, Any] = {}
 _last_check: dict[tuple[str, str], float] = {}
 
 LINKS = {
-    "connections": ("#/system/setup", "הגדרות › חיבורים"),
-    "health": ("#/system/diagnostics?tab=health", "הגדרות › כללי › בריאות ועבודות"),
-    "ha": ("#/system/diagnostics?tab=ha", "הגדרות › כללי › גשר Arx"),
-    "media": ("#/system/diagnostics?tab=media", "הגדרות › כללי › וידאו ומדיה"),
-    "general": ("#/system/diagnostics", "הגדרות › כללי"),
-    "sites": ("#/explore/sites", "מפה › אתרים ומבנים"),
-    "devices": ("#/system/devices", "מצלמות › בריאות מצלמות"),
-    "access": ("#/system/access", "הגדרות › משתמשים והרשאות"),
-    "remote": ("#/system/diagnostics?tab=remote", "הגדרות › גישה מרחוק"),
+    "connections": ("#/system/setup", t("wizard.link.connections")),
+    "health": ("#/system/diagnostics?tab=health", t("wizard.link.health")),
+    "ha": ("#/system/diagnostics?tab=ha", t("wizard.link.ha")),
+    "media": ("#/system/diagnostics?tab=media", t("wizard.link.media")),
+    "general": ("#/system/diagnostics", t("wizard.link.general")),
+    "sites": ("#/explore/sites", t("wizard.link.sites")),
+    "devices": ("#/system/devices", t("wizard.link.devices")),
+    "access": ("#/system/access", t("wizard.link.access")),
+    "remote": ("#/system/diagnostics?tab=remote", t("wizard.link.remote")),
 }
 
 # CR-008 D7: the streaming-channels GET inside the wizard's NVR check (CHECK_DEADLINE_S covers the whole check)
@@ -89,15 +87,16 @@ MAX_CODEC_WARNINGS = 4
 
 
 def _codec_fact(main: dict[str, int], total: int) -> dict[str, Any]:
-    return _fact("זרם ראשי ב־WebRTC", f"{main['ok']} מתוך {total}" + (f" · {main['no']} לא יתנגנו" if main["no"] else "") + (f" · {main['unknown']} לא ידוע" if main["unknown"] else ""),
-                 "warn" if main["no"] else "ok" if main["ok"] == total else "")
+    value = t("wizard.concat", a=t("wizard.concat", a=t("wizard.of", a=main["ok"], b=total), b=t("wizard.codec.no", n=main["no"]) if main["no"] else ""),
+              b=t("wizard.codec.unknown", n=main["unknown"]) if main["unknown"] else "")
+    return _fact(t("wizard.codec.label"), value, "warn" if main["no"] else "ok" if main["ok"] == total else "")
 
 
 def _codec_warnings(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The settings hints of the cameras whose main stream will not play over WebRTC (stream_codecs.hints shape)."""
     out = [_warning("main_not_webrtc", str(it["hint"]), _link("remote")) for it in items[:MAX_CODEC_WARNINGS]]
     if len(items) > MAX_CODEC_WARNINGS:
-        out.append(_warning("main_not_webrtc_more", f"ועוד {len(items) - MAX_CODEC_WARNINGS} מצלמות שהזרם הראשי שלהן לא יתנגן ב־WebRTC; הפירוט בבריאות המערכת.", _link("health")))
+        out.append(_warning("main_not_webrtc_more", t("wizard.codec.more", n=len(items) - MAX_CODEC_WARNINGS), _link("health")))
     return out
 
 
@@ -122,7 +121,7 @@ def _problem(code: str, message: str, action: str, link: dict[str, str] | None) 
 
 
 def _fact(label: str, value: Any, tone: str = "") -> dict[str, Any]:
-    return {"label": label, "value": "—" if value in (None, "") else str(value), "tone": tone}
+    return {"label": label, "value": "—" if value in (None, "") else value if isinstance(value, Msg) else str(value), "tone": tone}
 
 
 def _step(step_id: str, status: str, summary: str, *, facts: list[dict[str, Any]], evidence: dict[str, Any], settings_link: dict[str, str],
@@ -207,7 +206,7 @@ def ha_time_check(date_header: str | None, ha_zone: str | None, tz: ZoneInfo, no
 def _drift_fact(label: str, check: dict[str, Any]) -> dict[str, Any]:
     d = check.get("drift_s")
     tone = {"ok": "ok", "warn": "warn", "fail": "err"}.get(check.get("level"), "")
-    return _fact(label, "לא נמדד" if d is None else f"{_signed(d)} שנ׳", tone)
+    return _fact(label, t("wizard.not_measured") if d is None else t("wizard.seconds", n=_signed(d)), tone)
 
 
 # ---------------------------------------------------------------- step 1: install (local)
@@ -245,31 +244,32 @@ def install_step(settings: Settings, conn: sqlite3.Connection, identity_source: 
                 "system_admins": admins, "bootstrap_admin_configured": bool(settings.bootstrap_admin_username), "identity_source": identity_source,
                 "in_addon": settings.in_addon, "time_zone": tz_name}
     facts = [
-        _fact("גרסה", __version__),
-        _fact("מסד נתונים", ("תקין" if db_ok else f"שגיאה ({integrity})") + (" · quick_check" if deep and db_ok else ""), "ok" if db_ok else "err"),
-        _fact("תיקיית הנתונים (/data)", ("ניתנת לכתיבה" if writable else "לא ניתנת לכתיבה") + (f" · פנוי {_fmt_bytes(free)} מתוך {_fmt_bytes(total)}" if free is not None else ""),
+        _fact(t("wizard.install.version"), __version__),
+        _fact(t("wizard.install.db"), t("wizard.concat", a=t("wizard.install.db_ok") if db_ok else t("wizard.install.db_error", integrity=integrity),
+                                       b=" · quick_check" if deep and db_ok else ""), "ok" if db_ok else "err"),
+        _fact(t("wizard.install.data_dir"), t("wizard.concat", a=t("wizard.install.writable") if writable else t("wizard.install.not_writable"),
+                                             b=t("wizard.install.free", free=_fmt_bytes(free), total=_fmt_bytes(total)) if free is not None else ""),
               "ok" if writable and (free is None or free >= MIN_FREE_BYTES) else "err"),
-        _fact("מנהלי מערכת", admins, "ok" if admins else "warn"),
-        _fact("מקור הזהות", "Home Assistant Ingress" if identity_source == "ingress" else identity_source),
-        _fact("אזור הזמן של ההתקנה", tz_name),
+        _fact(t("wizard.install.admins"), admins, "ok" if admins else "warn"),
+        _fact(t("wizard.install.identity"), "Home Assistant Ingress" if identity_source == "ingress" else identity_source),
+        _fact(t("wizard.install.zone"), tz_name),
     ]
     link = _link("health")
     problem = None
     if not db_ok:
-        problem = _problem("db_error", f"בסיס הנתונים של ה־Add-on אינו תקין ({integrity}).",
-                           "שחזרו את הגיבוי האחרון (הגדרות › כללי › גיבוי ושחזור) ובדקו את יומן ה־Add-on ב־Home Assistant.", _link("general", "#/system/diagnostics?tab=backup", "הגדרות › כללי › גיבוי ושחזור"))
+        problem = _problem("db_error", t("wizard.install.db_problem", integrity=integrity),
+                           t("wizard.install.db_action"), _link("general", "#/system/diagnostics?tab=backup", t("wizard.link.backup")))
     elif not writable:
-        problem = _problem("data_not_writable", "ה־Add-on אינו יכול לכתוב לתיקיית הנתונים שלו (/data).",
-                           "הפעילו מחדש את ה־Add-on מ־Home Assistant › הגדרות › Add-ons; אם זה חוזר, בדקו את הדיסק של Home Assistant.", link)
+        problem = _problem("data_not_writable", t("wizard.install.not_writable_problem"), t("wizard.install.not_writable_action"), link)
     elif free is not None and free < MIN_FREE_BYTES:
-        problem = _problem("disk_full", f"נותרו רק {_fmt_bytes(free)} פנויים בדיסק של ה־Add-on.",
-                           "פנו מקום: מחקו ייצואים וגיבויים ישנים (הגדרות › אחסון) או הגדילו את הדיסק של Home Assistant.", _link("general", "#/system/storage", "הגדרות › אחסון"))
+        problem = _problem("disk_full", t("wizard.install.disk_full", free=_fmt_bytes(free)),
+                           t("wizard.install.disk_full_action"), _link("general", "#/system/storage", t("wizard.link.storage")))
     warnings = []
     if admins == 0:
-        warnings.append(_warning("no_system_admin", "אין עדיין מנהל מערכת בשיוך ישיר; ההרשאה הנוכחית מגיעה מתפקיד מותאם. מומלץ לשייך מנהל מערכת.", _link("access")))
+        warnings.append(_warning("no_system_admin", t("wizard.install.no_admin"), _link("access")))
     if problem:
         return _step("install", "failed", problem["message"], facts=facts, evidence=evidence, settings_link=link, problem=problem, warnings=warnings)
-    return _step("install", "done", f"גרסה {__version__} · בסיס הנתונים ו־/data תקינים", facts=facts, evidence=evidence, settings_link=link, warnings=warnings)
+    return _step("install", "done", t("wizard.install.done", version=__version__), facts=facts, evidence=evidence, settings_link=link, warnings=warnings)
 
 
 def _tz_name(conn: sqlite3.Connection) -> str:
@@ -278,19 +278,20 @@ def _tz_name(conn: sqlite3.Connection) -> str:
 
 # ---------------------------------------------------------------- step 2: NVR
 
+# code -> (message, action); every action names the connections section (LINKS["connections"])
 NVR_ERRORS = {
-    "source_not_configured": ("פרטי ה־NVR לא הוגדרו.", "בחרו את סוג ה־NVR והזינו כתובת, משתמש וסיסמה ב"),
-    "nvr_not_configured": ("פרטי ה־NVR לא הוגדרו.", "בחרו את סוג ה־NVR והזינו כתובת, משתמש וסיסמה ב"),
-    "source_unavailable": ("ה־NVR לא ענה.", "ודאו שה־NVR דולק ומחובר לרשת, ושהכתובת ופורט ה־HTTP נכונים; לתיקון הכתובת: "),
-    "source_forbidden": ("ה־NVR דחה את שם המשתמש או הסיסמה.", "בדקו את המשתמש והסיסמה (מומלץ משתמש ייעודי עם הרשאות צפייה והקלטות בלבד) ועדכנו אותם ב"),
-    "source_error": ("ה־NVR החזיר שגיאה לבקשת קריאה.", "ודאו שלמשתמש ה־NVR יש הרשאות צפייה והקלטות ושה־ISAPI פעיל ב־NVR; פרטי החיבור ב"),
+    "source_not_configured": (t("wizard.nvr.not_configured"), t("wizard.nvr.not_configured_action", link=LINKS["connections"][1])),
+    "nvr_not_configured": (t("wizard.nvr.not_configured"), t("wizard.nvr.not_configured_action", link=LINKS["connections"][1])),
+    "source_unavailable": (t("wizard.nvr.unavailable"), t("wizard.nvr.unavailable_action", link=LINKS["connections"][1])),
+    "source_forbidden": (t("wizard.nvr.forbidden"), t("wizard.nvr.forbidden_action", link=LINKS["connections"][1])),
+    "source_error": (t("wizard.nvr.error"), t("wizard.nvr.error_action", link=LINKS["connections"][1])),
 }
 
 
 def _nvr_problem(code: str, detail: str | None = None) -> dict[str, Any]:
-    message, action = NVR_ERRORS.get(code, (f"קריאה מה־NVR נכשלה ({code}).", "בדקו את פרטי החיבור ב"))
     link = _link("connections")
-    return _problem(code, message + (f" ({detail})" if detail else ""), f"{action}{link['label']}.", link)
+    message, action = NVR_ERRORS.get(code, (t("wizard.nvr.read_failed", code=code), t("wizard.nvr.read_failed_action", link=link["label"])))
+    return _problem(code, t("wizard.concat", a=message, b=t("wizard.paren", detail=detail) if detail else ""), action, link)
 
 
 def _looks_like_address(host: str) -> bool:
@@ -310,7 +311,7 @@ def _alert_warning() -> dict[str, Any] | None:
     ing = events_ingest.STATE.as_dict()
     if ing.get("connected"):
         return None
-    return _warning("alert_stream_down", "זרם ההתראות (alertStream) מה־NVR אינו מחובר כרגע; אירועי תנועה ייגזרו מההקלטות כל 10 דקות עד שיתחבר.", _link("connections"))
+    return _warning("alert_stream_down", t("wizard.nvr.alert_stream_down"), _link("connections"))
 
 
 def further_recorders_step(settings: Settings | None, conn: sqlite3.Connection | None) -> dict[str, Any] | None:
@@ -333,21 +334,21 @@ def further_recorders_step(settings: Settings | None, conn: sqlite3.Connection |
     ids = [r[0] for r in rows]
     running = [rid for rid in ready_ids(settings) if rid in ids]
     if not running:
-        p = _problem("restart_pending", "פרטי החיבור נשמרו; נדרשת הפעלה מחדש כדי להחיל אותם.", NVR_RESTART_ACTION, link)
-        return _step("nvr", "todo", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן - ממתינים להפעלה מחדש", "warn")],
+        p = _problem("restart_pending", t("wizard.nvr.saved_restart"), NVR_RESTART_ACTION, link)
+        return _step("nvr", "todo", p["message"], facts=[_fact(t("wizard.nvr.fact_saved"), t("wizard.nvr.saved_waiting"), "warn")],
                      evidence={"configured": False, "state": "pending_restart", "recorders": ids}, settings_link=link, problem=p)
     states = {rid: autosync.recorder_state(rid) for rid in running}
     failed = {rid: st.get("cameras_last_error") for rid, st in states.items() if st.get("cameras_last_error")}
     ok = [rid for rid, st in states.items() if st.get("cameras_last_ok")]
     evidence = {"configured": True, "recorders": running, "discovery_errors": failed}
     if ok and not failed:
-        return _step("nvr", "done", f"{len(ok)} NVR מחוברים (לפי הגילוי האחרון)", facts=[_fact("NVR מחוברים", len(ok), "ok")], evidence=evidence, settings_link=link,
+        return _step("nvr", "done", t("wizard.nvr.recorders_done", n=len(ok)), facts=[_fact(t("wizard.nvr.fact_connected"), len(ok), "ok")], evidence=evidence, settings_link=link,
                      source="background")
     if failed:
         p = _nvr_problem(str(next(iter(failed.values()))))
-        return _step("nvr", "failed", p["message"], facts=[_fact("NVR מחוברים", len(ok)), _fact("NVR בתקלה", len(failed), "err")], evidence=evidence,
+        return _step("nvr", "failed", p["message"], facts=[_fact(t("wizard.nvr.fact_connected"), len(ok)), _fact(t("wizard.nvr.fact_faulty"), len(failed), "err")], evidence=evidence,
                      settings_link=link, problem=p, source="background")
-    p = _problem("not_checked", "ה־NVR עוד לא נבדק מאז שהמערכת עלתה.", "לחצו \"בדוק שוב\" כדי לקרוא את פרטי ה־NVR, הערוצים והשעון עכשיו.", link)
+    p = _problem("not_checked", t("wizard.nvr.not_checked"), t("wizard.nvr.not_checked_action"), link)
     return _step("nvr", "todo", p["message"], evidence=evidence, settings_link=link, problem=p, source="background")
 
 
@@ -358,14 +359,14 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
         if other is not None:
             return other
         p = _nvr_problem("nvr_not_configured")
-        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
+        return _step("nvr", "failed", p["message"], facts=[_fact(t("wizard.nvr.fact_saved"), t("wizard.no"), "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
     rec = _recorder(conn)
     cams = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
     evidence = {"configured": True, "model": rec["model"] if rec else None, "firmware": rec["firmware"] if rec else None, "channels": cams,
                 "discovery_last_ok": ds.get("cameras_last_ok"), "discovery_last_error": ds.get("cameras_last_error"), "time": None}
-    facts = [_fact("דגם · קושחה", f"{evidence['model'] or '—'} · {evidence['firmware'] or '—'}"), _fact("ערוצים רשומים", cams),
-             _fact("גילוי אחרון תקין", ds.get("cameras_last_ok")), _fact("שעון מול המערכת", "לא נבדק עדיין — לחצו \"בדוק שוב\"")]
+    facts = [_fact(t("wizard.nvr.model_fw"), f"{evidence['model'] or '—'} · {evidence['firmware'] or '—'}"), _fact(t("wizard.nvr.channels_registered"), cams),
+             _fact(t("wizard.nvr.last_discovery_ok"), ds.get("cameras_last_ok")), _fact(t("wizard.nvr.clock_vs_system"), t("wizard.not_checked_yet"))]
     codecs = stream_codecs.summary(conn, with_names=True)
     evidence["video_codecs"] = {k: v for k, v in codecs.items() if k != "main_not_webrtc"}
     if codecs["checked"]:
@@ -375,9 +376,9 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
         p = _nvr_problem(str(ds["cameras_last_error"]))
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, warnings=warnings, source="background", checked_at=ds.get("cameras_last_run"))
     if ds.get("cameras_last_ok"):
-        return _step("nvr", "done", f"{evidence['model'] or 'NVR'} · {cams} ערוצים (לפי הגילוי האחרון)", facts=facts, evidence=evidence, settings_link=link,
+        return _step("nvr", "done", t("wizard.nvr.background_done", model=evidence['model'] or 'NVR', n=cams), facts=facts, evidence=evidence, settings_link=link,
                      warnings=warnings, source="background", checked_at=ds.get("cameras_last_ok"))
-    p = _problem("not_checked", "ה־NVR עוד לא נבדק מאז שהמערכת עלתה.", "לחצו \"בדוק שוב\" כדי לקרוא את פרטי ה־NVR, הערוצים והשעון עכשיו.", link)
+    p = _problem("not_checked", t("wizard.nvr.not_checked"), t("wizard.nvr.not_checked_action"), link)
     return _step("nvr", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, warnings=warnings, source="background")
 
 
@@ -391,7 +392,7 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
         info = nvr.device_info(settings)
     except ApiError as exc:
         p = _nvr_problem(exc.code, (exc.details or {}).get("error"))
-        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן", "ok"), _fact("תשובה", "אין", "err")],
+        return _step("nvr", "failed", p["message"], facts=[_fact(t("wizard.nvr.fact_saved"), t("wizard.yes"), "ok"), _fact(t("wizard.answer"), t("wizard.none_answer"), "err")],
                      evidence={"configured": True, "reachable": False, "error": exc.code}, settings_link=link, problem=p, source="live")
     except Exception as exc:  # noqa: BLE001 - an unparsable answer is a failed step, never a 500
         p = _nvr_problem("source_error", type(exc).__name__)
@@ -452,42 +453,43 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
                 "channels": len(channels), "online": online, "offline": offline, "with_tracks": with_tracks, "profiles": profiles[:6], "channel_error": channel_error,
                 "time": time_check, "video_codecs": {"main": codec_main, "error": codec_error, "main_not_webrtc": len(codec_items)}}
     facts = [
-        _fact("דגם · קושחה", f"{info.get('model') or '—'} · {info.get('firmware') or '—'}", "ok"),
-        _fact("ערוצים", f"{len(channels)} · {online} מקוונים" + (f" · {offline} לא מקוונים" if offline else ""), "ok" if channels else "err"),
-        _fact("ערוצים עם זרם ראשי ומשני", f"{with_tracks} מתוך {len(channels)}", "ok" if channels and with_tracks == len(channels) else "warn"),
-        _fact("פרופילי וידאו שנמצאו", " · ".join(profiles[:4]) if profiles else "—"),
+        _fact(t("wizard.nvr.model_fw"), f"{info.get('model') or '—'} · {info.get('firmware') or '—'}", "ok"),
+        _fact(t("wizard.nvr.channels"), t("wizard.concat", a=t("wizard.nvr.channels_value", n=len(channels), online=online),
+                                         b=t("wizard.nvr.channels_offline_part", n=offline) if offline else ""), "ok" if channels else "err"),
+        _fact(t("wizard.nvr.with_tracks"), t("wizard.of", a=with_tracks, b=len(channels)), "ok" if channels and with_tracks == len(channels) else "warn"),
+        _fact(t("wizard.nvr.profiles"), " · ".join(profiles[:4]) if profiles else "—"),
         *([_codec_fact(codec_main, len(codec_channels))] if codec_channels else []),
-        _drift_fact("שעון ה־NVR מול המערכת", time_check),
-        _fact("אזור זמן (היסט)", f"{time_check.get('offset') or '?'} · צפוי {time_check.get('expected_offset')} ({tz.key})",
+        _drift_fact(t("wizard.nvr.clock_fact"), time_check),
+        _fact(t("wizard.nvr.zone_fact"), t("wizard.nvr.zone_value", offset=time_check.get('offset') or '?', expected=time_check.get('expected_offset'), zone=tz.key),
               {"ok": "ok", "mismatch": "err"}.get(time_check.get("dst"), "warn")),
     ]
     if channel_error or not channels:
-        p = _problem("no_channels", "ה־NVR ענה, אבל לא החזיר ערוצים" + (f" ({channel_error})." if channel_error else "."),
-                     f"ודאו שהמצלמות מחוברות ל־NVR ושלמשתמש ה־NVR יש הרשאת צפייה בכל הערוצים; פרטי החיבור ב{link['label']}.", link)
+        p = _problem("no_channels", t("wizard.nvr.no_channels", detail=t("wizard.nvr.no_channels_detail", error=channel_error) if channel_error else t("wizard.nvr.dot")),
+                     t("wizard.nvr.no_channels_action", link=link["label"]), link)
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     if time_check.get("dst") == "mismatch":
-        p = _problem("nvr_dst_mismatch", f"ה־NVR מדווח היסט {time_check['offset']} מ־UTC, אבל ב־{tz.key} ההיסט עכשיו {time_check['expected_offset']} — כלל שעון הקיץ / אזור הזמן ב־NVR שגוי.",
-                     "עד שזה יתוקן, חיפוש הקלטות ואירועים יסטה בשעה. תקנו את אזור הזמן ואת שעון הקיץ בהגדרות ה־NVR (Configuration › System › Time Settings), ואז בדקו שוב.", link)
+        p = _problem("nvr_dst_mismatch", t("wizard.nvr.dst_mismatch", offset=time_check['offset'], zone=tz.key, expected=time_check['expected_offset']),
+                     t("wizard.nvr.dst_mismatch_action"), link)
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     if time_check.get("level") == "fail":
-        p = _problem("nvr_clock_drift", f"שעון ה־NVR סוטה ב־{_signed(time_check['drift_s'])} שניות משעון המערכת (מותר עד {DRIFT_FAIL_S}).",
-                     f"אירועים והקלטות יוצגו בזמן שגוי. הגדירו NTP ב־NVR או סנכרנו את השעון עכשיו ב{link['label']} › מערכת ה־NVR › שעון.", link)
+        p = _problem("nvr_clock_drift", t("wizard.nvr.clock_drift", drift=_signed(time_check['drift_s']), limit=DRIFT_FAIL_S),
+                     t("wizard.nvr.clock_drift_action", link=link["label"]), link)
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     if time_check.get("level") == "warn":
-        warnings.append(_warning("nvr_clock_drift", f"שעון ה־NVR סוטה ב־{_signed(time_check['drift_s'])} שניות (עד {DRIFT_OK_S} תקין). מומלץ NTP ב־NVR.", link))
+        warnings.append(_warning("nvr_clock_drift", t("wizard.nvr.clock_drift_warn", drift=_signed(time_check['drift_s']), ok=DRIFT_OK_S), link))
     elif time_check.get("level") == "unknown":
-        warnings.append(_warning("nvr_clock_unknown", "שעון ה־NVR לא נקרא" + (f" ({time_check['error']})" if time_check.get("error") else "") + "; הסטייה לא נבדקה.", link))
+        warnings.append(_warning("nvr_clock_unknown", t("wizard.nvr.clock_unknown", detail=t("wizard.paren", detail=time_check['error']) if time_check.get("error") else ""), link))
     if time_check.get("dst") == "unknown" and time_check.get("level") != "unknown":
-        warnings.append(_warning("nvr_dst_unknown", "ה־NVR לא ציין היסט מ־UTC בשעון שלו; לא ניתן לוודא את שעון הקיץ.", link))
+        warnings.append(_warning("nvr_dst_unknown", t("wizard.nvr.dst_unknown"), link))
     if with_tracks < len(channels):
-        warnings.append(_warning("tracks_missing", f"ל־{len(channels) - with_tracks} ערוצים אין זרם ראשי ומשני ב־NVR; ניגון או תצוגה חיה בהם עלולים להיכשל.", _link("devices")))
+        warnings.append(_warning("tracks_missing", t("wizard.nvr.tracks_missing", n=len(channels) - with_tracks), _link("devices")))
     if offline:
-        warnings.append(_warning("channels_offline", f"{offline} ערוצים לא מקוונים ב־NVR.", _link("devices")))
+        warnings.append(_warning("channels_offline", t("wizard.nvr.channels_offline", n=offline), _link("devices")))
     warnings.extend(_codec_warnings(codec_items))
     w = _alert_warning()
     if w:
         warnings.append(w)
-    return _step("nvr", "done", f"{info.get('model') or 'NVR'} · קושחה {info.get('firmware') or '?'} · {len(channels)} ערוצים", facts=facts, evidence=evidence,
+    return _step("nvr", "done", t("wizard.nvr.done", model=info.get('model') or 'NVR', firmware=info.get('firmware') or '?', n=len(channels)), facts=facts, evidence=evidence,
                  settings_link=link, warnings=warnings, source="live")
 
 
@@ -495,18 +497,15 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
 
 def _ha_not_configured(settings: Settings) -> dict[str, Any]:
     link = _link("ha")
-    if settings.in_addon:
-        action = "ה־Add-on לא קיבל גישה ל־Home Assistant מה־Supervisor. עדכנו את ה־Add-on לגרסה האחרונה והפעילו אותו מחדש."
-    else:
-        action = "מחוץ ל־Add-on: הגדירו HA_URL ו־HA_TOKEN (Long-Lived Access Token) בסביבת השרת והפעילו אותו מחדש."
-    return _problem("ha_not_configured", "אין ל־Add-on חיבור ל־Home Assistant.", action, link)
+    action = t("wizard.ha.no_supervisor") if settings.in_addon else t("wizard.ha.outside_addon")
+    return _problem("ha_not_configured", t("wizard.ha.not_configured"), action, link)
 
 
 HA_ERRORS = {
-    "ha_unavailable": ("Home Assistant לא ענה ל־Add-on.", "ודאו ש־Home Assistant פועל; אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב."),
-    "ha_forbidden": ("Home Assistant דחה את הגישה של ה־Add-on.", "הפעילו מחדש את ה־Add-on כדי שיקבל אסימון חדש מה־Supervisor; מחוץ ל־Add-on החליפו את HA_TOKEN."),
-    "ha_error": ("Home Assistant החזיר שגיאה.", "בדקו את יומן Home Assistant (הגדרות › מערכת › יומנים) ובדקו שוב."),
-    "check_timeout": ("Home Assistant לא ענה בזמן (הבדיקה הופסקה אחרי 20 שניות).", "Home Assistant עונה לאט מדי: אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב."),
+    "ha_unavailable": (t("wizard.ha.unavailable"), t("wizard.ha.unavailable_action")),
+    "ha_forbidden": (t("wizard.ha.forbidden"), t("wizard.ha.forbidden_action")),
+    "ha_error": (t("wizard.ha.error"), t("wizard.ha.error_action")),
+    "check_timeout": (t("wizard.ha.timeout"), t("wizard.ha.timeout_action")),
 }
 
 
@@ -535,24 +534,27 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
     bridge = _bridge_view(conn)
     evidence: dict[str, Any] = {"configured": ha_client.configured(settings), "connected": bool(hs.get("connected")), "ha_version": (live or {}).get("version") or hs.get("ha_version"),
                                 "entities": hs.get("entities", 0), "last_error": hs.get("last_error"), "bridge": bridge, "time": (live or {}).get("time"), "reachable": (live or {}).get("reachable")}
-    bridge_label = {"active": "פעיל", "installed_pending": "הותקן · ממתין להפעלה מחדש של HA", "update_pending": "עדכון ממתין להפעלה מחדש של HA",
-                    "not_installed": "לא מותקן", "not_available": "התקנה ידנית", "error": "שגיאת התקנה"}.get(str(bridge["state"]), str(bridge["state"]))
+    state = str(bridge["state"])
+    bridge_label = t(f"wizard.ha.bridge.{state}") if state in ("active", "installed_pending", "update_pending", "not_installed", "not_available", "error") else state
     facts = [
-        _fact("חיבור (WebSocket)", "מחובר" if evidence["connected"] else "מנותק", "ok" if evidence["connected"] else "err"),
-        _fact("גרסת Home Assistant", evidence["ha_version"]),
-        _fact("ישויות בקטלוג", evidence["entities"]),
-        _fact("אינטגרציית הגשר", f"{bridge_label} · גרסה {bridge['active_version'] or bridge['installed_version'] or '—'}", "warn" if bridge["restart_pending"] else ""),
-        _fact("צימוד הגשר", "מצומד" if bridge["paired"] else "לא מצומד", "ok" if bridge["paired"] else "err"),
-        _fact("ממתין להפעלה מחדש של HA", "כן" if bridge["restart_pending"] else "לא", "err" if bridge["restart_pending"] else "ok"),
+        _fact(t("wizard.ha.connection"), t("wizard.ha.connected") if evidence["connected"] else t("wizard.ha.disconnected_value"), "ok" if evidence["connected"] else "err"),
+        _fact(t("wizard.ha.version"), evidence["ha_version"]),
+        _fact(t("wizard.ha.entities"), evidence["entities"]),
+        _fact(t("wizard.ha.bridge_integration"), t("wizard.ha.bridge_value", state=bridge_label, version=bridge['active_version'] or bridge['installed_version'] or '—'),
+              "warn" if bridge["restart_pending"] else ""),
+        _fact(t("wizard.ha.pairing"), t("wizard.ha.paired") if bridge["paired"] else t("wizard.ha.not_paired"), "ok" if bridge["paired"] else "err"),
+        _fact(t("wizard.ha.restart_waiting"), t("wizard.yes") if bridge["restart_pending"] else t("wizard.no"), "err" if bridge["restart_pending"] else "ok"),
     ]
     tc = evidence["time"]
     if tc:
-        facts.append(_drift_fact("שעון HA מול ה־Add-on", tc))
-        facts.append(_fact("אזור הזמן ב־HA", f"{tc.get('ha_zone') or '—'}" + ("" if tc.get("zone_match") in (None, True) else f" (בהתקנה: {tc.get('zone')})"), "warn" if tc.get("zone_match") is False else ""))
+        facts.append(_drift_fact(t("wizard.ha.clock_fact"), tc))
+        facts.append(_fact(t("wizard.ha.zone_fact"), t("wizard.concat", a=f"{tc.get('ha_zone') or '—'}",
+                                                      b="" if tc.get("zone_match") in (None, True) else t("wizard.ha.zone_install_part", zone=tc.get('zone'))),
+                           "warn" if tc.get("zone_match") is False else ""))
         if tc.get("nvr_ha_s") is not None:
-            facts.append(_fact("שעון ה־NVR מול HA", f"{_signed(tc['nvr_ha_s'])} שנ׳", {"ok": "ok", "warn": "warn", "fail": "err"}.get(drift_level(tc["nvr_ha_s"]), "")))
+            facts.append(_fact(t("wizard.ha.nvr_ha_fact"), t("wizard.seconds", n=_signed(tc['nvr_ha_s'])), {"ok": "ok", "warn": "warn", "fail": "err"}.get(drift_level(tc["nvr_ha_s"]), "")))
     elif source == "background":
-        facts.append(_fact("שעון HA מול ה־Add-on", "לא נבדק עדיין — לחצו \"בדוק שוב\""))
+        facts.append(_fact(t("wizard.ha.clock_fact"), t("wizard.not_checked_yet")))
 
     def failed(p: dict[str, Any]) -> dict[str, Any]:
         return _step("ha", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source=source)
@@ -560,35 +562,31 @@ def ha_step(settings: Settings, conn: sqlite3.Connection, *, live: dict[str, Any
     if not evidence["configured"]:
         return failed(_ha_not_configured(settings))
     if live and live.get("error"):
-        message, action = HA_ERRORS.get(live["error"], (f"קריאה מ־Home Assistant נכשלה ({live['error']}).", "בדקו שוב בעוד רגע."))
+        message, action = HA_ERRORS.get(live["error"], (t("wizard.ha.read_failed", code=live['error']), t("wizard.ha.read_failed_action")))
         return failed(_problem(live["error"], message, action, link))
     if not evidence["connected"]:
-        return failed(_problem("ha_disconnected", "סנכרון המצבים עם Home Assistant מנותק" + (f" ({hs['last_error']})." if hs.get("last_error") else "."),
-                               "ה־Add-on מתחבר מחדש לבד תוך דקה. אם זה נמשך — הפעילו מחדש את ה־Add-on ובדקו את יומן Home Assistant.", link))
+        return failed(_problem("ha_disconnected", t("wizard.ha.disconnected", detail=t("wizard.nvr.no_channels_detail", error=hs['last_error']) if hs.get("last_error") else t("wizard.nvr.dot")),
+                               t("wizard.ha.disconnected_action"), link))
     if bridge["restart_pending"]:
-        return failed(_problem("ha_restart_pending", "אינטגרציית SMPLWISE Bridge הועתקה ל־Home Assistant אבל עוד לא נטענה.",
-                               "הפעילו מחדש את Home Assistant (הגדרות › מערכת › הפעלה מחדש); עד אז שירותים חדשים נענים \"השירות אינו מורשה\".", link))
+        return failed(_problem("ha_restart_pending", t("wizard.ha.restart_pending"), t("wizard.ha.restart_pending_action"), link))
     if bridge["state"] == "error":
-        return failed(_problem("bridge_copy_failed", f"העתקת אינטגרציית הגשר ל־Home Assistant נכשלה ({bridge['last_error']}).",
-                               f"לחצו \"התקנת הגשר\" ב{link['label']}, או העתיקו את custom_components/smplwise_bridge ידנית.", link))
+        return failed(_problem("bridge_copy_failed", t("wizard.ha.copy_failed", error=bridge['last_error']), t("wizard.ha.copy_failed_action", link=link["label"]), link))
     if not bridge["paired"]:
-        return failed(_problem("bridge_not_paired", "הגשר (SMPLWISE Bridge) עוד לא צומד ל־Arx.",
-                               "ב־Home Assistant › הגדרות › Devices & services אשרו את \"SMPLWISE Bridge\" (קוד הצימוד כבר ממולא); בהתקנה ידנית קוד הצימוד מופיע ב"
-                               + link["label"] + ".", link))
+        return failed(_problem("bridge_not_paired", t("wizard.ha.not_paired_problem"), t("wizard.ha.not_paired_action", link=link["label"]), link))
     if tc and tc.get("level") == "fail":
-        return failed(_problem("ha_clock_drift", f"שעון Home Assistant סוטה ב־{_signed(tc['drift_s'])} שניות משעון ה־Add-on (מותר עד {DRIFT_FAIL_S}).",
-                               "Home Assistant ו־ה־Add-on רצים על אותה מכונה, כך שסטייה כזו מעידה על שעון מערכת שגוי: בדקו את NTP של מערכת ההפעלה של Home Assistant (הגדרות › מערכת › כללי).", link))
+        return failed(_problem("ha_clock_drift", t("wizard.ha.clock_drift", drift=_signed(tc['drift_s']), limit=DRIFT_FAIL_S), t("wizard.ha.clock_drift_action"), link))
     warnings = []
     if bridge["version_unknown"]:
-        warnings.append(_warning("bridge_version_unknown", "הגשר מצומד אבל לא דיווח את הגרסה שלו, כך שלא ידוע אם הוא מעודכן. לחצו \"התקנת הגשר\" ב"
-                                 + link["label"] + " והפעילו מחדש את Home Assistant פעם אחת.", link))
+        warnings.append(_warning("bridge_version_unknown", t("wizard.ha.version_unknown", link=link["label"]), link))
     if tc and tc.get("level") == "warn":
-        warnings.append(_warning("ha_clock_drift", f"שעון Home Assistant סוטה ב־{_signed(tc['drift_s'])} שניות מה־Add-on.", link))
+        warnings.append(_warning("ha_clock_drift", t("wizard.ha.clock_drift_warn", drift=_signed(tc['drift_s'])), link))
     if tc and tc.get("zone_match") is False:
-        warnings.append(_warning("ha_zone_mismatch", f"אזור הזמן ב־Home Assistant ({tc['ha_zone']}) שונה מזה של ההתקנה ({tc['zone']}); שעות בהיסטוריית HA יוצגו אחרת מזמני האירועים. אזור הזמן של ההתקנה נקבע ב־" + LINKS["media"][1] + ".", _link("media")))
+        warnings.append(_warning("ha_zone_mismatch", t("wizard.ha.zone_mismatch", ha_zone=tc['ha_zone'], zone=tc['zone'], link=LINKS["media"][1]), _link("media")))
     if tc and tc.get("nvr_ha_s") is not None and drift_level(tc["nvr_ha_s"]) in ("warn", "fail"):
-        warnings.append(_warning("nvr_ha_drift", f"שעון ה־NVR ושעון Home Assistant רחוקים זה מזה ב־{abs(tc['nvr_ha_s'])} שניות; התאמת דלת–מצלמה עלולה לפספס.", _link("connections")))
-    return _step("ha", "done", f"Home Assistant {evidence['ha_version'] or ''} · הגשר פעיל ומצומד · {evidence['entities']} ישויות".replace("  ", " "), facts=facts,
+        warnings.append(_warning("nvr_ha_drift", t("wizard.ha.nvr_ha_drift", n=abs(tc['nvr_ha_s'])), _link("connections")))
+    # the version slot keeps the old ".replace("  ", " ")" result: "Home Assistant · ..." without a version
+    version = f" {evidence['ha_version']}".replace("  ", " ") if evidence['ha_version'] else ""
+    return _step("ha", "done", t("wizard.ha.done", version=version, entities=evidence['entities']), facts=facts,
                  evidence=evidence, settings_link=link, warnings=warnings, source=source)
 
 
@@ -616,15 +614,15 @@ def _with_nvr_gap(live: dict[str, Any]) -> dict[str, Any]:
 
 GO2RTC_ERRORS = {
     # NN1: operator wording without infrastructure branding (the connection settings move into the product with NN4)
-    "media_not_configured": ("כתובת שרת המדיה (go2rtc) לא הוגדרה.", "השלימו את כתובת שרת המדיה (go2rtc_url, בדרך כלל בפורט 1984) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש."),
-    "media_unavailable": ("go2rtc לא ענה.", "ודאו שה־Add-on של go2rtc מותקן ופועל ושהכתובת go2rtc_url נכונה (כולל הפורט, בדרך כלל 1984)."),
-    "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username בהגדרות החיבור של ההתקנה ואת הסיסמה בהגדרות › חיבורים › סודות."),
+    "media_not_configured": (t("wizard.go2rtc.not_configured"), t("wizard.go2rtc.not_configured_action")),
+    "media_unavailable": (t("wizard.go2rtc.unavailable"), t("wizard.go2rtc.unavailable_action")),
+    "media_error": (t("wizard.go2rtc.error"), t("wizard.go2rtc.error_action")),
 }
 
 
 def _go2rtc_problem(code: str, detail: str | None = None) -> dict[str, Any]:
-    message, action = GO2RTC_ERRORS.get(code, (f"go2rtc: {code}.", "בדקו את go2rtc_url ואת מצב ה־Add-on של go2rtc."))
-    return _problem(code, message + (f" ({detail})" if detail else ""), action, _link("media"))
+    message, action = GO2RTC_ERRORS.get(code, (t("wizard.go2rtc.other", code=code), t("wizard.go2rtc.other_action")))
+    return _problem(code, t("wizard.concat", a=message, b=t("wizard.paren", detail=detail) if detail else ""), action, _link("media"))
 
 
 def _expected_streams(conn: sqlite3.Connection) -> list[str]:
@@ -639,27 +637,27 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
         if resolve_capabilities(settings).unsupported_reason == NVR_WITHOUT_GO2RTC:
             # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation - say why, keep the code
             p = _problem("media_not_configured", UNSUPPORTED_MESSAGES[NVR_WITHOUT_GO2RTC], UNSUPPORTED_ACTIONS[NVR_WITHOUT_GO2RTC], link)
-        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
+        return _step("go2rtc", "failed", p["message"], facts=[_fact(t("wizard.go2rtc.fact_configured"), t("wizard.no"), "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     if is_ha_only(settings):
         # NVR-less mode: no camera streams exist or are synced; the step is go2rtc answering (WisKey station video)
         with _lock:
             ok = dict(_go2rtc_ok)
         if ok:
             ev = ok.get("evidence") or {}
-            return _step("go2rtc", "done", f"go2rtc {ev.get('version') or '?'} ענה בבדיקה האחרונה", facts=ok.get("facts") or [], evidence=ev, settings_link=link,
+            return _step("go2rtc", "done", t("wizard.go2rtc.answered", version=ev.get('version') or '?'), facts=ok.get("facts") or [], evidence=ev, settings_link=link,
                          source="background", checked_at=ok.get("checked_at"))
-        p = _problem("not_checked", "go2rtc עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לבדוק שהוא עונה.", link)
-        return _step("go2rtc", "todo", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "כן", "ok")], evidence={"configured": True}, settings_link=link, problem=p, source="background")
+        p = _problem("not_checked", t("wizard.go2rtc.not_checked"), t("wizard.go2rtc.not_checked_answer_action"), link)
+        return _step("go2rtc", "todo", p["message"], facts=[_fact(t("wizard.go2rtc.fact_configured"), t("wizard.yes"), "ok")], evidence={"configured": True}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
     expected = len(_expected_streams(conn))
     evidence = {"configured": True, "expected_streams": expected, "sync_last_ok": ds.get("streams_last_ok"), "sync_last_error": ds.get("streams_last_error")}
-    facts = [_fact("זרמים צפויים (2 לכל מצלמה פעילה)", expected), _fact("סנכרון זרמים אחרון תקין", ds.get("streams_last_ok")), _fact("גרסה", "לא נבדקה עדיין — לחצו \"בדוק שוב\"")]
+    facts = [_fact(t("wizard.go2rtc.expected"), expected), _fact(t("wizard.go2rtc.last_sync_ok"), ds.get("streams_last_ok")), _fact(t("wizard.go2rtc.version"), t("wizard.go2rtc.version_not_checked"))]
     if ds.get("streams_last_error") and ds.get("streams_last_error") != "media_not_configured":
         p = _go2rtc_problem(str(ds["streams_last_error"]))
         return _step("go2rtc", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="background", checked_at=ds.get("streams_last_run"))
     if ds.get("streams_last_ok"):
-        return _step("go2rtc", "done", f"{expected} זרמים שלנו מסונכרנים (לפי הסנכרון האחרון)", facts=facts, evidence=evidence, settings_link=link, source="background", checked_at=ds.get("streams_last_ok"))
-    p = _problem("not_checked", "go2rtc עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לקרוא את הגרסה ואת הזרמים עכשיו.", link)
+        return _step("go2rtc", "done", t("wizard.go2rtc.synced", n=expected), facts=facts, evidence=evidence, settings_link=link, source="background", checked_at=ds.get("streams_last_ok"))
+    p = _problem("not_checked", t("wizard.go2rtc.not_checked"), t("wizard.go2rtc.not_checked_action"), link)
     return _step("go2rtc", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="background")
 
 
@@ -674,7 +672,7 @@ def go2rtc_probe(settings: Settings, expected: list[str]) -> dict[str, Any]:
         streams = client.list_streams()
     except ApiError as exc:
         p = _go2rtc_problem(exc.code, str((exc.details or {}).get("status") or (exc.details or {}).get("error") or "") or None)
-        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "כן", "ok"), _fact("תשובה", "אין", "err")],
+        return _step("go2rtc", "failed", p["message"], facts=[_fact(t("wizard.go2rtc.fact_configured"), t("wizard.yes"), "ok"), _fact(t("wizard.answer"), t("wizard.none_answer"), "err")],
                      evidence={"configured": True, "reachable": False, "error": exc.code}, settings_link=link, problem=p, source="live")
     except Exception as exc:  # noqa: BLE001
         p = _go2rtc_problem("media_error", type(exc).__name__)
@@ -686,21 +684,20 @@ def go2rtc_probe(settings: Settings, expected: list[str]) -> dict[str, Any]:
     version = info.get("version") if isinstance(info, dict) else None
     evidence = {"configured": True, "reachable": True, "version": version, "streams": ours, "online": online, "foreign": foreign, "expected_streams": len(expected), "missing": missing}
     facts = [
-        _fact("גרסה", version, "ok" if version else ""),
-        _fact("זרמי smplwise_ ב־go2rtc", f"{len(ours)} · {online} פעילים כרגע", "ok" if ours else "err"),
-        _fact("זרמים צפויים (2 לכל מצלמה פעילה)", f"{len(expected)} · חסרים {len(missing)}", "ok" if not missing else "warn"),
-        _fact("זרמים של מוצרים אחרים", f"{foreign} · לא נוגעים בהם"),
+        _fact(t("wizard.go2rtc.version"), version, "ok" if version else ""),
+        _fact(t("wizard.go2rtc.ours"), t("wizard.go2rtc.ours_value", n=len(ours), online=online), "ok" if ours else "err"),
+        _fact(t("wizard.go2rtc.expected"), t("wizard.go2rtc.expected_value", n=len(expected), missing=len(missing)), "ok" if not missing else "warn"),
+        _fact(t("wizard.go2rtc.foreign"), t("wizard.go2rtc.foreign_value", n=foreign)),
     ]
     if expected and not ours:
-        p = _problem("no_streams", "ב־go2rtc אין אף זרם smplwise_, כך שאין וידאו חי.",
-                     f"לחצו \"סנכרון זרמים\" ב{link['label']} (יוצר רק זרמי smplwise_; זרמים אחרים לא משתנים), ואז בדקו שוב.", link)
+        p = _problem("no_streams", t("wizard.go2rtc.no_streams"), t("wizard.go2rtc.no_streams_action", link=link["label"]), link)
         return _step("go2rtc", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     warnings = []
     if missing:
-        warnings.append(_warning("streams_missing", f"חסרים {len(missing)} זרמים של מצלמות פעילות (למשל {missing[0]}); \"סנכרון זרמים\" ישלים אותם.", link))
+        warnings.append(_warning("streams_missing", t("wizard.go2rtc.streams_missing", n=len(missing), example=missing[0]), link))
     if not expected and not is_ha_only(settings):
-        warnings.append(_warning("no_cameras_yet", "אין עדיין מצלמות רשומות, ולכן אין זרמים לבדוק; הזרמים ייווצרו אחרי גילוי המצלמות מה־NVR.", _link("connections")))
-    return _step("go2rtc", "done", f"go2rtc {version or '?'} · {len(ours)} זרמים שלנו ({online} פעילים)", facts=facts, evidence=evidence, settings_link=link, warnings=warnings, source="live")
+        warnings.append(_warning("no_cameras_yet", t("wizard.go2rtc.no_cameras_yet"), _link("connections")))
+    return _step("go2rtc", "done", t("wizard.go2rtc.done", version=version or '?', n=len(ours), online=online), facts=facts, evidence=evidence, settings_link=link, warnings=warnings, source="live")
 
 
 # ---------------------------------------------------------------- steps 5-6: floor and camera (local)
@@ -728,33 +725,33 @@ def floor_step(conn: sqlite3.Connection) -> dict[str, Any]:
                 "published": [{"id": r["id"], "name": r["name"], "building": r["building"], "published_at": r["published_at"]} for r in published[:10]],
                 "without_plan": [{"id": r["id"], "name": r["name"], "draft": r["id"] in drafts} for r in floors if r["id"] not in pub_ids][:10]}
     facts = [
-        _fact("אתרים · מבנים · קומות", f"{len(sites)} · {len(buildings)} · {len(floors)}", "ok" if floors else "warn"),
-        _fact("קומות עם תוכנית מפורסמת", f"{len(published)} מתוך {len(floors)}", "ok" if published else "warn"),
+        _fact(t("wizard.floor.counts"), f"{len(sites)} · {len(buildings)} · {len(floors)}", "ok" if floors else "warn"),
+        _fact(t("wizard.floor.published"), t("wizard.of", a=len(published), b=len(floors)), "ok" if published else "warn"),
     ]
     if published:
-        facts.append(_fact("לדוגמה", " · ".join(f"{r['building']} / {r['name']}" for r in published[:3])))
+        facts.append(_fact(t("wizard.floor.example"), " · ".join(f"{r['building']} / {r['name']}" for r in published[:3])))
     if not sites or not buildings:
-        p = _problem("no_building", "עדיין אין אתר ומבנה במערכת.", f"צרו אתר ובתוכו מבנה ב{link['label']}.", link)
+        p = _problem("no_building", t("wizard.floor.no_building"), t("wizard.floor.no_building_action", link=link["label"]), link)
         return _step("floor", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p)
     if not floors:
         b = buildings[0]["id"]
-        p = _problem("no_floor", "למבנה עדיין אין קומות.", "הוסיפו קומה למבנה (כפתור \"קומה חדשה\").", {"href": f"#/explore/buildings/{b}/floors", "label": "מפה › קומות המבנה"})
+        p = _problem("no_floor", t("wizard.floor.no_floor"), t("wizard.floor.no_floor_action"), {"href": f"#/explore/buildings/{b}/floors", "label": t("wizard.link.building_floors")})
         return _step("floor", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p)
     if not published:
         f = floors[0]
         if f["id"] in drafts:
-            p = _problem("plan_not_published", f"לקומה \"{f['name']}\" יש תוכנית בטיוטה שעוד לא פורסמה.", "פתחו את הייבוא, בדקו את התוכנית ופרסמו אותה; רק תוכנית מפורסמת מוצגת במפה.",
-                         {"href": f"#/explore/floors/{f['id']}/import", "label": "ייבוא ופרסום התוכנית"})
+            p = _problem("plan_not_published", t("wizard.floor.draft", name=f['name']), t("wizard.floor.draft_action"),
+                         {"href": f"#/explore/floors/{f['id']}/import", "label": t("wizard.link.import_publish")})
         else:
-            p = _problem("no_plan", f"לקומה \"{f['name']}\" עדיין אין תוכנית.", "העלו תוכנית (PDF, PNG, JPG או DXF), כווננו סיבוב וחיתוך ופרסמו.",
-                         {"href": f"#/explore/floors/{f['id']}/import", "label": "ייבוא תוכנית לקומה"})
+            p = _problem("no_plan", t("wizard.floor.no_plan", name=f['name']), t("wizard.floor.no_plan_action"),
+                         {"href": f"#/explore/floors/{f['id']}/import", "label": t("wizard.link.import_floor")})
         return _step("floor", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p)
     warnings = []
     if len(published) < len(floors):
         f = next(r for r in floors if r["id"] not in pub_ids)
-        warnings.append(_warning("floors_without_plan", f"ל־{len(floors) - len(published)} קומות אין עדיין תוכנית מפורסמת (למשל \"{f['name']}\").",
-                                 {"href": f"#/explore/floors/{f['id']}/import", "label": "ייבוא תוכנית"}))
-    return _step("floor", "done", f"{len(published)} קומות עם תוכנית מפורסמת", facts=facts, evidence=evidence, settings_link=link, warnings=warnings)
+        warnings.append(_warning("floors_without_plan", t("wizard.floor.without_plan", n=len(floors) - len(published), name=f['name']),
+                                 {"href": f"#/explore/floors/{f['id']}/import", "label": t("wizard.link.import")}))
+    return _step("floor", "done", t("wizard.floor.done", n=len(published)), facts=facts, evidence=evidence, settings_link=link, warnings=warnings)
 
 
 def _has_stream(caps_json: str | None) -> bool:
@@ -771,55 +768,53 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
            WHERE a.resource_type = 'camera' AND a.effective_to IS NULL""").fetchall()
     placed = {r["resource_id"] for r in placed_rows}
     published = _published_floors(conn)
-    name = {r["id"]: (r["alias"] or r["name_source"] or f"ערוץ {r['channel']}") for r in cams}
+    name = {r["id"]: (r["alias"] or r["name_source"] or t("wizard.channel", n=r['channel'])) for r in cams}
     unplaced = [r["id"] for r in cams if r["enabled"] and r["id"] not in placed]
     with_stream = sum(1 for r in cams if _has_stream(r["capabilities_json"]))
     offline = sum(1 for r in cams if r["status"] == "offline")
     placed_known = [cid for cid in placed if cid in name]
-    editor = {"href": f"#/explore/floors/{published[0]['id']}/edit", "label": "עורך התוכנית (הצבת מצלמות)"} if published else _link("sites")
+    editor = {"href": f"#/explore/floors/{published[0]['id']}/edit", "label": t("wizard.link.editor")} if published else _link("sites")
     evidence = {"cameras": len(cams), "enabled": sum(1 for r in cams if r["enabled"]), "placed": len(placed_known), "unplaced": [{"id": c, "name": name[c]} for c in unplaced[:10]],
                 "with_stream_profile": with_stream, "offline": offline}
     facts = [
-        _fact("מצלמות רשומות (פעילות)", f"{len(cams)} ({evidence['enabled']})", "ok" if cams else "warn"),
-        _fact("מוצבות על מפה", f"{len(placed_known)} מתוך {evidence['enabled']}", "ok" if placed_known else "warn"),
-        _fact("עם פרופיל זרם ידוע מה־NVR", f"{with_stream} מתוך {len(cams)}", "ok" if cams and with_stream == len(cams) else ""),
+        _fact(t("wizard.camera.registered"), f"{len(cams)} ({evidence['enabled']})", "ok" if cams else "warn"),
+        _fact(t("wizard.camera.placed"), t("wizard.of", a=len(placed_known), b=evidence['enabled']), "ok" if placed_known else "warn"),
+        _fact(t("wizard.camera.with_stream"), t("wizard.of", a=with_stream, b=len(cams)), "ok" if cams and with_stream == len(cams) else ""),
     ]
     if not cams:
         if nvr_status != "done":
-            p = _problem("waiting_for_nvr", "אין עדיין מצלמות, כי שלב ה־NVR לא הושלם.", "השלימו את שלב ה־NVR; המצלמות מתגלות ממנו לבד תוך דקה.", _link("connections"))
+            p = _problem("waiting_for_nvr", t("wizard.camera.waiting_for_nvr"), t("wizard.camera.waiting_for_nvr_action"), _link("connections"))
             return _step("camera", "skipped", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
-        p = _problem("no_cameras", "ה־NVR מחובר אבל עוד אין מצלמות רשומות.", "גילוי המצלמות רץ בהפעלה וכל 10 דקות; להפעלה מיידית לחצו \"סנכרון מה־NVR\" ב"
-                     + LINKS["devices"][1] + ".", _link("devices"))
+        p = _problem("no_cameras", t("wizard.camera.none"), t("wizard.camera.none_action", link=LINKS["devices"][1]), _link("devices"))
         return _step("camera", "todo", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     if not published:
-        p = _problem("waiting_for_floor", "אין עדיין קומה עם תוכנית מפורסמת להציב עליה מצלמות.", "השלימו את שלב הקומה, ואז הציבו מצלמה בעורך התוכנית.", _link("sites"))
+        p = _problem("waiting_for_floor", t("wizard.camera.waiting_for_floor"), t("wizard.camera.waiting_for_floor_action"), _link("sites"))
         return _step("camera", "skipped", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     if not placed_known:
-        p = _problem("no_camera_placed", "אף מצלמה עוד לא מוצבת על מפה.", "פתחו את עורך התוכנית, גררו מצלמה מהרשימה אל מקומה וכוונו את קונוס הראייה. ההצבה נשמרת ב־Arx בלבד.", editor)
+        p = _problem("no_camera_placed", t("wizard.camera.none_placed"), t("wizard.camera.none_placed_action"), editor)
         return _step("camera", "todo", p["message"], facts=facts, evidence=evidence, settings_link=editor, problem=p)
     warnings = []
     if unplaced:
-        warnings.append(_warning("cameras_unplaced", f"{len(unplaced)} מצלמות עוד לא מוצבות (למשל \"{name[unplaced[0]]}\").", editor))
+        warnings.append(_warning("cameras_unplaced", t("wizard.camera.unplaced", n=len(unplaced), name=name[unplaced[0]]), editor))
     if offline:
-        warnings.append(_warning("cameras_offline", f"{offline} מצלמות מדווחות כלא מקוונות ב־NVR.", _link("devices")))
-    return _step("camera", "done", f"{len(placed_known)} מצלמות מוצבות על המפה", facts=facts, evidence=evidence, settings_link=editor, warnings=warnings)
+        warnings.append(_warning("cameras_offline", t("wizard.camera.offline", n=offline), _link("devices")))
+    return _step("camera", "done", t("wizard.camera.done", n=len(placed_known)), facts=facts, evidence=evidence, settings_link=editor, warnings=warnings)
 
 
 # ---------------------------------------------------------------- NVR-less mode (mode.py)
 
-NVR_LESS_SKIP = "דילוג - מצב ללא NVR"
+NVR_LESS_SKIP = t("wizard.nvrless.skip")
 # CR-022: the connection is entered in Arx (הגדרות › חיבורים), never in the platform's options
-NVR_LESS_ACTION = ("להוספת NVR בהמשך: בחרו את סוג ה־NVR והזינו את פרטי החיבור בהגדרות › חיבורים, ואז הפעילו את המערכת מחדש. "
-                   "הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
-NVR_CHOICE_ACTION = "בחרו בהגדרות › חיבורים את סוג ה־NVR והזינו את פרטי החיבור, או בחרו \"ללא NVR\" אם אין NVR בהתקנה."
-NVR_RESTART_ACTION = "לחצו \"הפעל מחדש\" בהודעה שבראש המסך, או הפעילו את השירות מחדש ידנית."
-NVR_UNREADABLE_ACTION = "פרטי החיבור השמורים אינם קריאים (קובץ המפתח חסר או הוחלף). הזינו את הסיסמה מחדש בהגדרות › חיבורים והפעילו את המערכת מחדש."
-NVR_REFUSED_ACTION = "הזינו את כתובת ה־NVR מחדש בהגדרות › חיבורים (כתובת ברשת המקומית) והפעילו את המערכת מחדש."
+NVR_LESS_ACTION = t("wizard.nvrless.action")
+NVR_CHOICE_ACTION = t("wizard.nvrless.choice_action")
+NVR_RESTART_ACTION = t("wizard.nvrless.restart_action")
+NVR_UNREADABLE_ACTION = t("wizard.nvrless.unreadable_action")
+NVR_REFUSED_ACTION = t("wizard.nvrless.refused_action")
 
 
 def not_applicable_step(step_id: str, summary: str, problem: dict[str, Any], link: dict[str, str], *, label: str = NVR_LESS_SKIP) -> dict[str, Any]:
     """A step that is not part of this installation: neither done nor failed, and not counted in `total`."""
-    return _step(step_id, "not_applicable", summary, facts=[_fact("מצב ההתקנה", "ללא NVR")], evidence={"configured": False, "mode": "ha_only"},
+    return _step(step_id, "not_applicable", summary, facts=[_fact(t("wizard.nvrless.mode_fact"), t("wizard.nvrless.no_nvr"))], evidence={"configured": False, "mode": "ha_only"},
                  settings_link=link, problem=problem) | {"status_label": label}
 
 
@@ -836,24 +831,24 @@ def nvr_choice_step(conn: sqlite3.Connection | None, settings: Settings | None =
     if other is not None:
         return other
     if row is not None and row["vendor"] == "none":
-        return _step("nvr", "done", "ללא NVR - נבחר במפורש.", facts=[_fact("סוג NVR", "ללא NVR", "ok")], evidence={"configured": False, "mode": "ha_only", "choice": "none"},
-                     settings_link=link) | {"status_label": "ללא NVR"}
+        return _step("nvr", "done", t("wizard.nvrless.chosen"), facts=[_fact(t("wizard.nvrless.type_fact"), t("wizard.nvrless.no_nvr"), "ok")], evidence={"configured": False, "mode": "ha_only", "choice": "none"},
+                     settings_link=link) | {"status_label": t("wizard.nvrless.no_nvr")}
     # `refused` describes the row this process loaded at start-up; a row saved since (another revision) waits for the restart
     loaded = row is not None and settings is not None and settings.nvr_connection_revision == int(row["revision"])
     if loaded and settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
-        p = _problem("connection_refused", "הכתובת השמורה של ה־NVR אינה מותרת לחיבור.", NVR_REFUSED_ACTION, link)
-        return _step("nvr", "failed", p["message"], facts=[_fact("כתובת NVR שמורה", "לא מותרת", "err")], evidence={"configured": False, "state": "refused"},
+        p = _problem("connection_refused", t("wizard.nvrless.refused"), NVR_REFUSED_ACTION, link)
+        return _step("nvr", "failed", p["message"], facts=[_fact(t("wizard.nvrless.saved_address"), t("wizard.nvrless.not_allowed"), "err")], evidence={"configured": False, "state": "refused"},
                      settings_link=link, problem=p)
     if row is not None and conn is not None and settings is not None and readable(conn, settings, row):
-        p = _problem("restart_pending", "פרטי החיבור נשמרו; נדרשת הפעלה מחדש כדי להחיל אותם.", NVR_RESTART_ACTION, link)
-        return _step("nvr", "todo", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן - ממתינים להפעלה מחדש", "warn")], evidence={"configured": False, "state": "pending_restart"},
+        p = _problem("restart_pending", t("wizard.nvr.saved_restart"), NVR_RESTART_ACTION, link)
+        return _step("nvr", "todo", p["message"], facts=[_fact(t("wizard.nvr.fact_saved"), t("wizard.nvr.saved_waiting"), "warn")], evidence={"configured": False, "state": "pending_restart"},
                      settings_link=link, problem=p)
     if row is not None:
-        p = _problem("connection_unreadable", "לא ניתן לקרוא את פרטי החיבור השמורים של ה־NVR.", NVR_UNREADABLE_ACTION, link)
-        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא קריאים", "err")], evidence={"configured": False, "state": "unreadable"},
+        p = _problem("connection_unreadable", t("wizard.nvrless.unreadable"), NVR_UNREADABLE_ACTION, link)
+        return _step("nvr", "failed", p["message"], facts=[_fact(t("wizard.nvr.fact_saved"), t("wizard.nvrless.not_readable"), "err")], evidence={"configured": False, "state": "unreadable"},
                      settings_link=link, problem=p)
-    p = _problem("nvr_choice_needed", "עדיין לא נבחר סוג NVR להתקנה.", NVR_CHOICE_ACTION, link)
-    return _step("nvr", "todo", p["message"], facts=[_fact("סוג NVR", "לא נבחר", "warn")], evidence={"configured": False, "mode": "ha_only", "choice": None},
+    p = _problem("nvr_choice_needed", t("wizard.nvrless.choice_needed"), NVR_CHOICE_ACTION, link)
+    return _step("nvr", "todo", p["message"], facts=[_fact(t("wizard.nvrless.type_fact"), t("wizard.nvrless.not_chosen"), "warn")], evidence={"configured": False, "mode": "ha_only", "choice": None},
                  settings_link=link, problem=p)
 
 
@@ -861,14 +856,14 @@ def nvr_less_steps(settings: Settings, conn: sqlite3.Connection | None = None) -
     """The NVR and camera steps (and go2rtc while it is not configured - optional here, only WisKey station video uses it)
     in the NVR-less mode. CR-022: the NVR step itself asks for an explicit choice (`nvr_choice_step`)."""
     conn_link = _link("connections")
-    p = _problem("nvr_less_mode", "ההתקנה פועלת במצב ללא NVR - הדילוג מכוון.", NVR_LESS_ACTION, conn_link)
+    p = _problem("nvr_less_mode", t("wizard.nvrless.mode"), NVR_LESS_ACTION, conn_link)
     out = {
         "nvr": nvr_choice_step(conn, settings),
-        "camera": not_applicable_step("camera", "אין מצלמות NVR במצב ללא NVR; המפה מציגה את ישויות תשתית המערכת.", p, _link("sites")),
+        "camera": not_applicable_step("camera", t("wizard.nvrless.camera"), p, _link("sites")),
     }
     if not settings.go2rtc_url and not settings.wiskey_user:  # WisKey station stills and video need go2rtc
-        g = _problem("go2rtc_optional", "go2rtc לא מוגדר - במצב ללא NVR הוא רשות.", "go2rtc נדרש רק לווידאו של עמדות WisKey; להפעלה מלאו go2rtc_url ב־Configuration של ה־Add-on והפעילו מחדש.", _link("media"))
-        out["go2rtc"] = not_applicable_step("go2rtc", "לא מוגדר - רשות במצב ללא NVR (וידאו עמדות WisKey בלבד).", g, _link("media"), label="דילוג - לא מוגדר (רשות)")
+        g = _problem("go2rtc_optional", t("wizard.nvrless.go2rtc"), t("wizard.nvrless.go2rtc_action"), _link("media"))
+        out["go2rtc"] = not_applicable_step("go2rtc", t("wizard.nvrless.go2rtc_summary"), g, _link("media"), label=t("wizard.nvrless.go2rtc_skip"))
     return out
 
 
@@ -941,7 +936,7 @@ def rate_limit(user_id: str, step_id: str) -> float | None:
         last = _last_check.get((user_id, step_id))
         if last is not None and now - last < CHECK_EVERY_S:
             wait = max(1, math.ceil(CHECK_EVERY_S - (now - last)))
-            raise ApiError(429, "check_rate_limited", f"השלב נבדק לפני רגע; אפשר לבדוק שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait, "step": step_id})
+            raise ApiError(429, "check_rate_limited", t("wizard.rate_limited", wait=wait), retryable=True, details={"retry_after_s": wait, "step": step_id})
         _last_check[(user_id, step_id)] = now
     return last
 
@@ -962,9 +957,9 @@ _pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="setup-check")
 _inflight: dict[str, Future] = {}
 
 TIMEOUT_TEXT = {
-    "nvr": ("ה־NVR", "ה־NVR עונה לאט מדי: ודאו שהוא לא עמוס (למשל בזמן חיפוש או ייצוא) ושהרשת אליו תקינה, ואז בדקו שוב.", "connections"),
-    "go2rtc": ("go2rtc", "go2rtc עונה לאט מדי: ודאו שה־Add-on של go2rtc פועל ושאינו עמוס, ואז בדקו שוב.", "media"),
-    "ha": ("Home Assistant", "Home Assistant עונה לאט מדי: אם הוא הופעל מחדש עכשיו, המתינו דקה ובדקו שוב.", "ha"),
+    "nvr": (t("wizard.timeout.who_nvr"), t("wizard.timeout.nvr_action"), "connections"),
+    "go2rtc": ("go2rtc", t("wizard.timeout.go2rtc_action"), "media"),
+    "ha": ("Home Assistant", t("wizard.timeout.ha_action"), "ha"),
 }
 
 
@@ -990,8 +985,8 @@ def _timed_out(step_id: str) -> dict[str, Any]:
     who, action, link_key = TIMEOUT_TEXT[step_id]
     if step_id == "ha":
         return {"error": "check_timeout", "reachable": False, "checked_at": now_iso()}
-    p = _problem("check_timeout", f"{who} לא ענה בזמן (הבדיקה הופסקה אחרי {CHECK_DEADLINE_S:g} שניות).", action, _link(link_key))
-    return _step(step_id, "failed", p["message"], facts=[_fact("תשובה", "לא בזמן", "err")], evidence={"configured": True, "reachable": False, "error": "check_timeout"},
+    p = _problem("check_timeout", t("wizard.timeout", who=who, seconds=f"{CHECK_DEADLINE_S:g}"), action, _link(link_key))
+    return _step(step_id, "failed", p["message"], facts=[_fact(t("wizard.answer"), t("wizard.not_in_time"), "err")], evidence={"configured": True, "reachable": False, "error": "check_timeout"},
                  settings_link=_link(link_key), problem=p, source="live")
 
 

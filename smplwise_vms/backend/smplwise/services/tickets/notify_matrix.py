@@ -56,6 +56,19 @@ ASSIGNEE_SOURCES: frozenset[str] = frozenset(d["key"] for d in SOURCE_DEFS if d[
 SLA_SOURCES: frozenset[str] = frozenset({"ticket.stuck", "ticket.reminder"})  # the SLA monitor's ladder: a threshold was crossed
 URGENT_PRIORITY_KEYS: frozenset[str] = frozenset({"urgent", "high"})
 LABELS: dict[str, str] = {d["key"]: d["label"] for d in SOURCE_DEFS}
+
+
+def _label_msgs(labels: dict[str, str]) -> dict[str, str]:
+    """I18N-BACKEND-2490 (third pass): each label a `Msg` (`notify.label.<source>`, services/notify_policy_text.py) whose string value is the
+    Hebrew above, byte for byte - so the digest's stored body (an f-string) keeps its Hebrew, and the matrix screen and the digest detail
+    render it in the reader's language."""
+    from ...i18n import CATALOGUE, t
+    from .. import notify_policy_text  # noqa: F401 - registers `notify.label.*`
+
+    return {k: (t(f"notify.label.{k}") if CATALOGUE.get(f"notify.label.{k}", {}).get("he") == v else v) for k, v in labels.items()}
+
+
+LABELS = _label_msgs(LABELS)
 CHANNEL_GROUPS: dict[str, tuple[str, ...]] = {"push": ("webpush", "app"), "email": ("email",), "whatsapp": ("whatsapp",)}
 
 QUEUE_KEY = "tickets.notify_digest_queue"
