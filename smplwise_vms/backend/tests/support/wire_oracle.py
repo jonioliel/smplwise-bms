@@ -64,6 +64,8 @@ def _is_wire(field: Any) -> bool:
     from smplwise.wire import WireModel
 
     ann = getattr(getattr(field, "field_info", None), "annotation", None)
+    if typing.get_origin(ann) is typing.Annotated:  # wire.tagged()
+        ann = typing.get_args(ann)[0]
     members = typing.get_args(ann) if isinstance(ann, types.UnionType) or typing.get_origin(ann) is typing.Union else (ann,)
     return bool(members) and all(isinstance(m, type) and issubclass(m, WireModel) for m in members)
 

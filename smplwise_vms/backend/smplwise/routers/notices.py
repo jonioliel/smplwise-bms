@@ -36,7 +36,7 @@ from ..services.notices import router_store as rstore
 from ..services.transit import model as transit_model
 from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
-from ..wire import wire
+from ..wire import tagged, wire
 from ..wire import notices as W
 from ._common import rid as _rid
 
@@ -429,7 +429,7 @@ def _board_or_404(conn: sqlite3.Connection, board_id: str) -> dict[str, Any]:
     return b
 
 
-@router.get("/notices/boards", **wire(W.NoticeBoardListBrief | W.NoticeBoardListFull))
+@router.get("/notices/boards", **wire(tagged("full", W.NoticeBoardListBrief, W.NoticeBoardListFull)))
 def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every board for notices.boards; the enabled boards' names only for a notice manager (the compose dialog's chips)."""
     can = _can(conn, principal)
