@@ -51,7 +51,7 @@ def test_factors_counted_and_no_secret_in_the_answer(arx):
     _device_key(arx, arx.viewer.id, "dk_active000000000001", "a" * 64)
     _device_key(arx, arx.viewer.id, "dk_revoked00000000002", "b" * 64, revoked=True)
     with arx.db.connection() as conn:
-        conn.execute("INSERT INTO auth_mfa_seen(user_id, first_seen_at) VALUES (?, ?)", (arx.viewer.id, now_iso()))
+        conn.execute("INSERT INTO auth_mfa_seen(user_id, first_seen_at, last_seen_at) VALUES (?, ?, ?)", (arx.viewer.id, now_iso(), now_iso()))
     r = TestClient(arx.app).get(ROUTE + arx.viewer.id)
     assert r.status_code == 200, r.text
     body = r.json()
