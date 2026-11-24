@@ -8,7 +8,7 @@ export const GOOD = '246810';
 const PERMS = ['video.live', 'map.read', 'entity.state.read', 'access.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure', 'rbac.assign', 'identity.directory.read'];
 const READER_PERMS = ['video.live', 'map.read', 'access.read', 'devices.read', 'events.read', 'rbac.assign'];
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-export const err = (code: string, msg: string, details: Record<string, unknown> = {}) => ({ code, user_message: msg, retryable: false, correlation_id: 'mock', details });
+const err = (code: string, msg: string, details: Record<string, unknown> = {}) => ({ code, user_message: msg, retryable: false, correlation_id: 'mock', details });
 
 const person = (user_id: string, name: string, kind: 'ha' | 'local', reason: string, factor: string | null = null) => ({ user_id, name, kind, reason, factor });
 const MISSING_ALL = [
@@ -30,7 +30,7 @@ const user = (id: string, name: string, username: string, isSelf = false) => ({
   groups: [], bindings: [], is_self: isSelf, remote_access: true, remote_access_basis: 'flag', remote_last_sign_in: null, remote_sessions: 0,
 });
 
-export interface DeviceKey {
+interface DeviceKey {
   id: string;
   label: string;
   auth_kind: 'biometric' | 'biometric_or_screen_lock';
@@ -38,7 +38,7 @@ export interface DeviceKey {
   counts: boolean;
 }
 
-export interface Mock {
+interface Mock {
   calls: { method: string; path: string; body: unknown }[];
   settings: Record<string, unknown>;
   deviceKeys: DeviceKey[];
@@ -193,26 +193,4 @@ export async function openUserDrawer(page: Page, name: string) {
   const drawer = screen.locator('sw-drawer[data-user-drawer]');
   await expect(drawer).toBeVisible();
   return drawer;
-}
-
-/** The sign-in page's second step, mounted directly (the dev / preview server runs the demo shell, not the remote channel). */
-export async function mountSignIn(page: Page, step: 'factor' | 'lfactor', methods: ('totp' | 'passkey')[] = ['totp']) {
-  await page.goto('./');
-  await page.evaluate(
-    async ({ step, methods }) => {
-      const src = '/src/arx/arx-login.ts';
-      try {
-        await import(/* @vite-ignore */ src);
-      } catch {
-        /* a built preview has no /src: the element is already defined only on the remote channel - the caller skips */
-      }
-      const el = document.createElement('arx-login') as HTMLElement & { step: string; factorMethods: string[] };
-      el.step = step;
-      el.factorMethods = methods;
-      document.body.innerHTML = '';
-      document.body.appendChild(el);
-    },
-    { step, methods },
-  );
-  return page.locator('arx-login');
 }
