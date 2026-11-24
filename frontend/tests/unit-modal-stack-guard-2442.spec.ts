@@ -25,7 +25,7 @@ const USES_STACK = /from '(?:\.\.?\/)+(?:components\/)?(?:modal-stack|hand-modal
 /** file -> the number of dialog boxes it draws, and (for a template module) the file whose layer it is drawn in. */
 const ON_STACK: Record<string, { n: number; via?: string }> = {
   // the home interface: every overlay is drawn in sw-home's `ovl` slot - one HandModal layer
-  'home/sw-home.ts': { n: 11 },
+  'home/sw-home.ts': { n: 12 }, // MULTI-BUILDING-HOME-2500: + the building picker sheet (an overlay type of the same stack)
   'home/home-alarm.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-calendar.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-intercom.ts': { n: 2, via: 'home/sw-home.ts' },
