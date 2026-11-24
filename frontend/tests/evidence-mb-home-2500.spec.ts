@@ -119,7 +119,8 @@ test.describe('MULTI-BUILDING-HOME-2500 home interface', () => {
     await page.evaluate(() => (document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-home')!.shadowRoot!.querySelector('[data-act="houseOff"]') as HTMLElement).click());
     await expect.poll(() => mock.calls.some((c) => c.path === 'devices/actions')).toBe(true);
     const pre = mock.calls.find((c) => c.path.startsWith('devices/actions/preview'))!.path;
-    expect(pre).toContain('scope=building') && expect(pre).toContain(`building=${B}`);
+    expect(pre).toContain('scope=building');
+    expect(pre).toContain(`building=${B}`);
     const run = mock.calls.find((c) => c.path === 'devices/actions')!.body as { scope: string; id: string; building?: string };
     expect([run.scope, run.id, run.building]).toEqual(['building', '*', B]);
   });

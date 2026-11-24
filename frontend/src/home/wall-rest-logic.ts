@@ -12,8 +12,8 @@
 import { KioskIdle, type IdlePhase, type IdleScheduler } from '../map/kiosk-idle';
 import { noticeNewHours, NOTICE_NEW_DEFAULT_H } from './wall-notice-logic';
 
-export type NightDim = 'soft' | 'medium' | 'strong';
-export type Takeover = 'alarm_urgent' | 'alarm' | 'call_only';
+type NightDim = 'soft' | 'medium' | 'strong';
+type Takeover = 'alarm_urgent' | 'alarm' | 'call_only';
 
 /** The policy's `wall` block (wire HomeWallSettings), normalised. */
 export interface WallSettings {
@@ -107,9 +107,9 @@ export type TakeoverItem =
   | { kind: 'notice'; key: string; notice: NoticeLike };
 
 /** An alarm state that takes the screen over: sounding, or the entry delay (someone must enter the code now). */
-export const ALARM_TAKEOVER = new Set(['triggered', 'pending']);
+const ALARM_TAKEOVER = new Set(['triggered', 'pending']);
 /** The board's urgent severities (notices/model.ts counts `critical` as urgent; the home board also knows `urgent`). */
-export const URGENT = new Set(['critical', 'urgent']);
+const URGENT = new Set(['critical', 'urgent']);
 /** An urgent notice takes the screen over only while it is new: published within the last 48 hours (owner Q72's "new" window). */
 export const URGENT_FRESH_MS = 48 * 3600_000;
 

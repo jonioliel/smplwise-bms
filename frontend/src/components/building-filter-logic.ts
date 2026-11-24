@@ -9,7 +9,7 @@
 // DISPLAY only: it narrows what the caller already sees and never grants anything.
 import { tr } from '../i18n/msg/components';
 
-export interface BfChoice { id: string; name: string; is_shared: boolean }
+interface BfChoice { id: string; name: string; is_shared: boolean }
 /** The `building_filter` key of a list answer (wire/building_filter.py). */
 export interface BuildingFilterMeta { buildings: BfChoice[]; building: string | null }
 

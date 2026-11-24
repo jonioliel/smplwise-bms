@@ -7,7 +7,7 @@
 export const NOTICE_NEW_DEFAULT_H = 48;
 
 /** The notice fields this rule reads (home-p2-api Notice). */
-export interface NoticeAge {
+interface NoticeAge {
   read?: boolean;
   published_at: string | null;
   starts_at: string | null;

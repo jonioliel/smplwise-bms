@@ -19,7 +19,7 @@ function today(h: number, m: number): number {
   return d.getTime();
 }
 
-async function open(page: Page, time: number, o: P2Opts = {}, routes?: () => Promise<void>) {
+async function open(page: Page, time: number, o: P2Opts = {}, routes?: () => Promise<unknown>) {
   await page.clock.install({ time });
   const mock = await mockP2(page, { kiosk: true, now: time, ...o });
   await routes?.(); // registered after the mock layer, so they win
