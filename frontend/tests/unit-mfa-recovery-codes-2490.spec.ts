@@ -215,3 +215,29 @@ test('the sign-in code step switches to a recovery code (letters, a placeholder)
   await login.locator('[data-arx-recovery-toggle]').click();
   await expect(code).toHaveAttribute('inputmode', 'numeric');
 });
+
+// The before / after pictures of the compare page: the same two views on the base branch and on this one (selectors that exist in
+// both). Only with SW_SHOTS.
+test('compare shots: the section with the factor on, and the sign-in code step', async ({ page }) => {
+  test.skip(!process.env.SW_SHOTS, 'compare-page pictures only (SW_SHOTS=<dir>)');
+  await setup(page, { enabled: true, remaining: 10 });
+  const section = await openSection(page);
+  await expect(section.locator('[data-sf-state]')).toContainText('פעיל');
+  await page.waitForTimeout(300);
+  await shots(page, 'cmp-on');
+  await page.goto('./');
+  await page.evaluate(async () => {
+    const src = '/src/arx/arx-login.ts';
+    await import(/* @vite-ignore */ src);
+    const el = document.createElement('arx-login') as HTMLElement & { step: string };
+    el.step = 'factor';
+    document.body.innerHTML = '';
+    document.body.appendChild(el);
+  });
+  await expect(page.locator('arx-login #code')).toBeVisible();
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: path.join(process.env.SW_SHOTS!, `cmp-login-${page.viewportSize()?.width ?? 0}-${scheme}.png`) });
+  }
+});
