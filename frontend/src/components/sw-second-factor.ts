@@ -122,26 +122,24 @@ const SHARED = css`
   }
   /* MFA-RECOVERY-CODES-2490: the recovery-codes row, the warning and the one-time list (the card's own tokens, no new look) */
   .rc {
-    border-block-start: 1px solid var(--sw-border);
-    margin-block-start: 8px;
-    padding-block-start: 4px;
+    margin-block-start: var(--sw-s-2);
+    padding-block-start: var(--sw-s-1);
   }
   .warn {
-    margin: 2px 0 4px;
+    margin: 0 0 var(--sw-s-1);
     font-size: var(--sw-fs-xs);
     color: var(--sw-warning-text);
   }
   .codes {
     display: grid;
     grid-template-columns: repeat(2, max-content);
-    gap: 6px 20px;
+    gap: var(--sw-s-1h) var(--sw-s-5);
     justify-content: center;
-    margin: 4px 0 0;
-    padding: 10px 14px;
+    margin: var(--sw-s-1) 0 0;
+    padding: var(--sw-s-3) var(--sw-s-3h);
     list-style: none;
-    border: 1px solid var(--sw-border-strong);
     border-radius: var(--sw-r-md);
-    background: var(--sw-surface);
+    background: var(--sw-surface-2);
     direction: ltr;
     font-family: var(--sw-font-mono, ui-monospace, monospace);
     font-size: var(--sw-fs-sm);
@@ -151,14 +149,14 @@ const SHARED = css`
   }
   .acts {
     display: flex;
-    gap: 8px;
+    gap: var(--sw-s-2);
     justify-content: center;
     flex-wrap: wrap;
   }
   .link {
     background: none;
     border: 0;
-    padding: 2px 0;
+    padding: 0;
     font: inherit;
     font-size: var(--sw-fs-xs);
     color: var(--sw-accent-text);
@@ -167,7 +165,7 @@ const SHARED = css`
   }
   .link:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 1px;
+    outline-offset: var(--sw-focus-offset);
   }
 `;
 
