@@ -251,7 +251,8 @@ test.describe('the home screen against the devices fixture backend', () => {
       await resetHome(request);
       for (const dir of ['a', 'b', 'c'] as const) {
         expect((await request.patch('/api/v1/settings', { data: { 'home.direction': dir, 'home.side': 'end' } })).status()).toBe(200);
-        for (const [w, h] of [[1440, 900], [1920, 1080]]) {
+        // HOME-SCROLL-FIX-2530: b's widget column also on a short laptop screen (1366x768 needs the fold step past fit 2)
+        for (const [w, h] of dir === 'b' ? [[1440, 900], [1920, 1080], [1366, 768]] : [[1440, 900], [1920, 1080]]) {
           await page.setViewportSize({ width: w, height: h });
           await open(page, '/devices/building', view);
           const b = page.locator('devices-building');
