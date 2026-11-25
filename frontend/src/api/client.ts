@@ -323,7 +323,7 @@ export function problemsOf(err: unknown): FieldProblem[] {
 const WHOLE_BODY = 'body';
 
 /** One issue of a domain issue list as the editors show it: `path` relative to the item ('' = the item as a whole), its code and text. */
-export interface PathIssue { path: string; code: string; message: string }
+interface PathIssue { path: string; code: string; message: string }
 
 /**
  * ADR019-FAMILY678-2520: the issue list of a refused automation / schedule / scenario (and the like) - the canonical `details.problems`
