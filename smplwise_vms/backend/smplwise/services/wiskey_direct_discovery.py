@@ -30,7 +30,12 @@ and `direct/pairing_status_v2` instead (WisKey rc19 `direct_bridge_discovery.cap
 protocol 2, the same kid, source the loaded bridge KeySet (`pairing_mismatch` otherwise; PAIRING-Q2 = a: nothing is selected silently).
 Its `freshness_s` (60) bounds how long the observation is used before it is read again; it renews nothing. The v3 blocks
 `native_installation` and `manual_service_write` are observations only (they grant nothing in Arx). Without all three reads, the direct
-path is not selected on that connection."""
+path is not selected on that connection.
+
+WISKEY-NOFALLBACK-FIX-2520 (deep review WB-03): a failed discovery no longer latches the direct path off for the socket's whole life.
+The connection whose discovery failed is asked again only after a bounded back-off (`FAILED_RETRY_MIN_S`, doubling per consecutive
+failure on the same connection, at most `FAILED_RETRY_MAX_S`), and a successful re-read clears the failure. Until then the failure
+stays the connection's refusal (`transport_refusal`). Discovery reads are reads: nothing is replayed by asking again."""
 from __future__ import annotations
 
 import logging
@@ -56,6 +61,9 @@ BEHIND_MARGIN_S = 2.0  # server ahead of Arx: skew + margin must stay below Arx'
 AHEAD_MARGIN_S = 0.5  # Arx ahead of the server: skew + margin must stay within max_issued_future
 TIME_RECHECK_S = 600.0  # a time observation older than this is read again (the observation never renews anything)
 READ_TIMEOUT_S = 6.0
+# WISKEY-NOFALLBACK-FIX-2520 (WB-03): the bounded back-off before a connection whose discovery failed is asked again
+FAILED_RETRY_MIN_S = 30.0
+FAILED_RETRY_MAX_S = TIME_RECHECK_S
 _CAP_KEYS = {"schema_version", "protocol", "families", "commands", "limits", "station_media_contract", "stations", "resources",
              "lifecycle", "physical_result"}
 # WISKEY-MAC-ADOPT-298 item E: the FINAL capabilities document (Mac 27.10, product CODE d5a3ab86, CURRENT_SIMULATOR_PROFILE.json) adds three
@@ -324,7 +332,10 @@ class DirectDiscovery:
         self.window_s = window_s
         self.capabilities: Capabilities | None = None
         self.time: TimeObservation | None = None
-        self.failed_ref: str | None = None  # a connection whose discovery failed is not asked again (a new connection is)
+        # a connection whose discovery failed is not asked again before its back-off ends (a new connection is asked at once)
+        self.failed_ref: str | None = None
+        self.failed_at: float | None = None  # WISKEY-NOFALLBACK-FIX-2520 (WB-03): monotonic time of the latest failure
+        self.failures = 0  # consecutive failures on `failed_ref`
         self.last_error: str | None = None
         self.pairing: PairingStatus | None = None  # WISKEY-DIRECT-V2-2520: the v2 connection's pairing observation (None on v1)
 
@@ -342,7 +353,18 @@ class DirectDiscovery:
 
     def forget(self) -> None:
         self.capabilities = self.time = self.pairing = None
-        self.failed_ref = None
+        self.failed_ref = self.failed_at = None
+        self.failures = 0
+
+    def retry_after_s(self) -> float:
+        """WB-03: the back-off after the latest failure - FAILED_RETRY_MIN_S doubled per consecutive failure, at most FAILED_RETRY_MAX_S."""
+        return min(FAILED_RETRY_MAX_S, FAILED_RETRY_MIN_S * (2 ** max(0, min(self.failures, 16) - 1)))
+
+    def retry_due(self, connection_ref: str) -> bool:
+        """WB-03: True when `connection_ref` is not latched by a failed discovery, or its back-off has ended (ask again now)."""
+        if self.failed_ref != connection_ref:
+            return True
+        return self.failed_at is None or self._mono() - self.failed_at >= self.retry_after_s()
 
     async def refresh(self, connection_ref: str, call: Call, *, protocol_version: int = 1, kid: str | None = None) -> None:
         """Read what this connection lacks (never raises). `protocol_version` / `kid` are the CONNECTION's (DirectLink), never taken
@@ -350,7 +372,7 @@ class DirectDiscovery:
         cap = self.capabilities
         if cap is not None and (cap.connection_ref != connection_ref or cap.protocol_version != protocol_version or cap.kid != kid):
             self.capabilities = self.time = self.pairing = None  # reconnect = new owner: nothing of the old document is kept
-        if self.failed_ref == connection_ref:
+        if not self.retry_due(connection_ref):  # WB-03: a failed connection is asked again only after its back-off
             return
         v2 = protocol_version == 2
         try:
@@ -371,6 +393,8 @@ class DirectDiscovery:
                     raise DiscoveryError(refusal)
                 self.pairing = status
             self.last_error = None
+            self.failed_ref = self.failed_at = None  # WB-03: a successful (re-)read clears the failure
+            self.failures = 0
         except DiscoveryError as exc:
             self._fail(connection_ref, exc.code)
         except bridge.MediaBridgeError as exc:
@@ -380,7 +404,9 @@ class DirectDiscovery:
 
     def _fail(self, connection_ref: str, code: str) -> None:
         self.capabilities = self.time = self.pairing = None
+        self.failures = self.failures + 1 if self.failed_ref == connection_ref else 1
         self.failed_ref = connection_ref
+        self.failed_at = self._mono()
         self.last_error = code
 
     def transport_refusal(self, connection_ref: str, command: str | None = None) -> str | None:
