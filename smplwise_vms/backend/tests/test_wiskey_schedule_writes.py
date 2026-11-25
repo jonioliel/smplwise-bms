@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -833,6 +834,9 @@ def test_audit_rows_name_the_actor_and_resource_and_never_a_token_or_a_window(wx
     text = json.dumps(all_rows)
     for t in fake.tokens_issued:
         assert t not in text
-    assert "07:00" not in text and "Office hours" not in text
+    # RELEASE-2520-TRAIN (lead decision 2.52 Q4 = a): the draft window "07:00" must not reach the audit; the rows' own ISO instants
+    # (an envelope's expires_at such as ...T13:07:00Z) are left out first, so the check no longer depends on the minute it runs in
+    no_instants = re.sub(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?", "", text)
+    assert "07:00" not in no_instants and "Office hours" not in text
     create_rows = [r for r in all_rows if r["action"] == "intercom.schedule_create"]
     assert create_rows[0]["actor_user_id"] == "dev-sched" and json.loads(create_rows[-1]["details_json"])["result"]["id"] == item["id"]
