@@ -31,6 +31,17 @@ Every row merged with `--no-ff` in the order the lead set; each merge commit nam
 | 19 | `pilot/NOTIFY-RECIPIENT-LANG-2520` | `7b55e0e76` | `f3fdb961f` | none | cut from row 12 `f493b96a9`; push, e-mail and phone-app notifications in each recipient's language (`services/notify_delivery_lang.py`; WhatsApp unchanged). Backend only. Train fix `61a6959ef` (below). No card in `management/tasks.json` (MGMT-SYNC left it unregistered; open point 9) |
 | 20 | `pilot/WISKEY-R8-2520` | `fee46e05a` | `2b9a3a839` | none | cut from R7 `d4e7d1d3c`; `GET /system/bridge-key/service-grant` (local-only), the v3 service-write contract (journal unwired), the people-write path chosen once, the service approval block + 8 Linux pixel baselines, the "מושבת" hint. `gen_wire_types.py --check` 0; `wire_ratchet.py` 897 = baseline; i18n ratchet unchanged. Train fix `8a91908a3` (below) |
 | 21 | `pilot/ADR019-L14-STRICT-F123-2520` | `0204770f4` | `6a1b42ef5` | none | base main; 19 family-3 request models (nvr_write, nvr_privacy, mask_copy, cameras) to `extra=forbid`; `scripts/request_strict_ratchet.py` + baseline (144). Lead decisions Q1 = a, Q2 = a; CHANGELOG line `66cca52e8`. On the merged tree `request_strict_ratchet.py --check` holds (144), `gen_wire_types.py --check` 0. No card in `management/tasks.json` (open point 9) |
+| 22 | `pilot/ADR019-FAMILY678-2520` | `1eef30527` | `22ba0e9fb` | none | base main; ADR-019 families 6-8 and the inventory's `--check` / `--write-ratchet`. Then, once (lead's order, after FAMILY45 + FAMILY678): `error_contract_inventory.py --write-ratchet` + `--check` (`53a6b8da8`): 74 -> **0 legacy 422 sites**, "error contract ratchet holds" (FAMILY45's families at 0) |
+| 23 | `pilot/STARTING-STYLE-AUDIT-2520` | `900de0c46` | `a605434f8` | none | base row 15; CSS-only entrance fixes in 10 files + the `unit-starting-style-audit-2520` checker (the `sw-app.ts` overlap: two comment lines) |
+| 24 | `pilot/MFA-PASSKEY-ADMIN-REMOVE-2520` | `18b6ff7f0` | `299dda4d9` | none | base row 16; `.../passkeys/{pk_id}/remove-check`; `gen_wire_types --check` 0, `build_guide --check` up to date; API inventory `48536a4e4` (1944 -> 1945) |
+| 25 | `pilot/MFA-RESET-CHANNEL-UI-2520` | `06375d311` | `b6cd0d9aa` | `frontend/src/i18n/lang/en/i18n/msg/mfa.ts` | base the train at `ea04ad4fd`; both sides only appended entries at the end of the table -> kept both (HEAD's first). Decisions Q1-Q4 = a. The row's rewritten baseline `mfa-policy-preview-1440-desktop-linux.png` re-checked in the full pixel run (section 3.4) |
+| 26 | `pilot/NOTIFY-LANG-SENDERS-2520` | `aafbd5ccd` | `bb80821ed` | none | base row 19; Q1-Q4 = a. `notify_policy.render()` now has both language mechanisms side by side (this row's per-signal `_i18n` overlay and the train's `PARAM_VALUES_EN`, `61a6959ef`), only for a language other than Hebrew; `second_factor_changed` sends no `_i18n`, so they never meet |
+| 27 | `pilot/WISKEY-SCHED-READS-2520` | `8c1f3ae90` | `c3af014da` | none | base `b5604b743`; migration `0225_wiskey_schedule_reads.sql` (free: the train ended at 0224). Follow-ups `f8fa8c508` (API inventory 1948; lead Q1 = a: `test_wiskey_system_status_2520.py` in `tests/gate_always_run.json`; Q4 = a: `test_wiskey_schedule_writes`' "07:00" audit check leaves the rows' ISO instants out first - it failed whenever an `expires_at` fell on minute 07) and `493beba09` (design ratchet, below) |
+| 28 | `pilot/GEN-UNITS-FIELD-2520` | `8ae3cbaa3` | `890a645cf` | none | base main; generator routing texts in the reader's language, unit inside the field. Its merge message says "design ratchet unchanged" - wrong, see `493beba09` below. `evidence-genlog-092` "switch on" (tablet) classified in section 3.4 |
+| 29 | `pilot/DOOR-TECH-HOLD-FIX-2520` | `b7c4a474a` | `35365a2be` | none | docs only (`docs/changes/DOOR-TECH-HOLD-FIX-2480.md`); DOOR-TECH-HOLD-FIX-2480's card -> REVIEW with `5efb30eb1` (v2.48.0) |
+| 30 | `pilot/I18N-RUNTIME-ERRORS-2520` | `8420d7bdf` | `189ec3f4a` | 10 modules + 2 ratchets | base row 12. Where the ADR-019 rows had moved a refusal to `field_error(f"...", [fields], code=, legacy=, extra=)` and this row made the text `tpl(...)` in the old call (backup, brand, capture_lease, settings_patch/identity x2, white_label, access_external, access_grants x2, app_refresh x3, automation_ops, schedule_ops - 14 hunks): kept BOTH, HEAD's `field_error` with the row's `tpl(...)` (Tpl is a Msg; field_error passes it on); ruff F clean. Ratchet files regenerated. Lead Q1 = a at the merge: station_ops' three `_error()` texts and wiskey_visits' generic refusal as `tpl()` (MESSAGES values as English "words"), SCHED-READS' three constant texts in `error_text_en.json` -> backend refusal ratchet **258 -> 0** run-time, 0 without English. EN ratchet `keptTotal` 868 -> 871 (`--allow-raise`, the row's documented +3) |
+| 31 | `pilot/WISKEY-STATUS-I18N-2520` | `4c0014602` | `9d42de979` | none | base `eadaa25b8`; the "מצב WisKey" reasons in the page language (open point 1). All 33 reason codes of the merged `wiskey_feature_status.R` have a Hebrew and an English entry; `i18n-split-langs --dry` moves nothing |
+| 32 | `pilot/WISKEY-VISITS-ENDED-FILTER-2520` | `6d744bd41` | `f343f829b` | none | base `eadaa25b8`; Q1 = a, Q2 = a. `gen_wire_types --check` 0; `GUIDE_ALL_HE.html` rebuilt in the merge (`--check` said stale after it) |
 
 Train fixes after rows 16-20:
 - `61a6959ef` (row 16 x rows 12 / 19): MFA-FACTOR-HARDEN-2520's new notice `security.second_factor_changed` came after I18N-REST-2520
@@ -46,6 +57,15 @@ Train fixes after rows 16-20:
   4px padding is now `var(--sw-s-1)` (same 4 px, pixel-neutral); the 1px border and the coarse-pointer 44px touch target stay literal,
   as row 8 keeps them (its note: 1 px borders / hairlines have no token; a coarse-pointer touch target is `44px` across the
   components). `--update --allow-raise`: 25509 -> 25511 (the only raise; precedent `85c91c865` of the 2.51 train) - open point 8.
+
+Train fixes after rows 22-32:
+- `493beba09`: design ratchet `px-literal` 25511 -> 25514 (`--allow-raise`): all three in WISKEY-SCHED-READS' new
+  `components/wk-schedule-reads.ts` (per-file counts compared between `a605434f8` and HEAD) - a 1px border, an off-scale 2px gap and a
+  640px media-query breakpoint, none with a token (a media query cannot read a custom property); the same kind as R8's +2 the lead accepted.
+- Registry `e98e8e544` (lead decision 4): cards for NOTIFY-RECIPIENT-LANG-2520 and ADR019-L14-STRICT-F123-2520, and for the seven other
+  merged rows that had none (STARTING-STYLE-AUDIT, MFA-PASSKEY-ADMIN-REMOVE, MFA-RESET-CHANNEL-UI, NOTIFY-LANG-SENDERS, I18N-RUNTIME-ERRORS,
+  WISKEY-STATUS-I18N, WISKEY-VISITS-ENDED-FILTER), each REVIEW with R-/AT- entries (AT NOT_RUN); rows 22, 27, 28 -> REVIEW;
+  `project_status.py --write` PASS (697 tasks, 811 requirements).
 
 Train fixes after row 12:
 - `f3dfcd158`: the 34 hard-coded Hebrew literals I18N-REST left are the WisKey demo installation (demo rows of `wiskey-events / overview /
@@ -221,7 +241,7 @@ Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
 
 ## 4. Problems and open points
 
-1. **English path of the "מצב WisKey" status block** (row 9): the block's server texts (all its reasons, old and new) are Hebrew only;
+1. ~~English path of the "מצב WisKey" status block~~ - DONE by row 31 (WISKEY-STATUS-I18N-2520). Was: (row 9): the block's server texts (all its reasons, old and new) are Hebrew only;
    it does not go through `smplwise/i18n.py`. a) a later row moves `wiskey_feature_status.R` to `Msg` keys with English (recommended)
    b) accept Hebrew-only for this installer-facing block.
 2. ~~`evidence-mfa-screens-2510:88` intermittent~~ - RESOLVED by row 15 (FLAKY-FIX-2520: the refusal reason survives the reload, the
@@ -236,11 +256,11 @@ Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
 6. ~~`camera-discovery-2500` "the whole flow" intermittent~~ - RESOLVED by row 15 (FLAKY-FIX-2520: `sw-dialog`'s backdrop fade no longer
    fades the dialog's texts). Lead decision: no quarantine. Train run at `32f758bb1`, "the whole flow" `--repeat-each=5` desktop +
    mobile: **10 passed, 0 failed** (main failed 10 of 20 before; section 3.2).
-7. **R4's run-time refusal text** (`routers/access_control_station_ops.py` `_error()`, numbered-sync "outcome unknown"): recorded in the
+7. ~~R4's run-time refusal text~~ - DONE at row 30 (`tpl()`, backend ratchet 0). Was: (`routers/access_control_station_ops.py` `_error()`, numbered-sync "outcome unknown"): recorded in the
    backend refusal ratchet (257 -> 258) rather than made a `Msg`, because its subject comes from the module's Hebrew `MESSAGES`.
    a) a later row moves `_error()` and `MESSAGES` to `Msg` keys with English and lowers the ratchet (recommended) b) keep.
-8. **Design ratchet raised by 2** (`px-literal` 25509 -> 25511, R8's 1px border and coarse-pointer 44px): a) accept for 2.52, as the
+8. **Design ratchet raised by 2** (accepted by the lead), and by 3 more for SCHED-READS (`493beba09`, same kind) (`px-literal` 25509 -> 25511, R8's 1px border and coarse-pointer 44px): a) accept for 2.52, as the
    2.51 train did for new screens (recommended) b) the R8 owner replaces them with tokens once a hairline / touch token exists.
-9. **`NOTIFY-RECIPIENT-LANG-2520` (row 19) and `ADR019-L14-STRICT-F123-2520` (row 21) have no card** in `management/tasks.json` (recorded on RELEASE-2520-TRAIN's card).
+9. ~~Cards missing~~ - DONE (`e98e8e544`, nine cards registered). Was: `NOTIFY-RECIPIENT-LANG-2520` (row 19) and `ADR019-L14-STRICT-F123-2520` (row 21) had no card in `management/tasks.json` (recorded on RELEASE-2520-TRAIN's card).
    a) the next MGMT-SYNC registers it as REVIEW with `7b55e0e76` / `f3fdb961f` (recommended) b) the train adds the card.
-10. **Still to come per the lead:** ADR019-FAMILY678-2520 (not final), then `error_contract_inventory.py --write-ratchet` and `--check` once.
+10. ~~FAMILY678 and the error-contract ratchet~~ - DONE (rows 22, `53a6b8da8`: 0 legacy 422 sites).
