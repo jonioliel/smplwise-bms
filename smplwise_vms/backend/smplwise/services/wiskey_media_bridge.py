@@ -908,7 +908,12 @@ class DirectApiTransport:
             key = self._key_provider()
         except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
             key = None
-        version = protocol_for_key(key)  # raises bridge_not_paired / bridge_key_unversioned
+        try:
+            version = protocol_for_key(key)  # raises bridge_not_paired / bridge_key_unversioned
+        except MediaBridgeError as exc:
+            if exc.code == "bridge_key_unversioned" and not self.v2_enabled:
+                raise MediaBridgeError("bridge_key_rotated") from None  # unchanged for a caller that did not opt in to v2
+            raise
         if version == 2 and not self.v2_enabled:
             raise MediaBridgeError("bridge_key_rotated")  # unchanged for a caller that did not opt in to v2
         if version == 1:
