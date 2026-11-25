@@ -7,7 +7,7 @@
 import { post } from './client';
 import type * as PkWire from './generated/wire-local-passkeys';
 import type * as SfWire from './generated/wire-second-factor';
-import { getPasskey } from '../arx/webauthn';
+import { getPasskey, PasskeyWrongHost, rpIdFits } from '../arx/webauthn';
 
 export type StepUpChallenge = PkWire.StepUpChallenge;
 export type StepUpProof = SfWire.StepUpProof;
@@ -33,6 +33,10 @@ export { verifyStepUp as verifyCodeStepUp } from './second-factor';
  * (arx/webauthn.ts) when the device side is cancelled or finds no passkey, ApiError when the server refuses. */
 export async function passkeyStepUp(action?: string): Promise<StepUpProof> {
   const ch = await stepUpChallenge(action);
+  // MFA-RESET-CHANNEL-UI-2520: at another address (the local network's) the browser would refuse the ceremony with a generic error -
+  // say where the passkey works instead (the challenge simply expires unused)
+  const rpId = ch.webauthn.publicKey.rpId;
+  if (typeof window !== 'undefined' && rpId && !rpIdFits(rpId, window.location.hostname)) throw new PasskeyWrongHost(rpId);
   const assertion = await getPasskey(ch.webauthn.publicKey);
   return verifyPasskeyStepUp(ch.challenge_id, assertion, action);
 }

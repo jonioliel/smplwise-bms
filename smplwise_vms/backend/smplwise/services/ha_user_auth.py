@@ -1248,6 +1248,66 @@ def _passkey_offer(db: Any, principal: Principal, token: str | None) -> dict[str
         return None
 
 
+def _enrolment_gate(gate: ApiError) -> bool:
+    """MFA-RESET-CHANNEL-UI-2520: is this provenance refusal an "enrol first" (not Home Assistant's "sign in again" answer, not the
+    long-lived-token refusal)?"""
+    from . import mfa_provenance as prov
+
+    return gate.code == "second_factor_enrollment_required" and (gate.details or {}).get("provenance") != prov.BEFORE_MFA_SEEN
+
+
+async def _passkey_enrolment(app_state: Any, conn_like: Any, principal: Principal, meta: dict[str, Any], token: str,
+                             refusal: ApiError, reason: str) -> str:
+    """MFA-RESET-CHANNEL-UI-2520: a NEW browser sign-in that must enrol first (`refusal`, 403 `second_factor_enrollment_required`).
+    With a `pkr1:` answer in X-Arx-Second-Factor: register that passkey as the enrolment (services/passkey_sign_in_enrol) and return the
+    method that answered (the caller completes the sign-in); a refused answer is 401 `second_factor_invalid` (the page keeps the step).
+    Otherwise the refusal - audited as before - and, while the switch is on and the sign-in is eligible, with `details.passkey_enrol`
+    (the creation options). Off / not eligible = byte-identical to the answer of before."""
+    from starlette.concurrency import run_in_threadpool
+
+    from . import passkey_sign_in_enrol as pke
+
+    from . import passkey_sign_in
+
+    db = app_state.db
+    answer = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
+
+    def switch_on() -> bool:
+        with db.connection(mode="read", label="auth/session passkey enrolment switch") as conn:
+            return passkey_sign_in.enabled(conn)
+
+    # the switch off: whatever the header says, the answer of before (an enrolment answer is simply not read)
+    if pke.is_answer(answer) and await run_in_threadpool(switch_on):
+        def work() -> str:
+            with db.connection(label="auth/session passkey enrolment") as conn:
+                return pke.enrol(conn, principal, answer, token)
+
+        try:
+            await run_in_threadpool(work)
+            return pke.METHOD
+        except pke.EnrolError as err:
+            why, message = f"enrol_{err.reason}", err.message
+        await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason="second_factor_invalid", action="auth.second_factor.failed",
+                                                       meta={**meta, "method": pke.METHOD, "why": why}, subject=principal.user_id))
+        raise ApiError(401, "second_factor_invalid", message)
+
+    def make_offer() -> dict[str, Any] | None:
+        try:
+            with db.connection(mode="read", label="auth/session passkey enrolment offer") as conn:
+                return pke.offer(conn, principal, token)
+        except ApiError:
+            return None  # the challenge pool is full (429): the refusal of before
+        except Exception:  # noqa: BLE001 - never breaks the answer
+            log.warning("could not offer the passkey enrolment", exc_info=True)
+            return None
+
+    offered = await run_in_threadpool(make_offer)
+    await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **({"passkey_enrol": "offered"} if offered else {})}))
+    if offered is None:
+        raise refusal
+    raise ApiError(refusal.status, refusal.code, refusal.user_message, retryable=refusal.retryable, details={**refusal.details, "passkey_enrol": offered})
+
+
 def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any],
                               token: str | None = None) -> str:
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
@@ -1351,19 +1411,28 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
     factor_meta: dict[str, Any] = {}
+    answered: str | None = None
     if factor == "ha_mfa" or need_llat:  # MFA-POLICY-2490 (both off by default)
         gate, reason, factor_meta = await provenance_gate(settings, db, token, arx_client_id(settings, conn_like), ha_user,
                                                           need_mfa=factor == "ha_mfa", need_llat=need_llat)
         if gate is not None:
             if gate.status == 503:
                 raise gate
-            await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **factor_meta}))
-            raise gate
+            if factor == "ha_mfa" and _enrolment_gate(gate):
+                # MFA-RESET-CHANNEL-UI-2520: "enrol first" - a passkey registered in this sign-in may be that enrolment (switch on)
+                answered = await _passkey_enrolment(app_state, conn_like, principal, {**meta, **factor_meta}, token, gate, reason)
+                factor_meta = {**factor_meta, "second_factor": "passkey_enrol"}
+            else:
+                await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **factor_meta}))
+                raise gate
         if factor == "ha_mfa":
             factor = "none"
-    if factor in ("enroll", FACTOR_ENROLL_AFTER_RESET):
+    if factor == "enroll":  # MFA-RESET-CHANNEL-UI-2520: as above (never after an administrator's reset: FACTOR_ENROLL_AFTER_RESET)
+        answered = await _passkey_enrolment(app_state, conn_like, principal, meta, token, enrollment_required(factor),
+                                            "second_factor_enrollment_required")
+        factor, factor_meta = "none", {**factor_meta, "second_factor": "passkey_enrol"}
+    if factor == FACTOR_ENROLL_AFTER_RESET:
         raise await rejected("second_factor_enrollment_required", enrollment_required(factor), principal)
-    answered: str | None = None
     if factor == "code":
         answered = await _check_second_factor(app_state, settings, conn_like, principal, meta, token)
     try:
@@ -1372,7 +1441,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     except ChainRevoked:  # review M2: a revoke of this sign-in landed while the token was being validated
         _remember_rejected(token)
         raise await rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
-    if factor == "code":  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - the session starts with a fresh step-up proof
+    if factor == "code" or answered is not None:  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - a fresh step-up proof
         from . import step_up
 
         step_up.note_sign_in_factor(session, answered)  # MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only

@@ -12,12 +12,15 @@ import './sw-step-up-status';
 import type { DropdownChange } from './sw-dropdown';
 import type { SegmentedChange } from './sw-segmented';
 import { describeError, get, patch } from '../api/client';
+import { onRemote, session } from '../api/session';
+import type { Me } from '../api/types';
 import { factorPolicy, POLICY_VALUES, type Compliance, type FactorPolicy, type Person, type PolicyValue } from '../api/factor-screens';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/mfa';
 
-/** The settings this tab edits (all through PATCH settings: system.configure, step-up gated, audited `settings.update`). */
-const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.passkey_remote_factor', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local'] as const;
+/** The settings this tab edits (all through PATCH settings: system.configure, step-up gated, audited `settings.update`; the reset
+ * channel additionally a system administrator only, with its own audit row `security.factor_reset_channel`). */
+const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.passkey_remote_factor', 'security.factor_reset_channel', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local'] as const;
 type Key = (typeof KEYS)[number];
 type Values = Partial<Record<Key, string | number>>;
 
@@ -28,6 +31,7 @@ const FALLBACK: Record<Key, string | number> = {
   'security.factor_wall_exempt': 'on',
   'security.remote_long_lived_tokens': 'allow',
   'security.passkey_remote_factor': 'off', // MFA-HA-PASSKEY-2520: off = the passkey is a step-up method only (the behaviour of before)
+  'security.factor_reset_channel': 'any', // MFA-RESET-HARDENING-2510 (owner Q53): an administrator resets another user's methods from any channel
   'security.step_up': 'off',
   'security.step_up_minutes': 5,
   'security.step_up_local': 'off',
@@ -57,6 +61,27 @@ const FACTOR_LABEL: Record<string, () => string> = {
   ha_mfa: () => tr('אימות של מערכת הבית'),
 };
 const SHOWN = 8;
+
+/** MFA-RESET-CHANNEL-UI-2520: the reset channel's two values (services/factor_reset.CHANNEL_KEY). */
+const CHANNEL_LABEL: Record<'any' | 'local', () => string> = {
+  any: () => tr('מכל מקום'),
+  local: () => tr('רק מהרשת המקומית'),
+};
+
+/** MFA-RESET-CHANNEL-UI-2520: is the signed-in user a system administrator, as rbac.is_system_admin decides it (an installation-wide
+ * `system_admin` allow-binding, direct or through a group, and no installation-wide deny of it; never an Arx-only identity)? Only the
+ * screen's hint: the server checks again and refuses (403, audited) anyone else. Without a session (the static preview) - yes. */
+function systemAdminOf(me: Pick<Me, 'user' | 'bindings'> | null): boolean {
+  if (!me) return true;
+  if (me.user.id.startsWith('l_')) return false;
+  let admin = false;
+  for (const b of me.bindings ?? []) {
+    if (b.role_id !== 'system_admin' || b.scope_type !== 'installation' || b.scope_id !== '*') continue;
+    if (b.effect === 'deny') return false;
+    admin = true;
+  }
+  return admin;
+}
 
 /**
  * MFA-SCREENS-2510 (slice 11 of the second-factor train): הגדרות › משתמשים והרשאות › אימות דו־שלבי. The sign-in factor policy of slice 5
@@ -311,7 +336,27 @@ export class SwFactorPolicyAdmin extends LitElement {
       <div class="row" data-fp-row="passkey"><span class="lbl">${tr('מפתח גישה כאימות בכניסה')}<span class="muted">${tr('מי שיש לו מפתח גישה יאמת בו או בקוד בכל כניסה חדשה מרחוק בדפדפן')}</span></span>
         <sw-toggle data-fp-passkey .checked=${passkey} ?disabled=${ro} label=${tr('מפתח גישה כאימות בכניסה')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.passkey_remote_factor', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+      ${this.renderResetChannel(ro)}
     </sw-card>`;
+  }
+
+  /** MFA-RESET-CHANNEL-UI-2520 (review MFA-REVIEW-2520 N-7): `security.factor_reset_channel` - from where an administrator may reset
+   * another user's sign-in methods (owner Q53: `any` by default; `local` = only through the local network). The server's rules are shown,
+   * not decided here: only a system administrator changes it, and widening it back to "anywhere" works only from the local network
+   * (routers/settings_patch/identity.factor_reset_channel - refused and audited otherwise). Saved with the tab's one save row. */
+  private renderResetChannel(ro: boolean) {
+    const stored = String(this.stored['security.factor_reset_channel'] ?? FALLBACK['security.factor_reset_channel']) === 'local' ? 'local' : 'any';
+    const value = String(this.value('security.factor_reset_channel')) === 'local' ? 'local' : 'any';
+    const admin = systemAdminOf(session.me);
+    const locked = ro || !admin;
+    // narrowing to `local` works from anywhere; while `local` is stored, the way back to `any` is closed outside the local network
+    const widenBlocked = stored === 'local' && onRemote();
+    const why = !admin && !ro ? tr('רק מנהל מערכת משנה את ההגדרה הזו.') : widenBlocked ? tr('החזרה ל״מכל מקום״ אפשרית רק מהרשת המקומית.') : '';
+    return html`<div class="row" data-fp-row="reset-channel"><span class="lbl">${tr('איפוס דרכי אימות של משתמשים')}<span class="muted">${tr('מאיפה מנהל יכול לאפס את דרכי האימות של משתמש אחר · החזרה ל״מכל מקום״ רק מהרשת המקומית')}</span>${why ? html`<span class="muted" data-fp-reset-channel-why>${why}</span>` : nothing}</span>
+      <sw-segmented label=${tr('איפוס דרכי אימות של משתמשים')} data-fp-reset-channel value=${value} ?disabled=${locked}
+        .options=${(['any', 'local'] as const).map((v) => ({ value: v, label: CHANNEL_LABEL[v](), attrs: { 'data-fp-reset-channel-option': v },
+          ...(v === 'any' && widenBlocked ? { disabled: true, title: tr('החזרה ל״מכל מקום״ אפשרית רק מהרשת המקומית.') } : {}) }))}
+        @change=${(e: CustomEvent<SegmentedChange>) => this.set('security.factor_reset_channel', e.detail.value)}></sw-segmented></div>`;
   }
 
   private renderStepUp(ro: boolean) {

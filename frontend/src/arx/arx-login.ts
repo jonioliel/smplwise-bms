@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSecondFactorPasskey, completeSignIn, haErrorText, hasPendingSecondFactor, pendingFactorMethods, pendingPasskeyOrigin, startFlow, submitStep, type LoginFlow } from './auth';
+import { ArxAuthError, abandonSecondFactor, completeEnrolmentPasskey, completeSecondFactor, completeSecondFactorPasskey, completeSignIn, haErrorText, hasPendingEnrolment, hasPendingSecondFactor, pendingEnrolOrigin, pendingFactorMethods, pendingPasskeyOrigin, startFlow, submitStep, type LoginFlow } from './auth';
 import { t } from '../i18n/he';
 import { brandLogo, loadPublicBrand, onBrandLogo } from '../design/brand-logo';
 import '../components/sw-brand';
@@ -10,7 +10,7 @@ import { changePassword, confirmReset, localMe, localPasskeySecondFactor, localP
 import { lit } from '../i18n/local-identity';
 import { tr } from '../i18n/msg/misc';
 import { tr as trm } from '../i18n/msg/mfa';
-import { PasskeyCancelled, passkeysSupported } from './webauthn';
+import { PasskeyCancelled, passkeysSupported, rpIdFits } from './webauthn';
 import '../components/sw-second-factor';
 import '../components/sw-passkeys';
 
@@ -55,7 +55,8 @@ export class ArxLogin extends LitElement {
   /** USR2 phase 4: how the pending local second step can be answered (`methods` of the 202; TOTP when absent). */
   @state() private factorMethods: ('totp' | 'passkey')[] = ['totp'];
   @state() private mode: 'infra' | 'local' = 'infra';
-  @state() private step: 'credentials' | 'mfa' | 'factor' | 'lfactor' | 'enrol' | 'change' | 'forgot' | 'reset' = hasPendingSecondFactor() ? 'factor' : 'credentials';
+  /** MFA-RESET-CHANNEL-UI-2520: `henrol` - a home-system user told "enrol first" registers a passkey as that enrolment (the server offered it). */
+  @state() private step: 'credentials' | 'mfa' | 'factor' | 'lfactor' | 'enrol' | 'henrol' | 'change' | 'forgot' | 'reset' = hasPendingEnrolment() ? 'henrol' : hasPendingSecondFactor() ? 'factor' : 'credentials';
   /** USR2 phase 2: the username of the self-service reset in progress (the steps 'forgot' -> 'reset'). */
   @state() private resetUser = '';
   @state() private busy = false;
@@ -70,6 +71,8 @@ export class ArxLogin extends LitElement {
    * works at. */
   @state() private haMethods: string[] = pendingFactorMethods();
   @state() private haPasskeyOrigin: string | null = pendingPasskeyOrigin();
+  /** MFA-RESET-CHANNEL-UI-2520: the address a passkey made in the pending enrolment works at. */
+  @state() private enrolOrigin: string | null = pendingEnrolOrigin();
   /** The Android download offer (only on an Android device, only when an administrator configured an address). */
   @state() private offer: AndroidOffer | null = null;
   @query('#username') private usernameEl?: HTMLInputElement;
@@ -493,6 +496,26 @@ export class ArxLogin extends LitElement {
     });
   }
 
+  /** MFA-RESET-CHANNEL-UI-2520: the pending enrolment answered with a new passkey made on this device (a cancelled ceremony keeps the step). */
+  private async onEnrolPasskey() {
+    if (this.busy) return;
+    await this.run(async () => {
+      await completeEnrolmentPasskey();
+      this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
+    });
+  }
+
+  /** MFA-RESET-CHANNEL-UI-2520: this page is at the address the enrolment's passkey will work at. */
+  private enrolHere(): boolean {
+    if (!this.enrolOrigin) return false;
+    try {
+      const u = new URL(this.enrolOrigin);
+      return u.origin === window.location.origin && rpIdFits(u.hostname, window.location.hostname);
+    } catch {
+      return false;
+    }
+  }
+
   /** USR2 phase 4: passkey first - no username, no password; the server answers uniformly when it is not allowed for this passkey. */
   private async onPasskeySignIn() {
     if (this.busy) return;
@@ -641,6 +664,15 @@ export class ArxLogin extends LitElement {
           this.codeEl?.focus();
           return;
         }
+        if (err instanceof ArxAuthError && err.code === 'second_factor_enrollment_required' && hasPendingEnrolment()) {
+          // MFA-RESET-CHANNEL-UI-2520: HA accepted the sign-in; the policy requires a factor and a passkey may be that enrolment
+          this.enrolOrigin = pendingEnrolOrigin();
+          this.step = 'henrol';
+          this.error = '';
+          await this.updateComplete;
+          this.renderRoot.querySelector<HTMLElement>('[data-arx-enrol-passkey-create]')?.focus();
+          return;
+        }
         throw err;
       }
       this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
@@ -684,6 +716,8 @@ export class ArxLogin extends LitElement {
       }
       // MFA-HA-PASSKEY-2520: a cancelled passkey ceremony, or a passkey not offered (any more), keeps the step like a wrong code
       if (err instanceof PasskeyCancelled) return;
+      // MFA-RESET-CHANNEL-UI-2520: the enrolment step stays while the server still offers it (a renewed offer answers 403 again)
+      if (this.step === 'henrol' && err instanceof ArxAuthError && err.code === 'second_factor_enrollment_required' && hasPendingEnrolment()) return;
       if (!(err instanceof ArxAuthError) || !['network', 'ha_unavailable', 'second_factor_invalid', 'passkey_not_offered'].includes(err.code)) this.restart(false);
     } finally {
       this.busy = false;
@@ -692,13 +726,14 @@ export class ArxLogin extends LitElement {
 
   /** A new flow from the credentials step (HA's flows are single-use after an abort, a finish or a refusal). */
   private restart(clearError = true) {
-    if (this.mode !== 'local' && (this.step === 'factor' || hasPendingSecondFactor())) void abandonSecondFactor();
+    if (this.mode !== 'local' && (this.step === 'factor' || this.step === 'henrol' || hasPendingSecondFactor())) void abandonSecondFactor();
     this.flow = null;
     this.step = 'credentials';
     this.recoveryCode = false;
     this.passkeyChosen = false;
     this.haMethods = ['totp'];
     this.haPasskeyOrigin = null;
+    this.enrolOrigin = null;
     if (clearError) this.error = '';
   }
 
@@ -796,6 +831,8 @@ export class ArxLogin extends LitElement {
           ? this.factorMethods.includes('totp') && !this.passkeyChosen ? lit('codePrompt') : lit('passkeyUse')
           : this.step === 'enrol'
           ? lit('enrolSub')
+          : this.step === 'henrol'
+          ? trm('מנהל המערכת דורש אימות דו־שלבי לחשבון הזה. אפשר להוסיף עכשיו מפתח גישה במכשיר הזה, והוא ישמש לאימות בכניסות הבאות.')
           : this.step === 'change'
           ? lit('changeSub')
           : this.localEnabled && this.mode === 'local' && this.step === 'credentials'
@@ -856,6 +893,17 @@ export class ArxLogin extends LitElement {
         ? html`${this.renderMethods()}<div class="passkey-only" data-arx-passkey-only>
             <button type="button" ?disabled=${this.busy || !passkeysSupported()} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${this.busy ? lit('passkeyWaiting') : lit('passkeyUse')}</button>
             ${passkeysSupported() ? nothing : html`<span class="hint">${lit('passkeyUnsupported')}</span>`}
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
+          </div>`
+        : this.step === 'henrol'
+        ? html`<div class="passkey-only" data-arx-passkey-only data-arx-ha-enrol>
+            <button type="button" ?disabled=${this.busy || !passkeysSupported() || !this.enrolHere()} @click=${() => void this.onEnrolPasskey()} data-arx-enrol-passkey-create>${this.busy ? lit('passkeyWaiting') : trm('הוספת מפתח גישה וכניסה')}</button>
+            ${!passkeysSupported()
+              ? html`<span class="hint">${lit('passkeyUnsupported')}</span>`
+              : !this.enrolHere()
+              ? html`<span class="hint" data-arx-passkey-wrong-host>${lit('passkeyWrongHost', { origin: this.enrolOrigin ?? '' })}</span>`
+              : nothing}
+            <span class="hint" data-arx-enrol-other>${trm('אפשר גם להפעיל אפליקציית אימות ב״החשבון שלי״ בכניסה מהרשת המקומית.')}</span>
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
           </div>`
         : this.haPasskeyOnly() || (this.step === 'factor' && this.passkeyChosen)

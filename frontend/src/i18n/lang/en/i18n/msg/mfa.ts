@@ -122,4 +122,19 @@ export const en = {
   'בכניסה הבאה מרחוק יצטרך להגדיר אימות דו־שלבי מחדש.': 'At the next remote sign-in they will have to set up two-step verification again.',
   'אפשר לאפס עוד {n} בשעה הזו': '{n} more resets allowed this hour',
   'לאיפוס מבחוץ צריך כניסה טרייה (לפני פחות מ־5 דקות). צא והיכנס שוב, ואז נסה שוב.': 'Resetting from outside needs a fresh sign-in (less than 5 minutes ago). Sign out, sign in again, then retry.',
+  // MFA-RESET-CHANNEL-UI-2520: the reset channel on the second-factor tab (review N-7)
+  'איפוס דרכי אימות של משתמשים': "Resetting users' sign-in methods",
+  'מאיפה מנהל יכול לאפס את דרכי האימות של משתמש אחר · החזרה ל״מכל מקום״ רק מהרשת המקומית':
+    'Where an administrator may reset another user\'s sign-in methods · back to "Anywhere" only from the local network',
+  'מכל מקום': 'Anywhere',
+  'רק מהרשת המקומית': 'Local network only',
+  'רק מנהל מערכת משנה את ההגדרה הזו.': 'Only a system administrator changes this setting.',
+  'החזרה ל״מכל מקום״ אפשרית רק מהרשת המקומית.': 'Going back to "Anywhere" works only from the local network.',
+  // MFA-RESET-CHANNEL-UI-2520: the step-up dialog when the user's passkey cannot be used in this browser
+  'למפתח הגישה שלך צריך דפדפן שתומך במפתחות גישה. כאן אפשר לאשר בדרך אחרת.': 'Your passkey needs a browser that supports passkeys. Here you can confirm another way.',
+  // MFA-RESET-CHANNEL-UI-2520: the sign-in's enrolment step - a passkey as the enrolment the policy asks for
+  'מנהל המערכת דורש אימות דו־שלבי לחשבון הזה. אפשר להוסיף עכשיו מפתח גישה במכשיר הזה, והוא ישמש לאימות בכניסות הבאות.':
+    'Your administrator requires two-step verification for this account. You can add a passkey on this device now; it will verify your next sign-ins.',
+  'הוספת מפתח גישה וכניסה': 'Add a passkey and sign in',
+  'אפשר גם להפעיל אפליקציית אימות ב״החשבון שלי״ בכניסה מהרשת המקומית.': 'You can also turn on an authenticator app in My account when signed in from the local network.',
 };

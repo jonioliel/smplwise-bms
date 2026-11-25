@@ -22,7 +22,7 @@ export function bytesToB64url(value: ArrayBuffer | Uint8Array): string {
 
 type Descriptor = { type: 'public-key'; id: string; transports?: string[] };
 
-interface CreationOptionsJSON {
+export interface CreationOptionsJSON {
   rp: { id: string; name: string };
   user: { id: string; name: string; displayName: string };
   challenge: string;
@@ -90,6 +90,21 @@ export function passkeysSupported(): boolean {
 
 /** The passkey ceremony failed on the device side (cancelled, timed out, no matching credential) - never a server answer. */
 export class PasskeyCancelled extends Error {}
+
+/** MFA-RESET-CHANNEL-UI-2520: the page is not at an address the passkey's relying party covers (a browser refuses the ceremony there);
+ * `rpId` names the address it works at. Subclass of PasskeyCancelled, so callers that only know that one keep their behaviour. */
+export class PasskeyWrongHost extends PasskeyCancelled {
+  constructor(readonly rpId: string) {
+    super('wrong host');
+  }
+}
+
+/** May a page at `host` run a ceremony for `rpId`? The RP id is the host itself or a registrable parent of it (WebAuthn L3 5.1.4.1). */
+export function rpIdFits(rpId: string, host: string): boolean {
+  const r = rpId.toLowerCase().replace(/\.$/, '');
+  const h = host.toLowerCase().replace(/\.$/, '');
+  return !!r && (h === r || h.endsWith('.' + r));
+}
 
 export async function createPasskey(o: CreationOptionsJSON): Promise<Record<string, unknown>> {
   try {
