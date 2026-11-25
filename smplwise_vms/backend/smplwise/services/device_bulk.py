@@ -52,6 +52,7 @@ from ..rbac import Principal
 from . import devices as dsvc
 from . import building_scope, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, service_identity
 from .timeutil import iso_utc
+from ..error_text import tpl
 
 log = logging.getLogger(__name__)
 
@@ -455,7 +456,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
             name = bcut.name(conn) or name
     if only is not None:
         if len(only) > ONLY_MAX:
-            raise ApiError(422, "validation", f"ניתן לצמצם לכל היותר {ONLY_MAX} התקנים.", details={"fields": ["only"]})
+            raise ApiError(422, "validation", tpl("ניתן לצמצם לכל היותר {only_max} התקנים.", only_max=ONLY_MAX), details={"fields": ["only"]})
         in_scope = [e for e in in_scope if e["entity_id"] in only]
     wide, held, permitted = bulk_scope(conn, principal)
     if scope == "building" and not wide:

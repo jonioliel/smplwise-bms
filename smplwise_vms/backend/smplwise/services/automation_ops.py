@@ -36,6 +36,7 @@ from . import service_identity
 from . import door_path_guard as guard
 from . import door_run_guard, ha_bridge
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 _RATE: dict[tuple[str, str], list[float]] = {}
 _LAST: dict[str, float] = {}
@@ -63,7 +64,7 @@ BRIDGE_ERRORS = {
     "not_found": lambda d: ApiError(422, "not_editable", "פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן."),
     "delegation_off": lambda d: BRIDGE_UNAVAILABLE["delegation_off"],
     "not_ha_admin": lambda d: ApiError(403, "not_ha_admin", "שמירת תוכן זה דורשת מנהל של תשתית המערכת."),
-    "ha_invalid": lambda d: ApiError(422, "ha_validation", f"תשתית המערכת דחתה את ההגדרה{(': ' + d['path']) if d.get('path') else ''}.", details={"path": d.get("path")}),
+    "ha_invalid": lambda d: ApiError(422, "ha_validation", tpl("תשתית המערכת דחתה את ההגדרה{value}.", value=(': ' + d['path']) if d.get('path') else ''), details={"path": d.get("path")}),
     "code_not_allowed": lambda d: ApiError(422, "code_not_allowed", "אסור לשמור קוד סודי בתוך אוטומציה, סצנה או סקריפט.", details={"path": d.get("path")}),
     "secret_not_allowed": lambda d: ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.", details={"path": d.get("path")}),
     "service_not_allowed": lambda d: ApiError(422, "action_not_allowed", "הפעולה אינה מותרת כאן.", details={"path": d.get("path")}),
@@ -203,7 +204,7 @@ def problem_error(errors: list[dict[str, str]]) -> ApiError:
             status, msg = PROMOTED[p["code"]]
             return field_error(msg, problems=issue_problems(errors), code=p["code"], status=status, legacy={"errors": errors}, extra={"path": p["path"]})
     first = errors[0]
-    return field_error(f"ערך לא תקין — {first['path']}: {first['message']}", problems=issue_problems(errors), legacy={"errors": errors})
+    return field_error(tpl("ערך לא תקין — {path}: {message}", path=first['path'], message=first['message']), problems=issue_problems(errors), legacy={"errors": errors})
 
 
 # A manual run (an automation's "run now", a script) that Home Assistant refuses with Unauthorized: since HA 2026.10 a step such as
@@ -727,7 +728,7 @@ def copy_item(w: W, kind: str, item_id: str, name: str, client_request_id: str) 
         _editable(row)
         name = (name or "").strip()
         if not name or len(name) > pol.CAPS["alias_max"] or any(ord(c) < 32 for c in name):
-            raise ApiError(422, "validation", f"שם: 1–{pol.CAPS['alias_max']} תווים, בלי תווי בקרה.", details={"path": "name"})
+            raise ApiError(422, "validation", tpl("שם: 1–{alias_max} תווים, בלי תווי בקרה.", alias_max=pol.CAPS['alias_max']), details={"path": "name"})
         stored = fresh_stored(w, kind, item_id, row)
         if pol.secret_kind(stored):
             raise ApiError(422, "masked_values", "הפריט כולל ערכים חסויים; ערכו אותו בתשתית המערכת.")
@@ -1037,9 +1038,9 @@ def _field_variables(rd: dict[str, Any] | None, fields: dict[str, Any]) -> dict[
     for k, v in fields.items():
         f = defs.get(k)
         if f is None:
-            raise ApiError(422, "validation", f"ערך לא תקין — {k}: שדה לא מוכר.", details={"path": k})
+            raise ApiError(422, "validation", tpl("ערך לא תקין — {k}: שדה לא מוכר.", k=k), details={"path": k})
         if pol.has_template(v) or pol.secret_kind(v):
-            raise ApiError(422, "validation", f"ערך לא תקין — {k}: ערך אסור.", details={"path": k})
+            raise ApiError(422, "validation", tpl("ערך לא תקין — {k}: ערך אסור.", k=k), details={"path": k})
         sel = f["selector"]
         ok = True
         if sel["kind"] == "number":
@@ -1055,11 +1056,11 @@ def _field_variables(rd: dict[str, Any] | None, fields: dict[str, Any]) -> dict[
         else:
             ok = isinstance(v, (str, bool, int, float))
         if not ok:
-            raise ApiError(422, "validation", f"ערך לא תקין — {k}: הערך אינו מתאים לשדה.", details={"path": k})
+            raise ApiError(422, "validation", tpl("ערך לא תקין — {k}: הערך אינו מתאים לשדה.", k=k), details={"path": k})
         out[k] = v
     for k, f in defs.items():
         if f["required"] and k not in out and f.get("default") is None:
-            raise ApiError(422, "validation", f"ערך לא תקין — {k}: שדה חובה.", details={"path": k})
+            raise ApiError(422, "validation", tpl("ערך לא תקין — {k}: שדה חובה.", k=k), details={"path": k})
     return out
 
 

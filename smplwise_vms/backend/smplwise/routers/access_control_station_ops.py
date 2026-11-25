@@ -50,6 +50,7 @@ from fastapi import APIRouter, Depends, Path, Request
 from pydantic import ConfigDict
 
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
+from ..error_text import tpl
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import access_control_station_ops_store as store
@@ -235,13 +236,13 @@ def _error(op: ops.Op, exc: ApiError) -> ApiError:
     if outcome == "not_sent" and exc.code == "intercom_outcome_pending":  # the feed's own gate (a race past the route's check)
         return _unsettled(str(details.get("wiskey_code") or "readback_required"), details)
     if outcome == "unknown" and op.command == ops.SYNC_V1:
-        return ApiError(504, "station_ops_outcome_unknown", f"{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהבקשה נקלטה - סנכרון נוסף לעמדה לא יישלח"
-                        " עד שבדיקת מצב הסנכרון תענה.", details={**details, "gate": "readback_required"})
+        return ApiError(504, "station_ops_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהבקשה נקלטה - "
+                            "סנכרון נוסף לעמדה לא יישלח עד שבדיקת מצב הסנכרון תענה.", what=what, code=code), details={**details, "gate": "readback_required"})
     if outcome == "not_sent":
         return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=details)
     if outcome == "refused":
-        return ApiError(502, "station_ops_failed", f"{what} נכשל לפי WisKey ({code}).", details=details)
-    return ApiError(504, "station_ops_outcome_unknown", f"{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - אל תשלחו שוב לפני שבודקים את מצב העמדה.",
+        return ApiError(502, "station_ops_failed", tpl("{what} נכשל לפי WisKey ({code}).", what=what, code=code), details=details)
+    return ApiError(504, "station_ops_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - אל תשלחו שוב לפני שבודקים את מצב העמדה.", what=what, code=code),
                     details=details)
 
 

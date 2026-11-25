@@ -25,6 +25,7 @@ from ..db import now_iso
 from ..errors import ServiceInvalid
 from . import notify_policy
 from . import notify_recipients
+from ..error_text import tpl
 
 SOURCE_PREFIX = "temperature."
 # phase 3: `health` (temperature.health - a low battery, a frozen reading, a suspected cooling fault) joins the routable kinds; the
@@ -129,7 +130,7 @@ def _validate_escalation(conn: sqlite3.Connection, esc: Any, cur: dict[str, Any]
     if "steps" in esc:
         steps = esc["steps"]
         if not isinstance(steps, list) or len(steps) > STEPS_MAX:
-            raise AlertsInvalid("validation", f"עד {STEPS_MAX} שלבים.", f"At most {STEPS_MAX} steps.", {"fields": ["escalation.steps"]})
+            raise AlertsInvalid("validation", tpl("עד {steps_max} שלבים.", steps_max=STEPS_MAX), f"At most {STEPS_MAX} steps.", {"fields": ["escalation.steps"]})
         clean, prev = [], 0
         for i, s in enumerate(steps):
             m = s.get("after_min") if isinstance(s, dict) else None

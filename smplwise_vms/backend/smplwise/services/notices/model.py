@@ -9,6 +9,7 @@ from typing import Any
 
 from ...errors import ServiceInvalid
 from ..transit import model as transit_model
+from ...error_text import tpl
 
 SEVERITIES = ("info", "alert", "critical")
 STATUSES = ("draft", "published", "archived")
@@ -248,7 +249,7 @@ def clean_text(value: Any, field: str, limit: int, *, required: bool = False, mu
     if required and not s:
         raise Invalid(field, "שדה חובה.")
     if len(s) > limit:
-        raise Invalid(field, f"עד {limit} תווים.")
+        raise Invalid(field, tpl("עד {limit} תווים.", limit=limit))
     return s
 
 
@@ -614,7 +615,7 @@ def with_info_invert(patch: dict[str, Any], current: dict[str, Any]) -> dict[str
         if xf in out:
             inv = out[xf]
             if not isinstance(inv, list) or len(inv) > INFO_SOURCE_MAX:
-                raise Invalid(xf, f"עד {INFO_SOURCE_MAX} ישויות.")
+                raise Invalid(xf, tpl("עד {info_source_max} ישויות.", info_source_max=INFO_SOURCE_MAX))
             if not all(info_invert_ok(kind, x) for x in inv):
                 raise Invalid(xf, "אפשר להפוך רק חיישן או מתג (פעיל / כבוי).")
             if any(x not in ents for x in inv):
@@ -651,12 +652,12 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
         elif field in ("default_days", "retention_days", "boards_max"):
             lo, hi = {"default_days": (1, 90), "retention_days": (30, 3650), "boards_max": (1, 50)}[field]
             if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
-                raise Invalid(field, f"מספר בין {lo} ל-{hi}.")
+                raise Invalid(field, tpl("מספר בין {lo} ל-{hi}.", lo=lo, hi=hi))
             out[key] = str(value)
         elif field in ("conn_total", "conn_per_address"):
             lo, hi = CONN_TOTAL_RANGE if field == "conn_total" else CONN_PER_ADDRESS_RANGE
             if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
-                raise Invalid(field, f"מספר בין {lo} ל-{hi}.")
+                raise Invalid(field, tpl("מספר בין {lo} ל-{hi}.", lo=lo, hi=hi))
             out[key] = str(value)
         elif field == "default_severity":
             if value not in ("info", "alert"):
@@ -677,14 +678,14 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
         elif field in ("parking_entities", "gym_entities"):
             kind = field.split("_")[0]
             if not isinstance(value, list) or len(value) > INFO_SOURCE_MAX:
-                raise Invalid(field, f"עד {INFO_SOURCE_MAX} ישויות.")
+                raise Invalid(field, tpl("עד {info_source_max} ישויות.", info_source_max=INFO_SOURCE_MAX))
             if not all(info_source_ok(kind, x) for x in value):
                 raise Invalid(field, "ישות שהסימון לא יכול לקרוא.")
             out[key] = json.dumps(list(dict.fromkeys(value)))
         elif field in ("parking_inverted", "gym_inverted"):  # BOARD-ANSWERS-2400 (Q16 = A); subset of the sources: with_info_invert
             kind = field.split("_")[0]
             if not isinstance(value, list) or len(value) > INFO_SOURCE_MAX:
-                raise Invalid(field, f"עד {INFO_SOURCE_MAX} ישויות.")
+                raise Invalid(field, tpl("עד {info_source_max} ישויות.", info_source_max=INFO_SOURCE_MAX))
             if not all(info_invert_ok(kind, x) for x in value):
                 raise Invalid(field, "אפשר להפוך רק חיישן או מתג (פעיל / כבוי).")
             out[key] = json.dumps(list(dict.fromkeys(value)))

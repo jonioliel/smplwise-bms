@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 from ...config import Settings
 from ...db import ID_RE, new_id, now_iso
 from .. import safe_paths
+from ...error_text import tpl
 
 STATES = ("all_off", "all_on")
 CONTROL_SIZE = (1536, 1024)  # = provider.OPENAI_SIZES[1]: the answer comes back on the same grid
@@ -146,7 +147,7 @@ def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple
     import zlib
 
     if len(data) > CONTROL_MAX_BYTES:
-        raise ControlImageError("payload_too_large", f"תמונת הבקרה גדולה מ־{CONTROL_MAX_BYTES // (1024 * 1024)} MB.")
+        raise ControlImageError("payload_too_large", tpl("תמונת הבקרה גדולה מ־{max_mb} MB.", max_mb=CONTROL_MAX_BYTES // (1024 * 1024)))
     if not data.startswith(PNG_SIGNATURE):
         raise ControlImageError("unsupported_format", "תמונת הבקרה חייבת להיות PNG (הזיהוי לפי התוכן).")
     pos, seen = len(PNG_SIGNATURE), []
@@ -176,7 +177,7 @@ def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple
     except Exception as exc:  # noqa: BLE001 - the decoder refuses the file: the upload is the problem
         raise ControlImageError("corrupt_png", "לא ניתן לפענח את ה־PNG.", {"error": type(exc).__name__}) from None
     if size != expected:
-        raise ControlImageError("control_size", f"תמונת הבקרה חייבת להיות {expected[0]}x{expected[1]} פיקסלים.", {"size": list(size)})
+        raise ControlImageError("control_size", tpl("תמונת הבקרה חייבת להיות {expected}x{expected2} פיקסלים.", expected=expected[0], expected2=expected[1]), {"size": list(size)})
     return size
 
 

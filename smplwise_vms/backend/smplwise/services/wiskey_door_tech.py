@@ -54,6 +54,7 @@ from . import intercom_client
 from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 CHANNEL = "door_technical"  # services/wiskey_channels.py DOOR_TECHNICAL
 LANE = "door_tech"  # intercom_sync: no lane of its own -> a read slot and the read buckets; Arx's own limits below on top
@@ -245,7 +246,7 @@ def _minute(value: Any, field: str, *, end: bool = False) -> int:
 
 def _periods(value: Any, field: str) -> list[dict[str, str]]:
     if not isinstance(value, list) or len(value) > MAX_PERIODS:
-        raise invalid(field, "schedule_period_limit", f"עד {MAX_PERIODS} טווחי שעות ביום.")
+        raise invalid(field, "schedule_period_limit", tpl("עד {max_periods} טווחי שעות ביום.", max_periods=MAX_PERIODS))
     out = []
     for i, item in enumerate(value):
         if not isinstance(item, dict) or set(item) != {"start", "end"}:
@@ -274,7 +275,7 @@ def _date(value: Any, field: str) -> date:
 
 def _name(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > NAME_MAX or any(ord(c) < 32 for c in value):
-        raise invalid(field, "invalid_text", f"שם חייב להכיל 1-{NAME_MAX} תווים, ללא תווי בקרה.")
+        raise invalid(field, "invalid_text", tpl("שם חייב להכיל 1-{name_max} תווים, ללא תווי בקרה.", name_max=NAME_MAX))
     return value.strip()
 
 
@@ -298,7 +299,7 @@ def policy(value: Any) -> dict[str, Any]:
     week = {day: _periods(weekly[day], f"policy.weekly.{day}") for day in WEEKDAYS}
     holidays = value["holidays"]
     if not isinstance(holidays, list) or len(holidays) > MAX_HOLIDAYS:
-        raise invalid("policy.holidays", "schedule_holiday_limit", f"עד {MAX_HOLIDAYS} תאריכים מיוחדים.")
+        raise invalid("policy.holidays", "schedule_holiday_limit", tpl("עד {max_holidays} תאריכים מיוחדים.", max_holidays=MAX_HOLIDAYS))
     out = []
     for i, h in enumerate(holidays):
         f = f"policy.holidays.{i}"
@@ -323,7 +324,7 @@ def code_value(value: Any, field: str) -> str:
     never put in the error, the audit or the log."""
     if isinstance(value, str) and value.isascii() and value.isdecimal() and CODE_MIN <= len(value) <= CODE_MAX:
         return value
-    raise invalid(field, "invalid_code", f"קוד חייב להכיל {CODE_MIN}-{CODE_MAX} ספרות.")
+    raise invalid(field, "invalid_code", tpl("קוד חייב להכיל {code_min}-{code_max} ספרות.", code_min=CODE_MIN, code_max=CODE_MAX))
 
 
 def confirm_phrase(slot: int) -> str:

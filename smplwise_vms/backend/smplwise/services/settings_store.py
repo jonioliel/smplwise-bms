@@ -14,6 +14,7 @@ from typing import Any
 from ..db import get_setting, get_settings_many
 from ..errors import ApiError
 from . import app_download, area_row, automation_settings, brand_colors, home_screen, home_screen_options, intercom_authority, look, media_layout, mobile_options, nav_size, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
+from ..error_text import tpl
 
 DEFAULTS: dict[str, str] = {
     # auto | webrtc | mse. Automatic by default (owner decision 2026-10-05, supersedes the MSE default of 2026-09-14):
@@ -822,12 +823,12 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
     422 for a non-object, unknown keys, non-slug ids, non-list / non-string entries, a style outside the allow-list or a
     size over the caps."""
     def bad(msg: str) -> ApiError:
-        return ApiError(422, "validation", f"סדר הלשוניות: {msg}", details={"ui.tabs": msg})
+        return ApiError(422, "validation", tpl("סדר הלשוניות: {msg}", msg=msg), details={"ui.tabs": msg})
 
     if not isinstance(value, dict):
         raise bad("חייב להיות אובייקט של מקטעים.")
     if len(value) > TABS_MAX_SECTIONS:
-        raise bad(f"עד {TABS_MAX_SECTIONS} מקטעים.")
+        raise bad(tpl("עד {tabs_max_sections} מקטעים.", tabs_max_sections=TABS_MAX_SECTIONS))
     out: dict[str, Any] = {}
     for section, cfg in value.items():
         if not isinstance(section, str) or not TABS_SLUG.fullmatch(section):
@@ -853,7 +854,7 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
         for name in ("order", "hidden"):
             items = cfg.get(name, [])
             if not isinstance(items, list) or len(items) > TABS_MAX_PER_LIST:
-                raise bad(f"{name} חייב להיות רשימה של עד {TABS_MAX_PER_LIST} מזהים.")
+                raise bad(tpl("{name} חייב להיות רשימה של עד {tabs_max_per_list} מזהים.", name=name, tabs_max_per_list=TABS_MAX_PER_LIST))
             seen: list[str] = []
             for tab in items:
                 if not isinstance(tab, str) or not TABS_SLUG.fullmatch(tab):

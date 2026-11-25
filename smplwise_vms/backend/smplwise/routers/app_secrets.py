@@ -30,6 +30,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .nvr_connection import _parse
 from ..wire import app_secrets as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -200,7 +201,7 @@ def test_secret(name: str, request: Request, principal: Principal = Depends(_adm
     if wait:
         audit(conn, actor=principal, action="secret.test", decision="denied", resource_type="secret", resource_id=name, reason="rate_limited", request_id=_rid(request),
               details={"name": name})
-        raise ApiError(429, "rate_limited", f"יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+        raise ApiError(429, "rate_limited", tpl("יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), retryable=True, details={"retry_after_s": wait})
     outcome = _probe_go2rtc(settings, value) if spec.test == "go2rtc" else _probe_wiskey(conn, settings, value)
     audit(conn, actor=principal, action="secret.test", decision="allowed", resource_type="secret", resource_id=name, request_id=_rid(request),
           details={"name": name, "outcome": outcome, "candidate": body.value is not None})

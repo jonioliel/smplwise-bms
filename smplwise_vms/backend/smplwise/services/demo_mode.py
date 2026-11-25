@@ -37,6 +37,7 @@ from ..db import Database, bump_permission_revision, get_setting, new_id, releas
 from ..errors import ApiError
 from ..rbac import Principal
 from .timeutil import iso_utc, parse_utc
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.demo")
 UTC = dt.timezone.utc
@@ -174,7 +175,7 @@ def start(db: Database, settings: Settings, conn: sqlite3.Connection, principal:
     if dataset not in DATASETS or scenario not in SCENARIOS:
         raise ApiError(422, "invalid_demo", "מערך נתונים או תרחיש לא מוכרים.")
     if not (0 < hours <= MAX_HOURS):
-        raise ApiError(422, "invalid_demo", f"משך ההדגמה חייב להיות עד {MAX_HOURS} שעות.")
+        raise ApiError(422, "invalid_demo", tpl("משך ההדגמה חייב להיות עד {max_hours} שעות.", max_hours=MAX_HOURS))
     if remote and not (holds_anywhere or setting_allow_remote(conn)):
         audit(conn, actor=principal, action="demo.start", decision="denied", resource_type="installation", resource_id="*", reason="remote_refused", request_id=rid)
         raise ApiError(403, "demo_remote_refused", "הדגמה מרחוק מותרת רק בשרת של חברת ההתקנה.")

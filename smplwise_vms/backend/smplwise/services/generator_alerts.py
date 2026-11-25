@@ -36,6 +36,7 @@ from . import notify_recipients
 from .notify_visibility import principal_of
 from .timeutil import iso_utc, parse_utc
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.generator")
 
@@ -574,7 +575,7 @@ def validate_template(value: Any) -> str | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     if not isinstance(value, str) or len(value) > TEMPLATE_MAX:
-        raise RoutingInvalid("template_invalid", f"התבנית חייבת להיות טקסט עד {TEMPLATE_MAX} תווים.", {"field": "template_he"})
+        raise RoutingInvalid("template_invalid", tpl("התבנית חייבת להיות טקסט עד {template_max} תווים.", template_max=TEMPLATE_MAX), {"field": "template_he"})
     try:
         parts = list(string.Formatter().parse(value))
     except ValueError:

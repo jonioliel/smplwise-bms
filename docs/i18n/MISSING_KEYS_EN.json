@@ -2,7 +2,7 @@
  "totals": {
   "lang": "en",
   "catalogues": 156,
-  "keys": 31659,
+  "keys": 31660,
   "missing": 20,
   "identical": 3,
   "hebrew": 0,
@@ -11,7 +11,7 @@
   "hardcodedModules": 1,
   "hardcodedLiterals": 34,
   "hardcodedFiles": 5,
-  "keptLiterals": 834
+  "keptLiterals": 837
  },
  "catalogues": [
   {
@@ -1611,7 +1611,7 @@
   },
   {
    "name": "msg/devices",
-   "keys": 919,
+   "keys": 956,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1643,7 +1643,7 @@
   },
   {
    "name": "msg/home",
-   "keys": 1257,
+   "keys": 1221,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -2662,12 +2662,12 @@
    "kind": "app",
    "files": 0,
    "literals": 0,
-   "kept": 4,
+   "kept": 7,
    "fileList": [
     {
      "file": "pwa/offline-page.ts",
      "literals": 0,
-     "kept": 1
+     "kept": 4
     },
     {
      "file": "pwa/push-v2.ts",

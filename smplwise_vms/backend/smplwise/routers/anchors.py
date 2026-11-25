@@ -25,6 +25,7 @@ from .settings import read_settings
 from ..services.settings_store import setting_value
 from ..wire import anchors as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -355,7 +356,7 @@ def _scrub_instant(value: str | None, name: str) -> str:
     try:
         return parse_utc(value or "").strftime("%Y-%m-%dT%H:%M:%SZ")
     except (ValueError, TypeError):
-        raise ApiError(422, "validation", f"{name}: זמן חייב להיות UTC (Z).")
+        raise ApiError(422, "validation", tpl("{name}: זמן חייב להיות UTC (Z).", name=name))
 
 
 def _note_presence_view(conn: sqlite3.Connection, principal: Principal, floor_id: str, request: Request) -> None:
@@ -413,7 +414,7 @@ def floor_history_range(floor_id: str, request: Request, frm: str | None = Query
         raise ApiError(422, "validation", "סוף התקופה חייב להיות אחרי תחילתה.")
     max_days = timescrub.range_max_days(settings)
     if (parse_utc(hi) - parse_utc(lo)).total_seconds() > max_days * 86400:
-        raise ApiError(422, "range_too_long", f"תקופה ארוכה מדי: עד {max_days} ימים בבקשה אחת.", details={"max_days": max_days})
+        raise ApiError(422, "range_too_long", tpl("תקופה ארוכה מדי: עד {max_days} ימים בבקשה אחת.", max_days=max_days), details={"max_days": max_days})
     wanted = [x for x in (layers.split(",") if layers else timescrub.RANGE_LAYERS) if x]
     unknown = [x for x in wanted if x not in timescrub.RANGE_LAYERS]
     if unknown:

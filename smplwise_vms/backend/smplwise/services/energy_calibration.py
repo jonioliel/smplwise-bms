@@ -30,6 +30,7 @@ from ..db import has_table, new_id
 from ..errors import ApiError, conflict
 from . import energy_store as st
 from .timeutil import iso_from_epoch_or_none, parse_utc
+from ..error_text import tpl
 
 UTC = dt.timezone.utc
 UNDO_WINDOW_S = 24 * 3600
@@ -95,7 +96,7 @@ def parse_factor(value: Any) -> Decimal:
     f = to_decimal(value, "factor")
     exp = f.as_tuple().exponent
     if isinstance(exp, int) and exp < -FACTOR_PLACES:
-        raise ApiError(422, "validation", f"המקדם יכול לכלול עד {FACTOR_PLACES} ספרות אחרי הנקודה.", details={"fields": ["factor"]})
+        raise ApiError(422, "validation", tpl("המקדם יכול לכלול עד {factor_places} ספרות אחרי הנקודה.", factor_places=FACTOR_PLACES), details={"fields": ["factor"]})
     if not FACTOR_MIN <= f <= FACTOR_MAX:
         raise ApiError(422, "validation", "המקדם חייב להיות בין 0.5 ל-2.", details={"fields": ["factor"]})
     return f

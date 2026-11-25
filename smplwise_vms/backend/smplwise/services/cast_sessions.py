@@ -46,6 +46,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize
 from . import cast_relay, ha_bridge, ha_client, media_model as mm, media_store as store
 from . import service_identity
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.cast")
 
@@ -190,7 +191,7 @@ def update_config(conn: sqlite3.Connection, settings: Settings, body: dict[str, 
         if name in body:
             v = body[name]
             if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
-                raise ApiError(422, "validation", f"{name}: {lo} עד {hi}.", details={"fields": [name]})
+                raise ApiError(422, "validation", tpl("{name}: {lo} עד {hi}.", name=name, lo=lo, hi=hi), details={"fields": [name]})
             put(key, name, str(v))
     if "blocked_display" in body:
         if body["blocked_display"] not in BLOCKED_DISPLAY:

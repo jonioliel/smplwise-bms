@@ -22,6 +22,7 @@ from ..errors import ApiError
 from . import go2rtc as g2
 from .timeutil import UTC, compact_wall, iso_utc, zone
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.playback")
 
@@ -275,7 +276,7 @@ def seek_retry_after(session: PlaybackSession, max_per_min: int | None, now: flo
 
 
 def seek_rate_error(max_per_min: int, retry: int) -> ApiError:
-    return ApiError(429, "seek_rate", f"יותר מדי קפיצות בזמן בדקה האחרונה (עד {max_per_min} בדקה); הניגון ממשיך מהנקודה הנוכחית. אפשר לקפוץ שוב בעוד {retry} שניות.",
+    return ApiError(429, "seek_rate", tpl("יותר מדי קפיצות בזמן בדקה האחרונה (עד {max_per_min} בדקה); הניגון ממשיך מהנקודה הנוכחית. אפשר לקפוץ שוב בעוד {retry} שניות.", max_per_min=max_per_min, retry=retry),
                     retryable=True, details={"max_per_min": max_per_min, "retry_after_s": retry})
 
 

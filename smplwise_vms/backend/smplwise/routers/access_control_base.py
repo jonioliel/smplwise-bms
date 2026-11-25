@@ -15,6 +15,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import door_authority, intercom_authority as ia
 from ._common import rid as _rid
+from ..error_text import tpl
 
 
 log = logging.getLogger("smplwise.intercom")
@@ -75,5 +76,5 @@ def _instant(name: str, value: str | None) -> str | None:
     except ValueError:
         parsed = None
     if parsed is None or parsed.tzinfo is None:
-        raise ApiError(422, "validation", f"{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-09-27T08:00:00Z).")
+        raise ApiError(422, "validation", tpl("{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-09-27T08:00:00Z).", name=name))
     return value

@@ -16,6 +16,7 @@ from ...services import settings_patch_identity_store as store
 from ...services.settings_store import DEFAULTS
 from .._common import rid as _rid
 from . import Patch
+from ...error_text import tpl
 
 # CR-I18N-CONFIRM-WORDS-2442: the words live in services/confirm_words.py (Hebrew, or the fixed English counterpart)
 ALLOW_DISARM_WORD = confirm_words.he("schedules_allow_disarm")
@@ -58,7 +59,7 @@ def allow_disarm(patch: Patch) -> None:
             if changes["schedules.allow_disarm"] == "true":
                 patch.disarm_word = confirm_words.typed_lang("schedules_allow_disarm", disarm_confirm)
             if changes["schedules.allow_disarm"] == "true" and patch.disarm_word is None:
-                raise field_error(f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", ["schedules.allow_disarm_confirm"], code="confirm_required", legacy={"field": "schedules.allow_disarm_confirm"})
+                raise field_error(tpl("כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{allow_disarm_word}\".", allow_disarm_word=ALLOW_DISARM_WORD), ["schedules.allow_disarm_confirm"], code="confirm_required", legacy={"field": "schedules.allow_disarm_confirm"})
             patch.disarm_change = changes["schedules.allow_disarm"]
 
 
@@ -244,7 +245,7 @@ def local_purge(patch: Patch) -> None:
         purge_word = confirm_words.typed_lang("privacy_local_purge", purge_confirm) if key == "privacy.local_purge" and new == "on" else None
         if key == "privacy.local_purge" and new == "on" and purge_word is None:
             due = len(local_privacy.purge_due(conn))
-            raise field_error(f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".", ["privacy.local_purge_confirm"], code="confirm_required", legacy={"field": "privacy.local_purge_confirm"}, extra={"due_now": due})
+            raise field_error(tpl("המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{local_purge_word}\".", local_purge_word=LOCAL_PURGE_WORD), ["privacy.local_purge_confirm"], code="confirm_required", legacy={"field": "privacy.local_purge_confirm"}, extra={"due_now": due})
         audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
               request_id=_rid(request),
               details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local", **({"confirm_word": purge_word} if purge_word else {})})

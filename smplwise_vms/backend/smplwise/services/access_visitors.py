@@ -37,6 +37,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin
 from . import access_grants as ag
 from . import confirm_words
+from ..error_text import tpl
 
 PERMISSION = "access.visitor.invite"
 FLAG_KEY = "access.visitors"
@@ -449,7 +450,7 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל המבקרים.")
         confirm_word = confirm_words.typed_lang("visitors_revoke_all", confirm)
         if confirm_word is None:
-            raise ApiError(422, "confirm_word", f"יש להקליד \"{REVOKE_ALL_WORD}\" לאישור.")
+            raise ApiError(422, "confirm_word", tpl("יש להקליד \"{revoke_all_word}\" לאישור.", revoke_all_word=REVOKE_ALL_WORD))
         marks = ",".join("?" * len(ag.LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT g.* FROM access_grants g JOIN access_visitor_invites vi ON vi.grant_id = g.id WHERE g.state IN ({marks})",
                                               ag.LIVE).fetchall()]

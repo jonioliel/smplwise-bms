@@ -47,6 +47,7 @@ from ..wire import devices as W
 from ..wire import wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 router = APIRouter()
 READ = "devices.read"
@@ -383,7 +384,7 @@ def refresh_from_ha(principal: Principal = Depends(current_principal_ro), conn: 
         last = _last_refresh.get(principal.user_id)
         if last is not None and now - last < REFRESH_EVERY_S:
             wait = max(1, math.ceil(REFRESH_EVERY_S - (now - last)))
-            raise ApiError(429, "refresh_rate_limited", f"הרענון האחרון היה לפני רגע; אפשר לרענן שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+            raise ApiError(429, "refresh_rate_limited", tpl("הרענון האחרון היה לפני רגע; אפשר לרענן שוב בעוד {wait} שניות.", wait=wait), retryable=True, details={"retry_after_s": wait})
         _last_refresh[principal.user_id] = now
     result = ha_sync.SYNC.refresh_now()
     return {**result, "sync": ha_sync.STATE.as_dict()}
@@ -870,7 +871,7 @@ def _envelope(act: _Refusals, body: BulkBody) -> dt.datetime:
     if expires <= now:
         raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שהגיעה לשרת, ולכן לא נשלח דבר. אם השעון במכשיר שלכם אינו מדויק, תקנו אותו."))
     if expires > now + dt.timedelta(seconds=bulk.EXPIRY_MAX_S):
-        raise act.refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(bulk.EXPIRY_MAX_S)} שניות."))
+        raise act.refuse(ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(bulk.EXPIRY_MAX_S))))
     seen = store.bulk_action_by_client_request(act.conn, act.principal.user_id, body.client_request_id)
     if seen:
         raise act.refuse(ApiError(409, "duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב.", details={"bulk_id": seen["id"]}))
@@ -964,7 +965,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     turning_on = body.kind in bulk.ON_KINDS  # ALLON: "הדלק הכל" - the words must be true for a kind that turns something ON
     if not plan["count"]:
         why = "אין בהיקף הזה התקן כבוי מהסוג הזה" if turning_on else "אין בהיקף הזה התקן פעיל מהסוג הזה"
-        raise act.refuse(ApiError(409, "nothing_to_do", f"אין מה לשלוח: לפי הדיווח האחרון {why}.", details={"skipped": plan["skipped"]}))
+        raise act.refuse(ApiError(409, "nothing_to_do", tpl("אין מה לשלוח: לפי הדיווח האחרון {why}.", why=why), details={"skipped": plan["skipped"]}))
     settings = settings_of(request)
     if not service_identity.identity_ok(principal, settings):  # CR-008 + USR2 P3 (a local principal: the service identity's allow-list)
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))

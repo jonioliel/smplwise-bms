@@ -51,6 +51,7 @@ from .events import _with_names, _with_thumbs
 from .settings import read_settings
 from ..services.settings_store import setting_value
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -612,7 +613,7 @@ def case_integrity(case_id: str, request: Request, principal: Principal = Depend
     todo = [(i["id"], i["kind"], i["file_path"], i["file_sha256"]) for i in items if i["file_path"] and i["file_sha256"]]
     wait = INTEGRITY_COOLDOWN_S - (time.monotonic() - _integrity_last.get(case_id, -1e9))
     if wait > 0:
-        raise ApiError(429, "cooldown", f"התיק נבדק לפני רגע; אפשר לבדוק שוב בעוד {int(wait) + 1} שניות.", retryable=True, details={"retry_after_s": int(wait) + 1})
+        raise ApiError(429, "cooldown", tpl("התיק נבדק לפני רגע; אפשר לבדוק שוב בעוד {wait} שניות.", wait=int(wait) + 1), retryable=True, details={"retry_after_s": int(wait) + 1})
     if not _INTEGRITY_LOCK.acquire(blocking=False):
         raise _busy()
 
@@ -717,7 +718,7 @@ def _limits(cap: int) -> bundle_svc.Limits:
 
 
 def _too_large(cap: int) -> ApiError:
-    return ApiError(413, "payload_too_large", f"החבילה גדולה מהמותר ({cap // MB} MB; ההגדרה cases.import_max_mb).", details={"max_bytes": cap})
+    return ApiError(413, "payload_too_large", tpl("החבילה גדולה מהמותר ({cap} MB; ההגדרה cases.import_max_mb).", cap=cap // MB), details={"max_bytes": cap})
 
 
 def _upload_timeout() -> ApiError:
@@ -935,7 +936,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
     with db.connection(mode="read", label="POST /cases/bundles/import") as r:
         existing = duplicate(r)
     if existing:
-        raise refused(409, "already_imported", f"החבילה הזו כבר יובאה לתיק \"{existing['title']}\".", "duplicate", case_id=existing["id"], title=existing["title"])
+        raise refused(409, "already_imported", tpl("החבילה הזו כבר יובאה לתיק \"{title}\".", title=existing['title']), "duplicate", case_id=existing["id"], title=existing["title"])
     try:
         report, manifest = bundle_svc.verify_source(up["path"], keyring, local_iid, _limits(cap))
     except bundle_svc.UnsafeBundle as exc:
@@ -969,7 +970,7 @@ def _import_bundle(db: Database, settings: Settings, up: dict[str, Any], princip
             again = duplicate(w)
             if again:
                 audit(w, actor=principal, action="case.import", decision="denied", resource_type="bundle", resource_id=sha, reason="duplicate", request_id=rid, details={"case_id": again["id"]})
-                raise conflict("already_imported", f"החבילה הזו כבר יובאה לתיק \"{again['title']}\".", case_id=again["id"], title=again["title"])
+                raise conflict("already_imported", tpl("החבילה הזו כבר יובאה לתיק \"{title}\".", title=again['title']), case_id=again["id"], title=again["title"])
             if final.exists():
                 shutil.rmtree(final)  # the leftover of an import that crashed before its commit: no case refers to it (checked above)
             final.parent.mkdir(parents=True, exist_ok=True)

@@ -25,6 +25,7 @@ from ..rbac import Principal
 from . import ma_direct as ma, media_commands, media_model as mm, media_profiles as profiles, media_query, media_store as store
 from .timeutil import parse_utc
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 EDIT_DEVICE = (2.0, 4.0)  # queue edits: 2 a second per device (a burst of 4: a few quick drags)
 EDIT_USER = (0.5, 30.0)  # ... and 30 a minute per user (burst 30, refill 1 every 2 s)
@@ -191,7 +192,7 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
     elif op == "delete_many":
         tokens = body.get("items")
         if not isinstance(tokens, list) or not 1 <= len(tokens) <= MANY_MAX or len(set(tokens)) != len(tokens):
-            raise _deny(conn, principal, request_id, item.key, op, _err(422, "validation", f"אפשר לבחור עד {MANY_MAX} שירים.", fields=["items"]))
+            raise _deny(conn, principal, request_id, item.key, op, _err(422, "validation", tpl("אפשר לבחור עד {many_max} שירים.", many_max=MANY_MAX), fields=["items"]))
         for tok in tokens:
             ref = ma.resolve(principal.user_id, target.key, tok)
             if ref is None:

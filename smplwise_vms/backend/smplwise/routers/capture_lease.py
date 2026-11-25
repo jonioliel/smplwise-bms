@@ -38,6 +38,7 @@ from ._common import rid as _rid
 from ..services import confirm_words
 from ..wire import capture_lease as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -97,7 +98,7 @@ def put_lease_settings(body: LeaseSettingsBody, request: Request, principal: Pri
     widening = body.lookup_scope == "holder_or_audit_readers" and cl.lookup_scope(conn) != "holder_or_audit_readers"
     wide_word = confirm_words.typed_lang("capture_lookup_wide", body.lookup_scope_confirm) if widening else None  # "he" / "en", for the audit row
     if widening and wide_word is None:
-        raise field_error(f"כדי להרחיב את הבירור גם למחזיקי הרשאת צפייה באודיט יש להקליד \"{cl.LOOKUP_WIDE_WORD}\".", ["lookup_scope_confirm"], code="confirm_required", legacy={"field": "lookup_scope_confirm"})
+        raise field_error(tpl("כדי להרחיב את הבירור גם למחזיקי הרשאת צפייה באודיט יש להקליד \"{lookup_wide_word}\".", lookup_wide_word=cl.LOOKUP_WIDE_WORD), ["lookup_scope_confirm"], code="confirm_required", legacy={"field": "lookup_scope_confirm"})
     if body.capture_lease is not None:
         before = cl.mode(conn)
         if body.capture_lease == "on" and not cl.go_live_permitted():  # review M4: the owner's separate go-live permit, in code

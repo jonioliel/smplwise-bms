@@ -31,6 +31,7 @@ from ..services.settings_store import setting_value
 from ._common import rid as _rid
 from ..wire import playback_groups as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 GAP_TOLERANCE_S = 60  # a member whose next recording starts later than this is a gap, not a late starter
@@ -113,7 +114,7 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     ensure_nvr(settings)  # NVR-less mode: 409 after the camera permission, before the go2rtc check
     ensure_capability(settings, "playback")  # NN1: no go2rtc = 409 capability_unavailable (was 503 media_not_configured)
     if len(pb.REGISTRY.active()) + len(ids) > s["playback.max_sessions"]:
-        raise ApiError(429, "playback_quota", f"קבוצה של {len(ids)} מצלמות חורגת ממכסת סשני הניגון ({s['playback.max_sessions']}).", retryable=True)
+        raise ApiError(429, "playback_quota", tpl("קבוצה של {ids} מצלמות חורגת ממכסת סשני הניגון ({playback_max_sessions}).", ids=len(ids), playback_max_sessions=s['playback.max_sessions']), retryable=True)
     group = pg.PlaybackGroup(id=uuid.uuid4().hex[:10], user_id=principal.user_id, requested_at=start)
     if cross:  # CR-024 experimental: every recorder's zone and clock offset, read once for the group's life (seeks reuse them)
         zones = recorder_clock.recorder_zones(conn, recorders, s["time.zone"])

@@ -45,6 +45,7 @@ from . import intercom_authority as ia
 from . import intercom_write_journal as wj
 from .access_grant_engine import NAME_MAX, EngineError
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.access_external")
 
@@ -377,7 +378,7 @@ def confirm_gone(db: Database, principal: Principal, grant_id: str, *, reference
             raise deny("checks", field_error("יש לסמן את שלוש הבדיקות.", ["checks"], legacy={"field": "checks"}))
         confirm_word = confirm_words.typed_lang("access_gone", confirm)
         if confirm_word is None:
-            raise deny("confirm", field_error(f"כדי להמשיך יש להקליד \"{GONE_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"}))
+            raise deny("confirm", field_error(tpl("כדי להמשיך יש להקליד \"{gone_word}\".", gone_word=GONE_WORD), ["confirm"], code="confirm_required", legacy={"field": "confirm"}))
         ref = _reference_ok(reference)
         if ref is None:
             raise deny("reference", field_error("אסמכתא של 8 עד 128 תווים, בלי מספרי טלפון.", ["reference"], legacy={"field": "reference"}))

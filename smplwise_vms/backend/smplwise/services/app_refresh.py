@@ -39,6 +39,7 @@ from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
 from . import app_refresh_key as dk
 from . import device_attestation as att
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.app_refresh")
 
@@ -316,7 +317,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
         elif key in xs.POLICY:
             _, lo, hi = xs.POLICY[key]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-                raise field_error(f"ערך בין {lo} ל־{hi}.", [key], legacy={"field": key})
+                raise field_error(tpl("ערך בין {lo} ל־{hi}.", lo=lo, hi=hi), [key], legacy={"field": key})
             changes[key] = value
         elif key == FEATURE_KEY:
             if value not in ("on", "off"):
@@ -354,7 +355,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
         elif key in POLICY:
             _, lo, hi = POLICY[key]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-                raise field_error(f"ערך בין {lo} ל־{hi}.", [key], legacy={"field": key})
+                raise field_error(tpl("ערך בין {lo} ל־{hi}.", lo=lo, hi=hi), [key], legacy={"field": key})
             changes[key] = value
         else:
             raise field_error("הגדרה לא מוכרת.", [str(key)[:80]], legacy={"field": str(key)[:80]})
@@ -365,7 +366,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
     if changes.get(xs.FEATURE_KEY) == "on" and changes.get(FEATURE_KEY, "on" if enabled(conn) else "off") != "on":
         raise field_error("את חיבור מסך האפליקציה מפעילים רק כשהכניסה השמורה באפליקציה פעילה.", [xs.FEATURE_KEY], legacy={"field": xs.FEATURE_KEY})
     if exchange_on and merged[ACCESS_KEY] > xs.ACCESS_MAX_WHILE_ON:  # review S-02 / F-09: a short access token while it can become a session
-        raise field_error(f"כשחיבור מסך האפליקציה פעיל, תוקף אסימון הגישה עד {xs.ACCESS_MAX_WHILE_ON} דקות.", [ACCESS_KEY], legacy={"field": ACCESS_KEY}, extra={"max": xs.ACCESS_MAX_WHILE_ON})
+        raise field_error(tpl("כשחיבור מסך האפליקציה פעיל, תוקף אסימון הגישה עד {access_max_while_on} דקות.", access_max_while_on=xs.ACCESS_MAX_WHILE_ON), [ACCESS_KEY], legacy={"field": ACCESS_KEY}, extra={"max": xs.ACCESS_MAX_WHILE_ON})
     ended = 0
     for key, value in changes.items():
         set_setting(conn, key, str(value))

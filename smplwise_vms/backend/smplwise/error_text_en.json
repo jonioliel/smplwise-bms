@@ -1,6 +1,7 @@
 {
 "\"כל המפסקים\" חל רק על הדלקת תאורה וכיבוי תאורה.": "\"All switches\" applies only to switching lights on and off.",
 "\"כל המפסקים\" חל רק על רשימת התאורה.": "\"All switches\" applies only to the lights list.",
+"Arx לא התחיל קריאה כזו - אין מה לבדוק.": "Arx did not start such a read - there is nothing to check.",
 "Arx מסיים רק אירועים ידניים שהוא יצר בעצמו.": "Arx only ends manual events that it created itself.",
 "Arx משנה או מוחק רק פריטים שהוא יצר בעצמו.": "Arx only changes or deletes items that it created itself.",
 "Frigate אינו זמין כרגע.": "Frigate is not available right now.",
@@ -352,6 +353,7 @@
 "גודל המסכות אינו תקין.": "Invalid mask size.",
 "גודל התמונה המוכנה אינו בטווח המותר.": "The size of the baked image is outside the allowed range.",
 "גוף ה־multipart אינו תקין.": "The multipart body is not valid.",
+"גוף הבקשה אינו JSON תקין": "The request body is not valid JSON",
 "גוף הבקשה אינו JSON תקין.": "The request body is not valid JSON.",
 "גוף הבקשה אינו תקין.": "The request body is not valid.",
 "גוף הבקשה גדול מדי.": "The request body is too large.",
@@ -1031,6 +1033,7 @@
 "השדה אינו יכול להכיל שורה חדשה.": "The field cannot contain a line break.",
 "השדה מכיל תווים שאינם מותרים.": "The field contains characters that are not allowed.",
 "השדה נעול בגלל ערך של שדה אחר.": "The field is locked because of the value of another field.",
+"השדות אינם תואמים לחוזה הקריאה": "The fields do not match the read's contract",
 "השידור החי של המצלמה אינו זמין כרגע.": "The camera's live broadcast is unavailable right now.",
 "השידור מהעמדה אינו זמין כרגע.": "The broadcast from the station is unavailable right now.",
 "השיוך לא נמצא או כבר בוטל.": "The assignment was not found or has already been cancelled.",

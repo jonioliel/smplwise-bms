@@ -27,6 +27,7 @@ from typing import Any
 from ..db import get_setting, set_setting
 from ..errors import ApiError, conflict
 from . import energy_settings as es
+from ..error_text import tpl
 
 SETTINGS_KEY = "energy.calendar"
 KINDS = ("holiday", "holiday_eve", "regular")
@@ -248,7 +249,7 @@ def _err(code: str, message: str, **details: Any) -> ApiError:
 
 def year_view(conn: sqlite3.Connection, year: int) -> dict[str, Any]:
     if not MIN_YEAR <= year <= MAX_YEAR:
-        raise _err("validation", f"השנה חייבת להיות בין {MIN_YEAR} ל-{MAX_YEAR}.", fields=["year"])
+        raise _err("validation", tpl("השנה חייבת להיות בין {min_year} ל-{max_year}.", min_year=MIN_YEAR, max_year=MAX_YEAR), fields=["year"])
     cfg = read_config(conn)
     cal = Calendar(cfg)
     days = []
@@ -270,15 +271,15 @@ def set_override(conn: sqlite3.Connection, day: dt.date, kind: str, name_he: str
     if kind not in KINDS:
         raise _err("validation", "סוג היום אינו מוכר.", fields=["kind"])
     if not MIN_YEAR <= day.year <= MAX_YEAR:
-        raise _err("validation", f"התאריך חייב להיות בין {MIN_YEAR} ל-{MAX_YEAR}.", fields=["date"])
+        raise _err("validation", tpl("התאריך חייב להיות בין {min_year} ל-{max_year}.", min_year=MIN_YEAR, max_year=MAX_YEAR), fields=["date"])
     name = (name_he or "").strip()
     if len(name) > MAX_NAME:
-        raise _err("validation", f"השם ארוך מ-{MAX_NAME} תווים.", fields=["name_he"])
+        raise _err("validation", tpl("השם ארוך מ-{max_name} תווים.", max_name=MAX_NAME), fields=["name_he"])
     cfg = read_config(conn)
     _check_revision(cfg, base_revision)
     key = day.isoformat()
     if key not in cfg["overrides"] and len(cfg["overrides"]) >= MAX_OVERRIDES:
-        raise _err("validation", f"אפשר לשמור עד {MAX_OVERRIDES} ימים ידניים.", fields=["date"])
+        raise _err("validation", tpl("אפשר לשמור עד {max_overrides} ימים ידניים.", max_overrides=MAX_OVERRIDES), fields=["date"])
     cfg["overrides"][key] = {"kind": kind, "name_he": name}
     cfg["revision"] += 1
     _store(conn, cfg)

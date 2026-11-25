@@ -6,15 +6,49 @@
  * KIOSK polish (2026-10-11): the page has no token sheet (it is served by the worker alone), so the classic values of
  * design/tokens.ts are written here by hand for BOTH schemes (`prefers-color-scheme`), the button is a 48 px target, the
  * type is the shell's body size and the card keeps clear of the notch and the home indicator in standalone mode.
+ *
+ * I18N-RUNTIME-ERRORS-2520: the words come from a small Hebrew / English table (the worker cannot read the language packs), chosen by
+ * the user's interface language that the app tells the worker (`arx-context`, register.ts / sw.ts); Hebrew when it never said.
+ * `OFFLINE_HTML` (the Hebrew page) is byte for byte the page before this change.
  */
-// i18n-keep: a module that cannot read the language packs (service-worker bundle); a fixed Hebrew offline page
-export const OFFLINE_HTML = `<!doctype html>
-<html lang="he" dir="rtl">
+export type OfflineLang = 'he' | 'en';
+interface OfflineText {
+  dir: 'rtl' | 'ltr';
+  title: string;
+  heading: string;
+  body: string;
+  retry: string;
+}
+// i18n-keep-start: the Hebrew side of the worker's own he/en table (service-worker bundle: no language packs); its English is beside it
+const TEXT: Record<OfflineLang, OfflineText> = {
+  he: {
+    dir: 'rtl',
+    title: 'אין חיבור',
+    heading: 'אין חיבור לשרת',
+    body: 'Arx לא מצליח להגיע למערכת כרגע. בדקו את החיבור לאינטרנט (או לרשת הביתית) ונסו שוב. וידאו ונתונים חיים זמינים רק כשיש חיבור.',
+    retry: 'נסה שוב',
+  },
+  // i18n-keep-end
+  en: {
+    dir: 'ltr',
+    title: 'No connection',
+    heading: 'No connection to the server',
+    body: 'Arx cannot reach the system right now. Check the internet connection (or the home network) and try again. Video and live data are available only while connected.',
+    retry: 'Try again',
+  },
+};
+
+/** The offline page in `lang` (Hebrew for anything else). */
+export function offlineHtml(lang: string | null | undefined): string {
+  const code: OfflineLang = lang === 'en' ? 'en' : 'he';
+  const t = TEXT[code];
+  return `<!doctype html>
+<html lang="${code}" dir="${t.dir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>SmplWise Arx · אין חיבור</title>
+<title>SmplWise Arx · ${t.title}</title>
 <style>
   :root { --bg: #f5f7fb; --surface: #ffffff; --line: #e7ebf2; --text: #22314c; --text-2: #5b6a85; --accent: #2767ed; --on-accent: #ffffff; --shadow: 0 6px 18px rgba(34, 49, 76, .06); }
   @media (prefers-color-scheme: dark) {
@@ -39,9 +73,13 @@ export const OFFLINE_HTML = `<!doctype html>
 <body>
 <main>
   <svg class="mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#2f6bff"/><path d="M136 376V216a120 120 0 0 1 240 0v160h-72V232a48 48 0 0 0-96 0v144z" fill="#fff"/><rect x="104" y="392" width="304" height="32" rx="16" fill="#fff"/></svg>
-  <h1>אין חיבור לשרת</h1>
-  <p>Arx לא מצליח להגיע למערכת כרגע. בדקו את החיבור לאינטרנט (או לרשת הביתית) ונסו שוב. וידאו ונתונים חיים זמינים רק כשיש חיבור.</p>
-  <a href="./">נסה שוב</a>
+  <h1>${t.heading}</h1>
+  <p>${t.body}</p>
+  <a href="./">${t.retry}</a>
 </main>
 </body>
 </html>`;
+}
+
+/** The Hebrew offline page (the page before I18N-RUNTIME-ERRORS-2520, unchanged). */
+export const OFFLINE_HTML = offlineHtml('he');

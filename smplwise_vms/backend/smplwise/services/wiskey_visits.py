@@ -63,6 +63,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..db import Database, get_setting, set_setting
+from ..error_text import tpl
 from ..errors import ApiError
 from ..rbac import Principal
 from . import access_grants as ag
@@ -632,5 +633,5 @@ def wiskey_refusal(code: str) -> ApiError:
     if code in REFUSAL_TEXT:
         status, api_code, he, en = REFUSAL_TEXT[code]
         return ApiError(status, api_code, he, retryable=code in RETRYABLE, details={"wiskey_code": code, "message_en": en})
-    return ApiError(409, "wiskey_visits_refused", f"מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.",
+    return ApiError(409, "wiskey_visits_refused", tpl("מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.", code=code),
                     details={"wiskey_code": code, "message_en": f"The access control system refused the visit record ({code}). Nothing was recorded."})

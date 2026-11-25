@@ -55,6 +55,7 @@ from ._common import raw_body as _raw_body
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 from ..wire import access_control_door_tech as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -168,7 +169,7 @@ def _sees(conn: sqlite3.Connection, principal: Principal, station_id: str, g: dt
 def _int_path(act: _Action, name: str, value: str, low: int, high: int) -> int:
     if value.isascii() and value.isdecimal() and len(value) <= 2 and low <= int(value) <= high:
         return int(value)
-    raise act.refuse(ApiError(422, "validation", f"{name} אינו תקין.", details={"fields": [name]}))
+    raise act.refuse(ApiError(422, "validation", tpl("{name} אינו תקין.", name=name), details={"fields": [name]}))
 
 
 def _begin(act: _Action, kind: dt.Kind, raw: bytes, model: type, extra: dict[str, Any]) -> tuple[Any, datetime]:
@@ -194,7 +195,7 @@ def _begin(act: _Action, kind: dt.Kind, raw: bytes, model: type, extra: dict[str
         raise act.refuse(ApiError(409, "confirmation_required", "שינוי טכני בדלת דורש אישור מפורש.", details={"kind": kind.name}))
     available, why = dt.available(intercom_sync.SYNC.api_facts(settings_of(request)), kind)
     if available is False:
-        raise act.refuse(ApiError(409, "door_tech_unsupported", f"WisKey המותקן אינו מציע את הפעולה הזו ({why}), ולכן היא לא נשלחה.",
+        raise act.refuse(ApiError(409, "door_tech_unsupported", tpl("WisKey המותקן אינו מציע את הפעולה הזו ({why}), ולכן היא לא נשלחה.", why=why),
                                   details={"wiskey_code": why}))
     return body, not_after
 
@@ -226,12 +227,12 @@ def _error(kind: dt.Kind, exc: ApiError) -> ApiError:
     what = WHAT[kind.name]
     if outcome == "not_sent":
         if code in NOT_SENT_OWN:  # the code write's relay read (services/wiskey_door_tech.send_code): the write frame was never written
-            return ApiError(409, "door_tech_not_sent", f"{what} לא נשלחה: {NOT_SENT_OWN[code]}.", details=details)
-        return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=details)
+            return ApiError(409, "door_tech_not_sent", tpl("{what} לא נשלחה: {not_sent_own}.", what=what, not_sent_own=NOT_SENT_OWN[code]), details=details)
+        return ApiError(exc.status, exc.code, tpl("{what}: {message}", what=what, message=exc.user_message), retryable=exc.retryable, details=details)
     if outcome == "refused":
-        return ApiError(409, "door_tech_refused", f"WisKey סירב: {reason_text(code)} ({code}). {what} לא בוצעה.", details=details)
+        return ApiError(409, "door_tech_refused", tpl("WisKey סירב: {reason_text} ({code}). {what} לא בוצעה.", reason_text=reason_text(code), code=code, what=what), details=details)
     return ApiError(504, "door_tech_outcome_unknown",
-                    f"{what} נשלחה, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצעה - טענו מחדש את הנתונים ובדקו לפני שמנסים שוב.", details=details)
+                    tpl("{what} נשלחה, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצעה - טענו מחדש את הנתונים ובדקו לפני שמנסים שוב.", what=what, code=code), details=details)
 
 
 def _perform(act: _Action, kind: dt.Kind, station_id: str, target: int, sender: Callable[[intercom_client.Call], Any], project: Callable[[Any], dict[str, Any]],
@@ -439,7 +440,7 @@ def code_write(request: Request, station_id: str, slot: str, principal: Principa
     act.details.update(code_action=body.action, door=body.door, expected=body.expected)
     confirm_word = dt.confirm_phrase_lang(n, body.confirm_text)
     if confirm_word is None:
-        raise act.refuse(ApiError(409, "typed_confirmation_required", f"כדי לשנות קוד ציבורי יש להקליד \"{dt.confirm_phrase(n)}\".", details={"phrase": dt.confirm_phrase(n)}))
+        raise act.refuse(ApiError(409, "typed_confirmation_required", tpl("כדי לשנות קוד ציבורי יש להקליד \"{confirm_phrase}\".", confirm_phrase=dt.confirm_phrase(n)), details={"phrase": dt.confirm_phrase(n)}))
     act.details["confirm_word"] = confirm_word  # "he" / "en": which phrase was typed (never the text itself)
     station = _station(act, require_online=True)
     _door(act, station, body.door)

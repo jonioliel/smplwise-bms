@@ -33,6 +33,7 @@ from ..services import service_identity
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..wire import automations as WM
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -373,7 +374,7 @@ def capture_scene(request: Request, principal: Principal = Depends(_scene_manage
         for e in ids:
             info = ctx.entity(e)
             if info is None or not ctx.access.can_read_state(e):
-                raise ApiError(422, "validation", f"ערך לא תקין — entity_ids: ההתקן {e} לא נמצא.", details={"path": e})
+                raise ApiError(422, "validation", tpl("ערך לא תקין — entity_ids: ההתקן {e} לא נמצא.", e=e), details={"path": e})
         from ..services import door_path_guard
 
         door_path_guard.check_capture(w.conn, ids)  # CR-033 D8: no WisKey door as a scene member while the editor block is on

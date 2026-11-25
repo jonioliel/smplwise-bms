@@ -40,6 +40,7 @@ from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM
 from ..wire import tagged, wire
 from ..wire import notices as W
 from ._common import rid as _rid
+from ..error_text import tpl
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 OFF_HE = "לוח ההודעות כבוי בהגדרות המערכת."
@@ -468,7 +469,7 @@ def list_boards(principal: Principal = Depends(current_principal_ro), conn: sqli
 def create_board(body: BoardIn, request: Request, principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     s = store.settings(conn)
     if len(store.list_boards(conn)) >= s["boards_max"]:
-        raise ApiError(409, "boards_limit", f"אפשר עד {s['boards_max']} לוחות תצוגה.")
+        raise ApiError(409, "boards_limit", tpl("אפשר עד {boards_max} לוחות תצוגה.", boards_max=s['boards_max']))
     try:
         slug = model.clean_slug(body.slug)
         name = model.clean_text(body.name, "name", model.BOARD_NAME_MAX, required=True)
@@ -695,7 +696,7 @@ def _dwell(v: int | None) -> int | None:
     if v is None:
         return None
     if not model.DWELL_MIN <= v <= model.DWELL_MAX:
-        raise Invalid("dwell_s", f"זמן הצגה: {model.DWELL_MIN}-{model.DWELL_MAX} שניות.")
+        raise Invalid("dwell_s", tpl("זמן הצגה: {dwell_min}-{dwell_max} שניות.", dwell_min=model.DWELL_MIN, dwell_max=model.DWELL_MAX))
     return v
 
 

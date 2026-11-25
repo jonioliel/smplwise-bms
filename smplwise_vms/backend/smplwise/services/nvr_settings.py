@@ -38,6 +38,7 @@ from .access import CameraScope
 from .nvr_write import _row as change_row
 from .recorders import registry
 from .recorders.base import RecorderAdapter, StreamEncoding, StreamOptions, StreamSnapshot
+from ..error_text import tpl
 
 log = logging.getLogger(__name__)
 
@@ -354,7 +355,7 @@ _KEPT_HE = {"profile": "הפרופיל הנוכחי אינו נתמך", "resolut
 
 def _kept_not_allowed(name: str, codec: str, allowed: Any) -> ApiError:
     """A value the stream keeps through a codec change that the new codec does not offer: the person must choose one."""
-    return field_error(f"{_KEPT_HE[name]} בקידוד {codec}. בחרו ערך אחר ושמרו שוב.", [name], code="value_not_allowed", legacy={"field": name}, extra={"codec": codec, "allowed": allowed})
+    return field_error(tpl("{kept_he} בקידוד {codec}. בחרו ערך אחר ושמרו שוב.", kept_he=_KEPT_HE[name], codec=codec), [name], code="value_not_allowed", legacy={"field": name}, extra={"codec": codec, "allowed": allowed})
 
 
 def _not_supported(name: str) -> ApiError:

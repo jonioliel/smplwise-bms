@@ -32,6 +32,7 @@ from ..services import intercom_authority as ia
 from ._common import rid as _rid
 from ..wire import access_control_reads as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -59,7 +60,7 @@ def _instant(name: str, value: str | None) -> datetime | None:
     except ValueError:
         parsed = None
     if parsed is None or parsed.tzinfo is None:
-        raise ApiError(422, "validation", f"{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-09-27T08:00:00Z).", details={"fields": [name]})
+        raise ApiError(422, "validation", tpl("{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-09-27T08:00:00Z).", name=name), details={"fields": [name]})
     return parsed
 
 

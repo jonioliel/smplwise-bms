@@ -41,6 +41,7 @@ from ..db import Database, now_iso
 from ..errors import ApiError
 from ..rbac import Principal
 from . import intercom_client, intercom_sync
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -130,7 +131,7 @@ class CaptureRegistry:
             hold = self._holds.get(station_id, 0.0)
             if hold > now:
                 wait = hold - now
-                raise ApiError(409, "intercom_capture_station_busy", f"קריאת כרטיס קודמת בעמדה הזו הסתיימה בתוצאה לא ידועה, וייתכן שהקורא עדיין במצב קריאה. המתינו עד {int(wait) + 1} שניות ונסו שוב.", details={"retry_after_s": round(wait, 1)})
+                raise ApiError(409, "intercom_capture_station_busy", tpl("קריאת כרטיס קודמת בעמדה הזו הסתיימה בתוצאה לא ידועה, וייתכן שהקורא עדיין במצב קריאה. המתינו עד {wait} שניות ונסו שוב.", wait=int(wait) + 1), details={"retry_after_s": round(wait, 1)})
             token = uuid.uuid4().hex
             self._pending[token] = _Reservation(token, owner, station_id)
             return token

@@ -27,6 +27,7 @@ from ..db import now_iso
 from ..errors import ServiceInvalid
 from . import notify_policy
 from . import notify_recipients
+from ..error_text import tpl
 
 KINDS: tuple[str, ...] = ("leak", "abnormal", "offline")
 SOURCE = {"leak": "water.leak", "abnormal": "water.abnormal", "offline": "water.offline"}
@@ -86,7 +87,7 @@ def minutes_of(hhmm: str) -> int:
 
 
 def _bad(field: str) -> AlertsInvalid:
-    return AlertsInvalid("validation", f"ערך לא תקין: {field}", f"Invalid value: {field}", {"fields": [field]})
+    return AlertsInvalid("validation", tpl("ערך לא תקין: {field}", field=field), f"Invalid value: {field}", {"fields": [field]})
 
 
 def check_value(field: str, spec: tuple[str, float | None, float | None], raw: Any) -> Any:

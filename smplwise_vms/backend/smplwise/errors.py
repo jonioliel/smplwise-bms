@@ -9,6 +9,9 @@ machine word a screen keys on; the words are chosen when the envelope is answere
   2. otherwise an English user gets `details.message_en` when the raising code put one there (elevators, temperature, insights, ...);
   3. (I18N-REST-2520) otherwise the English of a constant Hebrew text from the table of smplwise/error_text.py (keyed by the Hebrew);
   4. otherwise the Hebrew message as raised. No requesting user (a refusal before sign-in, a background job) = Hebrew.
+I18N-RUNTIME-ERRORS-2520: a text built at run time is a `Tpl` (smplwise/error_text.py: a Hebrew template + params, English template
+from a table) and is rendered as any `Msg` (step 1); a `Msg` inside `details` (a per-field `problems[].message`, a family's own
+message list) is rendered in the same language, so a refusal's details never mix Hebrew into an English answer.
 The Hebrew answer is byte for byte what it was before."""
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from .error_text import english as _table_english
-from .i18n import DEFAULT_LANG, Msg, register, t
+from .i18n import DEFAULT_LANG, Msg, localize, register, t
 
 register("error", {
     "forbidden": ("אין הרשאה לפעולה זו בהיקף המבוקש.", "You do not have permission for this action in the requested scope."),
@@ -42,7 +45,7 @@ class ApiError(Exception):
         """True when the message has words in another language (a `Msg`, or `details.message_en`): only then is the requester's
         language worth reading."""
         return (isinstance(self.user_message, Msg) or isinstance((self.details or {}).get("message_en"), str)
-                or _table_english(self.user_message) is not None)
+                or _table_english(self.user_message) is not None or _has_msg(self.details))
 
     def message_in(self, lang: str) -> Any:
         """`user_message` in `lang` (I18N-BACKEND-2490, the order in this module's docstring)."""
@@ -63,8 +66,21 @@ class ApiError(Exception):
             "user_message": self.message_in(lang),
             "retryable": self.retryable,
             "correlation_id": correlation_id,
-            "details": self.details,
+            "details": self.details if lang == DEFAULT_LANG or not _has_msg(self.details) else localize(self.details, lang),
         }
+
+
+def _has_msg(value: Any, depth: int = 0) -> bool:
+    """True when a `Msg` is somewhere inside `value` (dict values, list / tuple items; a few levels deep)."""
+    if isinstance(value, Msg):
+        return True
+    if depth > 4:
+        return False
+    if isinstance(value, dict):
+        return any(_has_msg(v, depth + 1) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_msg(v, depth + 1) for v in value)
+    return False
 
 
 def reason_of(exc: BaseException) -> str:
@@ -200,7 +216,8 @@ def _problems(problems: Iterable[dict[str, Any]] | None) -> list[dict[str, str]]
     for p in problems or ():
         one = {"field": str(p["field"]), "code": str(p["code"])}
         if p.get("message") is not None:
-            one["message"] = str(p["message"])
+            # a Msg stays one (its value is the same Hebrew; the envelope renders it in the reader's language)
+            one["message"] = p["message"] if isinstance(p["message"], Msg) else str(p["message"])
         out.append(one)
     return out
 
@@ -269,6 +286,13 @@ class ServiceInvalid(ValueError):
         self.details = dict(details) if details else {}
         if status is not None:
             self.status = status
+
+    def __str__(self) -> str:
+        """As before (the message the error was raised with); a `Msg` message stays a `Msg` (the same Hebrew value), so a router that
+        answers `str(exc)` keeps its English (I18N-RUNTIME-ERRORS-2520)."""
+        if len(self.args) == 1 and isinstance(self.args[0], Msg):
+            return self.args[0]
+        return super().__str__()
 
     def field_problems(self) -> list[dict[str, str]]:
         """ADR-019 D1 `details.problems`: one `{field, code}` per named field when the class carries a per-field reason

@@ -15,6 +15,7 @@ from ..rbac import Principal
 from ..services import intercom_client, intercom_sync
 from ._common import raw_body as _raw_body
 from .access_control_command import CallBody, TtsBody, _Action, _call_station, _caller, _caller_ro, _envelope, _parse, _perform, _station, tts_engine_choice, tts_length_bucket
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
     message = intercom_client.collapse(body.message)
     act.details.update(engine_id=body.engine_id, language=body.language, length_bucket=tts_length_bucket(len(message)), engine_choice=tts_engine_choice(conn, body.engine_id))
     if not 1 <= len(message) <= intercom_client.TTS_MESSAGE_MAX:
-        raise act.refuse(ApiError(422, "validation", f"ההודעה חייבת להכיל 1-{intercom_client.TTS_MESSAGE_MAX} תווים."))
+        raise act.refuse(ApiError(422, "validation", tpl("ההודעה חייבת להכיל 1-{tts_message_max} תווים.", tts_message_max=intercom_client.TTS_MESSAGE_MAX)))
     not_after = _envelope(act, body)
     _call_station(act)
     _station(act)

@@ -34,6 +34,7 @@ from ._common import rid as _rid
 from ..test_reset import register_reset
 from ..wire import ha as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 log = logging.getLogger("smplwise.ha")
@@ -295,7 +296,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         # unlock and its kind need their own grant; general entity control never implies them (T079)
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="grant_required",
               request_id=_rid(request), details={"action": body.allowed_action_id, "grant": grant})
-        raise ApiError(403, "grant_required", f"הפעולה דורשת הרשאה נפרדת ({_grant_label(grant)}); שליטה כללית בישויות אינה כוללת אותה.", details={"action": body.allowed_action_id, "grant": grant})
+        raise ApiError(403, "grant_required", tpl("הפעולה דורשת הרשאה נפרדת ({grant_label}); שליטה כללית בישויות אינה כוללת אותה.", grant_label=_grant_label(grant)), details={"action": body.allowed_action_id, "grant": grant})
     if spec["sensitive"] and body.confirmation_grant != "confirmed":
         raise ApiError(409, "confirmation_required", "פעולה רגישה דורשת אישור מפורש.", details={"action": body.allowed_action_id})
     su_action = STEP_UP_GRANTS.get(grant or "") or STEP_UP_ACTIONS.get(body.allowed_action_id)

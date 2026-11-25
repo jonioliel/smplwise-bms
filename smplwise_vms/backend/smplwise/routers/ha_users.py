@@ -34,6 +34,7 @@ from ._common import rid as _rid
 from . import access as acc
 from ..wire import ha_users as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -228,7 +229,7 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
     if problem:
         raise ApiError(422, "password_weak", PASSWORD_HE[problem], details={"rule": problem})  # names the rule only, never the value
     if store.count_in_states(conn, LIVE_STATES) >= MAX_MANAGED:
-        raise _refuse(conn, principal, request, action, "*", 409, "limit_reached", f"אפשר לנהל מכאן עד {MAX_MANAGED} משתמשים.")
+        raise _refuse(conn, principal, request, action, "*", 409, "limit_reached", tpl("אפשר לנהל מכאן עד {max_managed} משתמשים.", max_managed=MAX_MANAGED))
     # the directory mirror keeps a row for a user Arx deleted (HA freed its username): those rows do not count
     taken = store.username_taken(conn, body.username, LIVE_STATES)
     if taken:

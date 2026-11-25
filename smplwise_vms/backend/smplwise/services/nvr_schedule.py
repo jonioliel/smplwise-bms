@@ -11,6 +11,7 @@ from typing import Any
 
 from ..errors import ApiError
 from .nvr_system import blocks, set_in_block, set_tag, tag
+from ..error_text import tpl
 
 DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 SCHEDULE_KINDS = {"motion": ("motionDetection", "VMD"), "line": ("linedetection", "linedetection"), "field": ("fielddetection", "fielddetection")}
@@ -161,7 +162,7 @@ def _region_coords(points: list[list[float]]) -> str:
 
 def _check_points(points: list[list[float]], lo: int, hi: int) -> list[list[int]]:
     if not lo <= len(points) <= hi or any(len(p) != 2 or not all(isinstance(v, (int, float)) and 0 <= v <= 1000 for v in p) for p in points):
-        raise ApiError(422, "validation", f"נדרשות {lo} עד {hi} נקודות בתחום 0..1000.")
+        raise ApiError(422, "validation", tpl("נדרשות {lo} עד {hi} נקודות בתחום 0..1000.", lo=lo, hi=hi))
     return [[int(round(p[0])), int(round(p[1]))] for p in points]
 
 

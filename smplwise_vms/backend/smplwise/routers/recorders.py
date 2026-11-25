@@ -39,6 +39,7 @@ from ..wire import recorders as W
 from ..wire import wire
 from ._common import rid as _rid
 from . import nvr_connection as nc
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -327,7 +328,7 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
     _known(conn, recorder_id)
     confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
     if confirm_word is None:
-        raise field_error(f"כדי להסיר את ה־NVR יש להקליד \"{nc.REMOVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
+        raise field_error(tpl("כדי להסיר את ה־NVR יש להקליד \"{remove_word}\".", remove_word=nc.REMOVE_WORD), ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
     nc._require_revision(body.if_revision, conn, recorder_id)
     if _row(conn, recorder_id) is None:
         autosync.ensure_recorder(conn, recorder_id=recorder_id, lang=dn.lang_of(conn, principal))

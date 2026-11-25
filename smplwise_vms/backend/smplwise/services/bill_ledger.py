@@ -31,6 +31,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from . import energy_periods as per
 from . import energy_pricing as px
+from ..error_text import tpl
 
 
 @dataclass(frozen=True)
@@ -91,7 +92,7 @@ def mark_sent(kind: BillKind, conn: sqlite3.Connection, bid: str, at: str, how: 
     row = get_bill(kind, conn, bid)
     check_version(row, row_version)
     if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כנשלח חיוב במצב {kind.state_he[row['state']]}.", state=row["state"])
+        raise conflict("bill_state", tpl("אי אפשר לסמן כנשלח חיוב במצב {state_he}.", state_he=kind.state_he[row['state']]), state=row["state"])
     conn.execute(f"UPDATE {kind.table} SET state = 'sent', sent_at = ?, sent_how = ?, sent_note = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
                  (at, how, note, now_iso(), bid))
     event(kind, conn, bid, "sent", actor, {"how": how})
@@ -103,7 +104,7 @@ def mark_paid(kind: BillKind, conn: sqlite3.Connection, bid: str, at: str, refer
     row = get_bill(kind, conn, bid)
     check_version(row, row_version)
     if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כשולם חיוב במצב {kind.state_he[row['state']]}.", state=row["state"])
+        raise conflict("bill_state", tpl("אי אפשר לסמן כשולם חיוב במצב {state_he}.", state_he=kind.state_he[row['state']]), state=row["state"])
     conn.execute(f"UPDATE {kind.table} SET state = 'paid', paid_at = ?, paid_ref = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
                  (at, reference, now_iso(), bid))
     event(kind, conn, bid, "paid", actor)
@@ -117,7 +118,7 @@ def void_bill(kind: BillKind, conn: sqlite3.Connection, bid: str, reason: str, a
     if not reason or not reason.strip():
         raise ApiError(422, "reason_required", "חובה לציין סיבת ביטול.", details={})
     if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לבטל חיוב במצב {kind.state_he[row['state']]}.", state=row["state"])
+        raise conflict("bill_state", tpl("אי אפשר לבטל חיוב במצב {state_he}.", state_he=kind.state_he[row['state']]), state=row["state"])
     conn.execute(f"UPDATE {kind.table} SET state = 'void', void_reason = ?, voided_at = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
                  (reason.strip(), now_iso(), now_iso(), bid))
     event(kind, conn, bid, "void", actor, {"reason": reason.strip()})
@@ -130,7 +131,7 @@ def open_correction(kind: BillKind, conn: sqlite3.Connection, bid: str) -> sqlit
 
 def check_correctable(kind: BillKind, conn: sqlite3.Connection, row: sqlite3.Row) -> None:
     if row["state"] not in kind.issued_states:
-        raise conflict("bill_state", f"אי אפשר לתקן חיוב במצב {kind.state_he[row['state']]}.", state=row["state"])
+        raise conflict("bill_state", tpl("אי אפשר לתקן חיוב במצב {state_he}.", state_he=kind.state_he[row['state']]), state=row["state"])
     existing = open_correction(kind, conn, row["id"])
     if existing:
         raise conflict("bill_state", "כבר קיימת טיוטת תיקון לחיוב זה.", bill_id=existing["id"], state=row["state"])
@@ -158,7 +159,7 @@ def overlapping(kind: BillKind, conn: sqlite3.Connection, aid: str, p: per.Perio
 
 
 def overlap_error(r: sqlite3.Row) -> ApiError:
-    return conflict("period_overlap", f"התקופה חופפת לחיוב {r['number']} שכבר הונפק.", bill_id=r["id"], number=r["number"])
+    return conflict("period_overlap", tpl("התקופה חופפת לחיוב {number} שכבר הונפק.", number=r['number']), bill_id=r["id"], number=r["number"])
 
 
 def number_for(kind: BillKind, conn: sqlite3.Connection, bill: sqlite3.Row, customer_number: str) -> tuple[str, str, int]:

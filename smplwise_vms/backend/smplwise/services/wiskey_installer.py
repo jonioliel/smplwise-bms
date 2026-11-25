@@ -35,6 +35,7 @@ from . import intercom_client, intercom_sync
 from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 CHANNEL = "installer"  # services/wiskey_channels.py INSTALLER
 LANE = "installer"  # intercom_sync: no lane of its own -> a read slot and the read buckets (module note)
@@ -130,7 +131,7 @@ def run_read(settings: Settings, op: Op, values: dict[str, Any], who: str) -> di
         raise ApiError(501, "installer_unsupported", "גרסת WisKey המותקנת אינה תומכת בכלי הזה.", details=details)
     if state in NOT_READY_STATES and state != "error":
         raise ApiError(503, "installer_unavailable", "החיבור ל־WisKey אינו זמין כרגע.", retryable=True, details=details)
-    raise ApiError(502, "installer_read_failed", f"WisKey לא החזיר את הנתונים ({code or state}).", details=details)
+    raise ApiError(502, "installer_read_failed", tpl("WisKey לא החזיר את הנתונים ({code}).", code=code or state), details=details)
 
 
 def run_write(settings: Settings, op: Op, values: dict[str, Any], who: str, not_after: datetime) -> dict[str, Any]:

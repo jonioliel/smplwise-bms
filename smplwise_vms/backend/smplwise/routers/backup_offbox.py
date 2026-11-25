@@ -28,6 +28,7 @@ from ..services import backup_sensitive as sens
 from ..services import offbox_gdrive_connect, offbox_keys, offbox_restore, offbox_runtime, offbox_store
 from ..services.backup_offbox import ALLOWED_FIELDS, CONSENT_ONLY_FIELDS, CREDENTIAL_FIELDS, OffboxError, RetentionPolicy, build_destination
 from ._common import db_of as _db, rid as _rid
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -576,7 +577,7 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
     except OffboxError as exc:
         raise _err(exc, 409) from None
     except ValueError as exc:
-        raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
+        raise ApiError(409, "restore_refused", tpl("השחזור נדחה: {exc}", exc=exc))
     meta, result = out["meta"], out["result"]
     audit(conn, actor=principal, action="backup.offbox.restore", decision="allowed", resource_type="backup_offbox_target", resource_id=meta.get("target_id") or "",
           request_id=_rid(request),

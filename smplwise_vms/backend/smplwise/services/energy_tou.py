@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
+from ..error_text import tpl
+from ..i18n import Lit
 
 ENGINE = "arx.energy.tou/1"
 QUARTER_S = 900
@@ -143,9 +145,9 @@ def _hm(value: Any, path: str, allow_24: bool) -> int:
 
 def _named(items: Any, path: str, limit: int, what_he: str) -> tuple[Named, ...]:
     if not isinstance(items, list) or not items:
-        raise TouError("required", path, f"יש להגדיר לפחות {what_he} אחד.")
+        raise TouError("required", path, tpl("יש להגדיר לפחות {what_he} אחד.", what_he=what_he))
     if len(items) > limit:
-        raise TouError("too_many", path, f"אפשר להגדיר עד {limit} {what_he}.")
+        raise TouError("too_many", path, tpl("אפשר להגדיר עד {limit} {what_he}.", limit=limit, what_he=what_he))
     out: list[Named] = []
     seen: set[str] = set()
     for i, it in enumerate(items):
@@ -156,11 +158,11 @@ def _named(items: Any, path: str, limit: int, what_he: str) -> tuple[Named, ...]
         if not isinstance(iid, str) or not _ID.match(iid):
             raise TouError("id", p + ".id", "מזהה חייב להתחיל באות לטינית קטנה ולהכיל אותיות, ספרות וקו תחתון (עד 24).")
         if iid in seen:
-            raise TouError("duplicate", p + ".id", f"המזהה {iid} מופיע פעמיים.")
+            raise TouError("duplicate", p + ".id", tpl("המזהה {iid} מופיע פעמיים.", iid=iid))
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_NAME:
-            raise TouError("name", p + ".name_he", f"שם חובה, עד {MAX_NAME} תווים.")
+            raise TouError("name", p + ".name_he", tpl("שם חובה, עד {max_name} תווים.", max_name=MAX_NAME))
         if name_en is not None and (not isinstance(name_en, str) or len(name_en.strip()) > MAX_NAME or _HEBREW.search(name_en)):
-            raise TouError("name_en", p + ".name_en", f"השם באנגלית הוא טקסט באותיות לטיניות, עד {MAX_NAME} תווים (אפשר להשאיר ריק).")
+            raise TouError("name_en", p + ".name_en", tpl("השם באנגלית הוא טקסט באותיות לטיניות, עד {max_name} תווים (אפשר להשאיר ריק).", max_name=MAX_NAME))
         seen.add(iid)
         out.append(Named(iid, name.strip(), (name_en or "").strip()))
     return tuple(out)
@@ -189,13 +191,13 @@ def parse_definition(obj: Any) -> Definition:
     allowed = {"seasons", "day_types", "week", "holiday", "holiday_eve", "bands", "default_band", "schedule", "prices"}
     extra = sorted(set(obj) - allowed)
     if extra:
-        raise TouError("unknown_field", extra[0], f"שדה לא מוכר: {extra[0]}.")
+        raise TouError("unknown_field", extra[0], tpl("שדה לא מוכר: {extra}.", extra=extra[0]))
     # seasons
     raw_seasons = obj.get("seasons")
     if not isinstance(raw_seasons, list) or not raw_seasons:
         raise TouError("required", "seasons", "יש להגדיר לפחות עונה אחת.")
     if len(raw_seasons) > MAX_SEASONS:
-        raise TouError("too_many", "seasons", f"אפשר להגדיר עד {MAX_SEASONS} עונות.")
+        raise TouError("too_many", "seasons", tpl("אפשר להגדיר עד {max_seasons} עונות.", max_seasons=MAX_SEASONS))
     named_seasons = _named([{"id": s.get("id"), "name_he": s.get("name_he"), "name_en": s.get("name_en")} if isinstance(s, dict) else s for s in raw_seasons],
                            "seasons", MAX_SEASONS, "עונות")
     seasons: list[Season] = []
@@ -218,13 +220,13 @@ def parse_definition(obj: Any) -> Definition:
                         raise ValueError
                     idx.append(_doy(int(m.group(1)), int(m.group(2))))
                 except ValueError:
-                    raise TouError("date", p, f"תאריך לא תקין: {x} (MM-DD).") from None
+                    raise TouError("date", p, tpl("תאריך לא תקין: {x} (MM-DD).", x=x)) from None
             a, b = idx
             days = list(range(a, b + 1)) if a <= b else list(range(a, 366)) + list(range(0, b + 1))
             for d in days:
                 if owner[d] is not None and owner[d] != n.id:
                     md = (dt.date(_LEAP, 1, 1) + dt.timedelta(days=d)).strftime("%d.%m")
-                    raise TouError("season_overlap", p, f"התאריך {md} שייך ליותר מעונה אחת.")
+                    raise TouError("season_overlap", p, tpl("התאריך {md} שייך ליותר מעונה אחת.", md=md))
                 owner[d] = n.id
             if _doy(2, 29) in days:
                 explicit_feb29 = True
@@ -236,7 +238,7 @@ def parse_definition(obj: Any) -> Definition:
     missing = [d for d in range(366) if owner[d] is None]
     if missing:
         md = (dt.date(_LEAP, 1, 1) + dt.timedelta(days=missing[0])).strftime("%d.%m")
-        raise TouError("season_gap", "seasons", f"העונות חייבות לכסות את כל השנה. התאריך {md} לא שייך לאף עונה.")
+        raise TouError("season_gap", "seasons", tpl("העונות חייבות לכסות את כל השנה. התאריך {md} לא שייך לאף עונה.", md=md))
     season_ids = [s.id for s in seasons]
     # day types and the week
     day_types = _named(obj.get("day_types"), "day_types", MAX_DAY_TYPES, "סוגי ימים")
@@ -246,7 +248,7 @@ def parse_definition(obj: Any) -> Definition:
         raise TouError("week", "week", "יש לשייך כל יום בשבוע (ראשון עד שבת) לסוג יום.")
     for k in WEEK:
         if week[k] not in dt_ids:
-            raise TouError("week", f"week.{k}", f"יום {WEEK_HE[k]} משויך לסוג יום שאינו מוגדר.")
+            raise TouError("week", f"week.{k}", tpl("יום {week_he} משויך לסוג יום שאינו מוגדר.", week_he=WEEK_HE[k]))
     hol, eve = obj.get("holiday"), obj.get("holiday_eve")
     for key, val in (("holiday", hol), ("holiday_eve", eve)):
         if val is not None and val not in dt_ids:
@@ -265,15 +267,15 @@ def parse_definition(obj: Any) -> Definition:
     norm_schedule: dict[str, dict[str, list[list[str]]]] = {}
     for sid, per_dt in sched_raw.items():
         if sid not in season_ids:
-            raise TouError("unknown_season", f"schedule.{sid}", f"עונה לא מוגדרת: {sid}.")
+            raise TouError("unknown_season", f"schedule.{sid}", tpl("עונה לא מוגדרת: {sid}.", sid=sid))
         if not isinstance(per_dt, dict):
             raise TouError("syntax", f"schedule.{sid}", "מבנה לא תקין.")
         for did, ranges in per_dt.items():
             p = f"schedule.{sid}.{did}"
             if did not in dt_ids:
-                raise TouError("unknown_day_type", p, f"סוג יום לא מוגדר: {did}.")
+                raise TouError("unknown_day_type", p, tpl("סוג יום לא מוגדר: {did}.", did=did))
             if not isinstance(ranges, list) or len(ranges) > MAX_RANGES:
-                raise TouError("syntax", p, f"עד {MAX_RANGES} טווחי שעות לכל עונה וסוג יום.")
+                raise TouError("syntax", p, tpl("עד {max_ranges} טווחי שעות לכל עונה וסוג יום.", max_ranges=MAX_RANGES))
             parts: list[tuple[int, int, str]] = []
             kept: list[list[str]] = []
             for j, r in enumerate(ranges):
@@ -282,7 +284,7 @@ def parse_definition(obj: Any) -> Definition:
                     raise TouError("syntax", pj, "טווח שעות הוא [\"HH:MM\", \"HH:MM\", \"פס\"].")
                 a, b = _hm(r[0], pj, False), _hm(r[1], pj, True)
                 if r[2] not in band_ids:
-                    raise TouError("unknown_band", pj, f"פס לא מוגדר: {r[2]}.")
+                    raise TouError("unknown_band", pj, tpl("פס לא מוגדר: {r}.", r=r[2]))
                 if a == b:
                     raise TouError("empty_range", pj, "שעת ההתחלה שווה לשעת הסיום.")
                 if a < b:
@@ -307,19 +309,19 @@ def parse_definition(obj: Any) -> Definition:
     norm_prices: dict[str, dict[str, str]] = {}
     for sid, per_band in prices_raw.items():
         if sid not in season_ids:
-            raise TouError("unknown_season", f"prices.{sid}", f"עונה לא מוגדרת: {sid}.")
+            raise TouError("unknown_season", f"prices.{sid}", tpl("עונה לא מוגדרת: {sid}.", sid=sid))
         if not isinstance(per_band, dict):
             raise TouError("syntax", f"prices.{sid}", "מבנה לא תקין.")
         for bid, val in per_band.items():
             if bid not in band_ids:
-                raise TouError("unknown_band", f"prices.{sid}.{bid}", f"פס לא מוגדר: {bid}.")
+                raise TouError("unknown_band", f"prices.{sid}.{bid}", tpl("פס לא מוגדר: {bid}.", bid=bid))
             prices[(sid, bid)] = _price(val, f"prices.{sid}.{bid}")
     for s in seasons:
         used = {s_band for (sid, _d), rng in schedule.items() if sid == s.id for (_a, _b, s_band) in rng} | {default_band}
         for bid in sorted(used, key=lambda x: [b.id for b in bands].index(x)):
             if (s.id, bid) not in prices:
                 raise TouError("price_missing", f"prices.{s.id}.{bid}",
-                               f"חסר מחיר ל{next(b.name_he for b in bands if b.id == bid)} ב{s.name_he}.")
+                               tpl("חסר מחיר ל{band} ב{season}.", band=_both(next(b for b in bands if b.id == bid), "bands"), season=_both(s, "seasons")))
         norm_prices[s.id] = {b.id: str(prices[(s.id, b.id)]) for b in bands if (s.id, b.id) in prices}
     raw = {
         "seasons": [{"id": s.id, "name_he": s.name_he, **_en(s.name_en), "ranges": [list(r) for r in s.ranges]} for s in seasons],
@@ -382,6 +384,12 @@ _KNOWN_EN: dict[tuple[str, str, str], str] = {
     (kind, it["id"], it["name_he"]): it["name_en"]
     for kind in ("seasons", "day_types", "bands") for it in israel_template()[kind]
 }
+
+
+def _both(item: Any, kind: str) -> Lit:
+    """A season / band name in both languages for a refusal text (I18N-RUNTIME-ERRORS-2520): the Hebrew name, and the English one saved
+    (or the template's) - the Hebrew where there is none."""
+    return Lit({"he": item.name_he, "en": item.name_en or known_name_en(kind, item.id, item.name_he) or item.name_he})
 
 
 def known_name_en(kind: str, iid: str, name_he: str) -> str:

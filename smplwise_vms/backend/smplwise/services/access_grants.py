@@ -70,6 +70,7 @@ from . import intercom_write_journal as wj
 from . import redact
 from .access_grant_engine import KEEP, Engine, EngineError, EnginePerson, central_revoked, plan_overrides, requested_policy, revocation_proven
 from .wiskey_access_state import EVIDENCE_UNVERIFIED
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.access_grants")
 
@@ -449,7 +450,7 @@ def parse_doors(value: Any, limit: int, *, allow_empty: bool = False) -> dict[st
     if not out and not allow_empty:
         raise _invalid("doors", "required", "יש לבחור לפחות דלת אחת.")
     if sum(len(v) for v in out.values()) > limit:
-        raise _invalid("doors", "too_many", f"אפשר לאשר עד {limit} דלתות.")
+        raise _invalid("doors", "too_many", tpl("אפשר לאשר עד {limit} דלתות.", limit=limit))
     return dict(sorted(out.items()))
 
 
@@ -463,7 +464,7 @@ def parse_window(valid_from: Any, valid_until: Any, days: int, at: datetime) -> 
     if vu <= at:
         raise _invalid("valid_until", "past", "החלון כבר הסתיים.")
     if vu - vf > timedelta(days=days):
-        raise _invalid("valid_until", "too_long", f"גישה זמנית אפשרית לכל היותר ל-{days} ימים.")
+        raise _invalid("valid_until", "too_long", tpl("גישה זמנית אפשרית לכל היותר ל-{days} ימים.", days=days))
     return iso(vf), iso(vu)
 
 
@@ -1208,7 +1209,7 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל הגישות.")
         confirm_word = confirm_words.typed_lang("access_revoke_all", confirm)
         if confirm_word is None:
-            raise field_error(f"כדי לבטל את כל הגישות יש להקליד \"{REVOKE_ALL_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"})
+            raise field_error(tpl("כדי לבטל את כל הגישות יש להקליד \"{revoke_all_word}\".", revoke_all_word=REVOKE_ALL_WORD), ["confirm"], code="confirm_required", legacy={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", LIVE).fetchall()]
         for g in rows:
@@ -1314,7 +1315,7 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
             raise _conflict("access_person_not_ours", "האדם נוצר במערכת הכניסה ולא על ידי Arx; מחיקה רק ממסך האנשים.")
         confirm_word = confirm_words.typed_lang("access_delete_person", confirm)
         if confirm_word is None:
-            raise field_error(f"כדי למחוק יש להקליד \"{DELETE_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"})
+            raise field_error(tpl("כדי למחוק יש להקליד \"{delete_word}\".", delete_word=DELETE_WORD), ["confirm"], code="confirm_required", legacy={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         for r in conn.execute(f"SELECT * FROM access_grants WHERE link_id = ? AND state IN ({marks})", (link_id, *LIVE)).fetchall():
             mark_revoking(conn, dict(r), "person_deleted", actor=principal, request_id=request_id)
