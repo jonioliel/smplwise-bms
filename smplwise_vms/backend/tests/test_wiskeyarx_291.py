@@ -224,12 +224,22 @@ def test_n05_the_arrival_comment_does_not_claim_a_proven_scope():
 def test_n07_arx_sends_api_contract_one_or_omits_it():
     from smplwise.services import intercom_client, intercom_messaging_adapter
 
+    from smplwise.services import wiskey_station_ops
+
     assert intercom_client.API_CONTRACT == 1 and intercom_adapter.API_CONTRACT == 1 and intercom_messaging_adapter.API_CONTRACT == 1
+    # RELEASE-2520-TRAIN (reviewed): WISKEY-R4-2520's sync/station_v1 frame pins its own name to the station-sync contract's request
+    # schema (`api_contract` const 1; WisKey refuses anything else `api_incompatible`) - allowed by name, and its value pinned to 1 here
+    assert wiskey_station_ops.SYNC_V1_API_CONTRACT == 1
     # the constant itself, bare or as `intercom_client.API_CONTRACT` (asserted == 1 above; the 2.39.0 write services - station ops,
-    # door tech, profiles, schedule writes - import the module), never a literal or another name
-    const = r"(?!(?:intercom_client\.)?API_CONTRACT\b)"
+    # door tech, profiles, schedule writes - import the module), or SYNC_V1_API_CONTRACT (asserted == 1 above), never a literal or another name
+    const = r"(?!(?:intercom_client\.)?API_CONTRACT\b|SYNC_V1_API_CONTRACT\b)"
     pattern = re.compile(rf"api_contract\s*=\s*{const}[^\s,)]|[\"']api_contract[\"']\s*:\s*{const}[^\s,}}]")
+    # RELEASE-2520-TRAIN (reviewed): modules that only READ WisKey's own reported api_contract and project it for display - they never
+    # send one (WISKEY-RESYNC-2520: system/status_v1's integration.api_contract; its one frame is call(command_type(op.command)))
+    reads_only = {"wiskey_system_status.py"}
     for path in (BACKEND / "smplwise").rglob("*.py"):
+        if path.name in reads_only:
+            continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.lstrip().startswith("#"):
                 continue
