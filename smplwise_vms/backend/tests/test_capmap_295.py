@@ -194,6 +194,13 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "Persister.clean_entry blanks only the retired code recognised by its saved tag; a new PairingFence class (the 'same pairing' "
      "gate of the bridge's own services) in front of KeySet.verify. A fresh KeySet (no stored state, the vectors' case) takes exactly "
      "the old path; sign(), verify() / _check(), the v1/v2 recipes and handle_control() are byte-for-byte unchanged."),
+    ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
+     "58cfc9139623f4184e427950a0f03569db04c27ab18f1cdf9e8a25272a7caa74",
+     "3a7ee1f8a6501407c9a28746f605817ab7b523659f198b16217698131a99f886",
+     "I18N-RUNTIME-ERRORS-2520, reviewed in RELEASE-2520-TRAIN (lead decision Q3 = a): only the argument-check refusal texts of the "
+     "generic device route changed - ten f-strings became tpl(...) with the same Hebrew (Hebrew output byte-identical; English via "
+     "error_text_tpl_en.json) - and `from ..error_text import tpl` was added. The ACTIONS rows, the signing and verify paths and the "
+     "capability projection these vectors pin are unchanged (git diff a7ba23483 33e121b63 -- services/ha_bridge.py)."),
 )
 
 
