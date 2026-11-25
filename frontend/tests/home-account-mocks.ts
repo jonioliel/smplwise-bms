@@ -9,6 +9,9 @@ import type { HomeMock } from './home-simple-mocks';
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
+/** the authenticator code the mocked step-up accepts (invented) */
+export const STEP_UP_CODE = '246810';
+
 export interface AccountOpts extends GapOpts {
   /** the person is a home-only resident (default) or a wall panel */
   who?: 'resident' | 'wall';
@@ -28,6 +31,8 @@ export async function mockAccount(page: Page, o: AccountOpts = {}): Promise<Home
   await page.route('**/api/v1/auth/device-keys', (r) => json(r, { keys: [], auth_kind: 'biometric_or_screen_lock', attestation: 'preferred', max: 5 }));
   await page.route('**/api/v1/auth/tokens', (r) => json(r, { ha_listed: false, ha_reason: null, app_enabled: true, tokens: [] }));
   await page.route('**/api/v1/auth/step-up', (r) => json(r, { enabled: false, minutes: 5, local_channel: false, applies: false, reason: 'off', methods: ['totp'], valid_until: null }));
+  await page.route('**/api/v1/auth/step-up/verify', (r) => { rec(r); const b = (r.request().postDataJSON() ?? {}) as { code?: string };
+    return b.code === STEP_UP_CODE ? json(r, { method: 'totp', minutes: 5, valid_until: '2026-11-03T08:05:00+00:00' }) : json(r, { code: 'second_factor_invalid', user_message: 'קוד האימות אינו נכון.', retryable: false, correlation_id: 'mock', details: {} }, 400); });
   await page.route('**/api/v1/auth/sessions?**', (r) => json(r, { scope: 'own', can_manage: false, channel: 'local', sessions: [] }));
   await page.route('**/api/v1/me/prefs', (r) => {
     if (r.request().method() === 'PUT') { rec(r); return json(r, { prefs: { 'ui.lang': 'en' }, stored: ['ui.lang'], updated_at: null }); }

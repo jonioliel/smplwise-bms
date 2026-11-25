@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { settle } from './helpers/settle';
-import { mockAccount, type AccountOpts } from './home-account-mocks';
+import { STEP_UP_CODE, mockAccount, type AccountOpts } from './home-account-mocks';
+import { GAP_PERMS } from './home-v3-gaps-mocks';
 
 // HOME-T120-REST-2530 (task T120): "החשבון שלי" inside the home interface - a home-only person reaches their own account (security,
 // my sign-ins, language) without the full interface. The sheet holds the full interface's own blocks (sw-account-security,
@@ -123,6 +124,27 @@ test.describe('HOME-T120-REST-2530: my account in the home interface', () => {
       await page.screenshot({ path: `${SHOTS}/lang-${s.id}.png` });
     });
   }
+
+  test('with step-up switched on (opt-in), opening a door from the home interface asks for the code over the home, then opens once', async ({ page }) => {
+    const mock = await open(page, { perms: [...GAP_PERMS, 'access.doors.open'] });
+    let proof = false;
+    await page.route('**/api/v1/ha/entities/*/actions', (r) => {
+      mock.calls.push({ method: 'POST', path: new URL(r.request().url()).pathname.replace(/^.*api\/v1\//, ''), body: r.request().postDataJSON() });
+      if (!proof) return r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ code: 'step_up_required', user_message: 'לפני פתיחת דלת צריך לאשר שוב את הזהות.', retryable: false, correlation_id: 'mock', details: { action: 'access.doors.open', methods: ['totp'], minutes: 5, verify_path: 'auth/step-up/verify' } }) });
+      return r.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'act-1', status: 'confirmed', confirmation: 'state' }) });
+    });
+    await page.route('**/api/v1/auth/step-up/verify', (r) => { proof = true; return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ method: 'totp', minutes: 5, valid_until: '2026-11-03T08:05:00+00:00' }) }); });
+    await page.goto('/#/home/doors');
+    await home(page).locator('.drow', { hasText: 'דלת הכניסה' }).locator('[data-act="doorAsk"]').click();
+    await home(page).locator('[data-act="doorOpen"]').click();
+    const dialog = page.locator('sw-step-up-dialog');
+    await expect(dialog.locator('[data-step-up-code]')).toBeVisible();
+    await dialog.locator('[data-step-up-code]').fill(STEP_UP_CODE);
+    await dialog.locator('[data-step-up-confirm]').click(); // a click Playwright can deliver = the dialog is on top of the home sheets
+    const unlocks = () => mock.calls.filter((c) => c.path.startsWith('ha/entities/') && c.path.endsWith('/actions')).length;
+    await expect.poll(unlocks).toBe(2); // refused once, sent once more after the proof - never a third time
+    expect(new URL(page.url()).hash).toBe('#/home/doors');
+  });
 
   test('a wall panel has no personal account (no menu, no row)', async ({ page }) => {
     await open(page, { who: 'wall' });
