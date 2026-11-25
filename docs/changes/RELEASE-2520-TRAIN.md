@@ -309,3 +309,17 @@ Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
 11. **The RTL guard's mirror exemption** (`e328f3ca2`): `i18n/wiskey-feature-status.ts` keeps the server's U+203A. a) keep the exemption;
     the server's Hebrew separators move to U+2039 in a later row together with the mirror (recommended) b) change the server's 14 texts now.
 12. **Runner disk-full window** (this evening): failures with "database or disk is full" / ENOSPC were re-run, not triaged (section 3.5).
+
+## 5. Gate readiness (the complete 2.52 scope: 44 rows)
+
+Final code head `9d06b64cc` (docs / registry commits after it change no code). Runner, at the final heads:
+- generators and ratchets (`53788848e`): `gen_wire_types --check`, `sync_integration --check` (bridge copies identical), `wire_ratchet`
+  897 = baseline, `request_strict_ratchet` 144, `error_contract_inventory --check` 0 legacy 422 sites, `i18n_backend_errors` 0 without
+  English / 0 run-time, `lint_backend --strict` 0 findings, `design_ratchet` no count above the baseline, `build_guide --check` up to date;
+- `engine_sync check --ref 53788848e`: the engine `release_gate.py` is the tree's (sha256 42294cde08ddc167); one WARNING - `~/gate2/gate_budget.py`
+  differs from `scripts/gate/gate_budget.py` (install with `engine_sync.py install --src <checkout> --apply` before the gate - the lead's step);
+- `release_check.py`: every check ok except (1) the shipped UI bundle (`www/arx-sw.js` still `arx-shell-2.51.0`) and (2) the v2.52.0 tag.
+  (1) is closed by the release commit's UI rebuild (`npm run build:addon` + `build:public:addon`; public chunk 58 KB of 62 KB), which also turns
+  `test_release_check` and `test_release_bundle_version_2520` green; (2) comes after the owner's approval;
+- every row's own test files green (sections 3.2-3.3 and the runs per row above), every pixel spec green twice (514 passed, no baseline
+  changed), the Node unit suite green except the three `unit-mfa-passkeys-2490` page tests that need a server (green under their own config).
