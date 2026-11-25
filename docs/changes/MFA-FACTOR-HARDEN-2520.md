@@ -101,7 +101,7 @@ NOT_RUN: `unit-mfa-passkeys-2490.spec.ts` in page mode (`SW_UNIT_PAGES=1`, local
 branch from main.
 
 Compare page (Hebrew, local): `private/planning/mfa-factor-harden-2520_compare_2026-11-25.html` - the two new states (the reset's
-"sign in again" refusal, the enrolment's fresh-sign-in message), Hebrew + English, desktop + phone, light + dark, before (base
+"sign in again" refusal, the enrolment's fresh-sign-in message), Hebrew + English, desktop + phone, before (base
 `284ac25ea` build with the same mocks) and after - light only: the "dark" pictures of the run came out light (the app follows its own
 scheme setting, not the OS) and the re-run with the fix was not reached on the runner.
 
