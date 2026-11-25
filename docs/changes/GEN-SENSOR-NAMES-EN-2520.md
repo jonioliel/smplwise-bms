@@ -43,7 +43,39 @@ Design ratchet: no new literal (no CSS touched).
 
 ## Tests
 
-(see the "Runner results" section below)
+PC: `pytest tests/test_gen_sensor_names_en_2520.py` (main checkout venv) - exit 0, 5 passed; `scripts/gen_wire_types.py --check` - exit 0.
+
+Runner, slot B. Job `~/work/p2520_gensensoren_run.sh` at 1cba40b3d (code head; later commits change only the evidence spec, this
+note and evidence PNGs):
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| Wire types | `python scripts/gen_wire_types.py --check` | 0 | up to date |
+| Ruff (touched backend files) | `ruff check ...` | 0 | all checks passed |
+| Backend, one process per file (`SW_WIRE_STRICT=1`) | `pytest tests/<file>.py` | 0 each | test_gen_sensor_names_en_2520 5, test_generator 49, test_genalert_295 11, test_generator_home_widget 3, test_genlog_092 21, test_wire_routers_b_2450 66, test_wire_routers_c_2470 58, test_wire_routers_d_2470 166, test_wire_route_coverage_2460 5 - all passed |
+| Types (app / tests) | `npx tsc --noEmit -p tsconfig.json` / `-p tsconfig.tests.json` | 0 / 0 | clean |
+| Lint (touched files) | `npx eslint src/generator/gen-routing.ts src/generator/gen-settings.ts src/generator/gen-text.ts tests/...` | 0 | 0 errors (3 "file ignored" warnings for test files) |
+| Design ratchet | `python3 scripts/design_ratchet.py` | 0 | no count above the baseline |
+| Unused exports | `node scripts/unused-exports.mjs` | 0 | nothing new |
+| Unit | `npx playwright test -c playwright.unit.config.ts tests/unit-generator.spec.ts` | 0 | 25 passed |
+| Build | `npm run build` | 0 | ok |
+
+Job `~/work/p2520_gensensoren_run2.sh` at 1bf47d376 (final spec):
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| Evidence + generator layout baselines (desktop / tablet / mobile) | `npx playwright test tests/evidence-gen-sensor-names-en-2520.spec.ts tests/evidence-gen-units-routing-2520.spec.ts tests/evidence-gen-units-en-2490.spec.ts tests/evidence-genalert.spec.ts tests/evidence-generator.spec.ts tests/layout-audit30-e-infra.spec.ts --workers=2` | 0 | 94 passed, 44 skipped (the Hebrew pixel baselines of `layout-audit30-e-infra` pass unchanged; no baseline refreshed) |
+| New spec on the base 8ae3cbaa3 (with this branch's mock) | `npx playwright test tests/evidence-gen-sensor-names-en-2520.spec.ts` | 1 | 9 failed (English sessions: Hebrew names; Hebrew mapping: the new `data-role-label` hook is absent), 3 passed (Hebrew routing: the same Hebrew text as on this branch) |
+
+The first run of the new spec (at 1cba40b3d) failed its routing checks on all three projects: the spec expected a second "requires
+sensor" line (fuel) that is not on the matrix's first page. The spec was corrected (df408ca8f) to check the first-page line only and to use
+soft checks so every shot is made; the mapping checks passed in both runs.
+
+Evidence PNGs refreshed (the routing and mapping screens now show the mock's real Hebrew sensor names instead of role keys):
+`docs/evidence/genalert/routing-first-run-*`, `routing-configured-*`, `docs/evidence/generator/settings-routing-empty-*`,
+`settings-routing-full-*`, `settings-mapping-*`. Other generator evidence PNGs re-rendered by the run were not committed (unchanged screens).
+
+NOT_RUN: the full backend and frontend suites and the release gate (the train gate covers them).
 
 ## Compare page
 
