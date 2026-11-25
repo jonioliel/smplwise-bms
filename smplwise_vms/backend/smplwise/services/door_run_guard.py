@@ -32,17 +32,21 @@ from typing import Any, Iterator, Protocol
 from ..errors import ApiError
 from ..rbac import Principal
 from . import door_authority, door_path, intercom_sync
+from .door_conversion_text import as_msg
 
 # 2.4.9 (owner decision 2026-10-13): opening a door from an automation is REQUIRED eventually (high priority), but it waits
 # for WisKey's trusted-caller appendix for an automation actor (W1); until then the refusal stays and says so plainly - the
 # item opens a door, opening doors from automations is not supported yet, and (on enable) switching it off is allowed. No
 # bypass exists. Lifting it is one change: D10a installs a ConversionSource (`set_conversion_source` below), after which a
 # converted item runs and its doors open through the one door path with the real operator (`_decide` / `open_plan_doors`).
-NOT_YET = "פתיחת דלתות מאוטומציה עדיין לא נתמכת"
-NOT_CONVERTED = f"לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. {NOT_YET}."
-UNRESOLVABLE = f"לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. {NOT_YET}."
-NO_PERMISSION = "אין הרשאה לפתוח דלת זו"
-USE_AUTOMATIONS = "הפריט כולל פתיחת דלת; מפעילים אותו ממסך האוטומציות."
+# DOOR-BLOCKS-I18N-2510: every text below is a `Msg` of `doorguard.*` (services/door_conversion_text.py) whose string is exactly the
+# Hebrew written here before (checked at import); the error envelope and the blocks screen's route render it in the reader's language.
+NOT_YET = as_msg("doorguard.not_yet", "פתיחת דלתות מאוטומציה עדיין לא נתמכת")
+NOT_CONVERTED = as_msg("doorguard.not_converted", "לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. {not_yet}.", not_yet=NOT_YET)
+UNRESOLVABLE = as_msg("doorguard.unresolvable", "לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. {not_yet}.", not_yet=NOT_YET)
+NO_PERMISSION = as_msg("doorguard.no_permission", "אין הרשאה לפתוח דלת זו")
+USE_AUTOMATIONS = as_msg("doorguard.use_automations", "הפריט כולל פתיחת דלת; מפעילים אותו ממסך האוטומציות.")
+STATION_UNAVAILABLE = as_msg("doorguard.station_unavailable", "התחנה לא זמינה")
 
 
 @dataclass(frozen=True)
@@ -161,8 +165,8 @@ def judge_entity_action(conn: sqlite3.Connection, entity_id: str, action_id: str
 # way a new door step is; disabling is always allowed. An item converted by D10a carries no door step in Home Assistant
 # and enables as before. Home Assistant's own screens are not an Arx path (DR-7) and are not judged.
 
-ENABLE_NOT_CONVERTED = f"לא ניתן להפעיל: הפריט פותח דלת של בקרת הכניסה. {NOT_YET}; אפשר לכבות אותו."
-ENABLE_UNRESOLVABLE = f"לא ניתן להפעיל: ייתכן שהפריט פותח דלת של בקרת הכניסה. {NOT_YET}; אפשר לכבות אותו."
+ENABLE_NOT_CONVERTED = as_msg("doorguard.enable_not_converted", "לא ניתן להפעיל: הפריט פותח דלת של בקרת הכניסה. {not_yet}; אפשר לכבות אותו.", not_yet=NOT_YET)
+ENABLE_UNRESOLVABLE = as_msg("doorguard.enable_unresolvable", "לא ניתן להפעיל: ייתכן שהפריט פותח דלת של בקרת הכניסה. {not_yet}; אפשר לכבות אותו.", not_yet=NOT_YET)
 
 
 def _enable_refusal(res: door_path.Resolution) -> ApiError:
@@ -253,7 +257,7 @@ def open_plan_doors(request: Any, conn: sqlite3.Connection, principal: Principal
         act.details.update(origin=origin, item_revision=plan.revision, run_kind=plan.kind, run_item=plan.item_id, **({"run_op_id": op_id} if op_id else {}))
         try:
             if station is None and intercom_sync.SYNC.has_copy():
-                raise act.refuse(ApiError(404, "intercom_station_not_found", "התחנה לא זמינה"))
+                raise act.refuse(ApiError(404, "intercom_station_not_found", STATION_UNAVAILABLE))
             if station is not None:
                 act.details["station_name"] = station["name"]
             lock = ac._relay_of(act, station, d.relay)

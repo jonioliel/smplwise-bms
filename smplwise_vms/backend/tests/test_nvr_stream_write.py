@@ -151,7 +151,7 @@ def test_multiple_fields_and_the_h265_main(w):
     r = put(c, ids[1], "101", {"gop": 25, "bitrate_kbps": 2048, "fps": 12.5})
     assert r.status_code == 404 or r.status_code == 422 or r.status_code == 200, r.text
     # 12.5 fps is not in the fake's options (25, 20, 15, 10, 5, full): refused before any write
-    assert r.status_code == 422 and r.json()["code"] == "value_not_allowed" and r.json()["details"]["field"] == "fps" and fake.writes == []
+    assert r.status_code == 422 and r.json()["code"] == "value_not_allowed" and r.json()["details"]["field"] == "fps" and r.json()["details"]["fields"] == ["fps"] and fake.writes == []
     r = put(c, ids[1], "101", {"gop": 25, "bitrate_kbps": 2048, "fps": 10})
     assert r.status_code == 200, r.text
     assert r.json()["applied_fields"] == ["bitrate_kbps", "fps", "gop"] and (r.json()["stream"]["gop"], r.json()["stream"]["bitrate_kbps"], r.json()["stream"]["fps"]) == (25, 2048, 10.0)
@@ -440,7 +440,7 @@ def test_codec_change_keeping_a_resolution_the_new_codec_lacks_is_refused_in_cle
     r = put(c, ids[2], "201", {"codec": "H.264"})
     assert r.status_code == 422, r.text
     e = r.json()
-    assert (e["code"], e["details"]["field"], e["details"]["codec"], e["details"]["allowed"]) == ("value_not_allowed", "resolution", "H.264", ["2560x1440", "1920x1080"])
+    assert (e["code"], e["details"]["fields"], e["details"]["field"], e["details"]["codec"], e["details"]["allowed"]) == ("value_not_allowed", ["resolution"], "resolution", "H.264", ["2560x1440", "1920x1080"])
     assert e["user_message"] == "הרזולוציה הנוכחית אינה נתמכת בקידוד H.264. בחרו ערך אחר ושמרו שוב."
     assert fake.writes == [] and rows(app, "SELECT * FROM nvr_changes") == []
     assert (audits(app, "nvr.stream.write")[-1]["decision"], audits(app, "nvr.stream.write")[-1]["reason"]) == ("denied", "value_not_allowed")
@@ -455,7 +455,7 @@ def test_codec_change_naming_a_size_only_the_static_document_lists_is_refused(w)
     app, c, fake, ids = w
     owner_camera(fake, dyn_h264=["2560x1440"])
     r = put(c, ids[2], "201", {"codec": "H.264", "resolution": "1920x1080"})
-    assert r.status_code == 422 and (r.json()["code"], r.json()["details"]["field"]) == ("value_not_allowed", "resolution"), r.text
+    assert r.status_code == 422 and (r.json()["code"], r.json()["details"]["field"], r.json()["details"]["fields"]) == ("value_not_allowed", "resolution", ["resolution"]), r.text
     assert fake.writes == []
 
 

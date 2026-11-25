@@ -68,13 +68,25 @@ class WireModel(BaseModel):
                 raise
             first = exc.errors(include_url=False)[0]
             _drift(cls.__name__, f"{'.'.join(str(p) for p in first.get('loc', ()))}: {first.get('type')}")
-            return cls.model_construct(_fields_set=set(data), **data)
+            # RESPONSE-MODELS-E-2480: the set keys by FIELD name - a key declared with an alias (`fields_ = Field(alias="fields")`)
+            # was set under its alias and then dropped by exclude_unset (found by the oracle: the fallback lost the key)
+            by_alias = {f.alias: n for n, f in cls.model_fields.items() if f.alias}
+            return cls.model_construct(_fields_set={by_alias.get(k, k) for k in data}, **data)
         extra = out.__pydantic_extra__
         if extra:
             if strict():
                 raise ValueError(f"{cls.__name__}: undeclared keys {sorted(extra)}")
             _drift(cls.__name__, f"undeclared keys {sorted(extra)}")
         return out
+
+
+class ExactModel(WireModel):
+    """A wire model whose values are never converted (RESPONSE-MODELS-E-2480): pydantic's strict mode, so `2.0` never becomes `2` in an
+    `int` field, `1` never `True` in a `bool` field and `"5"` never `5` in a number. A value of another type is drift like any other
+    (strict tests: refused; otherwise the object goes out as the route built it), so the answer stays byte-identical even where the
+    model was written from recorded answers and the code alone. Nested dicts are still read into nested models."""
+
+    model_config = ConfigDict(extra="allow", protected_namespaces=(), strict=True)
 
 
 def wire(model: Any) -> dict[str, Any]:

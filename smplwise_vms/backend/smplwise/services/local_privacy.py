@@ -44,6 +44,9 @@ DELETE_ROWS: tuple[tuple[str, str], ...] = (
     ("auth_local_credentials", "user_id"), ("auth_local_sessions", "user_id"), ("auth_local_links", "user_id"),
     ("auth_local_reset_codes", "user_id"), ("auth_local_reset_sends", "user_id"), ("auth_webauthn_credentials", "user_id"),
     ("identity_links", "local_user_id"), ("group_members", "user_id"), ("auth_totp", "user_id"), ("auth_totp_failures", "user_id"),
+    ("auth_recovery_codes", "user_id"),  # MFA-RECOVERY-CODES-2490
+    ("auth_device_keys", "user_id"),  # MFA-DEVICEKEY-2490
+    ("auth_factor_resets", "user_id"),  # MFA-RESET-HARDENING-2510
     ("user_prefs", "user_id"), ("plan_view_prefs", "user_id"), ("automation_prefs", "user_id"), ("ticket_saved_views", "user_id"),
     ("push_subscriptions", "user_id"), ("push_prefs", "user_id"), ("mobile_push_messages", "user_id"), ("mobile_presence_events", "user_id"),
     ("mobile_devices", "user_id"), ("notification_recipients", "user_id"), ("notification_deliveries", "user_id"),
@@ -77,6 +80,7 @@ EXPORT_LISTS: dict[str, tuple[str, str, tuple[str, ...], str]] = {
     "remote_sign_in": ("remote_sign_ins", "user_id", ("last_at", "last_address", "last_country", "sign_ins"), "last_at"),
     "alarm_policy": ("alarm_user_policy", "user_id", ("arm_policy", "disarm_policy", "pin_set_at", "updated_at"), "updated_at"),
     "second_factor": ("auth_totp", "user_id", ("enabled", "created_at", "enabled_at", "last_used_at"), "created_at"),
+    "phone_keys": ("auth_device_keys", "user_id", ("id", "label", "auth_kind", "platform", "created_at", "last_used_at", "revoked_at", "attested"), "created_at"),  # MFA-DEVICEKEY-2490 (+ attested: MFA-DEVICEKEY-ATTEST-2490)
 }
 
 

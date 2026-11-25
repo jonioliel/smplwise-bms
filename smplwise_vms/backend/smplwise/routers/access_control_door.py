@@ -77,6 +77,11 @@ def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_af
     """Send one WisKey door opening that every check already allowed: the relay guard, the attempt row (committed before
     sending), the transport, the outcome row. Never retried, never queued. `before_attempt(conn)` writes the caller's own
     pending record in the same transaction as the attempt row (the tile's ha_actions row)."""
+    from ..services import step_up
+
+    # MFA-STEPUP-GATES-2490: opening a door needs a fresh step-up proof (inside an HTTP request; a background run is never gated) -
+    # after every authorisation of the caller, before the relay is reserved or anything is recorded or sent
+    step_up.guard_action(act.conn, act.request, act.principal, step_up.ACTION_DOOR_OPEN)
     mode = trusted_door.mode(act.conn)
     if not intercom_sync.SYNC.has_copy() and (mode == "on" or intercom_sync.STATE.state == "ready"):
         # SEC-WXD L5: without a WisKey copy the station, the relay and its online state cannot be checked (a relay re-wired

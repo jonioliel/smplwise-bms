@@ -39,7 +39,7 @@ from urllib.parse import quote
 import httpx
 
 from ...config import Settings
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from .. import nvr
 from ..events_ingest import ParsedAlert
 from . import provision_isr_auth as pauth
@@ -557,7 +557,7 @@ class ProvisionIsrAdapter:
         try:
             ch, sid = px.split_stream_ref(ref)
         except ValueError as exc:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"}) from exc
+            raise field_error("הערך אינו מותר.", ["stream_ref"], code="value_not_allowed", legacy={"field": "stream_ref"}) from exc
         for s in self._streams(ch):
             if s["stream_no"] == sid:
                 return ch, s
@@ -639,7 +639,7 @@ class ProvisionIsrAdapter:
         try:
             return px.edited_item(element, changes)
         except (ValueError, ET.ParseError) as exc:
-            raise ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": str(exc)[:32]}) from exc
+            raise field_error("הערך אינו בין הערכים שהמכשיר מקבל.", [str(exc)[:32]], code="value_not_allowed", legacy={"field": str(exc)[:32]}) from exc
 
     @staticmethod
     def parse_element(element: str) -> dict[str, Any]:
@@ -714,13 +714,14 @@ class ProvisionIsrAdapter:
         res = {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", [])}
 
         def bad(field: str, allowed: Any = None) -> ApiError:
-            return ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": field, **({"allowed": allowed} if allowed else {})})
+            return field_error("הערך אינו בין הערכים שהמכשיר מקבל.", [field], code="value_not_allowed", legacy={"field": field},
+                               extra={"allowed": allowed} if allowed else None)
 
         if res and p["resolution"] and p["resolution"] not in res:
             raise bad("resolution")
         top = res.get(p["resolution"])
         if top and p["fps"] and p["fps"] > top:
-            raise ApiError(422, "value_not_allowed", "קצב הפריימים גבוה מהמותר ברזולוציה הזו.", details={"field": "fps", "allowed": {"max": top}})
+            raise field_error("קצב הפריימים גבוה מהמותר ברזולוציה הזו.", ["fps"], code="value_not_allowed", legacy={"field": "fps"}, extra={"allowed": {"max": top}})
         lim = (before or {}).get("limits") or {}
         for field, key in (("bitrate_kbps", "bitrate"), ("gop", "gop")):
             bounds, v = lim.get(key), p.get(field)
@@ -743,13 +744,13 @@ class ProvisionIsrAdapter:
             ch, sid = px.split_stream_ref(stream_ref)
             target = px.to_int(px.parse(element).attrib.get("id"))
         except (ValueError, ET.ParseError) as exc:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"}) from exc
+            raise field_error("הערך אינו מותר.", ["stream_ref"], code="value_not_allowed", legacy={"field": "stream_ref"}) from exc
         get_xml = self._xml("GetVideoStreamConfig", ch)
         before = next((s for s in px.parse_video_stream_config(get_xml, ch) if s["stream_no"] == sid), None)
         if before is None:
             raise ApiError(404, "not_found", "הזרם לא נמצא ב־NVR.", details={"stream_ref": stream_ref})
         if target != before["stream_id"]:  # the element must name the device's own id of this stream
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"})
+            raise field_error("הערך אינו מותר.", ["stream_ref"], code="value_not_allowed", legacy={"field": "stream_ref"})
         if before["etag"] != expect_etag:
             raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before["etag"]})
         try:
@@ -818,7 +819,7 @@ class ProvisionIsrAdapter:
         try:
             body = px.alarm_server_document(server, port, heartbeat_s, path=path, fields=set(before.get("fields") or ()))
         except ValueError as exc:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": str(exc)}) from exc
+            raise field_error("הערך אינו מותר.", [str(exc)], code="value_not_allowed", legacy={"field": str(exc)}) from exc
         self._xml("SetAlarmServerConfig", None, body=body, allowed=WRITE_COMMANDS)
         got = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
         ok = (got.get("address") == server and got.get("port") == port and (got.get("heartbeat") is not False)
@@ -862,7 +863,7 @@ class ProvisionIsrAdapter:
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
         if not str(source_ref).isdigit() or int(source_ref) < 1:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "source_ref"})
+            raise field_error("הערך אינו מותר.", ["source_ref"], code="value_not_allowed", legacy={"field": "source_ref"})
         ch = int(source_ref)
         base = f"rtsp://{quote(s.nvr_user, safe='')}:{quote(s.nvr_password, safe='')}@{s.nvr_host}:{s.nvr_rtsp_port}"
         no = {"main": 1, "sub": 2, "third": 3}.get(role)
@@ -887,7 +888,7 @@ class ProvisionIsrAdapter:
         """One JPEG of the channel (GetSnapshot). The device's Content-Type is often application/octet-stream (Postman
         example), so the JPEG signature decides."""
         if not str(source_ref).isdigit():
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "source_ref"})
+            raise field_error("הערך אינו מותר.", ["source_ref"], code="value_not_allowed", legacy={"field": "source_ref"})
         data, _ctype = self._call("GetSnapshot", int(source_ref), max_bytes=SNAPSHOT_MAX_BYTES)
         if not data.startswith(b"\xff\xd8\xff"):
             raise ApiError(503, "snapshot_unavailable", "ה־NVR לא סיפק תמונה לערוץ זה.", retryable=True, details={"op": "snapshot"})

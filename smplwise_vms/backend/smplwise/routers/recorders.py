@@ -28,7 +28,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import DEV_NVR_PLACEHOLDER
 from ..db import now_iso, unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
 from ..services import autosync, confirm_words, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
@@ -252,7 +252,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     settings = settings_of(request)
     name = " ".join(body.name.split())
     if not name or any(ord(ch) < 32 for ch in name):
-        raise ApiError(422, "name_invalid", "שם ה־NVR אינו תקין.", details={"field": "name"})
+        raise field_error("שם ה־NVR אינו תקין.", ["name"], code="name_invalid", legacy={"field": "name"})
     if _primary_free(conn, settings) and not _other_recorders(conn) and not primary_has_history(conn):
         rid = PRIMARY  # an installation without any recorder and without history of the first one: it becomes the first recorder
     else:
@@ -264,7 +264,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     def create(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, rid):
             nc._deny(request, c, principal, "nvr.recorder.add", "recorder_duplicate", fields["vendor"], rid)  # security review Low: audited
-            raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
+            raise field_error("ה־NVR הזה כבר מחובר למערכת.", ["host"], code="recorder_duplicate", status=409, legacy={"field": "host"})
         create_recorder_row(c, rid, name, fields["vendor"])
 
     out = nc.do_save(request, principal, body, conn, rid, before_write=create, allow_none=False)
@@ -290,7 +290,7 @@ def update_recorder(recorder_id: str, request: Request, background: BackgroundTa
     if body.name is not None:
         name = " ".join(body.name.split())
         if not name or any(ord(ch) < 32 for ch in name):
-            raise ApiError(422, "name_invalid", "שם ה־NVR אינו תקין.", details={"field": "name"})
+            raise field_error("שם ה־NVR אינו תקין.", ["name"], code="name_invalid", legacy={"field": "name"})
         changes["name"] = name
     if body.enabled is not None:
         changes["enabled"] = 1 if body.enabled else 0
@@ -302,7 +302,7 @@ def update_recorder(recorder_id: str, request: Request, background: BackgroundTa
             try:
                 ZoneInfo(tz)
             except Exception:  # noqa: BLE001 - any unknown or malformed zone name
-                raise ApiError(422, "time_zone_invalid", "אזור הזמן אינו מוכר.", details={"field": "time_zone"}) from None
+                raise field_error("אזור הזמן אינו מוכר.", ["time_zone"], code="time_zone_invalid", legacy={"field": "time_zone"}) from None
         changes["time_zone"] = tz or None
     if not changes:
         raise ApiError(422, "validation", "אין מה לשנות.")
@@ -327,7 +327,7 @@ def remove_recorder(recorder_id: str, request: Request, background: BackgroundTa
     _known(conn, recorder_id)
     confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
     if confirm_word is None:
-        raise ApiError(422, "confirm_required", f"כדי להסיר את ה־NVR יש להקליד \"{nc.REMOVE_WORD}\".", details={"field": "confirm_text"})
+        raise field_error(f"כדי להסיר את ה־NVR יש להקליד \"{nc.REMOVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
     nc._require_revision(body.if_revision, conn, recorder_id)
     if _row(conn, recorder_id) is None:
         autosync.ensure_recorder(conn, recorder_id=recorder_id, lang=dn.lang_of(conn, principal))
@@ -366,7 +366,7 @@ def save_recorder_connection(recorder_id: str, request: Request, principal: Prin
 
     def unique(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, recorder_id):
-            raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
+            raise field_error("ה־NVR הזה כבר מחובר למערכת.", ["host"], code="recorder_duplicate", status=409, legacy={"field": "host"})
 
     return nc.do_save(request, principal, body, conn, recorder_id, before_write=unique, allow_none=recorder_id == PRIMARY)
 

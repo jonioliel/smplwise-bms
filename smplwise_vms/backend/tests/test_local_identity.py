@@ -822,7 +822,8 @@ def test_administrative_permissions_wait_for_the_second_factor(lx):
     assert r.status_code == 200 and "arx_session=l." in _cookie(r)
     assert c2.get("/arx/api/v1/access/bindings").status_code == 200
     # an administrator's reset of the factor ends the user's local sessions
-    lx.admin.delete(f"/api/v1/auth/second-factor/users/{uid}")
+    confirm = lx.admin.get(f"/api/v1/auth/second-factor/users/{uid}/reset-check").json()["confirm_text"]  # MFA-RESET-HARDENING-2510
+    assert lx.admin.request("DELETE", f"/api/v1/auth/second-factor/users/{uid}", json={"confirm": confirm}).status_code == 200
     assert c2.get("/arx/api/v1/me").status_code == 401 and c.get("/arx/api/v1/me").status_code == 401
 
 

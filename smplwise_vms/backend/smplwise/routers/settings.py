@@ -57,6 +57,8 @@ from .settings_patch.identity import (
     LOCAL_ONLY_HE,  # noqa: F401 - re-export
     _local_only_identity_key,  # noqa: F401 - re-export
 )
+from ..wire import settings as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -279,6 +281,18 @@ class SettingsPatch(BaseModel):
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
     security_second_factor_policy: str | None = Field(default=None, pattern="^(optional|admins)$", alias="security.second_factor_policy")
     security_second_factor_bearer: str | None = Field(default=None, pattern="^(enforce|off)$", alias="security.second_factor_bearer")
+    security_step_up: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up")  # MFA-STEPUP-TRAIN-2490
+    security_step_up_minutes: int | None = Field(default=None, ge=0, le=30, alias="security.step_up_minutes")
+    security_step_up_local: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_local")
+    security_passkeys_all_users: str | None = Field(default=None, pattern="^(on|off)$", alias="security.passkeys_all_users")  # MFA-PASSKEYS-2490: system_admin only
+    security_factor_policy: str | None = Field(default=None, pattern="^(optional|admins|sensitive|all)$", alias="security.factor_policy")  # MFA-POLICY-2490
+    security_factor_policy_mode: str | None = Field(default=None, pattern="^(report|enforce)$", alias="security.factor_policy_mode")
+    security_factor_wall_exempt: str | None = Field(default=None, pattern="^(on|off)$", alias="security.factor_wall_exempt")
+    security_remote_long_lived_tokens: str | None = Field(default=None, pattern="^(allow|refuse_under_policy|refuse)$", alias="security.remote_long_lived_tokens")
+    security_device_key_auth: str | None = Field(default=None, pattern="^(biometric|biometric_or_screen_lock)$", alias="security.device_key_auth")  # MFA-DEVICEKEY-2490
+    security_device_key_attestation: str | None = Field(default=None, pattern="^(off|preferred|required)$", alias="security.device_key_attestation")  # MFA-DEVICEKEY-ATTEST-2490
+    security_factor_reset_channel: str | None = Field(default=None, pattern="^(any|local)$", alias="security.factor_reset_channel")  # MFA-RESET-HARDENING-2510: system_admin only
+    security_recovery_reenrol: str | None = Field(default=None, pattern="^(on|off)$", alias="security.recovery_reenrol")  # RELEASE-2510-TRAIN: owner Q14 hook, default off
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     security_local_identity: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity")  # USR2: system_admin only (checked below)
     security_local_identity_extended: str | None = Field(default=None, pattern="^(on|off)$", alias="security.local_identity_extended")  # SVCIDENT2: system_admin; on = local channel only, off = any channel (AMEND273)
@@ -386,7 +400,7 @@ def _capacity_info(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"nvr_channels": channels, "warnings": warnings}
 
 
-@router.get("/settings")
+@router.get("/settings", **wire(W.SettingsSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     can_edit = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     from .search import search_allowed
@@ -394,7 +408,7 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
     return {"settings": read_settings(conn, private=can_edit), "can_edit": can_edit, "search_allowed": search_allowed(conn, principal), **_capacity_info(conn)}
 
 
-@router.patch("/settings")
+@router.patch("/settings", **wire(W.SettingsPatchSettings))
 def patch_settings(body: SettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     patch = settings_patch.Patch(conn, request, principal, {k: v for k, v in body.model_dump(by_alias=True).items() if v is not None})

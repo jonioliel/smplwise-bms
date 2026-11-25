@@ -56,6 +56,8 @@ from ..services import intercom_sync, savepoints
 from ..services import wiskey_triage as tr
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
+from ..wire import access_control_triage as W
+from ..wire import wire
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -142,7 +144,7 @@ def _recent(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"conflicts": conflicts, "alerts": alerts}
 
 
-@router.get("/access-control/triage")
+@router.get("/access-control/triage", **wire(W.AccessControlTriageTriageView))
 def triage_view(auth: ia.Authority = Depends(_viewer)) -> dict[str, Any]:
     conn = auth.conn
     manage = may_manage(auth)

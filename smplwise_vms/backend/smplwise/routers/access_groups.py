@@ -288,6 +288,12 @@ def set_members(group_id: str, request: Request, principal: Principal = Depends(
             raise _item_refusal(ApiError(422, "local_user_no_groups", "משתמש Arx אינו מצורף לקבוצות: יש לו תפקיד אחד בהיקף אחד."), i, uid, "user")
     if not added and not removed:
         return _group_dict(conn, g, principal)
+    if added and any(b["role_id"] == "system_admin" and b["effect"] == "allow" for b in _group_bindings(conn, group_id)):
+        from ..services import step_up
+
+        # MFA-RESET-HARDENING-2510: joining a group that holds the system administrator role makes the person one - the conditional
+        # once-action of a role change to system administrator (a once-proof while step-up applies; nothing with step-up off)
+        step_up.require_once_when_on(conn, request, principal, step_up.ONCE_ADMIN_ROLE)
     with keep_an_admin(conn):
         for uid in added:
             _ensure_user_row(conn, uid)
@@ -318,7 +324,7 @@ class GroupBindingBody(BaseModel):
 @router.post("/access/groups/{group_id}/bindings", status_code=201, **wire(W.AccessGroupBound))
 def bind_group(group_id: str, body: GroupBindingBody, request: Request, principal: Principal = Depends(_assign_holder), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     b = BindingBody(subject_kind="group", subject_id=group_id, role_id=body.role_id, scope_type=body.scope_type, scope_id=body.scope_id, effect=body.effect, expires_at=body.expires_at)
-    validate_binding(conn, principal, b)  # permission and scope first, then the group (404) and the delegation limits
+    validate_binding(conn, principal, b, request)  # permission and scope first, then the group (404) and the delegation limits
     _check_revision(_group_row(conn, group_id), body.revision)
     bid, rev = insert_binding(conn, principal, request, b)
     if b.effect == "deny":
@@ -469,6 +475,12 @@ def bulk_bindings(request: Request, principal: Principal = Depends(_assign_gate_
             validate_binding(conn, principal, item, request)
         except ApiError as exc:
             raise _item_refusal(exc, i, item.subject_id, item.subject_kind) from None
+    if any(item.role_id == "system_admin" and item.effect == "allow" for item in body.items):
+        from ..services import step_up
+
+        # MFA-RESET-HARDENING-2510: a system administrator binding in the set - its once-proof is checked here, before the savepoint
+        # (insert_binding then finds it done for this request); nothing with step-up off
+        step_up.require_once_when_on(conn, request, principal, step_up.ONCE_ADMIN_ROLE)
     created: list[dict[str, Any]] = []
     terminate: set[str] = set()
     granted: set[str] = set()

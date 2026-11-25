@@ -29,6 +29,8 @@ from ..services import confirm_words
 from ..services import intercom_writes as iw
 from ..services import wiskey_direct_join as wkj
 from ._common import rid as _rid
+from ..wire import wiskey_lineage as W
+from ..wire import wire
 
 router = APIRouter()
 BASE = "/access-control/wiskey-lineage"
@@ -76,7 +78,7 @@ def _actor_ref(principal: Principal) -> str:
     return f"arx-user:{principal.user_id}"[:128]
 
 
-@router.get(BASE)
+@router.get(BASE, **wire(W.WiskeyLineageView))
 def view(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, action="wiskey.lineage.view", interactive=False)  # read mode: audit() writes the refusal aside
     join = wkj.installed()

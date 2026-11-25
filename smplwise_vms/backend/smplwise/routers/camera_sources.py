@@ -30,6 +30,8 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_sources as svc
 from ._common import raw_body as _raw_body, rid as _rid
 from .nvr_connection import _parse
+from ..wire import camera_sources as W
+from ..wire import wire
 
 router = APIRouter()
 PERMISSION = svc.PERMISSION
@@ -66,14 +68,14 @@ class StandaloneIn(BaseModel):
     sub_url: str | None = Field(default=None, max_length=URL_MAX)
 
 
-@router.get("/cameras/{camera_id}/source")
+@router.get("/cameras/{camera_id}/source", **wire(W.CameraSourcesSource))
 def get_source(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The camera's video source (never an address: the masked form and `has_password`)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return svc.view(conn, svc._camera(conn, camera_id))
 
 
-@router.put("/cameras/{camera_id}/source")
+@router.put("/cameras/{camera_id}/source", **wire(W.CameraSourcesPutSource))
 def put_source(camera_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Change the camera's video source (the recorder, or its own RTSP addresses)."""
@@ -83,7 +85,7 @@ def put_source(camera_id: str, request: Request, principal: Principal = Depends(
                     if_revision=body.if_revision, area_id=body.area_id, request_id=_rid(request))
 
 
-@router.post("/cameras/source/test")
+@router.post("/cameras/source/test", **wire(W.CameraSourcesTestSource))
 def test_source(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Test an address before saving: one frame -> a small preview, the resolution and the codec, or a fixed Hebrew error."""
@@ -113,7 +115,7 @@ def _test_discovered(request: Request, conn: sqlite3.Connection, principal: Prin
                                                                                body.profile_token))
 
 
-@router.post("/cameras/standalone", status_code=201)
+@router.post("/cameras/standalone", status_code=201, **wire(W.CameraSourcesCreateStandalone))
 def create_standalone(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add a camera without a recorder: live video and snapshots from its own RTSP addresses."""
@@ -124,7 +126,7 @@ def create_standalone(request: Request, principal: Principal = Depends(_admin_ro
                                  request_id=_rid(request))
 
 
-@router.delete("/cameras/standalone/{camera_id}")
+@router.delete("/cameras/standalone/{camera_id}", **wire(W.CameraSourcesDeleteStandalone))
 def delete_standalone(camera_id: str, request: Request, principal: Principal = Depends(current_principal),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove a camera without a recorder (a camera on a recorder is refused: 409 not_standalone)."""

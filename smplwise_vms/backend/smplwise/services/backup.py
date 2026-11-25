@@ -81,8 +81,11 @@ PROJECT_TABLES = PROJECT_TABLES + ["home_notify_quiet"]
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
 # (auth_local_sessions, auth_local_links, auth_local_failures, auth_totp*) are never written to an archive. identity_links: the
 # manual "same person" link. Listed right after `users` (they reference it).
-# USR2 phase 4: the passkeys' PUBLIC keys (auth_webauthn_credentials) travel the same way; WebAuthn challenges exist in memory only.
-ACCESS_TABLES = ["users", "auth_local_credentials", "auth_webauthn_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
+# USR2 phase 4 put the passkeys' public keys (auth_webauthn_credentials) here too. MFA-SECFIX-2500 SR-6: no more - since slice 4 a
+# passkey is a step-up method for every user, and a restore of an older archive brought back a passkey the user had removed (a lost
+# phone's). Passkeys now follow the other factor material (NEVER_EXPORTED_TABLES): never written to an archive, never read from one,
+# and a restore keeps the installation's CURRENT passkeys (`_keep_passkeys` / `_put_back_passkeys`: deleting `users` would cascade).
+ACCESS_TABLES = ["users", "auth_local_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
                  "intercom_station_placement", "intercom_door_map", "door_grant_bindings",
                  # HOME-SIMPLE-2420 (migration 0211): who sees the home or the full interface, home-only and wall-panel locks
@@ -97,6 +100,14 @@ NEVER_EXPORTED_COLUMNS: dict[str, frozenset[str]] = {"auth_local_credentials": f
 # The archive format is an allow-list (PROJECT_TABLES / ACCESS_TABLES / OPTIONAL_TABLES); this set is the guard that none of them
 # is ever added to it, checked at import and again by `snapshot`.
 NEVER_EXPORTED_TABLES = frozenset({"auth_local_sessions", "auth_local_links", "auth_local_failures", "auth_totp", "auth_totp_failures",
+                                   # MFA-RECOVERY-CODES-2490: the recovery codes' hashes belong to the TOTP factor, which never travels either
+                                   "auth_recovery_codes",
+                                   # MFA-DEVICEKEY-2490: the phone keys are factor material (design 6: they never travel, like auth_totp)
+                                   "auth_device_keys",
+                                   # MFA-SECFIX-2500 SR-6: passkeys too - a restore never brings back a removed one
+                                   "auth_webauthn_credentials",
+                                   # MFA-RESET-HARDENING-2510: who must enrol again after an administrator's reset (runtime state of this box)
+                                   "auth_factor_resets",
                                    "auth_local_reset_codes", "auth_local_reset_sends",
                                    # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key set (sealed material) and its rotation history
                                    "bridge_keys", "bridge_rotations",
@@ -270,6 +281,20 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh", "security.app_refresh_a
 SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days", "access.external.denied_alert", "access.external.denied_cursor"}
 # APPREFRESH2-295: the device-key mode (off | optional | required) - a restore must never weaken it
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
+# MFA-STEPUP-TRAIN-2490: the step-up switch, its window and its channel are security policy - a restore must never weaken them
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
+# MFA-PASSKEYS-2490: whether passkeys count for every user is security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.passkeys_all_users"}
+# MFA-POLICY-2490: the sign-in factor policy, its mode, the wall exemption and the long-lived-token rule - a restore never changes them
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_policy", "security.factor_policy_mode", "security.factor_wall_exempt", "security.remote_long_lived_tokens"}
+# MFA-DEVICEKEY-2490: what a phone key needs per signature is security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_auth"}
+# MFA-DEVICEKEY-ATTEST-2490: the phone-key attestation mode (off | preferred | required) - a restore must never weaken it
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.device_key_attestation"}
+# MFA-RESET-HARDENING-2510: from which channel an administrator may reset another user's factors (owner Q53) - never from an archive
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_reset_channel"}
+# RELEASE-2510-TRAIN: the re-enrolment after a recovery-code sign-in (owner Q14: off) - a restore never changes it
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.recovery_reenrol"}
 # WKWRITE-295: the anchor of the WisKey people-write lineage (generation + last intent sequence) describes THIS installation's lineage
 # file, which lives outside every backup - an archive must never carry it or move it backwards (services/wiskey_write_lineage.py)
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.native_write.lineage_anchor"}
@@ -727,6 +752,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         update_switch = _update_switch(conn, data)
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
+        passkeys_now = _keep_passkeys(conn) if "users" in tables else None  # MFA-SECFIX-2500 SR-6
         if mode == "replace":
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t in kept_current:
@@ -754,6 +780,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
+        if passkeys_now is not None:
+            _put_back_passkeys(conn, passkeys_now)
+            kept_current.append("auth_webauthn_credentials")  # the restore answer says the passkeys stayed as they are now
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
         backgrounds_rejected: list[dict[str, str]] = []  # SEC246 I2
         files = 0
@@ -867,6 +896,28 @@ def _sanitise_door_blocks(data: dict[str, list[dict[str, Any]]]) -> tuple[int, i
         kept.append(r)
     data["door_automations"] = kept
     return len(rows) - len(kept), disarmed
+
+
+def _keep_passkeys(conn: sqlite3.Connection) -> list[dict[str, Any]] | None:
+    """MFA-SECFIX-2500 SR-6: the installation's passkeys as they are NOW, set aside before the archive's users replace the current ones
+    (the table cascades from `users`). The archive never carries passkeys, so a removed passkey cannot come back."""
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM auth_webauthn_credentials").fetchall()]
+    except sqlite3.OperationalError:  # a database before the migration
+        return None
+
+
+def _put_back_passkeys(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> int:
+    """Put the current passkeys back for the users the restored directory still has (a user the archive does not have loses theirs
+    with the user row, as before). Returns how many."""
+    users = {r[0] for r in conn.execute("SELECT id FROM users").fetchall()}
+    n = 0
+    for r in rows:
+        if r.get("user_id") not in users:
+            continue
+        cols = ", ".join(r)
+        n += conn.execute(f"INSERT OR IGNORE INTO auth_webauthn_credentials({cols}) VALUES ({', '.join('?' * len(r))})", list(r.values())).rowcount
+    return n
 
 
 def _keep_door_history(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:

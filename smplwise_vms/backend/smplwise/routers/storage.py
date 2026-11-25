@@ -13,11 +13,13 @@ from ..services import bundle_import, events_ingest, storage
 from ..services import exports as ex
 from ..services import storage_store as store
 from ._common import rid as _rid
+from ..wire import storage as W
+from ..wire import wire
 
 router = APIRouter()
 
 
-@router.get("/storage")
+@router.get("/storage", **wire(W.StorageStorageReport))
 def storage_report(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), fresh: bool = False,
                    recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Disks, per-camera recording schedule, retention measured vs. estimated (with reasons) and the pilot's
@@ -50,14 +52,14 @@ def local_state(settings: Any, conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-@router.get("/storage/local")
+@router.get("/storage/local", **wire(W.StorageStorageLocal))
 def storage_local(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """No device call: the local disk and the queues (T068)."""
     require(conn, principal, "system.configure", INSTALLATION)
     return local_state(settings_of(request), conn)
 
 
-@router.post("/storage/exports/resume")
+@router.post("/storage/exports/resume", **wire(W.StorageResumeExports))
 def resume_exports(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Resume the exports paused by a full disk now (they also resume on their own once there is room): 507 while free
     space is still under the minimum."""

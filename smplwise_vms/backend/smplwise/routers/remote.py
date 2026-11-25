@@ -30,7 +30,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import now_iso
+from ..db import get_setting, now_iso
 from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import channel_of, is_remote
@@ -55,6 +55,7 @@ def remote_config(request: Request) -> dict[str, Any]:
 
     with request.app.state.db.connection(mode="read", label="auth/remote-config") as conn:
         rs = hua.remote_settings(conn)
+        reenrol = (get_setting(conn, "security.recovery_reenrol", "off") or "off") == "on"
         local = local_identity.enabled(conn)
         local_min = local_identity.password_min(conn) if local else 0
         if local:
@@ -67,6 +68,8 @@ def remote_config(request: Request) -> dict[str, Any]:
         body["local_password_min"] = local_min
         if passkey_first:  # USR2 phase 4: the "sign in with a passkey" button (absent otherwise)
             body["local_passkey_first"] = True
+    if reenrol:  # RELEASE-2510-TRAIN (owner Q14, off by default): a recovery-code sign-in goes on to the enrolment step (absent otherwise)
+        body["recovery_reenrol"] = True
     return body
 
 

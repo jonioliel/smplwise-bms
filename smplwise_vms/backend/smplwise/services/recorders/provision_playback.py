@@ -48,7 +48,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ...config import Settings
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ..child_env import minimal_env
 from ..recordings import SearchResult, Segment, merge
 from ..timeutil import iso_utc
@@ -412,9 +412,9 @@ class ProvisionPlayback:
         with a new start (the session engine makes it a new go2rtc stream generation). No speed parameter exists."""
         ch = _channel(channel)
         if stream not in ("main", "sub"):
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream"})
+            raise field_error("הערך אינו מותר.", ["stream"], code="value_not_allowed", legacy={"field": "stream"})
         if action not in ("playback", "backup"):
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "action"})
+            raise field_error("הערך אינו מותר.", ["action"], code="value_not_allowed", legacy={"field": "action"})
         if start.tzinfo is None or (end is not None and end.tzinfo is None):
             raise ApiError(422, "validation", "זמן בלי אזור זמן.")
         end = end if end is not None else start + MAX_SPAN
@@ -449,7 +449,7 @@ class ProvisionPlayback:
         if at.tzinfo is None:
             raise ApiError(422, "validation", "זמן בלי אזור זמן.")
         if not 1 <= int(length_s) <= 60:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "length_s"})
+            raise field_error("הערך אינו מותר.", ["length_s"], code="value_not_allowed", legacy={"field": "length_s"})
         tz, _ = self.zone()
         try:
             data, ctype = self.adapter._call("GetSnapshotByTime", ch, body=snapshot_document(pt.utc_to_wall(at, tz), length_s),
@@ -582,7 +582,7 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
     if not ff:
         raise ApiError(503, "export_unavailable", "ffmpeg אינו זמין.", details={"op": "download", "reason": "ffmpeg_missing"})
     if not (str(playback_uri).startswith("rtsp://") or str(playback_uri).startswith("/")) or "action=backup" not in playback_uri:
-        raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "playback_uri"})
+        raise field_error("הערך אינו מותר.", ["playback_uri"], code="value_not_allowed", legacy={"field": "playback_uri"})
     from ...mode import ensure_recorder_enabled
 
     ensure_recorder_enabled(settings)  # security review M3: an export of a recorder disabled meanwhile downloads nothing
@@ -644,7 +644,7 @@ def _channel(channel: Any) -> int:
     ok = isinstance(channel, int) and not isinstance(channel, bool) or isinstance(channel, str) and channel.isdigit()
     ch = int(channel) if ok else 0
     if not 1 <= ch <= 512:
-        raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "channel"})
+        raise field_error("הערך אינו מותר.", ["channel"], code="value_not_allowed", legacy={"field": "channel"})
     return ch
 
 
@@ -680,7 +680,7 @@ def device_request(url: str) -> str:
     m = re.match(r"^rtsp://[^/]+(/.*)$", url or "")
     path = m.group(1) if m else (url or "")
     if not _DEVICE_REQUEST.match(path):
-        raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "playback_uri"})
+        raise field_error("הערך אינו מותר.", ["playback_uri"], code="value_not_allowed", legacy={"field": "playback_uri"})
     return path
 
 

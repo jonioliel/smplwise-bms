@@ -37,7 +37,7 @@ from ..services import door_windows as dw
 from ..services import door_windows_engine as dwe
 from ..services import door_windows_store as store
 from ..services import door_windows_watch as dww
-from ..services import special_days
+from ..services import special_days, step_up
 from ..wire import door_windows as W
 from ..wire import wire
 from ._common import rid as _rid
@@ -375,6 +375,8 @@ def open_for(body: OpenForBody, request: Request, station_id: str = Path(min_len
     door = dw.doors_by_key(conn).get(dw.door_key(station_id, relay))
     if door is None:
         raise ApiError(422, "door_unknown", "הדלת אינה מוכרת כרגע.")
+    # MFA-STEPUP-GATES-2490: holding a door open is opening it - a fresh step-up proof, before the hold is planned
+    step_up.guard_action(conn, request, principal, step_up.ACTION_DOOR_OPEN)
     commit_now(conn)
     d = dwt.open_for(request.app.state.db, settings_of(request), now_utc(), principal, door, body.duration_s)
     with request.app.state.db.connection() as wconn:

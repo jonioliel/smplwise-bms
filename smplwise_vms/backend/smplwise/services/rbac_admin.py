@@ -648,8 +648,16 @@ def full_authority(conn: sqlite3.Connection, principal: Principal) -> bool:
 
 
 def assigns_anywhere(conn: sqlite3.Connection, principal: Principal) -> bool:
-    """rbac.assign at some scope - the coarse gate a delegated administrator passes (the real checks are per item)."""
-    return "rbac.assign" in permissions_anywhere(conn, principal)
+    """rbac.assign at some scope - the coarse gate a delegated administrator passes (the real checks are per item).
+    MFA-STEPUP-GATES-2490: this grant skips require(), so it calls the step-up hook itself - a permissions change of a delegated
+    administrator (DELETE /access/bindings/{id}, the group routes) needs a fresh proof like the installation-wide one (a GET, a
+    read-only preview and a caller outside a request are never gated)."""
+    held = "rbac.assign" in permissions_anywhere(conn, principal)
+    if held:
+        from . import step_up
+
+        step_up.on_grant(conn, principal, "rbac.assign")
+    return held
 
 
 def delegation_block(conn: sqlite3.Connection, role_id: str) -> str | None:
@@ -1035,7 +1043,13 @@ def touch_group(conn: sqlite3.Connection, group_id: str, principal: Principal) -
 
 def insert_binding(conn: sqlite3.Connection, principal: Principal, request: Request, body: BindingBody, extra_audit: dict[str, Any] | None = None) -> tuple[str, int]:
     """Write one already-validated binding: bump the permission revision, audit (ids only) with the subject's
-    before/after binding summary. Returns (binding id, permission revision). The caller terminates sessions."""
+    before/after binding summary. Returns (binding id, permission revision). The caller terminates sessions.
+    MFA-RESET-HARDENING-2510: a binding that makes someone a system administrator (`system_admin`, allow) is a conditional once-action -
+    while step-up applies to the caller it needs a once-proof (services/step_up.require_once_when_on; nothing with step-up off)."""
+    if body.role_id == "system_admin" and body.effect == "allow" and request is not None:
+        from . import step_up
+
+        step_up.require_once_when_on(conn, request, principal, step_up.ONCE_ADMIN_ROLE)
     with keep_an_admin(conn):
         if body.subject_kind == "user":
             _ensure_user_row(conn, body.subject_id)

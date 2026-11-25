@@ -13,7 +13,9 @@ no WisKey, no door, no key."""
 from __future__ import annotations
 
 import json
+import re
 import uuid
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -621,3 +623,212 @@ def test_enabling_an_automation_follows_the_release_of_its_virtual_device_and_ne
     assert _toggle(c, "9101", "enable").json()["code"] == "door_steps_unresolvable"
     ops = [(b.get("op"), str(b.get("item_id"))) for b in tr.bridge_calls if b.get("op") in ("enable", "disable")]
     assert ops == [("enable", "9105"), ("enable", "9101"), ("enable", "9102"), ("disable", "9101")], "only the allowed ones reached the bridge"
+
+
+# ================================================================ DOOR-BLOCKS-I18N-2510: the blocks screen and the run guard in the reader's language
+
+HEB = re.compile(r"[֐-׿]")
+BLOCK_TEXT_KEYS = ("kind_text", "guard", "why", "reasons")
+REPO = Path(__file__).resolve().parents[3]
+SMPLWISE = REPO / "smplwise_vms" / "backend" / "smplwise"
+# the Hebrew the screen and the refusals answered before DOOR-BLOCKS-I18N-2510, byte for byte (the old literals / f-strings, spelled out)
+OLD_NOT_YET = "פתיחת דלתות מאוטומציה עדיין לא נתמכת"
+OLD_NOT_CONVERTED = "לא ניתן להריץ: הפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת."
+OLD_UNRESOLVABLE = "לא ניתן להריץ: ייתכן שהפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת."
+OLD_ENABLE_NOT_CONVERTED = "לא ניתן להפעיל: הפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת; אפשר לכבות אותו."
+OLD_ENABLE_UNRESOLVABLE = "לא ניתן להפעיל: ייתכן שהפריט פותח דלת של בקרת הכניסה. פתיחת דלתות מאוטומציה עדיין לא נתמכת; אפשר לכבות אותו."
+OLD_REFUSALS = {
+    "unknown_entity": "ההתקן לא נמצא.",
+    "wiskey_door": "מנעול אינטרקום הוא דלת ואינו ניתן לשחרור.",
+    "door_mapped": "ההתקן משויך לדלת אינטרקום ואינו ניתן לשחרור. אפשר לבטל קודם את השיוך.",
+    "not_blocked": "ההתקן אינו חסום.",
+}
+OLD_NOTE_ERRORS = {
+    "note_required": "נדרשת סיבה לשחרור (לפחות 3 תווים).",
+    "note_too_long": f"הסיבה ארוכה מדי (עד {door_overrides.NOTE_MAX} תווים).",
+    "bad_entity": "מזהה ההתקן אינו תקין.",
+    "too_many": f"אי אפשר לשחרר יותר מ-{door_overrides.MAX_ENTRIES} התקנים.",
+}
+
+
+def _blocks_machine(value: Any) -> Any:
+    """The blocks answer without its words: what must not change with the reader's language."""
+    if isinstance(value, dict):
+        return {k: _blocks_machine(v) for k, v in value.items() if k not in BLOCK_TEXT_KEYS and k != "generated_at"}
+    if isinstance(value, list):
+        return [_blocks_machine(v) for v in value]
+    return value
+
+
+def _item_words(data: dict[str, Any]) -> list[Any]:
+    return [[i[k] for k in BLOCK_TEXT_KEYS] for i in data["items"]]
+
+
+def _he_to_en(*namespaces: str) -> dict[str, str]:
+    from smplwise.i18n import CATALOGUE
+
+    return {e["he"]: e["en"] for k, e in CATALOGUE.items() if k.split(".", 1)[0] in namespaces and "{" not in e["he"]}
+
+
+def _refusal(c: TestClient, entity_id: str, note: str | None = "בדיקה ידנית של התקן") -> tuple[int, str]:
+    r = _put(c, entity_id, True, note)
+    return r.status_code, r.json()["user_message"]
+
+
+def test_door_blocks_i18n_2510_hebrew_unchanged_english_for_an_english_reader(world):
+    """`GET /doors/blocks` in Hebrew exactly as before for a reader without a stored language (the route's Hebrew = the service's string
+    for string), in English for an English reader: an item's kind, run-guard sentence, "why it stays" (`door_run_guard.NOT_YET`) and
+    unresolved reasons, and the refusals of a release. Names, areas and release notes are data and stay as stored."""
+    c, db = world["c"], world["db"]
+    _release(c, "cover.shutter")  # a release note is data
+    he = c.get(BLOCKS).json()
+    items = {i["key"]: i for i in he["items"]}
+    door, via_switch = items["script:door_script"], items["script:via_switch"]
+    assert door["kind_text"] == "סקריפט" and door["guard"] == "הרצה מ-Arx נחסמת: יש בפריט פתיחת דלת שלא הוסבה" and door["why"] == OLD_NOT_YET
+    assert via_switch["why"] is None and via_switch["guard"] == "הרצה מ-Arx נחסמת: לא ניתן לזהות את הדלתות בפריט" and via_switch["reasons"]
+    assert all(HEB.search(r) for i in he["items"] for r in i["reasons"])
+    with db.connection(mode="read") as conn:
+        svc = door_blocks.listing(conn)
+    assert _blocks_machine(svc) == _blocks_machine(he) and _item_words(svc) == _item_words(he), "the route's Hebrew is the service's Hebrew"
+    for code, old in OLD_REFUSALS.items():
+        assert door_blocks.REFUSALS[code][2] == old, code
+    for code, old in OLD_NOTE_ERRORS.items():
+        assert door_blocks.NOTE_ERRORS[code] == old, code
+    assert _refusal(c, "lock.entrance") == (409, OLD_REFUSALS["wiskey_door"])
+    assert _refusal(c, "switch.gate", "ab") == (422, OLD_NOTE_ERRORS["note_required"])
+
+    # an English reader
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "en"}).status_code == 200
+    en = c.get(BLOCKS).json()
+    assert _blocks_machine(en) == _blocks_machine(he), "only the words change: keys, states, counts, names, devices, releases"
+    e_items = {i["key"]: i for i in en["items"]}
+    door, via_switch = e_items["script:door_script"], e_items["script:via_switch"]
+    assert door["kind_text"] == "Script" and door["why"] == "Opening doors from an automation is not supported yet"
+    assert door["guard"] == "Run blocked from Arx: the item has a door opening that was not converted"
+    assert via_switch["guard"] == "Run blocked from Arx: the doors in the item cannot be identified" and via_switch["why"] is None
+    words = _he_to_en("doorpath", "doorguard")
+    for h_item, e_item in zip(he["items"], en["items"]):
+        for k in ("kind_text", "guard", "why"):
+            assert e_item[k] == (words[h_item[k]] if h_item[k] is not None else None), (h_item["key"], k)
+        assert e_item["reasons"] == [words[r] for r in h_item["reasons"]], h_item["key"]
+    left = [(i["key"], k) for i in en["items"] for k in BLOCK_TEXT_KEYS for s in ([i[k]] if k != "reasons" else i[k]) if s and HEB.search(s)]
+    assert left == [], left
+    assert en["entities"] == he["entities"], "entity rows are data (names, areas, release notes): unchanged"
+    # the refusals of a release, through the error envelope
+    assert _refusal(c, "lock.entrance") == (409, "An intercom lock is a door and cannot be released.")
+    assert _refusal(c, "switch.plain") == (409, "The device is not blocked.")
+    assert _refusal(c, "switch.nowhere") == (404, "The device was not found.")
+    assert _refusal(c, "switch.gate", "ab") == (422, "A reason for the release is required (at least 3 characters).")
+    assert _refusal(c, "switch.gate", "א" * (door_overrides.NOTE_MAX + 1)) == (422, f"The reason is too long (up to {door_overrides.NOTE_MAX} characters).")
+    assert _refusal(c, "Switch.Gate") == (422, "The device ID is not valid.")
+    assert door_blocks.NOTE_ERRORS["too_many"].render("en") == f"No more than {door_overrides.MAX_ENTRIES} devices can be released."
+    # the run guard's refusals, as the error envelope answers them
+    with db.connection(mode="read") as conn:
+        with pytest.raises(ApiError) as exc:
+            door_run_guard.judge_item(conn, "script", "door_script")
+        assert exc.value.payload("cid", "he")["user_message"] == OLD_NOT_CONVERTED
+        assert exc.value.payload("cid", "en")["user_message"] == "Cannot run: the item opens an access-control door. Opening doors from an automation is not supported yet."
+        with pytest.raises(ApiError) as exc:
+            door_run_guard.judge_item(conn, "script", "via_switch")
+        assert exc.value.payload("cid", "he")["user_message"] == OLD_UNRESOLVABLE
+        assert exc.value.payload("cid", "en")["user_message"] == "Cannot run: the item may open an access-control door. Opening doors from an automation is not supported yet."
+    # back to Hebrew: the same answer as before
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "he"}).status_code == 200
+    assert _refusal(c, "switch.plain") == (409, OLD_REFUSALS["not_blocked"])
+    again = c.get(BLOCKS).json()
+    assert _blocks_machine(again) == _blocks_machine(he) and _item_words(again) == _item_words(he)
+    # an entity mapped to an intercom door: its own refusal, in each language
+    _door_map(db, "lock.virtual", relay=2)
+    assert _refusal(c, "lock.virtual") == (409, OLD_REFUSALS["door_mapped"])
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "en"}).status_code == 200
+    assert _refusal(c, "lock.virtual") == (409, "The device is mapped to an intercom door and cannot be released. You can remove the mapping first.")
+
+
+def test_door_blocks_i18n_2510_the_enable_refusal_reaches_an_english_reader_in_english(autos):
+    """Through the real automations route: the enable refusal of an item that opens a door (`door_run_guard.ENABLE_*`, built around
+    `NOT_YET`) answers the old Hebrew, and an English reader the English sentence; the blocks screen's "why" follows the reader too."""
+    c = autos["c"]
+    assert _toggle(c, "9103", "enable").json()["user_message"] == OLD_ENABLE_NOT_CONVERTED
+    assert _toggle(c, "9101", "enable").json()["user_message"] == OLD_ENABLE_UNRESOLVABLE
+    assert c.put(f"{API}/me/prefs", json={"ui.lang": "en"}).status_code == 200
+    door = _toggle(c, "9103", "enable")
+    assert door.status_code == 409 and door.json()["code"] == "door_step_not_converted"
+    assert door.json()["user_message"] == "Cannot turn on: the item opens an access-control door. Opening doors from an automation is not supported yet; it can be turned off."
+    gate = _toggle(c, "9101", "enable")
+    assert gate.status_code == 409 and gate.json()["code"] == "door_steps_unresolvable"
+    assert gate.json()["user_message"] == "Cannot turn on: the item may open an access-control door. Opening doors from an automation is not supported yet; it can be turned off."
+    rows = {i["key"]: i for i in c.get(BLOCKS).json()["items"]}
+    assert rows["automation:9103"]["why"] == "Opening doors from an automation is not supported yet" and rows["automation:9103"]["kind_text"] == "Automation"
+
+
+def test_door_blocks_i18n_2510_every_text_has_a_key_and_no_hebrew_literal_is_left():
+    """The missing-key scan of this pass: every `doorguard.*` / `doorblocks.*` key has Hebrew and English (no Hebrew letter in the
+    English, the same slots); every text door_run_guard.py and door_blocks.py answer is a `Msg` of its key whose string is the old Hebrew;
+    a drifted Hebrew is refused at import; no Hebrew literal is left in those modules outside the catalogue (docstrings aside); and
+    "חלון פתיחה" has ONE English word - "door window" - in the door preview, the frontend's hand-over sentences and the default name."""
+    import ast
+
+    from smplwise.i18n import CATALOGUE, Msg
+    from smplwise.services import default_names
+    from smplwise.services import door_conversion_text as dct
+
+    slot = re.compile(r"\{(\w+)\}")
+    keys = [k for k in CATALOGUE if k.split(".", 1)[0] in ("doorguard", "doorblocks")]
+    assert len(keys) == len(dct.DOOR_GUARD) + len(dct.DOOR_BLOCKS) and len(keys) == 16
+    for k in keys:
+        e = CATALOGUE[k]
+        assert e["he"] and e["en"] and not HEB.search(e["en"]), k
+        assert sorted(slot.findall(e["he"])) == sorted(slot.findall(e["en"])), k
+    guard = {"not_yet": (door_run_guard.NOT_YET, OLD_NOT_YET), "not_converted": (door_run_guard.NOT_CONVERTED, OLD_NOT_CONVERTED),
+             "unresolvable": (door_run_guard.UNRESOLVABLE, OLD_UNRESOLVABLE),
+             "enable_not_converted": (door_run_guard.ENABLE_NOT_CONVERTED, OLD_ENABLE_NOT_CONVERTED),
+             "enable_unresolvable": (door_run_guard.ENABLE_UNRESOLVABLE, OLD_ENABLE_UNRESOLVABLE),
+             "no_permission": (door_run_guard.NO_PERMISSION, "אין הרשאה לפתוח דלת זו"),
+             "use_automations": (door_run_guard.USE_AUTOMATIONS, "הפריט כולל פתיחת דלת; מפעילים אותו ממסך האוטומציות."),
+             "station_unavailable": (door_run_guard.STATION_UNAVAILABLE, "התחנה לא זמינה")}
+    assert sorted(guard) == sorted(dct.DOOR_GUARD)
+    for name, (m, old) in guard.items():
+        assert isinstance(m, Msg) and m.key == f"doorguard.{name}" and str.__str__(m) == old and m.render("he") == old, name
+        assert not HEB.search(m.render("en")), name
+    for code, (_status, _code, m) in door_blocks.REFUSALS.items():
+        assert isinstance(m, Msg) and m.key == f"doorblocks.refuse.{code}" and m == OLD_REFUSALS[code], code
+    for code, m in door_blocks.NOTE_ERRORS.items():
+        assert isinstance(m, Msg) and m.key == f"doorblocks.note.{code}" and m == OLD_NOTE_ERRORS[code], code
+    assert {f"refuse.{c}" for c in door_blocks.REFUSALS} | {f"note.{c}" for c in door_blocks.NOTE_ERRORS} == set(dct.DOOR_BLOCKS)
+    with pytest.raises(ValueError):
+        dct.as_msg("doorguard.not_yet", "פתיחת דלתות מאוטומציה לא נתמכת")  # a drifted Hebrew word: refused
+    # no Hebrew literal left outside the catalogue's words
+    allowed = {e["he"] for k, e in CATALOGUE.items() if k.split(".", 1)[0] in ("doorguard", "doorblocks", "doorpath", "doorconv")}
+    for rel in ("services/door_run_guard.py", "services/door_blocks.py"):
+        tree = ast.parse((SMPLWISE / rel).read_text(encoding="utf-8"))
+        docs = {id(n.body[0].value) for n in ast.walk(tree) if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef)) and n.body
+                and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+        left = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str) and HEB.search(n.value)
+                and id(n) not in docs and n.value not in allowed]
+        assert left == [], (rel, left)
+    # "חלון פתיחה" = "door window": the default name, the frontend's feature catalogue, the preview's English and its frontend sentences
+    assert default_names.name("door_window", "en") == "Door window"
+    assert "Door windows" in (REPO / "frontend" / "src" / "i18n" / "lang" / "en" / "i18n" / "door-windows.ts").read_text(encoding="utf-8")
+    door_en = [e["en"] for k, e in CATALOGUE.items() if k.split(".", 1)[0] in ("doorconv", "doorpath", "doorguard", "doorblocks")]
+    assert not [s for s in door_en if "opening window" in s.lower()], "one English word for a door window"
+    assert CATALOGUE["doorconv.action.hand_over_program"]["en"] == "Move to a fixed door window"
+    fe = (REPO / "frontend" / "src" / "i18n" / "lang" / "en" / "i18n" / "msg" / "system-a.ts").read_text(encoding="utf-8")
+    assert "'העברה לחלון פתיחה קבוע': 'Move to a fixed door window'," in fe and "'הועבר לחלון פתיחה': 'Moved to a door window'," in fe
+    assert "opening window" not in fe.lower()
+    # DOOR-WINDOW-TERM-2510: the role names, the permission descriptions and the notification event names say "door window" too;
+    # their Hebrew is unchanged (the import-time checks of rbac_text / rbac_admin_text / notify_policy_text compare it to the old words)
+    pinned = {
+        "role.door_windows_manager": ("ניהול חלונות פתיחה", "Manage door windows"),
+        "role.door_windows_guard": ("הפסקת חלון פתיחה", "Stop a door window"),
+        "perm.access.windows.manage": ("בקרת כניסה: ניהול חלונות פתיחה של דלתות (שעות פתיחה מתוזמנות)",
+                                       "Access control: manage door windows (scheduled opening hours)"),
+        "perm.access.windows.cancel": ("בקרת כניסה: הפסקת חלון פתיחה פעיל ואימות ידני שהדלת חזרה למצב רגיל",
+                                       "Access control: stop an active door window and confirm by hand that the door returned to normal"),
+        "notify.label.door.relock_unconfirmed": ("חלון פתיחה: חזרה למצב רגיל לא אושרה", "Door window: return to normal not confirmed"),
+        "notify.label.door.window_not_started": ("חלון פתיחה לא התחיל", "Door window did not start"),
+        "notify.label.door.window_overridden": ("חלון פתיחה הופסק ידנית", "Door window stopped manually"),
+        "notify.label.door.windows.simulated": ("חלון פתיחה לפי אירוע (מצב הדגמה)", "Door window by event (demo mode)"),
+    }
+    for key, (he, en) in pinned.items():
+        assert (CATALOGUE[key]["he"], CATALOGUE[key]["en"]) == (he, en), key
+    assert not [k for k, e in CATALOGUE.items() if "opening window" in e["en"].lower()], "one English word for a door window"

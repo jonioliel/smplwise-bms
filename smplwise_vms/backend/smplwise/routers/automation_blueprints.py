@@ -29,6 +29,8 @@ from ..services import automation_scope as scope
 from ..services import default_names
 from ..services import door_path
 from . import automations as base
+from ..wire import automation_blueprints as WM
+from ..wire import wire
 
 router = APIRouter()
 RID = Field(min_length=8, max_length=80)
@@ -117,7 +119,7 @@ def _expand(w: ops.W, bp: dict[str, Any], params: dict[str, Any], name: str | No
     return draft
 
 
-@router.get("/automation-blueprints/status")
+@router.get("/automation-blueprints/status", **wire(WM.AutomationBlueprintsStatus))
 def status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Never 403: whether the module is on and whether the caller can use it."""
     base._bind(request)
@@ -127,7 +129,7 @@ def status(request: Request, principal: Principal = Depends(current_principal_ro
             "schema": bps.SCHEMA_VERSION, "library_version": bps.LIBRARY_VERSION, "count": len(bps.LIBRARY), "import_export": False}
 
 
-@router.get("/automation-blueprints")
+@router.get("/automation-blueprints", **wire(WM.AutomationBlueprintsBlueprints))
 def list_blueprints(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     base._bind(request)
     _gate(conn, principal)
@@ -135,7 +137,7 @@ def list_blueprints(request: Request, principal: Principal = Depends(current_pri
     return {"blueprints": [bps.public_view(b) for b in bps.library()], "schema": bps.SCHEMA_VERSION, "library_version": bps.LIBRARY_VERSION}
 
 
-@router.get("/automation-blueprints/{blueprint_id}")
+@router.get("/automation-blueprints/{blueprint_id}", **wire(WM.AutomationBlueprintsOneBlueprint))
 def one_blueprint(blueprint_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     base._bind(request)
     _gate(conn, principal)
@@ -143,7 +145,7 @@ def one_blueprint(blueprint_id: str, request: Request, principal: Principal = De
     return bps.public_view(_blueprint(blueprint_id))
 
 
-@router.post("/automation-blueprints/{blueprint_id}/preview")
+@router.post("/automation-blueprints/{blueprint_id}/preview", **wire(WM.AutomationBlueprintsPreview))
 def preview(blueprint_id: str, request: Request, principal: Principal = Depends(base._auto_gate), raw: bytes = Depends(base._raw_body),
             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = base._parse(request, raw, PreviewBody)

@@ -203,7 +203,8 @@ async def local_sign_in(body: SignInBody, request: Request) -> Response:
 
 class CodeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    code: str = Field(min_length=1, max_length=16)
+    # the authenticator code, or (MFA-DEVICEKEY-2490, owner Q51) the phone key's answer `dk1:<challenge_id>:<signature>`
+    code: str = Field(min_length=1, max_length=260)
 
 
 @public_post("/auth/local/sign-in/second-factor", **wire(W.LocalSignInSession))

@@ -31,6 +31,8 @@ from ..services import automations as store
 from ..services import ha_compat
 from ..services import service_identity
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..wire import automations as WM
+from ..wire import wire
 
 router = APIRouter()
 
@@ -279,7 +281,7 @@ _authoring_gate = _fixed_gate((scope.MANAGE, scope.SCENE_MANAGE, scope.SCRIPT_MA
 
 # ---------------------------------------------------------------- reads
 
-@router.get("/automations/status")
+@router.get("/automations/status", **wire(WM.AutomationsAutomationsStatus))
 def automations_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 1 - never 403: a caller who may see nothing of the area gets `can.view = false` and zero counts; one who only runs scripts / activates scenes gets those
     counts and capabilities alone (no automation count, no name)."""
@@ -290,7 +292,7 @@ def automations_status(request: Request, principal: Principal = Depends(current_
     return _out(conn, principal, view.status_payload(conn, principal))
 
 
-@router.get("/automations/catalog")
+@router.get("/automations/catalog", **wire(WM.AutomationsCatalog))
 def catalog(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), q: str | None = Query(None, max_length=80),
             floor: str | None = Query(None, max_length=100), area: str | None = Query(None, max_length=100), cls: str | None = Query(None, alias="class", max_length=30)) -> dict[str, Any]:
     """§3.1 row 4 - the editor's pickers: the pickable entities of the caller's reach, the closed service table with argument specs, notify targets, scenes, scripts."""
@@ -302,7 +304,7 @@ def catalog(request: Request, principal: Principal = Depends(current_principal),
     return _out(conn, principal, view.catalog_payload(ctx, q, floor, area, cls))
 
 
-@router.get("/automations/templates")
+@router.get("/automations/templates", **wire(WM.AutomationsTemplates))
 def templates(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 5 - the gallery (manage)."""
     _bind(request)
@@ -310,7 +312,7 @@ def templates(request: Request, principal: Principal = Depends(current_principal
     return _out(conn, principal, view.templates_payload(_ctx(request, conn, principal, sync=False)))
 
 
-@router.get("/automations/trash")
+@router.get("/automations/trash", **wire(WM.AutomationsTrash))
 def list_trash(request: Request, principal: Principal = Depends(_authoring_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 20 - the trash the caller may see (30 days, setting `automations.trash_days`)."""
     return _out(conn, principal, ops.trash_list(_writer(request, conn, principal)))
@@ -322,19 +324,19 @@ def restore_trash(trash_id: str, request: Request, principal: Principal = Depend
     return _reply(ops.restore_trash(_bridge_writer(request, conn, principal), trash_id, body.client_request_id, body.confirm), conn, principal)
 
 
-@router.post("/automations/trash/{trash_id}/purge")
+@router.post("/automations/trash/{trash_id}/purge", **wire(WM.AutomationsPurgeTrash))
 def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(_authoring_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, PurgeBody)
     return _out(conn, principal, ops.purge_trash(_writer(request, conn, principal), trash_id, body.confirm))
 
 
-@router.get("/automations/review")
+@router.get("/automations/review", **wire(WM.AutomationsReview))
 def review(request: Request, principal: Principal = Depends(_auto_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 22 - the administrator's review list (installation-wide automation.manage)."""
     return _out(conn, principal, runs.review(_ctx(request, conn, principal)))
 
 
-@router.get("/automations/compat")
+@router.get("/automations/compat", **wire(WM.AutomationsCompat))
 def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure).
 
@@ -344,7 +346,7 @@ def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.C
     return _out(conn, principal, ha_compat.scan(conn))
 
 
-@router.post("/automations/preview")
+@router.post("/automations/preview", **wire(WM.AutomationsPreview))
 def preview(request: Request, principal: Principal = Depends(_view_any_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 6 - always 200 for a well-formed body; problems are data."""
     body = _parse(request, raw, PreviewBody)
@@ -358,7 +360,7 @@ def preview(request: Request, principal: Principal = Depends(_view_any_gate), ra
     return _out(conn, principal, ops.preview(w, body.kind, body.id, body.draft, body.config))
 
 
-@router.post("/automations/scene/capture")
+@router.post("/automations/scene/capture", **wire(WM.AutomationsCaptureScene))
 def capture_scene(request: Request, principal: Principal = Depends(_scene_manage_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 16 - the members of the selected entities as their states are now (no write): scene.manage + control of each, the lock grants for a lock."""
     body = _parse(request, raw, CaptureBody)
@@ -386,7 +388,7 @@ def capture_scene(request: Request, principal: Principal = Depends(_scene_manage
         return _out(conn, principal, {"members": members, "skipped": skipped})
 
 
-@router.get("/automations")
+@router.get("/automations", **wire(WM.AutomationsItems))
 def list_items(
     request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_conn), kind: Kind | None = None, q: str | None = Query(None, max_length=80),
     floor: str | None = Query(None, max_length=100), area: str | None = Query(None, max_length=100), state: Literal["on", "off", "running", "unavailable", "invalid", "scene"] | None = None,
@@ -409,7 +411,7 @@ def create_item(kind: str, request: Request, principal: Principal = Depends(_kin
     return _reply(ops.create(_bridge_writer(request, conn, principal), kind, body.draft, body.enabled, body.confirm, body.client_request_id), conn, principal)
 
 
-@router.get("/automations/{kind}/{item_id}")
+@router.get("/automations/{kind}/{item_id}", **wire(WM.AutomationsItem))
 def get_item(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 3 - the `ItemDetail`. Invisible or unknown is 404 `item_not_found`."""
     kind = _kind(kind)
@@ -426,7 +428,7 @@ def update_code(kind: str, item_id: str, request: Request, principal: Principal 
     return _reply(ops.update_code(_bridge_writer(request, conn, principal), kind, item_id, body.config, body.base_revision, body.confirm, body.client_request_id), conn, principal)
 
 
-@router.put("/automations/{kind}/{item_id}/meta")
+@router.put("/automations/{kind}/{item_id}/meta", **wire(WM.AutomationsPutMeta))
 def put_meta(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 21 - the caller's own pin / favourite; `hidden` (integration scenes) by an administrator."""
     kind = _kind(kind)
@@ -456,7 +458,7 @@ def copy_item(kind: str, item_id: str, request: Request, principal: Principal = 
     return _reply(ops.copy_item(_bridge_writer(request, conn, principal), kind, item_id, body.name, body.client_request_id), conn, principal)
 
 
-@router.post("/automations/{kind}/{item_id}/dry-run")
+@router.post("/automations/{kind}/{item_id}/dry-run", **wire(WM.AutomationsDryRun))
 def dry_run(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 17 - no execution: the current truth of each typed condition from the mirror and the device diff. An optional body `{draft}` evaluates an unsaved
     edit of the item instead of the stored content."""
@@ -506,19 +508,19 @@ def apply_scene(item_id: str, request: Request, principal: Principal = Depends(_
     return _reply(ops.apply_scene(_bridge_runner(request, conn, principal), item_id, body.confirm, body.client_request_id), conn, principal)
 
 
-@router.get("/automations/{kind}/{item_id}/runs")
+@router.get("/automations/{kind}/{item_id}/runs", **wire(WM.AutomationsRuns))
 def list_runs(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 18 - `RunSummary[]` from the stored traces."""
     return _out(conn, principal, runs.runs_list(_ctx(request, conn, principal), _kind(kind), item_id))
 
 
-@router.get("/automations/{kind}/{item_id}/runs/{run_id}")
+@router.get("/automations/{kind}/{item_id}/runs/{run_id}", **wire(WM.AutomationsRun))
 def get_run(kind: str, item_id: str, run_id: str, request: Request, principal: Principal = Depends(_kind_viewer), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 18 - one `RunTrace`, complete (owner decision 9ג)."""
     return _out(conn, principal, runs.run_detail(_ctx(request, conn, principal), _kind(kind), item_id, run_id))
 
 
-@router.get("/automations/{kind}/{item_id}/versions")
+@router.get("/automations/{kind}/{item_id}/versions", **wire(WM.AutomationsVersions))
 def list_versions(kind: str, item_id: str, request: Request, principal: Principal = Depends(_kind_viewer_gate), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """§3.1 row 19 - the history (last `automations.versions_keep`)."""
     return _out(conn, principal, ops.versions_list(_writer(request, conn, principal), _kind(kind), item_id))

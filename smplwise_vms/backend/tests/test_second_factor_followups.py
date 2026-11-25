@@ -91,7 +91,7 @@ def _reset_notes(arx, user_id: str) -> list[dict]:
 
 def test_an_administrator_reset_notifies_the_user_without_secrets(arx):
     body = enrol(arx, arx.viewer)
-    r = admin(arx).delete("/api/v1/auth/second-factor/users/u-viewer")
+    r = admin(arx).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"})
     assert r.status_code == 200 and r.json()["removed"] is True
     notes = _reset_notes(arx, "u-viewer")
     assert len(notes) == 1 and notes[0]["category"] == "security" and notes[0]["subject_id"] == "u-viewer"
@@ -109,7 +109,7 @@ def test_an_administrator_reset_notifies_the_user_without_secrets(arx):
 def test_resetting_a_user_without_an_active_factor_tells_nobody(arx):
     assert fresh_login(arx, arx.viewer).status_code == 200
     assert arx.client.post("/arx/api/v1/auth/second-factor/enroll").status_code == 200  # pending only
-    assert admin(arx).delete("/api/v1/auth/second-factor/users/u-viewer").json()["removed"] is True
+    assert admin(arx).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).json()["removed"] is True
     assert _reset_notes(arx, "u-viewer") == []
 
 
@@ -239,11 +239,11 @@ def test_an_administrator_reset_ends_device_tokens_too(arx):
     dev = _register(arx)
     # the enrolment above predates the registration, so this token is live
     assert _config_status(arx, dev["device_token"])[0] == 200
-    assert admin(arx).delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
+    assert admin(arx).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).status_code == 200
     assert _config_status(arx, dev["device_token"]) == (401, "device_token_invalid")
     assert json.loads(arx.audit("auth.second_factor.reset")[-1]["details_json"])["device_tokens_revoked"] == 1
     # another user's device is not touched
     assert fresh_login(arx, arx.owner).status_code == 200
     mine = _register(arx, name="הנייד של יוני")
-    assert admin(arx).delete("/api/v1/auth/second-factor/users/u-viewer").status_code == 200
+    assert admin(arx).request("DELETE", "/api/v1/auth/second-factor/users/u-viewer", json={"confirm": "dana"}).status_code == 200
     assert _config_status(arx, mine["device_token"])[0] == 200

@@ -20,6 +20,7 @@ from typing import Any
 from ..db import now_iso
 from ..errors import ApiError
 from . import door_overrides, door_path, door_run_guard, intercom_doors
+from .door_conversion_text import as_msg
 
 # Entities of these domains have no service to call: a template sensor cannot open a door, so listing hundreds of them would only
 # hide the ones that can. They are still blocked where a guard asks about them (a service call targeting one), and one that holds
@@ -28,18 +29,20 @@ PASSIVE_DOMAINS = frozenset({"sensor", "binary_sensor", "weather", "image", "eve
 MAX_ENTITIES = 1000
 MAX_NAMES = 5  # names of items / devices shown on one row; the rest are counted
 
-# why an entity cannot be released: (HTTP status, error code, Hebrew text). The reason code itself is `details.reason`.
+# why an entity cannot be released: (HTTP status, error code, text). The reason code itself is `details.reason`.
+# DOOR-BLOCKS-I18N-2510: each text is a `Msg` of `doorblocks.*` (services/door_conversion_text.py) whose string is exactly the Hebrew
+# written here before (checked at import); the error envelope answers it in the requester's language.
 REFUSALS: dict[str, tuple[int, str, str]] = {
-    "unknown_entity": (404, "entity_not_found", "ההתקן לא נמצא."),
-    "wiskey_door": (409, "not_overridable", "מנעול אינטרקום הוא דלת ואינו ניתן לשחרור."),
-    "door_mapped": (409, "not_overridable", "ההתקן משויך לדלת אינטרקום ואינו ניתן לשחרור. אפשר לבטל קודם את השיוך."),
-    "not_blocked": (409, "not_overridable", "ההתקן אינו חסום."),
+    "unknown_entity": (404, "entity_not_found", as_msg("doorblocks.refuse.unknown_entity", "ההתקן לא נמצא.")),
+    "wiskey_door": (409, "not_overridable", as_msg("doorblocks.refuse.wiskey_door", "מנעול אינטרקום הוא דלת ואינו ניתן לשחרור.")),
+    "door_mapped": (409, "not_overridable", as_msg("doorblocks.refuse.door_mapped", "ההתקן משויך לדלת אינטרקום ואינו ניתן לשחרור. אפשר לבטל קודם את השיוך.")),
+    "not_blocked": (409, "not_overridable", as_msg("doorblocks.refuse.not_blocked", "ההתקן אינו חסום.")),
 }
 NOTE_ERRORS: dict[str, str] = {
-    "note_required": "נדרשת סיבה לשחרור (לפחות 3 תווים).",
-    "note_too_long": f"הסיבה ארוכה מדי (עד {door_overrides.NOTE_MAX} תווים).",
-    "bad_entity": "מזהה ההתקן אינו תקין.",
-    "too_many": f"אי אפשר לשחרר יותר מ-{door_overrides.MAX_ENTRIES} התקנים.",
+    "note_required": as_msg("doorblocks.note.note_required", "נדרשת סיבה לשחרור (לפחות 3 תווים)."),
+    "note_too_long": as_msg("doorblocks.note.note_too_long", "הסיבה ארוכה מדי (עד {n} תווים).", n=door_overrides.NOTE_MAX),
+    "bad_entity": as_msg("doorblocks.note.bad_entity", "מזהה ההתקן אינו תקין."),
+    "too_many": as_msg("doorblocks.note.too_many", "אי אפשר לשחרר יותר מ-{n} התקנים.", n=door_overrides.MAX_ENTRIES),
 }
 
 
@@ -78,7 +81,9 @@ def _names(rows: list[str], limit: int = MAX_NAMES) -> tuple[list[str], int]:
 
 
 def listing(conn: sqlite3.Connection, *, dev_mode: bool = False) -> dict[str, Any]:
-    """The Settings screen's two lists and their counts. Entity ids are keys for the switch; the item rows carry names only."""
+    """The Settings screen's two lists and their counts. Entity ids are keys for the switch; the item rows carry names only.
+    DOOR-BLOCKS-I18N-2510: an item's `kind_text`, `guard`, `why` and `reasons` are `Msg`s (their strings are the Hebrew); the route
+    renders the answer in the reader's language. Names (entities, items, devices) and release notes are data and stay as stored."""
     r = door_path.Resolver(conn, ignore_overrides=True)  # what the guards say with no release at all
     present = r.present()
     overrides = door_overrides.read(conn)

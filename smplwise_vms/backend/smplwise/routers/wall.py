@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, get_setting, now_iso, set_setting
-from ..errors import ApiError, forbidden, not_found
+from ..errors import ApiError, field_error, forbidden, not_found, validation_payload
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services import revocation, wall, wall_alerts, wall_photos
 from ..services import wall_store as store
@@ -331,6 +331,17 @@ def _merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _config_error(exc: ValidationError) -> ApiError:
+    """A refused wall configuration (ADR-019 D1, ADR019-FAMILY3-2510): `details.fields` / `problems` name each field under the body's
+    `config` (`config.tiles`), with the pydantic type as the code and the Hebrew constraint text of the global handler; the legacy
+    `errors` list (`[{loc, msg}]`, relative to the configuration) is still sent until its readers moved (ADR-019 Step 1 (d))."""
+    errs = exc.errors()[:6]
+    problems = [{**p, "field": "config" if p["field"] == "body" else f"config.{p['field']}"}
+                for p in validation_payload(list(errs), "")["details"]["problems"]]
+    return field_error("הגדרות מסך הקיר אינן תקינות.", problems=problems,
+                       legacy={"errors": [{"loc": list(e["loc"]), "msg": e["msg"]} for e in errs]})
+
+
 @router.patch("/wall/profiles/{user_id}", **wire(W.WallProfile))
 def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_admin(conn, principal)
@@ -343,7 +354,7 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
         try:
             cfg = wall.WallConfig.model_validate(_merge(old_cfg, body.config)).model_dump(by_alias=True)
         except ValidationError as exc:
-            raise ApiError(422, "validation", "הגדרות מסך הקיר אינן תקינות.", details={"errors": [{"loc": list(e["loc"]), "msg": e["msg"]} for e in exc.errors()[:6]]}) from exc
+            raise _config_error(exc) from exc
     cfg["cameras"] = _check_cameras(conn, cfg["cameras"])
     _check_entities(conn, cfg["state_entities"])
     folder = cfg["frame"]["folder"]

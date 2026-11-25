@@ -30,6 +30,8 @@ from ..rbac import Principal, is_system_admin
 from ..services import intercom_authority as ia
 from ..services import wiskey_live_validation as lv
 from ._common import db_of as _db, rid as _rid
+from ..wire import wiskey_validation as W
+from ..wire import wire
 
 router = APIRouter()
 RUN_ID = r"^lv_[0-9a-f]{32}$"
@@ -60,7 +62,7 @@ def _error(exc: lv.ValidationError) -> ApiError:
 
 # ---------------------------------------------------------------- the page
 
-@router.get("/wiskey-validation")
+@router.get("/wiskey-validation", **wire(W.WiskeyValidationOverview))
 def overview(request: Request, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     conn = auth.conn
     lv.reconcile_db(_db(request))
@@ -94,7 +96,7 @@ class RunBody(BaseModel):
     all: bool = False
 
 
-@router.post("/wiskey-validation/runs", status_code=202)
+@router.post("/wiskey-validation/runs", status_code=202, **wire(W.WiskeyValidationStart))
 def start(request: Request, body: RunBody, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     if body.all == (body.station_id is not None):
         raise ApiError(422, "validation", "בחרו עמדה אחת או את כל העמדות.", details={"fields": ["station_id", "all"]})
@@ -126,7 +128,7 @@ def _view(auth: ia.Authority, run_id: str) -> dict[str, Any]:
     return view
 
 
-@router.get("/wiskey-validation/runs/{run_id}")
+@router.get("/wiskey-validation/runs/{run_id}", **wire(W.WiskeyValidationRun))
 def run(request: Request, auth: ia.Authority = Depends(_gate), run_id: str = Path(pattern=RUN_ID)) -> dict[str, Any]:
     lv.reconcile_db(_db(request))
     return _view(auth, run_id)
@@ -168,7 +170,7 @@ def _refuse(auth: ia.Authority, request: Request, station_id: str, reason: str, 
     return ApiError(status, code, text)
 
 
-@router.post("/wiskey-validation/pulse")
+@router.post("/wiskey-validation/pulse", **wire(W.WiskeyValidationPulse))
 def pulse(request: Request, body: PulseBody, auth: ia.Authority = Depends(_gate)) -> dict[str, Any]:
     sid = body.station_id
     if not is_system_admin(auth.conn, auth.principal.user_id):
@@ -194,6 +196,11 @@ def pulse(request: Request, body: PulseBody, auth: ia.Authority = Depends(_gate)
             raise ApiError(404, "not_found", "הבדיקה לא נמצאה.")
         if lv.pulse_done_for(auth.conn, body.parent_run_id, sid):
             raise _refuse(auth, request, sid, "pulse_already_done", 409, "pulse_already_done", "בבדיקה הזו כבר נעשה ניסיון פתיחה לעמדה הזו. ניסיון נוסף - בבדיקה חדשה.")
+    # MFA-STEPUP-GATES-2490: the pulse opens a door - a fresh step-up proof (the route is local-only: a no-op while
+    # security.step_up_local is off), before the attempt is recorded or sent
+    from ..services import step_up
+
+    step_up.guard_action(auth.conn, request, auth.principal, step_up.ACTION_DOOR_OPEN)
     # the attempt is audited BEFORE anything is sent
     audit(auth.conn, actor=auth.principal, action="wiskey.validation.pulse", decision="allowed", resource_type="intercom_station", resource_id=sid,
           request_id=_rid(request), details={"door": body.door, "parent_run_id": body.parent_run_id, "witness": "named"})
@@ -216,7 +223,7 @@ class WitnessBody(BaseModel):
     witness_name: str | None = Field(None, min_length=2, max_length=80)
 
 
-@router.post("/wiskey-validation/pulse/{run_id}/witness")
+@router.post("/wiskey-validation/pulse/{run_id}/witness", **wire(W.WiskeyValidationWitness))
 def witness(request: Request, body: WitnessBody, auth: ia.Authority = Depends(_gate), run_id: str = Path(pattern=RUN_ID)) -> dict[str, Any]:
     if not is_system_admin(auth.conn, auth.principal.user_id):
         raise forbidden("אישור העד נרשם על ידי מנהל מערכת.", permission="system_admin")

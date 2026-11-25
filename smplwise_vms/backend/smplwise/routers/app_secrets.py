@@ -28,6 +28,8 @@ from ..services import secrets_store
 from ..services.connection_store import SecretError
 from ._common import raw_body as _raw_body, rid as _rid
 from .nvr_connection import _parse
+from ..wire import app_secrets as W
+from ..wire import wire
 
 router = APIRouter()
 
@@ -68,14 +70,14 @@ def _item(conn: sqlite3.Connection, settings: Settings, name: str) -> dict[str, 
     return next(s for s in secrets_store.status(conn, settings) if s["name"] == name)
 
 
-@router.get("/system/secrets")
+@router.get("/system/secrets", **wire(W.AppSecretsSecrets))
 def list_secrets(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     settings = settings_of(request)
     return {"secrets": secrets_store.status(conn, settings), "in_addon": settings.in_addon}
 
 
-@router.put("/system/secrets/{name}")
+@router.put("/system/secrets/{name}", **wire(W.AppSecretsSaveSecret))
 def save_secret(name: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -94,7 +96,7 @@ def save_secret(name: str, request: Request, principal: Principal = Depends(_adm
     return {"saved": True, "restart_required": spec.restart_required, "secret": _item(conn, settings_of(request), name)}
 
 
-@router.delete("/system/secrets/{name}")
+@router.delete("/system/secrets/{name}", **wire(W.AppSecretsClearSecret))
 def clear_secret(name: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     spec = _spec(name)

@@ -413,6 +413,42 @@ DEFAULTS: dict[str, str] = {
     "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
     "security.second_factor_policy": "optional",  # K11 (owner 2026-10-06): the TOTP second factor is optional; "admins" refuses a remote sign-in of an administrator who has none
     "security.second_factor_bearer": "enforce",  # security review 2.2.0 H1: enforce = the factor / admins policy also on a new bearer sign-in (HTTP + WS); off = the pre-2.2.1 bearer path
+    # MFA-STEPUP-TRAIN-2490 (owner decisions 2026-11-22, Q45/Q46 + note; services/step_up.py): on = a change of settings, users or
+    # permissions needs a fresh second-factor proof (the authenticator code) - off = the factor is asked only at sign-in; the proof
+    # counts for N minutes (0-30, 0 = every action); local = also on the local channel (Ingress). Security policy: never restored.
+    "security.step_up": "off",  # MFA-SECFIX-2500: owner answer Q2 = b (2026-11-24) - off until the owner switches it on
+    "security.step_up_minutes": "5",
+    "security.step_up_local": "off",
+    # MFA-PASSKEYS-2490 (owner decision 2026-11-22, Q50 "passkeys for all users"; services/user_passkeys.py): on = every user who signs
+    # in to Arx (Home Assistant users too, not only Arx-only identities) may add passkeys in My Account, and they count as a step-up
+    # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not
+    # count). System administrators only; audited; never restored from a backup.
+    "security.passkeys_all_users": "on",
+    # MFA-POLICY-2490 (services/factor_policy.py; design full-2fa-t095 4.1): WHO must show a second factor at a remote sign-in -
+    # optional (nobody by this policy) | admins | sensitive | all; mode report (default: evaluated and shown in the compliance view,
+    # never refuses - the owner: nobody without a factor is locked out until he switches it on) | enforce; wall-panel users exempt
+    # (on); long-lived tokens from outside: allow (owner decision Q48) | refuse_under_policy | refuse. Security policy: never restored.
+    "security.factor_policy": "optional",
+    "security.factor_policy_mode": "report",
+    "security.factor_wall_exempt": "on",
+    "security.remote_long_lived_tokens": "allow",
+    # MFA-DEVICEKEY-2490 (owner q23 b; services/device_keys.py): what a new phone key of the Android app may need for each signature -
+    # `biometric_or_screen_lock` (default: a fingerprint / face OR the phone's screen code) or `biometric` (fingerprint / face only).
+    # A key already registered keeps the kind it was made with. Never restored from a backup.
+    "security.device_key_auth": "biometric_or_screen_lock",
+    # MFA-DEVICEKEY-ATTEST-2490 (owner Q52; services/device_key_attestation.py): the Android key attestation of a new phone key, checked
+    # offline against the pinned Google roots - `off` (not checked), `preferred` (default: recorded, never refused), `required` (only a
+    # hardware-attested key registers and counts). A settings change (step-up gated). Never restored from a backup.
+    "security.device_key_attestation": "preferred",
+    # MFA-RESET-HARDENING-2510 (owner Q53, NOT the recommendation; services/factor_reset.py): from which channel an administrator may reset
+    # another user's authentication methods - `any` (default: from anywhere, with the administrator's own fresh approval, a typed
+    # confirmation, 3 per hour) or `local` (the local network only). A system administrator changes it; widening it back to `any` only
+    # from the local channel. Never restored from a backup.
+    "security.factor_reset_channel": "any",
+    # RELEASE-2510-TRAIN (owner Q14 = no forced re-enrolment; MFA-SCREENS-2510 question 2): after a sign-in with a recovery code, the
+    # sign-in page goes on to the authenticator enrolment step - `off` (default: nothing changes) | `on`. Read by the sign-in page through
+    # `auth/remote-config` (`recovery_reenrol`, present only while on). Security policy: never restored from a backup.
+    "security.recovery_reenrol": "off",
     # USR2 (docs/changes/CR-USR2-ARX-ONLY-IDENTITY.md, owner answers 2026-10-16): Arx-only identities. `security.local_identity` is the
     # feature switch - off (default): no local user can be created or sign in, and the HA-based sign-in is exactly as before. Changing
     # it needs a system administrator and is audited; switching it off ends every local session. The other keys shape the sessions,
@@ -567,7 +603,7 @@ DEFAULTS: dict[str, str] = {
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
-INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "security.step_up_minutes", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
 # Keep in step with FROZEN_SKINS / FROZEN_FALLBACK_SKIN in frontend/src/design/skins/index.ts. Unfreeze = empty FROZEN_SKINS.
 FROZEN_SKINS = ("bubble",)

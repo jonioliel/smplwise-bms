@@ -172,6 +172,13 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "CR-BRIDGE-COMMON-2440, reviewed in CR-W3-BE-COMBINED-2441: _canonical is now the bridge's one _common.canonical (the same "
      "function object under the old name) instead of a local copy with the same one-line body; an import line was added. validate() "
      "and every stage it runs are unchanged."),
+    ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
+     "248bbfddeea0ec3716d2f0d4bf3c92c28f6cf717b597a5234c8280db1086ec02",
+     "58cfc9139623f4184e427950a0f03569db04c27ab18f1cdf9e8a25272a7caa74",
+     "MFA-SECFIX-2500 (slice 3 finding 3), reviewed in RELEASE-2510-TRAIN: the ACTIONS row of alarm_control_panel.alarm_arm_custom_bypass "
+     "gains grant='alarm.bypass' (+ a comment), so the generic device route asks for that grant at the entity (403 grant_required). "
+     "Only the authorisation of that one route changed; the row's domain, service, label, expect and risk, every other row, the signing "
+     "and verify paths and the capability projection these vectors pin are unchanged (the projection tests below pass)."),
 )
 
 

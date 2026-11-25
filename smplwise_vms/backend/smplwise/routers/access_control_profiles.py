@@ -53,6 +53,8 @@ from ..services import intercom_sync, savepoints
 from ..services import wiskey_profiles as wp
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
+from ..wire import access_control_profiles as W
+from ..wire import wire
 
 router = APIRouter()
 PERMISSION = ia.PEOPLE_MANAGE
@@ -122,7 +124,7 @@ def _read_error(reply: dict[str, Any], what: str) -> ApiError:
 
 # ---------------------------------------------------------------- access (no 403: the entry buttons ask it)
 
-@router.get("/access-control/profiles/access")
+@router.get("/access-control/profiles/access", **wire(W.AccessControlProfilesProfilesAccess))
 def profiles_access(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     auth = ia.Authority(conn, principal)
     can = auth.unrestricted(PERMISSION)
@@ -131,7 +133,7 @@ def profiles_access(principal: Principal = Depends(current_principal_ro), conn: 
 
 # ---------------------------------------------------------------- the policy
 
-@router.get("/access-control/profiles")
+@router.get("/access-control/profiles", **wire(W.AccessControlProfilesProfilesView))
 def profiles_view(request: Request, auth: ia.Authority = Depends(_editor)) -> dict[str, Any]:
     settings = settings_of(request)
     features = _features(settings)
@@ -171,7 +173,7 @@ def _counts(impact: dict[str, Any]) -> dict[str, Any]:
             "missing": sum(f["missing"] for f in impact["field_changes"]), "invalid": sum(f["invalid"] for f in impact["field_changes"]), "can_apply": impact["can_apply"]}
 
 
-@router.post("/access-control/profiles/preview")
+@router.post("/access-control/profiles/preview", **wire(W.AccessControlProfilesProfilesPreview))
 def profiles_preview(request: Request, principal: Principal = Depends(_editor_ro), raw: bytes = Depends(_raw_body),
                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """On the READ connection: nothing is stored by a preview, and no write lock is held while WisKey computes the impact (its audit
@@ -281,7 +283,7 @@ def _readback(request: Request, who: str, review: wp.Review) -> dict[str, Any]:
             "unchanged": bool(policy["revision"] == review.base_revision), "last_error": None}
 
 
-@router.post("/access-control/profiles/apply")
+@router.post("/access-control/profiles/apply", **wire(W.AccessControlProfilesProfilesApply))
 def profiles_apply(request: Request, principal: Principal = Depends(_editor_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     act = _Action(request, conn, principal, AUDIT_APPLY, "policy", RESOURCE)
     body: ApplyBody = _parse(act, ApplyBody, raw)
@@ -351,7 +353,7 @@ def profiles_apply(request: Request, principal: Principal = Depends(_editor_ro),
     return result
 
 
-@router.post("/access-control/profiles/reviews/{review_id}/check")
+@router.post("/access-control/profiles/reviews/{review_id}/check", **wire(W.AccessControlProfilesProfilesCheck))
 def profiles_check(request: Request, review_id: str = Path(pattern=REVIEW_PATTERN), auth: ia.Authority = Depends(_editor)) -> dict[str, Any]:
     review = wp.REVIEWS.get(review_id, auth.principal.user_id)
     if review is None:
@@ -378,7 +380,7 @@ def profiles_check(request: Request, review_id: str = Path(pattern=REVIEW_PATTER
 
 # ---------------------------------------------------------------- versions, compare, rollback draft
 
-@router.get("/access-control/profiles/versions")
+@router.get("/access-control/profiles/versions", **wire(W.AccessControlProfilesProfilesVersions))
 def profiles_versions(request: Request, auth: ia.Authority = Depends(_editor), offset: int = Query(0, ge=0, le=10_000), limit: int = Query(20, ge=1, le=50)) -> dict[str, Any]:
     settings = settings_of(request)
     if (exc := _unsupported(settings, "versions")) is not None:
@@ -403,14 +405,14 @@ def _compare(request: Request, who: str, before: int, after: int) -> dict[str, A
     return reply["compare"]
 
 
-@router.get("/access-control/profiles/compare")
+@router.get("/access-control/profiles/compare", **wire(W.AccessControlProfilesProfilesCompare))
 def profiles_compare(request: Request, auth: ia.Authority = Depends(_editor), before: int = Query(ge=0, le=10**9), after: int = Query(ge=0, le=10**9)) -> dict[str, Any]:
     if (exc := _unsupported(settings_of(request), "compare")) is not None:
         raise exc
     return {"compare": _compare(request, auth.principal.user_id, before, after)}
 
 
-@router.get("/access-control/profiles/versions/{revision}/draft")
+@router.get("/access-control/profiles/versions/{revision}/draft", **wire(W.AccessControlProfilesProfilesRollbackDraft))
 def profiles_rollback_draft(request: Request, revision: int = Path(ge=0, le=10**9), auth: ia.Authority = Depends(_editor)) -> dict[str, Any]:
     if (exc := _unsupported(settings_of(request), "compare")) is not None:
         raise exc
@@ -427,7 +429,7 @@ def profiles_rollback_draft(request: Request, revision: int = Path(ge=0, le=10**
 
 # ---------------------------------------------------------------- group suggestions
 
-@router.get("/access-control/profiles/suggestions")
+@router.get("/access-control/profiles/suggestions", **wire(W.AccessControlProfilesProfilesSuggestions))
 def profiles_suggestions(request: Request, auth: ia.Authority = Depends(_editor), user_id: str = Query(min_length=1, max_length=128, pattern=USER_PATTERN),
                          field: list[str] | None = Query(None)) -> dict[str, Any]:
     fields = list(field or [])

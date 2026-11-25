@@ -10,12 +10,22 @@ https - the same guard as the password sign-in, routers/local_identity._public_g
 `POST auth/local/passkey {credential}`      passkey first: the session cookie | 401 `passkey_invalid` (uniform) | 429 (the sign-in's
                                             per-address tier, shared with the password route)
 
-Self (a local identity on its own session):
+Self (a local identity on its own session; MFA-PASSKEYS-2490: every other user too while `security.passkeys_all_users` is on -
+services/user_passkeys.py has their rules; with the switch off they get the 403 `not_local_identity` of before):
 `GET    auth/passkeys`                      the caller's passkeys (never a credential id or a public key), the relying party, the modes
-`POST   auth/passkeys/register/options`     a fresh sign-in (< 5 min; with the factor when the user has one) -> creation options
+`POST   auth/passkeys/register/options`     a fresh sign-in (< 5 min; with the factor when the user has one) -> creation options;
+                                            other users: a fresh step-up proof when the account already has a factor (403
+                                            `step_up_required`, action `auth.passkey.register`)
 `POST   auth/passkeys/register {credential, label?}`
 `PATCH  auth/passkeys/{id} {label}`
-`DELETE auth/passkeys/{id} {code?}`         a fresh sign-in, or the current TOTP code
+`DELETE auth/passkeys/{id} {code?}`         a fresh sign-in, the current TOTP code, or a fresh step-up proof; other users: the code or a
+                                            fresh step-up proof whenever the account has a factor (403 `step_up_required`, action
+                                            `auth.passkey.remove`)
+
+Step-up (MFA-PASSKEYS-2490, every user kind):
+`POST   auth/step-up/challenge {action?}`   WebAuthn request options for the caller's own usable passkeys, bound to the user, this session
+                                            and the action (60 s, single use); answered by `POST auth/step-up/verify {method: "passkey",
+                                            challenge_id, assertion, action?}` (routers/second_factor.py)
 `PUT    auth/passkeys/first {on}`           the user's own passkey-first mode (on: owner switch on, a usable passkey, a fresh sign-in)
 
 `PUT    auth/passkeys/only {on}`             usr2-passkeys-only-mode: password sign-in refused for the caller (on: owner switch on, a usable
@@ -51,6 +61,8 @@ from ..services import local_identity as li
 from ..services import local_passkeys as lpk
 from ..services import local_passkeys_store as store
 from ..services import second_factor as sf
+from ..services import step_up
+from ..services import user_passkeys as upk
 from .. import guarded_route
 from ._common import rid as _rid
 from .local_identity import _error, _public_guard, _success, _user_row
@@ -131,10 +143,13 @@ async def passwordless_sign_in(body: CredentialBody, request: Request) -> Respon
 
 # ---------------------------------------------------------------- self
 
+NOT_LOCAL_HE = "הפעולה זמינה רק למשתמשי Arx."
+
+
 def _self(request: Request, principal: Principal, conn: sqlite3.Connection) -> li.LocalSession:
     s = hua.session_of(request)
     if principal.source != "local" or not isinstance(s, li.LocalSession) or s.user_id != principal.user_id:
-        raise ApiError(403, "not_local_identity", "הפעולה זמינה רק למשתמשי Arx.")
+        raise ApiError(403, "not_local_identity", NOT_LOCAL_HE)
     if not li.enabled(conn):
         raise ApiError(409, "local_identity_off", li.OFF_HE)
     if not hua.LIMITER.hit(f"passkey:{principal.user_id}", SELF_LIMITS):
@@ -142,16 +157,33 @@ def _self(request: Request, principal: Principal, conn: sqlite3.Connection) -> l
     return s
 
 
+def _caller(request: Request, principal: Principal, conn: sqlite3.Connection) -> li.LocalSession | None:
+    """MFA-PASSKEYS-2490: the caller's own passkeys. An Arx-only identity -> its local session (`_self`, the rules of before); any other
+    user -> None while `security.passkeys_all_users` is on (services/user_passkeys.py), else the 403 `not_local_identity` of before."""
+    if principal.source == "local":
+        return _self(request, principal, conn)
+    if not upk.all_users_enabled(conn):
+        raise ApiError(403, "not_local_identity", NOT_LOCAL_HE)
+    if not hua.LIMITER.hit(f"passkey:{principal.user_id}", SELF_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    return None
+
+
 @router.get("/auth/passkeys", **wire(W.OwnPasskeys))
 def own_passkeys(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    s = _self(request, principal, conn)
+    s = _caller(request, principal, conn)
+    if s is None:  # MFA-PASSKEYS-2490: a user who is not an Arx-only identity
+        return {**upk.own_summary(conn, request, principal), "user_kind": "user"}
     return {**lpk.summary(conn, s.user_id), "recent_auth": lpk.recent_auth(conn, s),
-            "recent_auth_left_s": max(0, int(lpk.RECENT_AUTH_S - (time.time() - s.chain_started_at))), "totp": sf.is_enrolled(conn, s.user_id)}
+            "recent_auth_left_s": max(0, int(lpk.RECENT_AUTH_S - (time.time() - s.chain_started_at))), "totp": sf.is_enrolled(conn, s.user_id),
+            "user_kind": "local"}
 
 
 @router.post("/auth/passkeys/register/options", **wire(W.RegistrationOptions))
 def register_options(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    s = _self(request, principal, conn)
+    s = _caller(request, principal, conn)
+    if s is None:
+        return upk.registration_options(conn, request, principal)
     return lpk.registration_options(conn, s)
 
 
@@ -163,7 +195,9 @@ class RegisterBody(BaseModel):
 
 @router.post("/auth/passkeys/register", status_code=201, **wire(W.PasskeyRegistered))
 def register(body: RegisterBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    s = _self(request, principal, conn)
+    s = _caller(request, principal, conn)
+    if s is None:  # MFA-PASSKEYS-2490: the other sign-ins ended by a first factor close on the background pass (revoke_user_sign_ins)
+        return upk.register(conn, request, principal, body.credential, body.label, _rid(request))
     out = lpk.register(conn, settings_of(request), request, s, body.credential, body.label, _rid(request))
     if out["other_sessions_ended"]:
         li.close_sockets_from_thread()
@@ -178,13 +212,14 @@ class LabelBody(BaseModel):
 @router.patch("/auth/passkeys/{pk_id}", **wire(W.PasskeySummary))
 def rename(pk_id: str, body: LabelBody, request: Request, principal: Principal = Depends(current_principal),
            conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    s = _self(request, principal, conn)
+    s = _caller(request, principal, conn)
     label = (body.label or "").strip() or None
     if label and any(ord(c) < 32 or ord(c) == 127 for c in label):
         raise ApiError(422, "validation", "שם מפתח הגישה: טקסט רגיל בלבד.")
-    if len(pk_id) > 40 or store.rename_passkey(conn, label, pk_id, s.user_id) != 1:
+    if len(pk_id) > 40 or store.rename_passkey(conn, label, pk_id, principal.user_id) != 1:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
-    return lpk.summary(conn, s.user_id)
+    upk.audit_renamed(conn, principal, pk_id, _rid(request))  # MFA-PASSKEYS-2490: the public id only, never the label
+    return lpk.summary(conn, s.user_id) if s is not None else upk.summary(conn, principal.user_id)
 
 
 class RemoveBody(BaseModel):
@@ -195,19 +230,20 @@ class RemoveBody(BaseModel):
 @router.delete("/auth/passkeys/{pk_id}", **wire(W.PasskeyRemoved))
 def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, principal: Principal = Depends(current_principal),
                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """A fresh sign-in (< 5 min, with the factor) or the current TOTP code: a stolen session alone cannot strip a factor."""
-    s = _self(request, principal, conn)
-    if store.passkey_row(conn, pk_id[:40], s.user_id) is None:
+    """A fresh sign-in (< 5 min, with the factor), the current TOTP code or (MFA-PASSKEYS-2490) a fresh step-up proof: a stolen session
+    alone cannot strip a factor. A user who is not an Arx-only identity: the code or a fresh step-up proof whenever the account has a
+    factor (403 `step_up_required`, action `auth.passkey.remove`)."""
+    s = _caller(request, principal, conn)
+    if store.passkey_row(conn, pk_id[:40], principal.user_id) is None:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
     code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
-    if code and sf.is_enrolled(conn, s.user_id):
-        try:
-            sf.verify(conn, settings_of(request), s.user_id, code)
-        except sf.SecondFactorError as exc:
-            raise ApiError(429 if exc.code == "locked" else 400, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked") from None
-    elif not lpk.recent_auth(conn, s):
-        raise ApiError(403, "reauth_required", lpk.REAUTH_HE)
+    proof = upk.removal_proof(conn, request, principal, code, local_session=s)
+    if s is None:
+        out = upk.remove(conn, principal, pk_id, proof=proof, request_id=_rid(request))
+        return {**out, **upk.summary(conn, principal.user_id)}
     out = lpk.remove(conn, s.user_id, pk_id, actor=principal, by="self", keep_chain=s.chain_id, request_id=_rid(request))
+    if not upk.has_factor(conn, s.user_id):
+        step_up.forget_user(s.user_id)  # MFA-PASSKEYS-2490: no step-up proof outlives the last factor
     if out["sessions_ended"]:
         li.close_sockets_from_thread()
     return {**out, **lpk.summary(conn, s.user_id)}
@@ -234,6 +270,27 @@ def own_only(body: OnlyBody, request: Request, principal: Principal = Depends(cu
     """usr2-passkeys-only-mode: the user's own switch (on needs a working passkey, the owner switch and a fresh sign-in)."""
     s = _self(request, principal, conn)
     return lpk.set_only(conn, s.user_id, body.on, actor=principal, by="self", request_id=_rid(request), s=s)
+
+
+# ---------------------------------------------------------------- step-up challenge (MFA-PASSKEYS-2490, every user kind)
+
+CHALLENGE_LIMITS: list[tuple[float, int]] = [(300.0, 20), (3600.0, 60)]
+
+
+class ChallengeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.]{0,63}$")  # the change the proof is for (bound into the challenge)
+
+
+@router.post("/auth/step-up/challenge", **wire(W.StepUpChallenge))
+def step_up_challenge(request: Request, body: ChallengeBody | None = None, principal: Principal = Depends(current_principal),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A passkey step-up begins: WebAuthn request options for the caller's own usable passkeys, bound to the caller, this session and
+    the action, 60 s, single use. Answered by `POST auth/step-up/verify {method: "passkey", challenge_id, assertion, action?}`.
+    409 `step_up_no_session` / `step_up_no_method`; rate-limited per user."""
+    if not hua.LIMITER.hit(f"stepupc:{principal.user_id}", CHALLENGE_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    return upk.challenge(conn, request, principal, body.action if body else None, _rid(request))
 
 
 # ---------------------------------------------------------------- administration

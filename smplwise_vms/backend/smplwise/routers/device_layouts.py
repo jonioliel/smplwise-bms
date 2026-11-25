@@ -41,7 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn
 from ..db import now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import device_layouts_store as store
 from ..services import camera_cards
@@ -49,6 +49,8 @@ from ..services import devices as svc
 from ..services import ha_scope
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from .devices import READ, _configure_holder, _configure_holder_ro, _visible_entities
+from ..wire import device_layouts as W
+from ..wire import wire
 
 router = APIRouter()
 log = logging.getLogger("smplwise.device_layouts")
@@ -332,6 +334,13 @@ def _overlaps(layout: Layout, grid_of: Any) -> list[str]:
     return out
 
 
+def _issue_field(issue: str) -> str:
+    """The field a semantic issue line names (ADR-019 D1, ADR019-FAMILY3-2510): the text before `: `
+    (`layout.items.area:a1.tiles: ...` -> `layout.items.area:a1.tiles`), else its first word (`layout.cols must be 12 ...`)."""
+    head = issue.split(": ", 1)[0] if ": " in issue else issue.split(" ", 1)[0]
+    return head or "layout"
+
+
 def _validate_semantics(scope: str, variant: str, layout: Layout) -> list[str]:
     """What pydantic cannot say alone: the variant's column count, items inside the grid, keys of this screen."""
     errors: list[str] = []
@@ -522,7 +531,7 @@ def _write(conn: sqlite3.Connection, principal: Principal, scope: str, scope_id:
     return rev
 
 
-@router.get("/devices/layouts/{scope}/{scope_id}")
+@router.get("/devices/layouts/{scope}/{scope_id}", **wire(W.DeviceLayoutsLayout))
 def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The screen's stored layout (desktop and phone; null = automatic) - everyone who reads the device screens."""
     ha_scope.scoped_rows(conn, principal, READ, [])  # the audited 403 without devices.read anywhere
@@ -535,7 +544,7 @@ def get_layout(scope: str, scope_id: str, principal: Principal = Depends(current
     return _record(conn, principal, scope, scope_id, visible, seen)  # a read never writes
 
 
-@router.put("/devices/layouts/{scope}/{scope_id}")
+@router.put("/devices/layouts/{scope}/{scope_id}", **wire(W.DeviceLayoutsPutLayout))
 def put_layout(scope: str, scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Save one variant. `revision` is the one the editor started from (0 = none); another save in between is a 409
     `layout_conflict` with the current revision, and nothing is written."""
@@ -544,7 +553,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     assert isinstance(body, PutBody)
     errors = _validate_semantics(scope, body.variant, body.layout)
     if errors:
-        raise ApiError(422, "validation", "הפריסה אינה תקינה: " + "; ".join(errors[:5]), details={"errors": errors[:50]})
+        raise field_error("הפריסה אינה תקינה: " + "; ".join(errors[:5]), [_issue_field(e) for e in errors[:50]], legacy={"errors": errors[:50]})
     overlaps = _overlaps(body.layout, _grid_of(conn, scope))
     if overlaps:
         raise ApiError(422, "layout_overlap", "שני כרטיסים באותו מקום: " + "; ".join(overlaps[:5]), details={"overlaps": overlaps[:50]})
@@ -559,7 +568,7 @@ def put_layout(scope: str, scope_id: str, request: Request, principal: Principal
     return _record(conn, principal, scope, scope_id)
 
 
-@router.delete("/devices/layouts/{scope}/{scope_id}")
+@router.delete("/devices/layouts/{scope}/{scope_id}", **wire(W.DeviceLayoutsResetLayout))
 def reset_layout(
     scope: str,
     scope_id: str,
@@ -585,7 +594,7 @@ def reset_layout(
     return _record(conn, principal, scope, scope_id)
 
 
-@router.post("/devices/layouts/area/{scope_id}/copy-to-all-areas")
+@router.post("/devices/layouts/area/{scope_id}/copy-to-all-areas", **wire(W.DeviceLayoutsCopyToAllAreas))
 def copy_to_all_areas(scope_id: str, request: Request, principal: Principal = Depends(_configure_holder_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """This area's STORED layout becomes every other area's (the "ללא שיוך" bucket included): the desktop record and,
     when this area has one, the phone record; an area whose phone layout was edited but whose source has none goes back

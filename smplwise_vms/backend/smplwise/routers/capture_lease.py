@@ -36,6 +36,8 @@ from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import capture_lease as cl
 from ._common import rid as _rid
 from ..services import confirm_words
+from ..wire import capture_lease as W
+from ..wire import wire
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -56,7 +58,7 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-@router.get("/access/capture-lease/settings")
+@router.get("/access/capture-lease/settings", **wire(W.CaptureLeaseLeaseSettings))
 def get_lease_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     if not is_system_admin(conn, principal.user_id):  # CR 7.3 / review L6: system administrator, like the PUT
@@ -81,7 +83,7 @@ def _changed(conn: sqlite3.Connection, request: Request, principal: Principal, k
           details={"key": key, "before": before, "after": after, **({"confirm_word": confirm_word} if confirm_word else {})})
 
 
-@router.put("/access/capture-lease/settings")
+@router.put("/access/capture-lease/settings", **wire(W.CaptureLeaseLeaseSettings))
 def put_lease_settings(body: LeaseSettingsBody, request: Request, principal: Principal = Depends(current_principal),
                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)

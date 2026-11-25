@@ -514,7 +514,9 @@ PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("GET", "/api/v1/auth
                     ("POST", "/api/v1/auth/app/refresh-challenge"),
                     # SESSIONEXCH2-295: the WebView session exchange (bearer access token + device-key proof) and the WebView's redeem of its
                     # one-time code - 404 while security.app_session_exchange or security.app_refresh is off (tests/test_app_session_295.py)
-                    ("POST", "/api/v1/auth/app/session"), ("GET", "/api/v1/auth/app/session/redeem")}
+                    ("POST", "/api/v1/auth/app/session"), ("GET", "/api/v1/auth/app/session/redeem"),
+                    # MFA-DEVICEKEY-2490: the phone key's sign-in challenge (before the sign-in; tests/test_mfa_devicekey_2490.py)
+                    ("POST", "/api/v1/auth/device-keys/sign-in/challenge")}
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
                      # CR-NOTICE106: the TV boards' tokenised display routes and page need no session; on the remote channel they answer the uniform
                      # 404 unless notices.boards.remote is on (tests/test_notices_106.py covers both). /api/v1/b/{slug} is the page router as this test mounts it

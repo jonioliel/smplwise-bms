@@ -1,0 +1,13 @@
+-- MFA-DEVICEKEY-ATTEST-2490 (MFA-STEPUP-TRAIN-2490 slice 9 "DEVICEKEY-ATTEST"; owner decision 2026-11-22 Q52 "phone hardware
+-- attestation: YES" - the non-recommended option, risk recorded in docs/changes/MFA-DEVICEKEY-ATTEST-2490.md).
+--
+-- `attested` = the verdict of the OFFLINE Android key attestation check made when the phone key was registered
+-- (services/device_key_attestation.py): `hardware` (the chain ends at a pinned Google root, the attestation challenge is this
+-- registration's, the key lives in the TEE or StrongBox), `software` (same checks, the key is a software key), `none` (the app sent no
+-- chain), `failed` (a chain was sent and did not pass - the reason is in `attestation_json`). NULL = not checked: a key registered before
+-- this migration or while `security.device_key_attestation` = off. `attestation_json` (migration 0222) keeps the verdict summary only
+-- (mode, level, reason, root key prefix, chain length, status-list date) - never a certificate, the challenge or key material.
+--
+-- Additive only: the previous version ignores the column (rollback = leave it). Number 0223: the next free number after the train's
+-- 0219-0222 (checked 2026-11-24 over every remote branch). RENUMBER AT MERGE only if the order changed.
+ALTER TABLE auth_device_keys ADD COLUMN attested TEXT CHECK (attested IS NULL OR attested IN ('hardware', 'software', 'none', 'failed'));

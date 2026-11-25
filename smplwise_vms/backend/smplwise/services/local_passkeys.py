@@ -228,7 +228,7 @@ def recent_auth(conn: Any, s: Any) -> bool:
 @dataclass
 class _Challenge:
     value: bytes
-    purpose: str  # register | second_factor | passwordless
+    purpose: str  # register | second_factor | passwordless | step_up (MFA-PASSKEYS-2490)
     user_id: str | None
     bind: str | None  # session chain id | pending id | None
     rp_id: str
@@ -243,7 +243,9 @@ _lock = threading.Lock()
 # anonymous: at most PASSWORDLESS_PER_ADDRESS live per address bucket (hua.limit_ip: an IPv4 address or an IPv6 /64), and a full pool
 # evicts its OLDEST entry instead of refusing - a flood only spends the flooder's own ceremonies and never blocks a registration or a
 # second step.
-_pools: dict[str, dict[bytes, _Challenge]] = {"register": {}, "second_factor": {}, "passwordless": {}}
+# MFA-PASSKEYS-2490: `step_up` - the step-up challenges of every user kind (services/user_passkeys), bound to the user, the session
+# and the action; the same 60 s, single use, one open ceremony per user, MAX_CHALLENGES ceiling.
+_pools: dict[str, dict[bytes, _Challenge]] = {"register": {}, "second_factor": {}, "passwordless": {}, "step_up": {}}
 MAX_PASSWORDLESS = 2000
 PASSWORDLESS_PER_ADDRESS = 3
 
@@ -422,6 +424,9 @@ def register(conn: Any, settings: Any, request: Any, s: Any, body: Any, label: s
     _audit(conn, actor=s.principal, action="auth.local.passkey.registered", decision="allowed", resource_id=s.user_id,
            details={"passkey": pk, "alg": reg.alg, "synced": reg.backup_eligible, "uv": reg.uv, "first_factor": first_factor,
                     "other_sessions_ended": ended, "device_tokens_revoked": tokens}, request_id=request_id)
+    from . import factor_reset
+
+    factor_reset.enrolled(conn, s.user_id)  # MFA-RESET-HARDENING-2510: a factor again - the must_enroll of an administrator's reset ends
     return {"passkey": view(conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone(), relying[0], li.holds_admin(conn, s.user_id)),
             "first_factor": first_factor, "other_sessions_ended": ended}
 

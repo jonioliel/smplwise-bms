@@ -18,12 +18,14 @@ from fastapi import APIRouter, Body, Depends, Request
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import database_of, unlocked
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import camera_image_health as cih
 from ..services import camera_image_health_store as store
 from ..services.access import visible_camera_ids
 from ._common import rid as _rid
+from ..wire import camera_image_health as W
+from ..wire import wire
 
 router = APIRouter()
 PERMISSION = "system.configure"
@@ -35,13 +37,13 @@ def _answer(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     return {**cih.view(conn, visible), "can_manage": manage}
 
 
-@router.get("/camera-image-health")
+@router.get("/camera-image-health", **wire(W.CameraImageHealthResults))
 def get_results(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CAMHEALTH091: the image health of every camera the caller may watch live (names, states and numbers only)."""
     return _answer(conn, principal)
 
 
-@router.post("/camera-image-health/check")
+@router.post("/camera-image-health/check", **wire(W.CameraImageHealthCheck))
 def check(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAMHEALTH091: sample the oldest cameras now (cache or existing sub stream; at most every 30 s); 409 while switched off."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -59,14 +61,14 @@ def _settings_answer(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"values": cih.load(conn), "ranges": cih.ranges(), "cameras": cih.camera_choices(conn), "source": cih.SOURCE}
 
 
-@router.get("/camera-image-health/settings")
+@router.get("/camera-image-health/settings", **wire(W.CameraImageHealthSettings))
 def get_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CAMHEALTH091: the switch, the sampling interval and every threshold, with defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return _settings_answer(conn)
 
 
-@router.put("/camera-image-health/settings")
+@router.put("/camera-image-health/settings", **wire(W.CameraImageHealthSettings))
 def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAMHEALTH091: change the switch, the interval or thresholds (validated against their ranges; audited)."""
@@ -78,14 +80,14 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: 
     return _settings_answer(conn)
 
 
-@router.post("/camera-image-health/{camera_id}/reference")
+@router.post("/camera-image-health/{camera_id}/reference", **wire(W.CameraImageHealthResults))
 def reference(camera_id: str, request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal),
               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CAMHEALTH091: make the latest sample the camera's reference view (`set`) or forget it (`clear`; the next usable sample becomes it)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     action = body.get("action") if isinstance(body, dict) else None
     if action not in ("set", "clear"):
-        raise ApiError(422, "validation", "פעולה לא מוכרת.", details={"field": "action"})
+        raise field_error("פעולה לא מוכרת.", ["action"], legacy={"field": "action"})
     if store.camera_row(conn, camera_id) is None:
         raise not_found("המצלמה לא נמצאה.")
     if action == "set":

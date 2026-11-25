@@ -604,7 +604,8 @@ def test_door_preview_i18n_2500_every_text_has_a_key_and_no_hebrew_literal_is_le
     reasons |= set(re.findall(r'common = "(\w+)"', src)) | set(re.findall(r'return True, "(\w+)"', src)) | set(re.findall(r'problems\.append\("(\w+)"\)', src))
     assert len(reasons) > 20 and reasons - set(door_conversion.UNAVAILABLE_TEXT) == set(), reasons - set(door_conversion.UNAVAILABLE_TEXT)
     # no Hebrew literal left outside the catalogue's words
-    allowed = {he for he, _en in (*dct.DOOR_PATH.values(), *dct.DOOR_CONVERSION.values())} | {"משימת דלת"}
+    # DOOR-BLOCKS-I18N-2510: the catalogue file also holds the run guard's and the blocks screen's words (`doorguard`, `doorblocks`)
+    allowed = {he for he, _en in (*dct.DOOR_PATH.values(), *dct.DOOR_CONVERSION.values(), *dct.DOOR_GUARD.values(), *dct.DOOR_BLOCKS.values())} | {"משימת דלת"}
     for rel in ("services/door_conversion.py", "services/door_path.py", "services/door_conversion_text.py"):
         tree = ast.parse((SMPLWISE / rel).read_text(encoding="utf-8"))
         docs = {id(n.body[0].value) for n in ast.walk(tree) if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef)) and n.body

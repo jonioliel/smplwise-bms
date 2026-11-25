@@ -53,6 +53,8 @@ from ..services import intercom_client, intercom_sync, savepoints
 from ..services import wiskey_door_tech as dt
 from ._common import raw_body as _raw_body
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
+from ..wire import access_control_door_tech as W
+from ..wire import wire
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -183,6 +185,11 @@ def _begin(act: _Action, kind: dt.Kind, raw: bytes, model: type, extra: dict[str
                                   details={"permission": dt.DOOR_ADMIN, "alternative": dt.SYSTEM_CONFIGURE, "reason": g.reason}))
     rbac.note_grant(g.decision, g.reason)
     act.details["granted_by"] = g.reason
+    if g.reason == dt.SYSTEM_CONFIGURE:
+        # MFA-STEPUP-GATES-2490: the door's technical settings granted by system.configure (without require()) are a settings change
+        from ..services import step_up
+
+        step_up.on_grant(conn, principal, dt.SYSTEM_CONFIGURE)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "שינוי טכני בדלת דורש אישור מפורש.", details={"kind": kind.name}))
     available, why = dt.available(intercom_sync.SYNC.api_facts(settings_of(request)), kind)
@@ -319,7 +326,7 @@ def _history(conn: sqlite3.Connection, station_id: str) -> list[dict[str, Any]]:
     return out
 
 
-@router.get("/access-control/stations/{station_id}/door-tech")
+@router.get("/access-control/stations/{station_id}/door-tech", **wire(W.AccessControlDoorTechDoorTechView))
 def door_tech_view(request: Request, principal: Principal = Depends(_writer_view), conn: sqlite3.Connection = Depends(get_read_conn),
                    station_id: str = Path(min_length=1, max_length=MAX_STATION_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
     g = dt.grant(conn, principal, station_id)

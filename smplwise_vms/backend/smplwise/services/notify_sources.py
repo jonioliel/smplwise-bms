@@ -728,6 +728,41 @@ def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))
 
 
+CHANNEL_NAMES_HE = {"remote": "מרחוק", "local": "מהרשת המקומית"}
+
+
+@safe
+def second_factor_reset_by_admin(conn: sqlite3.Connection, user_id: str, *, remote: bool) -> None:
+    """MFA-RESET-HARDENING-2510: an administrator reset another user's authentication methods (routers/second_factor.admin_reset, inside
+    its transaction): the MANAGERS get `security.second_factor_reset_by_admin` (the catalogue's `managers` rule on a `system` subject).
+    Content-free: the channel only - never the user, the administrator or a secret (the audit row carries the ids)."""
+    notify.emit_full(conn, notify.Signal("security.second_factor_reset_by_admin", "system", "installation",
+                                         dedupe_key=f"security.second_factor_reset_by_admin:{notify.new_id()}",
+                                         params={"channel": CHANNEL_NAMES_HE["remote" if remote else "local"]},
+                                         link="#/system/notifications", origin={"kind": "second_factor"}))
+
+
+FACTOR_NAMES_HE = {"totp": "אפליקציית אימות", "passkey": "מפתח גישה"}
+
+
+@safe
+def second_factor_added(conn: sqlite3.Connection, user_id: str, kind: str) -> None:
+    """MFA-SECFIX-2500 SR-3: an authenticator app (routers/second_factor.confirm) or a passkey (services/user_passkeys.register) was
+    added to this account, inside that transaction: the ACCOUNT'S OWN user gets `security.second_factor_added` on every device (inbox,
+    web push, the app) - so a factor a stolen session added does not go unseen. No secret, no label, no actor."""
+    notify.emit_full(conn, notify.Signal("security.second_factor_added", "session", user_id,
+                                         dedupe_key=f"security.second_factor_added:session:{user_id}:{notify.new_id()}",
+                                         params={"name": FACTOR_NAMES_HE.get(kind, kind)}, initiator_user_id=user_id,
+                                         link="#/system/notifications", origin={"kind": kind}))
+
+
+def device_key_added(conn: sqlite3.Connection, user_id: str) -> None:
+    """MFA-DEVICEKEY-2490: a phone key was registered for this account (services/device_keys.register, inside its transaction): the
+    ACCOUNT'S OWN user gets `security.device_key_added` (inbox, the app and the channels of its policy). No key, no label, no actor."""
+    notify.emit_full(conn, notify.Signal("security.device_key_added", "session", user_id, dedupe_key=f"security.device_key_added:session:{user_id}:{notify.new_id()}",
+                                         initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "device_key"}))
+
+
 def _reset_all_for_tests() -> None:
     """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
     reset()

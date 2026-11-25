@@ -273,8 +273,28 @@ def confirm(conn: sqlite3.Connection, settings: Settings, user_id: str, code: An
 
 
 def remove(conn: sqlite3.Connection, user_id: str) -> bool:
+    from . import recovery_codes
+
     FAILURES.clear(conn, user_id)
+    recovery_codes.remove_all(conn, user_id)  # MFA-RECOVERY-CODES-2490: the recovery codes belong to the factor and go with it
     return conn.execute("DELETE FROM auth_totp WHERE user_id = ?", (user_id,)).rowcount > 0
+
+
+def remove_every_factor(conn: sqlite3.Connection, user_id: str, *, by: str) -> dict[str, Any]:
+    """MFA-SECFIX-2500 SR-2: the administrator's factor reset (routers/second_factor.admin_reset). Every factor kind of the user goes:
+    the authenticator code (active or pending) with its lockout and recovery codes, every passkey (auth_webauthn_credentials - an
+    Arx-only identity's passkey-only mode then falls back to its password, local_passkeys.only_effective) and every phone key
+    (device_keys.revoke_all, kept as revoked rows). The caller ends the step-up proofs, the sign-ins and the device tokens."""
+    from . import device_keys, recovery_codes
+
+    codes = recovery_codes.remove_all(conn, user_id)
+    totp = remove(conn, user_id)
+    try:
+        passkeys = conn.execute("DELETE FROM auth_webauthn_credentials WHERE user_id = ?", (user_id,)).rowcount
+    except sqlite3.OperationalError:
+        passkeys = 0
+    keys = device_keys.revoke_all(conn, user_id, by=by, reason="admin_reset")
+    return {"totp": totp, "recovery_codes": max(codes, 0), "passkeys": max(passkeys, 0), "device_keys": max(keys, 0)}
 
 
 def policy(conn: sqlite3.Connection) -> str:
@@ -311,6 +331,9 @@ def set_override(conn: sqlite3.Connection, kind: str, subject_id: str, value: st
             "INSERT INTO auth_totp_policy(subject_kind, subject_id, policy, updated_at, updated_by) VALUES (?,?,?,?,?) "
             "ON CONFLICT(subject_kind, subject_id) DO UPDATE SET policy = excluded.policy, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
             (kind, subject_id, value, now_iso(), actor_id))
+    from . import factor_policy  # MFA-POLICY-2490: the sign-in factor policy's override table follows the legacy route's write
+
+    factor_policy.mirror_legacy(conn, kind, subject_id, value, actor_id)
     return before["policy"] if before else None
 
 
@@ -336,7 +359,25 @@ def users_of_role(conn: sqlite3.Connection, role_id: str) -> list[str]:
 
 
 def effective_policy(conn: sqlite3.Connection, principal: Any, admin_permissions: frozenset[str]) -> tuple[str, str]:
-    """What the policy says for this user: ("required" | "optional", source) with source `user` | `role` | `global`.
+    """What the policies say for this user: ("required" | "optional", source) with source `user` | `role` | `global` (the legacy
+    rules below) or `policy` (MFA-POLICY-2490: only the sign-in factor policy of services/factor_policy requires it, and that policy
+    is enforced - `security.factor_policy_mode = enforce`; in the default `report` mode it never adds a requirement). Never weaker
+    than the legacy rules: their `required` stands whatever the new policy says."""
+    legacy = legacy_policy(conn, principal, admin_permissions)
+    if legacy[0] == "required":
+        return legacy
+    from . import factor_policy
+
+    try:
+        if factor_policy.requires(conn, principal):
+            return "required", "policy"
+    except sqlite3.OperationalError:  # before migration 0221
+        pass
+    return legacy
+
+
+def legacy_policy(conn: sqlite3.Connection, principal: Any, admin_permissions: frozenset[str]) -> tuple[str, str]:
+    """What the legacy (TFA2) policy says for this user: ("required" | "optional", source) with source `user` | `role` | `global`.
     Precedence: the user's own override, then the roles (ANY role `required` wins; otherwise any role `optional`), then the global
     `security.second_factor_policy` (`admins` = required for holders of an administrative permission)."""
     from ..rbac import permissions_anywhere

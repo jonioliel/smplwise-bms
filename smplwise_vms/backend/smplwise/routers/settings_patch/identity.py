@@ -165,6 +165,55 @@ def passkey_settings(patch: Patch) -> None:
         changes[key] = value
 
 
+def passkeys_all_users(patch: Patch) -> None:
+    """MFA-PASSKEYS-2490 (owner Q50): whether every user may add passkeys and have them count as a step-up method. It shapes how users
+    prove who they are, so - like the Arx-only passkey settings - only a system administrator changes it; every attempt is audited.
+    Not local-only: it never widens who can sign in (passwordless stays an Arx-only-identity feature), and switching it is a settings
+    change, so the step-up gate already asks for a fresh proof."""
+    changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
+    key = "security.passkeys_all_users"
+    if key not in changes:
+        return
+    if changes[key] == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
+        changes.pop(key)
+        return
+    from ...rbac import is_system_admin
+
+    if not is_system_admin(conn, principal.user_id):
+        audit(conn, actor=principal, action="security.passkeys_all_users", decision="denied", resource_type="installation", resource_id="*",
+              reason="not_system_admin", request_id=_rid(request), details={"to": changes[key]})
+        raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את ההגדרה של מפתחות גישה לכל המשתמשים.")
+    audit(conn, actor=principal, action="security.passkeys_all_users", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=_rid(request), details={"to": changes[key]})
+
+
+def factor_reset_channel(patch: Patch) -> None:
+    """MFA-RESET-HARDENING-2510 (owner Q53): from which channel an administrator may reset another user's authentication methods -
+    `any` (default) | `local`. It decides who can strip a factor, so only a system administrator changes it; and widening it back to
+    `any` happens on the local channel only (a stolen remote administrator session must not undo the owner's `local` and then reset
+    from outside). Narrowing it to `local` works from anywhere. Every attempt is audited; a refusal fails the whole request."""
+    changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
+    key = "security.factor_reset_channel"
+    if key not in changes:
+        return
+    if changes[key] == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
+        changes.pop(key)
+        return
+    from ...rbac import is_system_admin
+    from ...remote_channel import is_remote
+
+    if not is_system_admin(conn, principal.user_id):
+        audit(conn, actor=principal, action="security.factor_reset_channel", decision="denied", resource_type="installation", resource_id="*",
+              reason="not_system_admin", request_id=_rid(request), details={"to": changes[key]})
+        raise ApiError(403, "forbidden", "רק מנהל מערכת משנה מאיפה מותר לאפס דרכי אימות של משתמשים.")
+    if changes[key] == "any" and is_remote(request):
+        audit(conn, actor=principal, action="security.factor_reset_channel", decision="denied", resource_type="installation", resource_id="*",
+              reason="remote_channel", request_id=_rid(request), details={"to": changes[key]})
+        raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
+    audit(conn, actor=principal, action="security.factor_reset_channel", decision="allowed", resource_type="installation", resource_id="*",
+          request_id=_rid(request), details={"to": changes[key]})
+
+
 def local_purge(patch: Patch) -> None:
     changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
     purge_confirm = changes.pop("privacy.local_purge_confirm", None)
