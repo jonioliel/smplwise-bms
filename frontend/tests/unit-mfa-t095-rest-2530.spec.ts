@@ -311,11 +311,11 @@ test('the phone: a wrong number is refused by the server; "not me" denies', asyn
   await sheet.locator('[data-push-approval-close]').click();
   await expect(sheet).toHaveCount(0);
   // the next request: "not me"
-  st.pending = [{ request_id: REQ, action: 'system.configure', expires_in: 80 }];
+  st.pending = [{ request_id: REQ + '2', action: 'system.configure', expires_in: 80 }];
   await expect(sheet.locator('[data-push-approval-deny]')).toBeVisible({ timeout: 15000 });
   await sheet.locator('[data-push-approval-deny]').click();
   await expect(sheet.locator('[data-push-approval-done]')).toContainText('נדחתה');
-  expect(st.denies).toEqual([REQ]);
+  expect(st.denies).toEqual([REQ + '2']);
 });
 
 test('outside the app the watcher never asks the server', async ({ page, baseURL }) => {

@@ -12,6 +12,8 @@ const LOOK_MS = 5000;
 let started = false;
 let showing = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** Requests already shown: closing the sheet without an answer does not bring the same request back every few seconds. */
+const shown = new Set<string>();
 
 async function look(keyId: string): Promise<boolean> {
   if (showing || document.visibilityState !== 'visible') return true;
@@ -23,8 +25,9 @@ async function look(keyId: string): Promise<boolean> {
     return true; // signed out, offline: look again later
   }
   if (!list.enabled) return false;
-  const first = list.pending[0];
+  const first = list.pending.find((r) => !shown.has(r.request_id));
   if (first) {
+    shown.add(first.request_id);
     showing = true;
     const { showPushApproval } = await import('../components/sw-push-approval-sheet');
     await showPushApproval(first, keyId);
