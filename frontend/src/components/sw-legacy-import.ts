@@ -107,7 +107,7 @@ const shortSha = (s: string) => s.slice(0, 12);
 export class SwLegacyImport extends LitElement {
   @state() private status: LegacyStatus | null = null;
   /** 403 / 404: this user (or this server) has no legacy import - nothing is drawn */
-  @state() private hidden = false;
+  @state() private absent = false;
   @state() private loadErr = '';
   @state() private file: File | null = null;
   @state() private report: LegacyReport | null = null;
@@ -143,7 +143,7 @@ export class SwLegacyImport extends LitElement {
     try {
       this.status = await legacyStatus();
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) this.hidden = true;
+      if (err instanceof ApiError && (err.status === 403 || err.status === 404)) this.absent = true;
       else this.loadErr = describeError(err);
     }
   }
@@ -339,7 +339,7 @@ export class SwLegacyImport extends LitElement {
   }
 
   render() {
-    if (this.hidden) return nothing;
+    if (this.absent) return nothing;
     const s = this.status;
     return html`<sw-card heading=${tr('ייבוא מהמערכת הישנה')} subheading=${tr('מהתוסף הקודם (גרסה {v}) · מנהלי מערכת בלבד', { v: s?.legacy_version ?? '1.5.27' })} data-legacy-import>
       ${this.loadErr
