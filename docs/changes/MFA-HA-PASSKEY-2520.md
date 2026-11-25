@@ -52,7 +52,9 @@ after the home system accepted the password. The Arx-only identity's passwordles
   `parse_answer()`, `check_answer()`.
 * `services/ha_user_auth.py` (the browser exchange `POST auth/session` only):
   * `second_factor_need(..., passkey=True)`: a passkey that counts is a factor like an enrolled authenticator - every NEW remote sign-in
-    owes it (the rotation of the caller's own live cookie session does not, as before), and it satisfies a required policy.
+    owes it (the rotation of the caller's own live cookie session does not, as before), and it satisfies a required policy. With the
+    switch on, a user with such a passkey under an enforced `security.factor_policy` answers with the passkey (or the code) instead of
+    resting on the home system's own MFA (the provenance path) - stricter, and only for users who registered a passkey.
   * The 401 `second_factor_required` carries `details` = `{methods, passkey: {origin, publicKey}}` - WebAuthn request options for the
     user's own usable passkeys - when (and only when) the switch is on and the user's passkey counts. Otherwise `details` stays `{}`
     (byte-identical answer of before). No new public route: the options reach only a caller whose home-system token was just validated
@@ -135,12 +137,27 @@ wire type, migration or API inventory change. Files of the 2.52 train rows (WisK
 
 ## 5. Tests (real runs)
 
-RESULTS: section 5 is filled from real runs only.
-
 | Where | Command | Result |
 |---|---|---|
-| workstation (Windows, repo venv, `SW_WIRE_STRICT=1`) | `pytest tests/test_mfa_ha_passkey_2520.py` (15 tests: switch, off = before, on = asked and passes, code-or-passkey, binding to the sign-in / single use / RP id / signature / user handle / UP / malformed, wrong origin, cross-user, counter regression + notice audit, off again, required policy, bearer path, compliance, no public address, answer format, audit hygiene, local channel) | **15 passed** |
-| workstation | `ruff check smplwise` | All checks passed |
+| workstation (Windows, repo venv, `SW_WIRE_STRICT=1`) | `pytest tests/test_mfa_ha_passkey_2520.py` (15 tests: switch, off = before, on = asked and passes, code-or-passkey, binding to the sign-in / single use / RP id / signature / user handle / UP / malformed, wrong origin, cross-user, counter regression + audit, off again, required policy, bearer path, compliance, no public address, answer format, audit hygiene, local channel) | **15 passed** (exit 0) |
+| workstation | `ruff check smplwise`; esbuild syntax pass of the 8 changed / new TS files | All checks passed; 8 ok |
+| runner slot B, job `~/work/hapk_run.sh` at `63c899a4c` (07:38-08:17 UTC) | backend shard 0: this row + `test_mfa_passkeys_2490`, `test_local_passkeys`, `test_passkey_only` | **124 passed** |
+| runner | shard 1: `test_second_factor`, `test_second_factor_followups`, `test_mfa_policy_2490`, `test_mfa_screens_2510`, `test_settings_patch_audit_order` | **117 passed** |
+| runner | shard 2: `test_remote_access`, `test_security_review_220`, `test_mfa_devicekey_2490`, `test_mfa_recovery_codes_2490` | **143 passed** |
+| runner | shard 3: `test_mfa_stepup_2490`, `test_mfa_stepup_gates_2490`, `test_mfa_secfix_2500`, `test_mfa_secreview_2500`, `test_mfa_reset_hardening_2510`, `test_mfa_tokens_2490` | **110 passed** |
+| runner | shard 4: `test_app_session_295`, `test_ha_authority`, route tables, read-conn, wire D, route characterisation | **971 passed** |
+| runner | ruff `smplwise` / `gen_wire_types.py --check` / `design_ratchet.py` | rc 0 / rc 0 / rc 0 (no count above baseline) |
+| runner | `tsc --noEmit -p .` / `tsc -p tsconfig.tests.json` | 0 errors / 0 errors |
+| runner | eslint (changed src files), lazy-tags-check, unused-exports `--enforce`, `i18n-split-langs --dry`, `npm run build` | all rc 0 |
+| runner | Playwright `evidence-mfa-ha-passkey-2520` + `evidence-mfa-screens-2510` desktop + mobile (preview build) | **30 passed**, 4 skipped (shots) |
+| runner | `pixel-mfa-screens-2510` `--update-snapshots=changed`, then re-check | 6 passed / 6 passed; ONE baseline rewritten: `mfa-policy-preview-1440-desktop-linux.png` (the new row; the phone baseline is unchanged - the row is below its fold). Looked at image by image. |
+| runner | unit pages on `localhost` (WebAuthn RP id): `unit-mfa-ha-passkey-2520` (incl. the full ceremony with a CDP virtual authenticator, a cancelled ceremony keeping the step, the fresh offer and the `pk1:` header), `unit-mfa-signin-methods-2510`, `unit-mfa-passkeys-2490`, `unit-mfa-recovery-codes-2490` | **14 passed**, 5 skipped (shots tests) |
+| runner | compare shots after / before (sign-in step, policy card; desktop + phone, light + dark) | 4 + 2 / 2 + 2 passed |
+
+Compare page: `private/planning/mfa-ha-passkey-2520_compare_2026-11-25.html` (local, Hebrew).
+
+NOT_RUN: the full backend suite (only the five shards above), the full Playwright suite, any real device (Chrome / Android / iOS
+passkeys at the lab address), any lab check, the phone app's web view.
 
 ## 6. Open questions (recommendation first)
 
