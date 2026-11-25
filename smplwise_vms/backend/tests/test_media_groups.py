@@ -152,7 +152,7 @@ def test_every_join_refusal_has_its_code_and_sends_nothing(g, monkeypatch):
     r = post(req(leader_key=keys["a"], member_keys=[keys["garden"]]))
     assert (r.status_code, r.json()["code"], r.json()["details"]["reason"]) == (422, "not_groupable", "no_grouping"), "Cast has no grouping"
     # ADR019-FAMILY678-2520 (ADR-019 D1): the body field that carried the refused device; the device key stays an extra
-    assert r.json()["details"] == {"key": keys["garden"], "reason": "no_grouping", "fields": ["member_keys"]}
+    assert r.json()["details"] == {"key": keys["garden"], "reason": "no_grouping", "fields": ["member_keys"], "outcome": "not_sent"}
     r = post(req(leader_key=keys["a"], member_keys=[keys["console"]]))
     assert (r.status_code, r.json()["code"]) == (422, "not_groupable")
     r = post(req(leader_key=keys["a"], member_keys=[keys["stereo"]]))
@@ -298,7 +298,7 @@ def test_group_volume_skips_a_muted_or_off_room_with_its_reason_and_refuses_a_no
         assert c.post(f"{GROUPS}/{keys['a']}/volume", json=req(**bad)).status_code == 422, bad
     r = c.post(f"{GROUPS}/{keys['x1']}/volume", json=req(level=10))
     assert (r.status_code, r.json()["code"]) == (422, "not_groupable"), "a device that leads no group has no group volume"
-    assert r.json()["details"] == {"key": keys["x1"], "reason": "not_a_leader", "fields": ["leader_key"]}  # ADR019-FAMILY678-2520
+    assert r.json()["details"] == {"key": keys["x1"], "reason": "not_a_leader", "fields": ["leader_key"], "outcome": "not_sent"}  # ADR019-FAMILY678-2520
     assert c.post(f"{GROUPS}/nope/volume", json=req(level=10)).status_code == 404
 
 
