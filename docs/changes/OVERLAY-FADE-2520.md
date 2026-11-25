@@ -106,15 +106,22 @@ the notification centre's dialogs (`mm-pop`) - each is the same one-line keyfram
 static checker; exits were not frame-sampled (only the inert attribute is checked, statically); the other skins beyond classic;
 Safari / WebKit.
 
-Finding outside this row (resting look, not an entrance): in the notification centre the chip "דורש אישור" is at 3.76:1 at rest
-(axe colour-contrast, light, classic, base and branch alike) - see question C.
+## 6. The pinned "דורש אישור" heading of the notification centre (question C = a)
 
-## 6. Open questions
+The diag found the pinned group heading "דורש אישור" (`components/notify-center.ts` `.gh.pin`) at 3.76:1 at rest (axe colour-contrast,
+light, classic, base and branch alike): its text took the severity FILL colour `--nt-sev-critical` (`--sw-product-danger`). Commit
+`5856ae23a`: the heading's text takes the danger TEXT token `--sw-danger-text` (light `#b91c1c`, dark `#ff8a82`, the skins' own
+values); the siren icon keeps the severity colour (a graphic, 3:1 suffices). `unit-overlay-fade-2520` checks the rule.
 
-A. sw-sheet now lands from 96 % (was 86 %) at full opacity. a) keep (recommended: the sw-dialog box's start; at full opacity 86 % reads
-   as a jump) b) back to 86 %.
-B. The in-page choreography of section 3 still fades its texts in (the screen panels, the home screen change, the wall, ...).
-   a) leave as approved looks (recommended until you look at it - the panels are short and most are not interactive during the fade)
-   b) one more row: the same technique there too.
-C. The notification centre's "דורש אישור" chip is 3.76:1 at rest. a) a small follow-up to take its ink to the text token (recommended)
-   b) leave.
+| run | commit | exit | result |
+|---|---|---|---|
+| tsc / typecheck / lint / `design_ratchet.py` | `5856ae23a` | 0 / 0 / 0 / 0 | 0 / 0 errors, clean, no count above the baseline |
+| unit (the 13 files above) | `5856ae23a` | 0 | 152 passed |
+| diag, motion on, light / dark (the notification centre at rest, axe colour-contrast inside the centre) | `5856ae23a` | 0 / 0 | 21 passed / 21 passed; the centre at rest: **0** contrast nodes, desktop + phone, light and dark (was 1, "דורש אישור" 3.76:1) |
+| notification-centre specs: `evidence-notifications`, `evidence-notify-live`, `evidence-shell`, `layout-menu-kpi-fit-2439`, `evidence-media-polish`, `evidence-security-polish`, desktop + mobile | `5856ae23a` | 1 | 114 passed, 32 skipped, **10 failed - all mobile and all infrastructure**: 'Target crashed' / 'Page crashed' (8), `ENOSPC: no space left on device` at browser launch (1), one assertion after a crashed worker (1) - the runner's disk was 100 % full during the run (2.2 GB free; another job's files). Every desktop test passed. A rerun of the same step (`br5`) is queued on the runner but had not got a slot when this note was written: NOT_RUN |
+
+No pixel spec covers the notification centre (none of these specs compares screenshots), so no baseline is involved.
+
+## 7. Decisions (coordinator, owner rule: the recommendation)
+
+A = a: sw-sheet lands from 96 %. B = a: the in-page choreography stays as approved. C = a: done (section 6).
