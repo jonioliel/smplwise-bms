@@ -362,8 +362,8 @@ test.describe('the access-control Settings page: behaviour', () => {
     expect(mock.patches).toEqual([]);
   });
 
-  test('who gets which segments: a system administrator all five, a site manager of every station the first three, a station-scoped one the status and the groups only', async ({ page }) => {
-    for (const [persona, segments] of [['admin', 5], ['siteAdmin', 3]] as const) {
+  test('who gets which segments: a system administrator all six, a site manager of every station the first four, a station-scoped one the status and the groups only', async ({ page }) => {
+    for (const [persona, segments] of [['admin', 6], ['siteAdmin', 4]] as const) { // WISKEY-STATUS-UI-2520: + "מערכת האינטרקום"
       await installAccessMock(page, { persona });
       await page.clock.setFixedTime(NOW);
       await page.goto('about:blank');
