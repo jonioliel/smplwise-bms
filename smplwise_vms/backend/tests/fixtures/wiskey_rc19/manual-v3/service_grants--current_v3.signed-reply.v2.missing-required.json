@@ -1,0 +1,16 @@
+{
+  "connection_ref": "00000000000000000000000000000000",
+  "kid": "g0-legacy",
+  "frame": {
+    "id": 1,
+    "type": "result",
+    "success": true,
+    "result": {
+      "format": "wiskey-manual-service-grants.v3",
+      "revision": 0,
+      "status": "absent_or_revoked",
+      "grant": null
+    }
+  },
+  "sig": "0000000000000000000000000000000000000000000000000000000000000000"
+}

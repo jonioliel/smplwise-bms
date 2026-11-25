@@ -4,6 +4,7 @@
  * by default and the rotation starts by itself once the bridge has been updated (`automatic`).
  */
 import { get, post, put } from './client';
+import type { BridgeKeyServiceGrant } from './generated/wire-bridge-key';
 
 export type RotationMode = 'routine' | 'hard_cut';
 type RotationState =
@@ -142,6 +143,31 @@ export const getNoticeBanner = () => get<NoticeBanner>('system/bridge-key/notice
 export const revokeBridgeKey = (wiskeyAcknowledged: boolean) => post<RevokeResult>('system/bridge-key/revoke', { confirm: true, wiskey_acknowledged: wiskeyAcknowledged });
 /** WXH4: the new pairing code, after a fresh re-authentication with the administrator's own authenticator code (audited by the server). */
 export const revealNewCode = (code: string) => post<RevealResult>('system/bridge-key/revoke/reveal', { code });
+/**
+ * WISKEY-R8-2520: the owner's manual service grant v3 AS WISKEY REPORTS IT (one signed READ on the server, or the reason none was sent).
+ * Read only: the owner gives and withdraws it in WisKey's own screen; Arx has no grant, preview, commit or revoke call.
+ */
+export const getServiceGrant = () => get<BridgeKeyServiceGrant>('system/bridge-key/service-grant');
+export type ServiceGrantState = 'active' | 'absent_or_revoked' | 'refused' | 'unknown' | 'unsupported' | 'unavailable';
+export const SERVICE_GRANT_STATES: readonly ServiceGrantState[] = ['active', 'absent_or_revoked', 'refused', 'unknown', 'unsupported', 'unavailable'];
+/** The four service actions a v3 grant can carry (WisKey's closed list), in the order shown. Cards are never among them. */
+export const SERVICE_GRANT_COMMANDS = ['users/create', 'users/update', 'users/pin_generate', 'users/temporary_cancel'] as const;
+
+/** The state to show: WisKey's own answer, or `unknown` for anything this client does not know (never an assumed grant). */
+export function serviceGrantState(g: Partial<BridgeKeyServiceGrant> | null | undefined): ServiceGrantState {
+  const s = g?.state as ServiceGrantState | undefined;
+  if (!s || !SERVICE_GRANT_STATES.includes(s)) return 'unknown';
+  if (s === 'active' && (!Array.isArray(g?.commands) || g.commands.length === 0)) return 'unknown';
+  return s;
+}
+
+/** The approved actions of an active grant, only the known ones, in the fixed order. */
+export function serviceGrantCommands(g: Partial<BridgeKeyServiceGrant> | null | undefined): string[] {
+  if (serviceGrantState(g) !== 'active') return [];
+  const got = new Set(g?.commands ?? []);
+  return SERVICE_GRANT_COMMANDS.filter((c) => got.has(c));
+}
+
 export const resumeRotation = (id: string) => post<{ rotation: Rotation }>(`system/bridge-key/rotations/${encodeURIComponent(id)}/resume`);
 
 /**

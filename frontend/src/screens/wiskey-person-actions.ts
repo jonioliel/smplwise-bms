@@ -397,7 +397,7 @@ export class WiskeyPersonActions extends LitElement {
         ${cards.map((c) => html`<li class="card" data-person-card=${c.id}>
           <bdi class="mask" dir="ltr">${c.masked_number}</bdi>
           <span class="label">${c.label}</span>
-          ${c.enabled ? nothing : html`<span class="muted">${wt('cards.disabled')}</span>`}
+          ${c.enabled ? nothing : html`<span class="muted" title=${wt('cards.disabled_hint')} data-card-off-hint>${wt('cards.disabled')}</span>`}
           ${this.removing === c.id
             ? html`<span class="inline-ask"><span>${wt('confirm.remove_card', { mask: c.masked_number })}</span>
                 <sw-button size="sm" variant="danger" data-card-remove-confirm ?disabled=${this.step === 'working'} @click=${() => this.removeCard(c.id)}>${wt('btn.remove')}</sw-button>

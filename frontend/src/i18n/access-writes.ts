@@ -97,6 +97,8 @@ const he = {
   'cards.none': 'אין כרטיסים',
   'cards.loading': 'טוען…',
   'cards.disabled': 'מושבת',
+  // WISKEY-R8-2520 (WisKey R2 `disabled_card`): a card marked off centrally is removed from the station only after sync + readback
+  'cards.disabled_hint': 'הכרטיס סומן כלא פעיל במרכז. הוא יוסר מהעמדה רק אחרי סנכרון ובדיקה חוזרת; עד אז, או כשהעמדה מנותקת, ייתכן שהעמדה עדיין תקבל אותו.',
 
   // ---- timing (the editor)
   'timing.heading': 'מועדי כניסה',

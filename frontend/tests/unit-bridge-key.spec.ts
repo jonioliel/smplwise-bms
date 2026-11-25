@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { doorsPaused, type BridgeKeyStatus } from '../src/api/bridge-key';
+import { SERVICE_GRANT_STATES, doorsPaused, serviceGrantCommands, serviceGrantState, type BridgeKeyStatus } from '../src/api/bridge-key';
 import { BKT_DEV_MARKED, BKT_KEYS, BKT_TABLES, bkt, bktCode } from '../src/i18n/bridge-key';
 
 // CR-WISKEY-HMAC-ROTATION-295: the "Bridge key" card - every column has every key with the same placeholders, Arabic and Russian
@@ -142,4 +142,37 @@ test('no home-system branding in the revocation words', () => {
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
     for (const k of REV_KEYS) expect(BKT_TABLES[lang][k] ?? '', `${lang}.${k}`).not.toMatch(/Home Assistant|\bHA\b|Ingress|Companion/i);
   }
+});
+
+// WISKEY-R8-2520: the read-only "service approval from WisKey" block - what WisKey reported, never an assumed grant, no grant action.
+const CMDS = ['users/update', 'users/temporary_cancel', 'users/create', 'users/pin_generate'];
+
+test('service grant: only a known state is shown; anything else is unknown, never a grant', () => {
+  for (const s of SERVICE_GRANT_STATES) expect(serviceGrantState({ state: s, commands: s === 'active' ? CMDS : [] })).toBe(s);
+  expect(serviceGrantState({ state: 'active', commands: [] })).toBe('unknown'); // active without actions is not an answer we read
+  expect(serviceGrantState({ state: 'granted' })).toBe('unknown');
+  expect(serviceGrantState(null)).toBe('unknown');
+  expect(serviceGrantState({} as never)).toBe('unknown');
+  expect(serviceGrantCommands({ state: 'active', commands: [...CMDS, 'cards/add'] })).toEqual(['users/create', 'users/update', 'users/pin_generate', 'users/temporary_cancel']);
+  expect(serviceGrantCommands({ state: 'refused', commands: CMDS })).toEqual([]);
+});
+
+test('service grant: every state has its badge word and its plain sentence in all four languages, no home-system name', () => {
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const s of SERVICE_GRANT_STATES) {
+      expect(bkt(`sg_${s}`, undefined, lang).length, `${lang}.sg_${s}`).toBeGreaterThan(1);
+      expect(bkt(`sgText_${s}`, undefined, lang).length, `${lang}.sgText_${s}`).toBeGreaterThan(10);
+    }
+    for (const k of BKT_KEYS.filter((x) => x.startsWith('sg'))) expect(BKT_TABLES[lang][k] ?? '', `${lang}.${k}`).not.toMatch(/Home Assistant|HA|Ingress|Companion/i);
+  }
+  expect(bkt('sgCode', undefined, 'en')).toBe('The code WisKey returned:'); // the code itself is set apart (<bdi dir=ltr>) by the card
+});
+
+test('service grant: the card and the API only READ it - no grant, preview, commit or revoke call anywhere', () => {
+  const api = readFileSync(new URL('../src/api/bridge-key.ts', import.meta.url), 'utf8');
+  const card = readFileSync(new URL('../src/components/sw-bridge-key-card.ts', import.meta.url), 'utf8');
+  expect(api).toContain("get<BridgeKeyServiceGrant>('system/bridge-key/service-grant')");
+  expect(api).not.toMatch(/(post|put|del)<[^>]*>\('system\/bridge-key\/service-grant/);
+  for (const src of [api, card]) expect(src).not.toMatch(/service_grants\/(read|preview|commit|revoke)_v3|grant_id|authority_ref/);
+  expect(card).toContain("targetHref({ tab: 'tools', tool: null })"); // the pointer to WisKey's own screen, from the deep-link helpers
 });

@@ -822,7 +822,10 @@ def janitor() -> int | None:
 #   - the native outcome `not_sent` (no byte of the mutation frame was written - the WKWRITE contract), whatever its code;
 #   - a refusal of the native writer BEFORE its intent for a transport / availability reason (the codes and prefixes below): the source
 #     read failed or WisKey's source does not offer the action, the lineage is closed / missing / stale, another holder has the scope;
-#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer).
+#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer) - ON A V1
+#     CONNECTION ONLY. WISKEY-R8-2520 (lead decision 25.11): on a v2 direct connection WisKey rc19's R2 rule applies
+#     (`transports.selection`: "never downgrade or switch transport automatically after refusal or UNKNOWN") - a verified refusal is
+#     FINAL there, shown with its code and never re-sent classic. A v1 connection (WisKey rc10, the lab today) keeps this rule unchanged.
 # Never: an `unknown` outcome (timeout after the write, a lost answer, a refused signature - WisKey's `Unauthorized` may follow a commit,
 # so the writer settles it unknown), a business refusal (invalid_fields, revision_conflict, user_not_found, ...), an Arx authority or
 # actor refusal (rbac_denied, actor_session_inactive, ...), or a lineage answer that names an earlier native write of this person or
@@ -831,7 +834,7 @@ def janitor() -> int | None:
 FALLBACK_NATIVE_ERRORS = frozenset({"action_not_offered", "lineage_unavailable", "lineage_closed", "lineage_missing", "lineage_stale",
                                     "writer_busy", "writer_fenced", STOPPED_CODE})
 FALLBACK_NATIVE_PREFIXES = ("source_unavailable:", "source_invalid:")
-FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})
+FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})  # v1 only
 NO_FALLBACK = frozenset({"create_origin_already_used", "person_write_in_flight", "duplicate_operation"})
 # WISKEY-DIRECT-V2-2520: v2 key / pairing refusals (WisKey `fallback_after_key_refusal: false`): never a classic write after them
 V2_NO_FALLBACK = frozenset({"bridge_key_changed", "pairing_ambiguous", "pairing_mismatch", "pairing_unverified", "pairing_stale",
@@ -841,8 +844,9 @@ PATH_CLASSIC = "classic"
 PATH_CLASSIC_AFTER_DIRECT = "classic_after_direct"
 
 
-def fallback_permitted(state: str, code: str | None) -> bool:
-    """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure."""
+def fallback_permitted(state: str, code: str | None, *, protocol_version: int = 1) -> bool:
+    """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure.
+    `protocol_version`: the direct connection the write went to (WISKEY-R8-2520: on 2 a verified refusal is final)."""
     c = code or ""
     if c in NO_FALLBACK or c in V2_NO_FALLBACK or c.startswith(V2_REFUSED_PREFIX):
         return False
@@ -851,8 +855,17 @@ def fallback_permitted(state: str, code: str | None) -> bool:
     if state == "native_error":
         return c in FALLBACK_NATIVE_ERRORS or c.startswith(FALLBACK_NATIVE_PREFIXES)
     if state == "refused":
-        return c in FALLBACK_REFUSALS
+        return protocol_version != 2 and c in FALLBACK_REFUSALS
     return False  # unknown, committed, anything else
+
+
+def _protocol_version(join: Any) -> int | None:
+    """WISKEY-R8-2520: the protocol of the join's current direct connection (1 | 2), or None when there is none. No I/O."""
+    try:
+        link = join.session._link
+        return None if link is None else int(getattr(link, "protocol_version", 1))
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, Any], *, targets: list[tuple[str, str]],
@@ -910,6 +923,7 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
         if refusal is not None:
             note(transport=PATH_DIRECT, direct_state="native_error", direct_code=refusal)
             raise intercom_sync.NotSent(refusal)
+        before = _protocol_version(join)
         try:
             outcome, raw = await join.native_write(command, business, actor=actor, decision=decision, create_origin_ref=create_origin_ref,
                                                    audit_sink=audit_sink)
@@ -931,7 +945,9 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
             if command == "users/delete":
                 return {"accepted": True}
             return raw
-        if fallback is not None and fallback_permitted(outcome.state, outcome.code):
+        # WISKEY-R8-2520: the connection that carried it - v2 when either side of the write saw a v2 connection (refusal final there)
+        version = 2 if 2 in (before, _protocol_version(join)) else 1
+        if fallback is not None and fallback_permitted(outcome.state, outcome.code, protocol_version=version):
             return await classic(call, outcome.state, outcome.code)
         note(transport=PATH_DIRECT, direct_state=outcome.state, direct_code=outcome.code)
         if outcome.state == "not_sent":

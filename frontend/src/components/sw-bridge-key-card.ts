@@ -7,9 +7,12 @@ import './sw-badge';
 import './sw-toggle';
 import './sw-bridge-key-revoke'; // WXH4-EMERGENCY-REVOKE-2407: the emergency revocation and the re-pair
 import type { StateKind } from './sw-badge';
-import { onRemote } from '../api/session';
+import { can, isApi, onRemote } from '../api/session';
 import { describeError } from '../api/client';
-import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, setOwnerContacts, startRotation, type BridgeKeyStatus, type RotationMode, type WatchdogCondition } from '../api/bridge-key';
+import { ACTIVE_STATES, doorsPaused, getBridgeKey, getServiceGrant, resumeRotation, serviceGrantCommands, serviceGrantState, setBridgeKeySettings, setOwnerContacts, startRotation, type BridgeKeyStatus, type RotationMode, type ServiceGrantState, type WatchdogCondition } from '../api/bridge-key';
+import type { BridgeKeyServiceGrant } from '../api/generated/wire-bridge-key';
+import { WISKEY_HIDDEN } from '../shell/nav';
+import { mayOpenPanel, targetHref } from '../wiskey/deep-links';
 import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
 
@@ -35,6 +38,9 @@ export class SwBridgeKeyCard extends LitElement {
   @state() private asking: RotationMode | null = null;
   @state() private saved = false;
   private timer: number | undefined;
+  /** WISKEY-R8-2520: the service grant as WisKey reported it; null = not read yet, 'hidden' = an older server / not allowed (no section). */
+  @state() private grant: BridgeKeyServiceGrant | 'hidden' | null = null;
+  @state() private grantError = '';
 
   static styles = css`
     ${hostBlockStyles}
@@ -119,6 +125,14 @@ export class SwBridgeKeyCard extends LitElement {
       color: var(--sw-text-2);
       text-decoration: line-through;
     }
+    .grant {
+      border-block-start: 1px solid var(--sw-border);
+      padding-block-start: 4px;
+    }
+    .link {
+      color: var(--sw-accent-text);
+      font-size: var(--sw-fs-sm);
+    }
     .alert {
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
@@ -133,6 +147,11 @@ export class SwBridgeKeyCard extends LitElement {
       sw-button {
         --sw-ctl-h-sm: 44px;
       }
+      .link {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 44px;
+      }
     }
   `;
 
@@ -143,6 +162,7 @@ export class SwBridgeKeyCard extends LitElement {
       return;
     }
     void this.load();
+    void this.loadGrant();
   }
 
   disconnectedCallback(): void {
@@ -166,6 +186,53 @@ export class SwBridgeKeyCard extends LitElement {
       else this.error = describeError(err);
     }
     this.schedule();
+  }
+
+  /** WISKEY-R8-2520: one read of the service grant per visit (the server sends at most one READ to WisKey; never polled). */
+  private async loadGrant(): Promise<void> {
+    try {
+      this.grant = await getServiceGrant();
+      this.grantError = '';
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 403 || status === 404) this.grant = 'hidden';
+      else this.grantError = describeError(err);
+    }
+  }
+
+  private grantKind(s: ServiceGrantState): StateKind {
+    return ({ active: 'live', absent_or_revoked: 'neutral', refused: 'forbidden', unknown: 'unknown', unsupported: 'neutral', unavailable: 'offline' } as const)[s];
+  }
+
+  /** WISKEY-R8-2520: what WisKey reports about the owner's manual service grant - read only. The owner gives and withdraws it in WisKey's
+   * own screen (the panel's tools page); this card offers no grant or revoke action. A refusal / unknown / unsupported is said plainly. */
+  private renderGrant() {
+    const g = this.grant;
+    if (g === 'hidden') return nothing;
+    if (g === null && !this.grantError) return nothing;
+    const st: ServiceGrantState = g ? serviceGrantState(g) : 'unknown';
+    const cmds = g ? serviceGrantCommands(g) : [];
+    const code = g && st === 'refused' ? g.wiskey_code : null;
+    const panel = isApi() && mayOpenPanel({ api: true, accessReadInstallation: can('access.read'), hidden: WISKEY_HIDDEN });
+    return html`<div class="grant" data-bridge-key-grant=${st}>
+      <div class="row">
+        <span class="lbl">${bkt('sgTitle')}</span>
+        <sw-badge kind=${this.grantKind(st)} label=${bkt(`sg_${st}`)} data-bridge-key-grant-state></sw-badge>
+      </div>
+      <div class="note" role="status" data-bridge-key-grant-text>${this.grantError || bkt(`sgText_${st}`)}</div>
+      ${cmds.length
+        ? html`<div class="row" data-bridge-key-grant-actions>
+            <span class="lbl">${bkt('sgActions')}</span>
+            <span class="val">${cmds.map((c) => bkt(`sgCmd_${c.replace('/', '_')}` as 'sgCmd_users_create')).join(' · ')}</span>
+          </div>
+          <div class="note" data-bridge-key-grant-no-cards>${bkt('sgNoCards')}</div>`
+        : nothing}
+      ${code ? html`<div class="note" data-bridge-key-grant-code>${bkt('sgCode')} <bdi class="ltr" dir="ltr">${code}</bdi></div>` : nothing}
+      <div class="row" data-bridge-key-grant-owner>
+        <span class="val">${bkt('sgOwner')}</span>
+        ${panel ? html`<a class="link" href=${targetHref({ tab: 'tools', tool: null })} data-bridge-key-grant-open>${bkt('sgOpen')}</a>` : nothing}
+      </div>
+    </div>`;
   }
 
   private async run(fn: () => Promise<unknown>): Promise<void> {
@@ -308,6 +375,7 @@ export class SwBridgeKeyCard extends LitElement {
         </span>
       </div>
       <sw-bridge-key-revoke .status=${s} data-bridge-key-revoke-section @changed=${() => void this.load()}></sw-bridge-key-revoke>
+      ${this.renderGrant()}
       ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}
       ${this.saved ? html`<p class="ok" role="status">${bkt('saved')}</p>` : nothing}
     </sw-card>`;

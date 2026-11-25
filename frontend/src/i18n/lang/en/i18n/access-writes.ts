@@ -89,6 +89,7 @@ export const en = {
   'cards.none': 'No cards',
   'cards.loading': 'Loading…',
   'cards.disabled': 'Deactivated',
+  'cards.disabled_hint': 'The card is marked inactive centrally. It is removed from the station only after sync and readback; until then, or while the station is offline, the station may still accept it.',
 
   // ---- timing (the editor)
   'timing.heading': 'Access times',

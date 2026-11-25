@@ -466,6 +466,28 @@ export interface BridgeKeyRevokeBridgeKeyStatusRevocation {
   step_up_ready: boolean;
 }
 
+/**
+ * WISKEY-R8-2520: the manual service grant v3 as WisKey reported it (`service_grants/current_v3`), or why nothing was read.
+ * `state`: active | absent_or_revoked | refused | unknown | unsupported | unavailable. Never a grant reference, never key material;
+ * `cards_granted` is always false; the owner acts only in WisKey's screen (`owner_actions_in`).
+ */
+export interface BridgeKeyServiceGrant {
+  state: string;
+  reason: string | null;
+  wiskey_code: string | null;
+  revision: number | null;
+  fetched_at: string | null;
+  contract: string;
+  commands: string[];
+  cards_granted: boolean;
+  owner_actions_in: string;
+  owner_screen_tab: string;
+  message_he: string;
+  message_en: string;
+  card_off_he: string;
+  card_off_en: string;
+}
+
 export interface BridgeKeyStartRotation {
   rotation: BridgeKeyBridgeKeyLast;
 }
@@ -473,6 +495,7 @@ export interface BridgeKeyStartRotation {
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface BridgeKeyRoutes {
   "GET /api/v1/system/bridge-key": BridgeKeyBridgeKey;
+  "GET /api/v1/system/bridge-key/service-grant": BridgeKeyServiceGrant;
   "PUT /api/v1/system/bridge-key/settings": BridgeKeyPutBridgeKeySettings;
   "POST /api/v1/system/bridge-key/rotations": BridgeKeyStartRotation;
   "POST /api/v1/system/bridge-key/rotations/{rotation_id}/resume": BridgeKeyResumeRotation;

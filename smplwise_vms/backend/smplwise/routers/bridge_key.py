@@ -30,6 +30,13 @@ signs (v1 / v2 with its kid), whether the direct join is installed / connected, 
 `direct/pairing_status_v2` observation (or `unknown`). Status only: no I/O, no new route, no new permission, never key material. Revoking
 a pairing is not offered here: it is the owner's action in WisKey's own screen (`revoke_in`).
 
+WISKEY-R8-2520 (row R8, owner decisions 25.11): `GET /system/bridge-key/service-grant` - the manual service grant v3 AS WISKEY REPORTS IT
+for this pairing: ONE signed direct READ `service_grants/current_v3` (services/wiskey_service_grants_v3.py), sent only when the current
+v2 connection lists it and offered the v3 block; otherwise nothing is sent and the reason is answered. Same gate as the other routes
+(`system.configure` + system administrator, local sessions only). Status only: the owner gives and withdraws the grant in WisKey's own
+screen (`owner_actions_in`, panel tab `owner_screen_tab`) - Arx offers no grant, preview, commit or revoke action, and a WisKey refusal
+of the read is shown with its code, never followed by another command. No grant reference or key material is ever answered.
+
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
 
@@ -140,6 +147,16 @@ def _direct_transport(conn: sqlite3.Connection) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 - an unreadable key set is "not paired" here too
         key = None
     return wiskey_direct_join.direct_status(key)
+
+
+@router.get("/system/bridge-key/service-grant", **wire(W.BridgeKeyServiceGrant))
+def get_service_grant(request: Request, principal: Principal = Depends(current_principal_ro),
+                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """WISKEY-R8-2520: what WisKey reports about the owner's manual service grant v3 (one READ, or the reason none was sent)."""
+    _gate(conn, request, principal, "bridge.key.read")
+    from ..services import wiskey_service_grants_v3 as v3
+
+    return v3.view(v3.SOURCE.refresh())
 
 
 class SettingsBody(BaseModel):

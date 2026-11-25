@@ -65,7 +65,11 @@ CONTRACT = "wiskey-native-service-write.v1"
 # the GrantRef WisKey's installer published in its private manifest (wiskey_auto_install.ManifestGrantSource). WisKey echoes the
 # request's contract in a write result; `users/service_write_status_v1` keeps answering v1. v1 stays readable for old callers.
 CONTRACT_V2 = "wiskey-native-service-write.v2"
-CONTRACTS = (CONTRACT, CONTRACT_V2)
+# WISKEY-R8-2520 (WisKey rc19, R2 / C3): v3 is the MANUAL owner grant - the SAME 13 metadata keys with `contract` = v3 and the GrantRef that
+# WisKey's signed direct READ reported for this pairing (services/wiskey_service_grants_v3.py, never configured or invented by Arx). The
+# owner gives / withdraws it in WisKey's own screen. v3 grants the four service commands and their data fields only - never cards.
+CONTRACT_V3 = "wiskey-native-service-write.v3"
+CONTRACTS = (CONTRACT, CONTRACT_V2, CONTRACT_V3)
 SCHEMA_VERSION = 1
 METADATA_PARAMETER = "service_write"
 ROLE = "access_manager"
@@ -723,11 +727,23 @@ class FinalServiceWriter:
     journal exists and has room (review F1). Production (`from_join`) has no grant source yet (OWNER-CONFIG): it is never available and nothing is sent."""
 
     def __init__(self, *, selected: Callable[[str], bool], client: ServiceWriteClient | None, grant: Callable[[], GrantRef | None],
-                 actor_id: str, new_id: Callable[[], str], contract: str = CONTRACT) -> None:
+                 actor_id: str, new_id: Callable[[], str], contract: str = CONTRACT,
+                 actor_source: Callable[[], str | None] | None = None) -> None:
         if contract not in CONTRACTS:
             raise ValueError("contract")
         self._selected, self.client, self._grant, self.actor_id, self._new_id = selected, client, grant, actor_id, new_id
         self.contract = contract
+        # WISKEY-R8-2520: the v3 writer takes the `arx-service:<entry>` subject from the CURRENT direct connection at write time
+        self._actor_source = actor_source
+
+    def _actor(self) -> str | None:
+        if self._actor_source is None:
+            return self.actor_id
+        try:
+            actor = self._actor_source()
+        except Exception:  # noqa: BLE001 - cannot tell = no actor
+            return None
+        return actor if _ref(actor) and str(actor).startswith(SERVICE_ACTOR_PREFIX) else None
 
     # test-only: no product caller; used by tests/test_wiskey_adopt_2272_install.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
     @classmethod
@@ -743,6 +759,18 @@ class FinalServiceWriter:
                    new_id=lambda: uuid.uuid4().hex, contract=CONTRACT_V2)
 
     @classmethod
+    def from_manual_v3(cls, join: Any, source: Any, *, client: ServiceWriteClient | None = None) -> "FinalServiceWriter":
+        """WISKEY-R8-2520: the v3 writer of the OWNER's manual grant. `source` is wiskey_service_grants_v3.ManualGrantSource: the grant is
+        exactly what WisKey's signed READ `service_grants/current_v3` reported for this pairing on the current connection (None while
+        absent, revoked, refused, unknown or stale - then nothing is sent: no self-grant, no fallback role). Production passes no
+        `client` (the service-write journal is not wired, docs/changes/WISKEY-ADOPT-2272.md): it stays unavailable and reads nothing."""
+        import uuid
+
+        return cls(selected=lambda c: bool(join.selected(c)), client=client, grant=source.current_grant,
+                   actor_id=SERVICE_ACTOR_PREFIX + "unknown", new_id=lambda: uuid.uuid4().hex, contract=CONTRACT_V3,
+                   actor_source=source.actor_id)
+
+    @classmethod
     def from_join(cls, join: Any) -> "FinalServiceWriter":
         import uuid
 
@@ -755,9 +783,13 @@ class FinalServiceWriter:
 
     def available(self) -> bool:
         try:
+            if self.client is None:  # WISKEY-R8-2520: checked first - an unwired writer reads nothing (no grant read, no I/O)
+                return False
+            if not all(self._selected(c) for c in ENGINE_COMMANDS.values()):
+                return False
             g = self._grant()
-            return (self.client is not None and g is not None and g.valid() and _ref(self.client._repository_id())
-                    and all(self._selected(c) for c in ENGINE_COMMANDS.values()) and self.client.has_room())
+            return (g is not None and g.valid() and _ref(self.client._repository_id()) and self._actor() is not None
+                    and self.client.has_room())
         except Exception:  # noqa: BLE001 - cannot tell = not available
             return False
 
@@ -769,10 +801,13 @@ class FinalServiceWriter:
         grant = self._grant()
         if grant is None or not grant.valid() or self.client is None:
             raise EngineError("not_sent", "service_grant_required")  # no self-grant, no fallback role
+        actor = self._actor()
+        if actor is None:
+            raise EngineError("not_sent", "service_actor_mismatch")
         create = op.action == "users/create"
         oid = self._new_id()
         target = f"arx-origin-{oid}" if create else op.person_id
-        meta = Metadata(self.actor_id, grant, target, None if create else op.revision, f"req-{oid}", f"op-{oid}", self.contract)
+        meta = Metadata(actor, grant, target, None if create else op.revision, f"req-{oid}", f"op-{oid}", self.contract)
         business: dict[str, Any] = {"data": dict(op.data)}
         if not create:
             business.update(user_id=op.person_id, revision=op.revision)
