@@ -25,6 +25,8 @@ from smplwise.services import wiskey_service_write as sw
 from smplwise.services.access_grant_engine import EngineError, WiskeyServiceEngine
 from smplwise.services.wiskey_capture_port import PortError, PortIdentity
 
+from test_wiskey_join_live_2382 import writer as live_writer  # noqa: F401 - the fake direct server fixture (v1 link), as `live_writer`
+
 FIX = Path(__file__).parent / "fixtures" / "wiskey_rc19" / "manual-v3"
 PACKAGE = Path(sw.__file__).resolve().parents[1]
 REF = "a" * 32
@@ -442,10 +444,54 @@ def test_a_card_write_takes_the_classic_path_even_with_a_service_writer(monkeypa
     assert (last["path"], last["reason"], last["fallbacks"]) == ("service_channel", "not_a_service_write_action", 0)
 
 
-def test_the_human_native_path_never_falls_back_after_a_verified_refusal() -> None:
-    for code in ("native_write_action_unsupported", "native_write_source_not_observed", "unknown_command", "service_grant_denied"):
-        assert wiskey_direct_join.fallback_permitted("refused", code) is False
-    assert wiskey_direct_join.fallback_permitted("not_sent", "wiskey_direct_not_connected") is True, "nothing left Arx: unchanged"
+CANNOT_CARRY = ("native_write_action_unsupported", "native_write_source_not_observed", "unknown_command")
+
+
+def test_the_fallback_rule_after_a_verified_refusal_depends_on_the_connection() -> None:
+    """Lead decision 25.11: rc19's "no switch after a refusal" applies on a v2 connection; v1 (WisKey rc10, the lab) keeps today's rule."""
+    fp = wiskey_direct_join.fallback_permitted
+    for code in CANNOT_CARRY:
+        assert fp("refused", code) is True and fp("refused", code, protocol_version=1) is True, f"v1 unchanged: {code}"
+        assert fp("refused", code, protocol_version=2) is False, f"v2 final: {code}"
+    for version in (1, 2):
+        assert fp("refused", "revision_conflict", protocol_version=version) is False  # a business refusal: final on both
+        assert fp("refused", "service_grant_denied", protocol_version=version) is False
+        assert fp("not_sent", "wiskey_direct_not_connected", protocol_version=version) is True  # nothing left Arx: unchanged
+        assert fp("unknown", "timeout", protocol_version=version) is False
+    assert fp("not_sent", "pairing_mismatch", protocol_version=2) is False  # R7's v2 rule unchanged
+
+
+@pytest.mark.parametrize("version,classic", [(1, True), (2, False)])
+@pytest.mark.parametrize("code", CANNOT_CARRY)
+def test_a_cannot_carry_refusal_goes_classic_on_v1_and_is_final_on_v2(live_writer: Any,  # noqa: F811 - the imported fixture
+                                                                     monkeypatch: Any, version: int, classic: bool, code: str) -> None:
+    """End to end over the fake direct server (tests/test_wiskey_join_live_2382.py fixture): the native write is refused with a
+    "cannot carry" code; the people route's classic send runs once on v1 and never on v2."""
+    import asyncio
+
+    from test_wiskey_join_live_2382 import received, send_for
+
+    monkeypatch.setattr(wiskey_direct_join, "_protocol_version", lambda join: version)
+    live_writer.server.script["users/update"] = {"error": code}
+    send, rec = send_for(live_writer)
+    if classic:
+        assert asyncio.run(send(None))["via"] == "classic"
+        assert live_writer.classic == ["sent"] and rec["transport"] == wiskey_direct_join.PATH_CLASSIC_AFTER_DIRECT
+        assert (rec["direct_state"], rec["direct_code"]) == ("refused", code)
+    else:
+        from smplwise.services import intercom_client
+
+        with pytest.raises(intercom_client.IntercomError):
+            asyncio.run(send(None))
+        assert live_writer.classic == [] and rec["transport"] == wiskey_direct_join.PATH_DIRECT
+        assert (rec["direct_state"], rec["direct_code"]) == ("refused", code)
+    assert len(received(live_writer.server, "users/update")) == 1, "the native frame is never sent again"
+
+
+def test_the_protocol_reader_follows_the_current_connection() -> None:
+    read = wiskey_direct_join._protocol_version
+    assert read(FakeJoin(version=2)) == 2 and read(FakeJoin(version=1)) == 1
+    assert read(SimpleNamespace(session=SimpleNamespace(_link=None))) is None and read(object()) is None
 
 
 # ================================================================ the status route

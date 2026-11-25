@@ -436,9 +436,7 @@ def test_an_arx_actor_refusal_is_not_bypassed_by_the_classic_channel(writer: Any
     ("native_error", "source_unavailable:closed", True), ("native_error", "lineage_stale", True), ("native_error", "writer_fenced", True),
     ("native_error", "rbac_denied", False), ("native_error", "actor_session_inactive", False), ("native_error", "invalid_parameters", False),
     ("native_error", "create_origin_already_used", False), ("native_error", "person_write_in_flight", False),
-    # WISKEY-R8-2520: a verified WisKey refusal is final (rc19 R2 `transports.selection`) - also the "cannot carry" codes
-    ("refused", "native_write_action_unsupported", False), ("refused", "native_write_source_not_observed", False),
-    ("refused", "unknown_command", False), ("refused", "revision_conflict", False), ("refused", "invalid_fields", False),
+    ("refused", "native_write_action_unsupported", True), ("refused", "revision_conflict", False), ("refused", "invalid_fields", False),
     ("unknown", "timeout", False), ("unknown", "Unauthorized", False), ("committed", None, False),
 ])
 def test_the_fallback_rule(state: str, code: str | None, ok: bool) -> None:
