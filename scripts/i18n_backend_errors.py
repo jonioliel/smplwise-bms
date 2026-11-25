@@ -40,6 +40,9 @@ HEB = re.compile(r"[֐-׿]")
 ERR_FUNCS = {"ApiError", "conflict", "validation", "forbidden", "not_found", "field_error", "unauthenticated"}
 ERR_RE = re.compile(r"^(_?(err|error|refuse|refused|invalid|conflict|bad|deny|denied|fail|reject|problem|need)\w*|_\d{3}|\w*(Error|Invalid|Refused))$", re.I)
 MSG_KEYWORDS = ("user_message", "message", "what")
+# RELEASE-2520-TRAIN (WISKEY-PAIRING-I18N-2520 Q1 = a): gates that build the refusal themselves from a keyword the caller passes - the
+# Hebrew there is a refusal text too (rbac.require_system_admin(..., text="רק מנהל מערכת ...") raises 403 not_system_admin with it).
+TEXT_KEYWORD_GATES = {"require_system_admin": ("text",)}
 
 
 def _name(f: ast.AST) -> str:
@@ -90,10 +93,12 @@ def inventory(pkg: Path = PKG, table: dict[str, str] | None = None, tpl_tables: 
                     elif _hebrew_fstring(v):
                         runtime[rel] += 1
                 continue
-            if not is_error_call(n):
+            gate_keys = TEXT_KEYWORD_GATES.get(_name(n.func), ()) if isinstance(n, ast.Call) else ()
+            if not gate_keys and not is_error_call(n):
                 continue
             assert isinstance(n, ast.Call)
-            for a in [*n.args, *(k.value for k in n.keywords if k.arg in MSG_KEYWORDS)]:
+            texts = [k.value for k in n.keywords if k.arg in gate_keys] if gate_keys else [*n.args, *(k.value for k in n.keywords if k.arg in MSG_KEYWORDS)]
+            for a in texts:
                 if isinstance(a, ast.Constant) and isinstance(a.value, str) and HEB.search(a.value):
                     constants.setdefault(a.value, []).append(f"{rel}:{a.lineno}")
                     if a.value not in table:
