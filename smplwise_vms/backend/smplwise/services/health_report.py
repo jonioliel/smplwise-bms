@@ -438,7 +438,9 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     if is_ha_only(settings):
         pass  # NVR-less mode: no NVR is expected, so its absence is not something to check (mode.py)
     elif nvr:
-        down_for = (time.time() - ing.disconnected_since) if (not ing.connected and ing.disconnected_since) else 0
+        # PILOT-ROLLBACK-2550: the monotonic length (a wall clock moved back made a down stream read as negative: silent top bar)
+        measured = events_ingest.outage_of(ing)
+        down_for = (measured if measured is not None else time.time() - ing.disconnected_since) if (not ing.connected and ing.disconnected_since) else 0
         if not ing.connected and (down_for > 60 or not ing.last_heartbeat_at):
             items.append({"id": "nvr", "status": "error", "label": t("health.sum.nvr_down")})
         ds = autosync.STATE

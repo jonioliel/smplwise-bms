@@ -375,6 +375,19 @@ def design_ratchet(root: Path) -> dict[str, Any]:
     return _RATCHET_CACHE[key]
 
 
+def downgrade_safety(root: Path, version: str | None) -> dict[str, Any]:
+    """PILOT-ROLLBACK-2550: scripts/migration_downgrade_check.py of the checkout under test (this script's copy when the checkout has none)."""
+    mod = root / "scripts" / "migration_downgrade_check.py"
+    if not mod.exists():
+        mod = Path(__file__).resolve().parent / "migration_downgrade_check.py"
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("migration_downgrade_check", mod)
+    md = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    sys.modules[spec.name] = md  # type: ignore[union-attr]  # its dataclasses look their module up while being defined
+    spec.loader.exec_module(md)  # type: ignore[union-attr]
+    return md.release_check(root, version)
+
+
 def run_checks(root: Path) -> dict[str, Any]:
     addon = root / "smplwise_vms"
     checks: list[dict[str, Any]] = []
@@ -412,6 +425,10 @@ def run_checks(root: Path) -> dict[str, Any]:
     nums = [int(n[:4]) for n in mig if n[:4].isdigit()]
     contiguous = nums == list(range(1, len(nums) + 1)) and bool(nums)
     check("migrations contiguous", contiguous, f"{len(mig)} files, last {mig[-1] if mig else '—'}")
+    # PILOT-ROLLBACK-2550 (T036): installing the previous release on this release's database must work - every migration added
+    # since the previous release tag is backward-compatible or carries a `Rollback:` note (scripts/migration_downgrade_check.py)
+    down = downgrade_safety(root, cfg_v)
+    check("migrations downgrade-safe since the previous release", down["ok"], down["detail"])
 
     www = addon / "www"
     built = (www / "index.html").exists() and any((www / "assets").glob("index-*.js")) if (www / "assets").exists() else False

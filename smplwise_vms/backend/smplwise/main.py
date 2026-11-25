@@ -180,21 +180,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def storage_full(request: Request, exc: sqlite3.OperationalError):
         # T035 (outage run): a full data disk reaches the operator as a clear, enveloped answer instead of a bare 500. Every
         # other database error keeps its old path (re-raised: the server error and its trace, exactly as before).
-        if is_busy(exc):
-            # CR-MAIN-RUNTIME-2438 (review 05:P1-07): "database is locked" after the write-lock wait answers the error envelope,
-            # marked retryable. Status stays 500 (lead decision L1: the screens give 503 a meaning of its own - "the NVR / the
-            # intercom / the source is unavailable", the upload retry, "not sent" in messaging - so a busy database must not
-            # borrow it); Retry-After is a hint only. The database layer has already logged who held the lock.
-            cid = correlation_id.of(request) or correlation_id.new()
-            log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
-            return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
-                                content={"code": "database_busy", "user_message": t("error.database_busy").render(await error_lang(request)),
-                                         "retryable": True, "correlation_id": cid, "details": {"retry_after_s": BUSY_RETRY_AFTER_S}})
-        if not is_storage_full(exc):
+        answer = await db_refusal_response(request, exc)
+        if answer is None:
             raise exc
-        log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
-        return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": t("error.storage_full").render(await error_lang(request)),
-                                                      "retryable": False, "correlation_id": correlation_id.of(request) or "", "details": {"storage": "full"}})
+        return answer
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
@@ -766,15 +755,64 @@ class CommitBeforeSend:
         from .auth import release_conns
 
         scope.setdefault("state", {})  # the request state (and its sw_conns) is shared through this dict
+        replaced: list[bool] = []
 
         async def send_after_commit(message) -> None:
+            if replaced:  # PILOT-ROLLBACK-2550: the handler's own answer was replaced by the refusal below; the rest of it is dropped
+                return
             if message["type"] == "http.response.start":
                 conns = (scope.get("state") or {}).get("sw_conns")
                 if conns:
-                    await anyio.to_thread.run_sync(release_conns, conns, limiter=self._commit_limiter())
+                    try:
+                        await anyio.to_thread.run_sync(release_conns, conns, limiter=self._commit_limiter())
+                    except sqlite3.OperationalError as exc:
+                        # PILOT-ROLLBACK-2550: the COMMIT itself was refused - on a real full disk that is where SQLite fails (the WAL
+                        # is written at commit). The change is rolled back (db.release) and the client gets the same answer as a refusal
+                        # inside the handler (507 storage_full / database_busy), never the handler's success and never a bare 500.
+                        from starlette.requests import Request as _Request
+
+                        answer = await db_refusal_response(_Request(scope), exc)
+                        if answer is None:
+                            raise
+                        replaced.append(True)
+                        cid = correlation_id.of(_Request(scope))
+                        if cid and correlation_id.HEADER not in answer.headers:
+                            answer.headers[correlation_id.HEADER] = cid
+                        await answer(scope, receive, send)
+                        return
             await send(message)
 
         await self.app(scope, receive, send_after_commit)
+
+
+async def db_refusal_response(request: Request, exc: BaseException) -> JSONResponse | None:
+    """The enveloped answer for a database that refused a request: "busy" (the write lock, retryable) or "full" (the data disk,
+    507 `storage_full`); None for any other error. Used by the request's exception handler (a statement refused inside the handler)
+    and by CommitBeforeSend (the request's COMMIT refused as its answer starts - PILOT-ROLLBACK-2550)."""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return None
+
+    async def lang() -> str:
+        # I18N-BACKEND-2490: the requester's interface language, read off the event loop; Hebrew without a resolved user / on a failure
+        from starlette.concurrency import run_in_threadpool
+
+        return await run_in_threadpool(request_lang, request)
+
+    if is_busy(exc):
+        # CR-MAIN-RUNTIME-2438 (review 05:P1-07): "database is locked" after the write-lock wait answers the error envelope,
+        # marked retryable. Status stays 500 (lead decision L1: the screens give 503 a meaning of its own - "the NVR / the
+        # intercom / the source is unavailable", the upload retry, "not sent" in messaging - so a busy database must not
+        # borrow it); Retry-After is a hint only. The database layer has already logged who held the lock.
+        cid = correlation_id.of(request) or correlation_id.new()
+        log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
+        return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
+                            content={"code": "database_busy", "user_message": t("error.database_busy").render(await lang()),
+                                     "retryable": True, "correlation_id": cid, "details": {"retry_after_s": BUSY_RETRY_AFTER_S}})
+    if not is_storage_full(exc):
+        return None
+    log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
+    return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": t("error.storage_full").render(await lang()),
+                                                  "retryable": False, "correlation_id": correlation_id.of(request) or "", "details": {"storage": "full"}})
 
 
 def commit_before_send(app: FastAPI) -> None:
