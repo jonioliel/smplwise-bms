@@ -140,6 +140,12 @@ test.describe('pixel: the person writes', () => {
     await page.locator('wiskey-person-drawer [data-wiskey-person-edit]').click();
     const editor = page.locator('wiskey-person-editor');
     await expect(editor.locator('[data-wiskey-editor-name]')).toBeVisible({ timeout: 15_000 });
+    // RELEASE-2520-TRAIN: since FLAKY-FIX-2520 the dialog box really lands (scale 0.96 -> 1 on the dialog spring). Playwright scrolls each
+    // target into view as it acts; an action during the landing scrolled the editor body by a scaled offset, and the section scroll below
+    // ("if needed") then left it there - 26 px off, intermittently. Let the box land before acting.
+    await editor.locator('sw-dialog').first().evaluate((d) =>
+      Promise.all((d.shadowRoot?.querySelector('.box')?.getAnimations() ?? []).map((a) => a.finished.catch(() => undefined))),
+    );
     await pickOption(editor.locator('[data-wiskey-editor-category]'), 'contractor');
     await editor.locator('[data-wiskey-editor-responsible]').fill('רונית גל');
     await pickOption(editor.locator('[data-wiskey-editor-timing-select]'), 'weekly');
