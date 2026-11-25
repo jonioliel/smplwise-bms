@@ -19,6 +19,7 @@
 - אשף גילוי המצלמות: "אותו דבר לכולן" הוא מתג; צבעים ומידות לפי ערכי העיצוב המשותפים. - Camera discovery wizard: "same for all" is a switch; colours and sizes use the shared design tokens.
 - ממשק באנגלית: שאר הטקסטים הקבועים בעברית תורגמו (עורך התוכניות, מפת הקומה, סטודיו התוכניות ומסכים קטנים), וגם הודעות הסירוב של השרת וכותרות ההתראות מוצגות בשפת הקורא. - English interface: the remaining fixed Hebrew texts are translated (the plan editor, the floor map, plan studio and smaller screens), and the server's refusal messages and notification titles are shown in the reader's language.
 - הוספת דרך אימות מבחוץ, ואיפוס של מנהל מבחוץ, דורשים כניסה טרייה; המשתמש מקבל הודעה (בלי פרטים) כשדרך אימות שלו הוסרה, כשהופקו קודי שחזור חדשים או כשנכנסו בקוד שחזור. - Adding a sign-in method from outside, and an administrator's reset from outside, need a fresh sign-in; the user gets a notice (no details) when one of their methods is removed, new recovery codes are made, or a recovery code is used to sign in.
+- שינוי בממשק השרת: בסירובים של כרטיסי השירות, ההודעות וההתראות `details.fields` הוא עכשיו רשימת שמות שדות, והקודים לכל שדה עברו ל-`details.problems`. - API change: `details.fields` in tickets / messaging / notifications refusals is now a list of names; the per-field codes moved to `details.problems`.
 
 ### תוקן - Fixed
 - חלונות דו־שיח: הטקסטים כבר לא דהויים בזמן הפתיחה. - Dialogs: the texts are no longer faded while the dialog opens.
