@@ -162,6 +162,63 @@ colours (e.g. `.sub` `#868f9f` on `#f7f9fc` = 3.09; the current step `#6282d3` o
 at main as often as on the train, so it is NOT a 2.52 regression (the first 0-of-6 at main was chance). A test-side wait for the
 document's finite animations before axe (`2aaa64f5b`) did not change it and was reverted (`15615179e`); the spec is the row's version.
 
+
+### 3.3 Runner, rows 12-21 (priority jobs `~/work/p2520_*.sh`)
+
+Note: in the summary lines of `p2520_train.sh`, `p2520_r1718.sh` and `p2520_r1920.sh` the `rc=` of the backend groups and of the
+every-pixel step is NOT the test's exit (the file list was expanded after `$?`); the counts below are read from each group's pytest /
+Playwright summary line, and every `FAILED` line was looked up.
+
+**Bridge re-pair fix at `bfe445ee6`** (`~/work/p2520_files.sh`, one process per file): `test_bridge_native_keyset_2520` 32,
+`test_wiskey_direct_v2_2520` 39, `test_bridge_keyrot_harness_295` 34, `test_capmap_295` 65 - all exit 0 (170 passed). The capmap row
+needed nothing (`keyset.py` untouched).
+
+**Combined run at `32f758bb1`** (rows 1-16; `~/work/p2520_train.sh`):
+
+| check | result |
+|---|---|
+| `gen_wire_types --check` / `sync_integration --check` / `wire_ratchet` | 0 / 0 (up to date) / 0 (897 = baseline) |
+| backend i18n / default names / ui.lang / notify / calendar / error-contract files + `test_bill_ledger_lifecycle_b` (31 files, 4 groups) | 2491 passed, **1 failed**: `test_i18n_errors_en_2520::test_every_english_template_belongs_to_a_source...` = the missing English of `security.second_factor_changed`, fixed by `61a6959ef` (green in the rows 19-20 run below) |
+| the MFA files one process each (16 files incl. `test_mfa_factor_harden_2520` 17, `test_mfa_ha_passkey_2520` 15, `test_wire_consumption_2450` 13) | all exit 0, 379 passed |
+| `tsc` app / tests + scripts; `npm run lint`; `npm run build` | 0 errors / 0 errors; clean; built |
+| Node unit suite | 5251 passed, 13 skipped, 3 failed = the `unit-mfa-passkeys-2490` page tests with no server (harness) |
+| `unit-dialog-toplayer-2381` | 6 passed |
+| `camera-discovery-2500` "the whole flow" `--repeat-each=5` desktop + mobile (localhost preview) | **10 passed, 0 failed** (FLAKY-FIX) |
+| `evidence-mfa-screens-2510` `--repeat-each=5` desktop + mobile | **130 passed, 0 failed**, 10 skipped (FLAKY-FIX) |
+| `evidence-mfa-factor-harden-2520` + `unit-mfa-passkeys-2490` (playwright.config.ts) desktop + mobile | 14 passed, 2 skipped |
+| **every pixel spec (47 files), desktop + mobile, Hebrew baselines, no `-u`** | 479 passed, 83 skipped, **1 failed** (`pixel-wiskey-people-writes:137` desktop, 23203 px); no baseline file changed. Cause and fix below |
+
+`pixel-wiskey-people-writes:137` ("the editor: a contractor with the weekly timing"): bisect, desktop `--repeat-each=3`: main `3d71fb183`
+3/3, `10ee1aa8f` 3/3, `0f690fec1` 3/3 passed; `1cc3aedb6` (FLAKY-FIX merged) 2 failed; `8a91908a3` 1 failed - always the same 23203 px,
+the editor body 26 px lower. FLAKY-FIX made the dialog box really land (`scale(0.96) translateY(6px)`; before, the starting style never
+won); the test acts right after the editor opens, Playwright scrolls each target into view as it acts, and an action during the landing
+left the body at a scaled offset that the later `scrollIntoViewIfNeeded()` kept. Fix `2be69330d` (test only): wait for the box's
+animations to finish before acting. Runner at `02934fad8`: committed spec 6 of 10 failed; fixed spec 10 of 10 passed; whole file desktop +
+mobile 14 passed; `tsc -p tsconfig.tests.json` 0 errors.
+
+**Rows 17-18 at `f2c8a3765`** (`~/work/p2520_r1718.sh`): `gen_wire_types --check` 0; backend 35 files (FAMILY45's 19 + MULTI-BUILDING's 16)
+in 5 groups: **910 passed, 0 failed**; tsc 0 / 0 errors; lint clean; build; unit `unit-error-fields`, `unit-mb-filter-2520`,
+`unit-mb-next-2500`, `unit-mb-home-2500`, `unit-i18n-home` 33 passed; `pixel-wiskey-messaging`, `pixel-wiskey-schedule-writes`,
+`pixel-mb-filter-2520` (no `-u`), `evidence-mb-filter-2520`, `home-v3-p2`, `evidence-mb-next-2500`, `evidence-mb-home-2500` desktop + mobile:
+77 passed, 37 skipped, 0 failed; calendar resident / grid regressions (`evidence-calendars-settings-2310`, `evidence-calendars-grid-edit-2343`,
+mobile): 35 passed, 8 skipped.
+
+**Rows 19-20 at `8a91908a3`** (`~/work/p2520_r1920.sh`): `scripts/gate/lint_backend.py --strict` 0 findings; `gen_wire_types --check` 0;
+`wire_ratchet` 897 = baseline; `i18n_backend_errors` 0 without English / 258 run-time (= ratchet); notify / push / generator-alert files +
+`test_i18n_errors_en_2520` + `test_notify_factor_changed_en_2520` (17 files, 3 groups): **432 passed, 0 failed**; R8's files one process
+each (`test_wiskey_service_grants_v3_2520` 58, `test_externalbuild_297` 32, `test_wiskey_mac_adopt_298` 45, `..._review` 40,
+`test_wiskey_adopt_2272_install` 41, `test_wiskey_join_live_2382` 38, `test_wiskey_direct_v2_2520` 39, `test_singletons_registered` 4,
+`test_remote_access` 66, `test_bridge_native_keyset_2520` 32): all exit 0, 395 passed; tsc 0 / 0 errors; build; unit `unit-bridge-key`,
+`unit-wiskey-deeplinks`, `unit-people-writes-logic`, `unit-people-writes-wire` 51 passed; `evidence-wiskey-r8-2520` + `pixel-wiskey-r8-2520`
+(no `-u`) desktop + mobile: 50 passed.
+
+**Row 21 at `66cca52e8`** (`~/work/p2520_r21.sh`): `request_strict_ratchet.py --check` 0 (144 tolerant web-UI models); the new file and every
+backend test file that calls `/api/v1/cameras*`, `/api/v1/nvr/*` or `privacy-masks` (130 files, 9 groups): all exit 0, **1961 passed,
+3 skipped, 0 failed**.
+
+NOT_RUN on the train: the release gate (the lead's), the full backend suite in one sweep (the touched areas above only), the full
+Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
+
 ## 4. Problems and open points
 
 1. **English path of the "מצב WisKey" status block** (row 9): the block's server texts (all its reasons, old and new) are Hebrew only;
