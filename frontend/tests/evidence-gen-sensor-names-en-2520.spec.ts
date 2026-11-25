@@ -42,6 +42,8 @@ for (const lang of ['he', 'en'] as const) {
   test(`routing "requires sensor" names in the page language (${lang})`, async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await open(page, lang, '/system/infra/generator/routing', ROUTING, scheme);
+      // the shot shows the first "requires sensor" line (below the fold)
+      await page.locator(`${ROUTING} [data-needs] >> visible=true`).first().scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
       await shoot(page, `sensor-names-routing-${lang}-${scheme}`);
       const needs = await needsTexts(page);
       // the first page of the matrix: the typical controller has no oil pressure sensor (low oil pressure, engine group)
