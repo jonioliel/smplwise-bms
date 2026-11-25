@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Path, Request
 
 from ..audit import audit
 from ..db import Database
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import wiskey_schedule_reads as sr
 from ..services import wiskey_schedule_writes as sw
@@ -71,8 +71,11 @@ def _parameters(action: str, raw: Any) -> dict[str, Any]:
             try:
                 sw.normalize(v)
             except sw.DraftError as exc:
-                raise ApiError(422, "schedule_invalid_draft", f"{WHAT[action]}: {sw.reason(exc.code)}.",
-                               details={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code), "field": exc.where}) from None
+                # ADR-019 (RELEASE-2520-TRAIN, as the writes router since ADR019-FAMILY45-2520): `fields` / `problems` name the draft path; the
+                # legacy `field` and the outcome keys stay
+                raise field_error(f"{WHAT[action]}: {sw.reason(exc.code)}.", problems=[{"field": exc.where, "code": exc.code}] if exc.where else None,
+                                  code="schedule_invalid_draft", legacy={"field": exc.where},
+                                  extra={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code)}) from None
             ok = True
         else:  # bindings
             try:
