@@ -74,7 +74,7 @@ test.describe('camera player words and bounds', () => {
   test('a socket that never opens and a stuck attempt are bounded; a retry is offered', () => {
     expect(player).toMatch(/export const SOCKET_OPEN_MS = 10000;/);
     expect(player).toMatch(/export const CONNECTING_CAP_MS = 60000;/);
-    expect(player).toContain("export const CONNECT_TIMEOUT_HE = 'שרת הווידאו אינו עונה';");
+    expect(player).toContain("export const CONNECT_TIMEOUT_HE = tr('שרת הווידאו אינו עונה');"); // I18N-REST-2520: tr() form
     expect(player).toContain('data-player-retry');
     // the bounds are cleared with every other timer of an attempt
     expect(player).toMatch(/window\.clearTimeout\(this\.openTimer\);\s*window\.clearTimeout\(this\.capTimer\);/);

@@ -38,7 +38,7 @@ import { renderXsMini } from '../xsection/xs-mini-widget'; // XS-MINI-WIDGET-235
 import type { MiniFloor, MiniModel } from '../xsection/xs-mini-model';
 import '../door-windows/emergency';
 import { homeWidgetsStyles } from './home-widgets-css';
-import { tr } from '../i18n/msg/home';
+import { tr } from '../i18n/msg/devices';
 
 const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   sun: svg`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>`,

@@ -72,5 +72,5 @@ test('the settings form and the building screen wire the choice (source guard)',
   // only a system.configure holder (infoCanEdit = GET /settings can_edit) gets the row's "הסתר מהעץ"
   expect(b).toMatch(/menu: this\.infoCanEdit && !this\.lay\.editing/);
   // the "כל המבנה" row still reads the building counts (which include the unassigned devices): hiding changes no number
-  expect(b).toContain('<span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}');
+  expect(b).toContain("<span class=\"nm\" title=${tr('כל המבנה')}>${tr('כל המבנה')}</span>${lit(t.building)}"); // I18N-REST-2520: tr() form
 });

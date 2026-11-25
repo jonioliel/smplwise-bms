@@ -75,7 +75,7 @@ test('Hebrew kept on purpose: every mark says why, and the count does not grow',
       for (const m of line.matchAll(/i18n-keep(-start|-end)?\b(?!-)(.*)/g)) {
         if (m[1] === '-end') { open--; continue; }
         if (m[1] === '-start') open++;
-        if (!/^:\s*\S{3,}/.test(m[2])) bare.push(`${path.relative(src, f)}:${i + 1}`);
+        if (!/^:\s*\S.{5,}/.test(m[2])) bare.push(`${path.relative(src, f)}:${i + 1}`);
       }
     });
   }

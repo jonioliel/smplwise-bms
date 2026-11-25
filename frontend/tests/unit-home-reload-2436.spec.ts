@@ -254,7 +254,7 @@ test.describe('DB-1: the plan view catalogue loader', () => {
     expect(will).toMatch(/void this\.loadPlanFloors\(\)/);
     const plan = member(DB, /\n  private renderPlan\(/);
     expect(plan).toMatch(/this\.planState === 'error'/);
-    expect(plan).toMatch(/data-plan-state="error"[^`]*state="error"[^`]*actionLabel="נסה שוב"[^`]*@action=\$\{\(\) => void this\.loadPlanFloors\(\)\}/);
+    expect(plan).toMatch(/data-plan-state=\"error\"[^`]*state=\"error\"[^`]*actionLabel=\$\{tr\('נסה שוב'\)\}[^`]*@action=\$\{\(\) => void this\.loadPlanFloors\(\)\}/); // I18N-REST-2520: tr() form
     // the ready answers stay as they were: a floor with a plan -> the map; floors but none with a plan -> the empty panel
     expect(plan).toMatch(/this\.planState === 'ready' && this\.planFloors\.length/);
   });
