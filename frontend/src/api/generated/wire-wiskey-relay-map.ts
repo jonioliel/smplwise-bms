@@ -35,6 +35,51 @@ export interface WiskeyRelayMapApproveRelayMapStationRow {
   updated_at: string | null;
 }
 
+/** WISKEY-RELAY-INV-2520: what WisKey knows about one station's relays (`stations/relay_inventory_v1`, READ only) as `{state, reason, wiskey_code, fetched_at, data}`; unknown counts and roles stay unknown, no relay test exists, nothing is written. */
+export interface WiskeyRelayMapRelayInventory {
+  station_id: string;
+  state: string;
+  reason: string | null;
+  wiskey_code: string | null;
+  fetched_at: string | null;
+  data: WiskeyRelayMapRelayInventoryData | null;
+}
+
+export interface WiskeyRelayMapRelayInventoryData {
+  station_id: string;
+  api_outputs: WiskeyRelayMapRelayInventoryOutputs;
+  configured_mapping: WiskeyRelayMapRelayInventoryMapping[];
+  physical_relay_count: number | null;
+  physical_verified: boolean;
+  non_actuating_test: WiskeyRelayMapRelayInventoryTest;
+}
+
+/** WisKey's saved physical relay <-> API output configuration (not a measurement); the role is always unknown. */
+export interface WiskeyRelayMapRelayInventoryMapping {
+  physical_index: number;
+  api_id: number;
+  confirmation: string;
+  role: string;
+}
+
+/** The remote-control API outputs the station profile reported at load (not physical relays); `count` null = not observed. */
+export interface WiskeyRelayMapRelayInventoryOutputs {
+  ids: number[];
+  count: number | null;
+  evidence: string;
+  roles: WiskeyRelayMapRelayInventoryRole[];
+}
+
+export interface WiskeyRelayMapRelayInventoryRole {
+  api_id: number;
+  role: string;
+}
+
+export interface WiskeyRelayMapRelayInventoryTest {
+  supported: boolean;
+  reason: string;
+}
+
 /** The WisKey relay map per station, with its revision and who approved it; read-only without system.configure. */
 export interface WiskeyRelayMapRelayMap {
   state: string;
@@ -122,5 +167,6 @@ export interface WiskeyRelayMapRoutes {
   "GET /api/v1/wiskey/relay-map": WiskeyRelayMapRelayMap;
   "GET /api/v1/wiskey/relay-map/export": WiskeyRelayMapRelayMapExport;
   "GET /api/v1/wiskey/relay-map/export/{seq}": WiskeyRelayMapRelayMapExportRecord;
+  "GET /api/v1/wiskey/relay-map/inventory/{station_id}": WiskeyRelayMapRelayInventory;
   "PUT /api/v1/wiskey/relay-map/{station_id}": WiskeyRelayMapApproveRelayMap;
 }

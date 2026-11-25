@@ -3,6 +3,7 @@
  * drives which physical relay (door). Saving is an explicit approval guarded by the station revision; nothing is sent to a device.
  */
 import { get, put } from './client';
+import type { WiskeyRelayMapRelayInventory } from './generated/wire-wiskey-relay-map';
 
 interface RelayMapRow {
   api_relay: number;
@@ -44,3 +45,11 @@ export const approveRelayMap = (stationId: string, expectedRevision: number, row
     confirmed: true,
     ...(confirmText ? { confirm_text: confirmText } : {}),
   });
+
+/**
+ * WISKEY-RELAY-INV-2520: what WisKey knows about one station's relays (WisKey `stations/relay_inventory_v1`, READ only): the API outputs
+ * the station profile reported, WisKey's saved mapping, the physical relay count (always null = unknown) and roles (always unknown),
+ * and that no harmless relay test exists. `data` is null unless `state` is `ready`. Nothing is written and no relay is touched.
+ */
+export type RelayInventory = WiskeyRelayMapRelayInventory;
+export const getRelayInventory = (stationId: string) => get<RelayInventory>(`wiskey/relay-map/inventory/${encodeURIComponent(stationId)}`);

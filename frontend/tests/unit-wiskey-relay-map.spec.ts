@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import type { RelayMapStation } from '../src/api/wiskey-relay-map';
+import type { RelayInventory, RelayMapStation } from '../src/api/wiskey-relay-map';
 import {
-  OFF, approvedLine, canApprove, draftOf, mapDiff, parseChoice, relayChoices, rowsBody, stationStatus, typedWordNeeded,
+  OFF, approvedLine, canApprove, draftOf, inventoryMessage, inventoryView, mapDiff, parseChoice, relayChoices, rowsBody, stationStatus, typedWordNeeded,
 } from '../src/screens/wiskey-relay-map-logic';
 
 // WISKEY-RELAYMAP-2310: the pure helpers of the "מיפוי ממסרים" card (api relay -> physical relay per WisKey station). Node only;
@@ -81,4 +81,56 @@ test('the station status reads "not approved", "partial" or "approved" with its 
 test('the approval line names who and when', () => {
   expect(approvedLine(st(), (iso) => iso)).toBe('טרם אושר');
   expect(approvedLine(mapped(1, 2), (iso) => `@${iso}`)).toBe('אושר בידי דנה · @2026-10-31T08:00:00Z');
+});
+
+// WISKEY-RELAY-INV-2520: WisKey's relay inventory of one station (stations/relay_inventory_v1, READ only). The data mirrors WisKey's
+// synthetic contract example (tests/fixtures/wiskey_rc19/relay-inventory-v1/result.valid.json in the backend).
+const inv = (over: Partial<RelayInventory> = {}): RelayInventory => ({
+  station_id: 'ST-A',
+  state: 'ready',
+  reason: null,
+  wiskey_code: null,
+  fetched_at: '2026-11-25T00:00:00Z',
+  data: {
+    station_id: 'ST-A',
+    api_outputs: { ids: [1, 2], count: 2, evidence: 'device_capability_at_load', roles: [{ api_id: 1, role: 'unknown' }, { api_id: 2, role: 'unknown' }] },
+    configured_mapping: [{ physical_index: 1, api_id: 1, confirmation: 'saved_configuration', role: 'unknown' }],
+    physical_relay_count: null,
+    physical_verified: false,
+    non_actuating_test: { supported: false, reason: 'relay_test_unsupported_v1' },
+  },
+  ...over,
+});
+
+test('the inventory shows the outputs and the saved mapping, and the physical count and roles as unknown', () => {
+  const v = inventoryView(inv());
+  expect(v.message).toBeNull();
+  expect(v.lines.map((l) => [l.key, l.value, l.unknown])).toEqual([
+    ['outputs', 'ממסר API 1, ממסר API 2 · לפי יכולת העמדה בטעינה', false],
+    ['saved', 'ממסר פיזי 1 ← ממסר API 1 · הגדרה שמורה, לא מדידה', false],
+    ['count', 'לא ידוע', true],
+    ['roles', 'לא ידוע', true],
+    ['test', 'לא נתמכת ב-WisKey', false],
+  ]);
+});
+
+test('outputs not observed stay "not observed" (never zero) and one output is not a single-relay claim', () => {
+  const base = inv().data!;
+  const none = inventoryView(inv({ data: { ...base, api_outputs: { ids: [], count: null, evidence: 'not_observed', roles: [] }, configured_mapping: [] } }));
+  expect(none.lines.find((l) => l.key === 'outputs')).toMatchObject({ value: 'לא נצפו', unknown: true });
+  expect(none.lines.find((l) => l.key === 'saved')?.value).toBe('לא נשמר מיפוי');
+  expect(none.lines.map((l) => l.value).join(' ')).not.toMatch(/0/);
+  const one = inventoryView(inv({ data: { ...base, api_outputs: { ids: [1], count: 1, evidence: 'device_capability_at_load', roles: [{ api_id: 1, role: 'unknown' }] } } }));
+  expect(one.lines.find((l) => l.key === 'count')?.value).toBe('לא ידוע');
+});
+
+test('a read without data says why, honestly, and shows no line', () => {
+  const no = (state: string, reason: string | null) => inventoryView(inv({ state, reason, data: null }));
+  expect(no('unsupported', 'not_listed')).toEqual({ lines: [], message: 'גרסת WisKey המותקנת אינה מציעה את הקריאה הזו - לא נשלח דבר.' });
+  expect(no('forbidden', 'wiskey_refused').message).toBe('WisKey סירב לקריאה.');
+  expect(no('unavailable', 'station_unloaded').message).toBe('העמדה אינה טעונה כרגע ב-WisKey.');
+  expect(no('unavailable', 'connecting').message).toBe('WisKey אינו זמין כרגע.');
+  expect(no('busy', 'rate_limited').message).toBe('WisKey עסוק כרגע. אפשר לנסות שוב בעוד רגע.');
+  expect(no('error', 'contract_mismatch').message).toBe('תשובת WisKey אינה תואמת את החוזה ולכן אינה מוצגת.');
+  expect(inventoryMessage(inv({ state: 'error', reason: 'timeout', data: null }))).toBe('הקריאה מ-WisKey נכשלה.');
 });

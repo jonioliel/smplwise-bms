@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/relay-inventory/v1/result.schema.json",
+  "version": 1,
+  "title": "Relay inventory v1 result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "station_id", "api_outputs", "configured_mapping", "physical_relay_count", "physical_verified", "non_actuating_test"],
+  "properties": {
+    "schema": {"const": 1},
+    "station_id": {"type": "string", "minLength": 1},
+    "api_outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ids", "count", "evidence", "roles"],
+      "properties": {
+        "ids": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": [1, 2]}},
+        "count": {"enum": [null, 1, 2]},
+        "evidence": {"enum": ["device_capability_at_load", "not_observed"]},
+        "roles": {
+          "type": "array", "maxItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["api_id", "role"],
+            "properties": {"api_id": {"enum": [1, 2]}, "role": {"const": "unknown"}}
+          }
+        }
+      }
+    },
+    "configured_mapping": {
+      "type": "array", "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["physical_index", "api_id", "confirmation", "role"],
+        "properties": {
+          "physical_index": {"enum": [1, 2]}, "api_id": {"enum": [1, 2]},
+          "confirmation": {"const": "saved_configuration"}, "role": {"const": "unknown"}
+        }
+      }
+    },
+    "physical_relay_count": {"type": "null"},
+    "physical_verified": {"const": false},
+    "non_actuating_test": {
+      "type": "object", "additionalProperties": false,
+      "required": ["supported", "reason"],
+      "properties": {"supported": {"const": false}, "reason": {"const": "relay_test_unsupported_v1"}}
+    }
+  }
+}

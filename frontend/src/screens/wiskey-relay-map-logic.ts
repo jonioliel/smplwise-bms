@@ -2,7 +2,7 @@
  * Pure helpers of the "מיפוי ממסרים" card (WISKEY-RELAYMAP-2310, wiskey-relay-map.ts) - no DOM, unit-tested in Node
  * (tests/unit-wiskey-relay-map.spec.ts). Hebrew copy lives here so the card and the spec read the same words.
  */
-import type { RelayMapStation } from '../api/wiskey-relay-map';
+import type { RelayInventory, RelayMapStation } from '../api/wiskey-relay-map';
 import { tr } from '../i18n/msg/wiskey';
 
 /** api relay -> physical relay (null: disabled) */
@@ -85,4 +85,59 @@ export function approveQuestion(s: RelayMapStation, d: RelayDraft): string {
   const doors = diff.affected.map((p) => relayName(s, p)).join(', ');
   const auto = diff.automated.length ? ` ${tr('לדלתות {doors} יש אוטומציה - היא תפעל לפי המיפוי החדש.', { doors: diff.automated.map((p) => relayName(s, p)).join(', ') })}` : '';
   return `${tr('לאשר את מיפוי הממסרים של {name}? השינוי נוגע ל{doors}.', { name: s.name, doors })}${auto} ${tr('שום פקודה לא נשלחת לתחנה.')}`;
+}
+
+// ---- WISKEY-RELAY-INV-2520: WisKey's relay inventory of one station (READ only), shown under the station's mapping
+
+/** One shown line of the inventory: a label and its value; `unknown` marks a value nobody measured (shown as unknown, never guessed). */
+export interface InventoryLine {
+  key: 'outputs' | 'saved' | 'count' | 'roles' | 'test';
+  label: string;
+  value: string;
+  unknown: boolean;
+}
+
+/**
+ * The inventory as lines (ready) or one sentence why there is none. WisKey's contract pins the physical count to null, every role to
+ * unknown and the relay test to unsupported; the lines say exactly that. API outputs are the station profile's remote-control outputs,
+ * not physical relays: a null count is "not observed", never zero, and one output is never read as a single-relay station.
+ */
+export function inventoryView(inv: RelayInventory): { lines: InventoryLine[]; message: string | null } {
+  const d = inv.data;
+  if (inv.state !== 'ready' || !d) return { lines: [], message: inventoryMessage(inv) };
+  const o = d.api_outputs;
+  const outputs = o.count === null || o.evidence !== 'device_capability_at_load'
+    ? tr('לא נצפו')
+    : `${o.ids.map((n) => tr('ממסר API {n}', { n })).join(', ')} · ${tr('לפי יכולת העמדה בטעינה')}`;
+  const saved = d.configured_mapping.length
+    ? `${d.configured_mapping.map((m) => `${tr('ממסר פיזי {n}', { n: m.physical_index })} ← ${tr('ממסר API {n}', { n: m.api_id })}`).join(', ')} · ${tr('הגדרה שמורה, לא מדידה')}`
+    : tr('לא נשמר מיפוי');
+  return {
+    message: null,
+    lines: [
+      { key: 'outputs', label: tr('יציאות API שהעמדה דיווחה'), value: outputs, unknown: o.count === null },
+      { key: 'saved', label: tr('מיפוי שמור ב-WisKey'), value: saved, unknown: false },
+      { key: 'count', label: tr('מספר ממסרים פיזיים'), value: d.physical_relay_count === null ? tr('לא ידוע') : String(d.physical_relay_count), unknown: d.physical_relay_count === null },
+      // the contract pins every role to `unknown`, `physical_verified` to false and the relay test to unsupported: the server refuses
+      // a document that says otherwise, so these two lines never show a role or a test the station did not prove
+      { key: 'roles', label: tr('תפקיד הממסרים (דלת / שער)'), value: tr('לא ידוע'), unknown: true },
+      { key: 'test', label: tr('בדיקת ממסר בלי להפעיל'), value: tr('לא נתמכת ב-WisKey'), unknown: false },
+    ],
+  };
+}
+
+/** Why there is no inventory to show (the read's honest state; nothing is retried by itself). */
+export function inventoryMessage(inv: RelayInventory): string {
+  switch (inv.state) {
+    case 'unsupported':
+      return tr('גרסת WisKey המותקנת אינה מציעה את הקריאה הזו - לא נשלח דבר.');
+    case 'forbidden':
+      return tr('WisKey סירב לקריאה.');
+    case 'unavailable':
+      return inv.reason === 'station_unloaded' ? tr('העמדה אינה טעונה כרגע ב-WisKey.') : tr('WisKey אינו זמין כרגע.');
+    case 'busy':
+      return tr('WisKey עסוק כרגע. אפשר לנסות שוב בעוד רגע.');
+    default:
+      return inv.reason === 'contract_mismatch' ? tr('תשובת WisKey אינה תואמת את החוזה ולכן אינה מוצגת.') : tr('הקריאה מ-WisKey נכשלה.');
+  }
 }

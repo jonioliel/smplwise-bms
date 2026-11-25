@@ -9,9 +9,9 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import { fmtWhen } from '../api/access';
-import { approveRelayMap, getRelayMap, type RelayMap, type RelayMapStation } from '../api/wiskey-relay-map';
+import { approveRelayMap, getRelayInventory, getRelayMap, type RelayInventory, type RelayMap, type RelayMapStation } from '../api/wiskey-relay-map';
 import {
-  OFF, approveQuestion, approvedLine, canApprove, draftOf, mapDiff, parseChoice, relayChoices, relayName, rowsBody, stationStatus, typedWordNeeded, type RelayDraft,
+  OFF, approveQuestion, approvedLine, canApprove, draftOf, inventoryView, mapDiff, parseChoice, relayChoices, relayName, rowsBody, stationStatus, typedWordNeeded, type RelayDraft,
 } from './wiskey-relay-map-logic';
 import { tr } from '../i18n/msg/wiskey';
 import { serverWordMatches, shownConfirmWord } from '../i18n/confirm-words';
@@ -21,6 +21,10 @@ import { serverWordMatches, shownConfirmWord } from '../i18n/confirm-words';
  * physical relay (door), approved explicitly and saved against the station revision. The map is what the WisKey emergency and
  * door-automation grants are built from; nothing is sent to a station or a door from here. System administrator edits;
  * `access.admin.read` sees it read-only. The station's id is never shown.
+ *
+ * WISKEY-RELAY-INV-2520: per station, on request, what WisKey itself knows about the relays (`stations/relay_inventory_v1`, READ only):
+ * the API outputs, WisKey's saved mapping, the physical count and roles as unknown, and that no harmless relay test exists. It is shown
+ * next to the mapping and never changes it; nothing is sent to a relay.
  */
 @customElement('sw-wiskey-relay-map')
 export class SwWiskeyRelayMap extends LitElement {
@@ -30,6 +34,8 @@ export class SwWiskeyRelayMap extends LitElement {
   @state() private drafts: Record<string, RelayDraft> = {};
   @state() private pending: RelayMapStation | null = null;
   @state() private word = '';
+  /** WisKey's relay inventory per station id: the answer, `loading`, or an error text (shown only when asked for) */
+  @state() private inventory: Record<string, RelayInventory | 'loading' | { error: string }> = {};
 
   static styles = css`
     :host {
@@ -117,6 +123,33 @@ export class SwWiskeyRelayMap extends LitElement {
     .warn {
       color: var(--sw-warning-text, var(--sw-text-2));
     }
+    .inv {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 2px var(--sw-s-3);
+      margin-block-start: var(--sw-s-2);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .inv dt {
+      color: var(--sw-text-3);
+    }
+    .inv dd {
+      margin: 0;
+      min-inline-size: 0;
+    }
+    .inv .note {
+      grid-column: 1 / -1;
+      color: var(--sw-text-3);
+    }
+    @media (max-width: 599px) {
+      .inv {
+        grid-template-columns: 1fr;
+      }
+      .inv dd {
+        margin-block-end: var(--sw-s-1);
+      }
+    }
     .word {
       display: flex;
       flex-direction: column;
@@ -138,6 +171,35 @@ export class SwWiskeyRelayMap extends LitElement {
     } catch (err) {
       this.error = describeError(err);
     }
+  }
+
+  private async toggleInventory(s: RelayMapStation) {
+    if (this.inventory[s.id] && this.inventory[s.id] !== 'loading') {
+      const { [s.id]: _drop, ...rest } = this.inventory;
+      this.inventory = rest;
+      return;
+    }
+    if (this.inventory[s.id] === 'loading') return;
+    this.inventory = { ...this.inventory, [s.id]: 'loading' };
+    try {
+      const answer = await getRelayInventory(s.id);
+      this.inventory = { ...this.inventory, [s.id]: answer };
+    } catch (err) {
+      this.inventory = { ...this.inventory, [s.id]: { error: describeError(err) } };
+    }
+  }
+
+  private inventoryBlock(s: RelayMapStation) {
+    const inv = this.inventory[s.id];
+    if (!inv) return nothing;
+    if (inv === 'loading') return html`<div class="sub" data-relay-inventory="loading">${tr('קורא מ-WisKey…')}</div>`;
+    if ('error' in inv) return html`<div class="err" role="alert" data-relay-inventory="error">${inv.error}</div>`;
+    const view = inventoryView(inv);
+    if (view.message) return html`<div class="sub" data-relay-inventory=${inv.state}>${view.message}</div>`;
+    return html`<dl class="inv" data-relay-inventory="ready">
+      ${view.lines.map((l) => html`<dt>${l.label}</dt><dd data-relay-inventory-line=${l.key} data-unknown=${l.unknown ? 'true' : nothing}>${l.value}</dd>`)}
+      <dd class="note">${tr('יציאות API אינן ממסרים פיזיים. המיפוי שאושר כאן הוא אישור, לא מדידה, ואינו משתנה מהקריאה.')}</dd>
+    </dl>`;
   }
 
   private draft(s: RelayMapStation): RelayDraft {
@@ -195,6 +257,13 @@ export class SwWiskeyRelayMap extends LitElement {
           </label>`;
         })}
       </div>
+      ${s.in_copy
+        ? html`<div class="actions">
+            <sw-button size="sm" variant="ghost" data-relay-inventory-toggle aria-expanded=${this.inventory[s.id] ? 'true' : 'false'} ?disabled=${this.inventory[s.id] === 'loading'}
+              @click=${() => this.toggleInventory(s)}>${this.inventory[s.id] ? tr('הסתרת מה ש-WisKey יודע') : tr('מה WisKey יודע על הממסרים')}</sw-button>
+          </div>`
+        : nothing}
+      ${this.inventoryBlock(s)}
       ${s.automated_relays.length
         ? html`<div class="sub" data-relay-map-automated>${tr('יש אוטומציה על {relays}', { relays: s.automated_relays.map((p) => relayName(s, p)).join(', ') })}</div>`
         : nothing}

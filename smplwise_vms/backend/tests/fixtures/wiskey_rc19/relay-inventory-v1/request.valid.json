@@ -1,0 +1,5 @@
+{
+  "id": 1,
+  "type": "hikvision_intercom/stations/relay_inventory_v1",
+  "station_id": "synthetic-station"
+}
