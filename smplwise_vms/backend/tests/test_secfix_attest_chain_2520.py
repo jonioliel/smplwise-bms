@@ -6,6 +6,7 @@ that key (`[forged leaf, genuine key certificate, intermediate, root]`) passed a
 present, the pathLenConstraint kept) and only the leaf carries the KeyDescription.
 
 Generated chains only (`cryptography`); no phone, no network."""
+# ruff: noqa: F811 - the `root` fixture is imported by name and used as a test parameter
 from __future__ import annotations
 
 import datetime as dt
