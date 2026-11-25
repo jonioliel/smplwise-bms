@@ -17,6 +17,9 @@ export interface SchedMock {
   checkingPolls: number;
   /** The integration allows schedule writes to the stations (rc.10: never). */
   writesEnabled: boolean;
+  /** WISKEY-SCHED-READS-2520: the signed schedule reads' support state (default: WisKey does not list them) and their rows. */
+  readsSupport: { state: string; reason: string | null; contract: string };
+  reads: any[];
   // state
   library: any[];
   plans: any[];
@@ -40,6 +43,8 @@ export function newSchedMock(over: Partial<SchedMock> = {}): SchedMock {
     failAt: new Set(),
     checkingPolls: 1,
     writesEnabled: false,
+    readsSupport: { state: 'unsupported', reason: 'not_listed', contract: 'wiskey-schedule-reads.v1' },
+    reads: [],
     library: clone(WIRE.schedules_library.schedules),
     plans: clone(WIRE.schedules_plans.schedules).map((p: any) => ({ ...p, bindings: { template: 1, weekly: 1, holiday_group: null, holidays: [] } })),
     jobs: clone(WIRE.schedules_operations.schedules.jobs),
@@ -49,6 +54,23 @@ export function newSchedMock(over: Partial<SchedMock> = {}): SchedMock {
     ...over,
   };
 }
+
+/** WISKEY-SCHED-READS-2520: one signed read row as routers/access_control_schedule_reads.py answers it (invented ids). */
+export function newRead(action: string, subject: string, state: string, over: Record<string, any> = {}): any {
+  const n = (++serial).toString(16).padStart(12, '0');
+  const final = ['completed', 'refused', 'not_sent'].includes(state);
+  return {
+    request_id: `5a1e0000-0000-4000-8000-${n}`, action, subject, revision: null, state, start_outcome: state === 'unknown' ? 'unknown' : 'ok',
+    wiskey_code: null, plan_revision: null, data: state === 'completed' ? (READ_DONE[action] ?? null) : null, created_at: NOW, updated_at: NOW,
+    status_at: null, status_reads: 0, final, can_check: ['accepted', 'running', 'unknown'].includes(state), ...over,
+  };
+}
+export const READ_DONE: Record<string, any> = {
+  readiness: { checked_at: NOW, can_apply: false, reason: 'schedule_writes_unverified', checks: [
+    { kind: 'template', read_state: 'readable' }, { kind: 'weekly', read_state: 'readable' }, { kind: 'holiday_group', read_state: 'readable' }, { kind: 'holiday', read_state: 'unsupported' },
+  ] },
+  dependencies: { checked_at: NOW, users_checked: true, mapping_complete: true, users: { state: 'complete', error: null, read: 14, explicit: 3, implicit: 11, malformed: 0 }, checks: [] },
+};
 
 const REASON: Record<string, string> = {
   revision_conflict: 'מישהו אחר שינה את הרשומה בינתיים - טענו מחדש ובדקו לפני שמנסים שוב',
@@ -99,6 +121,31 @@ export async function installSchedWritesMock(page: Page, m: SchedMock): Promise<
     const req = route.request();
     const url = new URL(req.url());
     const p = url.pathname.replace(/^.*\/api\/v1\/access-control\//, '');
+    // WISKEY-SCHED-READS-2520: the signed schedule reads (routers/access_control_schedule_reads.py)
+    if (p === 'schedules/reads' || p.startsWith('schedules/reads/')) {
+      if (req.method() === 'GET') {
+        m.gets.push(p);
+        return json(route, { support: clone(m.readsSupport), reads: clone(m.reads) });
+      }
+      const support = clone(m.readsSupport);
+      if (p === 'schedules/reads') {
+        const body = req.postDataJSON() as Record<string, any>;
+        m.posts.push({ action: 'reads', body: clone(body) });
+        if (support.state !== 'supported') return json(route, { support, read: null });
+        const row = newRead(body.action, body.parameters?.station_id ?? body.parameters?.plan_id ?? '', 'accepted');
+        m.reads.unshift(row);
+        return json(route, { support, read: clone(row) });
+      }
+      const id = /^schedules\/reads\/([0-9a-f-]{36})\/status$/.exec(p)?.[1];
+      const row = m.reads.find((r) => r.request_id === id);
+      m.posts.push({ action: 'reads_status', body: { request_id: id } });
+      if (!row) return refusal(route, 'schedule_read_not_found', 404);
+      if (row.final) return json(route, { support, read: clone(row), status_read: { outcome: 'not_needed', code: 'final' } });
+      if (row.state === 'accepted') Object.assign(row, { state: 'running' });
+      else Object.assign(row, { state: 'completed', final: true, can_check: false, data: READ_DONE[row.action] ?? null });
+      row.status_reads += 1;
+      return json(route, { support, read: clone(row), status_read: { outcome: 'ok', code: null } });
+    }
     if (req.method() === 'GET') {
       m.gets.push(p + url.search);
       if (p === 'schedules') return json(route, { ...head(), schedules: clone(m.library) });
