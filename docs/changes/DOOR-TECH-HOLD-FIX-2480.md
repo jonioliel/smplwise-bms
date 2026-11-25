@@ -37,10 +37,20 @@ No visible change in this branch, so no pixel baselines and no new comparison pa
 
 ## Tests (runner, slot B, job `~/work/p2520_doorhold_run.sh 3d71fb183`; Playwright projects desktop + mobile, workers 2, retries 0)
 
-Queued on the runner (slot B queue, ~20 jobs ahead); results are added to this note when the job has run. Until then:
-NOT_RUN - `tsc --noEmit`, `vite build`, `tests/unit-wiskey-door-tech.spec.ts` + `tests/evidence-wiskey-door-tech.spec.ts`
-(desktop + mobile), the two `DOOR-TECH-REREAD-2480` tests x5, and every other spec that drives `wk-door-tech`.
-Last recorded run of the REREAD tests: `docs/changes/FLAKY-SWEEP-2480.md` session 3 (2.48.0 train, gate run 3 PASS).
+Run 2026-11-25 14:03-14:05 UTC at 3d71fb183 (the code this branch carries; the branch adds only this note):
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| Type check | `npx tsc --noEmit -p .` | 0 | clean |
+| Build | `npx vite build` | 0 | built |
+| Door-tech unit + evidence | `npx playwright test tests/unit-wiskey-door-tech.spec.ts tests/evidence-wiskey-door-tech.spec.ts` | 0 | 36 passed |
+| The two re-read tests, repeated | `... tests/evidence-wiskey-door-tech.spec.ts -g "DOOR-TECH-REREAD-2480" --repeat-each=5` | 0 | 20 passed |
+| Every other spec that drives the screen | `... tests/layout-audit30wk-components.spec.ts tests/pixel-wiskey-door-tech.spec.ts tests/pixel-wiskey-stations.spec.ts tests/unit-confirm-words-2442.spec.ts tests/unit-modal-stack-guard-2442.spec.ts` | 0 | 52 passed, 2 skipped |
+
+The re-read tests hold the read after a write (mock `holdReads`, `strictRevision`) and assert: no hold button is `disabled` between the
+write's answer and the next write (MutationObserver log), the new name shows at once, a press during the read shows `busy` and opens
+its confirmation only after the read, two "send" clicks = one POST, and the delete goes out with the fresh revision (3, never 2).
+The door-tech pixel baselines (`pixel-wiskey-door-tech.spec.ts`) pass unchanged.
 
 Not run: the full frontend / backend suites (no product code changed); the lab (no device access in this row).
 
