@@ -7,8 +7,9 @@ import { isRecoveryCode, verifyStepUp } from '../api/second-factor';
 import { appDeviceKeyId, DeviceKeyCancelled, deviceKeyStepUp, NO_RECOVERY_ACTIONS, recoveryStepUp } from '../api/factor-screens';
 import { tr as trm } from '../i18n/msg/mfa';
 import { passkeyStepUp } from '../api/step-up-passkey';
-import { PasskeyCancelled, passkeysSupported } from '../arx/webauthn';
+import { PasskeyCancelled, PasskeyWrongHost, passkeysSupported } from '../arx/webauthn';
 import { t, tf } from '../i18n/he';
+import { lit } from '../i18n/local-identity';
 import { STEP_UP_VERIFIED } from '../shell/step-up';
 
 /**
@@ -159,7 +160,8 @@ export class SwStepUpDialog extends LitElement {
       window.dispatchEvent(new CustomEvent(STEP_UP_VERIFIED));
       this.answer(true);
     } catch (err) {
-      this.error = err instanceof PasskeyCancelled ? t('stepUp.passkeyCancelled') : describeError(err);
+      // MFA-RESET-CHANNEL-UI-2520: a page at another address (the local network's address) cannot use a passkey made for the public one
+      this.error = err instanceof PasskeyWrongHost ? lit('passkeyWrongHost', { origin: err.rpId }) : err instanceof PasskeyCancelled ? t('stepUp.passkeyCancelled') : describeError(err);
     } finally {
       this.busy = false;
       this.passkeyBusy = false;
@@ -210,9 +212,13 @@ export class SwStepUpDialog extends LitElement {
     const dk = !!this.keyId; // MFA-SCREENS-2510: the phone key, in the app that holds one
     const can = code || pk || dk;
     const body = pk && code ? t('stepUp.bodyBoth') : pk ? t('stepUp.bodyPasskey') : code ? t('stepUp.body') : trm('כדי לשנות הגדרות, משתמשים או הרשאות, אשר במפתח הטלפון.');
+    // MFA-RESET-CHANNEL-UI-2520: the user HAS a passkey that counts (the server lists it) but this browser cannot use passkeys - the
+    // dialog offers the code and says why the passkey is not offered, instead of leaving it out silently
+    const pkElsewhere = listed && !pk && (code || dk);
     return html`<sw-dialog ?open=${this.open} heading=${t('stepUp.heading')} data-step-up-dialog @close=${(e: Event) => { e.stopPropagation(); this.answer(false); }}>
       ${can
         ? html`<p class="msg" data-step-up-text>${body}</p>
+            ${pkElsewhere ? html`<p class="hint" data-step-up-passkey-elsewhere>${trm('למפתח הגישה שלך צריך דפדפן שתומך במפתחות גישה. כאן אפשר לאשר בדרך אחרת.')}</p>` : nothing}
             <p class="hint" data-step-up-window>${minutes > 0 ? tf('stepUp.window', { minutes }) : t('stepUp.once')}</p>
             ${pk
               ? html`<div class="pk"><sw-button variant=${code ? 'secondary' : 'primary'} data-step-up-passkey ?disabled=${this.busy} @click=${() => void this.byPasskey()}>${this.passkeyBusy ? t('stepUp.passkeyWaiting') : t('stepUp.passkey')}</sw-button></div>`

@@ -6,7 +6,7 @@ import './sw-button';
 import { ApiError, describeError } from '../api/client';
 import { ownPasskeys, registerPasskey, registrationOptions, removePasskey, renamePasskey, setPasskeyFirst, setPasskeyOnly, type PasskeySummary } from '../api/passkeys';
 import { passkeyStepUp, stepUpNeed, verifyCodeStepUp } from '../api/step-up-passkey';
-import { PasskeyCancelled, createPasskey, passkeysSupported } from '../arx/webauthn';
+import { PasskeyCancelled, PasskeyWrongHost, createPasskey, passkeysSupported } from '../arx/webauthn';
 import { lit } from '../i18n/local-identity';
 import { po } from '../i18n/passkey-only';
 import { dayText } from '../api/day-format';
@@ -164,6 +164,7 @@ export class SwPasskeys extends LitElement {
   }
 
   private explain(err: unknown): string {
+    if (err instanceof PasskeyWrongHost) return lit('passkeyWrongHost', { origin: err.rpId }); // MFA-RESET-CHANNEL-UI-2520
     if (err instanceof PasskeyCancelled) return lit('passkeyCancelled');
     if (err instanceof ApiError && err.body.code === 'reauth_required') return lit('passkeyReauth');
     return describeError(err);

@@ -203,7 +203,7 @@ def registration_options(conn: sqlite3.Connection, request: Any, principal: Any)
 def register(conn: sqlite3.Connection, request: Any, principal: Any, body: Any, label: str | None, request_id: str | None) -> dict[str, Any]:
     """Verify and store a new passkey of the caller. Uniform 400 `passkey_invalid` on any verification failure (the reason is audited).
     The challenge was issued only after the proof rule passed (registration_options), and it is bound to this session."""
-    from . import capture_lease, presence, step_up
+    from . import step_up
     from . import ha_user_auth as hua
 
     relying = lpk.rp(conn)
@@ -234,9 +234,31 @@ def register(conn: sqlite3.Connection, request: Any, principal: Any, body: Any, 
                                      challenge=rec.value, origin=rec.origin, rp_id=rec.rp_id, require_uv=require_uv)
     except wa.WebAuthnError as exc:
         raise refuse(exc.reason) from None
+    try:
+        stored = store(conn, principal, cred, reg, rec.rp_id, label, keep=hua.session_of(request), request_id=request_id)
+    except wa.WebAuthnError as exc:
+        raise refuse(exc.reason) from None
+    if stored["enrolled"]:
+        step_up.note_proof(request, principal, METHOD)  # the authenticator was just used in this session
+    row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (stored["passkey"],)).fetchone()
+    return {"passkey": lpk.view(row, relying[0], _admin(conn, uid)), "first_factor": stored["first_factor"], "other_sessions_ended": stored["ended"]}
+
+
+def store(conn: sqlite3.Connection, principal: Any, cred: Any, reg: Any, rp_id: str, label: str | None, *, keep: Any,
+          request_id: str | None, step: str | None = None) -> dict[str, Any]:
+    """Store a verified new passkey of `principal` (MFA-RESET-CHANNEL-UI-2520: shared by `register` and the enrolment step of a remote
+    sign-in, services/passkey_sign_in_enrol). WebAuthnError(`credential_exists`) when the credential is already stored (any user's - the
+    caller refuses uniformly); 409 `passkey_limit` at MAX_PER_USER. The FIRST factor made this way behaves like a TOTP enrolment: the
+    user's other remote sign-ins (all but `keep`'s Home Assistant sign-in) and phone device tokens end. Audited `auth.passkey.registered`
+    (`step` added when given), the user notified on every device, an administrator's `must_enroll` ended. Returns the passkey's public id,
+    `first_factor`, `enrolled` (= first factor that counts now) and `ended` (the other sign-ins ended)."""
+    from . import capture_lease, presence
+    from . import ha_user_auth as hua
+
+    uid = principal.user_id
     cid = wa.b64url(reg.credential_id)
     if conn.execute("SELECT 1 FROM auth_webauthn_credentials WHERE credential_id = ?", (cid,)).fetchone() is not None:
-        raise refuse("credential_exists")  # another user's credential included: uniform (no cross-user signal)
+        raise wa.WebAuthnError("credential_exists")  # another user's credential included: uniform (no cross-user signal)
     if len(lpk.rows(conn, uid)) >= lpk.MAX_PER_USER:
         raise ApiError(409, "passkey_limit", lpk.LIMIT_HE)
     first_factor = not has_factor(conn, uid)
@@ -249,24 +271,22 @@ def register(conn: sqlite3.Connection, request: Any, principal: Any, body: Any, 
                                                           backup_eligible, backup_state, uv_registered, rp_id, created_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                  (pk, uid, cid, wa.b64url(reg.public_key), reg.alg, reg.sign_count, ",".join(cred.transports), reg.aaguid, clean,
-                  int(reg.backup_eligible), int(reg.backup_state), int(reg.uv), rec.rp_id, lpk._now_iso()))
+                  int(reg.backup_eligible), int(reg.backup_state), int(reg.uv), rp_id, lpk._now_iso()))
     ended = tokens = 0
-    if first_factor and counts(conn, uid):  # exactly like a TOTP enrolment (routers/second_factor.confirm)
-        ended = hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_enrolled", keep=hua.session_of(request),
-                                         request_id=request_id)
+    enrolled = first_factor and counts(conn, uid)
+    if enrolled:  # exactly like a TOTP enrolment (routers/second_factor.confirm)
+        ended = hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_enrolled", keep=keep, request_id=request_id)
         tokens = presence.revoke_tokens(conn, uid)
-        step_up.note_proof(request, principal, METHOD)  # the authenticator was just used in this session
     _audit(conn, actor=principal, action="auth.passkey.registered", decision="allowed", user_id=uid,
            details={"passkey": pk, "alg": reg.alg, "synced": reg.backup_eligible, "uv": reg.uv, "first_factor": first_factor,
-                    "other_sign_ins_ended": ended, "device_tokens_revoked": tokens}, request_id=request_id)
+                    "other_sign_ins_ended": ended, "device_tokens_revoked": tokens, **({"step": step} if step else {})}, request_id=request_id)
     from . import notify_sources
 
     notify_sources.second_factor_added(conn, uid, "passkey")  # MFA-SECFIX-2500 SR-3: the user hears of it on every device
     from . import factor_reset
 
     factor_reset.enrolled(conn, uid)  # MFA-RESET-HARDENING-2510: a factor again - the must_enroll of an administrator's reset ends
-    row = conn.execute("SELECT * FROM auth_webauthn_credentials WHERE id = ?", (pk,)).fetchone()
-    return {"passkey": lpk.view(row, relying[0], _admin(conn, uid)), "first_factor": first_factor, "other_sessions_ended": ended}
+    return {"passkey": pk, "first_factor": first_factor, "enrolled": enrolled, "ended": ended}
 
 
 # ---------------------------------------------------------------- removal and renaming

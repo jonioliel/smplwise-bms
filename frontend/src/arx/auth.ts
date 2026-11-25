@@ -12,7 +12,7 @@ import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
 import { tr } from '../i18n/msg/misc';
 import { holdNativeSession, releaseNativeSession, type NativeSignOutReason } from './native-app';
-import { getPasskey, type RequestOptionsJSON } from './webauthn';
+import { createPasskey, getPasskey, type CreationOptionsJSON, type RequestOptionsJSON } from './webauthn';
 
 const TOKENS_KEY = 'arx.auth.v1';
 
@@ -352,6 +352,42 @@ export function pendingPasskeyOrigin(): string | null {
   return pendingOffer?.passkey?.origin ?? null;
 }
 
+/** MFA-RESET-CHANNEL-UI-2520: the passkey enrolment a 403 `second_factor_enrollment_required` offered (its `details.passkey_enrol`):
+ * the sign-in factor policy requires a factor, the user has none, and the owner's switch `security.passkey_remote_factor` is on - a
+ * passkey registered now, in this sign-in, is that enrolment. Absent = the refusal of before (the sign-in ends). */
+interface EnrolOffer {
+  origin: string;
+  publicKey: CreationOptionsJSON;
+  at: number;
+}
+let pendingEnrol: EnrolOffer | null = null;
+
+/** Note the enrolment offer of a refusal; false when it carries none. */
+function noteEnrol(err: ArxAuthError): boolean {
+  const pe = (err.details ?? {}).passkey_enrol as { origin?: unknown; publicKey?: unknown } | undefined;
+  pendingEnrol = pe && typeof pe.origin === 'string' && pe.publicKey && typeof pe.publicKey === 'object'
+    ? { origin: pe.origin, publicKey: pe.publicKey as CreationOptionsJSON, at: Date.now() }
+    : null;
+  return pendingEnrol !== null;
+}
+
+/** The pending sign-in waits for a passkey enrolment (not for a code). */
+export const hasPendingEnrolment = () => pendingFactor !== null && pendingEnrol !== null;
+
+/** The address a passkey made in the pending enrolment works at (the configured public address); null when none is pending. */
+export function pendingEnrolOrigin(): string | null {
+  return pendingEnrol?.origin ?? null;
+}
+
+/** `pkr1:<rawId>.<clientDataJSON>.<attestationObject>[.<transports>]` - the new passkey in the X-Arx-Second-Factor header. */
+function enrolAnswer(credential: Record<string, unknown>): string {
+  const r = (credential.response ?? {}) as Record<string, unknown>;
+  const parts = [credential.rawId, r.clientDataJSON, r.attestationObject].map((v) => String(v ?? ''));
+  const transports = Array.isArray(r.transports) ? r.transports.filter((x): x is string => typeof x === 'string' && /^[a-z-]{1,16}$/.test(x)) : [];
+  if (transports.length) parts.push(transports.join(','));
+  return 'pkr1:' + parts.join('.');
+}
+
 /** `pk1:<rawId>.<clientDataJSON>.<authenticatorData>.<signature>[.<userHandle>]` - the assertion in the X-Arx-Second-Factor header. */
 function passkeyAnswer(credential: Record<string, unknown>): string {
   const r = (credential.response ?? {}) as Record<string, unknown>;
@@ -369,6 +405,7 @@ export async function abandonSecondFactor(): Promise<void> {
   const t = pendingFactor;
   pendingFactor = null;
   pendingOffer = null;
+  pendingEnrol = null;
   if (t) {
     clearTokens();
     await revoke(t.refresh_token);
@@ -387,6 +424,7 @@ async function answerPending(answer?: string): Promise<ExchangeResult> {
     const r = await exchange(t, answer);
     pendingFactor = null;
     pendingOffer = null;
+    pendingEnrol = null;
     t.user_id = r.user.id;
     saveTokens(t);
     seedHassTokens(t);
@@ -397,9 +435,12 @@ async function answerPending(answer?: string): Promise<ExchangeResult> {
       noteOffer(err); // asked again for a fresh offer: the step stays
       throw err;
     }
+    // MFA-RESET-CHANNEL-UI-2520: asked again for a fresh enrolment offer - the step stays while the server still offers one
+    if (err instanceof ArxAuthError && err.code === 'second_factor_enrollment_required' && !answer && pendingEnrol && noteEnrol(err)) throw err;
     if (!(err instanceof ArxAuthError) || !['second_factor_invalid', 'network', 'ha_unavailable'].includes(err.code)) {
       pendingFactor = null;
       pendingOffer = null;
+      pendingEnrol = null;
       clearTokens();
       await revoke(t.refresh_token);
     }
@@ -428,6 +469,27 @@ export async function completeSecondFactorPasskey(): Promise<ExchangeResult> {
   return answerPending(passkeyAnswer(credential));
 }
 
+/** MFA-RESET-CHANNEL-UI-2520: the pending enrolment answered with a new passkey made on this device. The server's challenge lives 60 s
+ * and is single use, so an offer older than OFFER_FRESH_MS (or one already tried) is renewed first by asking the exchange again without
+ * an answer. A cancelled ceremony (PasskeyCancelled) keeps the step; a refused attestation is `second_factor_invalid` (the step stays);
+ * once the sign-in is older than the server's fresh-sign-in window it offers nothing more and the sign-in ends (sign in again). */
+export async function completeEnrolmentPasskey(): Promise<ExchangeResult> {
+  if (!pendingFactor || !pendingEnrol) throw new ArxAuthError('second_factor_required', tr('ההתחברות פגה. יש להיכנס מחדש.'));
+  let offer = Date.now() - pendingEnrol.at < OFFER_FRESH_MS ? pendingEnrol : null;
+  if (!offer) {
+    try {
+      return await answerPending(); // the server stopped asking (the policy no longer requires a factor): this is the sign-in
+    } catch (err) {
+      if (!(err instanceof ArxAuthError && err.code === 'second_factor_enrollment_required')) throw err;
+    }
+    offer = pendingEnrol;
+    if (!offer) throw new ArxAuthError('passkey_not_offered', tr('ההתחברות פגה. יש להיכנס מחדש.'));
+  }
+  pendingEnrol = { ...offer, at: 0 }; // used once: the next try asks for a fresh challenge
+  const credential = await createPasskey(offer.publicKey);
+  return answerPending(enrolAnswer(credential));
+}
+
 /** Sign-in finished at HA (an authorization code): tokens, the HA seed, the Arx session. */
 export async function completeSignIn(flow: LoginFlow, code: string): Promise<ExchangeResult> {
   const grant: Record<string, string> = { grant_type: 'authorization_code', code };
@@ -444,6 +506,11 @@ export async function completeSignIn(flow: LoginFlow, code: string): Promise<Exc
     if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
       pendingFactor = t; // K11: HA's part is done; the code of the authenticator app is the second step
       noteOffer(err); // MFA-HA-PASSKEY-2520: or a passkey, when the server offers one
+      throw err;
+    }
+    if (err instanceof ArxAuthError && err.code === 'second_factor_enrollment_required' && noteEnrol(err)) {
+      pendingFactor = t; // MFA-RESET-CHANNEL-UI-2520: "enrol first" with a passkey offer - the new passkey is the next step
+      pendingOffer = null;
       throw err;
     }
     // refused by Arx (no remote access, inactive, MFA required): do not leave a valid HA sign-in behind
