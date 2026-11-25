@@ -1,0 +1,13 @@
+{
+  "format": {
+    "wrong_synthetic_type": true
+  },
+  "verified": true,
+  "direction": "arx_to_native",
+  "protocol_version": 1,
+  "kid": null,
+  "verified_at": "2026-01-01T00:00:00+00:00",
+  "freshness_s": 60,
+  "principal_kind": "pairing_service",
+  "source": "loaded_smplwise_bridge_keyset"
+}

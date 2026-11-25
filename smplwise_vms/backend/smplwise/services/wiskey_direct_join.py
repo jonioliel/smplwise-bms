@@ -34,6 +34,12 @@ no lineage file, no anchor row, no transport object, no thread.
 
 Status (honest): implemented and tested against the in-memory fake direct server of tests/w10_fake_direct.py (tests/test_wkjoin_295.py).
 NOT run against a real WisKey, Home Assistant or station; nothing installed or live on any installation.
+
+WISKEY-DIRECT-V2-2520 (row R7): part (2) of the rule also admits a ROTATED key, which signs direct v2 (wiskey_media_bridge
+`protocol_for_key`, the v2 socket path); the plain pairing secret and `g0-legacy` keep v1 exactly as before. On a v2 connection discovery
+also proves the ONE current pairing (`direct/pairing_status_v2`, wiskey_direct_discovery). A v2 key / pairing refusal is final for the
+request: it is never followed by v1, and a people write never goes over the classic channel after it (`fallback_permitted`: codes
+prefixed `direct_v2_refused:` and the v2-only codes in `V2_NO_FALLBACK`). `direct_status()` is the no-I/O view for the bridge-key status.
 """
 from __future__ import annotations
 
@@ -49,7 +55,7 @@ from . import wiskey_direct_catalog as catalog
 from . import wiskey_media_bridge as bridge
 from .wiskey_capture_port import PortError, PortIdentity
 from .wiskey_command_port import NOT_SENT, REFUSED, UNKNOWN, WiskeyCommandError
-from .wiskey_direct_discovery import CAPABILITIES, TIME, DirectDiscovery
+from .wiskey_direct_discovery import CAPABILITIES, CAPABILITIES_V3, PAIRING_STATUS_V2, TIME, DirectDiscovery
 
 log = logging.getLogger("smplwise.wiskey.direct_join")
 
@@ -58,7 +64,10 @@ RUN_MARGIN_S = 5.0  # the sync wait above the request's own timeout (the request
 MEDIA_PATH_PREFIX = "/api/hikvision_intercom/arx_bridge/v1/media/"
 MEDIA_INGRESS_COMMAND = "features/media_ingress_v1"
 DISCOVERY_TIMEOUT_S = 6.0
-DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME})
+DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME, CAPABILITIES_V3, PAIRING_STATUS_V2})
+# WISKEY-DIRECT-V2-2520: a v2 connection that could not be opened / authenticated / proven (anything but "unreachable") is a key or
+# pairing refusal: its code carries this prefix and no people write falls back after it
+V2_REFUSED_PREFIX = "direct_v2_refused:"
 STOPPED_CODE = "join_stopped"  # WISKEY-JOIN-LIVE-2382: a request after the runtime stop began (not_sent: nothing was written)
 
 
@@ -75,6 +84,14 @@ def envelope_kind(command: str) -> str:
     """WKR5-295: the signed bridge.kind per command from the catalog row (W5-API-01), never from capabilities' `envelope`. A command
     whose catalog wire is not the direct envelope never gets here (`catalog.direct_refusal`)."""
     return catalog.envelope_for(command) or bridge.KIND
+
+
+def _v2_code(link: Any, refusal: str) -> str:
+    """On a v2 connection a discovery refusal other than the clock / the command list is a key or pairing refusal (prefixed, final)."""
+    if getattr(link, "protocol_version", 1) != 2 or refusal in ("clock_skew", "ttl_exceeds_server_max", "command_not_discovered") \
+            or refusal in V2_NO_FALLBACK or refusal.startswith(V2_REFUSED_PREFIX):
+        return refusal
+    return (V2_REFUSED_PREFIX + refusal)[:96]
 
 
 # ---------------------------------------------------------------- the shared session
@@ -137,10 +154,13 @@ class DirectCommandSession:
             try:
                 new = await self.transport.connect(bridge.PURPOSE_COMMAND)
             except bridge.MediaBridgeError as exc:
-                self.last_error = exc.code
-                if exc.code not in ("bridge_not_paired", "bridge_key_rotated"):
+                code = exc.code
+                if getattr(self.transport, "last_attempt_version", None) == 2 and code != "direct_unreachable":
+                    code = (V2_REFUSED_PREFIX + code)[:96]
+                self.last_error = code
+                if exc.code not in ("bridge_not_paired", "bridge_key_rotated", "bridge_key_unversioned"):
                     self._down_until = self._clock() + self.RETRY_DIRECT_S
-                raise bridge.MediaBridgeError(exc.code, "not_sent") from None
+                raise bridge.MediaBridgeError(code, "not_sent") from None
             if not isinstance(new, bridge.DirectLink):  # the join needs the direct link's generic command (never a media fallback)
                 await new.close()
                 raise bridge.MediaBridgeError("wiskey_direct_not_connected", "not_sent")
@@ -169,7 +189,7 @@ class DirectCommandSession:
             await self.discover(link)
             refusal = self.discovery.transport_refusal(link.connection_ref, command)
             if refusal is not None:
-                raise bridge.MediaBridgeError(refusal, "not_sent")
+                raise bridge.MediaBridgeError(_v2_code(link, refusal), "not_sent")
         from . import wiskey_call_budget as budget
         timeout = budget.remaining(timeout) if budget.active() else timeout
         try:
@@ -198,7 +218,8 @@ class DirectCommandSession:
             async def read(command: str, parameters: Mapping[str, Any]) -> Any:
                 return await link.call_command(command, dict(parameters), kind=bridge.KIND, timeout=DISCOVERY_TIMEOUT_S)
 
-            await self.discovery.refresh(link.connection_ref, read)
+            await self.discovery.refresh(link.connection_ref, read, protocol_version=getattr(link, "protocol_version", 1),
+                                         kid=getattr(link, "kid", None))
 
     def transport_refusal(self, command: str | None = None) -> str | None:
         """Why the direct path may not carry `command` on the current connection now (None = it may). No I/O."""
@@ -211,7 +232,8 @@ class DirectCommandSession:
             return catalog.direct_refusal(command)
         if not self.require_discovery:
             return None
-        return self.discovery.transport_refusal(link.connection_ref, command)
+        refusal = self.discovery.transport_refusal(link.connection_ref, command)
+        return None if refusal is None else _v2_code(link, refusal)
 
     # -- bridging --------------------------------------------------------------------------------------------------------------------
     async def run_async(self, coro: Awaitable[Any]) -> Any:
@@ -811,6 +833,9 @@ FALLBACK_NATIVE_ERRORS = frozenset({"action_not_offered", "lineage_unavailable",
 FALLBACK_NATIVE_PREFIXES = ("source_unavailable:", "source_invalid:")
 FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})
 NO_FALLBACK = frozenset({"create_origin_already_used", "person_write_in_flight", "duplicate_operation"})
+# WISKEY-DIRECT-V2-2520: v2 key / pairing refusals (WisKey `fallback_after_key_refusal: false`): never a classic write after them
+V2_NO_FALLBACK = frozenset({"bridge_key_changed", "pairing_ambiguous", "pairing_mismatch", "pairing_unverified", "pairing_stale",
+                            "pairing_status_invalid", "direct_kid_mismatch", "transport_auth_mismatch", "timeout_exceeds_abi"})
 PATH_DIRECT = "wiskey_direct"
 PATH_CLASSIC = "classic"
 PATH_CLASSIC_AFTER_DIRECT = "classic_after_direct"
@@ -819,7 +844,7 @@ PATH_CLASSIC_AFTER_DIRECT = "classic_after_direct"
 def fallback_permitted(state: str, code: str | None) -> bool:
     """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure."""
     c = code or ""
-    if c in NO_FALLBACK:
+    if c in NO_FALLBACK or c in V2_NO_FALLBACK or c.startswith(V2_REFUSED_PREFIX):
         return False
     if state == "not_sent":
         return True
@@ -956,17 +981,22 @@ def _cached(fn: Callable[[], Any], ttl: float) -> Callable[[], Any]:
 
 
 def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | None = None, open_lineage: bool = True,
-            provider_reader: Callable[[], bool] | None = None, key_reader: Callable[[], Any] | None = None) -> DirectJoin | None:
+            provider_reader: Callable[[], bool] | None = None, key_reader: Callable[[], Any] | None = None,
+            opener_v2: Callable[[], Awaitable[Any]] | None = None) -> DirectJoin | None:
     """Install the join when (1) `auto` and (2) the key signs hold NOW; else install nothing and return None. Opens ONE lineage for
-    this process and tries `recover(scope)` once (deferred to the first write of the scope when the socket is not up)."""
+    this process and tries `recover(scope)` once (deferred to the first write of the scope when the socket is not up).
+    WISKEY-DIRECT-V2-2520: `opener_v2` is the v2 socket (default: WisKey's v2 path; a test that injects only `opener` gets no v2, so a
+    rotated key installs nothing there, as before)."""
     with LIFECYCLE:
         if JOIN is not None:  # WISKEY-JOIN-LIVE-2382: never a second join (the installed one stays; nothing is opened twice)
             return JOIN
-        return _startup(db, settings, opener=opener, open_lineage=open_lineage, provider_reader=provider_reader, key_reader=key_reader)
+        return _startup(db, settings, opener=opener, open_lineage=open_lineage, provider_reader=provider_reader, key_reader=key_reader,
+                        opener_v2=opener_v2)
 
 
 def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | None, open_lineage: bool,
-             provider_reader: Callable[[], bool] | None, key_reader: Callable[[], Any] | None) -> DirectJoin | None:
+             provider_reader: Callable[[], bool] | None, key_reader: Callable[[], Any] | None,
+             opener_v2: Callable[[], Awaitable[Any]] | None = None) -> DirectJoin | None:
     global JOIN
     from . import ha_bridge, lease_events
     from . import wa_template_send as wts
@@ -981,8 +1011,12 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
         with db.connection(mode="read", label="wiskey join key") as c:
             return ha_bridge.signing_key(c)
 
+    v2_opener = opener_v2 if opener is not None else (opener_v2 or bridge.websocket_opener(settings, version=2))
+
     def key_signs(key: Any) -> bool:
         try:
+            if bridge.protocol_for_key(key) == 2:
+                return v2_opener is not None  # a rotated key signs only the v2 transport
             bridge._key_text(key)
         except bridge.MediaBridgeError:
             return False
@@ -996,7 +1030,7 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
     except Exception:  # noqa: BLE001 - an unreadable state installs nothing
         return None
     key_provider = _cached(read_key, 30.0)
-    transport = bridge.DirectApiTransport(opener or bridge.websocket_opener(settings), key_provider)
+    transport = bridge.DirectApiTransport(opener or bridge.websocket_opener(settings), key_provider, opener_v2=v2_opener)
     session = DirectCommandSession(transport, media_opener=websocket_media_opener(settings))
     lineage = None
     if open_lineage:
@@ -1030,6 +1064,44 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
     # call, re-checks `selected("features/start")` and delegates to the same `emergency_engine()` (now over the rc.4 SelectedFeaturePort).
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
+
+
+def direct_status(key: Any) -> dict[str, Any]:
+    """WISKEY-DIRECT-V2-2520: the direct transport as the bridge-key status shows it - NO I/O, never raises, never material.
+    `protocol_version` / `kid` follow the key set's current key (`protocol_for_key`); `pairing` is the last `direct/pairing_status_v2`
+    observation of the CURRENT v2 connection, or None (unknown: not read, not connected, or a v1 connection - shown as unknown, never as
+    verified). `revoke_in` is fixed: a pairing is revoked only by the owner in WisKey's own screen (PAIRING-Q2 = a)."""
+    out: dict[str, Any] = {"protocol_version": None, "kid": None, "selection": "not_paired", "installed": False, "connected": False,
+                           "pairing": None, "pairing_state": "unknown", "refusal": None, "revoke_in": "wiskey_owner_screen"}
+    try:
+        version = bridge.protocol_for_key(key)
+        out["protocol_version"] = version
+        out["kid"] = getattr(key, "kid", None) if version == 2 else None
+        out["selection"] = "v2_rotated_key" if version == 2 else "v1_pairing_key"
+    except bridge.MediaBridgeError as exc:
+        out["selection"] = exc.code if exc.code in ("bridge_not_paired", "bridge_key_unversioned") else "not_paired"
+        return out
+    except Exception:  # noqa: BLE001
+        return out
+    join = JOIN
+    if join is None:
+        return out
+    out["installed"] = True
+    try:
+        session = join.session
+        link = session._link
+        out["connected"] = link is not None and not link.closed
+        out["refusal"] = session.last_error if not out["connected"] else session.transport_refusal()
+        disc = session.discovery
+        p = disc.pairing
+        if out["connected"] and getattr(link, "protocol_version", 1) == 2 and p is not None and p.connection_ref == link.connection_ref:
+            out["pairing"] = p.view()
+            out["pairing_state"] = "verified" if p.binding_refusal(2, link.kid) is None else "mismatch"
+        elif disc.last_error in V2_NO_FALLBACK or (disc.last_error or "").startswith("pairing_"):
+            out["pairing_state"] = "mismatch" if disc.last_error == "pairing_mismatch" else "unknown"
+    except Exception:  # noqa: BLE001 - a status view never fails the page
+        pass
+    return out
 
 
 def shutdown(drain_s: float = 0.0) -> bool | None:

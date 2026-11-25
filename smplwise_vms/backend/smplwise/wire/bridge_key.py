@@ -165,6 +165,28 @@ class BridgeKeyBridgeKeyRevocation(ExactModel):
     step_up_ready: bool
 
 
+class BridgeKeyBridgeKeyDirectTransportPairing(ExactModel):
+    """WISKEY-DIRECT-V2-2520: the last `direct/pairing_status_v2` observation of the current v2 connection (never material)."""
+    protocol_version: Num
+    kid: str | None
+    source: str
+    verified_at: str
+    freshness_s: Num
+
+
+class BridgeKeyBridgeKeyDirectTransport(ExactModel):
+    """WISKEY-DIRECT-V2-2520: the direct transport status (no I/O). `pairing_state`: verified | mismatch | unknown."""
+    protocol_version: Num | None
+    kid: str | None
+    selection: str
+    installed: bool
+    connected: bool
+    pairing: BridgeKeyBridgeKeyDirectTransportPairing | None
+    pairing_state: str
+    refusal: str | None
+    revoke_in: str
+
+
 class BridgeKeyBridgeKey(ExactModel):
     enabled: bool
     go_live_permitted: bool
@@ -186,6 +208,7 @@ class BridgeKeyBridgeKey(ExactModel):
     watchdog: list[BridgeKeyBridgeKeyWatchdogItem]
     hand_over: BridgeKeyBridgeKeyHandOver
     revocation: BridgeKeyBridgeKeyRevocation
+    direct_transport: BridgeKeyBridgeKeyDirectTransport | None = None
 
 
 class BridgeKeyPutBridgeKeySettingsKey(ExactModel):

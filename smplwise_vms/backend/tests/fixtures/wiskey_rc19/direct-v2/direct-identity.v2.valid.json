@@ -1,0 +1,8 @@
+{
+  "protocol": "wiskey-direct-ws.v2",
+  "query_owner_id": "arx-service:synthetic",
+  "principal_kind": "pairing_service",
+  "connection_ref": "00000000000000000000000000000000",
+  "repository_id": "00000000-0000-4000-8000-000000000001",
+  "kid": "g0-legacy"
+}

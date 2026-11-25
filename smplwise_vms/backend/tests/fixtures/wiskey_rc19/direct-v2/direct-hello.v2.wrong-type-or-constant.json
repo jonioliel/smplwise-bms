@@ -1,0 +1,7 @@
+{
+  "type": {
+    "wrong_synthetic_type": true
+  },
+  "protocol": "wiskey-direct-ws.v2",
+  "challenge": "00000000000000000000000000000000"
+}
