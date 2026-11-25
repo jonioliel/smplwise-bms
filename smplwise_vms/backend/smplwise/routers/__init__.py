@@ -166,6 +166,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("access_control_station_people", "access-control"),  # WISKEY-PEOPLE-COMPLETE-2390: station-only people, duplicates, PIN check (its own line)
     Mount("wiskey_installer", "access-control"),  # WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools (system.configure)
     Mount("access_control_ops", "access-control"),  # WISKEY-OPS-VIEWS-2400: Settings › תפעול האינטרקום (its own line)
+    Mount("access_control_system_status", "access-control"),  # WISKEY-RESYNC-2520: WisKey system/status_v1 + jobs/status_v1 (its own line)
     Mount("doors", "access-control"),  # CR-033: door map, station placement, door grants, trusted path
     Mount("wiskey_relay_map", "access-control"),  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
     Mount("door_automations", "access-control"),  # CR-AUTODOORS-295: automations that open doors (its own line)

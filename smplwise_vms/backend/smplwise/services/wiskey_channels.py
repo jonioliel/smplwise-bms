@@ -97,7 +97,7 @@ MESSAGING_PACED = frozenset({"whatsapp/preview", "whatsapp/send_pacing_v1"})
 # leave Arx only as signed `bridge` envelopes (services/wiskey_media_bridge.py - the direct API or the signed Home Assistant path), never
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
-UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced", "visits_push"})
+UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced", "visits_push", "system_status", "relay_inventory", "station_sync_v1"})
 # WISKEY-STATION-OPS-2390 (plan 2026-11-03 T4): a station's maintenance from the stations drawer and its list action
 # (services/wiskey_station_ops.py): queue the station's sync, re-read its capabilities and inventory, refresh its health report, read its
 # clock again. All four are station-scoped and non-READ in the pinned catalog (`api_contract` on every frame); none sets anything on the
@@ -209,9 +209,26 @@ ACCESS_REVIEW = frozenset({"users/access_review_decide"})
 VISITS = frozenset({"visits/list", "guest_templates/get"})
 VISITS_PUSH = frozenset({"visits/record_external_v1"})
 
+# WISKEY-RESYNC-2520 (WisKey resync reply 24.11, PRODUCT 2.0.1-rc.19; plan docs/changes/WISKEY-RESYNC-2520.md): WisKey's numbered READ wires,
+# each a channel of its own so no existing list changes and nothing else can ride its guard. All post-date the rc.10 pin (unpinned).
+# - `system_status` (IN USE, services/wiskey_system_status.py): `system/status_v1` (contract wiskey-system-status.v1; WisKey: READ,
+#   `management: view` unrestricted) and `jobs/status_v1` (wiskey-checkpoint-jobs-status.v1; WisKey: READ, its original OWNER check). Both
+#   are READ commands in WisKey's api_contract (no `api_contract` on the frame); neither reads a device, starts a job or writes.
+# - `relay_inventory` (RESERVED for the 2.52 row WISKEY-RELAY-INV-2520, nothing sends on it yet): `stations/relay_inventory_v1`, a READ
+#   (`stations: view`) of observed API outputs, the saved mapping and unknown physical counts / roles. Never a relay test.
+# - `station_sync_v1` (RESERVED for the 2.52 row WISKEY-SYNC-V1-2520, nothing sends on it yet): `sync/station_v1`, the existing station
+#   sync request (the same queueing as `sync/station` on `maintenance`, which it will replace there) answered with an in-memory request id.
+# Reserved channels are registered here so that the 2.52 rows stay file-disjoint; tests/test_wiskey_system_status_2520.py proves that no
+# module but this one names a reserved channel until its row lands (a guard nobody calls sends nothing).
+SYSTEM_STATUS = frozenset({"system/status_v1", "jobs/status_v1"})
+RELAY_INVENTORY = frozenset({"stations/relay_inventory_v1"})
+STATION_SYNC_V1 = frozenset({"sync/station_v1"})
+RESERVED_CHANNELS = frozenset({"relay_inventory", "station_sync_v1"})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED, "visits": VISITS, "visits_push": VISITS_PUSH}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review", "messaging_paced", "visits", "visits_push")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED, "visits": VISITS, "visits_push": VISITS_PUSH,
+                                         "system_status": SYSTEM_STATUS, "relay_inventory": RELAY_INVENTORY, "station_sync_v1": STATION_SYNC_V1}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review", "messaging_paced", "visits", "visits_push", "system_status", "relay_inventory", "station_sync_v1")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -236,6 +253,9 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging_paced": frozenset(),
     "visits": frozenset(),
     "visits_push": frozenset(),
+    "system_status": frozenset(),
+    "relay_inventory": frozenset(),
+    "station_sync_v1": frozenset(),
 }
 
 
@@ -289,4 +309,7 @@ def describe() -> dict[str, Any]:
         "messaging_paced": {"commands": sorted(MESSAGING_PACED), "in_use": True},
         "visits": {"commands": sorted(VISITS), "in_use": True},
         "visits_push": {"commands": sorted(VISITS_PUSH), "in_use": True},
+        "system_status": {"commands": sorted(SYSTEM_STATUS), "in_use": True},
+        "relay_inventory": {"commands": sorted(RELAY_INVENTORY), "in_use": False},
+        "station_sync_v1": {"commands": sorted(STATION_SYNC_V1), "in_use": False},
     }

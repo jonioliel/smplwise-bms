@@ -1,0 +1,48 @@
+{
+  "format": "wiskey-system-status.v1",
+  "schema_version": 1,
+  "generated_at": "2026-11-14T00:00:00+00:00",
+  "observation_scope": "cached_software_only_no_device_reads",
+  "integration": {
+    "version": "2.0.1-rc.synthetic",
+    "api_contract": 1,
+    "profile": "manual-existing"
+  },
+  "stations": [],
+  "writes": {
+    "writes_enabled": null,
+    "reason_codes": [
+      "per_command_authorization_and_business_admission"
+    ],
+    "legacy_schedule_writes_enabled": false,
+    "legacy_schedule_reason": "schedule_writes_unverified",
+    "reviewed_schedule_contract": "wiskey-schedule-execution.v1",
+    "reviewed_schedule_reason": "original_ownership_fresh_source_and_review_required"
+  },
+  "jobs": {
+    "families": [],
+    "scope": "original_retained_jobs_per_family",
+    "running_scope": "retained_state_or_writing_intent_not_process_liveness",
+    "failed_window": "last_recorded_failure_state_updated_in_previous_24h",
+    "history_complete": false,
+    "reason_codes": [
+      "retention_can_remove_completed_jobs"
+    ]
+  },
+  "templates": {
+    "installation_state": "unavailable",
+    "configured_accounts": null,
+    "configured_templates": null,
+    "reason_codes": [
+      "template_installation_unavailable"
+    ],
+    "send_admission": "original_per_operation_guards"
+  },
+  "schedules": {
+    "legacy_writes_enabled": false,
+    "reviewed_execution_contract": "wiskey-schedule-execution.v1",
+    "physical_acceptance": "not_measured"
+  },
+  "physical_result": "not_measured",
+  "unexpected": true
+}
