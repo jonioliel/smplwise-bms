@@ -10,7 +10,11 @@
 - סנכרון תחנה עם מספר בקשה כש-WisKey תומך בו; בלי ניסיון חוזר אוטומטי ובלי מעבר לפקודה הישנה אחרי סירוב. - Station sync with a request id when WisKey supports it; no automatic retry and no fallback to the classic command after a refusal.
 - חיבור ישיר ל-WisKey בגרסה 2 (מזהה מפתח, מצב צימוד v2), עם גשר 0.10.9. - WisKey direct transport v2 (key id, pairing status v2), with bridge 0.10.9.
 
+- מפתח גישה כשלב השני בכניסה מרחוק גם למשתמשי מערכת הבית (כבוי כברירת מחדל; ההגדרה security.passkey_remote_factor). - A passkey as the second step of a remote sign-in for home-system users too (off by default; the security.passkey_remote_factor setting).
+
 ### שופר - Improved
+- סקירת האימות הדו־שלבי של 2.51.0: שלושה תיקוני אבטחה קטנים, ומדריך לבעל המערכת בעברית ובאנגלית. - The second-factor review of 2.51.0: three small security fixes, and an owner guide in Hebrew and English.
+- האזנה לעמדה: מצב התכונה נקבע לפי הגילוי החתום האחרון של WisKey (החיבור הישיר, אחרת הבדיקה החתומה האחרונה שהתקבלה); כל עוד לא ידוע - "לא ידוע"; האזנה שהעמדה לא מציעה נדחית לפני פתיחת שיחה. - Station listening: the feature state follows WisKey's last negotiated signed discovery (the direct connection, else the last accepted signed check); while not known it says "unknown"; a listen the station does not offer is refused before any talk is opened.
 - רישום ביקורים חיצוניים ב-WisKey לפי החוזה של rc.19; ביקור שהסתיים מוצג כ"הסתיים" לאורך כל המסלול. - External visit records in WisKey follow the rc.19 contract; an ended visit is labelled "ended" end to end.
 - אשף גילוי המצלמות: "אותו דבר לכולן" הוא מתג; צבעים ומידות לפי ערכי העיצוב המשותפים. - Camera discovery wizard: "same for all" is a switch; colours and sizes use the shared design tokens.
 
