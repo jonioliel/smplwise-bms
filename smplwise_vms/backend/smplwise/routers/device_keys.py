@@ -220,6 +220,9 @@ def revoke(key_id: str, request: Request, principal: Principal = Depends(current
     step_up.forget_user(principal.user_id)  # no step-up proof outlives the factor it may have come from
     audit(conn, actor=principal, action="auth.device_key.revoked", decision="allowed", resource_type="device_key", resource_id=row["id"],
           request_id=_rid(request), details={"user_id": principal.user_id, "fp": dk.fingerprint_prefix(row), "by": "self"})
+    from ..services import notify_sources
+
+    notify_sources.second_factor_changed(conn, principal.user_id, "removed:device_key")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
     return {"id": row["id"], "revoked": True}
 
 

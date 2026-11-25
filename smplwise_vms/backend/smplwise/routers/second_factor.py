@@ -174,6 +174,7 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
 
         factor_cleared = local_identity.on_factor_removed(conn, principal.user_id)
     _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self", factor_cleared=factor_cleared)
+    notify_sources.second_factor_changed(conn, principal.user_id, "removed:totp")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
     capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     return sf.status(conn, principal.user_id)
 
@@ -504,4 +505,5 @@ def recovery_regenerate(request: Request, body: RecoveryBody | None = None, prin
                                 "verify_path": "auth/step-up/verify"})
     codes, voided = rc.generate(conn, principal.user_id)
     _audit_batch(conn, request, principal, "regenerate", voided)
+    notify_sources.second_factor_changed(conn, principal.user_id, "recovery_batch")  # MFA-FACTOR-HARDEN-2520 N-6: never a code in it
     return {"codes": codes, **rc.status(conn, principal.user_id)}

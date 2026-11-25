@@ -56,7 +56,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
-from ..services import factor_reset
+from ..services import factor_reset, notify_sources
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
@@ -241,8 +241,10 @@ def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, pri
     proof = upk.removal_proof(conn, request, principal, code, local_session=s)
     if s is None:
         out = upk.remove(conn, principal, pk_id, proof=proof, request_id=_rid(request))
+        notify_sources.second_factor_changed(conn, principal.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
         return {**out, **upk.summary(conn, principal.user_id)}
     out = lpk.remove(conn, s.user_id, pk_id, actor=principal, by="self", keep_chain=s.chain_id, request_id=_rid(request))
+    notify_sources.second_factor_changed(conn, s.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
     if not upk.has_factor(conn, s.user_id):
         step_up.forget_user(s.user_id)  # MFA-PASSKEYS-2490: no step-up proof outlives the last factor
     if out["sessions_ended"]:
@@ -353,6 +355,7 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
     out = lpk.remove(conn, user_id, pk_id, actor=principal, by="admin", keep_chain=None, request_id=_rid(request))
     audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="allowed", resource_type="user", resource_id=user_id,
           request_id=_rid(request), details={"passkey": pk_id, "step_up": step_up, "sessions_ended": out["sessions_ended"]})
+    notify_sources.second_factor_changed(conn, user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
     if out["sessions_ended"]:
         li.close_sockets_from_thread()
     return {"user_id": user_id, **out, **lpk.summary(conn, user_id)}
