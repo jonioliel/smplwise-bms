@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-button';
 import './sw-dialog';
 import { cdt } from '../i18n/confirm-dialog';
+import { enterAnswer, type EnterTarget } from './confirm-dialog-keys';
 
 /**
  * CR-CONFIRM-DIALOG-2438 (owner Q-SYS-6 / O7 a; code review 06:CMP-1, 07:F18): the browser's native confirm() box ignored the skin,
@@ -11,8 +12,9 @@ import { cdt } from '../i18n/confirm-dialog';
  *
  *   if (!(await confirmDialog({ body: 'למחוק?', danger: true }))) return;
  *
- * Keyboard, as the native box: the confirm button has the focus, Enter confirms (Enter on the focused cancel button cancels), Escape
- * cancels. While the dialog is open no other key reaches the page (a native box is modal for the keyboard too), except Tab, which the
+ * Keyboard, as the native box: the confirm button has the focus and Enter there confirms; Escape cancels. FE-SAFETY-FIX-2520 (review
+ * FC-04): Enter confirms ONLY on the confirm button - on cancel and on the ✕ it cancels, anywhere else it is the focused element's own
+ * key and never confirms (confirm-dialog-keys.ts). While the dialog is open no other key reaches the page (a native box is modal for the keyboard too), except Tab, which the
  * dialog's own focus trap keeps inside the box. The ✕ and a click on the backdrop cancel. Focus returns to the control that opened it.
  *
  * The guard tests/unit-no-native-dialogs.spec.ts fails on any new window.confirm / alert / prompt in frontend/src.
@@ -84,13 +86,28 @@ export class SwConfirmDialog extends LitElement {
       e.preventDefault();
       this.answer(false);
     } else if (e.key === 'Enter') {
+      const answer = enterAnswer(this.enterTarget());
+      if (answer === 'pass') return; // a link or field of the body keeps its own Enter; nothing is confirmed
       e.preventDefault();
-      const cancel = this.renderRoot.querySelector('[data-confirm-cancel]');
-      const a = deepActive();
-      const onCancel = !!a && !!cancel && (a === cancel || cancel.shadowRoot?.contains(a) === true);
-      this.answer(!onCancel);
+      if (answer !== 'ignore') this.answer(answer === 'confirm');
     }
   };
+
+  /** FE-SAFETY-FIX-2520 (review FC-04): which of the dialog's controls holds the focus (up through the shadow roots). */
+  private enterTarget(): EnterTarget {
+    const a = deepActive();
+    if (!a) return 'none';
+    const ok = this.renderRoot.querySelector('[data-confirm-ok]');
+    const cancel = this.renderRoot.querySelector('[data-confirm-cancel]');
+    const close = this.renderRoot.querySelector('sw-dialog')?.shadowRoot?.querySelector('[data-dialog-close]') ?? null;
+    for (let n: Node | null = a; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) {
+      if (n === ok) return 'confirm';
+      if (n === cancel) return 'cancel';
+      if (n === close) return 'close';
+      if (n === this) return 'other';
+    }
+    return 'none'; // outside the box: before the dialog moved the focus, or the page behind
+  }
 
   connectedCallback() {
     super.connectedCallback();

@@ -698,6 +698,9 @@ export async function logout(reason: SignOutReason = 'logout', native: NativeSig
   window.clearInterval(idleTimer);
   idleTimer = 0;
   try {
+    // FE-SAFETY-FIX-2520 (review FC-02): this browser stops receiving the user's notifications - before the session ends (the row is
+    // deleted as this user); best effort, bounded, loaded on demand (the sign-in page never needs the push module)
+    await import('../pwa/push-signout').then((m) => m.dropOnSignOut()).catch(() => false);
     if (t) await revoke(t.refresh_token);
     try {
       const res = await fetch('api/v1/auth/session', { method: 'DELETE', credentials: 'same-origin' });
