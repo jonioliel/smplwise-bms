@@ -142,6 +142,7 @@ export const homeExtraStyles = css`
   .acc-body { inline-size: 100%; max-block-size: 60vh; overflow-y: auto; overscroll-behavior: contain; padding-block: var(--sw-s-1); font-family: var(--hs-font);
     --sw-text: var(--hs-text); --sw-text-2: var(--hs-text-2); --sw-text-3: var(--hs-text-3); --sw-heading: var(--hs-heading); --sw-text-inverse: var(--hs-text-inverse);
     --sw-surface: var(--hs-surface-solid); --sw-surface-solid: var(--hs-surface-solid); --sw-surface-2: var(--hs-surface-2); --sw-surface-3: var(--hs-surface-3);
+    --sw-surface-2-solid: var(--hs-surface-2); --sw-surface-3-solid: var(--hs-surface-3); --sw-highlight: transparent; /* the skin's raised button face (domus / classic) */
     --sw-border: var(--hs-border); --sw-border-strong: var(--hs-border-strong); --sw-menu-border: var(--hs-border); --sw-menu-surface: var(--hs-surface-solid);
     --sw-accent: var(--hs-accent); --sw-accent-hover: var(--hs-accent-hover); --sw-accent-soft: var(--hs-accent-soft); --sw-accent-text: var(--hs-accent-text); --sw-focus: var(--hs-focus);
     --sw-success: var(--hs-live); --sw-success-text: var(--hs-live-text); --sw-live: var(--hs-live); --sw-live-soft: var(--hs-live-soft); --sw-live-text: var(--hs-live-text);

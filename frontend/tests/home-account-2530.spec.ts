@@ -46,7 +46,8 @@ async function audit(page: Page, min: number) {
     if (r.top < -0.5 || r.bottom > innerHeight + 0.5 || r.left < -0.5 || r.right > innerWidth + 0.5) out.push(`sheet off screen ${Math.round(r.top)}..${Math.round(r.bottom)}`);
     const seg = sh.querySelector('sw-segmented');
     const keys = [...Array.from(sh.querySelectorAll<HTMLElement>('header button')), ...Array.from(seg?.shadowRoot?.querySelectorAll<HTMLElement>('button') ?? [])];
-    const small = keys.map((el) => el.getBoundingClientRect()).filter((b) => b.width && Math.min(b.width, b.height) < m - 0.5).map((b) => `${Math.round(b.width)}x${Math.round(b.height)}`);
+    // a segmented key's hit area reaches 4 px above and below it (the home's phone rule, home-v3-gaps-2436.spec.ts audit)
+    const small = keys.map((el) => ({ b: el.getBoundingClientRect(), extra: el.closest('.seg') ? 8 : 0 })).filter(({ b, extra }) => b.width && Math.min(b.width, b.height + extra) < m - 0.5).map(({ b }) => `${Math.round(b.width)}x${Math.round(b.height)}`);
     const text = (root as unknown as { textContent: string }).textContent + ' ' + (seg?.shadowRoot?.textContent ?? '');
     return { out, small, text, dir: getComputedStyle(sh).direction };
   }, min);
