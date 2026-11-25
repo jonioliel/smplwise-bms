@@ -224,6 +224,11 @@ test.describe('the people screen against the fixture WisKey (wiskey_fake_ha.py)'
     await expect(drawer(page)).toBeVisible({ timeout: 15000 });
   }
 
+  /** The person's page keeps the stations on its "גישה" tab. */
+  async function accessTab(page: Page) {
+    await drawer(page).locator('[data-person-tab="access"]').click();
+  }
+
   async function closePerson(page: Page) {
     await drawer(page).locator('[data-drawer-close]').first().click();
     await expect(drawer(page)).toBeHidden();
@@ -408,9 +413,10 @@ test.describe('the people screen against the fixture WisKey (wiskey_fake_ha.py)'
     await openPerson(page, 'u002'); // Yossi Levi: gate pending
     const d = drawer(page);
     await expect(d).toHaveAttribute('heading', 'Yossi Levi');
+    await expect(d.locator('[data-person-state]')).toHaveAttribute('data-person-state', 'active', { timeout: 15000 });
+    await accessTab(page);
     await expect(d.locator('[data-person-station="gate"]')).toContainText('שער ראשי', { timeout: 15000 });
     await expect(d.locator('[data-person-station="gate"] [data-person-sync]')).toHaveAttribute('data-person-sync', 'pending');
-    await expect(d.locator('[data-person-state]')).toHaveAttribute('data-person-state', 'active');
     await expect.poll(fetched).toContain('u002');
     // the administrator holds the sensitive level: the edit entry is on the page; a PIN or a card number never is
     await expect(d.locator('[data-wiskey-person-edit]')).toHaveCount(1);
@@ -419,6 +425,7 @@ test.describe('the people screen against the fixture WisKey (wiskey_fake_ha.py)'
     // u001 (Dana): two stations
     await closePerson(page);
     await openPerson(page, 'u001');
+    await accessTab(page);
     await expect(drawer(page).locator('[data-person-station]')).toHaveCount(2, { timeout: 15000 });
 
     // a change notice reads the list again; the open person is read again only when ITS revision changed

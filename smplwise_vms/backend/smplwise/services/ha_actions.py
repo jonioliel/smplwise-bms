@@ -97,16 +97,20 @@ def still_grouped_elsewhere(conn: sqlite3.Connection, entity_id: str, attrs: dic
     while it is grouped (system-V's cross-brand group of four), so its own `[]` - already there before the call - proves nothing,
     and the record was "confirmed" before the leader dropped it (the group report then said `unknown` for a room that left a moment
     later). The player is still grouped while another player lists it in a group of two or more, or (Music Assistant) while its
-    `active_queue` is another Music Assistant player's id."""
+    `active_queue` is another Music Assistant player's id. A static group (a Music Assistant player of type `group`, or a `group`
+    helper) always lists its children and is never a live group (resolve_groups), so it does not count."""
     rows = conn.execute(
-        "SELECT attributes_json FROM ha_entities WHERE domain = 'media_player' AND entity_id != ? AND removed_at IS NULL AND attributes_json LIKE ?",
+        "SELECT platform, attributes_json FROM ha_entities WHERE domain = 'media_player' AND entity_id != ? AND removed_at IS NULL AND attributes_json LIKE ?",
         (entity_id, f"%{entity_id}%"),
     ).fetchall()
     for r in rows:
         try:
-            gm = json.loads(r["attributes_json"] or "{}").get("group_members")
+            other = json.loads(r["attributes_json"] or "{}")
         except ValueError:
             continue
+        if not isinstance(other, dict) or r["platform"] == "group" or other.get("mass_player_type") == "group":
+            continue
+        gm = other.get("group_members")
         if isinstance(gm, list) and len(gm) > 1 and entity_id in gm:
             return True
     queue = str(attrs.get("active_queue") or "").strip().lower()

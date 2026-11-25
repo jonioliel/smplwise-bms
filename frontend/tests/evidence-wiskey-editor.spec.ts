@@ -131,6 +131,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       await expect(p.locator(`${SCREEN} [data-wiskey-people-add]`)).toHaveCount(0);
       const detail = await openPerson(p, 'u002');
       await expect(detail).toHaveAttribute('heading', 'Yossi Levi');
+      await detail.locator('[data-person-tab="access"]').click();
       await expect(detail.locator('[data-person-station="gate"]')).toBeVisible({ timeout: 15000 });
       await expect(detail.locator('[data-wiskey-person-edit]')).toHaveCount(0);
       expect((await p.request.get('/api/v1/intercom/people-editor/context')).status()).toBe(403);
@@ -239,6 +240,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     // number (the new person sorts after the first page, so the found row is opened)
     const detail = await openPerson(page, createdId);
     await expect(detail).toHaveAttribute('heading', 'נועה ברק', { timeout: 15000 });
+    await detail.locator('[data-person-tab="access"]').click();
     await expect(detail.locator('[data-person-station]')).toHaveCount(2, { timeout: 15000 });
     await expect(detail).not.toContainText(PIN);
     await expect(detail).not.toContainText(CARD);
