@@ -197,10 +197,15 @@ test.describe('ONVIF-UI-2500 camera discovery', () => {
     // one user / password; several ticked need "same for all"
     await page.locator('[data-discovery-user]').fill('viewer');
     await page.locator('[data-discovery-password]').fill(GOOD);
-    await page.locator('[data-discovery-same]').uncheck();
+    // DESIGN-LITERALS-2510: "same for all" is the compact switch (sw-toggle reflects `checked`); a press flips it
+    const same = page.locator('[data-discovery-same]');
+    await expect(same).toHaveAttribute('checked', '');
+    await same.click();
+    await expect(same).not.toHaveAttribute('checked', '');
     await expect(page.locator('[data-discovery-block="same"]')).toBeVisible();
     await expect(page.locator('[data-discovery-identify]')).toHaveAttribute('disabled', '');
-    await page.locator('[data-discovery-same]').check();
+    await same.click();
+    await expect(same).toHaveAttribute('checked', '');
     await page.locator('[data-discovery-identify]').click();
     await expect(row('d-21')).toHaveAttribute('data-auth', 'ok');
     const press = m.bodies.find((b) => b.route.endsWith('/identify'))!;

@@ -54,60 +54,60 @@ const MODULE_LABEL: Record<HomeModule, string> = {
 export class SwHomeAdmin extends LitElement {
   static styles = css`
     /* HOME-V3-P1-2430: a room's wallpaper for everyone */
-    .walls { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 10px; }
-    .wopt { display: grid; gap: 4px; justify-items: center; inline-size: 88px; padding: 6px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: 13px; cursor: pointer; min-block-size: 44px; }
+    .walls { display: flex; flex-wrap: wrap; gap: var(--sw-s-2); margin-block-start: 10px; }
+    .wopt { display: grid; gap: var(--sw-s-1); justify-items: center; inline-size: 88px; padding: var(--sw-s-1h); border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: 13px; cursor: pointer; min-block-size: 44px; }
     .wopt[aria-pressed="true"] { outline: 2px solid var(--sw-accent); outline-offset: 1px; }
     .wpv { inline-size: 72px; block-size: 44px; border-radius: 6px; background: var(--sw-surface-2); }
-    .up { display: inline-flex; align-items: center; min-block-size: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--sw-border); cursor: pointer; }
+    .up { display: inline-flex; align-items: center; min-block-size: 40px; padding: 0 var(--sw-s-3h); border-radius: 8px; border: 1px solid var(--sw-border); cursor: pointer; }
 
     :host { display: block; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--sw-gap-lg, 20px); align-items: start; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--sw-gap-lg); align-items: start; }
     @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-    .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg, 12px); padding: 12px; min-inline-size: 0; }
-    .users { display: grid; gap: 2px; padding: 6px; }
-    .u { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-block-size: 44px; padding: 0 10px; border: 0; border-radius: var(--sw-r-md, 8px); background: none; color: var(--sw-text); font: inherit; text-align: start; cursor: pointer; }
+    .card { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: var(--sw-s-3); min-inline-size: 0; }
+    .users { display: grid; gap: 2px; padding: var(--sw-s-1h); }
+    .u { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-block-size: 44px; padding: 0 10px; border: 0; border-radius: var(--sw-r-md); background: none; color: var(--sw-text); font: inherit; text-align: start; cursor: pointer; }
     .u[aria-current='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
     .u b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-    .chip { font-size: var(--sw-fs-xs, 12px); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+    .chip { font-size: var(--sw-fs-xs); padding: 2px var(--sw-s-2); border-radius: 999px; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
     .chip.home { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
-    h3 { margin: 0 0 4px; font-size: var(--sw-fs-lg, 16px); color: var(--sw-heading); }
-    .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 10px; border-block-start: 1px solid var(--sw-border); }
-    .note { color: var(--sw-text-3); font-size: var(--sw-fs-sm, 13px); }
-    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-block-start: 1px solid var(--sw-border); padding-block-start: 10px; }
+    h3 { margin: 0 0 var(--sw-s-1); font-size: var(--sw-fs-lg); color: var(--sw-heading); }
+    .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sw-s-3); align-items: center; padding-block: 10px; border-block-start: 1px solid var(--sw-border); }
+    .note { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sw-s-4); border-block-start: 1px solid var(--sw-border); padding-block-start: 10px; }
     @media (max-width: 600px) { .cols { grid-template-columns: 1fr; } }
-    .chk { display: flex; align-items: center; gap: 8px; min-block-size: 32px; font-size: var(--sw-fs-sm, 13px); }
-    .chk input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
-    .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--sw-gap-lg, 20px); align-items: start; }
-    .srow.stack { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-    .times { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    .times label { display: inline-flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm, 13px); color: var(--sw-text-2); }
-    select, input[type='password'], input[type='time'] { font: inherit; min-block-size: 36px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md, 8px); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; }
-    .msg { margin-block: 8px; font-size: var(--sw-fs-sm, 13px); } .msg.err { color: var(--sw-danger); } .msg.ok { color: var(--sw-success); }
-    .extra { display: grid; gap: 10px; margin-block-start: 16px; }
-    .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .subtabs { margin-block-end: 16px; }
-    .opts { display: grid; gap: 6px; }
-    .opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--sw-r-md, 8px); cursor: pointer; }
+    .chk { display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: 32px; font-size: var(--sw-fs-sm); }
+    .chk input { inline-size: var(--sw-check-size); block-size: var(--sw-check-size); accent-color: var(--sw-accent); }
+    .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--sw-gap-lg); align-items: start; }
+    .srow.stack { grid-template-columns: minmax(0, 1fr); gap: var(--sw-s-2); }
+    .times { display: flex; gap: var(--sw-s-3); flex-wrap: wrap; align-items: center; }
+    .times label { display: inline-flex; gap: var(--sw-s-2); align-items: center; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+    select, input[type='password'], input[type='time'] { font: inherit; min-block-size: 36px; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); background: var(--sw-surface); color: var(--sw-text); padding: 0 10px; }
+    .msg { margin-block: var(--sw-s-2); font-size: var(--sw-fs-sm); } .msg.err { color: var(--sw-danger); } .msg.ok { color: var(--sw-success); }
+    .extra { display: grid; gap: 10px; margin-block-start: var(--sw-s-4); }
+    .inline { display: flex; gap: var(--sw-s-2); align-items: center; flex-wrap: wrap; }
+    .subtabs { margin-block-end: var(--sw-s-4); }
+    .opts { display: grid; gap: var(--sw-s-1h); }
+    .opt { display: flex; gap: 10px; align-items: flex-start; padding: var(--sw-s-2) 10px; border-radius: var(--sw-r-md); cursor: pointer; }
     .opt:hover { background: var(--sw-surface-2); }
     .opt input { margin-block-start: 3px; accent-color: var(--sw-accent); inline-size: 16px; block-size: 16px; }
     .opt b { display: block; font-weight: 600; }
     .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block-end: 10px; }
-    .bulk { position: sticky; inset-block-start: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; margin-block-end: 8px;
-      border-radius: var(--sw-r-md, 8px); background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+    .bulk { position: sticky; inset-block-start: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: var(--sw-s-2); align-items: center; padding: var(--sw-s-2) 10px; margin-block-end: var(--sw-s-2);
+      border-radius: var(--sw-r-md); background: var(--sw-accent-soft); color: var(--sw-accent-text); }
     .bulk[hidden] { display: none; }
     .bulk .count { font-weight: 600; margin-inline-end: auto; }
-    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm, 13px); }
-    th, td { text-align: start; padding: 8px 6px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
-    th { color: var(--sw-text-3); font-weight: 600; font-size: var(--sw-fs-xs, 12px); }
+    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
+    th, td { text-align: start; padding: var(--sw-s-2) var(--sw-s-1h); border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
+    th { color: var(--sw-text-3); font-weight: 600; font-size: var(--sw-fs-xs); }
     td.c { inline-size: 32px; }
     td input, th input { inline-size: 16px; block-size: 16px; accent-color: var(--sw-accent); }
     tr[aria-selected='true'] td { background: var(--sw-surface-2); }
-    .cls { font-size: var(--sw-fs-xs, 12px); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+    .cls { font-size: var(--sw-fs-xs); padding: 2px var(--sw-s-2); border-radius: 999px; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
     .cls.light { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
     .cls.protected { background: var(--sw-surface-3, var(--sw-surface-2)); color: var(--sw-heading); font-weight: 600; }
-    .sug { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .sug .why { color: var(--sw-text-3); font-size: var(--sw-fs-xs, 12px); }
-    .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-block-start: 8px; color: var(--sw-text-3); font-size: var(--sw-fs-sm, 13px); }
+    .sug { display: inline-flex; gap: var(--sw-s-1h); align-items: center; flex-wrap: wrap; }
+    .sug .why { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+    .pager { display: flex; gap: var(--sw-s-2); align-items: center; justify-content: flex-end; margin-block-start: var(--sw-s-2); color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
   `;
 
   @state() private data: Policies | null = null;
@@ -280,7 +280,7 @@ export class SwHomeAdmin extends LitElement {
         ${opt('kiosk_exit', 'code', tr('נעול, יציאה בקוד מנהל'), tr('ברירת המחדל. לחיצה ארוכה על השעון מבקשת את הקוד.'))}
         ${opt('kiosk_exit', 'none', tr('נעול לממשק הביתי ולחדר שלו, בלי יציאה'), tr('אין תפריט אישי ואין דרך לצאת מהמסך עצמו. משנים רק מכאן.'))}
       </div>
-      <h3 style="margin-block-start:16px">${tr('רקע לחדרים')}</h3><div class="opts">
+      <h3 style="margin-block-start:var(--sw-s-4)">${tr('רקע לחדרים')}</h3><div class="opts">
         ${opt('wallpaper', 'none', tr('בלי רקע'), tr('ברירת המחדל: מסך נקי.'))}
         ${opt('wallpaper', 'gallery', tr('גלריה מוכנה'), tr('כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.'))}
         ${opt('wallpaper', 'gallery_image', tr('גלריה ותמונה אישית'), tr('בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.'))}
@@ -319,7 +319,7 @@ export class SwHomeAdmin extends LitElement {
       <section class="card" aria-label="${tr('מצב לילה')}"><h3>${tr('מצב לילה')}</h3>
         <div class="srow"><div><b>${tr('מצב לילה')}</b><div class="note">${tr('בשעות הלילה רק מחשיכים את המסך. זה עובד בכל טאבלט, בלי לגעת בתאורה האחורית של המכשיר.')}</div></div><sw-toggle label="${tr('מצב לילה')}" labelHidden data-wall-night-toggle ?checked=${i.wall_night === 'on'} @change=${(e: CustomEvent<{ checked: boolean }>) => save({ wall_night: e.detail.checked ? 'on' : 'off' })}></sw-toggle></div>
         <div class="srow stack"><div><b>${tr('שעות הלילה')}</b><div class="note">${empty ? tr('שעת ההתחלה ושעת הסיום זהות, ולכן אין לילה.') : tr('ברירת המחדל: 23:00 עד 06:00, לפי השעון של הבניין.')}</div></div><div class="times">${time('wall_night_start', tr('מ-'))}${time('wall_night_end', tr('עד'))}</div></div>
-        <div class="opts" style="margin-block-start:8px">
+        <div class="opts" style="margin-block-start:var(--sw-s-2)">
           ${opt('wall_night_dim', 'soft', tr('החשכה קלה'), tr('המסך עדיין קריא מרחוק.'))}
           ${opt('wall_night_dim', 'medium', tr('החשכה בינונית'), tr('ברירת המחדל.'))}
           ${opt('wall_night_dim', 'strong', tr('החשכה חזקה'), tr('לחדר שינה או למסדרון חשוך.'))}
@@ -330,7 +330,7 @@ export class SwHomeAdmin extends LitElement {
         ${opt('wall_takeover', 'alarm', tr('רק אזעקה'), tr('הודעות דחופות מופיעות רק בלוח ההודעות.'))}
         ${opt('wall_takeover', 'call_only', tr('רק שיחת דלת, כמו קודם'), tr('אזעקה והודעות לא משתלטות על המסך.'))}
       </div>
-        <div class="srow stack" data-wall-notice-new style="margin-block-start:12px"><div><b>${tr('כמה זמן הודעה מסומנת «חדש»')}</b><div class="note">${i.wall_notice_new === 'read' ? tr('כמו קודם: כל מסך קיר מסמן «קראתי» לעצמו, וההודעה כבר לא חדשה אחרי שמישהו קרא אותה בו.') : tr('מסך קיר משותף לכל הבית, ולכן אין בו «קראתי». הודעה מסומנת «חדש» מרגע הפרסום. ברירת המחדל: יומיים.')}</div></div><sw-segmented size="sm" label="${tr('כמה זמן הודעה מסומנת «חדש»')}" .options=${freshOpts} value=${i.wall_notice_new} @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value !== i.wall_notice_new) void save({ wall_notice_new: e.detail.value as InstallSettings['wall_notice_new'] }); }}></sw-segmented></div>
+        <div class="srow stack" data-wall-notice-new style="margin-block-start:var(--sw-s-3)"><div><b>${tr('כמה זמן הודעה מסומנת «חדש»')}</b><div class="note">${i.wall_notice_new === 'read' ? tr('כמו קודם: כל מסך קיר מסמן «קראתי» לעצמו, וההודעה כבר לא חדשה אחרי שמישהו קרא אותה בו.') : tr('מסך קיר משותף לכל הבית, ולכן אין בו «קראתי». הודעה מסומנת «חדש» מרגע הפרסום. ברירת המחדל: יומיים.')}</div></div><sw-segmented size="sm" label="${tr('כמה זמן הודעה מסומנת «חדש»')}" .options=${freshOpts} value=${i.wall_notice_new} @change=${(e: CustomEvent<SegmentedChange>) => { if (e.detail.value !== i.wall_notice_new) void save({ wall_notice_new: e.detail.value as InstallSettings['wall_notice_new'] }); }}></sw-segmented></div>
       </section></div>`;
   }
 
