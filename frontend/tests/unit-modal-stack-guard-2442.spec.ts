@@ -27,7 +27,7 @@ const ON_STACK: Record<string, { n: number; via?: string }> = {
   // the home interface: every overlay is drawn in sw-home's `ovl` slot - one HandModal layer
   'home/sw-home.ts': { n: 12 }, // MULTI-BUILDING-HOME-2500: + the building picker sheet (an overlay type of the same stack)
   'home/home-alarm.ts': { n: 1, via: 'home/sw-home.ts' },
-  'home/home-calendar.ts': { n: 1, via: 'home/sw-home.ts' },
+  'home/home-calendar.ts': { n: 2, via: 'home/sw-home.ts' }, // SCREENS-FIX-B-2520 SCR-04: + the "cancel one date of a series" alertdialog (the same hscrim sheet, drawn by sw-home's overlay stack)
   'home/home-intercom.ts': { n: 2, via: 'home/sw-home.ts' },
   'home/home-notices.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-p3-announce.ts': { n: 1, via: 'home/sw-home.ts' },
