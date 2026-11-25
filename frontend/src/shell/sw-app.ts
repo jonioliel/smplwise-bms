@@ -2971,12 +2971,12 @@ export class SwApp extends LitElement {
 
   private get userName(): string {
     const me = this.session.me;
-    return me?.user.display_name || me?.user.username || (this.session.mode === 'demo' ? 'יוני' : '');
+    return me?.user.display_name || me?.user.username || (this.session.mode === 'demo' ? 'יוני' : ''); // i18n-keep: demo data: invented names, as the api demo stores
   }
 
   private get userRole(): string {
     const me = this.session.me;
-    return me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : this.session.mode === 'loading' ? '' : tr('ללא שיוך'));
+    return me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : this.session.mode === 'loading' ? '' : tr('ללא שיוך')); // i18n-keep: demo data: invented names, as the api demo stores
   }
 
   /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */

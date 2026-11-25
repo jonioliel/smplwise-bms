@@ -4,10 +4,10 @@
 
 import { tr } from '../i18n/msg/components';
 export const REQUEST_TITLE = tr('בקשה לאדריכל');
-export const REQUEST_FILE_NAME = 'בקשה_לאדריכל.txt';
+export const REQUEST_FILE_NAME = tr('בקשה_לאדריכל.txt');
 /** A mailto: link longer than this is unreliable in mail clients and browsers (the practical ceiling is ~2000 characters). */
 export const MAILTO_MAX = 1800;
-export const MAILTO_SHORT_BODY = 'הבקשה המלאה מצורפת';
+export const MAILTO_SHORT_BODY = tr('הבקשה המלאה מצורפת');
 
 /** LF line endings, no BOM, no trailing blank lines: the same text whatever way the file was checked out. */
 export function normalizeRequest(raw: string): string {

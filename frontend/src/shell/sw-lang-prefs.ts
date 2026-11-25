@@ -4,7 +4,7 @@ import { tr } from '../i18n/msg/shell';
 import { UI_LANGS, currentUiLang, setUiLang, type UiLang } from '../i18n/ui-lang';
 
 /** Each language is named in itself, whatever the interface language is. */
-export const UI_LANG_NAMES: Record<UiLang, string> = { he: 'עברית', en: 'English' };
+export const UI_LANG_NAMES: Record<UiLang, string> = { he: 'עברית', en: 'English' }; // i18n-keep: the Hebrew language's own name
 
 /**
  * החשבון שלי › שפה (I18N-EN-SWITCH-2438, owner round 32 Q-SYS-7 b): the user's interface language, Hebrew (default) or English,

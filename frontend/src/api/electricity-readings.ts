@@ -106,14 +106,17 @@ export function fixtureReadingLog(meterId: string, systemKwh = 0): ReadingLog {
   const rd = (id: string, at: string, kwh: number, sys: number | null, effect: ReadingEffect, reason: EffectReason, extra: Partial<ManualReading> = {}): ManualReading => ({
     id, read_at: at, value_kwh: kwh, value_wh: Math.round(kwh * 1000), typed_value: String(kwh), typed_unit: 'kWh', system_kwh: sys, system_exact: sys != null,
     deviation_kwh: sys == null ? null : Math.round((kwh - sys) * 1000) / 1000, effect, effect_reason: reason, message: TEXT[reason], note: null,
+    // i18n-keep: demo data: invented names, as the api demo stores
     created_at: at, created_by_name: 'דנה', voided_at: null, voided_by_name: null, void_reason: null, can_undo: false, undo_until: null, ...extra,
   });
   if (meterId === 'm1') {
     log.items = [
       rd('r2', '2026-10-01T06:10:00Z', 247215.6, 245830.1, 'record', 'reported'),
+      // i18n-keep: demo data: invented names, as the api demo stores
       rd('r1', '2026-09-01T06:05:00Z', 230981.0, 229712.4, 'record', 'reported', { note: 'קריאה בלוח הראשי' }),
     ];
     log.calibrations = [{ id: 'c1', effective_date: '2026-10-02', effective_from: '2026-10-01T21:00:00Z', factor: '1.0', offset_kwh: 1385.5, anchor_reading_id: 'r2', note: null, in_force: true,
+      // i18n-keep: demo data: invented names, as the api demo stores
       created_at: '2026-10-01T06:20:00Z', created_by_name: 'דנה', voided_at: null, voided_by_name: null, void_reason: null, can_undo: false, undo_until: null }];
     log.calibration = { factor: '1.0', offset_kwh: 1385.5, calibration_id: 'c1', effective_date: '2026-10-02', identity: false };
     log.suggestion = { factor: '1.0073', from_reading_id: 'r1', to_reading_id: 'r2', anchor_reading_id: 'r2' };
@@ -148,6 +151,7 @@ const demo: ReadingsAdapter = {
     const r: ManualReading = {
       id: body.dry_run ? null : `r${Date.now()}`, read_at: body.read_at, value_kwh: kwh, value_wh: Math.round(kwh * 1000), typed_value: body.value, typed_unit: body.unit, system_kwh: sys,
       system_exact: sys != null, deviation_kwh: sys == null ? null : Math.round((kwh - sys) * 1000) / 1000, effect: id === 'm8' ? 'allocation' : 'record', effect_reason: reason,
+      // i18n-keep: demo data: invented names, as the api demo stores
       message: TEXT[reason], note: body.note ?? null, created_at: new Date().toISOString(), created_by_name: 'דנה', voided_at: null, voided_by_name: null, void_reason: null,
       can_undo: true, undo_until: new Date(Date.now() + 86_400_000).toISOString(),
     };
@@ -160,6 +164,7 @@ const demo: ReadingsAdapter = {
     const r = log.items.find((x) => x.id === rid);
     if (!r) return demoError(404, 'not_found', tr('הקריאה לא נמצאה.'));
     if (!r.can_undo) return demoError(409, 'undo_window_passed', tr('עבר הזמן שבו אפשר לבטל את הקריאה (24 שעות).'));
+    // i18n-keep: demo data: invented names, as the api demo stores
     Object.assign(r, { voided_at: new Date().toISOString(), voided_by_name: 'דנה', void_reason: reason ?? null, can_undo: false });
     return delay(clone(log));
   },
@@ -172,6 +177,7 @@ const demo: ReadingsAdapter = {
     const offset = anchor && anchor.system_kwh != null ? Math.round((anchor.value_kwh - f * anchor.system_kwh) * 1000) / 1000 : Number(body.offset_kwh ?? 0);
     const c: Calibration = {
       id: body.dry_run ? null : `c${Date.now()}`, effective_date: body.effective_date, effective_from: `${body.effective_date}T00:00:00Z`, factor: String(f), offset_kwh: offset,
+      // i18n-keep: demo data: invented names, as the api demo stores
       anchor_reading_id: body.anchor_reading_id ?? null, note: body.note ?? null, in_force: false, created_at: new Date().toISOString(), created_by_name: 'דנה',
       voided_at: null, voided_by_name: null, void_reason: null, can_undo: true, undo_until: new Date(Date.now() + 86_400_000).toISOString(),
     };
@@ -183,6 +189,7 @@ const demo: ReadingsAdapter = {
     const log = dlog(id);
     const c = log.calibrations.find((x) => x.id === cid);
     if (!c) return demoError(404, 'not_found', tr('הכיול לא נמצא.'));
+    // i18n-keep: demo data: invented names, as the api demo stores
     Object.assign(c, { voided_at: new Date().toISOString(), voided_by_name: 'דנה', void_reason: reason ?? null, can_undo: false, in_force: false });
     return delay(clone(log));
   },

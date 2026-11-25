@@ -44,6 +44,7 @@ const rest: MessagingPolicyBackend = {
 function demoView(): PolicyView {
   return {
     enforce: false, can_manage: true, max_entries: 500,
+    // i18n-keep: demo data: invented names, as the api demo stores
     allow: [{ id: 'demo00000001', label: 'דנה כהן', role: 'handler', last4: '0191' }, { id: 'demo00000002', label: 'מעליות בע"מ', role: 'provider', last4: '0192' }],
     self_messages: { active: false, until: null, minutes_default: 30, minutes_range: [1, 240] },
   };

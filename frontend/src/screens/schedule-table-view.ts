@@ -354,15 +354,15 @@ export class ScheduleTableView extends LitElement {
     const ce = this.cellError?.uid === slot.uid ? this.cellError : null;
     return html`<tr class="${slot.uid === this.selected ? 'sel' : ''} ${errs.length ? 'bad' : ''}" data-row=${slot.uid} tabindex="0" @click=${() => this.fire('slot-select', { uid: slot.uid })} @keydown=${activateKeydown(() => this.fire('slot-select', { uid: slot.uid }))}>
       <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14" role="img" aria-label=${`${tr('משבצת {n}', { n: display })}: ${errs.map((e) => e.message).join(' · ')}`}></sw-icon>` : display}</td>
-      <td data-label="משעה">
+      <td data-label=${tr('משעה')}>
         <input class="t ${ce?.field === 'from' ? 'err' : ''}" data-cell="from" ?disabled=${ro} .value=${r.from} aria-label=${tr('משעה, משבצת {n}', { n: display })} @change=${(e: Event) => this.commit(slot, 'from', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
         ${ce?.field === 'from' ? html`<div class="msg" role="alert">${ce.message}</div>` : nothing}
       </td>
-      <td data-label="עד שעה (סוף חלון)">
+      <td data-label=${tr('עד שעה (סוף חלון)')}>
         <input class="t ${ce?.field === 'to' ? 'err' : ''}" data-cell="to" ?disabled=${ro} placeholder=${tr('ללא')} .value=${r.to} aria-label=${tr('עד שעה, משבצת {n}', { n: display })} @change=${(e: Event) => this.commit(slot, 'to', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
         ${ce?.field === 'to' ? html`<div class="msg" role="alert">${ce.message}</div>` : nothing}
       </td>
-      <td class="act-cell" data-label="פעולה">
+      <td class="act-cell" data-label=${tr('פעולה')}>
         ${locked
           ? html`<span class="chip lock"><sw-icon name="lock" size="12"></sw-icon>${g ? actionLabel({ service: g.service, data: g.data }) : tr('לא נתמך')}</span>`
           : !g
@@ -376,9 +376,9 @@ export class ScheduleTableView extends LitElement {
                 </select>`}
         ${pair !== null ? html`<span class="chip" title=${tr('משבצת כיבוי בסיום')}>${tr('כיבוי בסיום')}</span>` : nothing}
       </td>
-      <td class="val-cell" data-label="ערך" @click=${(e: Event) => e.stopPropagation()}>${groups.length === 1 && !locked ? this.renderValue(slot, ro) : html`<span class="unit">—</span>`}</td>
-      <td class="who ents" data-label="התקנים">${names.join(', ') || '—'}</td>
-      <td class="next" data-label="הרצה הבאה">${this.nextByUid[slot.uid] ?? '—'}</td>
+      <td class="val-cell" data-label=${tr('ערך')} @click=${(e: Event) => e.stopPropagation()}>${groups.length === 1 && !locked ? this.renderValue(slot, ro) : html`<span class="unit">—</span>`}</td>
+      <td class="who ents" data-label=${tr('התקנים')}>${names.join(', ') || '—'}</td>
+      <td class="next" data-label=${tr('הרצה הבאה')}>${this.nextByUid[slot.uid] ?? '—'}</td>
       <td class="acts">
         ${this.readOnly
           ? nothing

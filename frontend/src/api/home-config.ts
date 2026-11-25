@@ -674,6 +674,7 @@ function safeZone(zone: string): string {
 /** A whole number 1-999 in Hebrew letters: 19 = "י״ט", 15 = "ט״ו", 3 = "ג׳", 787 = "תשפ״ז". */
 export function gematria(n: number): string {
   if (!Number.isInteger(n) || n < 1 || n > 999) return String(n);
+  // i18n-keep-start: the Hebrew calendar date (gematria letters)
   const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
   const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
   const hundreds = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת', 'תתק'];
@@ -683,6 +684,7 @@ export function gematria(n: number): string {
   else letters += tens[Math.floor(rest / 10)] + ones[rest % 10];
   const chars = [...letters];
   return chars.length === 1 ? `${letters}׳` : `${chars.slice(0, -1).join('')}״${chars[chars.length - 1]}`;
+  // i18n-keep-end
 }
 
 /** The Hebrew date computed in the browser (the fallback when no sensor is chosen): "י״ט בתשרי התשפ״ז". The day and the year
@@ -695,8 +697,10 @@ export function hebrewDate(now: Date, zone: string): string {
     const year = Number(get('year'));
     const month = get('month');
     if (!day || !year || !month) return '';
+    // i18n-keep-start: the Hebrew calendar date (gematria letters)
     const between = parts.find((p) => p.type === 'literal')?.value ?? ' ב';
     return `${gematria(day)}${between}${month} ה${gematria(year % 1000)}`;
+    // i18n-keep-end
   } catch {
     return '';
   }
@@ -720,6 +724,7 @@ export function timeOfState(state: string | null | undefined, zone: string): str
 export function parshaText(state: string | null | undefined): string {
   const p = (state ?? '').trim();
   if (!p || p === 'unknown' || p === 'unavailable') return '';
+  // i18n-keep: the Hebrew calendar date (parasha name, matched against the sensor value)
   return /^פרשת|^פרשה/.test(p) ? p : `פרשת ${p}`;
 }
 

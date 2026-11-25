@@ -194,10 +194,12 @@ export function slideWanted(digest: TransitDigest | null): boolean {
 
 const STRINGS = {
   he: {
+    // i18n-keep-start: a module that cannot read the language packs (separate notice-tv bundle) with its own he / en table: the Hebrew side beside English
     title: 'תחבורה ציבורית', titleStop: 'תחנה: {n}', window: 'ב-{n} הדקות הקרובות', windowH: 'בשעה הקרובה', windowH2: 'ב-{n} השעות הקרובות', now: 'עכשיו',
     chipMin: "{n} דק'", chipH: 'שעה', chipH2: '{n} שעות', min: "דק'", more: 'ועוד {n}', none: 'אין אוטובוסים {w}', next: 'הבא לפי לוח זמנים:', nextAt: 'קו {l} ל{d} ב-{t}', sched: 'לפי לוח זמנים', rt: 'הערכה', distM: '{n} מ׳ מהתחנה', distKm: '{n} ק״מ מהתחנה', estIn: 'הערכה בעוד {n} דק׳', estAt: 'הערכה ב-{t}', estNow: 'הערכה: עכשיו', stale: 'לא מעודכן מ-{t}',
     agoMin: "עודכן לפני {n} דק׳", agoH: 'עודכן לפני {n} שעות', sourceDown: 'מקור הנתונים החיצוני אינו זמין כרגע — מוצגים זמני הלוח האחרונים', sourceDownPartial: 'מקור הנתונים החיצוני אינו זמין כרגע — אין זמני לוח מעודכנים לטווח הזה',
     expiredTitle: 'נתוני התחבורה אינם זמינים כרגע', expiredHint: 'הנתונים יחזרו כשהמקור יתעדכן', line: 'קו', toward: 'לכיוון', moreOf: '+{n}',
+    // i18n-keep-end
   },
   en: {
     title: 'Public transport', titleStop: 'Stop: {n}', window: 'the next {n} minutes', windowH: 'the next hour', windowH2: 'the next {n} hours', now: 'Now',

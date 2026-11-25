@@ -20,8 +20,7 @@ const CSS_FILES = new Set(['home-p3-styles.ts', 'home-styles-extra.ts']);
 
 /** Single literals that stay Hebrew: file -> the texts (each as many times as it is written). */
 const HEBREW_LITERALS: Record<string, { why: string; texts: string[] }> = {
-  'home-calendar.ts': { why: 'the title saved with a room booking (read by everyone, in every interface language)', texts: ['הזמנה:'] },
-  'home-tickets.ts': { why: 'the default title saved with a service request (read by the staff)', texts: ['תקלה:'] },
+  // I18N-REST-2520 (owner rule 22.11): the booking and service-request default titles read through tr() now (made in the creator's language)
 };
 
 type Doc = { documentElement: { lang: string } };

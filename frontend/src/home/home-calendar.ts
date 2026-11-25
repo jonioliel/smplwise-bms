@@ -174,7 +174,7 @@ registerScreen((h: HomeHost) => ({
       const d = st.draft;
       const bk = (h.ovl as ExtOvl | null)?.kind === 'bookNew';
       // the booking's title is saved on the server and read by everyone: it stays Hebrew in every interface language
-      const title = bk ? `הזמנה: ${st.rooms.find((r) => r.calendar_id === d.room)?.name ?? ''}`.slice(0, 120) : d.title.trim();
+      const title = bk ? tr('הזמנה: {v}', { v: st.rooms.find((r) => r.calendar_id === d.room)?.name ?? '' }).slice(0, 120) : d.title.trim();
       if (!title) return h.toast(tr('כתבו מה האירוע.'));
       st.busy = true;
       h.requestUpdate();

@@ -18,12 +18,9 @@ const HEBREW_FILES: Record<string, string> = {
 };
 
 /** Single literals that stay Hebrew: file -> the texts (each as many times as it is written). */
+// I18N-REST-2520 (owner rule 22.11, default names follow the creator's language): the calendars' default titles, rejection note and demo
+// roles read through tr() now, so their entries left this list.
 const HEBREW_LITERALS: Record<string, { why: string; texts: string[] }> = {
-  'calendars/event-drawer.ts': { why: 'a title sent to the server (the preview of an untitled event)', texts: ['בדיקה'] },
-  'calendars/resident.ts': { why: 'the default title saved with a booking', texts: ['הזמנת חדר', 'הזמנת חדר'] },
-  'calendars/view-approvals.ts': { why: 'the note saved with a rejection', texts: ['החלון נשאר להזמנה שאושרה קודם'] },
-  'calendars/view-calendar.ts': { why: 'default titles saved with an event', texts: ['בדיקה', 'הזמנת חדר', 'אירוע', 'הזמנה'] },
-  'calendars/view-manage.ts': { why: 'the demo mode\'s roles; the member label saved to the server', texts: ['מפעיל', 'צופה', 'מנהל אתר', 'כל מי שיש לו צפייה ביומנים'] },
   'electricity/elec-bill-page.ts': { why: 'the watermark of the Hebrew bill paper (the paper compares it)', texts: ['טיוטה', 'בוטל'] },
   'electricity/elec-settings.ts': {
     why: 'the sample bill of the preview: content of the Hebrew bill paper',
@@ -86,7 +83,7 @@ test('the lint catches a new literal: plain string, template text, attribute, a 
   expect(found("export const a = tr(`עוד ${1} פריטים`);")).toHaveLength(2); // a template with a value is not a catalogue key
   expect(found("export const a = other('שלום');")).toHaveLength(1);
   // a listed text passes as many times as it is listed, not once more
-  expect(found("export const a = 'בדיקה';", 'calendars/event-drawer.ts')).toEqual([]);
-  expect(found("export const a = ['בדיקה', 'בדיקה'];", 'calendars/event-drawer.ts')).toHaveLength(1);
-  expect(check('calendars/event-drawer.ts', src('export const a = 1;')).stale).toHaveLength(1);
+  expect(found("export const a = 'עונה חדשה';", 'electricity/elec-tou-editor.ts')).toEqual([]); // I18N-REST-2520: a file still listed
+  expect(found("export const a = ['עונה חדשה', 'עונה חדשה'];", 'electricity/elec-tou-editor.ts')).toHaveLength(1);
+  expect(check('electricity/elec-tou-editor.ts', src('export const a = 1;')).stale).toHaveLength(2);
 });

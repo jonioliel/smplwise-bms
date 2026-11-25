@@ -19,6 +19,7 @@ import { packTable } from '../i18n/lang-packs';
  */
 
 const he = {
+  // i18n-keep-start: the Hebrew side of a table whose English is beside it
   open: 'מצלמה חיה',
   fail_denied: 'אין הרשאה למצלמה. אפשר לצלם או לבחור תמונה בכפתור "הוספה".',
   fail_no_camera: 'לא נמצאה מצלמה. אפשר לבחור תמונה בכפתור "הוספה".',
@@ -37,6 +38,7 @@ const he = {
   cancel: 'ביטול',
   live: 'תצוגה חיה מהמצלמה',
   still: 'התמונה שצולמה',
+  // i18n-keep-end
 };
 const en: typeof he = packTable<typeof import('../i18n/lang/en/tickets/camera-viewfinder').en>('en', 'tickets/camera-viewfinder', 'en');
 type ViewfinderTextKey = keyof typeof he;

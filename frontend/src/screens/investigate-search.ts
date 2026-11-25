@@ -21,12 +21,12 @@ import { dayMonthTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/investigate';
 
 const RESULTS = [
-  { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'מקליט: זיהוי אדם (Smart)' },
-  { scene: 'lobby', when: '14.09.2026 10:13', cam: 'לובי', why: 'מקליט: תנועה + סמיכות במפה לכניסה' },
-  { scene: 'parking', when: '14.09.2026 06:43', cam: 'חניה מקורה', why: 'מקליט: חציית קו' },
-  { scene: 'entrance', when: '14.09.2026 08:12', cam: 'כניסה ראשית', why: 'התקן: דלת נפתחה + תנועה' },
-  { scene: 'corridor', when: '13.09.2026 23:10', cam: 'מסדרון מזרחי', why: 'מקליט: זיהוי אדם' },
-  { scene: 'backyard', when: '13.09.2026 18:03', cam: 'חצר אחורית', why: 'מקליט: תנועה' },
+  { scene: 'entrance', when: '14.09.2026 10:14', cam: tr('כניסה ראשית'), why: tr('מקליט: זיהוי אדם (Smart)') },
+  { scene: 'lobby', when: '14.09.2026 10:13', cam: tr('לובי'), why: tr('מקליט: תנועה + סמיכות במפה לכניסה') },
+  { scene: 'parking', when: '14.09.2026 06:43', cam: tr('חניה מקורה'), why: tr('מקליט: חציית קו') },
+  { scene: 'entrance', when: '14.09.2026 08:12', cam: tr('כניסה ראשית'), why: tr('התקן: דלת נפתחה + תנועה') },
+  { scene: 'corridor', when: '13.09.2026 23:10', cam: tr('מסדרון מזרחי'), why: tr('מקליט: זיהוי אדם') },
+  { scene: 'backyard', when: '13.09.2026 18:03', cam: tr('חצר אחורית'), why: tr('מקליט: תנועה') },
 ] as const;
 
 /** SC19 — AI search (board 2 screen 9, Beta): search-by pills, "search by person" card, similar matches grid. Metadata filters first; AI only with a real index. */
@@ -348,7 +348,7 @@ export class InvestigateSearch extends LitElement {
         <sw-badge slot="actions" kind="unknown" label=${tr('אין ספק AI מוגדר · רמה 0 (מטא־דאטה מקליט)')}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
-            <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label=${tr('חיפוש')} /></sw-field>
+            <sw-field><input type="search" value=${tr('אדם בכניסה הראשית היום')} aria-label=${tr('חיפוש')} /></sw-field>
             <sw-button variant="primary" icon="search">${tr('חפש')}</sw-button>
           </div>
           <sw-tabs .items=${[{ id: 'person', label: tr('אדם') }, { id: 'vehicle', label: tr('רכב') }, { id: 'object', label: tr('עצם') }, { id: 'color', label: tr('צבע') }, { id: 'time', label: tr('זמן') }, { id: 'site', label: tr('אתר') }]} .active=${this.by} @change=${(e: CustomEvent<{ id: string }>) => (this.by = e.detail.id)}></sw-tabs>

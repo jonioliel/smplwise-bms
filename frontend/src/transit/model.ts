@@ -43,9 +43,11 @@ export function windowMode(minutes: number): 'list' | 'free' {
 
 /** The window select's label: "15 min", "1 hour", "2 hours". */
 export function windowLabel(minutes: number, lang: 'he' | 'en'): string {
+  // i18n-keep-start: the Hebrew side of a table whose English is beside it
   if (minutes === 60) return lang === 'he' ? 'שעה' : '1 hour';
   if (minutes > 60 && minutes % 60 === 0) return lang === 'he' ? (minutes === 120 ? 'שעתיים' : `${minutes / 60} שעות`) : `${minutes / 60} hours`;
   return lang === 'he' ? `${minutes} דקות` : `${minutes} min`;
+  // i18n-keep-end
 }
 
 /** Whole minutes of data age, or null when unknown. */

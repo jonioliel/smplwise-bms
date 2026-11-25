@@ -254,12 +254,12 @@ export class SystemNavSize extends LitElement {
       <div><h4>${tr('סרגל צד')}</h4>
         <div class="mini-rail" data-preview-rail>
           ${PREVIEW_TABS.map((t, i) => html`<span class="it ${i === 0 ? 'on' : ''}" data-preview-item><sw-icon name=${t.icon} size=${d.icon}></sw-icon><span class="lbl">${t.label}</span></span>`)}
-          <span class="it" data-preview-item><sw-avatar name="יוני" size=${d.avatar}></sw-avatar><span class="lbl">${tr('יוני')}</span></span>
+          <span class="it" data-preview-item><sw-avatar name=${tr('יוני')} size=${d.avatar}></sw-avatar><span class="lbl">${tr('יוני')}</span></span>
         </div></div>
       <div><h4>${tr('סרגל תחתון בטלפון')}</h4>
         <div class="mini-bar" data-preview-bar>
           ${PREVIEW_TABS.map((t, i) => html`<span class="it ${i === 0 ? 'on' : ''}"><span class="ic"><sw-icon name=${t.icon} size=${d.pIcon}></sw-icon></span><span class="lbl">${t.label}</span></span>`)}
-          <span class="it"><span class="ic"><sw-avatar name="יוני" size=${d.pAvatar}></sw-avatar></span><span class="lbl">${tr('יוני')}</span></span>
+          <span class="it"><span class="ic"><sw-avatar name=${tr('יוני')} size=${d.pAvatar}></sw-avatar></span><span class="lbl">${tr('יוני')}</span></span>
         </div></div>
     </div>`;
   }

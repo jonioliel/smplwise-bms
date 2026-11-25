@@ -163,6 +163,7 @@ function demoDevices(): AdminDevice[] {
   // CR-028 (prep): the cast capability of each demo screen, as the server would decide it from these endpoints
   const cast = (method: CastMethod, confidence: CastConfidence, via: string | null, reason: CastReason): CastCapability => ({ method, confidence, via, reason });
   return [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     dev('md-living', 'טלוויזיה סלון', 'קומת קרקע', 'סלון', 'samsung_smart', true, [
       ep('ha:media_player.demo_living', 'samsungtv_smart', 'vendor', '1', false, ['power', 'sources', 'apps', 'keys']),
       ep('ha:media_player.demo_living_cast', 'cast', 'cast', '3', true, ['now_playing']),
@@ -180,6 +181,7 @@ function demoDevices(): AdminDevice[] {
     dev('md-kids', 'מסך ילדים', 'קומה 1', 'חדר ילדים', 'generic', true, [ep('ha:media_player.demo_kids', 'dlna_dmr', 'dlna', '1', false, ['power', 'volume', 'mute', 'sources', 'now_playing'])],
       { cast: cast('dlna', 'likely', 'ha:media_player.demo_kids', 'dlna_renderer') }),
     dev('md-new', 'מסך חדש שזוהה', 'קומה 1', 'חדר עבודה', 'generic', false, [ep('ha:media_player.demo_new', 'samsungtv', 'vendor', '1', false, ['power'])],
+    // i18n-keep-end
       { confidence: 'weak', cast: cast('none', 'unknown', null, 'no_path') }),
   ];
 }
@@ -261,11 +263,13 @@ class DemoAdmin implements AdminAdapter {
 
 /** The areas a device can be placed in: the home screen's tree with a backend; the demo's own rooms without one. */
 export const DEMO_AREAS: { id: string; name: string; floor_name: string | null }[] = [
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   { id: 'living', name: 'סלון', floor_name: 'קומת קרקע' }, { id: 'kitchen', name: 'מטבח', floor_name: 'קומת קרקע' }, { id: 'pergola', name: 'פרגולה', floor_name: 'קומת קרקע' },
   { id: 'guest', name: 'חדר אורחים', floor_name: 'קומת קרקע' }, { id: 'parents', name: 'חדר הורים', floor_name: 'קומה 1' }, { id: 'kids', name: 'חדר ילדים', floor_name: 'קומה 1' },
   { id: 'office', name: 'חדר עבודה', floor_name: 'קומה 1' }, { id: 'basement', name: 'מרתף', floor_name: 'מרתף' },
 ];
 const DEMO_FLOOR_IDS: Record<string, string> = { 'קומת קרקע': 'g', 'קומה 1': 'u1', 'מרתף': 'b' };
+  // i18n-keep-end
 export async function adminAreas(): Promise<{ id: string; name: string; floor_name: string | null }[]> {
   if (!isApi()) return DEMO_AREAS;
   try {

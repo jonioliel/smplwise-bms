@@ -86,6 +86,7 @@ export function resolveTtsPick(list: IntercomTtsEngines | null | undefined, fixe
   return { engine, language, missingEngine: null, missingLanguage };
 }
 
+// i18n-keep: the language names are shown in their own language (the Hebrew language name)
 const LANGUAGE_NAMES: Record<string, string> = { he: 'עברית', iw: 'עברית', en: 'English', ar: 'العربية', ru: 'Русский', fr: 'Français', es: 'Español', de: 'Deutsch' };
 
 /** A language code in words where it is a common one ("he" -> "עברית"), else the code itself in capitals. */

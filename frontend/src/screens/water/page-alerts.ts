@@ -30,7 +30,7 @@ const dm = (iso: string | null) => {
   return `${p2(d.getDate())}.${p2(d.getMonth() + 1)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 };
 const csvSafe = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
-const csvCell = (s: string) => `"${csvSafe(s).replace(/"/g, '""')}"`;
+const csvCell = (s: string) => `"${csvSafe(s).replace(/"/g, '""')}"`; // i18n-keep: the quote in this regex makes the report read the next lines as a string (no text here)
 
 /**
  * תשתיות › מים › התראות (CR-WATER78 sections 5.3 and 16): the alert log in the meters page's shape - the head row (פתוחות / הכול, ייצוא CSV,
@@ -141,7 +141,7 @@ export class WaterAlertsPage extends LitElement {
   /** The visible rows as CSV (UTF-8 with BOM, formula-safe), built from what the page shows. */
   private exportCsv(rows: WaterEvent[]) {
     const he = wtLang() === 'he';
-    const head = [wt('colMeter'), wt('colArea'), wt('colKind'), wt('colSince'), he ? 'עד' : 'Until', wt('colValue'), wt('colState')];
+    const head = [wt('colMeter'), wt('colArea'), wt('colKind'), wt('colSince'), he ? 'עד' : 'Until', wt('colValue'), wt('colState')]; // i18n-keep: the Hebrew side of a table that has its English beside it
     const state = (e: WaterEvent) => (e.closed_at ? wt('asClosed') : e.snoozed_until ? wt('snoozedUntil', { t: dm(e.snoozed_until) }) : e.ack_at ? wt('asAcked', { who: e.ack_by_display ?? '' }) : wt('asOpen'));
     const lines = [head, ...rows.map((e) => [e.meter_name, [e.area_name, e.floor_name].filter(Boolean).join(' · '), eventKindLabel(e.kind), dm(e.opened_at), e.closed_at ? dm(e.closed_at) : '', eventValue(e), state(e)])];
     const blob = new Blob(['﻿' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });

@@ -84,7 +84,7 @@ const NARROW = '(max-width: 767px)';
 
 const columns: TableColumn[] = [
   { key: 'title', label: tr('תיק'), render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
-  { key: 'status', label: tr('סטטוס'), render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` },
+  { key: 'status', label: tr('סטטוס'), render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` }, // i18n-keep: compared against the server's Hebrew text
   { key: 'owner', label: tr('בעלים') },
   { key: 'clips', label: tr('קטעים') },
   { key: 'notes', label: tr('הערות') },
@@ -1089,7 +1089,7 @@ export class InvestigateCaseDetail extends LitElement {
     if (isApi()) return this.renderApi();
     const c = demoCases.find((x) => x.id === this.caseId) ?? demoCases[0];
     return html`
-      <sw-page heading=${tr('סקירת אירוע')} subheading=${`${c.title} · ${tr('בעלים: {name}', { name: c.owner })} · ${tr('נתוני הדגמה')}`} crumbs=${`${tr('אירועים')} | ${tr('תיקים')} | 13.09.2026 10:12 | כניסה ראשית`}>
+      <sw-page heading=${tr('סקירת אירוע')} subheading=${`${c.title} · ${tr('בעלים: {name}', { name: c.owner })} · ${tr('נתוני הדגמה')}`} crumbs=${tr('{tr} | {tr2} | 13.09.2026 10:12 | כניסה ראשית', { tr: tr('אירועים'), tr2: tr('תיקים') })}>
         <sw-field slot="actions"><select aria-label=${tr('סטטוס')}><option>${c.status}</option><option>${tr('בבדיקה')}</option><option>${tr('סגור')}</option></select></sw-field>
         <div class="wrap">
           <div class="video">
@@ -1115,7 +1115,7 @@ export class InvestigateCaseDetail extends LitElement {
             ? html`<div class="form">
                 <div class="stack">
                   <sw-field label=${tr('כותרת')}><input value=${c.title} /></sw-field>
-                  <sw-field label=${tr('תיאור')}><textarea rows="3">אדם נכנס אחרי פתיחת הדלת ב־10:12. לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).</textarea></sw-field>
+                  <sw-field label=${tr('תיאור')}><textarea rows="3">${tr('אדם נכנס אחרי פתיחת הדלת ב־10:12. לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).')}</textarea></sw-field>
                 </div>
                 <div class="pills">
                   <div class="pill"><sw-icon name="calendar" size=${14}></sw-icon>13.09.2026 · 10:12</div>
@@ -1125,14 +1125,14 @@ export class InvestigateCaseDetail extends LitElement {
               </div>`
             : this.tab === 'notes'
               ? html`<sw-card>
-                  <div class="note">נראה אדם נכנס אחרי פתיחת הדלת ב־10:12.<small>יוני · 10:40</small></div>
-                  <div class="note">לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).<small>יוסי · 10:52</small></div>
+                  <div class="note">${tr('נראה אדם נכנס אחרי פתיחת הדלת ב־10:12.')}<small>${tr('יוני · 10:40')}</small></div>
+                  <div class="note">${tr('לבדוק אם מסדרון מזרחי הקליט (המצלמה מנותקת מ־07:55).')}<small>${tr('יוסי · 10:52')}</small></div>
                   <sw-field style="margin-block-start:8px"><textarea rows="2" placeholder=${tr('הערה חדשה…')}></textarea></sw-field>
                 </sw-card>`
               : html`<div class="clips">
-                  <sw-camera-tile compact name="כניסה ראשית" state="recorded" scene="entrance"></sw-camera-tile>
-                  <sw-camera-tile compact name="לובי" state="recorded" scene="lobby"></sw-camera-tile>
-                  <sw-camera-tile compact name="מסדרון מזרחי" state="unknown"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('כניסה ראשית')} state="recorded" scene="entrance"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('לובי')} state="recorded" scene="lobby"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('מסדרון מזרחי')} state="unknown"></sw-camera-tile>
                 </div>`}
           <div class="foot">
             <sw-button icon="link">${tr('שיתוף')}</sw-button>

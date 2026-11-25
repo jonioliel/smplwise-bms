@@ -1600,6 +1600,7 @@ function serviceSentence(b: Extract<ActionBlock, { type: 'service' }>, ctx: Mode
   let text: string;
   if (!verb) text = `${b.action} · ${n}`;
   else if (verb.includes('{n}')) text = verb.replace('{n}', n);
+  // i18n-keep: text compared / matched: the maqaf glued to a Hebrew verb is tested against the server value
   else if (verb.endsWith('־')) text = `${verb}${n}`;
   else text = `${verb} ${n}`;
   if (b.action === 'light.turn_on') {

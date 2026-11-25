@@ -88,9 +88,10 @@ import type { MapElementDraft } from '../api/tickets-map';
 import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T4): the map's "open here" only while the module is on
 import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
+import { tr } from '../i18n/msg/plan-editor';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
-const ARG_CHOICE_HE: Record<string, string> = { off: 'כבוי', heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר בלבד' };
+const ARG_CHOICE_HE: Record<string, string> = { off: tr('כבוי'), heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר בלבד') };
 
 type ScreenState = 'ready' | 'loading' | 'empty' | 'error' | 'forbidden' | 'stale' | 'partial';
 type Layer = FloorLayer; // the ids, the late layers and the stored-list rule live in floor-map-state.ts
@@ -100,12 +101,12 @@ const LAYERS: { id: Layer; icon: 'camera' | 'door' | 'light' | 'sensor' | 'map' 
   { id: 'doors', icon: 'door', label: () => t('floor.doors') },
   { id: 'lights', icon: 'light', label: () => t('floor.lights') },
   { id: 'sensors', icon: 'sensor', label: () => t('floor.sensors') },
-  { id: 'zones', icon: 'map', label: () => 'חדרים ואזורים' },
-  { id: 'structure', icon: 'wall', label: () => 'מבנה' },
-  { id: 'objects', icon: 'grid', label: () => 'עצמים' },
-  { id: 'connectors', icon: 'stairs', label: () => 'מחברים' },
-  { id: 'states', icon: 'activity', label: () => 'מצבי חדרים' },
-  { id: 'photo', icon: 'image', label: () => 'תמונת הקומה' },
+  { id: 'zones', icon: 'map', label: () => tr('חדרים ואזורים') },
+  { id: 'structure', icon: 'wall', label: () => tr('מבנה') },
+  { id: 'objects', icon: 'grid', label: () => tr('עצמים') },
+  { id: 'connectors', icon: 'stairs', label: () => tr('מחברים') },
+  { id: 'states', icon: 'activity', label: () => tr('מצבי חדרים') },
+  { id: 'photo', icon: 'image', label: () => tr('תמונת הקומה') },
 ];
 /** Layers that came after the first stored layer lists: stored as "-<id>" when switched off, so an old list still shows them. */
 const LATE_LAYERS = LATE_FLOOR_LAYERS;
@@ -148,9 +149,9 @@ function readStackMode(): StackMode {
 function floorShort(name: string): string {
   const num = name.match(/-?\d+/);
   if (num) return num[0];
-  if (/קרקע/.test(name)) return 'ק';
-  if (/גג/.test(name)) return 'גג';
-  if (/מרתף/.test(name)) return 'מ';
+  if (/קרקע/.test(name)) return tr('ק');
+  if (/גג/.test(name)) return tr('גג');
+  if (/מרתף/.test(name)) return tr('מ');
   const last = name.split(/[\s–-]+/).filter(Boolean).pop() ?? name;
   return last.slice(0, 4);
 }
@@ -1528,7 +1529,7 @@ export class ExploreFloorMap extends LitElement {
       void this.loadPresence();
       this.presenceTimer = window.setInterval(() => { if (!document.hidden) void this.loadPresence(); }, PRESENCE_POLL_MS);
     }
-    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: 'עריכת המפה', icon: 'edit', can: () => !phoneRestricted('structure') && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
+    this.offScreenEdit = registerScreenEdit({ id: 'floor-map-edit', label: tr('עריכת המפה'), icon: 'edit', can: () => !phoneRestricted('structure') && (this.bundle ? this.bundle.permissions.edit : !isApi()), run: () => navigate(`/explore/floors/${this.floorId}/edit`) });
     this.narrow = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);
     window.addEventListener('keydown', this.onKey);
@@ -2091,11 +2092,11 @@ export class ExploreFloorMap extends LitElement {
     try {
       const info = await getFloorSkins(b.floorId);
       if (!info.geometry_key) {
-        this.skinNote = 'לקומה אין מבנה מפורסם — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.';
+        this.skinNote = tr('לקומה אין מבנה מפורסם — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.');
         return;
       }
       if (b.geometryRef?.doc_hash !== info.doc_hash) {
-        this.skinNote = 'המפה מציגה מבנה שאינו המבנה המפורסם (טיוטה) — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.';
+        this.skinNote = tr('המפה מציגה מבנה שאינו המבנה המפורסם (טיוטה) — תמונת בקרה נוצרת מהמבנה המפורסם בלבד.');
         return;
       }
       // no anchors: they are not part of the geometry key (controlSceneInput drops them anyway, and leaves out every
@@ -2105,10 +2106,10 @@ export class ExploreFloorMap extends LitElement {
       let identical = 0;
       for (const state of CONTROL_STATES) {
         const png = el.captureControl(controlDescription(buildScene(controlSceneInput(base, state)), state));
-        if (!png) throw new Error('צילום תמונת הבקרה נכשל (WebGL).');
+        if (!png) throw new Error(tr('צילום תמונת הבקרה נכשל (WebGL).'));
         if ((await uploadControlImage(b.floorId, state, info.geometry_key, png)).identical) identical++;
       }
-      this.skinNote = `תמונות הבקרה (אורות כבויים / דולקים) נשמרו במתקן בלבד${identical === CONTROL_STATES.length ? ' — זהות לשמורות' : ''}; שום דבר לא נשלח לספק.`;
+      this.skinNote = tr('תמונות הבקרה (אורות כבויים / דולקים) נשמרו במתקן בלבד{v}; שום דבר לא נשלח לספק.', { v: identical === CONTROL_STATES.length ? tr(' — זהות לשמורות') : '' });
     } catch (err) {
       this.skinNote = describeError(err);
     } finally {
@@ -2408,9 +2409,9 @@ export class ExploreFloorMap extends LitElement {
   private renderStackSwitch() {
     if (!this.shows3d || !this.stackShown) return nothing;
     const open = this.stackMode === 'open';
-    return html`<span class="stackswitch" role="group" aria-label="פריסת המפלסים" data-stack-switch>
-      <sw-chip icon="cube" data-stack-mode="closed" ?selected=${!open} @click=${() => this.setStackMode('closed')}>בניין</sw-chip>
-      <sw-chip icon="layers" data-stack-mode="open" ?selected=${open} @click=${() => this.setStackMode('open')}>פרוס</sw-chip>
+    return html`<span class="stackswitch" role="group" aria-label=${tr('פריסת המפלסים')} data-stack-switch>
+      <sw-chip icon="cube" data-stack-mode="closed" ?selected=${!open} @click=${() => this.setStackMode('closed')}>${tr('בניין')}</sw-chip>
+      <sw-chip icon="layers" data-stack-mode="open" ?selected=${open} @click=${() => this.setStackMode('open')}>${tr('פרוס')}</sw-chip>
     </span>`;
   }
 
@@ -2456,7 +2457,7 @@ export class ExploreFloorMap extends LitElement {
       const e = a.entity;
       const state = states[a.resource_id] ?? null;
       const ent = { id: a.resource_id, domain: e?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: e?.device_class ?? null, layer_id: a.layer_id };
-      const words = e && state !== null ? stateLabel({ ...e, state }) : 'לא ידוע';
+      const words = e && state !== null ? stateLabel({ ...e, state }) : tr('לא ידוע');
       if (isLightEntity(ent)) {
         const on = state === 'on' ? true : state === 'off' ? false : null;
         const spec = on === null ? null : specOf(e, on ? '.turn_off' : '.turn_on', '.toggle');
@@ -2514,8 +2515,8 @@ export class ExploreFloorMap extends LitElement {
   private renderRoomConfirm() {
     const c = this.roomConfirm;
     if (!c) return nothing;
-    return html`<sw-dialog open heading=${`${c.label}?`} subheading=${c.items.length > 1 ? `${c.items.length} התקנים` : ''} @close=${() => (this.roomConfirm = null)} data-room-confirm>
-      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה תבוצע בזהות שלך ותירשם באודיט.</div>
+    return html`<sw-dialog open heading=${`${c.label}?`} subheading=${c.items.length > 1 ? tr('{itemsCount} התקנים', { itemsCount: c.items.length }) : ''} @close=${() => (this.roomConfirm = null)} data-room-confirm>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">${tr('הפעולה תבוצע בזהות שלך ותירשם באודיט.')}</div>
       <div slot="footer"><sw-button variant="primary" @click=${() => this.runBulk(c)}>${c.label}</sw-button><sw-button variant="ghost" @click=${() => (this.roomConfirm = null)}>${t('actions.cancel')}</sw-button></div>
     </sw-dialog>`;
   }
@@ -2752,7 +2753,7 @@ export class ExploreFloorMap extends LitElement {
     if (!b || !this.sideList || b.source !== 'api') return nothing;
     const cams = b.anchors.filter((a) => a.resource_type === 'camera');
     const ents = b.anchors.filter((a) => a.resource_type === 'ha_entity');
-    const domains: Record<string, string> = { light: 'תאורה', switch: 'מפסקים', lock: 'מנעולים', binary_sensor: 'חיישנים', sensor: 'חיישנים', cover: 'תריסים', climate: 'מיזוג', media_player: 'מדיה', alarm_control_panel: 'אזעקה' };
+    const domains: Record<string, string> = { light: tr('תאורה'), switch: tr('מפסקים'), lock: tr('מנעולים'), binary_sensor: tr('חיישנים'), sensor: tr('חיישנים'), cover: tr('תריסים'), climate: tr('מיזוג'), media_player: tr('מדיה'), alarm_control_panel: tr('אזעקה') };
     const groups = new Map<string, Anchor[]>();
     for (const a of ents) {
       const d = a.entity?.domain ?? a.resource_id.split('.')[0];
@@ -2760,20 +2761,20 @@ export class ExploreFloorMap extends LitElement {
     }
     const dotOf = (a: Anchor) => (a.camera ? (a.camera.status === 'online' ? 'var(--sw-success)' : a.camera.status === 'offline' ? 'var(--sw-danger)' : 'var(--sw-text-3)') : a.entity?.state === 'on' || a.entity?.state === 'unlocked' || a.entity?.state === 'open' ? 'var(--sw-accent)' : 'var(--sw-text-3)');
     return html`<div class="sidelist ${this.sheetTall ? 'tall' : ''}" data-sidelist data-sheet-tall=${this.sheetTall ? '1' : nothing}>
-      <button class="grab" data-sheet-grab aria-label=${this.sheetTall ? 'הקטן את הרשימה' : 'הגדל את הרשימה'} @click=${() => (this.sheetTall = !this.sheetTall)}><span></span></button>
-      <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
-      <label class="jz" data-jump-zoom-row><sw-toggle size="sm" labelHidden in-label label="זום בקפיצה לרכיב" data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom(toggled(e))}></sw-toggle> זום בקפיצה לרכיב</label>
+      <button class="grab" data-sheet-grab aria-label=${this.sheetTall ? tr('הקטן את הרשימה') : tr('הגדל את הרשימה')} @click=${() => (this.sheetTall = !this.sheetTall)}><span></span></button>
+      <div class="sh"><sw-icon name="list" size=${14}></sw-icon>${tr('על התוכנית')}<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('סגור')} @click=${() => this.toggleSideList()}></sw-button></div>
+      <label class="jz" data-jump-zoom-row><sw-toggle size="sm" labelHidden in-label label=${tr('זום בקפיצה לרכיב')} data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom(toggled(e))}></sw-toggle> ${tr('זום בקפיצה לרכיב')}</label>
       <div class="body">
-        ${this.embedded ? nothing : html`<div class="grp">קומות</div>
+        ${this.embedded ? nothing : html`<div class="grp">${tr('קומות')}</div>
         ${this.floors.map((f) => html`<button class="it ${f.id === this.floorId ? 'on' : ''}" data-side-floor=${f.id} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>
-          <sw-icon name="building" size=${12}></sw-icon><span class="nm">${bidi(f.name)}</span><span class="st">${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</span></button>`)}`}
-        <div class="grp">מצלמות (${cams.length})</div>
+          <sw-icon name="building" size=${12}></sw-icon><span class="nm">${bidi(f.name)}</span><span class="st">${tr('{cameraCount} מצלמות{v}', { cameraCount: f.cameraCount, v: f.hasPlan ? '' : tr(' · אין תוכנית') })}</span></button>`)}`}
+        <div class="grp">${tr('מצלמות ({camsCount})', { camsCount: cams.length })}</div>
         ${cams.map((a) => html`<button class="it ${this.selectedId === a.id || this.picked.includes(a.id) ? 'on' : ''}" data-side-camera=${a.resource_id} @click=${() => this.jumpTo(a)}>
-          <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.camera?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.camera?.status === 'online' ? 'חיה' : a.camera?.status === 'offline' ? 'מנותקת' : ''}</span></button>`)}
+          <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.camera?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.camera?.status === 'online' ? tr('חיה') : a.camera?.status === 'offline' ? tr('מנותקת') : ''}</span></button>`)}
         ${[...groups.entries()].map(([d, list]) => html`<div class="grp">${domains[d] ?? d} (${list.length})</div>
           ${list.map((a) => html`<button class="it ${this.selectedId === a.id ? 'on' : ''}" data-side-entity=${a.resource_id} @click=${() => this.jumpTo(a)}>
             <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${entityName(a)}</span><span class="st">${a.entity ? stateLabel(a.entity) : ''}</span></button>`)}`)}
-        ${!cams.length && !ents.length ? html`<div class="grp">אין פריטים מוצבים על התוכנית הזו.</div>` : nothing}
+        ${!cams.length && !ents.length ? html`<div class="grp">${tr('אין פריטים מוצבים על התוכנית הזו.')}</div>` : nothing}
       </div>
     </div>`;
   }
@@ -2804,9 +2805,9 @@ export class ExploreFloorMap extends LitElement {
     if (!n) return;
     const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
     const rows = Math.max(1, Math.min(4, Math.ceil(n / cols)));
-    const floorName = this.floors.find((f) => f.id === this.floorId)?.name ?? this.bundle?.floorName ?? 'מפה';
+    const floorName = this.floors.find((f) => f.id === this.floorId)?.name ?? this.bundle?.floorName ?? tr('מפה');
     this.savedView = null;
-    this.saveView = { name: `${floorName} · ${n} מצלמות`, cols, rows, shared: false, canShare: false, busy: false, error: null };
+    this.saveView = { name: tr('{floorName} · {n} מצלמות', { floorName, n }), cols, rows, shared: false, canShare: false, busy: false, error: null };
     listViews().then((r) => { if (this.saveView) this.saveView = { ...this.saveView, canShare: r.can_share }; }).catch(() => undefined);
   }
 
@@ -2814,12 +2815,12 @@ export class ExploreFloorMap extends LitElement {
     const s = this.saveView;
     if (!s || s.busy) return;
     if (!s.name.trim()) {
-      this.saveView = { ...s, error: 'לתצוגה צריך שם.' };
+      this.saveView = { ...s, error: tr('לתצוגה צריך שם.') };
       return;
     }
     const cameras = this.saveableCameraIds();
     if (!cameras.length) {
-      this.saveView = { ...s, error: 'אין בבחירה מצלמה שמותר לך לצפות בה.' };
+      this.saveView = { ...s, error: tr('אין בבחירה מצלמה שמותר לך לצפות בה.') };
       return;
     }
     this.saveView = { ...s, busy: true, error: null };
@@ -2838,20 +2839,20 @@ export class ExploreFloorMap extends LitElement {
     const { denied } = this.pickSummary();
     const over = Math.max(0, this.picked.length - denied - 16);
     const set = (patch: Partial<NonNullable<typeof s>>) => (this.saveView = { ...s, ...patch });
-    return html`<sw-dialog open heading="שמירה כתצוגה" subheading=${`${cameras.length} מצלמות מהמפה · התצוגה נפתחת בקיר החי או בקיוסק`} data-save-view-dialog @close=${() => (this.saveView = null)}>
+    return html`<sw-dialog open heading=${tr('שמירה כתצוגה')} subheading=${tr('{camerasCount} מצלמות מהמפה · התצוגה נפתחת בקיר החי או בקיוסק', { camerasCount: cameras.length })} data-save-view-dialog @close=${() => (this.saveView = null)}>
       <div class="saveform">
-        <sw-field label="שם"><input data-save-view-name .value=${s.name} maxlength="60" @input=${(ev: Event) => set({ name: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => ev.key === 'Enter' && this.submitSave()} /></sw-field>
+        <sw-field label=${tr('שם')}><input data-save-view-name .value=${s.name} maxlength="60" @input=${(ev: Event) => set({ name: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => ev.key === 'Enter' && this.submitSave()} /></sw-field>
         <div class="row">
-          <sw-field label="עמודות (קיוסק)"><select data-save-view-cols @change=${(ev: Event) => set({ cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.cols}>${n}</option>`)}</select></sw-field>
-          <sw-field label="שורות (קיוסק)"><select data-save-view-rows @change=${(ev: Event) => set({ rows: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.rows}>${n}</option>`)}</select></sw-field>
+          <sw-field label=${tr('עמודות (קיוסק)')}><select data-save-view-cols @change=${(ev: Event) => set({ cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.cols}>${n}</option>`)}</select></sw-field>
+          <sw-field label=${tr('שורות (קיוסק)')}><select data-save-view-rows @change=${(ev: Event) => set({ rows: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === s.rows}>${n}</option>`)}</select></sw-field>
         </div>
-        <sw-toggle ?checked=${s.shared} ?disabled=${!s.canShare} label=${s.canShare ? 'משותפת לכל המשתמשים' : 'משותפת (דורש הרשאת ניהול משתמשים)'} data-save-view-shared @change=${(ev: CustomEvent<{ checked: boolean }>) => set({ shared: ev.detail.checked })}></sw-toggle>
-        ${denied ? html`<div class="note">${denied} מצלמות ללא הרשאת צפייה חיה לא ייכללו בתצוגה.</div>` : nothing}
-        ${over ? html`<div class="note">תצוגה מכילה עד 16 מצלמות; ${over} האחרונות שנבחרו לא ייכללו.</div>` : nothing}
-        <div class="note">הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג ${s.cols}×${s.rows} מצלמות בעמוד.</div>
+        <sw-toggle ?checked=${s.shared} ?disabled=${!s.canShare} label=${s.canShare ? tr('משותפת לכל המשתמשים') : tr('משותפת (דורש הרשאת ניהול משתמשים)')} data-save-view-shared @change=${(ev: CustomEvent<{ checked: boolean }>) => set({ shared: ev.detail.checked })}></sw-toggle>
+        ${denied ? html`<div class="note">${tr('{denied} מצלמות ללא הרשאת צפייה חיה לא ייכללו בתצוגה.', { denied })}</div>` : nothing}
+        ${over ? html`<div class="note">${tr('תצוגה מכילה עד 16 מצלמות; {over} האחרונות שנבחרו לא ייכללו.', { over })}</div>` : nothing}
+        <div class="note">${tr('הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג {cols}×{rows} מצלמות בעמוד.', { cols: s.cols, rows: s.rows })}</div>
         ${s.error ? html`<div class="err" role="alert" data-save-view-error>${s.error}</div>` : nothing}
       </div>
-      <div slot="footer"><sw-button variant="primary" ?disabled=${s.busy} data-save-view-submit @click=${() => this.submitSave()}>${s.busy ? 'שומר…' : 'שמור תצוגה'}</sw-button><sw-button variant="ghost" @click=${() => (this.saveView = null)}>${t('actions.cancel')}</sw-button></div>
+      <div slot="footer"><sw-button variant="primary" ?disabled=${s.busy} data-save-view-submit @click=${() => this.submitSave()}>${s.busy ? tr('שומר…') : tr('שמור תצוגה')}</sw-button><sw-button variant="ghost" @click=${() => (this.saveView = null)}>${t('actions.cancel')}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -2876,9 +2877,9 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle!;
     const name = (id: string) => { const a = b.anchors.find((x) => x.id === id); return a?.camera?.name ?? a?.label ?? a?.resource_id ?? id; };
     return html`<span class="suggest" data-pick-suggest>
-      <span class="lbl"><sw-icon name="target" size=${12}></sw-icon>מוצע בסמוך</span>
+      <span class="lbl"><sw-icon name="target" size=${12}></sw-icon>${tr('מוצע בסמוך')}</span>
       ${s.map((x) => html`<sw-chip icon="camera" dot=${this.pickDot(b.anchors.find((a) => a.id === x.id))} title=${`${ADJACENT_LABEL[x.relation]}${x.zoneName ? ` · ${x.zoneName}` : ''} · ${name(x.from)}`} data-pick-suggest-chip=${x.id} data-relation=${x.relation} @click=${() => this.togglePick(x.id)}>${name(x.id)}<small>${ADJACENT_LABEL[x.relation]}</small></sw-chip>`)}
-      ${s.length > 1 ? html`<sw-chip data-pick-suggest-all @click=${() => this.addPicks(s.map((x) => x.id))}>הוסף הכל (${s.length})</sw-chip>` : nothing}
+      ${s.length > 1 ? html`<sw-chip data-pick-suggest-all @click=${() => this.addPicks(s.map((x) => x.id))}>${tr('הוסף הכל ({sCount})', { sCount: s.length })}</sw-chip>` : nothing}
     </span>`;
   }
 
@@ -2893,21 +2894,21 @@ export class ExploreFloorMap extends LitElement {
     const onFloor = this.floors.find((f) => f.id === this.floorId)?.cameraCount ?? placed;
     const unplaced = Math.max(0, onFloor - placed);
     const hint = sum.total
-      ? `נבחרו ${sum.total} · ${sum.online} זמינות${sum.offline ? ` · ${sum.offline} לא מקוונות` : ''}${sum.denied ? ` · ${sum.denied} ללא הרשאה` : ''}${unplaced ? ` · ${unplaced} מצלמות של הקומה אינן על המפה` : ''}`
-      : `לחץ על מצלמות או גרור מלבן על המפה · לחיצה על חדר בוחרת את מצלמותיו · Shift+גרירה מזיזה את המפה · עד 4 לניגון מסונכרן${unplaced ? ` · ${unplaced} מצלמות של הקומה אינן על המפה` : ''}`;
+      ? tr('נבחרו {total} · {online} זמינות{v}{v2}{v3}', { total: sum.total, online: sum.online, v: sum.offline ? tr(' · {offline} לא מקוונות', { offline: sum.offline }) : '', v2: sum.denied ? tr(' · {denied} ללא הרשאה', { denied: sum.denied }) : '', v3: unplaced ? tr(' · {unplaced} מצלמות של הקומה אינן על המפה', { unplaced }) : '' })
+      : tr('לחץ על מצלמות או גרור מלבן על המפה · לחיצה על חדר בוחרת את מצלמותיו · Shift+גרירה מזיזה את המפה · עד 4 לניגון מסונכרן{v}', { v: unplaced ? tr(' · {unplaced} מצלמות של הקומה אינן על המפה', { unplaced }) : '' });
     return html`<div class="pickbar" data-pickbar>
       <span class="hint" data-pick-hint>${hint}</span>
-      ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; const recOff = a?.camera?.recorder_enabled === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : recOff ? 'ה־NVR מושבת' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : recOff ? 'recorder-off' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
-      <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>בחר הכל (${cams.length})</sw-chip>
+      ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; const recOff = a?.camera?.recorder_enabled === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? tr('אין הרשאת צפייה חיה') : recOff ? tr('ה־NVR מושבת') : a?.camera?.status === 'online' ? tr('מקוונת') : tr('לא מקוונת')} data-pick-chip=${denied ? 'denied' : recOff ? 'recorder-off' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
+      <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>${tr('בחר הכל ({camsCount})', { camsCount: cams.length })}</sw-chip>
       ${this.roomChips()}
       ${this.renderSuggestions()}
       <span class="grow"></span>
-      <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${() => this.openWall()}>קיר חי (${this.picked.length})</sw-button>
-      <sw-button size="sm" icon="history" ?disabled=${!this.picked.length || this.picked.length > 4} data-pick-sync @click=${() => this.openSync()}>ניגון מסונכרן</sw-button>
-      <sw-button size="sm" icon="layers" ?disabled=${!this.saveableCameraIds().length} data-pick-save @click=${() => this.openSave()}>שמור כתצוגה</sw-button>
-      <sw-button variant="ghost" size="sm" @click=${() => (this.picked = [])}>נקה</sw-button>
-      <sw-button variant="ghost" size="sm" icon="close" @click=${() => this.setMulti(false)}>סיום</sw-button>
-      ${this.savedView ? html`<span class="saved" data-view-saved role="status">התצוגה „${this.savedView.name}” נשמרה (${this.savedView.cameras.length} מצלמות) · <a href="#/live/views" data-view-saved-open>תצוגות שמורות</a> · <a href=${wallHref(this.savedView)}>פתח בקיר</a></span>` : nothing}
+      <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${() => this.openWall()}>${tr('קיר חי ({pickedCount})', { pickedCount: this.picked.length })}</sw-button>
+      <sw-button size="sm" icon="history" ?disabled=${!this.picked.length || this.picked.length > 4} data-pick-sync @click=${() => this.openSync()}>${tr('ניגון מסונכרן')}</sw-button>
+      <sw-button size="sm" icon="layers" ?disabled=${!this.saveableCameraIds().length} data-pick-save @click=${() => this.openSave()}>${tr('שמור כתצוגה')}</sw-button>
+      <sw-button variant="ghost" size="sm" @click=${() => (this.picked = [])}>${tr('נקה')}</sw-button>
+      <sw-button variant="ghost" size="sm" icon="close" @click=${() => this.setMulti(false)}>${tr('סיום')}</sw-button>
+      ${this.savedView ? html`<span class="saved" data-view-saved role="status">${tr('התצוגה „{name}” נשמרה ({camerasCount} מצלמות) ·', { name: this.savedView.name, camerasCount: this.savedView.cameras.length })} <a href="#/live/views" data-view-saved-open>${tr('תצוגות שמורות')}</a> · <a href=${wallHref(this.savedView)}>${tr('פתח בקיר')}</a></span>` : nothing}
     </div>`;
   }
 
@@ -3019,14 +3020,14 @@ export class ExploreFloorMap extends LitElement {
         }, undefined, entityId); // LAT1: the entity's push wakes the next look (no fixed 1.5 s wait)
       }
     } catch (err) {
-      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'הגשר אינו מצומד. התקנה וצימוד: הגדרות → כללי.' : describeError(err);
+      const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? tr('הגשר אינו מצומד. התקנה וצימוד: הגדרות → כללי.') : describeError(err);
       this.action = { entityId, spec, record: null, error: msg, busy: false };
     }
   }
 
   private apiEntityBody(a: Anchor, floorName: string) {
     const e = a.entity;
-    if (!e) return html`<div class="note">התקן · <span class="ltr">${a.resource_id}</span> — לא נמצא בקטלוג המסונכרן (ייתכן שהוסר).</div>`;
+    if (!e) return html`<div class="note">${tr('התקן ·')} <span class="ltr">${a.resource_id}</span> ${tr('— לא נמצא בקטלוג המסונכרן (ייתכן שהוסר).')}</div>`;
     const tone = this.entityTone(e);
     const act = this.action?.entityId === e.entity_id ? this.action : null;
     const fresh = e.fresh && this.syncConnected;
@@ -3034,28 +3035,28 @@ export class ExploreFloorMap extends LitElement {
     return html`
       <div class="ecard" data-entity-card>
         <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span>${deviceTicketsOn() ? html`<ticket-count-chip entity-id=${e.entity_id}></ticket-count-chip>` : nothing}</div>
-        ${a.label && e.name && a.label !== e.name ? html`<div class="note">שם מקורי: ${e.name}</div>` : nothing}
+        ${a.label && e.name && a.label !== e.name ? html`<div class="note">${tr('שם מקורי: {name}', { name: e.name })}</div>` : nothing}
         ${this.notice ? html`<div class="note" data-notice role="status">${this.notice}</div>` : nothing}
         ${renaming
-          ? html`<div class="rename" data-rename-form><input .value=${renaming.value} placeholder=${e.name ?? a.resource_id} aria-label="שם במפה" @input=${(ev: Event) => (this.renaming = { id: a.id, value: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveRename(a); if (ev.key === 'Escape') this.renaming = null; }} />
-              <sw-button size="sm" variant="primary" icon="check" data-rename-save ?disabled=${renaming.busy} @click=${() => this.saveRename(a)}>שמור</sw-button>
-              <sw-button size="sm" variant="ghost" @click=${() => (this.renaming = null)}>ביטול</sw-button></div>`
+          ? html`<div class="rename" data-rename-form><input .value=${renaming.value} placeholder=${e.name ?? a.resource_id} aria-label=${tr('שם במפה')} @input=${(ev: Event) => (this.renaming = { id: a.id, value: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveRename(a); if (ev.key === 'Escape') this.renaming = null; }} />
+              <sw-button size="sm" variant="primary" icon="check" data-rename-save ?disabled=${renaming.busy} @click=${() => this.saveRename(a)}>${tr('שמור')}</sw-button>
+              <sw-button size="sm" variant="ghost" @click=${() => (this.renaming = null)}>${tr('ביטול')}</sw-button></div>`
           : nothing}
         ${this.entityActions(a)}
-        <details class="more"><summary>פרטים</summary>
+        <details class="more"><summary>${tr('פרטים')}</summary>
           <dl class="meta">
             <dt>${t('entity.lastChanged')}</dt><dd>${fmtTime(e.last_changed)}</dd>
-            <dt>נראה לאחרונה</dt><dd>${fmtTime(e.state_seen_at)}</dd>
+            <dt>${tr('נראה לאחרונה')}</dt><dd>${fmtTime(e.state_seen_at)}</dd>
             <dt>ID</dt><dd><span class="ltr">${e.entity_id}</span></dd>
           </dl>
           ${deviceTicketsOn() ? html`<sw-button size="sm" variant="ghost" icon="list" data-map-tickets @click=${(ev: Event) => openDeviceTickets(e.entity_id, entityName(a), stateLabel(e), ev.currentTarget as HTMLElement)}>${dt('mapAction')}</sw-button>` : nothing}
         </details>
       </div>
-      ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'ההתקן אינו זמין.' : 'הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
-      ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
+      ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? tr('ההתקן אינו זמין.') : tr('הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.')}</div>` : nothing}
+      ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">${tr('קריאה בלבד — אין פעולות מותרות ל־{domainLabel}.', { domainLabel: domainLabel(e.domain) })}</div>` : nothing}
       ${this.grantNote(e.actions)}
       ${act
-        ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : 'שולח…'}</div>`
+        ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : tr('שולח…')}</div>`
         : nothing}
     `;
   }
@@ -3097,7 +3098,7 @@ export class ExploreFloorMap extends LitElement {
       const saved = await updateAnchor(a.id, { revision: a.revision, label: r.value.trim() || null }, a.shared ? this.bundle?.floorId : undefined);
       if (this.bundle) this.bundle = { ...this.bundle, anchors: this.bundle.anchors.map((x) => (x.id === a.id ? { ...x, label: saved.label, revision: saved.revision } : x)) };
       this.renaming = null;
-      this.notice = saved.label ? `השם „${saved.label}“ נשמר` : 'חזרה לשם המקורי';
+      this.notice = saved.label ? tr('השם „{label}“ נשמר', { label: saved.label }) : tr('חזרה לשם המקורי');
     } catch (err) {
       this.notice = describeError(err);
       this.renaming = { ...r, busy: false };
@@ -3116,7 +3117,7 @@ export class ExploreFloorMap extends LitElement {
   private entityActions(a: Anchor) {
     const e = a.entity;
     // CR-010 review B1 / M1: the alarm panel and a zone's bypass control are operated only from the alarm screen
-    if (e?.alarm_managed) return html`<div class="eactions" data-entity-actions data-alarm-managed><sw-button block variant="primary" icon="shield" @click=${() => (window.location.hash = e.domain === 'alarm_control_panel' ? `#/security/alarm?panel=${encodeURIComponent(e.entity_id)}` : '#/security/alarm')}>נשלט ממסך האזעקה · לאזעקה</sw-button></div>`;
+    if (e?.alarm_managed) return html`<div class="eactions" data-entity-actions data-alarm-managed><sw-button block variant="primary" icon="shield" @click=${() => (window.location.hash = e.domain === 'alarm_control_panel' ? `#/security/alarm?panel=${encodeURIComponent(e.entity_id)}` : '#/security/alarm')}>${tr('נשלט ממסך האזעקה · לאזעקה')}</sw-button></div>`;
     const specs = e?.actions ?? [];
     if (!specs.length) return nothing;
     return html`<div class="eactions" data-entity-actions>${this.entityFooter(a)}</div>`;
@@ -3126,7 +3127,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? dimmedActionTitle(s, can('system.configure')) : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
+    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? dimmedActionTitle(s, can('system.configure')) : s.risk_label ? tr('פעולה {risk_label}', { risk_label: s.risk_label }) : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
   }
 
   private renderConfirm() {
@@ -3134,7 +3135,7 @@ export class ExploreFloorMap extends LitElement {
     if (!c) return nothing;
     const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === c.entityId)?.entity;
     return html`<sw-dialog open heading=${t('entity.confirm')} subheading=${ent?.name ?? c.entityId} @close=${() => (this.confirmSpec = null)}>
-      <div style="font-size:var(--sw-fs-sm);line-height:1.5">הפעולה <strong>${c.spec.label}</strong> על <span class="ltr">${c.entityId}</span> היא פעולה ${c.spec.risk_label ?? 'רגישה'}${c.spec.risk === 'sensitive' ? ' (הרשאה נפרדת)' : ''}. היא תבוצע בזהות שלך ותירשם באודיט.</div>
+      <div style="font-size:var(--sw-fs-sm);line-height:1.5">${tr('הפעולה')} <strong>${c.spec.label}</strong> ${tr('על')} <span class="ltr">${c.entityId}</span> ${tr('היא פעולה {v}{v2}. היא תבוצע בזהות שלך ותירשם באודיט.', { v: c.spec.risk_label ?? tr('רגישה'), v2: c.spec.risk === 'sensitive' ? tr(' (הרשאה נפרדת)') : '' })}</div>
       <div slot="footer"><sw-button variant="danger" @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button><sw-button variant="ghost" @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button></div>
     </sw-dialog>`;
   }
@@ -3177,22 +3178,22 @@ export class ExploreFloorMap extends LitElement {
     const recorderOff = cam?.recorder_enabled === false; // CR-024: its recorder is disabled - no picture at all
     const zone = this.zoneOf(a);
     const standalone = this.standaloneIds.has(a.resource_id) || isStandaloneRow(cam); // EVIDENCE-CAMERAS-2412: no NVR words for it
-    const where = zone ? `${floorName} / ${zone}` : standalone ? floorName : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
+    const where = zone ? `${floorName} / ${zone}` : standalone ? floorName : tr('{floorName} · ערוץ {v}', { floorName, v: cam?.channel ?? '?' });
     return html`
       ${recorderOff
-        ? html`<div class="off" data-recorder-off><div><sw-icon name="offline" size=${22}></sw-icon><div>ה־NVR של המצלמה מושבת</div></div></div>`
+        ? html`<div class="off" data-recorder-off><div><sw-icon name="offline" size=${22}></sw-icon><div>${tr('ה־NVR של המצלמה מושבת')}</div></div></div>`
         : st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${standalone ? STANDALONE_OFFLINE_TILE : t('camera.offlineReason')}</div></div></div>`
         : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, cam.live_kind === 'still' ? undefined : Date.now()) : ''} .stillRefresh=${cam?.live_kind === 'still' && st === 'live' ? cam.still_refresh_s ?? 10 : 0} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
       <dl class="meta">
         ${standalone
-          ? html`<dt>מקור</dt><dd data-standalone-source>${STANDALONE_LABEL}</dd>`
-          : html`<dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>`}
-        <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
+          ? html`<dt>${tr('מקור')}</dt><dd data-standalone-source>${STANDALONE_LABEL}</dd>`
+          : html`<dt>${tr('שם ב־NVR')}</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>`}
+        <dt>${tr('נראתה לאחרונה')}</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : tr('לא נבדק')}</dd>
       </dl>
       ${this.notice ? html`<div class="note" data-notice role="status">${this.notice}</div>` : nothing}
-      ${recorderOff ? nothing : html`<div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? (standalone ? standaloneMapNote('offline') : 'המצלמה מנותקת לפי ה־NVR.') : standalone ? standaloneMapNote('still') : 'תמונה: צילום מה־NVR (מתרענן).'}</div>`}
+      ${recorderOff ? nothing : html`<div class="note">${canLive ? tr('הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.') : st === 'offline' ? (standalone ? standaloneMapNote('offline') : tr('המצלמה מנותקת לפי ה־NVR.')) : standalone ? standaloneMapNote('still') : tr('תמונה: צילום מה־NVR (מתרענן).')}</div>`}
     `;
   }
 
@@ -3212,7 +3213,7 @@ export class ExploreFloorMap extends LitElement {
       body = cam ? this.demoCameraBody(cam, b.floorName) : this.demoEntityBody(ent!);
       const canView = cam ? cam.state === 'live' || cam.state === 'stale' : false;
       footer = cam
-        ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>צפייה חיה</sw-button>
+        ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${!canView} @click=${() => navigate(`/live/cameras/${cam.id}`)}>${tr('צפייה חיה')}</sw-button>
             <sw-button size="sm" icon="history" ?disabled=${cam.state === 'forbidden'} @click=${() => navigate('/investigate/playback')}>${t('camera.recordings')}</sw-button>
             <sw-button variant="ghost" size="sm" iconOnly icon="pin" label=${this.pinned ? t('camera.unpin') : t('camera.pin')} @click=${() => (this.pinned = !this.pinned)}></sw-button>`
         : html`<sw-button variant="primary" size="sm" ?disabled=${!ent!.controllable || this.screenState === 'stale'}>${t('entity.control')}</sw-button><sw-button variant="ghost" size="sm">${t('entity.openInHa')}</sw-button>`;
@@ -3223,13 +3224,13 @@ export class ExploreFloorMap extends LitElement {
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
       footer = html`${a.resource_type === 'camera'
-          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline' || a.camera?.recorder_enabled === false} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
+          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline' || a.camera?.recorder_enabled === false} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>${tr('צפייה מלאה')}</sw-button>
             ${this.standaloneIds.has(a.resource_id) || isStandaloneRow(a.camera) ? nothing /* NVRLESS-CAMERAS-2411: no recordings for a camera without a recorder */ : html`<sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`}`
           : nothing}
         ${mapTicketsOn() ? html`<sw-button variant="ghost" size="sm" icon="plus" data-map-ticket @click=${() => (this.ticketFor = { pick: { element: { floor_id: a.floor_id || b.floorId, kind: 'anchor', id: a.id } }, name: entityName(a), floorName: b.floorName, entityId: a.resource_type === 'ha_entity' ? a.resource_id : undefined })}>${mapCreateLabel()}</sw-button>` : nothing}
         ${mayOpenHere(incidentsModuleOn()) ? html`<sw-button variant="ghost" size="sm" icon="warning" data-map-incident ?disabled=${this.incidentBusy} @click=${() => void this.openIncidentHere(a.id)}>${incText('openHere')}</sw-button>` : nothing}
-        ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
-        ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
+        ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>${tr('שנה שם')}</sw-button>` : nothing}
+        ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>${tr('עריכה')}</sw-button>` : nothing}`;
     }
     if (this.narrow || !this.anchor || this.shows3d) { // over the 3D a 2D pin position means nothing: always the drawer
       return html`<sw-drawer open heading=${heading} subheading=${sub} @close=${this.close}>${body}<div slot="footer">${footer}</div></sw-drawer>`;
@@ -3283,7 +3284,7 @@ export class ExploreFloorMap extends LitElement {
   private renderFloorStrip() {
     const floors = this.buildingFloors;
     if (this.bundle?.source !== 'api' || floors.length < 2) return nothing;
-    return html`<div class="floorstrip" role="group" aria-label="קומות" data-floor-strip>
+    return html`<div class="floorstrip" role="group" aria-label=${tr('קומות')} data-floor-strip>
       ${floors.map((f) => {
         const dots = f.id === this.floorId ? this.floorDots(this.bundle) : this.floorDots(this.otherBundles[f.id] ?? null);
         return html`<button class=${f.id === this.floorId ? 'on' : ''} data-strip-floor=${f.id} aria-pressed=${f.id === this.floorId} title=${f.name} ?disabled=${!f.hasPlan}
@@ -3356,25 +3357,25 @@ export class ExploreFloorMap extends LitElement {
   private renderPanel() {
     const counts = this.layerCounts();
     const rows: { id: Layer; label: string; count: string }[] = [
-      { id: 'cameras', label: t('floor.cameras'), count: `${counts.cameras} ממוקמות` },
-      { id: 'doors', label: 'דלתות ואינטרקום', count: `${counts.doors} ישויות` },
-      { id: 'lights', label: t('floor.lights'), count: `${counts.lights} ישויות` },
-      { id: 'sensors', label: 'אבטחה וחיישנים', count: `${counts.sensors} ישויות` },
-      { id: 'zones', label: 'שמות חדרים', count: counts.zones ? `${counts.zones} אזורים · תוויות לפי רמת זום` : 'אין חדרים מוגדרים' },
-      ...(this.bundle?.floorImages ? [{ id: 'photo' as Layer, label: 'תמונת הקומה', count: this.bundle.floorImages.on ? 'כבוי ודלוק' : 'תמונה אחת' }] : []),
-      { id: 'structure', label: 'מבנה', count: this.geometry ? `${this.geometry.walls.length} קירות · ${this.geometry.openings.length} פתחים` : 'לא שורטט מבנה' },
-      { id: 'objects', label: 'עצמים', count: this.geometry ? `${this.geometry.objects.length} עצמים מהספרייה` : 'אין עצמים' },
-      { id: 'connectors', label: 'מחברים', count: this.geometry ? `${this.geometry.connectors.length} מדרגות, רמפות ומעליות` : 'אין מחברים' },
-      { id: 'states', label: 'מצבי חדרים', count: this.layers.has('states') ? (counts.states ? `${counts.states} עם מצב · תאורה, תנועה, פתחים פתוחים, טמפרטורה` : 'תאורה, תנועה, פתחים פתוחים, טמפרטורה') : 'מוסתר' },
+      { id: 'cameras', label: t('floor.cameras'), count: tr('{cameras} ממוקמות', { cameras: counts.cameras }) },
+      { id: 'doors', label: tr('דלתות ואינטרקום'), count: tr('{doors} ישויות', { doors: counts.doors }) },
+      { id: 'lights', label: t('floor.lights'), count: tr('{lights} ישויות', { lights: counts.lights }) },
+      { id: 'sensors', label: tr('אבטחה וחיישנים'), count: tr('{sensors} ישויות', { sensors: counts.sensors }) },
+      { id: 'zones', label: tr('שמות חדרים'), count: counts.zones ? tr('{zones} אזורים · תוויות לפי רמת זום', { zones: counts.zones }) : tr('אין חדרים מוגדרים') },
+      ...(this.bundle?.floorImages ? [{ id: 'photo' as Layer, label: tr('תמונת הקומה'), count: this.bundle.floorImages.on ? tr('כבוי ודלוק') : tr('תמונה אחת') }] : []),
+      { id: 'structure', label: tr('מבנה'), count: this.geometry ? tr('{wallsCount} קירות · {openingsCount} פתחים', { wallsCount: this.geometry.walls.length, openingsCount: this.geometry.openings.length }) : tr('לא שורטט מבנה') },
+      { id: 'objects', label: tr('עצמים'), count: this.geometry ? tr('{objectsCount} עצמים מהספרייה', { objectsCount: this.geometry.objects.length }) : tr('אין עצמים') },
+      { id: 'connectors', label: tr('מחברים'), count: this.geometry ? tr('{connectorsCount} מדרגות, רמפות ומעליות', { connectorsCount: this.geometry.connectors.length }) : tr('אין מחברים') },
+      { id: 'states', label: tr('מצבי חדרים'), count: this.layers.has('states') ? (counts.states ? tr('{states} עם מצב · תאורה, תנועה, פתחים פתוחים, טמפרטורה', { states: counts.states }) : tr('תאורה, תנועה, פתחים פתוחים, טמפרטורה')) : tr('מוסתר') },
     ];
-    return html`<div class="panel" role="group" aria-label="שכבות פעילות" data-layers-panel>
-      <h3>שכבות פעילות</h3>
-      <div class="sub">הצג רק מה שרלוונטי כרגע</div>
+    return html`<div class="panel" role="group" aria-label=${tr('שכבות פעילות')} data-layers-panel>
+      <h3>${tr('שכבות פעילות')}</h3>
+      <div class="sub">${tr('הצג רק מה שרלוונטי כרגע')}</div>
       ${rows.map((r) => html`<div class="prow"><span class="lbl">${r.label}<span class="cnt">${r.count}</span></span><sw-toggle ?checked=${this.layers.has(r.id)} label=${r.label} labelHidden data-layer=${r.id} @change=${(e: CustomEvent<{ checked: boolean }>) => { const next = new Set(this.layers); if (e.detail.checked) next.add(r.id); else next.delete(r.id); this.setLayers(next); }}></sw-toggle></div>`)}
       ${this.bundle?.imageUrl
-        ? html`<div class="prow"><span class="lbl">תמונת התוכנית<span class="cnt">${this.planImage ? 'הקובץ שנטען, מתחת למבנה' : 'מוסתרת · המבנה על רקע נקי'}</span></span><sw-toggle ?checked=${this.planImage} label="תמונת התוכנית" labelHidden data-plan-background @change=${(e: CustomEvent<{ checked: boolean }>) => this.setPlanImage(e.detail.checked)}></sw-toggle></div>`
+        ? html`<div class="prow"><span class="lbl">${tr('תמונת התוכנית')}<span class="cnt">${this.planImage ? tr('הקובץ שנטען, מתחת למבנה') : tr('מוסתרת · המבנה על רקע נקי')}</span></span><sw-toggle ?checked=${this.planImage} label=${tr('תמונת התוכנית')} labelHidden data-plan-background @change=${(e: CustomEvent<{ checked: boolean }>) => this.setPlanImage(e.detail.checked)}></sw-toggle></div>`
         : nothing}
-      <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.</span></div>
+      <div class="pnote"><sw-icon name="shield" size=${14}></sw-icon><span>${tr('מתג משנה תצוגה בלבד; ייבוא ישות אינו מעניק הרשאת שליטה בה.')}</span></div>
       ${this.renderSkinExport()}
     </div>`;
   }
@@ -3385,9 +3386,9 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!this.shows3d || b?.source !== 'api' || !b.permissions.edit || this.phone.restricted('control_images')) return nothing;
     return html`<div class="pexport">
-      <sw-button variant="ghost" size="sm" icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>
+      <sw-button variant="ghost" size="sm" icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title=${tr('תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד')} @click=${() => this.exportControlImages()}>${this.skinBusy ? tr('מצלם…') : tr('תמונות בקרה')}</sw-button>
       ${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}
-      <sw-button variant="ghost" size="sm" icon="image" data-bake-run ?disabled=${this.bakeBusy || !this.geometry} title=${BAKE_TITLE_HE} @click=${() => this.runBake()}>${this.bakeBusy ? 'מכין…' : BAKE_BUTTON_HE}</sw-button>
+      <sw-button variant="ghost" size="sm" icon="image" data-bake-run ?disabled=${this.bakeBusy || !this.geometry} title=${BAKE_TITLE_HE} @click=${() => this.runBake()}>${this.bakeBusy ? tr('מכין…') : BAKE_BUTTON_HE}</sw-button>
       <span class="note" data-bake-note>${this.bakeNote || bakeStatus(b, STILL_RECIPE_Q2)}</span>
     </div>`;
   }
@@ -3410,7 +3411,7 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !this.geometry || this.bakeBusy) return;
     this.bakeBusy = true;
-    this.bakeNote = 'מכין תמונות ותאורה…';
+    this.bakeNote = tr('מכין תמונות ותאורה…');
     try {
       this.bakeNote = await runFloorBake({ bundle: b, geometry: this.geometry, catalog: this.catalog3d, live: this.sceneMemo?.all ?? null,
         onProgress: (t) => { this.bakeNote = t; }, cancelled: () => !this.isConnected || this.bundle?.floorId !== b.floorId });
@@ -3428,7 +3429,7 @@ export class ExploreFloorMap extends LitElement {
     const ids = Object.keys(states);
     if (!b || !ids.length) return nothing;
     const act = this.action;
-    return html`<div class="circuits ${this.panel || this.sideList ? 'shifted' : ''}" role="group" aria-label="מעגלי תאורה" data-circuit-strip>
+    return html`<div class="circuits ${this.panel || this.sideList ? 'shifted' : ''}" role="group" aria-label=${tr('מעגלי תאורה')} data-circuit-strip>
       ${ids.map((id) => {
         const s = states[id];
         const on = s.state === 'on';
@@ -3436,14 +3437,14 @@ export class ExploreFloorMap extends LitElement {
         // switch is in flight, none on a stale screen or an unavailable switch
         const { spec, blocked, why } = circuitAction(s, { busy: !!act?.busy && act.entityId === s.entity_id, stale: this.screenState === 'stale' });
         const stale = this.screenState === 'stale' || !s.fresh;
-        const note = !s.available ? 'לא זמין' : stale ? 'לא מעודכן' : '';
+        const note = !s.available ? tr('לא זמין') : stale ? tr('לא מעודכן') : '';
         return html`<button class="circuit ${on ? 'on' : ''} ${note ? 'muted' : ''}" data-circuit-toggle=${id} data-state=${s.state ?? 'unknown'} data-available=${s.available ? 'yes' : 'no'} style=${`--kc: var(--sw-${circuitToken(s.color_token) ?? 'circuit-1'})`} ?disabled=${blocked}
-            title=${why ?? (on ? 'כיבוי המעגל' : 'הדלקת המעגל')} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
-          <i></i><span>${s.name ?? id}</span><span class="cnt">${countLabel(s.member_ids.length, 'מנורה אחת', 'מנורות')} · ${s.state === null ? 'לא ידוע' : on ? 'דולק' : 'כבוי'}${s.power_w ? ` · ${s.power_w} W` : ''}${note ? html` · <span class="cnote" data-circuit-note>${note}</span>` : nothing}</span>
+            title=${why ?? (on ? tr('כיבוי המעגל') : tr('הדלקת המעגל'))} @click=${() => { if (spec && !blocked) this.trigger(s.entity_id, spec); }}>
+          <i></i><span>${s.name ?? id}</span><span class="cnt">${countLabel(s.member_ids.length, tr('מנורה אחת'), tr('מנורות'))} · ${s.state === null ? tr('לא ידוע') : on ? tr('דולק') : tr('כבוי')}${s.power_w ? ` · ${s.power_w} W` : ''}${note ? html` · <span class="cnote" data-circuit-note>${note}</span>` : nothing}</span>
         </button>`;
       })}
       ${act && ids.some((id) => states[id].entity_id === act.entityId)
-        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error role="alert">${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? 'שולח…' : ''}</span>`
+        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error role="alert">${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? tr('שולח…') : ''}</span>`
         : nothing}
     </div>`;
   }
@@ -3451,7 +3452,7 @@ export class ExploreFloorMap extends LitElement {
   private renderStage() {
     const b = this.bundle;
     if (this.loadError) return html`<div class="cover"><sw-state-panel state="error" hint=${this.loadError} actionLabel=${t('states.retry')} @action=${() => this.load()}></sw-state-panel></div>`;
-    if (this.noFloors) return html`<div class="cover"><sw-state-panel icon="map" state="empty" heading="עדיין אין קומות" hint="צור אתר, מבנה וקומה ואז ייבא תוכנית קומה."><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>לאתרים ומבנים</sw-button></div></sw-state-panel></div>`;
+    if (this.noFloors) return html`<div class="cover"><sw-state-panel icon="map" state="empty" heading=${tr('עדיין אין קומות')} hint=${tr('צור אתר, מבנה וקומה ואז ייבא תוכנית קומה.')}><div style="margin-block-start:10px"><sw-button variant="primary" icon="building" @click=${() => navigate('/explore/sites')}>${tr('לאתרים ומבנים')}</sw-button></div></sw-state-panel></div>`;
     if (!b) return html`<div class="cover"><sw-state-panel state="loading"></sw-state-panel></div>`;
     switch (this.screenState) {
       case 'loading':
@@ -3465,7 +3466,7 @@ export class ExploreFloorMap extends LitElement {
     }
     if (this.screenState === 'empty' || b.planStatus === 'none') {
       return html`<div class="cover">
-        <sw-state-panel icon="map" state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? 'העלאת תוכנית זמינה במחשב.' : b.permissions.import ? t('floor.noPlanHint') : 'עורך המפות של הקומה יכול להעלות תוכנית.'}>
+        <sw-state-panel icon="map" state="empty" heading=${t('floor.noPlan')} hint=${this.phone.restricted('structure') ? tr('העלאת תוכנית זמינה במחשב.') : b.permissions.import ? t('floor.noPlanHint') : tr('עורך המפות של הקומה יכול להעלות תוכנית.')}>
           <div style="display:flex;gap:8px;margin-block-start:10px;justify-content:center;flex-wrap:wrap">
             ${b.permissions.import && !this.phone.restricted('structure') ? html`<sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${t('floor.uploadPlan')}</sw-button>` : nothing}
             <sw-button icon="list" @click=${() => navigate('/live/wall')}>${t('floor.listView')}</sw-button>
@@ -3477,7 +3478,7 @@ export class ExploreFloorMap extends LitElement {
       ${this.screenState === 'stale' || this.screenState === 'partial'
         ? html`<div class="banner"><sw-state-panel icon="map" compact state=${this.screenState}></sw-state-panel></div>`
         : b.needsAlignment
-          ? html`<div class="banner"><sw-state-panel compact state="partial" heading="פריטים הוצבו על גרסת תוכנית קודמת" hint="בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית)."></sw-state-panel></div>`
+          ? html`<div class="banner"><sw-state-panel compact state="partial" heading=${tr('פריטים הוצבו על גרסת תוכנית קודמת')} hint=${tr('בדוק שהמיקומים עדיין נכונים על הרקע החדש (עורך התוכנית).')}></sw-state-panel></div>`
           : nothing}
       ${this.shows3d ? this.render3d(b) : nothing}
       <sw-plan-canvas
@@ -3511,13 +3512,13 @@ export class ExploreFloorMap extends LitElement {
         @zone-select=${(e: CustomEvent<{ id: string }>) => this.onZoneSelect(e.detail.id)}
         @marker-select=${this.onSelect}
         @view-change=${this.onViewChange}></sw-plan-canvas>
-      ${this.threeState === 'loading' ? html`<div class="cover" data-3d-loading><sw-state-panel state="loading" hint="טוען תלת-ממד…"></sw-state-panel></div>` : nothing}
-      ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
+      ${this.threeState === 'loading' ? html`<div class="cover" data-3d-loading><sw-state-panel state="loading" hint=${tr('טוען תלת-ממד…')}></sw-state-panel></div>` : nothing}
+      ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading=${tr('תלת-ממד לא נטען')} hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => { this.levelFilter = id; this.stackFocus = null; })}${this.renderStackSwitch()}</div>` : nothing}
       ${b.source === 'api' && this.buildingFloors.length > 1 && !this.shows3d
-        ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
-            ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
+        ? html`<div class="floorbtns" role="group" aria-label=${tr('מעבר מהיר בין קומות')} data-floor-buttons>
+            ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : tr(' · אין תוכנית')}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
           </div>`
         : nothing}
       ${this.shows3d ? this.renderFloorStrip() : nothing}
@@ -3528,13 +3529,13 @@ export class ExploreFloorMap extends LitElement {
       ${this.multi ? this.renderPickbar() : nothing}
       ${this.renderSideList()}
       ${this.renderSaveDialog()}
-      ${this.shows3d ? nothing : html`<div class="legend" aria-label="מקרא">
-        ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: var(--sw-r-2xs); opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
-        <span><i style="--lg: var(--sw-accent)"></i>חי</span>
-        <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
-        <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
-        <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
-        <span><i style="--lg: var(--sw-menu-surface); box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>התקן</span>
+      ${this.shows3d ? nothing : html`<div class="legend" aria-label=${tr('מקרא')}>
+        ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: var(--sw-r-2xs); opacity: 0.5"></i>${tr('{zonesCount} אזורים', { zonesCount: b.zones.length })}</span>` : nothing}
+        <span><i style="--lg: var(--sw-accent)"></i>${tr('חי')}</span>
+        <span><i style="--lg: var(--sw-stale)"></i>${tr('לא מעודכן')}</span>
+        <span><i style="--lg: var(--sw-offline)"></i>${tr('מנותק')}</span>
+        <span><i style="--lg: var(--sw-forbidden)"></i>${tr('ללא הרשאה')}</span>
+        <span><i style="--lg: var(--sw-menu-surface); box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>${tr('התקן')}</span>
       </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}
@@ -3552,11 +3553,11 @@ export class ExploreFloorMap extends LitElement {
     // AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (flush: the map takes the whole body); the title is its H1 on the
     // --sw-h1 tokens, the crumbs its crumbs slot, the tools its actions; the counts line stays a light-DOM row so the short landscape
     // viewport can still drop it
-    const title = this.embedded ? '' : b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה';
+    const title = this.embedded ? '' : b ? `${b.buildingName} – ${b.floorName}` : tr('מפת קומה');
     return html`
       <sw-page flush wide class="fpage" data-head heading=${title}>
         ${this.embedded ? nothing : html`<div class="crumbs" slot="crumbs">
-            <a href="#/explore/sites">${b?.siteName ?? 'אתרים'}</a><sw-icon name="chevron" size=${11}></sw-icon>
+            <a href="#/explore/sites">${b?.siteName ?? tr('אתרים')}</a><sw-icon name="chevron" size=${11}></sw-icon>
             <a href="#/explore/buildings/${b?.source === 'api' ? apiFloor?.building_id ?? 'bld-a' : 'bld-a'}/floors">${b?.buildingName ?? ''}</a><sw-icon name="chevron" size=${11}></sw-icon>
             <span>${b?.floorName ?? ''}</span>
           </div>`}
@@ -3565,15 +3566,15 @@ export class ExploreFloorMap extends LitElement {
             ${LAYERS.filter((l) => (l.id !== 'cameras' || mapCameraLayerShown(!nvrLess(), cap('cameras_available'))) && (l.id !== 'photo' || !!b?.floorImages)).map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
-            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
+            title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? tr('אין מבנה מפורסם לקומה הזו') : tr('מקש 3')} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
           ${webglAvailable() ? nothing : html`<span class="note" data-3d-unavailable>${WEBGL_UNAVAILABLE_HE}</span>`}
           ${this.compact ? nothing : html`<sw-button icon="layers" aria-pressed=${this.panel} @click=${() => this.togglePanel()}>${t('floor.layers')}</sw-button>
-          ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() || this.embedded ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}`}
-          ${this.embedded ? nothing : html`<sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>`}
+          ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>${tr('רשימה')}</sw-button>${nvrLess() || this.embedded ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>${tr('בחירת מצלמות')}</sw-button>`}` : nothing}`}
+          ${this.embedded ? nothing : html`<sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${tr('{bidi} · {cameraCount} מצלמות{v}', { bidi: bidi(f.name), cameraCount: f.cameraCount, v: f.hasPlan ? '' : tr(' · אין תוכנית') })}</option>`)}</select></sw-field>`}
         </div>
         ${this.embedded ? nothing : html`<div class="sub fsub">
-            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} התקנים${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
-            ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
+            <span>${tr('{cameraCount} מצלמות{v}{v2}', { cameraCount, v: b && b.source === 'api' ? tr(' · {v} התקנים{v2}', { v: b.anchors.length - cameraCount, v2: b.zones.length ? tr(' · {zonesCount} אזורים', { zonesCount: b.zones.length }) : '' }) : '', v2: b?.source === 'demo' ? tr(' · נתוני הדגמה') : b?.planStatus === 'published' ? tr(' · תוכנית מפורסמת') : '' })}</span>
+            ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label=${tr('טיוטת תוכנית ממתינה לפרסום')}></sw-badge>` : nothing}
           </div>`}
         <div class="stage" data-stage>${this.renderStage()}</div>
       </sw-page>

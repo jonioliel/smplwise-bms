@@ -14,6 +14,7 @@ interface ByteUnits {
 
 export const BYTE_UNITS_EN: ByteUnits = { b: 'B', kb: 'KB', mb: 'MB', gb: 'GB' };
 /** Hebrew abbreviations (with the gershayim, U+05F4). */
+// i18n-keep: shared with the public pages, which cannot read the language packs; English units are beside it
 export const BYTE_UNITS_HE: ByteUnits = { b: 'B', kb: 'ק״ב', mb: 'מ״ב', gb: 'ג״ב' };
 
 /**

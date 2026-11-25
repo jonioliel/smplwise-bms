@@ -289,6 +289,7 @@ function sample(b: BillingSettings['business'], terms: PaymentTerms, hasLogo: bo
   const today = elecToday();
   return {
     schema: 'arx.energy.bill_snapshot/1',
+    // i18n-keep-start: the sample bill preview of the Hebrew bill document (invented sample data)
     doc: { title_he: 'חשבון צריכת חשמל ודרישת תשלום', subtitle_he: 'אינו חשבונית מס', is_tax_invoice: false },
     bill: { id: '', number: '2026-09-0001', revision: 1, replaces: null, state: 'issued', issue_date: today, due_date: terms.mode === 'net_days' ? addDays(today, terms.days) : `${today.slice(0, 7)}-${String(terms.day_of_month).padStart(2, '0')}`, expected_due_date: null, payment_terms: { mode: terms.mode, days: terms.days, day_of_month: terms.day_of_month } },
     period: { from: '2026-09-01', to: '2026-09-30', days: 30 },
@@ -296,6 +297,7 @@ function sample(b: BillingSettings['business'], terms: PaymentTerms, hasLogo: bo
     customer: { id: 'c', customer_number: '0001', name: 'לקוח לדוגמה', address: 'רחוב הדוגמה 12, עיר לדוגמה', phone: '', email: '', tax_id: '' },
     account: { id: 'a', name: 'חשבון לדוגמה', tariff: { id: 't', name: 'תעריף' }, formula: { text: '[מונה]', sentence_he: 'מונה לדוגמה' } },
     meters: [{ meter_id: 'm', name: 'מונה לדוגמה', coefficient: '1', start: { at: '2026-09-01T00:00:00Z', reading_kwh: '1000.00', kind: 'reading' }, end: { at: '2026-09-30T23:59:00Z', reading_kwh: '1776.20', kind: 'reading' }, consumption_kwh: '776.20', contribution_kwh: '776.20' }],
+    // i18n-keep-end
     lines: [{ from: '2026-09-01', to: '2026-09-30', kwh: '776.20', price_entered: '0.5430', price_mode: 'ex_vat', unit_price_ex_vat: '0.5430', amount_ex_vat: '421.48', vat_rate_percent: '18', vat_amount: '75.87', total: '497.35' }],
     totals: { currency: 'ILS', kwh: '776.20', amount_ex_vat: '421.48', vat_amount: '75.87', total: '497.35', vat_breakdown: [{ rate_percent: '18', base: '421.48', vat: '75.87' }], price_mode_note_he: null },
     notes: [],

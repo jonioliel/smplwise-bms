@@ -386,7 +386,7 @@ export class InvestigateIncidents extends LitElement {
   /** "Who opened": the access log rows of the window for each mapped door the caller may read (access.events.read on that station). */
   private async loadWho(d: IncidentDoors) {
     if (!isApi()) {
-      this.who = { 'lock.demo_parking': 'יוסי לוי · כרטיס', 'binary_sensor.demo_exit': 'ללא זיהוי · נפתחה מבפנים' };
+      this.who = { 'lock.demo_parking': 'יוסי לוי · כרטיס', 'binary_sensor.demo_exit': 'ללא זיהוי · נפתחה מבפנים' }; // i18n-keep: demo data: invented names, as the api demo stores
       return;
     }
     const out: Record<string, string> = {};
@@ -406,10 +406,10 @@ export class InvestigateIncidents extends LitElement {
   private async loadInfra() {
     if (!isApi()) {
       this.elevators = { state: 'ready', data: [
-        { id: 'e1', name: 'מעלית צפונית', area_id: null, area_name: 'קומה -1', state: 'door_open', reason: '', partial: false, stale: false, since: null, roles: [], extras: [] },
-        { id: 'e2', name: 'מעלית דרומית', area_id: null, area_name: 'קומה 3', state: 'moving_down', reason: '', partial: false, stale: false, since: null, roles: [], extras: [] },
+        { id: 'e1', name: tr('מעלית צפונית'), area_id: null, area_name: tr('קומה -1'), state: 'door_open', reason: '', partial: false, stale: false, since: null, roles: [], extras: [] },
+        { id: 'e2', name: tr('מעלית דרומית'), area_id: null, area_name: tr('קומה 3'), state: 'moving_down', reason: '', partial: false, stale: false, since: null, roles: [], extras: [] },
       ] };
-      this.generators = { state: 'ready', data: [{ id: 'g1', name: 'גנרטור ראשי', area_id: null, area_name: 'גג', status: 'detected', source_kind: 'demo', rated_kw: null, rated_kva: null, fuel_type: 'diesel', detected_at: null, last_seen_at: null, revision: 1, availability: 'online', stale: false } as unknown as GenDevice] };
+      this.generators = { state: 'ready', data: [{ id: 'g1', name: tr('גנרטור ראשי'), area_id: null, area_name: tr('גג'), status: 'detected', source_kind: 'demo', rated_kw: null, rated_kva: null, fuel_type: 'diesel', detected_at: null, last_seen_at: null, revision: 1, availability: 'online', stale: false } as unknown as GenDevice] };
       return;
     }
     const [e, g] = await Promise.allSettled([listElevators(), listDevices()]);

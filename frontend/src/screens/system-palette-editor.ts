@@ -278,7 +278,7 @@ export class SystemPaletteEditor extends LitElement {
   /** "Save as": the draft in the editor is saved under a NEW custom id (the original stays as it was). */
   private async saveAs() {
     if (!this.draft) return;
-    const he = `${this.draft.name.he.trim()} (עותק)`.slice(0, 40);
+    const he = `${this.draft.name.he.trim()} (עותק)`.slice(0, 40); // i18n-keep: the copy suffix is written into the Hebrew name only
     this.draft = { ...this.draft, id: newCustomId(), name: { he, en: this.draft.name.en || 'Custom' } };
     await this.save();
   }

@@ -10,10 +10,12 @@ import type { InstalmentDemandRow } from '../api/tickets-costs';
 type DemandsLang = 'he' | 'en';
 
 const TEXT = {
+  // i18n-keep-start: the Hebrew side of a table whose English is beside it
   he: { title: 'תשלומים לפי שלבים', none: 'טרם נדרש', open: 'ממתין לתשלום', paid: 'שולם', cancelled: 'בוטל', advance: 'מקדמה', progress: 'תשלום ביניים',
         final: 'תשלום סופי', due: 'מועד', onCompletion: 'בסיום העבודה', n: 'תשלום {n}',
         late: 'באיחור', soon: 'בקרוב', later: 'טרם הגיע המועד', markPaid: 'סמן כשולם', confirm: 'לאשר שהתשלום בוצע?', yes: 'כן, שולם', no: 'ביטול',
         failed: 'סימון התשלום נכשל. נסו שוב.', done: 'התשלום סומן כשולם' },
+  // i18n-keep-end
   en: { title: 'Instalment payments', none: 'Not demanded yet', open: 'Awaiting payment', paid: 'Paid', cancelled: 'Cancelled', advance: 'Advance',
         progress: 'Progress payment', final: 'Final payment', due: 'Due', onCompletion: 'On completion', n: 'Instalment {n}',
         late: 'Late', soon: 'Due soon', later: 'Not due yet', markPaid: 'Mark paid', confirm: 'Confirm the payment was made?', yes: 'Yes, paid', no: 'Cancel',

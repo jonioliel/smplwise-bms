@@ -55,7 +55,7 @@ const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: tr('הת
 const DEMO_SOURCE_WORDS: Record<string, string> = { HA: tr('מערכת הבית'), NVR: tr('מקליט') };
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
-const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
+const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' }; // i18n-keep: camera names matched against the demo events
 const SEV_LABEL = { info: tr('מידע'), alert: tr('התראה'), critical: tr('קריטי') } as const;
 type Severity = keyof typeof SEV_LABEL;
 /** CR-EVENTS-TABLE-2443 (06:INFILE-1): the severity badge of the list, both drawers and the demo table, one mapping (sevKind).
@@ -1257,9 +1257,9 @@ export class InvestigateEvents extends LitElement {
             ${evs.length < w.count ? html`<div class="sub">${tr('{n} אירועים נוספים אינם בסינון הנוכחי.', { n: w.count - evs.length })}</div>` : nothing}
           </div>
           <div class="wfix" data-window-fix>
-            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, 'פוצל מחלון')}>${tr('הפרד לחלון נפרד')}${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
-            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], 'אוחד עם החלון הקודם')}>${tr('אחד עם הקודם ({time})', { time: this.fmt(older.start) })}</sw-button>` : nothing}
-            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], 'אוחד עם החלון הבא')}>${tr('אחד עם הבא ({time})', { time: this.fmt(newer.start) })}</sw-button>` : nothing}
+            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, tr('פוצל מחלון'))}>${tr('הפרד לחלון נפרד')}${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
+            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], tr('אוחד עם החלון הקודם'))}>${tr('אחד עם הקודם ({time})', { time: this.fmt(older.start) })}</sw-button>` : nothing}
+            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], tr('אוחד עם החלון הבא'))}>${tr('אחד עם הבא ({time})', { time: this.fmt(newer.start) })}</sw-button>` : nothing}
             ${w.manual_group_id ? html`<sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} data-window-ungroup @click=${() => this.dissolve(w)}>${tr('בטל קיבוץ ידני')}</sw-button>` : nothing}
           </div>`
         : nothing}
@@ -1450,7 +1450,7 @@ export class InvestigateEvents extends LitElement {
                 <div><dt>${tr('ודאות')}</dt><dd>${ev.confidence === 'measured' ? tr('נמדד במכשיר') : tr('נגזר מההקלטה')}</dd></div>
                 <div><dt>${tr('חזרות')}</dt><dd>${ev.count} · ${ev.state === 'active' ? tr('פעיל') : ev.state === 'inactive' ? tr('הסתיים') : '—'}</dd></div>
                 <div class="wide"><dt>${tr('טיפול')}</dt><dd>${ev.acked_at ? html`${tr('טופל')}${ev.acked_by_username ? ` ${tr('בידי {name}', { name: ev.acked_by_username })}` : ''} · <span class="ltr">${this.fmt(ev.acked_at)}</span>` : tr('ממתין לטיפול')}</dd></div>
-                ${descHe && descHe !== `התראת ${kind}` ? html`<div class="wide"><dt>${tr('תיאור')}</dt><dd>${descHe}</dd></div>` : nothing}
+                ${descHe && descHe !== /* i18n-keep: compared with the server's default description */ `התראת ${kind}` ? html`<div class="wide"><dt>${tr('תיאור')}</dt><dd>${descHe}</dd></div>` : nothing}
                 ${typeof ev.details.seconds === 'number' ? html`<div><dt>${tr('משך ההקלטה')}</dt><dd>${tr('{n} שנ׳', { n: String(ev.details.seconds) })}</dd></div>` : nothing}
               </dl>
               <details class="tech evtech" data-event-tech>
@@ -1573,7 +1573,7 @@ export class InvestigateEvents extends LitElement {
               <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? tr('אין תמונה לאירוע זה') : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">${tr('דמו · תמונת אירוע מהמקליט (T044)')}</span>`}</div>
               <dl class="r5-facts">
                 <div><dt>${tr('זמן אירוע')}</dt><dd>${ev.time} <span class="r5-sub">· ${tr('נקלט +1.2s')}</span></dd></div>
-                <div><dt>${tr('טיפול')}</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : tr('ממתין')}</dd></div>
+                <div><dt>${tr('טיפול')}</dt><dd>${ev.acked ? tr('טופל בידי יוני, 09:50') : tr('ממתין')}</dd></div>
                 <div><dt>${tr('קומה')}</dt><dd>${ev.floor}</dd></div>
                 <div><dt>${tr('כיסוי הקלטה')}</dt><dd>${ev.type === 'offline' ? tr('אין') : tr('קיים · 10 שנ׳ לפני/אחרי')}</dd></div>
                 <div class="wide"><dt>${tr('מקור')}</dt><dd>${DEMO_SOURCE_WORDS[ev.source] ?? ev.source} · raw: <span class="ltr">${ev.type}</span></dd></div>

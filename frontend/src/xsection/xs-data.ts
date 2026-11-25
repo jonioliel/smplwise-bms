@@ -75,9 +75,11 @@ export function demoSignals(floors: Floor[], mode: string | null = null): FloorS
 /** A synthetic building of n floors for the demo (`?xsdemo=16`): the screens at 16 or 24 floors without a backend. */
 export function demoBuilding(n: number, base: Building, longNames = false): Building {
   // break-ui (`?xsnames=long`): realistic long names - a mixed-use tower's floors as an operator really types them
+  // i18n-keep: demo data: invented names, as the api demo stores
   const LONG = ['קומת קרקע - לובי כניסה ראשי, דלפק קבלה ומסחר', 'קומה ‎-1 · חניון דיירים ומחסנים (כניסה מרחוב הנביאים)', 'Mezzanine / גלריה טכנית - חדרי חשמל ותקשורת'];
   const floors: Floor[] = Array.from({ length: n }, (_, i) => {
     const lv = n - 3 - i; // two levels below ground
+    // i18n-keep: demo data: invented names, as the api demo stores
     const short = lv === 0 ? 'קומת קרקע' : lv > 0 ? `קומה ${lv}` : `חניון ‎${lv}`;
     return {
       id: `xsd${i}`, building_id: base.id, name: longNames && i % 2 === 0 ? LONG[(i / 2) % LONG.length] : short, level: lv, sort_order: i, ha_area_id: null, has_plan: i % 5 !== 4, published_version_id: null,

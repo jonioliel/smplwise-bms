@@ -275,9 +275,11 @@ const TAKEOVER_MS = 60_000;
 
 const STRINGS = {
   he: {
+    // i18n-keep-start: a module that cannot read the language packs (separate notice-tv bundle) with its own he / en table: the Hebrew side beside English
     welcome: 'ברוכים הבאים', urgent: 'הודעה דחופה', alert: 'חשוב', paused: 'מושהה', news: 'חדשות', empty: 'אין הודעות כרגע', niceDay: 'יום נעים',
     gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
     updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', next: 'בהמשך', ofN: '{i} מתוך {n}', slideWord: 'שקופית', infoWord: 'מידע', annUrgent: 'הודעה קולית דחופה', annNormal: 'הודעה קולית', shownUntil: 'מוצג עד {t}', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', urgentWord: 'דחוף', greetMorning: 'בוקר טוב', greetNoon: 'צהריים טובים', greetEvening: 'ערב טוב', greetNight: 'לילה טוב', fromMgmt: 'מהנהלת הבניין', poweredBy: 'מופעל על ידי SmplWise Arx',
+    // i18n-keep-end
   },
   en: {
     welcome: 'Welcome', urgent: 'Urgent notice', alert: 'Important', paused: 'Paused', news: 'News', empty: 'No notices right now', niceDay: 'Have a nice day',

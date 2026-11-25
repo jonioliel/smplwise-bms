@@ -19,6 +19,7 @@ interface TicketLinkBlock {
 }
 
 export const LOCK_TEXT = {
+  // i18n-keep: the Hebrew side of a table whose English is beside it
   he: { title: 'נעילת קוד', until: 'נעול עד {when}', newLink: 'שלח קישור חדש', done: 'נוצר קישור חדש' },
   en: { title: 'Code locked', until: 'Locked until {when}', newLink: 'Send a new link', done: 'A new link was created' },
 } as const;

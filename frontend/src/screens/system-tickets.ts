@@ -768,7 +768,7 @@ export class SystemTickets extends LitElement {
     const dirty = !!this.draft && !!this.names && TICKET_LANGS.some((l) => JSON.stringify(this.draft?.[l]) !== JSON.stringify(this.names?.[l]));
     const heOne = he.one || DEFAULT_TICKET_NAMES.he.one;
     const heMany = he.many || DEFAULT_TICKET_NAMES.he.many;
-    const preview = ['{module}', '{ticket} {f:חדשה|m:חדש}', '{the_tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: heOne, many: heMany, gender: he.gender, module: he.module?.trim() || moduleDefault('he', heOne, heMany) }));
+    const preview = ['{module}', '{ticket} {f:חדשה|m:חדש}', '{the_tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: heOne, many: heMany, gender: he.gender, module: he.module?.trim() || moduleDefault('he', heOne, heMany) })); // i18n-keep: Hebrew name templates rendered by renderName for the Hebrew preview
     const moduleCard = html`<sw-card heading=${tt('setModuleCard')} data-card="module">
         <div class="row"><span class="lbl">${tt('setModuleSwitch')}<span class="muted">${tt('setModuleSwitchSub')}</span></span>
           <sw-toggle label=${tt('setModuleSwitch')} labelHidden .checked=${!!this.enabled} ?disabled=${!mayConfigure || this.switching} data-tickets-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>

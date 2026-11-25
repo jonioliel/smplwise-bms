@@ -48,7 +48,7 @@ test('the floor map card: no NVR words for a camera without a recorder', () => {
   expect(standaloneMapNote('still')).not.toMatch(/NVR/);
   expect(standaloneMapNote('offline')).not.toMatch(/NVR/);
   const map = read('screens/explore-floor-map.ts');
-  expect(map).toMatch(/standalone\s*\? html`<dt>מקור<\/dt><dd data-standalone-source>\$\{STANDALONE_LABEL\}<\/dd>`/);
+  expect(map).toMatch(/standalone\s*\? html`<dt>\$\{tr\('מקור'\)\}<\/dt><dd data-standalone-source>\$\{STANDALONE_LABEL\}<\/dd>`/); // I18N-REST-2520: tr() form
   expect(map).toContain("standalone ? standaloneMapNote('offline')");
   expect(map).toContain("standalone ? standaloneMapNote('still')");
   expect(STANDALONE_OFFLINE_TILE).not.toMatch(/NVR/);

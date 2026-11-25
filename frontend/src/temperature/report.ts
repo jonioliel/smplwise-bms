@@ -317,7 +317,7 @@ export class TempReport extends LitElement {
                 @change=${(e: Event) => this.set({ units: (e.target as HTMLInputElement).checked ? [...p.units, u.id] : p.units.filter((x) => x !== u.id) })} />${u.name}${u.area_name ? html` <span class="hint">· ${u.area_name}</span>` : nothing}</label>`)}</div></div>
             <div class="f2">
               <div class="field"><span class="lbl">${tt('repLang')}</span><sw-segmented value=${p.lang} @change=${(e: CustomEvent<SegmentedChange>) => this.set({ lang: e.detail.value as 'he' | 'en' })}
-                .options=${[{ value: 'he', label: 'עברית', attrs: { 'data-rep-lang': 'he' } }, { value: 'en', label: 'English', attrs: { 'data-rep-lang': 'en' } }]}></sw-segmented></div>
+                .options=${[/* i18n-keep: the Hebrew language own name */ { value: 'he', label: 'עברית', attrs: { 'data-rep-lang': 'he' } }, { value: 'en', label: 'English', attrs: { 'data-rep-lang': 'en' } }]}></sw-segmented></div>
               <div class="field"><span class="lbl">${tt('repContent')}</span>
                 <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repChart')} .checked=${p.chart !== false} @change=${(e: Event) => this.set({ chart: toggled(e) })}></sw-toggle>${tt('repChart')}</label>
                 <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt('repSig')} .checked=${p.signature !== false} @change=${(e: Event) => this.set({ signature: toggled(e) })} data-rep-sig></sw-toggle>${tt('repSig')}</label>

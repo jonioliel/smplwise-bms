@@ -22,11 +22,11 @@ import { dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/system-b';
 
 const PER_CAMERA = [
-  { name: 'כניסה ראשית', gb: 320 },
-  { name: 'אולם', gb: 410 },
-  { name: 'חצר אחורית', gb: 380 },
-  { name: 'לובי', gb: 180 },
-  { name: 'מחסן', gb: 96 },
+  { name: tr('כניסה ראשית'), gb: 320 },
+  { name: tr('אולם'), gb: 410 },
+  { name: tr('חצר אחורית'), gb: 380 },
+  { name: tr('לובי'), gb: 180 },
+  { name: tr('מחסן'), gb: 96 },
 ];
 
 /** SC20 — storage analytics (board 2 screen 11, Beta): range pills, three stat cards, usage forecast with a "projected full" marker, per-camera bars, recording policy. */

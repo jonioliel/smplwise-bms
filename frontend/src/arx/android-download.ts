@@ -54,6 +54,7 @@ export function parseOffer(body: unknown): AndroidOffer | null {
 }
 
 const TEXT = {
+  // i18n-keep: the Hebrew side of a table whose English is beside it
   he: { link: 'הורדת אפליקציית Android', version: 'גרסה', sha: 'SHA-256 לאימות' },
   en: { link: 'Download the Android app', version: 'Version', sha: 'SHA-256 to verify' },
 } as const;

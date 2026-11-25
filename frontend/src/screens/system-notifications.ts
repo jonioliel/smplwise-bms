@@ -59,7 +59,7 @@ const SECTIONS: { id: SecId; label: string; icon: string }[] = [
 ];
 type Phase = 'loading' | 'ready' | 'user' | 'error';
 interface Person { id: string; name: string }
-const DEMO_USERS: Person[] = [{ id: 'u-yoni', name: 'יוני' }, { id: 'u-dana', name: 'דנה' }, { id: 'u-uri', name: 'אורי' }, { id: 'u-roni', name: 'רוני' }];
+const DEMO_USERS: Person[] = [{ id: 'u-yoni', name: 'יוני' }, { id: 'u-dana', name: 'דנה' }, { id: 'u-uri', name: 'אורי' }, { id: 'u-roni', name: 'רוני' }]; // i18n-keep: demo data: invented names, as the api demo stores
 const RULES: NotifyPolicy['recipients']['rule'][] = ['scope', 'managers', 'initiator', 'users'];
 /** CR-CMP2-TABLES-REST-2470 (owner N10 / N21): a delivery's outcome in the shared status tones - sent ok, failed / gone bad, the rest
  * (skipped, queued, retry) neutral */

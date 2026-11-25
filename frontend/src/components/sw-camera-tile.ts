@@ -10,6 +10,7 @@ import type { CameraEncoding } from '../api/types';
 import { encodeGop, playerPlan } from '../api/video-policy';
 import { stillDue, stillIntervalMs, withBust } from '../api/frigate';
 import { he } from '../i18n/he';
+import { tr } from '../i18n/msg/components';
 
 export type { SceneKind } from './sw-scene';
 
@@ -491,7 +492,7 @@ export class SwCameraTile extends LitElement {
   `;
 
   private offMessage() {
-    return this.state === 'forbidden' ? 'אין הרשאת צפייה' : this.state === 'offline' ? 'המצלמה מנותקת' : 'מצב לא ידוע';
+    return this.state === 'forbidden' ? tr('אין הרשאת צפייה') : this.state === 'offline' ? tr('המצלמה מנותקת') : tr('מצב לא ידוע');
   }
 
   connectedCallback() {
@@ -519,7 +520,7 @@ export class SwCameraTile extends LitElement {
   };
 
   protected updated(changed: Map<string, unknown>) {
-    if (changed.has('name')) this.setAttribute('aria-label', this.name || 'מצלמה');
+    if (changed.has('name')) this.setAttribute('aria-label', this.name || tr('מצלמה'));
   }
 
   render() {
@@ -541,7 +542,7 @@ export class SwCameraTile extends LitElement {
           ? html`<img class="poster" src=${this.stillRefresh > 0 ? this.stillBlob || withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" @error=${posterFailed} @load=${posterLoaded} />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' && !this.noLabel ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? (this.stillStale ? 'stale' : 'refreshing') : nothing}>${this.stillRefresh > 0 && this.stillStale ? he.frigate.live.stillStale : this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">${tr('דמו')}</span>` : real === 'poster' && !this.noLabel ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? (this.stillStale ? 'stale' : 'refreshing') : nothing}>${this.stillRefresh > 0 && this.stillStale ? he.frigate.live.stillStale : this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? tr('תמונה · לחץ לצפייה חיה') : tr('צילום')}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       <div class="foot">
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}

@@ -340,7 +340,7 @@ export class CalViewManage extends LitElement {
     if (!isApi()) {
       const names = [...new Set((this.ctx?.cals ?? []).map((c) => c.owner?.name).filter(Boolean))] as string[];
       this.people = names.map((n, i) => ({ id: `demo-${i}`, name: n }));
-      this.roles = [{ id: 'operator', name: 'מפעיל' }, { id: 'viewer', name: 'צופה' }, { id: 'site_admin', name: 'מנהל אתר' }];
+      this.roles = [{ id: 'operator', name: tr('מפעיל') }, { id: 'viewer', name: tr('צופה') }, { id: 'site_admin', name: tr('מנהל אתר') }];
       return;
     }
     try {
@@ -485,7 +485,7 @@ export class CalViewManage extends LitElement {
 
   private add(opts: { id: string; name: string }[]): void {
     const id = this.addKind === 'everyone' ? '*' : this.addId;
-    const label = this.addKind === 'everyone' ? 'כל מי שיש לו צפייה ביומנים' : opts.find((o) => o.id === id)?.name ?? id;
+    const label = this.addKind === 'everyone' ? tr('כל מי שיש לו צפייה ביומנים') : opts.find((o) => o.id === id)?.name ?? id;
     this.adding = false;
     void this.saveMembers([...(this.members ?? []), { subject_kind: this.addKind, subject_id: id, label, cal_role: this.addRole }], tr('{name} נוסף/ה כ{role}', { name: label, role: ROLE_LABEL[this.addRole] }));
   }

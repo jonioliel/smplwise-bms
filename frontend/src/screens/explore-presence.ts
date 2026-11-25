@@ -25,6 +25,7 @@ const SOURCE_ICON: Record<PeopleSource, string> = { beacon: 'signal', wifi: 'wif
 const PRESENCE_SETTINGS_HREF = '#/system/diagnostics?tab=mobile';
 const PRESENCE_PLACES_HREF = '#/system/diagnostics?tab=mobile&page=places';
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 /** The static demo (no backend): two people on the demo ground floor and one on the site. */
 const DEMO: PeopleResponse = {
   enabled: true, generated_at: new Date().toISOString(), configured: { sites: 1, beacons: 2, wifi_sites: 1 },
@@ -38,6 +39,7 @@ const DEMO: PeopleResponse = {
   sites: [{ site_id: 'site_main', name: 'המשרד', count: 1 }],
   totals: { inside: 3, named: 3, hidden: 0, on_floors: 2, site_only: 1 },
 };
+// i18n-keep-end
 
 /**
  * מפה › מי במבנה (WHOIN034-295, board r034): who the phone app currently places inside - the KPI row (inside / on a floor / on the site

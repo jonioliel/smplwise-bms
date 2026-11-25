@@ -76,6 +76,7 @@ function demoBuild(demoMapping: typeof import('./mapping-demo').demoMapping): De
   const d = demoMapping();
   const p = new URLSearchParams(location.search);
   const read: MappingRead = {
+    // i18n-keep: demo data: invented names, as the api demo stores
     site: { id: 'site1', name: 'מתחם הגפן' },
     state: null,
     revision: 0,
@@ -117,6 +118,7 @@ function demoSeedApplied(s: DemoStore) {
   const all = [...s.read.items.floors.map((f) => `f:${f.id}`), ...s.read.items.areas.map((a) => `a:${a.id}`)];
   const fresh = new Set(['a:ha112', 'a:ha139', 'a:ha140']);
   const seen = all.filter((k) => !fresh.has(k));
+  // i18n-keep: demo data: invented names, as the api demo stores
   const v: MappingVersion = { number: 1, kind: 'apply', restored_from: null, created_at: '2026-10-31T17:40:00Z', by: 'דנה', summary: { floor_rows: 24, manual: 7 }, note: '', current: true };
   s.versions.push({ v, state: { ...emptyState(), tokens: { מ: { t: 'b', id: 'bS' } } }, links: s.read.links, items: seen });
   s.read.state = s.versions[0].state;
@@ -199,6 +201,7 @@ export async function restoreVersion(siteId: string, n: number): Promise<Pick<Wi
 function demoRecord(s: DemoStore, kind: MappingVersion['kind'], state: unknown, links: Required<CurrentLinks>, items: string[], summary: Record<string, unknown>, from: number | null = null) {
   for (const x of s.versions) x.v.current = false;
   const number = s.versions.length + 1;
+  // i18n-keep: demo data: invented names, as the api demo stores
   const v: MappingVersion = { number, kind, restored_from: from, created_at: new Date().toISOString(), by: 'הדגמה', summary, note: '', current: true };
   s.versions.unshift({ v, state: clone(state), links: clone(links), items });
   s.read.versions = s.versions.map((x) => x.v);

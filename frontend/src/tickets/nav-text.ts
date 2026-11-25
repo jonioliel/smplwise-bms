@@ -14,8 +14,10 @@ import { packTable } from '../i18n/lang-packs';
 type NavRfqKey = 'navTitle' | 'navQuestionsAria';
 
 export const NAV_RFQ_HE: Readonly<Record<NavRfqKey, string>> = {
+  // i18n-keep-start: the Hebrew side of a table whose English is beside it
   navTitle: 'בקשות הצעת מחיר',
   navQuestionsAria: '{n} שאלות של ספקים ממתינות',
+  // i18n-keep-end
 };
 
 export const NAV_RFQ_EN: Readonly<Record<NavRfqKey, string>> = packTable<typeof import('../i18n/lang/en/tickets/nav-text').NAV_RFQ_EN>('en', 'tickets/nav-text', 'NAV_RFQ_EN');

@@ -26,7 +26,7 @@ const PROBLEM_TEXT: Record<LocationProblem, LocTextKey> = {
 };
 
 /**
- * CR-ORG-LOCATIONS: Settings ג€÷ service management ג€÷ "׳׳™׳§׳•׳׳™׳" (tickets.configure). The organisation's locations - name (unique), street and
+ * CR-ORG-LOCATIONS: Settings › service management › "מיקומים" (tickets.configure). The organisation's locations - name (unique), street and
  * number, city, free additional details (building, floor, entrance, access), optional coordinates with the navigation link, active,
  * one optional organisation default, the order - added and edited in one inline editor; a location some request already names is
  * deactivated, never deleted (the server answers 409 location_in_use). Under it the optional default per department (it wins over

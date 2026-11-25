@@ -364,7 +364,7 @@ export function loweringSummary(draft: ScheduleDraft, meta: MetaMap): LoweringSu
         slotLowers = true;
         const n = m?.name ?? a.entity_id ?? '';
         if (n && !names.includes(n)) names.push(n);
-        const kind = a.service === 'alarm_control_panel.alarm_disarm' ? 'מנטרל' : a.service === 'lock.unlock' ? 'פותח נעילה' : 'פותח';
+        const kind = a.service === 'alarm_control_panel.alarm_disarm' ? tr('מנטרל') : a.service === 'lock.unlock' ? tr('פותח נעילה') : tr('פותח');
         if (!kinds.includes(kind)) kinds.push(kind);
       }
     }

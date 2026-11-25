@@ -56,7 +56,7 @@ export const DEVICE_THEME_KNOBS: Record<string, string> = {
   '--dv-success-soft': 'soft success fill (badges)',
   '--dv-warning': 'warm "something is on" colour (lit counts, stale)',
   '--dv-warning-soft': 'soft warm fill (climate chips, warm rows)',
-  '--dv-danger': 'danger text and outlines ("כבה הכל")',
+  '--dv-danger': 'danger text and outlines (the "Turn all off" button)',
   '--dv-danger-soft': 'soft danger fill',
   '--dv-neutral-soft': 'soft grey fill (offline / unknown badges)',
   '--dv-offline': 'offline grey',

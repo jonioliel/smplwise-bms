@@ -1098,7 +1098,7 @@ export class CalViewCalendar extends LitElement {
     const ctx = this.ctx as CalCtx;
     const cal = d ? this.calOf(d.calId) : undefined;
     if (!d || !cal) return null;
-    const title = d.title.trim() || (preview ? 'בדיקה' : cal.type === 'room' ? 'הזמנת חדר' : 'אירוע');
+    const title = d.title.trim() || (preview ? tr('בדיקה') : cal.type === 'room' ? tr('הזמנת חדר') : tr('אירוע'));
     const out: NewEvent = { calendar_id: cal.id, kind: 'booking', title, start: instantAt(d.day, d.s).toISOString(), end: instantAt(d.day, Math.min(d.e, 1440)).toISOString() };
     const rr = rruleOf(d.repeat, d.count);
     if (rr) out.rrule = rr;
@@ -1233,7 +1233,7 @@ export class CalViewCalendar extends LitElement {
     }
     this.ovBusy = true;
     try {
-      const r = await (this.ctx as CalCtx).api.createEvent({ calendar_id: cal.id, kind: 'booking', title: o.title ?? 'הזמנה', start: found.start.toISOString(), end: found.end.toISOString() });
+      const r = await (this.ctx as CalCtx).api.createEvent({ calendar_id: cal.id, kind: 'booking', title: o.title ?? tr('הזמנה'), start: found.start.toISOString(), end: found.end.toISOString() });
       this.pushUndo({ kind: 'create', eventId: r.event.id, rev: r.event.revision });
       this.fresh = new Set([r.event.id]);
       this.closeOverlay();

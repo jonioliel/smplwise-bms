@@ -131,6 +131,7 @@ function demoView(): WhatsappView {
   return {
     revision: 3, can_manage: true, ws_connected: true,
     accounts: [
+      // i18n-keep-start: demo data: invented names, as the api demo stores
       { key: 'entry:01JDEMOOFFICE', kind: 'discovered', label: 'משרד הניהול', label_set: true, last4: '0099', state: 'connected', state_source: 'entity', in_mirror: true, stored: true,
         shared_outside: false, removed: false, pacing: { ...PACE }, uses: ['tickets.codes', 'tickets.messages'], sends_24h: 12, last_send_at: '2026-10-13T09:58:00Z', has_status_entity: true },
       { key: 'entry:01JDEMOINTERC', kind: 'discovered', label: 'אינטרקום', label_set: true, last4: '0098', state: 'connected', state_source: 'entity', in_mirror: true, stored: true,
@@ -150,6 +151,7 @@ function demoView(): WhatsappView {
     warnings: [{ code: 'shared_outside', use: 'tickets.messages', department_id: 'dept-cleaning', account_key: 'entry:01JDEMOINTERC', severity: 'amber' }],
     channels: [{ key: 'whatsapp', state: 'active' }, { key: 'email', state: 'active' }, { key: 'inapp', state: 'active' }, { key: 'sms', state: 'soon' }],
     modules: { tickets: 'ניהול השירות' },
+      // i18n-keep-end
     pacing_ranges: RANGES, pacing_default: { ...PACE }, test_send: { enabled: true },
   };
 }
@@ -168,6 +170,7 @@ const demoBackend: MessagingAccountsBackend = {
     demo.accounts = body.accounts.map((a) => {
       const old = byKey.get(a.key);
       return { ...(old ?? { state: 'unknown', state_source: 'sends', in_mirror: false, uses: [], sends_24h: 0, last_send_at: null, has_status_entity: !!a.status_entity_id, last4: null, removed: false }),
+        // i18n-keep: fallback label of a manual account stored as the sender wrote it; the earlier pass judged it on purpose
         key: a.key, kind: a.kind, label: a.label || old?.label || 'וואטסאפ (ידני)', label_set: !!a.label, stored: true, shared_outside: a.shared_outside,
         pacing: { ...PACE, ...(a.pacing ?? {}) }, ...(a.kind === 'manual' ? { account: a.account ?? null, status_entity_id: a.status_entity_id ?? null, last4: (a.account ?? '').replace(/\D/g, '').slice(-4) || null } : {}) } as WaAccount;
     });

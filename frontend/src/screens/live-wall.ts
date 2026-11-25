@@ -61,10 +61,10 @@ const WALL_GAP_PHONE = 8;
 const wallGap = () => (window.innerWidth < 768 ? WALL_GAP_PHONE : WALL_GAP);
 const COUNT_KEY = 'sw.wall.count';
 const VIEWS = [
-  { id: 'all', label: 'כל המצלמות' },
-  { id: 'outside', label: 'חוץ' },
-  { id: 'inside', label: 'פנים' },
-  { id: 'night', label: 'לילה' },
+  { id: 'all', label: tr('כל המצלמות') },
+  { id: 'outside', label: tr('חוץ') },
+  { id: 'inside', label: tr('פנים') },
+  { id: 'night', label: tr('לילה') },
 ];
 
 /** SC07 — multi-camera grid (board 1 screen 6): real streams (sub profile) with snapshot posters, or the demo grid. */

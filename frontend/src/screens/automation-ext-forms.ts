@@ -138,7 +138,7 @@ export class KavButtonForm extends LitElement {
           @click=${() => applyChoice(fc, info, r.button, offered(r.button, b.press) ? b.press : (info?.buttons.find((x) => x.button === r.button)?.presses[0]?.press ?? b.press))}>${r.button}${r.used ? html`<small>${tr('בשימוש')}</small>` : nothing}</button>`)}</div></div>
       <div class="fld"><label>${tr('סוג לחיצה')}</label>
         <div class="kav-press" role="group" aria-label=${tr('סוג לחיצה')} data-kav-press>${PRESSES.map((p) => html`<button type="button" aria-pressed=${String(p === b.press)} ?disabled=${!offered(b.button, p)} data-kav-press-kind=${p}
-          @click=${() => applyChoice(fc, info, b.button, p)}><span class="pi ${p}"><i></i>${p === 'double' ? html`<i></i>` : nothing}</span>${PRESS_WORD[p].replace('לחיצה ', '')}
+          @click=${() => applyChoice(fc, info, b.button, p)}><span class="pi ${p}"><i></i>${p === 'double' ? html`<i></i>` : nothing}</span>${PRESS_WORD[p].replace('לחיצה ' /* i18n-keep: strips the leading word of the Hebrew press names */, '')}
           <small>${p === 'short' ? tr('לחיצה אחת') : p === 'double' ? html`${tr('עד')} <bdi>${timing?.double_ms ?? 400}</bdi> ${tr('מ״ש בין לחיצות')}` : html`${tr('מעל')} <bdi>${timing?.long_ms ?? 800}</bdi> ${tr('מ״ש')}`}</small></button>`)}</div>
         <span class="kav-note">${tr('הזמנים נקבעים בהגדרות ‹ אוטומציות')} · <a href="#/system/automations">${tr('שינוי')}</a></span></div>`;
   }

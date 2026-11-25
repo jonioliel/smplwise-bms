@@ -264,7 +264,7 @@ export class CalViewApprovals extends LitElement {
   private async applyChoice(r: CalRequest): Promise<void> {
     const rivals = this.rivals(r);
     if (this.choice === 'keep') {
-      for (const q of rivals) if (!(await this.decide(q, 'reject', { note: 'החלון נשאר להזמנה שאושרה קודם' }))) return;
+      for (const q of rivals) if (!(await this.decide(q, 'reject', { note: tr('החלון נשאר להזמנה שאושרה קודם') }))) return;
       return;
     }
     const target = rivals.find((q) => q.event_id === this.pick) ?? r;

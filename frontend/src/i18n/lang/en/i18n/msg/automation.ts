@@ -986,4 +986,8 @@ export const en = {
   'גרסה {rev}': 'Version {rev}',
   'לוח זמנים': 'Timetable',
   'בחירת יום': 'Choose a day',
+  // I18N-REST-2520: texts wrapped in tr() by this row
+  'מנטרל': 'Disarms',
+  'פותח נעילה': 'Unlocks',
+  'פותח': 'Opens',
 };

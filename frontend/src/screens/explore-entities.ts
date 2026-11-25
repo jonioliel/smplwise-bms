@@ -36,6 +36,7 @@ interface Ent {
   [k: string]: unknown;
 }
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 const ENTITIES: Ent[] = [
   { id: 'lock.main_door', name: 'דלת כניסה', domain: 'lock', area: 'לובי', state: 'נעול', fresh: 'live', placed: true, actions: 'נעילה / פתיחה (grant נפרד)' },
   { id: 'light.lobby', name: 'תאורת לובי', domain: 'light', area: 'לובי', state: 'דולק · 80%', fresh: 'live', placed: true, actions: 'הדלקה / כיבוי / עמעום' },
@@ -46,6 +47,7 @@ const ENTITIES: Ent[] = [
   { id: 'sensor.power_main', name: 'צריכת חשמל', domain: 'sensor', area: 'חדר מכונות', state: '4.2 kW', fresh: 'live', placed: false, actions: 'קריאה בלבד' },
   { id: 'camera.intercom_m2', name: 'אינטרקום M2', domain: 'camera', area: 'כניסה', state: 'זמין', fresh: 'live', placed: false, actions: 'צפייה (provider נפרד)' },
 ];
+// i18n-keep-end
 
 export function domainIcon(domain: string): IconName {
   if (domain === 'lock' || domain === 'cover') return 'lock';
@@ -338,7 +340,7 @@ export class ExploreEntities extends LitElement {
                   <dt>Domain</dt><dd><span class="ltr">${ent.domain}</span></dd>
                   <dt>${tr('אזור')}</dt><dd>${ent.area}</dd>
                   <dt>${tr('פעולות נתמכות')}</dt><dd>${ent.actions}</dd>
-                  <dt>${tr('במפה')}</dt><dd>${ent.placed ? 'קומה 0' : tr('לא מוצב')}</dd>
+                  <dt>${tr('במפה')}</dt><dd>${ent.placed ? tr('קומה 0') : tr('לא מוצב')}</dd>
                 </dl>
                 <div class="note">${tr('ישות מ־domain לא מוכר מקבלת כרטיס כללי לקריאה בלבד. scripts ו־scenes חסומים עד allowlist.')}</div>
                 <div slot="footer">

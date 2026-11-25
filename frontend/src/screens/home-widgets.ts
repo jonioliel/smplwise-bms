@@ -38,6 +38,7 @@ import { renderXsMini } from '../xsection/xs-mini-widget'; // XS-MINI-WIDGET-235
 import type { MiniFloor, MiniModel } from '../xsection/xs-mini-model';
 import '../door-windows/emergency';
 import { homeWidgetsStyles } from './home-widgets-css';
+import { tr } from '../i18n/msg/devices';
 
 const GLYPHS: Record<WeatherGlyph, TemplateResult> = {
   sun: svg`<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>`,
@@ -78,13 +79,13 @@ export interface QuickInfo {
 }
 
 const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
-  off: 'כבוי',
-  none: 'לא נבחרו ישויות',
-  unavail: 'הישות לא זמינה כרגע',
-  noalarm: 'אין מערכת אזעקה באתר',
-  noaction: 'אין הרשאה לפעולות מהירות',
-  nomedia: 'אין מסכים או נגנים להצגה',
-  nolaunch: 'אין פריט שמותר לך להפעיל',
+  off: tr('כבוי'),
+  none: tr('לא נבחרו ישויות'),
+  unavail: tr('הישות לא זמינה כרגע'),
+  noalarm: tr('אין מערכת אזעקה באתר'),
+  noaction: tr('אין הרשאה לפעולות מהירות'),
+  nomedia: tr('אין מסכים או נגנים להצגה'),
+  nolaunch: tr('אין פריט שמותר לך להפעיל'),
 };
 
 /**
@@ -327,7 +328,7 @@ export class HomeWidgetsView extends LitElement {
   render() {
     const items = this.items;
     if (!items.length || !this.config) return nothing;
-    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label="ווידג׳טים">${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.remoteReady && this.wantsRemote ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
+    return html`<div class="wrap" data-home-widgets role=${this.layout === 'snap' ? 'list' : 'group'} aria-label=${tr('ווידג׳טים')}>${repeat(items, (it) => it.id, (it) => this.item(it))}</div>${this.remoteReady && this.wantsRemote ? html`<media-remote .deviceKey=${this.remoteKey} .kind=${this.remoteKind} .open=${this.remoteOpen} @close=${() => (this.remoteOpen = false)} @media-changed=${() => void this.loadScreens()} @media-remote-open=${() => (this.remoteOpen = true)}></media-remote>` : nothing}`;
   }
 
   /** A widget card, or its ghost; the media widget (CR-015) asks for itself: without a screen this user may see it is absent
@@ -352,15 +353,15 @@ export class HomeWidgetsView extends LitElement {
     const later = vertical ? 'arrowDown' : 'chevronBack';
     const name = it.title;
     const pos = this.items.findIndex((x) => x.id === it.id);
-    return html`<div class="wg-e" role="group" aria-label=${`עריכה: ${name}`} data-home-edit-bar=${it.id}>
-      <button type="button" class="grip" data-home-grip=${it.id} aria-label=${`הזז את ${name}. חצים למעלה או ימינה מקדימים, למטה או שמאלה מאחרים`} title="גרור, או חצים במקלדת" @keydown=${(e: KeyboardEvent) => this.onGripKey(e, it.id, pos)}>
+    return html`<div class="wg-e" role="group" aria-label=${tr('עריכה: {name}', { name })} data-home-edit-bar=${it.id}>
+      <button type="button" class="grip" data-home-grip=${it.id} aria-label=${tr('הזז את {name}. חצים למעלה או ימינה מקדימים, למטה או שמאלה מאחרים', { name })} title=${tr('גרור, או חצים במקלדת')} @keydown=${(e: KeyboardEvent) => this.onGripKey(e, it.id, pos)}>
         <sw-icon name="grip" size=${14}></sw-icon>
       </button>
-      <button type="button" class="eb" data-home-move-earlier=${it.id} aria-label=${`הקדם את ${name}`} title="הקדם" ?disabled=${pos <= 0} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos - 1 })}><sw-icon name=${earlier} size=${14}></sw-icon></button>
-      <button type="button" class="eb" data-home-move-later=${it.id} aria-label=${`אחר את ${name}`} title="אחר" ?disabled=${pos >= last} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos + 1 })}><sw-icon name=${later} size=${14}></sw-icon></button>
-      <sw-segmented label=${`גודל: ${name}`} value=${it.size} .options=${SIZES.map((s): SegmentOption<Size> => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-home-size': `${it.id}:${s}` } }))} @change=${(e: CustomEvent<SegmentedChange<Size>>) => { e.stopPropagation(); this.emit('home-widget-size', { id: it.id, size: e.detail.value }); }}></sw-segmented>
-      <button type="button" class="eb" data-home-widget-settings=${it.id} aria-label=${`הגדרות: ${name}`} title="הגדרות" @click=${() => this.emit('home-widget-edit', { id: it.id })}><sw-icon name="edit" size=${14}></sw-icon></button>
-      <button type="button" class="eb x" data-home-hide=${it.id} aria-label=${`הסתר את ${name}`} title="הסתר" @click=${() => this.emit('home-widget-toggle', { id: it.id })}><svg viewBox="0 0 24 24" aria-hidden="true">${EYE_OFF}</svg></button>
+      <button type="button" class="eb" data-home-move-earlier=${it.id} aria-label=${tr('הקדם את {name}', { name })} title=${tr('הקדם')} ?disabled=${pos <= 0} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos - 1 })}><sw-icon name=${earlier} size=${14}></sw-icon></button>
+      <button type="button" class="eb" data-home-move-later=${it.id} aria-label=${tr('אחר את {name}', { name })} title=${tr('אחר')} ?disabled=${pos >= last} @click=${() => this.emit('home-widget-move', { id: it.id, to: pos + 1 })}><sw-icon name=${later} size=${14}></sw-icon></button>
+      <sw-segmented label=${tr('גודל: {name}', { name })} value=${it.size} .options=${SIZES.map((s): SegmentOption<Size> => ({ value: s, label: SIZE_LABEL[s], attrs: { 'data-home-size': `${it.id}:${s}` } }))} @change=${(e: CustomEvent<SegmentedChange<Size>>) => { e.stopPropagation(); this.emit('home-widget-size', { id: it.id, size: e.detail.value }); }}></sw-segmented>
+      <button type="button" class="eb" data-home-widget-settings=${it.id} aria-label=${tr('הגדרות: {name}', { name })} title=${tr('הגדרות')} @click=${() => this.emit('home-widget-edit', { id: it.id })}><sw-icon name="edit" size=${14}></sw-icon></button>
+      <button type="button" class="eb x" data-home-hide=${it.id} aria-label=${tr('הסתר את {name}', { name })} title=${tr('הסתר')} @click=${() => this.emit('home-widget-toggle', { id: it.id })}><svg viewBox="0 0 24 24" aria-hidden="true">${EYE_OFF}</svg></button>
     </div>`;
   }
 
@@ -408,12 +409,12 @@ export class HomeWidgetsView extends LitElement {
   private ghost(it: WidgetItem) {
     const avail = it.avail as Exclude<Avail, 'ok'>;
     const btn = avail === 'off'
-      ? html`<button type="button" class="gbtn" data-home-add=${it.id} @click=${() => this.emit('home-widget-toggle', { id: it.id })}>הוסף</button>`
+      ? html`<button type="button" class="gbtn" data-home-add=${it.id} @click=${() => this.emit('home-widget-toggle', { id: it.id })}>${tr('הוסף')}</button>`
       : avail === 'none' || avail === 'unavail'
-        ? html`<button type="button" class="gbtn" data-home-choose=${it.id} @click=${() => this.emit('home-widget-edit', { id: it.id })}>בחר ישות</button>`
+        ? html`<button type="button" class="gbtn" data-home-choose=${it.id} @click=${() => this.emit('home-widget-edit', { id: it.id })}>${tr('בחר ישות')}</button>`
         : nothing;
     return html`<section class=${classMap({ wg: true, ghost: true, warn: avail === 'none' || avail === 'unavail' })} data-home-ghost=${it.id} data-home-avail=${avail} data-size="m" data-w=${it.id}>
-      <b>${it.title}</b><span>${GHOST_MSG[avail]}</span>${btn}${avail === 'off' ? nothing : html`<span class="sub">מוצג רק במצב עריכה. במסך הרגיל הווידג׳ט לא תופס מקום.</span>`}
+      <b>${it.title}</b><span>${GHOST_MSG[avail]}</span>${btn}${avail === 'off' ? nothing : html`<span class="sub">${tr('מוצג רק במצב עריכה. במסך הרגיל הווידג׳ט לא תופס מקום.')}</span>`}
     </section>`;
   }
 
@@ -480,7 +481,7 @@ export class HomeWidgetsView extends LitElement {
       ? html`<div class="dts"><div class="d1"><span class="only-s">${p.weekdayShort} · ${p.dateShort}</span><span class="only-m">${p.weekdayLong}, ${p.dateLong}</span><span class="only-l">${p.weekdayLong}, ${p.dateYear}</span></div>${hebrew ? html`<div class="d2 ge-m" data-home-hebrew-date title=${hebrew}>${hebrew}</div>` : nothing}</div>`
       : nothing;
     return this.shell(it, 'wg-clock', {}, html`${this.head(it, CLOCK_ICON)}
-      <div class="wg-b"><div class="clk" role="timer" aria-label="השעה עכשיו"><span class="hm" data-home-time>${p.h}<b>:</b>${p.m}</span>${c.seconds ? html`<span class="ss only-l">${p.s}</span>` : nothing}</div>${dates}</div>`);
+      <div class="wg-b"><div class="clk" role="timer" aria-label=${tr('השעה עכשיו')}><span class="hm" data-home-time>${p.h}<b>:</b>${p.m}</span>${c.seconds ? html`<span class="ss only-l">${p.s}</span>` : nothing}</div>${dates}</div>`);
   }
 
   private weather(it: WidgetItem) {
@@ -508,7 +509,7 @@ export class HomeWidgetsView extends LitElement {
       <div class="wg-b"><div class="wx-main">${cond && (temp || showCond) ? html`<svg class="wx-ic" viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(cond)]}</svg>` : nothing}
         <div class="wx-tc">${temp ? html`<span class="wx-t" data-home-temp title=${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}${showCond ? html`<span class="wx-c" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>
       ${facts.length ? html`<div class="wx-m ge-m" data-home-facts>${facts.map(({ f, v }) => html`<span data-home-fact=${f}><svg viewBox="0 0 24 24" aria-hidden="true">${FIELD_ICON[f] ?? DROP}</svg>${WEATHER_FIELD_LABEL[f]} <b>${valueText(f, { v: v!.v, unit: v!.unit ?? null })}</b></span>`)}</div>` : nothing}
-      ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label="תחזית לימים הקרובים">${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, this.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(e.condition)]}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}</div>`);
+      ${entries.length ? html`<div class="wx-fc only-l" data-home-forecast style=${`--fcn:${entries.length}`} aria-label=${tr('תחזית לימים הקרובים')}>${entries.map((e) => html`<div class="fc" data-cond=${weatherGlyph(e.condition)}><span>${forecastLabel(e.datetime, this.zone, daily)}</span><svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[weatherGlyph(e.condition)]}</svg>${e.temperature !== null ? html`<span class="hl"><b>${Math.round(e.temperature)}°</b>${e.templow !== undefined ? html`<i>${Math.round(e.templow)}°</i>` : nothing}</span>` : nothing}</div>`)}</div>` : nothing}</div>`);
   }
 
   private shabbat(it: WidgetItem) {
@@ -530,10 +531,10 @@ export class HomeWidgetsView extends LitElement {
         ${date ? html`<div class="sub ge-m" data-home-field="date">${date}</div>` : nothing}
         ${candles || havdalah
           ? html`<div class="tm2 only-s">${candles ? html`<svg viewBox="0 0 24 24" aria-hidden="true">${CANDLE}</svg><b>${ltrNum(candles)}</b>` : nothing}${candles && havdalah ? html`<span>·</span>` : nothing}${havdalah ? html`<svg viewBox="0 0 24 24" aria-hidden="true">${HAVDALAH}</svg><b>${ltrNum(havdalah)}</b>` : nothing}</div>
-            <div class="tms ge-m">${candles ? line(CANDLE, 'הדלקת נרות', candles, 'candles') : nothing}${havdalah ? line(HAVDALAH, 'צאת שבת', havdalah, 'havdalah') : nothing}</div>`
+            <div class="tms ge-m">${candles ? line(CANDLE, tr('הדלקת נרות'), candles, 'candles') : nothing}${havdalah ? line(HAVDALAH, tr('צאת שבת'), havdalah, 'havdalah') : nothing}</div>`
           : nothing}
         ${extras.length ? html`<div class="tms ge-m" data-home-extras>${extras.slice(0, it.size === 'l' ? extras.length : 2).map((e) => html`<div class="tm"><span>${e.label}</span><b class="txt">${e.value}</b></div>`)}</div>` : nothing}
-        ${countdown ? html`<div class="cd only-l">${countdown} להדלקת נרות</div>` : nothing}</div>`);
+        ${countdown ? html`<div class="cd only-l">${tr('{countdown} להדלקת נרות', { countdown })}</div>` : nothing}</div>`);
   }
 
   private alarm(it: WidgetItem) {
@@ -543,7 +544,7 @@ export class HomeWidgetsView extends LitElement {
     const since = sinceText(a.since, this.now);
     return this.shell(it, 'wg-alarm', { tone }, html`<span class="aic"><svg viewBox="0 0 24 24" aria-hidden="true">${SHIELD}</svg></span>
       <div class="al-t"><span class="al-l">${it.title}</span><span class="al-s" data-home-alarm-state>${ALARM_HE[state] ?? state}</span>${since ? html`<span class="al-x ge-m">${since}</span>` : nothing}
-        ${this.alarmLink && !this.editing && it.size === 'l' ? html`<a class="al-go only-l" href="#/system/security/alarm" data-home-alarm-link>לפרטי האזעקה <svg viewBox="0 0 24 24" aria-hidden="true">${CHEV}</svg></a>` : nothing}</div>`);
+        ${this.alarmLink && !this.editing && it.size === 'l' ? html`<a class="al-go only-l" href="#/system/security/alarm" data-home-alarm-link>${tr('לפרטי האזעקה')} <svg viewBox="0 0 24 24" aria-hidden="true">${CHEV}</svg></a>` : nothing}</div>`);
   }
 
   /** CR-015 §7.5: how many screens are on and - from medium up - those screens as chips; a chip opens the same remote as the
@@ -572,13 +573,13 @@ export class HomeWidgetsView extends LitElement {
     const chip = (d: { key: string; name: string }) => html`<button type="button" class="mchip" data-home-media-chip=${d.key} ?disabled=${this.editing} @click=${() => open(d.key)}><i aria-hidden="true"></i><span>${bidi(d.name)}</span></button>`;
     const first = on[0] ?? playing[0] ?? all[0] ?? spk[0];
     const icon = svg`<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/>`;
-    const counts = (size: string) => html`${all.length ? html`<div class="mt" style=${size}><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? 'מסך פועל' : 'מסכים פועלים'}</span></div>` : nothing}
-      ${spk.length ? html`<div class="mt" style=${size}><b data-home-media-playing>${ltrNum(playing.length)}</b><span>${playing.length === 1 ? 'מנגן עכשיו' : 'מנגנים עכשיו'}</span></div>` : nothing}`;
-    const total = [all.length ? `${ltrNum(all.length)} מסכים` : '', spk.length ? `${ltrNum(spk.length)} נגנים` : ''].filter(Boolean).join(' · ');
+    const counts = (size: string) => html`${all.length ? html`<div class="mt" style=${size}><b data-home-media-count>${ltrNum(on.length)}</b><span>${on.length === 1 ? tr('מסך פועל') : tr('מסכים פועלים')}</span></div>` : nothing}
+      ${spk.length ? html`<div class="mt" style=${size}><b data-home-media-playing>${ltrNum(playing.length)}</b><span>${playing.length === 1 ? tr('מנגן עכשיו') : tr('מנגנים עכשיו')}</span></div>` : nothing}`;
+    const total = [all.length ? tr('{ltrNum} מסכים', { ltrNum: ltrNum(all.length) }) : '', spk.length ? tr('{ltrNum} נגנים', { ltrNum: ltrNum(spk.length) }) : ''].filter(Boolean).join(' · ');
     if (it.size === 's') {
       return this.shell(it, 'wg-media', {}, html`<span class="mic"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg></span>
         <div class="mts">${counts('')}</div>
-        ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${`שלט: ${first.name}`} ?disabled=${this.editing} @click=${() => open(first.key)}>${all.length ? 'שלט' : 'נגן'}</button>` : nothing}`);
+        ${first ? html`<button type="button" class="mchip" style="margin-inline-start:auto" data-home-media-chip=${first.key} aria-label=${tr('שלט: {name}', { name: first.name })} ?disabled=${this.editing} @click=${() => open(first.key)}>${all.length ? tr('שלט') : tr('נגן')}</button>` : nothing}`);
     }
     // POLISH2-295 (owner feedback 2026-10-25): the card was too tall - the counts read inline ("5 מסכים פועלים") and the chips share their
     // one row (nowrap, a long name shrinks to an ellipsis, the rest is "+N"); no chips row at all when nothing is on
@@ -595,16 +596,16 @@ export class HomeWidgetsView extends LitElement {
       const pill = (a: QuickAction) => {
         const lights = a !== 'all_off';
         const n = lights ? this.quick.lightsOn : this.quick.lightsOn + this.quick.switchesOn;
-        return html`<sw-pill variant="plain" ring-static .icon=${lights ? 'light' : 'bolt'} .label=${QUICK_ACTION_LABEL[a]} .state=${lights ? `${ltrNum(this.quick.lightsOn)} דולקות בבית` : `${ltrNum(n)} פעילים בבית`} ?on=${lights && n > 0} ?accent=${!lights} fill-color="var(--sw-lit)" data-home-quick-pill=${a} tabindex="-1">
+        return html`<sw-pill variant="plain" ring-static .icon=${lights ? 'light' : 'bolt'} .label=${QUICK_ACTION_LABEL[a]} .state=${lights ? tr('{ltrNum} דולקות בבית', { ltrNum: ltrNum(this.quick.lightsOn) }) : tr('{ltrNum} פעילים בבית', { ltrNum: ltrNum(n) })} ?on=${lights && n > 0} ?accent=${!lights} fill-color="var(--sw-lit)" data-home-quick-pill=${a} tabindex="-1">
           <button slot="subs" type="button" class="qsb" data-home-quick=${a} aria-label=${QUICK_ACTION_LABEL[a]} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><sw-icon name="power" size=${18}></sw-icon></button>
         </sw-pill>`;
       };
       return this.shell(it, 'wg-quick', {}, html`${this.head(it, BOLT)}<div class="wg-b"><div class="qa">${allowed.map(pill)}</div>
-        <div class="q-x only-l" data-home-quick-summary>${ltrNum(this.quick.lightsOn)} מנורות דולקות · ${ltrNum(this.quick.switchesOn)} מתגים פעילים</div></div>`);
+        <div class="q-x only-l" data-home-quick-summary>${tr('{ltrNum} מנורות דולקות · {ltrNum2} מתגים פעילים', { ltrNum: ltrNum(this.quick.lightsOn), ltrNum2: ltrNum(this.quick.switchesOn) })}</div></div>`);
     }
-    const btn = (a: QuickAction) => html`<button type="button" class=${classMap({ qbtn: true, danger: a === 'all_off' })} data-home-quick=${a} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><svg viewBox="0 0 24 24" aria-hidden="true">${a === 'all_off' ? BOLT : BULB}</svg><span class="only-s">${a === 'all_off' ? 'הכל' : 'תאורה'}</span><span class="ge-m">${QUICK_ACTION_LABEL[a]}</span></button>`;
+    const btn = (a: QuickAction) => html`<button type="button" class=${classMap({ qbtn: true, danger: a === 'all_off' })} data-home-quick=${a} ?disabled=${this.editing} @click=${() => this.emit('home-quick', { action: a })}><svg viewBox="0 0 24 24" aria-hidden="true">${a === 'all_off' ? BOLT : BULB}</svg><span class="only-s">${a === 'all_off' ? tr('הכל') : tr('תאורה')}</span><span class="ge-m">${QUICK_ACTION_LABEL[a]}</span></button>`;
     return this.shell(it, 'wg-quick', {}, html`${this.head(it, BOLT)}<div class="wg-b"><div class="qa">${allowed.map(btn)}</div>
-      <div class="q-x only-l" data-home-quick-summary>${ltrNum(this.quick.lightsOn)} מנורות דולקות · ${ltrNum(this.quick.switchesOn)} מתגים פעילים</div></div>`);
+      <div class="q-x only-l" data-home-quick-summary>${tr('{ltrNum} מנורות דולקות · {ltrNum2} מתגים פעילים', { ltrNum: ltrNum(this.quick.lightsOn), ltrNum2: ltrNum(this.quick.switchesOn) })}</div></div>`);
   }
 }
 

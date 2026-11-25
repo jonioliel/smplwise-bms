@@ -161,6 +161,7 @@ const CREDENTIAL_PLACEHOLDER = /\{\s*(?:pin|code|passcode|card|password|token|cr
 const CREDENTIAL_WORDS =
   /(?:(?<![a-z])pin|code|pass(?![a-z])|password|passwort|kennwort|mot de passe|קוד|סיסמ|ססמ|פין|код|пин|пароль|رمز|كود|كلمة السر|كلمة المرور|رقم سري)[^0-9]{0,30}[0-9]{4,8}/u;
 const DIGIT_WORDS: Record<string, readonly string[]> = {
+  // i18n-keep-start: text compared / matched: spoken digit words matched against what a person wrote
   '0': ['zero', 'אפס', 'ноль', 'нуль', 'صفر'],
   '1': ['one', 'אחת', 'אחד', 'один', 'одна', 'واحد'],
   '2': ['two', 'שתיים', 'שתים', 'שניים', 'два', 'две', 'اثنان', 'اثنين'],
@@ -174,6 +175,7 @@ const DIGIT_WORDS: Record<string, readonly string[]> = {
 };
 const DIGIT_OF = new Map(Object.entries(DIGIT_WORDS).flatMap(([d, words]) => words.map((w) => [w, d] as const)));
 const DIGIT_WORD_RE = new RegExp(`(?<![\\p{L}\\p{N}_])ו?(${[...DIGIT_OF.keys()].sort((a, b) => b.length - a.length).join('|')})(?![\\p{L}\\p{N}_])`, 'gu');
+  // i18n-keep-end
 const DIGIT_GAP = /(?<=[0-9])[\s\-.,_/\\|·•*]{1,3}(?=[0-9])/gu;
 const SPELLED = /(?<!\p{L})((?:\p{L}[.\s]){2,}\p{L})\.?(?!\p{L})/gu;
 const HOMOGLYPHS = new Map(Object.entries({ а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', і: 'i', ӏ: 'l', ѕ: 's', ԁ: 'd', к: 'k', м: 'm', н: 'h', т: 't', у: 'y', х: 'x', α: 'a', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', τ: 't', υ: 'u' }));

@@ -59,12 +59,14 @@ const OBJECT_FALLBACK = 'plastic';
 export const LIGHT_DEFAULT: LampLight = { kind: 'ceiling', color_k: 3000, lumens: 800 };
 /** A room's floor by its tags: the first rule whose keyword is inside a tag (lower-cased); none = its level's floor. */
 export const ROOM_FLOOR_RULES: readonly [string, readonly string[]][] = [
+  // i18n-keep-start: text compared / matched: material keywords matched against room names
   ['tiles_grey', ['bath', 'toilet', 'shower', 'sanitary', 'wc', 'kitchen', 'אמבטיה', 'שירותים', 'מקלחת', 'רחצה', 'מטבח']],
   ['floor_sport', ['sport', 'gym', 'court', 'ספורט', 'כושר', 'מגרש']],
   ['asphalt', ['parking', 'road', 'חניה', 'חנייה', 'כביש']],
   ['grass', ['garden', 'lawn', 'yard', 'גינה', 'דשא', 'חצר']],
   ['carpet', ['office', 'meeting', 'משרד', 'ישיבות']],
   ['oak', ['residential', 'living', 'bedroom', 'apartment', 'מגורים', 'סלון', 'חדר שינה', 'דירה']],
+  // i18n-keep-end
 ];
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);

@@ -89,11 +89,13 @@ const httpAttendees: AttendeesApi = {
 // ---------------------------------------------------------------- the static demo (no backend)
 
 const DEMO_PEOPLE: DirectoryHit[] = [
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   { kind: 'user', ref_id: 'demo-u1', name: 'נועה לוי' },
   { kind: 'user', ref_id: 'demo-u2', name: 'אורי כהן' },
   { kind: 'user', ref_id: 'demo-u3', name: 'מיכל ברק' },
   { kind: 'resident', ref_id: 'demo-r1', name: 'רות אברהם · דירה 12' },
   { kind: 'resident', ref_id: 'demo-r2', name: 'דוד מזרחי · דירה 4' },
+  // i18n-keep-end
 ];
 const demoLists = new Map<string, Attendee[]>();
 let demoSeq = 0;

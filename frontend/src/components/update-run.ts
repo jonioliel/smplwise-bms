@@ -7,6 +7,7 @@ import { ApiError } from '../api/client';
 import { getUpdateState } from '../api/system-update';
 import { isOutageError } from './update-run-logic';
 import { getRun, rollbackSteps, type BackupState, isTerminal, needsRollbackGuidance, runFailureText, runSteps, type RunKind, type RunView } from '../api/system-update-runs';
+import { tr } from '../i18n/msg/components';
 
 /** The page that follows one run: shown while it runs (also across the restart of Arx), then its outcome. Events: `run-dismiss` (the person closes the outcome). */
 const POLL_FAST_MS = 2_000;
@@ -296,7 +297,7 @@ export class SwUpdateRun extends LitElement {
 
   private renderGuidance() {
     const g = rollbackSteps(this.run?.backup_state ?? (this.initial?.backup_state as BackupState | undefined));
-    return html`<sw-card heading="הוראות שחזור" data-run-guidance data-run-backup-state=${this.run?.backup_state ?? this.initial?.backup_state ?? 'unknown'}>
+    return html`<sw-card heading=${tr('הוראות שחזור')} data-run-guidance data-run-backup-state=${this.run?.backup_state ?? this.initial?.backup_state ?? 'unknown'}>
       ${g.note ? html`<p class="reason" data-run-backup-note>${g.note}</p>` : nothing}
       <ol class="how">${g.steps.map((s) => html`<li>${s}</li>`)}</ol>
     </sw-card>`;
@@ -308,17 +309,17 @@ export class SwUpdateRun extends LitElement {
     if (r?.state === 'succeeded') {
       return html`<sw-card data-run-state="succeeded">
         <div class="stack">
-          <div class="outcome ok"><sw-icon name="check" size=${22}></sw-icon><span data-run-outcome>${update ? html`המערכת עודכנה לגרסה <span class="ver">${r.to_version ?? ''}</span>` : 'תשתית המערכת הופעלה מחדש'}</span></div>
-          ${update && this.restartNeeded ? html`<p class="reason" data-run-restart-needed>נדרשת הפעלה מחדש של תשתית המערכת</p>` : nothing}
-          <div class="foot"><sw-button variant="primary" data-run-continue @click=${() => this.dismiss()}>המשך</sw-button></div>
+          <div class="outcome ok"><sw-icon name="check" size=${22}></sw-icon><span data-run-outcome>${update ? html`${tr('המערכת עודכנה לגרסה')} <span class="ver">${r.to_version ?? ''}</span>` : tr('תשתית המערכת הופעלה מחדש')}</span></div>
+          ${update && this.restartNeeded ? html`<p class="reason" data-run-restart-needed>${tr('נדרשת הפעלה מחדש של תשתית המערכת')}</p>` : nothing}
+          <div class="foot"><sw-button variant="primary" data-run-continue @click=${() => this.dismiss()}>${tr('המשך')}</sw-button></div>
         </div>
       </sw-card>`;
     }
     const failed = this.gaveUp && !r ? ({ kind: v.kind, state: 'abandoned', error_code: 'timeout' } as const) : this.gaveUp && r && !isTerminal(r.state) ? ({ kind: r.kind, state: 'abandoned', error_code: 'timeout' } as const) : (r ?? v);
     const state = r && isTerminal(r.state) ? r.state : 'abandoned';
-    const text = this.notFound ? 'הפעולה לא נמצאה.' : runFailureText(failed as Pick<RunView, 'kind' | 'state' | 'error_code'>);
+    const text = this.notFound ? tr('הפעולה לא נמצאה.') : runFailureText(failed as Pick<RunView, 'kind' | 'state' | 'error_code'>);
     const guide = update && needsRollbackGuidance(failed as Pick<RunView, 'kind' | 'state' | 'error_code'>);
-    const title = state === 'abandoned' ? (update ? 'העדכון לא הסתיים' : 'ההפעלה מחדש לא הסתיימה') : update ? 'העדכון נכשל' : 'ההפעלה מחדש נכשלה';
+    const title = state === 'abandoned' ? (update ? tr('העדכון לא הסתיים') : tr('ההפעלה מחדש לא הסתיימה')) : update ? tr('העדכון נכשל') : tr('ההפעלה מחדש נכשלה');
     const code = (failed as { error_code?: string | null }).error_code ?? state;
     return html`<div class="stack" data-run-state=${state === 'abandoned' ? 'abandoned' : 'failed'} data-run-error=${code}>
       <sw-card>
@@ -326,8 +327,8 @@ export class SwUpdateRun extends LitElement {
           <div class="outcome bad"><sw-icon name="warning" size=${22}></sw-icon><span data-run-outcome>${title}</span></div>
           <p class="reason" data-run-reason>${text}</p>
           <div class="foot">
-            ${guide ? html`<sw-button data-run-guidance-open aria-expanded=${this.guidance ? 'true' : 'false'} @click=${() => (this.guidance = !this.guidance)}>הוראות שחזור</sw-button>` : nothing}
-            <sw-button variant="primary" data-run-close @click=${() => this.dismiss()}>סגור</sw-button>
+            ${guide ? html`<sw-button data-run-guidance-open aria-expanded=${this.guidance ? 'true' : 'false'} @click=${() => (this.guidance = !this.guidance)}>${tr('הוראות שחזור')}</sw-button>` : nothing}
+            <sw-button variant="primary" data-run-close @click=${() => this.dismiss()}>${tr('סגור')}</sw-button>
           </div>
         </div>
       </sw-card>
@@ -350,12 +351,12 @@ export class SwUpdateRun extends LitElement {
             </li>`,
           )}
         </ol>
-        ${this.stillWorking() ? html`<div class="wait" role="status" data-run-still-working><sw-icon name="clock" size=${18}></sw-icon>עדיין עובד…</div>` : nothing}
-        ${this.waiting ? html`<div class="wait" role="status" data-run-waiting><sw-icon name="clock" size=${18}></sw-icon>ממתין לחזרת המערכת…</div>` : nothing}
+        ${this.stillWorking() ? html`<div class="wait" role="status" data-run-still-working><sw-icon name="clock" size=${18}></sw-icon>${tr('עדיין עובד…')}</div>` : nothing}
+        ${this.waiting ? html`<div class="wait" role="status" data-run-waiting><sw-icon name="clock" size=${18}></sw-icon>${tr('ממתין לחזרת המערכת…')}</div>` : nothing}
         <div class="meta">
-          <span>זמן שעבר</span><span class="t" data-run-elapsed>${this.elapsed()}</span>
+          <span>${tr('זמן שעבר')}</span><span class="t" data-run-elapsed>${this.elapsed()}</span>
         </div>
-        ${v.kind === 'platform_restart' && (r?.expected_s || timeout) ? html`<span class="reason" data-run-expect>עשוי להימשך עד ${Math.max(1, Math.round((r?.expected_s ?? timeout ?? 600) / 60))} דקות</span>` : nothing}
+        ${v.kind === 'platform_restart' && (r?.expected_s || timeout) ? html`<span class="reason" data-run-expect>${tr('עשוי להימשך עד {v} דקות', { v: Math.max(1, Math.round((r?.expected_s ?? timeout ?? 600) / 60)) })}</span>` : nothing}
       </div>
     </sw-card>`;
   }

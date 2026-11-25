@@ -367,17 +367,28 @@ class _Safe(dict):
         return ""
 
 
-def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
-    """(title, body) of a source from its template and the signal's params; each clipped to the contract's lengths."""
+def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, str]:
+    """(title, body) of a source from its template and the signal's params; each clipped to the contract's lengths.
+    I18N-REST-2520: `lang="en"` renders with the English templates of services/notify_policy_en.py (a source without them, or a body
+    built from the signal's own `_template`, stays Hebrew); the default is the Hebrew the row stores and every channel sends."""
     s = BY_KEY.get(source)
     p = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
     if s is None:
         return _clip(str(params.get("title") or source), 80), _clip(str(params.get("body") or ""), 180)
+    title_t, body_t, label = s.title, s.body, s.label
+    if lang != "he":
+        from .notify_policy_en import TEMPLATES_EN
+
+        en = TEMPLATES_EN.get(source)
+        if en is not None:
+            title_t, label = en[0], en[0]
+            if not params.get("_template"):
+                body_t = en[1]
     try:
-        body = (str(params.get("_template")) if params.get("_template") else s.body).format_map(p)  # CR-031: a generator alert may carry its own body template
+        body = (str(params.get("_template")) if params.get("_template") else body_t).format_map(p)  # CR-031: a generator alert may carry its own body template
     except (ValueError, IndexError, KeyError):
-        body = s.body.format_map(p)
-    return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
+        body = body_t.format_map(p)
+    return _clip(title_t.format_map(p) or label, 80), _clip(body, 180)
 
 
 _clip = values.clip  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): was a word-for-word copy

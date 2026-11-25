@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,8 +16,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
 
 interface Row { name: string; gapKeys: string[]; placeholderKeys: string[] }
-interface Report { totals: { hardcodedLiterals: number }; catalogues: Row[]; hardcoded: { module: string; kind: string; literals: number }[] }
-interface Ratchet { why: Record<string, string>; gapKeys: string[]; placeholderKeys: string[]; hardcodedTotal: number; hardcoded: Record<string, number> }
+interface Report { totals: { hardcodedLiterals: number; keptLiterals: number }; catalogues: Row[]; hardcoded: { module: string; kind: string; literals: number }[] }
+interface Ratchet { why: Record<string, string>; gapKeys: string[]; placeholderKeys: string[]; hardcodedTotal: number; hardcoded: Record<string, number>; keptTotal: number }
 
 test.describe.configure({ timeout: 180_000 });
 
@@ -51,6 +51,36 @@ test('hard-coded Hebrew outside the catalogues only goes down, per module', () =
   expect(over, 'new Hebrew text outside a catalogue: read it through tr() / the module catalogue and write its English').toEqual([]);
   expect(report.totals.hardcodedLiterals).toBeLessThanOrEqual(ratchet.hardcodedTotal);
   expect(ratchet.hardcodedTotal).toBe(Object.values(ratchet.hardcoded).reduce((a, n) => a + n, 0));
+});
+
+// I18N-REST-2520: Hebrew kept on purpose is marked in the source (`// i18n-keep: <reason>`, or a `i18n-keep-start: <reason>` ...
+// `i18n-keep-end` block) and counted apart; every mark says why, and the kept count only grows through a reviewed raise
+// (`--ratchet --allow-raise`, with the reason in the change note).
+test('Hebrew kept on purpose: every mark says why, and the count does not grow', () => {
+  expect(report.totals.keptLiterals).toBeLessThanOrEqual(ratchet.keptTotal);
+  const src = path.join(ROOT, 'frontend', 'src');
+  const files: string[] = [];
+  const walk = (d: string): void => {
+    for (const n of readdirSync(d)) {
+      const p = path.join(d, n);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (n.endsWith('.ts')) files.push(p);
+    }
+  };
+  walk(src);
+  const bare: string[] = [];
+  let open = 0;
+  for (const f of files) {
+    readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(/i18n-keep(-start|-end)?\b(?!-)(.*)/g)) {
+        if (m[1] === '-end') { open--; continue; }
+        if (m[1] === '-start') open++;
+        if (!/^:\s*\S.{5,}/.test(m[2])) bare.push(`${path.relative(src, f)}:${i + 1}`);
+      }
+    });
+  }
+  expect(bare, 'an i18n-keep mark without a reason (`// i18n-keep: <why the Hebrew stays>`)').toEqual([]);
+  expect(open, 'every i18n-keep-start has its i18n-keep-end').toBe(0);
 });
 
 // the two label modules that became catalogues in this row: Hebrew as before, English once the page is in English

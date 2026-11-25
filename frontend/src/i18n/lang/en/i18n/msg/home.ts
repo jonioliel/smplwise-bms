@@ -1226,4 +1226,7 @@ export const en = {
   'כמה זמן הודעה מסומנת «חדש»': 'How long a notice is marked "new"',
   'כמו קודם: כל מסך קיר מסמן «קראתי» לעצמו, וההודעה כבר לא חדשה אחרי שמישהו קרא אותה בו.': 'As before: each wall panel marks notices "read" for itself, and a notice is no longer new once someone read it there.',
   'מסך קיר משותף לכל הבית, ולכן אין בו «קראתי». הודעה מסומנת «חדש» מרגע הפרסום. ברירת המחדל: יומיים.': 'A wall panel is shared by the whole home, so it has no "read". A notice is marked "new" from when it is published. Default: 2 days.',
+  // I18N-REST-2520 (owner rule 22.11: default names follow the creator's language): the default titles of a booking / a service request
+  'הזמנה: {v}': 'Booking: {v}',
+  'תקלה: {name}': 'Fault: {name}',
 };

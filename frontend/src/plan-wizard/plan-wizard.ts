@@ -189,6 +189,7 @@ export class PlanWizardScreen extends LitElement {
 
   /** Demo screenshots: walk the sample house to step `n` with the recommended answers (step 2 stays mid-detection). */
   private async demoTo(n: number, token: number) {
+    // i18n-keep: demo data: an invented file name
     await this.onFile(new File(['demo'], 'תוכנית-קרקע.png', { type: 'image/png' }), n === 2);
     if (token !== this.token || n <= 3) return;
     await this.confirmReview();

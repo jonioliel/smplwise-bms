@@ -390,11 +390,11 @@ export class InvestigateExports extends LitElement {
     return html`
       <div class="list">
         ${demoJobs.map(
-          (j) => html`<div class="job" data-state=${j.status.startsWith('נכשל') ? 'fail' : j.progress === 100 ? 'done' : 'run'}>
+          (j) => html`<div class="job" data-state=${j.status.startsWith('נכשל' /* i18n-keep: compared against the server's Hebrew status text */) ? 'fail' : j.progress === 100 ? 'done' : 'run'}>
             <div><div class="title"><strong>${j.title}</strong></div><div class="meta">${j.size} · ${j.hash}</div></div>
-            <div><div class="pct"><b>${j.progress}%</b><span>${j.status}</span></div><div class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="inline-size:${j.progress}%"></i></div></div>
+            <div><div class="pct"><b>${j.progress}%</b><span>${j.status}</span></div><div class="bar ${j.status.startsWith('נכשל' /* i18n-keep: compared against the server's Hebrew status text */) ? 'fail' : ''}"><i style="inline-size:${j.progress}%"></i></div></div>
             <div class="actions">
-              ${j.progress === 100 ? html`<sw-button size="sm" icon="download">${tr('הורדה')}</sw-button>` : j.status.startsWith('נכשל') ? html`<sw-button size="sm" icon="refresh">${tr('נסה שוב')}</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="close">${tr('בטל')}</sw-button>`}
+              ${j.progress === 100 ? html`<sw-button size="sm" icon="download">${tr('הורדה')}</sw-button>` : j.status.startsWith('נכשל' /* i18n-keep: compared against the server's Hebrew status text */) ? html`<sw-button size="sm" icon="refresh">${tr('נסה שוב')}</sw-button>` : html`<sw-button size="sm" variant="ghost" icon="close">${tr('בטל')}</sw-button>`}
             </div>
           </div>`,
         )}
