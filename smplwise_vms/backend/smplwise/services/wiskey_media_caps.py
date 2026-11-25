@@ -146,6 +146,7 @@ _LOCK = threading.Lock()  # one read at a time
 _STATE_LOCK = threading.Lock()
 _ENTRY: SignedListing | None = None
 _OPENER_FOR_TESTS: Callable[[], Awaitable[Any]] | None = None
+_OPENER_V2_FOR_TESTS: Callable[[], Awaitable[Any]] | None = None  # WISKEY-MEDIA-V2-2530
 READS = {"started": 0}  # counters for tests and diagnostics (never a value of the document)
 
 
@@ -158,14 +159,25 @@ def invalidate() -> None:
 
 
 # test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_wiskey_pairing_2382.py, tests/test_wiskey_talk_caps_2382.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
-def set_opener_for_tests(opener: Callable[[], Awaitable[Any]] | None) -> None:
-    global _OPENER_FOR_TESTS
+def set_opener_for_tests(opener: Callable[[], Awaitable[Any]] | None, *, opener_v2: Callable[[], Awaitable[Any]] | None = None) -> None:
+    global _OPENER_FOR_TESTS, _OPENER_V2_FOR_TESTS
     _OPENER_FOR_TESTS = opener
+    _OPENER_V2_FOR_TESTS = opener_v2
     invalidate()
 
 
-def key_fingerprint(key: Any) -> str | None:
-    """A salted HMAC of the pairing material, or None when the key cannot sign (absent, unreadable, rotated). In memory only."""
+def key_fingerprint(key: Any, *, v2: bool = False) -> str | None:
+    """A salted HMAC of the pairing material, or None when the key cannot sign (absent, unreadable, rotated). In memory only.
+
+    WISKEY-MEDIA-V2-2530: with `v2` (station media over v2 enabled, services/wiskey_media_v2.py) a rotated KeySet key with a valid kid
+    signs too; its fingerprint covers the kid and the material under its own label, so it never equals a v1 entry's. Without `v2`: as before."""
+    if v2:
+        try:
+            if bridge.protocol_for_key(key) == 2:
+                material, kid = bridge._key_v2(key)  # noqa: SLF001 - the v2 signer's own rule
+                return hmac.new(_SALT, f"v2|{kid}|{material}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+        except bridge.MediaBridgeError:
+            return None
     try:
         text = bridge._key_text(key)  # noqa: SLF001 - the signer's own rule: a rotated key never signs
     except bridge.MediaBridgeError:
@@ -192,8 +204,9 @@ def cached(marker: tuple[str, str] | None) -> SignedListing | None:
     return entry
 
 
-def _from_join(marker: tuple[str, str]) -> SignedListing | None:
-    """The document of the direct join's CURRENT connection, when it is up and its discovery is current. No I/O; never raises."""
+def _from_join(marker: tuple[str, str], *, kid: str | None = None) -> SignedListing | None:
+    """The document of the direct join's CURRENT connection, when it is up and its discovery is current. No I/O; never raises.
+    WISKEY-MEDIA-V2-2530: `kid` (a v2 key's listing) admits only a v2 document of exactly that kid on a v2 connection of that kid."""
     try:
         from . import wiskey_direct_join
 
@@ -208,15 +221,23 @@ def _from_join(marker: tuple[str, str]) -> SignedListing | None:
         cap, t = d.capabilities, d.time
         if link is None or cap is None or t is None or cap.connection_ref != link.connection_ref:
             return None
+        if kid is not None and (cap.protocol_version != 2 or cap.kid != kid or getattr(link, "kid", None) != kid):
+            return None
         return from_document(cap, t, None, source=SOURCE_JOIN, marker=marker, window_s=d.window_s)
     except Exception as exc:  # noqa: BLE001 - the join's state is a shortcut only
         log.info("station media: the direct join's discovery was not readable (%s)", type(exc).__name__)
         return None
 
 
-async def _read_async(opener: Callable[[], Awaitable[Any]], key_provider: Callable[[], Any], marker: tuple[str, str]) -> SignedListing:
-    """One new direct socket, one signed connect, `direct/capabilities` + `direct/time` (closed reader), close. Never retried."""
-    transport = bridge.DirectApiTransport(opener, key_provider)
+async def _read_async(opener: Callable[[], Awaitable[Any]], key_provider: Callable[[], Any], marker: tuple[str, str], *,
+                      opener_v2: Callable[[], Awaitable[Any]] | None = None) -> SignedListing:
+    """One new direct socket, one signed connect, `direct/capabilities` + `direct/time` (closed reader), close. Never retried.
+    WISKEY-MEDIA-V2-2530: `opener_v2` (a rotated key, media over v2 enabled) - the v2 socket and the v2 discovery of that connection
+    (`direct/capabilities_v3`, `direct/time`, `direct/pairing_status_v2`); never v1 after it."""
+    if opener_v2 is None:
+        transport = bridge.DirectApiTransport(opener, key_provider)
+    else:
+        transport = bridge.DirectApiTransport(opener, key_provider, opener_v2=opener_v2)
     try:
         link = await transport.connect(bridge.PURPOSE_COMMAND)
     except bridge.MediaBridgeError as exc:
@@ -227,7 +248,10 @@ async def _read_async(opener: Callable[[], Awaitable[Any]], key_provider: Callab
         async def call(command: str, parameters: Any) -> Any:
             return await link.call_command(command, dict(parameters), kind=bridge.KIND, timeout=READ_TIMEOUT_S / 2)
 
-        await disc.refresh(link.connection_ref, call)  # never raises; a failure leaves `last_error`
+        if getattr(link, "protocol_version", 1) == 2:
+            await disc.refresh(link.connection_ref, call, protocol_version=2, kid=link.kid)  # never raises
+        else:
+            await disc.refresh(link.connection_ref, call)  # never raises; a failure leaves `last_error`
         return from_document(disc.capabilities, disc.time, disc.last_error, source=SOURCE_READ, marker=marker)
     finally:
         try:
@@ -244,10 +268,13 @@ def _on_event_loop() -> bool:
     return True
 
 
-def listing(settings: Any, conn: Any, choice: str, *, read: bool = True) -> SignedListing | None:
+def listing(settings: Any, conn: Any, choice: str, *, read: bool = True, v2: bool = False) -> SignedListing | None:
     """The signed listing for the pairing key `conn` reads now and the provider `choice`, or None when it cannot be consulted: no key that
     signs (nothing is ever read without one), `read` False with nothing cached, or an event loop thread with nothing cached. With `conn`
-    None: the latest current entry only (no key check is possible, so no I/O)."""
+    None: the latest current entry only (no key check is possible, so no I/O).
+
+    WISKEY-MEDIA-V2-2530: `v2` True only while station media over v2 is enabled (services/wiskey_media_v2.py; the caller decides): a
+    rotated key then signs - its own fingerprint, the join's document only when it is v2 for that kid, else one read on its v2 socket."""
     if conn is None:
         return cached(None)
     from . import ha_bridge
@@ -256,14 +283,22 @@ def listing(settings: Any, conn: Any, choice: str, *, read: bool = True) -> Sign
         key = ha_bridge.signing_key(conn)
     except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
         return None
-    fp = key_fingerprint(key)
+    rotated = False
+    if v2:
+        fp = key_fingerprint(key, v2=True)
+        try:
+            rotated = fp is not None and bridge.protocol_for_key(key) == 2
+        except bridge.MediaBridgeError:
+            rotated = False
+    else:
+        fp = key_fingerprint(key)
     if fp is None:
         return None
     marker = (fp, choice)
     hit = cached(marker)
     if hit is not None:
         return hit
-    joined = _from_join(marker)
+    joined = _from_join(marker, kid=key.kid) if rotated else _from_join(marker)
     if joined is not None:
         return _store(joined)
     if not read or _on_event_loop():
@@ -277,7 +312,11 @@ def listing(settings: Any, conn: Any, choice: str, *, read: bool = True) -> Sign
         READS["started"] += 1
         opener = _OPENER_FOR_TESTS or bridge.websocket_opener(settings)
         try:
-            entry = asyncio.run(asyncio.wait_for(_read_async(opener, lambda: key, marker), READ_TIMEOUT_S))
+            if rotated:
+                opener_v2 = _OPENER_V2_FOR_TESTS or bridge.websocket_opener(settings, version=2)
+                entry = asyncio.run(asyncio.wait_for(_read_async(opener, lambda: key, marker, opener_v2=opener_v2), READ_TIMEOUT_S))
+            else:
+                entry = asyncio.run(asyncio.wait_for(_read_async(opener, lambda: key, marker), READ_TIMEOUT_S))
         except (asyncio.TimeoutError, TimeoutError):
             entry = SignedListing(UNREAD, False, False, "read_timeout", SOURCE_READ, time.time(), _mono(), marker)
         except Exception as exc:  # noqa: BLE001 - the read never takes the request down; the type only

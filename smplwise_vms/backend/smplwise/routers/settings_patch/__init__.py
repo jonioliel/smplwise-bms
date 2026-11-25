@@ -68,6 +68,7 @@ VALIDATORS: dict[str, Handler] = {
     "home.widgets": site.home_widgets,
     "time.zone": site.time_zone,
     "ai.provider": site.ai_provider,
+    "access.station_media_direct_v2": modules.station_media_direct_v2,  # WISKEY-MEDIA-V2-2530: system_admin only, bridge 0.10.9+ to turn on
 }
 
 # After every check passed, in this order; each step looks at the request itself (no prefix: several read more than one key).

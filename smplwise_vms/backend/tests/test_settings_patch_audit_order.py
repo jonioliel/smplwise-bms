@@ -69,6 +69,8 @@ CHECKS: list[tuple[str, dict[str, Any], int, str]] = [
     ("home.widgets", {"home.widgets": BAD}, 422, "validation"),
     ("time.zone", {"time.zone": "Mars/Olympus_Mons"}, 422, "validation"),
     ("ai.provider", {"ai.provider": "external"}, 422, "provider_not_available"),
+    # WISKEY-MEDIA-V2-2530: on needs bridge 0.10.9+ (a fresh installation has seen no bridge)
+    ("access.station_media_direct_v2", {"access.station_media_direct_v2": "on"}, 409, "bridge_outdated"),
 ]
 
 # The same for a holder of `system.configure` who is not a system administrator: each of these is refused with its own audit row.
@@ -81,6 +83,7 @@ ADMIN_ONLY: list[tuple[str, dict[str, Any], str]] = [
     ("security.local_passkey_android", {"security.local_passkey_android": ANDROID}, "identity.local.passkey_setting"),
     ("privacy.local_purge", {"privacy.local_purge": "on", "privacy.local_purge_confirm": LOCAL_PURGE_WORD}, "privacy.local_purge.setting"),
     ("privacy.local_purge_days", {"privacy.local_purge_days": 60}, "privacy.local_purge.setting"),
+    ("access.station_media_direct_v2", {"access.station_media_direct_v2": "on"}, "access.station_media_direct_v2"),  # WISKEY-MEDIA-V2-2530
 ]
 
 
@@ -262,7 +265,7 @@ def test_the_table_names_declared_settings_and_no_prefix_twice():
     from smplwise.routers import settings_patch
     from smplwise.routers.settings_patch import content, ui
 
-    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS) + 21  # ONVIF-API-2500 + MFA-PASSKEYS-2490 + MFA-RESET-HARDENING-2510
+    assert len(settings_patch.VALIDATORS) == len(ui.VALIDATORS) + len(content.VALIDATORS) + 22  # ONVIF-API-2500 + MFA-PASSKEYS-2490 + MFA-RESET-HARDENING-2510 + WISKEY-MEDIA-V2-2530
     declared = [f.alias for f in SettingsPatch.model_fields.values()]
     for prefix in settings_patch.VALIDATORS:
         assert any(alias.startswith(prefix) for alias in declared), prefix
@@ -282,6 +285,7 @@ def test_the_tables_are_in_the_order_of_the_one_long_function():
         "security.local_public_url", "security.local_passkey_", "security.passkeys_all_users", "security.factor_reset_channel", "privacy.local_purge", "tickets.enabled", "maintenance.enabled",
         "docread.enabled", "cameras.discovery_allowed_ranges", "emergency_readiness.enabled", "schedules.shabbat_sensor", "map.default_floor", "home.title", "home.floor_order",
         "home.widgets", "time.zone", "ai.provider",
+        "access.station_media_direct_v2",  # WISKEY-MEDIA-V2-2530
     ]
     assert [f"{step.__module__.rsplit('.', 1)[-1]}.{step.__name__}" for step in settings_patch.AFTER] == [
         "effects.store", "effects.schedules_switched_on", "effects.automations_switched_on", "effects.remote_csp",
