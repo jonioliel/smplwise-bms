@@ -30406,5 +30406,43 @@
     "owner": null,
     "commit": "6d744bd41",
     "actual_cost_usd": null
+  },
+  {
+    "id": "GEN-SENSOR-NAMES-EN-2520",
+    "title": "Generator sensor names in English (server) and in the page language (routing + sensor mapping)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Generator sensor names have an English form (needs_en, label_en, labels_en, additive) and the CSV headers follow the page language; Hebrew unchanged."
+    ],
+    "requirement_ids": [
+      "R-GEN-SENSOR-NAMES-EN-2520-1"
+    ],
+    "test_ids": [
+      "AT-GEN-SENSOR-NAMES-EN-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GEN-SENSOR-NAMES-EN-2520, change note docs/changes/GEN-SENSOR-NAMES-EN-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/GEN-SENSOR-NAMES-EN-2520 head e0d4a597b merged 78a8ad1f2 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 33); change note docs/changes/GEN-SENSOR-NAMES-EN-2520.md. Cut from GEN-UNITS-FIELD-2520 (row 28). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "e0d4a597b",
+    "actual_cost_usd": null
   }
 ]

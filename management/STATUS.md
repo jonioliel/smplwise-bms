@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-25T15:28:51.358797+00:00
+Generated: 2026-11-25T15:46:47.428861+00:00
 
-Tasks: 697 | Requirements: 811 | Tests: 828 | Screens: 32
+Tasks: 698 | Requirements: 812 | Tests: 829 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 485
 - IN_PROGRESS: 4
-- REVIEW: 169
+- REVIEW: 170
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 602
+- V1: 603
 - V2: 29
 - V3: 3
 
@@ -752,3 +752,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [I18N-RUNTIME-ERRORS-2520](tasks/I18N-RUNTIME-ERRORS-2520.md) | V1 | REVIEW | Run-time refusal texts in English; the service worker's own words in the user's language | — |
 | [WISKEY-STATUS-I18N-2520](tasks/WISKEY-STATUS-I18N-2520.md) | V1 | REVIEW | 'מצב WisKey' in the page language | — |
 | [WISKEY-VISITS-ENDED-FILTER-2520](tasks/WISKEY-VISITS-ENDED-FILTER-2520.md) | V1 | REVIEW | The visit list's ended status filter, offered only when WisKey supports it | — |
+| [GEN-SENSOR-NAMES-EN-2520](tasks/GEN-SENSOR-NAMES-EN-2520.md) | V1 | REVIEW | Generator sensor names in English (server) and in the page language (routing + sensor mapping) | — |

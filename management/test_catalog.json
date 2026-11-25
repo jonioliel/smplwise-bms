@@ -21559,5 +21559,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-GEN-SENSOR-NAMES-EN-2520-1",
+    "requirement_ids": [
+      "R-GEN-SENSOR-NAMES-EN-2520-1"
+    ],
+    "task_ids": [
+      "GEN-SENSOR-NAMES-EN-2520"
+    ],
+    "title": "Generator sensor names in English (server) and in the page language (routing + sensor mapping)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Generator sensor names have an English form (needs_en, label_en, labels_en, additive) and the CSV headers follow the page language; Hebrew unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
