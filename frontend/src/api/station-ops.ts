@@ -5,6 +5,11 @@
  * dialog sends. Nothing here retries, queues or runs by itself: one call per deliberate click, per station.
  *
  * The pure helpers below (outcome reading, wording, the list action's loop) are what the unit spec checks.
+ *
+ * WISKEY-R4-2520: the sync's numbered form. When the server says `sync_mode: 'request_id'`, an accepted sync carries the intercom
+ * system's request id (accepted = queued, never done), and `getSyncRequest` reads where that request stands (queued / running / finished
+ * with the intercom system's own result / no longer seen). A sync with no clear answer holds the station (`sync_gate`): the server sends
+ * no further sync until that status read has answered - the screen offers the read, never a repeat.
  */
 import { ApiError, get, post } from './client';
 import { commandId } from './request-id';
@@ -67,7 +72,40 @@ export interface MaintenanceView {
   report: { state: string; fresh: boolean; fetched_at: string | null; last_error: string | null; health: HealthCard | null; auth: AuthSummary | null } | null;
   auth_seen: AuthFailure | null;
   actions: Record<StationOp, { allowed: boolean; needs_online: boolean; cooldown_s: number | null; result: 'acknowledged' | 'completed' }>;
-  last_runs: Record<StationOp, { status: OpStatus; at: string; code: string | null } | null> | null;
+  last_runs: Record<StationOp, { status: OpStatus; at: string; code: string | null; request_id?: string | null; mode?: SyncMode | null } | null> | null;
+  /** WISKEY-R4-2520: the form the next sync uses, and whether an earlier sync with no clear answer holds it. */
+  sync_mode?: SyncMode;
+  sync_gate?: SyncGate;
+}
+
+export type SyncMode = 'request_id' | 'classic';
+/** null: a sync may be sent; `outcome_pending`: the earlier one is still out; `readback_required`: a status read must answer first. */
+export type SyncGate = 'outcome_pending' | 'readback_required' | null;
+/** Where Arx's request stands in the intercom system's observation (null without a known request id or observation). */
+export type SyncMatch = 'running' | 'queued' | 'finished' | 'not_observed' | null;
+
+export interface SyncRequestView {
+  station_id: string;
+  state: 'ready' | 'unsupported' | 'forbidden' | 'unavailable' | 'busy' | 'error' | string;
+  reason: string | null;
+  wiskey_code: string | null;
+  fetched_at: string | null;
+  gate_before: SyncGate;
+  gate: SyncGate;
+  last_request: { status: OpStatus; request_id: string | null; at: string; code: string | null } | null;
+  match: SyncMatch;
+  observation: {
+    connection: string;
+    loaded: boolean | null;
+    sync_state: string;
+    last_reconciled_at: string | null;
+    request: {
+      scope: string;
+      pending_request_id: string | null;
+      active_request_id: string | null;
+      last_result: { request_id: string | null; state: string; observed_at: string | null; code: string | null; effect_proven: false } | null;
+    } | null;
+  } | null;
 }
 
 export interface OpReply {
@@ -93,6 +131,9 @@ const one = (id: string) => `access-control/stations/${encodeURIComponent(id)}/m
 const TTL_MS = 15_000;
 
 export const getMaintenance = (stationId: string) => get<MaintenanceView>(one(stationId));
+
+/** WISKEY-R4-2520: one status read of the station's sync (no command; it also settles a held sync once it has answered). */
+export const getSyncRequest = (stationId: string) => get<SyncRequestView>(`${one(stationId)}/sync-request`);
 
 const postMaintenance = (stationId: string, action: StationOp) =>
   post<OpReply>(`${one(stationId)}/${action}`, {
@@ -209,4 +250,41 @@ export function authNow(view: MaintenanceView | null, t: StationOpsText): string
 
 export function stepText(step: string | null | undefined, t: StationOpsText): string {
   return step ? t.steps[step] ?? t.steps.other : '';
+}
+
+/** WISKEY-R4-2520: the short form of a request id shown on screen (its first block; the full id is in the element's title). */
+export function shortId(id: string | null | undefined): string {
+  return id ? id.split('-')[0] : '';
+}
+
+/** WISKEY-R4-2520: the request id of the newest accepted numbered sync - this screen's answer, else the server's last run. */
+export function syncRequestId(result: OpOutcome | undefined, view: MaintenanceView | null): string | null {
+  const fromResult = result?.data?.request_id;
+  if (typeof fromResult === 'string') return fromResult;
+  const last = view?.last_runs?.sync;
+  return last && last.status === 'acknowledged' && typeof last.request_id === 'string' ? last.request_id : null;
+}
+
+/** WISKEY-R4-2520: the one-line answer of the status read - where the request stands, never "done" on the request alone. */
+export function syncRequestText(v: SyncRequestView, t: StationOpsText): string {
+  const r = t.syncRequest;
+  if (v.state !== 'ready') return fill(r.unread, { reason: reasonText(v.reason ?? v.wiskey_code ?? v.state, t) || t.none });
+  if (!v.observation) return r.stationUnknown;
+  const result = v.observation.request?.last_result;
+  if (v.match === 'running') return r.running;
+  if (v.match === 'queued') return r.queued;
+  if (v.match === 'finished') return fill(r.finished, { state: (r.states as Record<string, string>)[result?.state ?? ''] ?? r.states.unknown });
+  if (v.match === 'not_observed') return r.notObserved;
+  // no request id of Arx's own (the last one had no clear answer): what the station shows now
+  const req = v.observation.request;
+  if (req?.active_request_id) return r.someRunning;
+  if (req?.pending_request_id) return r.someQueued;
+  return r.noneQueued;
+}
+
+/** WISKEY-R4-2520: the hold line shown while a sync with no clear answer blocks the next one. */
+export function syncGateText(gate: SyncGate | undefined, t: StationOpsText): string {
+  if (gate === 'outcome_pending') return t.syncRequest.gatePending;
+  if (gate === 'readback_required') return t.syncRequest.gateReadback;
+  return '';
 }

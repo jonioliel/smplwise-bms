@@ -38,3 +38,20 @@ class AccessControlStationOpsMaintenanceView(ExactModel):
     auth_seen: Any
     actions: dict[str, Any]
     last_runs: AccessControlStationOpsMaintenanceViewLastRuns
+    sync_mode: str  # WISKEY-R4-2520: `request_id` (sync/station_v1) | `classic` (sync/station)
+    sync_gate: str | None  # WISKEY-R4-2520: null, `outcome_pending` or `readback_required` (an unknown numbered sync holds the next one)
+
+
+class AccessControlStationOpsSyncRequest(ExactModel):
+    """WISKEY-R4-2520: GET .../maintenance/sync-request - the station's numbered sync as WisKey's `system/status_v1` shows it."""
+
+    station_id: str
+    state: str
+    reason: str | None
+    wiskey_code: str | None
+    fetched_at: str | None
+    gate_before: str | None
+    gate: str | None
+    last_request: Any  # {status, request_id, at, code} | null
+    match: str | None  # running | queued | finished | not_observed | null
+    observation: Any  # {connection, loaded, sync_state, last_reconciled_at, request} | null

@@ -13,6 +13,8 @@ export interface AccessControlStationOpsMaintenanceView {
   auth_seen: unknown;
   actions: Record<string, unknown>;
   last_runs: AccessControlStationOpsMaintenanceViewLastRuns;
+  sync_mode: string;
+  sync_gate: string | null;
 }
 
 export interface AccessControlStationOpsMaintenanceViewLastRuns {
@@ -31,7 +33,22 @@ export interface AccessControlStationOpsMaintenanceViewReport {
   auth: unknown;
 }
 
+/** WISKEY-R4-2520: GET .../maintenance/sync-request - the station's numbered sync as WisKey's `system/status_v1` shows it. */
+export interface AccessControlStationOpsSyncRequest {
+  station_id: string;
+  state: string;
+  reason: string | null;
+  wiskey_code: string | null;
+  fetched_at: string | null;
+  gate_before: string | null;
+  gate: string | null;
+  last_request: unknown;
+  match: string | null;
+  observation: unknown;
+}
+
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
 export interface AccessControlStationOpsRoutes {
   "GET /api/v1/access-control/stations/{station_id}/maintenance": AccessControlStationOpsMaintenanceView;
+  "GET /api/v1/access-control/stations/{station_id}/maintenance/sync-request": AccessControlStationOpsSyncRequest;
 }

@@ -12,14 +12,20 @@ import {
   authNow,
   authToShow,
   getMaintenance,
+  getSyncRequest,
   reasonText,
   runOp,
+  shortId,
   statusText,
   statusTone,
   stepText,
+  syncGateText,
+  syncRequestId,
+  syncRequestText,
   type MaintenanceView,
   type OpOutcome,
   type StationOp,
+  type SyncRequestView,
 } from '../api/station-ops';
 import { fill, ws } from '../i18n/wiskey-stations';
 import { sot } from '../i18n/wiskey-station-ops';
@@ -37,6 +43,10 @@ const ICON: Record<StationOp, string> = { sync: 'refresh', rescan: 'search', hea
  *
  * What is offered follows the server: an action the caller may not run on this station is not drawn (absence, not greying); a device
  * read on an offline station, a running action and a station in its cool-down are disabled with the reason next to them.
+ *
+ * WISKEY-R4-2520: with the numbered sync (`sync_mode: 'request_id'`) the sync cell also shows the request id of the accepted request
+ * (queued, not done) and a "check sync status" READ (no confirmation, no command) that says where the request stands. While an earlier
+ * sync has no clear answer (`sync_gate`) the sync button is disabled with the reason, and that read is the way forward - never a repeat.
  */
 @customElement('wk-station-maintenance')
 export class WkStationMaintenance extends LitElement {
@@ -50,6 +60,9 @@ export class WkStationMaintenance extends LitElement {
   @state() private asking: StationOp | null = null;
   @state() private results: Partial<Record<StationOp, OpOutcome>> = {};
   @state() private now = Date.now();
+  @state() private syncReq: SyncRequestView | null = null;
+  @state() private checking = false;
+  @state() private checkFailed = false;
   private loadedFor = '';
   private loadedAt = Date.now();
   private seq = 0;
@@ -186,6 +199,8 @@ export class WkStationMaintenance extends LitElement {
       this.view = null;
       this.results = {};
       this.asking = null;
+      this.syncReq = null;
+      this.checkFailed = false;
       if (this.mayRead()) void this.load();
     }
     // an empty block takes no room in the section's flex gap (the section looks exactly as before until there is something to show)
@@ -227,6 +242,48 @@ export class WkStationMaintenance extends LitElement {
     this.results = { ...this.results, [op]: out };
     this.dispatchEvent(new CustomEvent('station-op', { detail: out, bubbles: true, composed: true }));
     await this.load(); // a READ: what the station looks like after the answer (no command is repeated)
+  }
+
+  /** WISKEY-R4-2520: one status read of the station's sync (a READ: nothing is sent to the station), then the view again (its hold). */
+  private async checkSync(): Promise<void> {
+    const s = this.station;
+    if (!s || this.checking) return;
+    this.checking = true;
+    this.checkFailed = false;
+    try {
+      const v = await getSyncRequest(s.id);
+      if (this.station?.id !== s.id) return;
+      this.syncReq = v;
+    } catch {
+      if (this.station?.id !== s.id) return;
+      this.syncReq = null;
+      this.checkFailed = true;
+    } finally {
+      if (this.station?.id === s.id) this.checking = false;
+    }
+    await this.load();
+  }
+
+  /** WISKEY-R4-2520: the sync cell's extra lines - the request id, the hold, the status read and its answer. */
+  private renderSyncRequest(v: MaintenanceView) {
+    const t = sot();
+    const numbered = v.sync_mode === 'request_id';
+    const gate = v.sync_gate ?? null;
+    if (!numbered && !gate) return nothing;
+    const r = this.results.sync;
+    const id = syncRequestId(r, v);
+    const fresh = r?.status === 'acknowledged' && typeof r.data?.request_id === 'string';
+    const answer = this.syncReq ? syncRequestText(this.syncReq, t) : this.checkFailed ? fill(t.syncRequest.unread, { reason: t.reasons.network }) : '';
+    const answerTone = this.syncReq?.state === 'ready' ? (this.syncReq.match === 'not_observed' || !this.syncReq.observation ? 'warn' : '') : answer ? 'warn' : '';
+    return html`${id
+        ? html`<span class="line" data-wk-maint-request-id=${id}>${t.syncRequest.requestId} <code title=${id}>${shortId(id)}</code></span>`
+        : nothing}
+      ${fresh ? html`<span class="line" data-wk-maint-accepted>${t.syncRequest.accepted}</span>` : nothing}
+      ${gate ? html`<span class="line" role="status" data-tone="warn" data-wk-maint-sync-gate=${gate}>${syncGateText(gate, t)}</span>` : nothing}
+      <wk-action-button tone="quiet" icon="search" data-wk-maint-sync-check ?busy=${this.checking} ?disabled=${this.checking || !this.live} @click=${() => void this.checkSync()}
+        >${t.syncRequest.check}</wk-action-button
+      >
+      ${answer ? html`<span class="line" role="status" data-tone=${answerTone} data-wk-maint-sync-answer=${this.syncReq?.match ?? this.syncReq?.state ?? 'error'}>${answer}</span>` : nothing}`;
   }
 
   /** Seconds left of the server's cool-down for `op` (as of the last read), counted down with the screen's clock. */
@@ -306,7 +363,8 @@ export class WkStationMaintenance extends LitElement {
           const needsOnline = v.actions[op].needs_online;
           const cool = this.cooldownLeft(op);
           const busy = this.running === op;
-          const disabled = !this.live || !!this.running || (needsOnline && !online) || cool > 0;
+          const held = op === 'sync' && !!v.sync_gate; // WISKEY-R4-2520: an earlier sync with no clear answer holds the next one
+          const disabled = !this.live || !!this.running || (needsOnline && !online) || cool > 0 || held;
           const r = this.results[op];
           const last = v.last_runs?.[op] ?? null;
           const line = r
@@ -320,6 +378,7 @@ export class WkStationMaintenance extends LitElement {
           return html`<div class="op">
             <wk-action-button icon=${ICON[op]} data-wk-maint-op=${op} ?busy=${busy} ?disabled=${disabled} @click=${() => (this.asking = op)}>${t.actions[op]}</wk-action-button>
             <span class="line" role="status" data-wk-maint-result=${op} data-status=${r?.status ?? last?.status ?? ''} data-tone=${r || last ? tone : ''}>${line}</span>
+            ${op === 'sync' ? this.renderSyncRequest(v) : nothing}
           </div>`;
         })}
       </div>`;

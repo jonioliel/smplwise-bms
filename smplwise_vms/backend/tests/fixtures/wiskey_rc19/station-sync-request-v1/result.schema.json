@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.local/contracts/station-sync-request-v1/result.schema.json",
+  "version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "request_id",
+    "station_id",
+    "accepted",
+    "scope",
+    "effect_proven"
+  ],
+  "properties": {
+    "contract": {
+      "const": "wiskey-station-sync-request.v1"
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "station_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "accepted": {
+      "const": true
+    },
+    "scope": {
+      "const": "current_attached_runtime_only"
+    },
+    "effect_proven": {
+      "const": false
+    }
+  }
+}

@@ -24,6 +24,13 @@ export interface OpsMock {
   streamFailing: Set<string>;
   /** Stations whose read answers 500 (the block's error note). */
   readFails: Set<string>;
+  /** WISKEY-R4-2520: the sync form the view reports (absent = a server before the numbered sync: nothing extra is drawn). */
+  syncMode?: 'request_id' | 'classic';
+  /** WISKEY-R4-2520: the hold the view reports until a status read answers (cleared by the mock's status read). */
+  syncGate?: 'outcome_pending' | 'readback_required' | null;
+  /** WISKEY-R4-2520: where the status read places the request (`queued` ...), or the read's refusal state. */
+  syncMatch?: 'queued' | 'running' | 'finished' | 'not_observed' | 'forbidden';
+  syncReads?: string[];
   // recorded
   reads: string[];
   posts: { station: string; action: string; body: Record<string, unknown> }[];
@@ -92,6 +99,34 @@ function view(base: StationsMock, m: OpsMock, id: string) {
     auth_seen: failing ? { source: 'sync', step: 'identity', at: '2026-10-12T05:10:00+00:00', status_code: 4, sub_status: null } : null,
     actions: Object.fromEntries(OPS.map((op) => [op, { allowed: m.manage, needs_online: op !== 'sync', cooldown_s: m.manage ? 0 : null, result: op === 'sync' ? 'acknowledged' : 'completed' }])),
     last_runs: Object.fromEntries(OPS.map((op) => [op, op === 'sync' && !lastSync ? { status: 'acknowledged', at: '2026-10-12T07:57:00+00:00', code: null } : null])),
+    ...(m.syncMode ? { sync_mode: m.syncMode, sync_gate: m.syncGate ?? null } : {}),
+  };
+}
+
+export const MOCK_REQUEST_ID = '5c1f9e2a-7b3d-4e8f-9a01-23456789abcd';
+
+// WISKEY-R4-2520: GET .../maintenance/sync-request, like routers/access_control_station_ops.py sync_request_status
+function syncRequest(m: OpsMock, id: string) {
+  const gateBefore = m.syncGate ?? null;
+  if (m.syncMatch === 'forbidden') {
+    return { station_id: id, state: 'forbidden', reason: 'wiskey_refused', wiskey_code: 'unauthorized', fetched_at: null, gate_before: gateBefore, gate: gateBefore, last_request: null, match: null, observation: null };
+  }
+  m.syncGate = null; // the read answered: the hold is settled
+  const match = m.syncMatch ?? 'queued';
+  const known = gateBefore === null;
+  return {
+    station_id: id, state: 'ready', reason: null, wiskey_code: null, fetched_at: NOW_ISO, gate_before: gateBefore, gate: null,
+    last_request: known ? { status: 'acknowledged', request_id: MOCK_REQUEST_ID, at: NOW_ISO, code: null } : { status: 'unknown', request_id: null, at: NOW_ISO, code: 'timeout' },
+    match: known ? match : null,
+    observation: {
+      connection: 'connected', loaded: true, sync_state: match === 'finished' ? 'synced' : 'pending', last_reconciled_at: NOW_ISO,
+      request: {
+        scope: 'current_attached_runtime_only',
+        pending_request_id: match === 'queued' ? MOCK_REQUEST_ID : null,
+        active_request_id: match === 'running' ? MOCK_REQUEST_ID : null,
+        last_result: match === 'finished' ? { request_id: MOCK_REQUEST_ID, state: 'synced', observed_at: NOW_ISO, code: null, effect_proven: false } : null,
+      },
+    },
   };
 }
 
@@ -111,6 +146,12 @@ export async function installOpsMock(page: Page, base: StationsMock, m: OpsMock)
       if (m.readFails.has(id)) return route.fulfill(err(500, 'http_error', {}));
       return route.fulfill(json(view(base, m, id)));
     }
+    const sr = /^access-control\/stations\/([^/]+)\/maintenance\/sync-request$/.exec(p);
+    if (sr && req.method() === 'GET') {
+      const id = decodeURIComponent(sr[1]);
+      (m.syncReads ??= []).push(id);
+      return route.fulfill(json(syncRequest(m, id)));
+    }
     const act = /^access-control\/stations\/([^/]+)\/maintenance\/([a-z_]+)$/.exec(p);
     if (act && req.method() === 'POST') {
       const station = decodeURIComponent(act[1]);
@@ -119,13 +160,16 @@ export async function installOpsMock(page: Page, base: StationsMock, m: OpsMock)
       m.posts.push({ station, action, body });
       const r = m.result[`${station}/${action}`] ?? m.result[action] ?? 'ok';
       if (r === 'slow') await new Promise((res) => setTimeout(res, 1200));
+      if (action === 'sync' && m.syncMode === 'request_id' && r === 'unknown') m.syncGate = 'readback_required'; // WISKEY-R4-2520: the hold
       if (r === 'failed') return route.fulfill(err(502, 'station_ops_failed', { outcome: 'refused', wiskey_code: 'authentication_failed', state: 'error' }));
       if (r === 'unknown') return route.fulfill(err(504, 'station_ops_outcome_unknown', { outcome: 'unknown', wiskey_code: 'timeout' }));
       if (r === 'not_sent') return route.fulfill(err(409, 'intercom_station_offline', { outcome: 'not_sent' }));
       if (r === 'cooldown') return route.fulfill(err(429, 'station_ops_cooldown', { outcome: 'not_sent', retry_after_s: 25 }));
       if (r === 'forbidden') return route.fulfill(err(403, 'forbidden', { outcome: 'not_sent', permission: 'access.stations.manage' }));
       const data =
-        action === 'sync' || action === 'rescan'
+        action === 'sync' && m.syncMode === 'request_id'
+          ? { accepted: true, request_id: MOCK_REQUEST_ID, scope: 'current_attached_runtime_only', effect_proven: false }
+          : action === 'sync' || action === 'rescan'
           ? { accepted: true }
           : action === 'clock_refresh'
             ? { source: 'device', status: 'ready', skew_seconds: 1, drift_state: 'within_tolerance', time_mode: 'NTP', checked_at: NOW_ISO, error: null }
