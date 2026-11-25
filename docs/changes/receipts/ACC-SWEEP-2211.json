@@ -176,11 +176,14 @@
  },
  {
   "id": "AT277",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: unit-plan3d-sun.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-plan-3d-realistic.spec.ts",
+   "frontend/tests/unit-plan3d-sun.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): unit-plan-3d-realistic.spec.ts (15 passed); unit-plan3d-sun.spec.ts (9 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT278",
@@ -192,11 +195,15 @@
  },
  {
   "id": "AT279",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: unit-still-bake.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-plan-stills.spec.ts",
+   "frontend/tests/unit-still-bake.spec.ts",
+   "smplwise_vms/backend/tests/test_plan_bakes.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-plan-stills.spec.ts (2 passed); test_plan_bakes.py (14 passed); unit-still-bake.spec.ts (15 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT280",
@@ -301,11 +308,15 @@
  },
  {
   "id": "AT-USR2-1",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: unit-arx-local-login.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-arx-local-login.spec.ts",
+   "smplwise_vms/backend/tests/test_local_identity.py",
+   "smplwise_vms/backend/tests/test_local_identity_units.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_local_identity.py (41 passed); test_local_identity_units.py (55 passed); unit-arx-local-login.spec.ts (18 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT-USR2-2",
@@ -452,11 +463,14 @@
  },
  {
   "id": "AT-DEPAUDIT-2310-1",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: test_offbox_sftp.py)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "smplwise_vms/backend/tests/test_image_open_formats_2310.py",
+   "smplwise_vms/backend/tests/test_offbox_sftp.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_image_open_formats_2310.py (10 passed); test_offbox_sftp.py (6 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT-TASKS-SYNC-3110-1",
@@ -548,11 +562,26 @@
  },
  {
   "id": "AT-OWNER-R12-2341-1",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/devpolish-2331-shoot.spec.ts",
+   "frontend/tests/evidence-area-card-library.spec.ts",
+   "frontend/tests/evidence-area-redesign.spec.ts",
+   "frontend/tests/evidence-camera-card.spec.ts",
+   "frontend/tests/evidence-device-activity-live.spec.ts",
+   "frontend/tests/evidence-devices-tiles.spec.ts",
+   "frontend/tests/evidence-devices.spec.ts",
+   "frontend/tests/evidence-frigate-settings.spec.ts",
+   "frontend/tests/evidence-home-screen.spec.ts",
+   "frontend/tests/evidence-look-polish-2331.spec.ts",
+   "frontend/tests/evidence-tree-unassigned-2331.spec.ts",
+   "frontend/tests/unit-owner-r12-2341.spec.ts",
+   "smplwise_vms/backend/tests/test_home_screen_options_295.py",
+   "smplwise_vms/backend/tests/test_tree_unassigned_2331.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-camera-card.spec.ts (12 passed, 12 skipped by the spec own gate); evidence-frigate-settings.spec.ts (24 passed); evidence-look-polish-2331.spec.ts (15 passed, 30 skipped by the spec own gate); evidence-tree-unassigned-2331.spec.ts (16 passed, 2 skipped by the spec own gate); test_home_screen_options_295.py (11 passed); test_tree_unassigned_2331.py (10 passed); unit-owner-r12-2341.spec.ts (5 passed); FLAKY (failed once with a renderer crash while the runner disk was 100 percent full, passed alone on the re-run): [mobile] a card scrolled far off screen holds no stream; scrolling to it starts one and, after the grace, the first lets go; a hidden tab re. Specs with every test skipped by their own gate (no assertion counted): devpolish-2331-shoot.spec.ts, evidence-area-card-library.spec.ts, evidence-area-redesign.spec.ts, evidence-device-activity-live.spec.ts, evidence-devices-tiles.spec.ts, evidence-devices.spec.ts, evidence-home-screen.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT-POLISH-LEFTOVERS-2341-1",
@@ -708,11 +737,15 @@
  },
  {
   "id": "AT-PHONE-BUTTONS-44-2342-1",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: evidence-camera-card.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/evidence-camera-card.spec.ts",
+   "frontend/tests/evidence-mobile-touch.spec.ts",
+   "frontend/tests/unit-phone-buttons-44.spec.ts"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): evidence-camera-card.spec.ts (12 passed, 12 skipped by the spec own gate); unit-phone-buttons-44.spec.ts (3 passed); FLAKY (failed once with a renderer crash while the runner disk was 100 percent full, passed alone on the re-run): [mobile] a card scrolled far off screen holds no stream; scrolling to it starts one and, after the grace, the first lets go; a hidden tab re. Specs with every test skipped by their own gate (no assertion counted): evidence-mobile-touch.spec.ts. Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT-GATE2342-1",
@@ -750,11 +783,14 @@
  },
  {
   "id": "AT-LOBBY-STYLES-2290-1",
-  "class": "NONE",
-  "status": "NOT_RUN",
-  "tests": [],
-  "evidence": null,
-  "note": "Not run (spec needs a server this sweep did not run: unit-lobbystyles-2300.spec.ts)."
+  "class": "AUTO",
+  "status": "PASS",
+  "tests": [
+   "frontend/tests/unit-lobbystyles-2300.spec.ts",
+   "smplwise_vms/backend/tests/test_lobby_styles_2300.py"
+  ],
+  "evidence": "ACC-SWEEP-2211 receipts (docs/changes/receipts/ACC-SWEEP-2211.json), runner:~/work/accsweep-out*/ (junit + Playwright json): test_lobby_styles_2300.py (31 passed); unit-lobbystyles-2300.spec.ts (10 passed). Files were mapped to the card by its change record and by the commits that name it; real devices and the lab were not touched.",
+  "note": "Run on the runner at 619f94d04; PASS."
  },
  {
   "id": "AT-XS-MINI-WIDGET-2351-1",
