@@ -173,3 +173,23 @@ gate), 6 passed, 3 skipped; the fixed spec at `319f81676` - **9 passed**, 3 skip
 The gate's eight flaky tests (passed alone): none touches a file this train changed in its own commits (tickets table, skin QA, NVR
 encoding batch layout sweep, access schedules, media players, intercom ops pixel, the tickets list statement guard, the insight PDF) -
 no action.
+
+## 6. Release gate
+
+Gate 2 on the runner.
+
+- **Run 1** at `df3ee6d12` (`--full`, 4 shards / 8 slots): FAIL in 182 min. 0 hard failures. The only test
+  failure was `unit-mfa-passkeys-2490.spec.ts:182` on desktop, tablet and mobile, which also failed alone.
+  8 flaky tests passed alone; none is in a file this train changed. The cause was the test setup, not the
+  product: WebAuthn needs a secure origin, and the gate serves on a plain-http IP. The test-only fix is in
+  section 4b.
+- **Run 2** at `d886d7929` (`--after gate_release-2510-train_df3ee6d12.json`): **PASS in 18 min**. 0 failures,
+  0 flaky. tsc, build, fe_static, release_check, dev 13, preview 894, addon_build and backend 3895 all passed.
+  Max load 23.7.
+
+Release decision: the run 1 report plus the run 2 re-run. Reports on the runner:
+`~/smplwise-results/gate_release-2510-train_df3ee6d12.gate2.md` and `..._d886d7929.gate2.md`.
+
+Publishing (tag `v2.51.0`, `main`, `#addon`) and the lab install wait for the owner's approval. 2.51 was not
+approved in advance. No Home Assistant restart is needed: the bridge is unchanged at 0.10.8, and migrations
+0219–0224 only add tables and columns.
