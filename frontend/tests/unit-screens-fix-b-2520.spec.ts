@@ -30,3 +30,35 @@ test('SCR-03: the resident "only this date" names the date by its local key, nev
   expect(cancel).not.toMatch(/'occurrence' \? o\.start/); // the 422 of SCR-03
   expect(cancel).toContain('occurrenceKey(o)');
 });
+
+test('SCR-02: recorded playback follows the playing position into the next local day - across midnight and across a DST change', async () => {
+  const { dayToFollow, stampDate, standingInstant } = await import('../src/screens/playback-day');
+  const TZ = 'Asia/Jerusalem';
+  // an ordinary night (UTC+2): 23:59:59 is still the picked day, 00:00:01 is the next one
+  expect(dayToFollow('2026-01-14', new Date('2026-01-14T21:59:59Z'), TZ)).toBeNull();
+  expect(dayToFollow('2026-01-14', new Date('2026-01-14T22:00:01Z'), TZ)).toBe('2026-01-15');
+  // the night into the spring change (Friday 27.03.2026 02:00 -> 03:00): midnight is still UTC+2
+  expect(dayToFollow('2026-03-26', new Date('2026-03-26T21:59:59Z'), TZ)).toBeNull();
+  expect(dayToFollow('2026-03-26', new Date('2026-03-26T22:00:01Z'), TZ)).toBe('2026-03-27');
+  // the night into the autumn change (Sunday 25.10.2026 02:00 -> 01:00): midnight is UTC+3, not UTC+2
+  expect(dayToFollow('2026-10-24', new Date('2026-10-24T20:59:59Z'), TZ)).toBeNull();
+  expect(dayToFollow('2026-10-24', new Date('2026-10-24T21:00:01Z'), TZ)).toBe('2026-10-25');
+  // the day after the spring change (UTC+3): the stamp, the bookmark and the export stand on the playing instant, never 24 h off
+  const playing = new Date('2026-03-27T21:00:30Z'); // 00:00:30 on 28.03 local
+  expect(dayToFollow('2026-03-27', playing, TZ)).toBe('2026-03-28');
+  expect(stampDate(playing, '2026-03-27', 0.5, TZ), 'the stamp never shows yesterday with today\'s time').toBe('2026-03-28');
+  expect(standingInstant(playing, '2026-03-27', 0.5, TZ).toISOString()).toBe(playing.toISOString()); // not 24 h earlier
+  // without a position the picked day + cursor stands, in the zone (the DST day itself: 12:00 local is UTC+3)
+  expect(standingInstant(null, '2026-03-27', 720, TZ).toISOString()).toBe('2026-03-27T09:00:00.000Z');
+  expect(stampDate(null, '2026-03-27', 720, TZ)).toBe('2026-03-27');
+  expect(dayToFollow('2026-03-27', null, TZ)).toBeNull();
+  expect(dayToFollow('2026-03-27', new Date(NaN), TZ)).toBeNull();
+  // the screen wires it: every place the position moves follows the day; the stamp and "add to case" read the position
+  const scr = readFileSync(path.join(SRC, 'screens/investigate-playback.ts'), 'utf8');
+  const body = (from: string, to: string) => scr.slice(scr.indexOf(from), scr.indexOf(to, scr.indexOf(from)));
+  expect(body('private tick() {', '// ---- T042')).toContain('this.followDay(now)');
+  expect(body('private tickGroup() {', 'const drifts')).toContain('this.followDay(now)');
+  expect(body('private async startAt(', 'this.paused = false;')).toContain('this.followDay(this.position)');
+  expect(scr).not.toContain('<span class="stamp">${this.date}');
+  expect(scr).not.toContain('clipAround(instantInZone(this.date, this.cursor, this.tz))');
+});

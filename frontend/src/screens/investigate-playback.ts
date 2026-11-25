@@ -44,6 +44,7 @@ import { SeekCoalescer } from '../api/seek-coalescer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
+import { dayToFollow, stampDate, standingInstant } from './playback-day';
 import { dateInputLang, timeText, isoZ } from '../api/day-format';
 import { t as vt } from '../i18n/he';
 import { tr } from '../i18n/msg/investigate';
@@ -802,6 +803,7 @@ export class InvestigatePlayback extends LitElement {
     this.clearStall();
     await this.endSession();
     this.date = date;
+    this.position = null; // SCR-02: the old day's position no longer stands for anything on the new day
     await this.loadRecordings();
     const last = this.rec?.segments.at(-1);
     this.cursor = last ? this.insideLast(last) : 540;
@@ -813,6 +815,16 @@ export class InvestigatePlayback extends LitElement {
     const start = minuteInZone(new Date(last.start_at), this.tz);
     const end = minuteInZone(new Date(last.end_at), this.tz);
     return Math.max(0, start, end - 5);
+  }
+
+  /** SCR-02: the playing position crossed into another local day (past midnight, or the server started a late seek in a next-day
+   * segment): the screen follows it - the date, that day's recordings, events and bookmarks - without ending the session, so the
+   * stamp, "add to case", the export and the next timeline click are on the day that is actually playing. */
+  private followDay(at: Date | null) {
+    const next = dayToFollow(this.date, at, this.tz);
+    if (!next) return;
+    this.date = next;
+    void this.loadRecordings();
   }
 
   private async loadRecordings() {
@@ -938,6 +950,7 @@ export class InvestigatePlayback extends LitElement {
         this.position = new Date(session.requested_at);
         if (session.moved_to_next_segment) this.notice = tr('אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא ({time}).', { time: this.fmt(new Date(session.requested_at)) });
       }
+      this.followDay(this.position);
       this.cursor = minuteInZone(this.position!, this.tz);
       this.paused = false;
       this.tileStatus = {};
@@ -1131,6 +1144,7 @@ export class InvestigatePlayback extends LitElement {
     const now = this.currentInstant();
     if (now) {
       this.position = now;
+      this.followDay(now);
       this.cursor = minuteInZone(now, this.tz);
       // slow motion consumed the bounded look-ahead and later media was dropped: re-seek to where we are (T066)
       if (master.stale && master.bufferAhead < 0.4 && !this.busy) void this.startAt(now);
@@ -1197,6 +1211,7 @@ export class InvestigatePlayback extends LitElement {
     this.clock = { baseMs: masterMs, startedAt: nowMs };
     const now = new Date(masterMs);
     this.position = now;
+    this.followDay(now);
     this.cursor = minuteInZone(now, this.tz);
     const drifts: Record<string, number> = {};
     for (const t of tiles) {
@@ -1327,6 +1342,7 @@ export class InvestigatePlayback extends LitElement {
     const now = this.currentInstant();
     if (now) {
       this.position = now;
+      this.followDay(now);
       this.cursor = minuteInZone(now, this.tz);
     }
   }
@@ -1543,7 +1559,7 @@ export class InvestigatePlayback extends LitElement {
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
         <span class="grow"></span>
-        <sw-button size="sm" icon="case" data-add-to-case title=${tr('סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת')} ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>${tr('הוסף לתיק')}</sw-button>
+        <sw-button size="sm" icon="case" data-add-to-case title=${tr('סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת')} ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(standingInstant(this.position, this.date, this.cursor, this.tz)) })}>${tr('הוסף לתיק')}</sw-button>
         <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>${tr('ייצוא')}</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">${tr('במפה')}</sw-button></a>
       </div>
@@ -1556,7 +1572,7 @@ export class InvestigatePlayback extends LitElement {
       <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
         ${this.renderStage(cam)}
         ${this.renderStall()}
-        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: tr('מאומת'), keyframe_limited: tr('דיוק לפי keyframe'), estimated: tr('משוער'), unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${tr('{n}× הילוך איטי', { n: this.speed })}</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>${tr('מושהה · צעד־פריים')}</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
+        <span class="stamp">${stampDate(pos, this.date, this.cursor, this.tz)} ${this.fmt(pos)} · ${{ verified: tr('מאומת'), keyframe_limited: tr('דיוק לפי keyframe'), estimated: tr('משוער'), unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${tr('{n}× הילוך איטי', { n: this.speed })}</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>${tr('מושהה · צעד־פריים')}</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
         <div class="bar"><div class="inner">
           <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? tr('המשך') : tr('השהה')} data-pause ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
           <sw-button variant="ghost" size="sm" iconOnly icon="back10" label=${tr('10 שניות אחורה')} ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
