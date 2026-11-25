@@ -2,7 +2,12 @@
 """Self-test of engine_sync.py (GATE-HARDEN-2520, TR-02) in a throw-away git repo and a fake runner home. Touches nothing real.
   python3 scripts/gate/selftest_engine_sync.py      -> last line "SELFTEST PASSED", exit 0
 """
-import atexit, json, shutil, subprocess, sys, tempfile  # noqa: E401
+import atexit
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -64,7 +69,7 @@ rc = run("check", "--repo", str(REPO), "--ref", "HEAD", "--home", str(HOME), "--
 check("check: everything in sync -> 0", rc == 0 and json.loads((TMP / "c1.json").read_text())["strict_drift"] == 0, rc)
 
 # the tree moves on (the GATE-ONEPROJECT-2480 case): the runner keeps the old engine
-(gd / "release_gate.py").write_bytes(("# release_gate.py v2 (one project fix)\n").encode("utf-8"))
+(gd / "release_gate.py").write_bytes(b"# release_gate.py v2 (one project fix)\n")
 git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qam", "v2")
 rc = run("check", "--repo", str(REPO), "--ref", "HEAD", "--home", str(HOME), "--json", str(TMP / "c2.json"))
 rec = json.loads((TMP / "c2.json").read_text())
@@ -73,7 +78,7 @@ rc = run("check", "--repo", str(REPO), "--ref", "HEAD", "--home", str(HOME), "--
 check("check: --allow-drift runs and records the reason", rc == 0 and json.loads((TMP / "c3.json").read_text())["allowed"] == "pinned for a test", rc)
 rc = run("check", "--set", "nightly", "--warn-only", "--repo", str(REPO), "--ref", "HEAD", "--home", str(HOME))
 check("check: the nightly set is warn-only (rc 0 although the engine differs)", rc == 0, rc)
-(HOME / "gate2" / "gate2_verdict.py").write_bytes(("# hand edit\n").encode("utf-8"))
+(HOME / "gate2" / "gate2_verdict.py").write_bytes(b"# hand edit\n")
 (gd / "release_gate.py").write_bytes(files["release_gate.py"].encode("utf-8"))   # engine back in sync, a non-engine file drifts
 git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qam", "v3")
 rc = run("check", "--repo", str(REPO), "--ref", "HEAD", "--home", str(HOME), "--json", str(TMP / "c4.json"))
@@ -83,7 +88,7 @@ rc = run("check", "--repo", str(REPO), "--ref", "no-such-ref", "--home", str(HOM
 check("check: an unknown ref is a usage error (rc 2)", rc == 2, rc)
 
 # install refuses while a gate runs; backups are made once and never overwritten
-(gd / "release_gate.py").write_bytes(("# release_gate.py v4\n").encode("utf-8"))
+(gd / "release_gate.py").write_bytes(b"# release_gate.py v4\n")
 git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qam", "v4")
 st = HOME / "smplwise-results" / "gate_status.json"
 st.write_text(json.dumps({"state": "running"}))

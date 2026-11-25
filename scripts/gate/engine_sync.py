@@ -92,12 +92,12 @@ def sha256_file(p: Path) -> str | None:
 
 
 def git_blob(repo: Path, ref: str, rel: str) -> bytes | None:
-    r = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:scripts/gate/{rel}"], capture_output=True)
+    r = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:scripts/gate/{rel}"], capture_output=True, check=False)
     return r.stdout if r.returncode == 0 else None
 
 
 def git_rev(repo: Path, ref: str) -> str | None:
-    r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"], capture_output=True, text=True, check=False)
     return r.stdout.strip() if r.returncode == 0 else None
 
 
@@ -130,7 +130,7 @@ def cmd_check(a: argparse.Namespace) -> int:
     bad_strict = [r for r in rows if r["strict"] and r["state"] in ("DIFFERENT", "missing", "not-in-tree")]
     bad_other = [r for r in rows if not r["strict"] and r["state"] in ("DIFFERENT", "missing")]
     refused = bool(bad_strict) and not a.allow_drift and not a.warn_only
-    rec = {"checked_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), "set": a.set, "ref": a.ref, "commit": rev,
+    rec = {"checked_at": _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"), "set": a.set, "ref": a.ref, "commit": rev,
            "home": str(home), "rows": rows, "strict_drift": len(bad_strict), "other_drift": len(bad_other),
            "allowed": a.allow_drift or "", "warn_only": bool(a.warn_only), "refused": refused}
     if a.json:
@@ -175,7 +175,7 @@ def busy(home: Path) -> str:
             pass
     for pat in ("[r]elease_gate", "[n]ightly_tests", "[b]ranch_check.sh"):
         try:
-            r = subprocess.run(["pgrep", "-af", pat], capture_output=True, text=True)
+            r = subprocess.run(["pgrep", "-af", pat], capture_output=True, text=True, check=False)
         except FileNotFoundError:   # no pgrep (not the runner): the status files above are the only probe
             continue
         # our own command line (and the shell that started it) may name release_gate.py in --files: never count those
@@ -194,7 +194,7 @@ def cmd_install(a: argparse.Namespace) -> int:
         print(f"engine_sync: not in the install map: {', '.join(unknown)}", file=sys.stderr)
         return 2
     rev = git_rev(src, "HEAD") or "unknown"
-    dirty = subprocess.run(["git", "-C", str(src), "status", "--porcelain", "--", "scripts/gate"], capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "-C", str(src), "status", "--porcelain", "--", "scripts/gate"], capture_output=True, text=True, check=False).stdout.strip()
     plan = []
     for f in files:
         s = gate_dir / f
@@ -243,7 +243,7 @@ def cmd_install(a: argparse.Namespace) -> int:
             print(f"engine_sync: VERIFY FAILED {tp}: {got} != {p['sha256']}", file=sys.stderr)
             return 1
         installed.append({"target": str(tp), "sha256": got, "changed": True})
-    man = {"installed_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), "source": str(src), "source_commit": rev,
+    man = {"installed_at": _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds"), "source": str(src), "source_commit": rev,
            "source_dirty": bool(dirty), "files": installed, "backups": backups}
     mp = home / "gate_install_manifest.json"
     try:

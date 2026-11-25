@@ -427,16 +427,16 @@ c0, f0 = g.parse_pytest("FAILED tests/test_x.py::test_gated[GET /api/v1/x] - Ass
                         "FAILED tests/test_z.py::test_c\nERROR: not found: tests/test_x.py::test_gated[GET\n1 failed in 0.1s\n")
 check("TR-01 parse: an id with a space is kept whole (up to ' - ')", [n for n, _ in f0] == ["tests/test_x.py::test_gated[GET /api/v1/x]", "tests/test_y.py::test_b", "tests/test_z.py::test_c"], f0)
 todo0 = [("tests/test_a.py::t[x y]", "boom"), ("tests/test_a.py::u", "boom")]
-v0 = dict((n, s) for n, s, _ in g.retry_verdicts(todo0, 4, False, "ERROR: not found: tests/test_a.py::t[x\nno tests ran in 0.01s\n"))
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 4, False, "ERROR: not found: tests/test_a.py::t[x\nno tests ran in 0.01s\n")}
 check("TR-01 retry that ran nothing (rc=4, 'not found') -> every id FAIL, none FLAKY", set(v0.values()) == {"FAIL"}, v0)
-v0 = dict((n, s) for n, s, _ in g.retry_verdicts(todo0, 124, True, ""))
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 124, True, "")}
 check("TR-01 retry killed by its time limit (no output) -> every id FAIL", set(v0.values()) == {"FAIL"}, v0)
-v0 = dict((n, s) for n, s, _ in g.retry_verdicts(todo0, 0, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n"))
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 0, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n")}
 check("TR-01 an id the retry did not report PASSED stays FAIL; the reported one is FLAKY",
       v0 == {"tests/test_a.py::t[x y]": "FAIL", "tests/test_a.py::u": "FLAKY"}, v0)
-v0 = dict((n, s) for n, s, _ in g.retry_verdicts(todo0[1:], 1, False, "PASSED tests/test_a.py::u\nERROR tests/test_a.py::u - teardown\n1 passed, 1 error in 0.1s\n"))
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0[1:], 1, False, "PASSED tests/test_a.py::u\nERROR tests/test_a.py::u - teardown\n1 passed, 1 error in 0.1s\n")}
 check("TR-01 PASSED in the call but ERROR at teardown -> FAIL", v0 == {"tests/test_a.py::u": "FAIL"}, v0)
-v0 = dict((n, s) for n, s, _ in g.retry_verdicts(todo0[1:], 3, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n"))
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0[1:], 3, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n")}
 check("TR-01 a PASSED line with a broken exit code (rc=3, internal error) is not trusted -> FAIL", v0 == {"tests/test_a.py::u": "FAIL"}, v0)
 
 try:
@@ -487,9 +487,14 @@ else:
     g.PY = old_py
 
 # ---- GATE-HARDEN-2520 (TR-06): ~/known_issues.json entries need a ticket and an expiry within GATE_KNOWN_MAX_DAYS (7)
-import datetime as _dt  # noqa: E402
+import datetime as _dt
 today = _dt.date(2026, 11, 25)
-kp = lambda k: g.known_entry_problem(k, today=today, max_days=7)  # noqa: E731
+
+
+def kp(k):
+    return g.known_entry_problem(k, today=today, max_days=7)
+
+
 check("TR-06 the 2 Oct entry (no ticket, no expiry) is refused", kp({"id": "pwa", "kind": "playwright", "file": "evidence-pwa-push.spec.ts", "added": "2026-10-02"}) == "no ticket")
 check("TR-06 a ticket without an expiry is refused", kp({"ticket": "T1", "kind": "backend"}) == "no expiry")
 check("TR-06 an expired entry is refused", (kp({"ticket": "T1", "expires": "2026-11-24"}) or "").startswith("expired"))
