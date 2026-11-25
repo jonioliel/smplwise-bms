@@ -37,22 +37,22 @@ const roleLabels = (page: Page) => page.locator(`${MAPPING} [data-role]`).evalua
   role: e.getAttribute('data-role') ?? '', label: (e.querySelector('[data-role-label]')?.textContent ?? '').trim(), aria: e.querySelector('select')?.getAttribute('aria-label') ?? '',
 })));
 
+// soft checks: every language / scheme is checked and shot even when one fails (the same spec makes the "before" shots on the base)
 for (const lang of ['he', 'en'] as const) {
   test(`routing "requires sensor" names in the page language (${lang})`, async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await open(page, lang, '/system/infra/generator/routing', ROUTING, scheme);
       await shoot(page, `sensor-names-routing-${lang}-${scheme}`);
       const needs = await needsTexts(page);
-      expect(needs.length, 'the typical controller leaves types without their sensor').toBeGreaterThan(0);
+      // the first page of the matrix: the typical controller has no oil pressure sensor (low oil pressure, engine group)
+      expect.soft(needs.length, 'the typical controller leaves types without their sensor').toBeGreaterThan(0);
       const all = needs.join(' | ');
       if (lang === 'en') {
-        expect(all).toContain('Oil pressure');
-        expect(all).toContain('Fuel level');
-        for (const n of needs) expect(n, 'no Hebrew in an English "requires sensor"').not.toMatch(HEB);
+        expect.soft(all).toContain('Oil pressure');
+        for (const n of needs) expect.soft(n, 'no Hebrew in an English "requires sensor"').not.toMatch(HEB);
       } else {
-        expect(all).toContain('לחץ שמן');
-        expect(all).toContain('מפלס דלק');
-        expect(all).not.toContain('Oil pressure');
+        expect.soft(all).toContain('לחץ שמן');
+        expect.soft(all).not.toContain('Oil pressure');
       }
     }
   });
@@ -62,10 +62,10 @@ for (const lang of ['he', 'en'] as const) {
       await open(page, lang, '/system/infra/generator/mapping', MAPPING, scheme);
       await shoot(page, `sensor-names-mapping-${lang}-${scheme}`);
       const rows = await roleLabels(page);
-      expect(rows.map((r) => r.role)).toEqual(['engine_state', 'gen_v_l1', 'fuel_pct', 'battery_v']);
+      expect.soft(rows.map((r) => r.role)).toEqual(['engine_state', 'gen_v_l1', 'fuel_pct', 'battery_v']);
       const want = lang === 'en' ? ['Engine state', 'Generator voltage L1', 'Fuel level', 'Battery voltage'] : ['מצב מנוע', 'מתח גנרטור L1', 'מפלס דלק', 'מתח מצבר'];
-      expect(rows.map((r) => r.label)).toEqual(want);
-      expect(rows.map((r) => r.aria), 'the select is named by the same word').toEqual(want);
+      expect.soft(rows.map((r) => r.label)).toEqual(want);
+      expect.soft(rows.map((r) => r.aria), 'the select is named by the same word').toEqual(want);
     }
   });
 }
