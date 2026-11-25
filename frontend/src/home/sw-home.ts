@@ -56,6 +56,7 @@ import { STILL_REFRESH_MS } from '../components/sw-live-player';
 import { homeV3Styles } from './home-styles-v3';
 import { buildScreens, type ExtOvl, type HomeScreen } from './home-ext';
 import { gapAlertActs, gapMenuRow } from './home-gaps'; // HOME-V3-GAPS-2436
+import { accountMenuRow } from './home-account'; // HOME-T120-REST-2530: "החשבון שלי" (security, my sign-ins, language)
 import { moreChild, moreTiles } from './more-registry';
 import './home-v3-p1';
 import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles join the registry
@@ -1720,7 +1721,7 @@ export class SwHome extends LitElement implements P3Host {
       const scheme = this.getAttribute('data-hs-scheme');
       return html`<div class="hscrim clear" data-act="close"></div><section class="sheet umenu" role="dialog" aria-modal="true" aria-label="${tr('התפריט האישי')}"><header class="menu-h"><span class="av lg">${(this.userName || '?').slice(0, 1)}</span><span class="mh-t"><b class="clamp1">${this.userFull || this.userName}</b><span class="muted">${this.role}</span></span><button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button></header>
         <h3>${tr('הממשק שלי')}</h3>${this.faceChoice('home')}
-        <div class="menu-rows">${gapMenuRow(this)}<a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>${tr('ההגדרות שלי')}</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? tr('מראה בהיר') : tr('מראה כהה')}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>${tr('החלף משתמש')}</span>${hi('fwd')}</button>` : nothing}</div></section>`;
+        <div class="menu-rows">${gapMenuRow(this)}<a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>${tr('ההגדרות שלי')}</span>${hi('fwd')}</a>${accountMenuRow(this)}<button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? tr('מראה בהיר') : tr('מראה כהה')}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>${tr('החלף משתמש')}</span>${hi('fwd')}</button>` : nothing}</div></section>`;
     }
     if (o.type === 'bld') { // MULTI-BUILDING-HOME-2500 (Q64 / Q65): the buildings (shared last), "כל הבניינים" only where offered
       const bs: [string, string][] = [...(this.d.buildings ?? []).map((b): [string, string] => [b.id, b.name]), ...(this.d.bAll ? [[ALL, tr('כל הבניינים')] as [string, string]] : [])];

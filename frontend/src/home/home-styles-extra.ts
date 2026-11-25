@@ -134,4 +134,20 @@ export const homeExtraStyles = css`
   @media (prefers-reduced-motion: reduce) { .wgrid > .wdg.fav-lift { transition: none; } }
   .fav-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sw-s-2); }
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .fav-pick { grid-template-columns: minmax(0, 1fr); } }
+  /* HOME-T120-REST-2530: "החשבון שלי" - the full interface's own account blocks (sw-account-security, sw-remote-sessions, sw-lang-prefs)
+     inside a home sheet. They keep their own layout; the sheet lends them the home theme's colours through their --sw-* tokens (custom
+     properties cross the shadow boundary), so a dark home theme never shows a light block. The long security section scrolls inside
+     the sheet only (as the notice text does), never the screen. */
+  .sheet.acc { gap: var(--sw-s-2); }
+  .acc-body { inline-size: 100%; max-block-size: 60vh; overflow-y: auto; overscroll-behavior: contain; padding-block: var(--sw-s-1); font-family: var(--hs-font);
+    --sw-text: var(--hs-text); --sw-text-2: var(--hs-text-2); --sw-text-3: var(--hs-text-3); --sw-heading: var(--hs-heading); --sw-text-inverse: var(--hs-text-inverse);
+    --sw-surface: var(--hs-surface-solid); --sw-surface-solid: var(--hs-surface-solid); --sw-surface-2: var(--hs-surface-2); --sw-surface-3: var(--hs-surface-3);
+    --sw-surface-2-solid: var(--hs-surface-2); --sw-surface-3-solid: var(--hs-surface-3); --sw-highlight: transparent; /* the skin's raised button face (domus / classic) */
+    --sw-border: var(--hs-border); --sw-border-strong: var(--hs-border-strong); --sw-menu-border: var(--hs-border); --sw-menu-surface: var(--hs-surface-solid);
+    --sw-accent: var(--hs-accent); --sw-accent-hover: var(--hs-accent-hover); --sw-accent-soft: var(--hs-accent-soft); --sw-accent-text: var(--hs-accent-text); --sw-focus: var(--hs-focus);
+    --sw-success: var(--hs-live); --sw-success-text: var(--hs-live-text); --sw-live: var(--hs-live); --sw-live-soft: var(--hs-live-soft); --sw-live-text: var(--hs-live-text);
+    --sw-warning-text: var(--hs-warning-text); --sw-danger: var(--hs-danger); --sw-danger-soft: var(--hs-danger-soft); --sw-danger-text: var(--hs-danger-text);
+    --sw-offline-soft: var(--hs-offline-soft); --sw-offline-text: var(--hs-offline-text); --sw-toggle-on: var(--hs-accent); }
+  .acc-body:focus-visible { outline: var(--sw-focus-w) solid var(--hs-focus); outline-offset: var(--sw-focus-offset); }
+  .acc-body > .muted { padding-block: var(--sw-s-3); }
 `;

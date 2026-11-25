@@ -1245,4 +1245,8 @@ export const en = {
   // I18N-REST-2520 (owner rule 22.11: default names follow the creator's language): the default titles of a booking / a service request
   'הזמנה: {v}': 'Booking: {v}',
   'תקלה: {name}': 'Fault: {name}',
+  // HOME-T120-REST-2530: "My account" inside the home interface (security, my sign-ins, language)
+  'החשבון שלי': 'My account',
+  'הכניסות שלי': 'My sign-ins',
+  'שפה': 'Language',
 };
