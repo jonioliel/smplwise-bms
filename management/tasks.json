@@ -30788,5 +30788,43 @@
     "owner": null,
     "commit": "5aaca2e2c",
     "actual_cost_usd": null
+  },
+  {
+    "id": "SCREENS-FIX-B2-2520",
+    "title": "Public-ticket draft bound to its link; calendar pending items carry their revision",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A public-ticket draft is bound to its link (hash) and a queued send goes only to its own link; /me/calendar pending items carry `revision` (additive), used by the home withdraw."
+    ],
+    "requirement_ids": [
+      "R-SCREENS-FIX-B2-2520-1"
+    ],
+    "test_ids": [
+      "AT-SCREENS-FIX-B2-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/SCREENS-FIX-B2-2520, change note docs/changes/SCREENS-FIX-B2-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/SCREENS-FIX-B2-2520 head 9f0626e90 merged bf59244c0 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 43); change note docs/changes/SCREENS-FIX-B2-2520.md. Cut from SCREENS-FIX-B-2520 (row 36); decisions Q1 = a, Q2 = a (follow-up later). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "9f0626e90",
+    "actual_cost_usd": null
   }
 ]

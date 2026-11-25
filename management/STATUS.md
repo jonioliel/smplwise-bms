@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-25T18:08:24.452534+00:00
+Generated: 2026-11-25T18:36:27.125125+00:00
 
-Tasks: 707 | Requirements: 821 | Tests: 838 | Screens: 32
+Tasks: 708 | Requirements: 822 | Tests: 839 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 485
 - IN_PROGRESS: 4
-- REVIEW: 179
+- REVIEW: 180
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 612
+- V1: 613
 - V2: 29
 - V3: 3
 
@@ -762,3 +762,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FE-SAFETY-FIX-2520](tasks/FE-SAFETY-FIX-2520.md) | V1 | REVIEW | Push subscriptions end with the sign-in; Enter confirms only on the confirm button | — |
 | [SCREENS-FIX-A-2520](tasks/SCREENS-FIX-A-2520.md) | V1 | REVIEW | The high findings of the deep screens review (SCR-01, SCR-06, SCR-07) | — |
 | [GATE-HARDEN-2520](tasks/GATE-HARDEN-2520.md) | V1 | REVIEW | Harden the release gate before the 2.52 gate | — |
+| [SCREENS-FIX-B2-2520](tasks/SCREENS-FIX-B2-2520.md) | V1 | REVIEW | Public-ticket draft bound to its link; calendar pending items carry their revision | — |

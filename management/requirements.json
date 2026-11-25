@@ -14167,5 +14167,21 @@
     "test_ids": [
       "AT-GATE-HARDEN-2520-1"
     ]
+  },
+  {
+    "id": "R-SCREENS-FIX-B2-2520-1",
+    "title": "Public-ticket draft bound to its link; calendar pending items carry their revision",
+    "statement": "A public-ticket draft is bound to its link (hash) and a queued send goes only to its own link; /me/calendar pending items carry `revision` (additive), used by the home withdraw.",
+    "task_ids": [
+      "SCREENS-FIX-B2-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SCREENS-FIX-B2-2520-1"
+    ]
   }
 ]
