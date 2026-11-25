@@ -326,6 +326,7 @@ export interface CalPending {
   start: string;
   end: string;
   calendar_id: string;
+  revision: number;
 }
 
 export interface CalPerson {

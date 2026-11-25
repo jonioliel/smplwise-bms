@@ -122,6 +122,16 @@ test.describe('HOME-V3-P2-2431 family and building', () => {
     expect(await overflow(page)).toEqual([]);
   });
 
+  test('SCREENS-FIX-B2-2520: a pending request with no booking row is withdrawn with the revision /me/calendar gave it', async ({ page }) => {
+    const m = await open(page, 'calendar/book');
+    const row = home(page).locator('[data-act="p2BookDel"][data-id="b2"]');
+    await expect(row).toHaveCount(1);
+    await row.click();
+    await home(page).locator('[data-act="askYes"]').click();
+    await expect.poll(() => m.calls.filter((c) => /calendar\/events\/b2\/withdraw$/.test(c.path)).length).toBe(1);
+    expect(m.calls.find((c) => /calendar\/events\/b2\/withdraw$/.test(c.path))!.body, 'never {} (the server\'s 409 "stale")').toEqual({ revision: 4 });
+  });
+
   test('notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet', async ({ page }) => {
     const m = await open(page, 'notices', { worst: true });
     await expect(home(page).locator('.transit')).toContainText('קו 18');

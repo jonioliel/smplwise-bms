@@ -12,7 +12,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { wallEvent } from './home-fb-api';
-import { cancelEvent, createEvent, listCalendars, myCalendar, occurrenceKey, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
+import { cancelEvent, createEvent, listCalendars, myCalendar, occurrenceKey, occurrences, roomsDay, type Calendar, type Occurrence, type PendingRequest, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
 import { keepBuilding, readChosen } from '../components/building-filter-logic';
@@ -20,7 +20,7 @@ import { HomeListFilter } from './home-list-building';
 
 interface Draft { title: string; day: string; from: number; to: number; cal: string; room: string }
 const st: {
-  cals: Calendar[]; occ: Occurrence[]; rooms: RoomDay[]; mine: Occurrence[]; pending: { event_id: string; title: string; start: string; end: string; calendar_id: string }[];
+  cals: Calendar[]; occ: Occurrence[]; rooms: RoomDay[]; mine: Occurrence[]; pending: PendingRequest[];
   day: string | null; tab: 'day' | 'book'; at: number; loading: boolean; error: string; draft: Draft; busy: boolean; bf: HomeListFilter;
 } = { cals: [], occ: [], rooms: [], mine: [], pending: [], day: null, tab: 'day', at: 0, loading: false, error: '', draft: { title: '', day: '', from: 1080, to: 1140, cal: '', room: '' }, busy: false, bf: new HomeListFilter() };
 
@@ -201,7 +201,7 @@ registerScreen((h: HomeHost) => ({
     },
     p2BookDel: (el) => {
       // SCR-04: a row of "my bookings" is one DATE (every date of a series has the same event_id): it is found by its occurrence id,
-      // a pending request (no occurrence yet) by its event id
+      // a pending request (no occurrence yet) by its event id; SCREENS-FIX-B2-2520: its withdrawal sends the request's revision
       const id = el.dataset.id ?? '';
       const oid = el.dataset.oid ?? '';
       const m = oid ? st.mine.find((x) => x.occurrence_id === oid) : undefined;
@@ -213,7 +213,7 @@ registerScreen((h: HomeHost) => ({
       const when = whenText(m?.start ?? p?.start, h.now);
       h.ovl = {
         type: 'ask', title: tr('לבטל את ההזמנה של {name}?', { name }), text: when, yes: tr('כן, בטל'),
-        run: () => void cancelEvent(m?.event_id ?? id, m ? m.state : 'pending', m?.revision).then(() => { h.toast(tr('ההזמנה בוטלה')); load(h, true); }).catch((e) => h.toast(errText(e))),
+        run: () => void cancelEvent(m?.event_id ?? id, m ? m.state : 'pending', m ? m.revision : p?.revision).then(() => { h.toast(tr('ההזמנה בוטלה')); load(h, true); }).catch((e) => h.toast(errText(e))),
       };
     },
     p2BookDelGo: (el) => {
