@@ -166,7 +166,11 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await expect(editor(page).locator('[data-wiskey-editor-mode="new"]')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
     // the notes are honest about what this slice does not edit yet, and no disabled stubs for it
-    await expect(editor(page).locator('[data-wiskey-editor-section]')).toHaveCount(5); // person, validity, pin, cards, assignments (no actions for a new person)
+    // person, category and timing (later CRs), validity, pin, cards, assignments - no actions for a new person
+    await expect(editor(page).locator('[data-wiskey-editor-section]')).toHaveCount(7);
+    expect(await editor(page).locator('[data-wiskey-editor-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-wiskey-editor-section')))).toEqual(
+      expect.arrayContaining(['person', 'validity', 'pin', 'cards', 'assignments']));
+    await expect(editor(page).locator('[data-wiskey-editor-section="actions"]')).toHaveCount(0);
     expect(await editor(page).locator('[data-wiskey-editor-validity-mode]').evaluate((n) => (n as HTMLElement & { items: unknown[] }).items.length)).toBe(2); // permanent / period only
     await expect(editor(page).getByText(/weekly|native|photo|תמונה/)).toHaveCount(0);
     // a random nine-digit employee number, as WisKey's edit() gives a new person

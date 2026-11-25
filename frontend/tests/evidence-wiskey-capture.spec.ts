@@ -127,7 +127,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
   test('gating: people editing without access.cards.capture offers no capture and every capture endpoint refuses; a new person and a modified draft cannot capture', async ({ browser, page, request }, testInfo) => {
     // CR-036: the people screen needs access.people.read, the editor access.people.manage, its PIN and cards sections the sensitive level
     // (access.people.sensitive) - and no access.cards.capture
-    const role = await request.post('/api/v1/access/roles', { data: { name: `people-no-capture-${Date.now()}`, description: 'A1 without A2', permissions: ['access.read', 'access.people.read', 'access.people.sensitive'], sensitive: ['access.people.manage'] } });
+    const role = await request.post('/api/v1/access/roles', { data: { name: `people-no-capture-${Date.now()}`, description: 'A1 without A2', permissions: ['access.read', 'access.people.read'], sensitive: ['access.people.manage', 'access.people.sensitive'] } });
     expect(role.status()).toBe(201);
     const roleId = ((await role.json()) as { id: string }).id;
     const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': 'wiskeypeopleonly' } })).json();
