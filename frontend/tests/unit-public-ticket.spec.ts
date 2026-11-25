@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterFailure, afterStep, bootFrom, codeMessage, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
+import { afterFailure, afterSendFailure, afterStep, bootFrom, codeMessage, editDraft, resendOnReconnect, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
@@ -96,6 +96,36 @@ test('a stored draft survives a reload; a tampered one is an empty draft', () =>
   expect(parseDraft(JSON.stringify(d))).toEqual({ ...d, crids: { status: d.crids.status, note: undefined, eta: undefined } });
   expect(parseDraft('{not json')).toEqual({ status: null, note: '', eta: undefined, crids: {} });
   expect(parseDraft(JSON.stringify({ crids: { status: '../../evil' } })).crids.status).toBeUndefined();
+});
+
+test('SCR-05: only a pressed "send" that failed offline goes out by itself; a chip or a half-typed note never does', () => {
+  const crid = '00000000-0000-4000-8000-000000000001';
+  // a tapped "done" and a half-typed note: a draft, never sent when the phone is back online
+  const typed: Draft = { status: 'done', note: 'החלפתי את המדח', eta: undefined, crids: {} };
+  expect(resendOnReconnect(typed)).toBe(false);
+  expect(resendOnReconnect(parseDraft(JSON.stringify({ ...typed, queued: true }))), 'a bare stored flag without the request ids of a press is a draft').toBe(false);
+  // "send" pressed, the call failed for want of reception: queued, and it survives a reload with its request ids
+  const pressed = afterSendFailure({ ...typed, crids: { status: crid } }, { offline: true });
+  expect(resendOnReconnect(pressed)).toBe(true);
+  expect(resendOnReconnect(parseDraft(JSON.stringify(pressed)))).toBe(true);
+  // any other refusal is no queue (a 409 must not be retried by itself)
+  expect(resendOnReconnect(afterSendFailure({ ...typed, crids: { status: crid } }, { offline: false }))).toBe(false);
+  // a change after the press (one more letter, another chip, the ETA) or the cancel makes it a draft again; the request ids stay
+  for (const patch of [{ note: 'החלפתי את המדחס' }, { status: 'in_progress' }, { eta: null }, {}] as Partial<Draft>[]) {
+    const edited = editDraft(pressed, patch);
+    expect(resendOnReconnect(edited)).toBe(false);
+    expect(edited.crids).toEqual({ status: crid });
+  }
+  // the page wires the "online" event to the queued send only, and shows the queue with a cancel in four languages
+  const main = readFileSync(path.join(SRC, 'main.ts'), 'utf8');
+  const online = main.slice(main.indexOf("addEventListener('online'"), main.indexOf("addEventListener('online'") + 300);
+  expect(online).toContain('resendOnReconnect(this.draft)');
+  expect(online).not.toContain('hasDraft');
+  expect(main).toMatch(/data-queued-cancel/);
+  for (const k of ['queuedSend', 'queuedCancel'] as Key[]) {
+    expect(text('he', k, {}, null)).not.toBe('');
+    for (const lang of LANGS) if (lang !== 'he') expect(text(lang, k, {}, null), `${lang} ${k}`).not.toBe(text('he', k, {}, null));
+  }
 });
 
 test('the status buttons: the allowed moves plus the current one, in the line order', () => {

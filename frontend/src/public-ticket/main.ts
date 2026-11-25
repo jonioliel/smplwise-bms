@@ -16,7 +16,7 @@ import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, 
 import { h, icon, img } from './dom';
 import { bannerEl, centerScreen, codeCard, langPicker, messageContent, themeToggle } from './page-frame'; // CR-PUBLIC-FRAME-2440: the frame shared with the RFQ page
 import { mapBlock } from './map-block';
-import { afterFailure, afterStep, codeMessage, EMPTY_DRAFT, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
+import { afterFailure, afterSendFailure, afterStep, codeMessage, EMPTY_DRAFT, editDraft, resendOnReconnect, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { holdForLang } from './lang-packs';
 import { isLang, preferredLang, RTL, text, type Key, type Lang } from './strings';
@@ -135,7 +135,8 @@ class Page {
       if (document.visibilityState === 'visible' && this.creds.token && ['ready', 'readonly', 'code', 'busy', 'error'].includes(this.phase)) void this.load();
     });
     window.addEventListener('online', () => {
-      if (this.mode === 'ticket' && this.phase === 'ready' && this.hasDraft()) void this.send();
+      // SCR-05: only a send the person pressed while offline goes out by itself; a chosen chip or a half-typed note never does
+      if (this.mode === 'ticket' && this.phase === 'ready' && resendOnReconnect(this.draft)) void this.send();
     });
   }
 
@@ -236,7 +237,9 @@ class Page {
     const next = afterFailure(e, this.phase);
     if (next.forget) this.forget();
     this.phase = next.phase;
-    this.banner = next.message ? { key: next.message, tone: next.message === 'savedOffline' ? 'info' : 'bad' } : null;
+    // SCR-05: a queued send has its own "waiting to send" line with a cancel; the offline banner would only repeat it
+    const queuedLine = next.message === 'savedOffline' && resendOnReconnect(this.draft);
+    this.banner = next.message && !queuedLine ? { key: next.message, tone: next.message === 'savedOffline' ? 'info' : 'bad' } : null;
     if (next.reload) void this.load(false);
     else this.render();
   }
@@ -350,12 +353,16 @@ class Page {
       const r = await this.run(step);
       if (!r.ok) {
         this.busy = false;
+        this.draft = afterSendFailure(this.draft, r.error); // SCR-05: queued ("waiting to send") only when reception was missing
+        this.saveDraft();
         this.fail(r.error);
         return;
       }
       this.draft = afterStep(this.draft, step);
       this.saveDraft();
     }
+    this.draft = editDraft(this.draft); // everything went out: nothing stays queued
+    this.saveDraft();
     this.busy = false;
     this.etaOther = false;
     this.banner = { key: 'sent', tone: 'ok' };
@@ -543,6 +550,20 @@ class Page {
     return bannerEl(this.banner, this.frameText);
   }
 
+  /** SCR-05: a send pressed without reception waits here - said on the page, with a cancel (the draft stays, nothing goes out). */
+  private queuedEl(): HTMLElement | null {
+    if (!resendOnReconnect(this.draft)) return null;
+    return h('div', { class: 'banner info queued', attrs: { role: 'status', 'data-queued': true } },
+      h('span', null, this.t('queuedSend')), ' ',
+      h('button', { class: 'linkish under', attrs: { type: 'button', 'data-queued-cancel': true }, on: { click: () => this.cancelQueued() } }, this.t('queuedCancel')));
+  }
+
+  private cancelQueued(): void {
+    this.draft = editDraft(this.draft);
+    this.saveDraft();
+    this.render();
+  }
+
   private codeScreen(): HTMLElement {
     const v = this.view;
     return h('div', { class: 'page' }, this.header(), h('main', { class: 'col' },
@@ -571,6 +592,7 @@ class Page {
     const writable = !readOnly && !!v.actions;
     return h('div', { class: `page kind-${kind}`, attrs: { 'data-kind': kind } }, this.header(), h('main', { class: 'col' },
       this.bannerEl(),
+      writable ? this.queuedEl() : null,
       readOnly && !v.claim_mode ? h('section', { class: 'card closed', attrs: { 'data-readonly': true } },
         h('div', { class: 'msg-icon ok' }, icon('done')),
         h('h1', { class: 'msg-title' }, this.t('closedTitle')),
@@ -665,7 +687,7 @@ class Page {
     if (p === 'ack') attrs['data-ack'] = true;
     const click = () => {
       if (p === 'ack') {
-        this.draft = { ...this.draft, status: 'acknowledged' };
+        this.draft = editDraft(this.draft, { status: 'acknowledged' });
         this.saveDraft();
         void this.send();
       } else if (p === 'send') void this.send();
@@ -690,6 +712,7 @@ class Page {
     if (!v || !['ready', 'readonly'].includes(this.phase)) return;
     const line = this.root.querySelector('[data-statusline]');
     if (line) line.replaceWith(this.statusLineEl(v));
+    if (!resendOnReconnect(this.draft)) this.root.querySelector('[data-queued]')?.remove(); // SCR-05: typing un-queues the send
     const bar = this.root.querySelector<HTMLElement>('[data-bar]');
     const next = this.primaryBar(v, linkKind(v));
     if (bar && next && bar.dataset.bar === next.dataset.bar && !this.busy) return;
@@ -812,7 +835,7 @@ class Page {
       grid.appendChild(h('button', {
         class: `status ${chosen ? 'on' : ''}`,
         attrs: { type: 'button', role: 'radio', 'aria-checked': String(chosen), disabled: !allowed && !current, 'data-status-choice': s },
-        on: { click: () => { if (!allowed && !current) return; this.draft = { ...this.draft, status: current ? null : s }; this.saveDraft(); this.render(); } },
+        on: { click: () => { if (!allowed && !current) return; this.draft = editDraft(this.draft, { status: current ? null : s }); this.saveDraft(); this.render(); } },
       }, icon('check'), h('span', { class: 'st-name' }, this.t(`btn_${s}`)),
       h('span', { class: 'st-sub' }, this.t(`btn_${s}_sub`)),
       s === 'in_progress' && eff === 'waiting_part' ? h('span', { class: 'st-wait', attrs: { 'data-waiting-sub': true } }, this.t('s_waiting_part')) : null));
@@ -821,7 +844,7 @@ class Page {
     const tg = partToggle(v, this.draft.status);
     if (tg) {
       card.appendChild(h('button', { class: `pill wait ${tg.on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(tg.on), 'data-waiting-toggle': tg.on ? 'back' : 'mark' },
-        on: { click: () => { this.draft = { ...this.draft, status: tg.next }; this.saveDraft(); this.render(); } } },
+        on: { click: () => { this.draft = editDraft(this.draft, { status: tg.next }); this.saveDraft(); this.render(); } } },
       h('span', { class: 'sw', attrs: { 'aria-hidden': 'true' } }), h('span', null, this.t(tg.on ? 'wait_back' : 'wait_mark'))));
     }
     return card;
@@ -836,11 +859,11 @@ class Page {
     if (!v.actions?.note) return null;
     const ta = h('textarea', { class: 'input note', attrs: { rows: 3, maxlength: v.limits?.note_max ?? 2000, placeholder: this.t('notePlaceholder'),
       'aria-label': this.t('note'), dir: 'auto', 'data-note': true },
-    on: { input: (e) => { this.draft = { ...this.draft, note: (e.target as HTMLTextAreaElement).value }; this.saveDraft(); this.syncChrome(); } } });
+    on: { input: (e) => { this.draft = editDraft(this.draft, { note: (e.target as HTMLTextAreaElement).value }); this.saveDraft(); this.syncChrome(); } } });
     ta.value = this.draft.note;
     const ask = !!this.draft.ask;
     const toggle = h('button', { class: `pill ${ask ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(ask), 'data-ask-manager': true, title: this.t('askHint') },
-      on: { click: () => { this.draft = { ...this.draft, ask: !ask }; this.saveDraft(); this.render(); } } }, this.t('askManager'));
+      on: { click: () => { this.draft = editDraft(this.draft, { ask: !ask }); this.saveDraft(); this.render(); } } }, this.t('askManager'));
     return h('section', { class: 'card num' }, h('h2', null, this.t('cardDone')), ta, h('div', { class: 'pills' }, toggle));
   }
 
@@ -857,7 +880,7 @@ class Page {
       const iso = etaFor(choice, Date.now(), zone);
       const on = current === iso;
       return h('button', { class: `pill ${on ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(on), 'data-eta': choice },
-        on: { click: () => { this.etaOther = false; this.draft = { ...this.draft, eta: on ? undefined : iso }; this.saveDraft(); this.render(); } } }, this.t(key));
+        on: { click: () => { this.etaOther = false; this.draft = editDraft(this.draft, { eta: on ? undefined : iso }); this.saveDraft(); this.render(); } } }, this.t(key));
     };
     const pills = h('div', { class: 'pills', attrs: { role: 'group', 'aria-label': this.t('eta') } }, chip('today', 'etaToday'), chip('tomorrow', 'etaTomorrow'), chip('two_days', 'etaTwoDays'),
       h('button', { class: `pill ${this.etaOther ? 'on' : ''}`, attrs: { type: 'button', 'aria-pressed': String(this.etaOther), 'data-eta': 'other' },
@@ -865,7 +888,7 @@ class Page {
     const block = h('div', { class: 'field' }, pills);
     if (this.etaOther) {
       const input = h('input', { class: 'input', attrs: { type: 'datetime-local', 'data-eta-input': true, dir: 'ltr', 'aria-label': this.t('eta') },
-        on: { change: (e) => { const iso = localInputToIso((e.target as HTMLInputElement).value, zone); if (iso) { this.draft = { ...this.draft, eta: iso }; this.saveDraft(); this.render(); } } } });
+        on: { change: (e) => { const iso = localInputToIso((e.target as HTMLInputElement).value, zone); if (iso) { this.draft = editDraft(this.draft, { eta: iso }); this.saveDraft(); this.render(); } } } });
       input.value = isoToLocalInput(current, zone);
       block.appendChild(input);
     }
@@ -873,7 +896,7 @@ class Page {
       const note = zoneNote(zone);
       block.appendChild(h('div', { class: 'muted small', attrs: { 'data-eta-value': true } }, this.t('etaSet', { when: this.when(current) }),
         note ? ` (${this.t('timeZone', { zone: note })})` : '',
-        ' ', h('button', { class: 'linkish', attrs: { type: 'button' }, on: { click: () => { this.draft = { ...this.draft, eta: null }; this.saveDraft(); this.render(); } } }, this.t('etaClear'))));
+        ' ', h('button', { class: 'linkish', attrs: { type: 'button' }, on: { click: () => { this.draft = editDraft(this.draft, { eta: null }); this.saveDraft(); this.render(); } } }, this.t('etaClear'))));
     }
     return block;
   }

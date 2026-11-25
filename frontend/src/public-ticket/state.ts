@@ -136,6 +136,9 @@ export interface Draft {
   eta: string | null | undefined;
   /** one request id per part, created once and kept until the server confirmed that part */
   crids: { status?: string; note?: string; eta?: string };
+  /** SCR-05: "send" WAS pressed and failed for want of reception - the only draft that goes out by itself when the phone is back
+   * online. A chosen chip or a typed note alone is never sent without "send"; any change to the draft makes it a draft again. */
+  queued?: true;
 }
 
 export const EMPTY_DRAFT: Draft = { status: null, note: '', eta: undefined, crids: {} };
@@ -167,6 +170,23 @@ export function planSend(draft: Draft, view: Pick<TicketView, 'status' | 'eta_at
   return { steps, draft: { ...draft, crids } };
 }
 
+/** SCR-05: the person changed the draft (a chip, the note, the ETA): it is a draft again, never a queued send. */
+export function editDraft(draft: Draft, patch: Partial<Omit<Draft, 'crids' | 'queued'>> = {}): Draft {
+  const next: Draft = { ...draft, ...patch, crids: { ...draft.crids } };
+  delete next.queued;
+  return next;
+}
+
+/** SCR-05: the draft after a press of "send" failed - queued only when the failure is the missing reception, else a draft again. */
+export function afterSendFailure(draft: Draft, e: Pick<ApiFailure, 'offline'>): Draft {
+  return e.offline ? { ...draft, queued: true } : editDraft(draft);
+}
+
+/** SCR-05: the phone is back online - send only what the person already sent (pressed "send") while offline. */
+export function resendOnReconnect(draft: Draft): boolean {
+  return draft.queued === true;
+}
+
 /** The draft after one step was confirmed by the server: that part (and its request id) is done. */
 export function afterStep(draft: Draft, step: Step): Draft {
   const crids = { ...draft.crids };
@@ -189,12 +209,15 @@ export function parseDraft(raw: string | null): Draft {
     const v = JSON.parse(raw) as Partial<Draft>;
     const crid = (x: unknown) => (typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x) ? x : undefined);
     const c = (v.crids ?? {}) as Record<string, unknown>;
+    const crids = { status: crid(c.status), note: crid(c.note), eta: crid(c.eta) };
     return {
       status: typeof v.status === 'string' ? v.status : null,
       note: typeof v.note === 'string' ? v.note.slice(0, 4000) : '',
       ...(v.ask === true ? { ask: true } : {}),
       eta: v.eta === null || typeof v.eta === 'string' ? v.eta : undefined,
-      crids: { status: crid(c.status), note: crid(c.note), eta: crid(c.eta) },
+      crids,
+      // SCR-05: a queued send always holds the request ids its press created; a bare flag is a draft
+      ...(v.queued === true && Object.values(crids).some(Boolean) ? { queued: true as const } : {}),
     };
   } catch {
     return { ...EMPTY_DRAFT, crids: {} };
