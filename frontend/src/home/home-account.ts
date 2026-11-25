@@ -15,7 +15,7 @@ import { isApi } from '../api/session';
 import { logout as arxLogout } from '../arx/auth';
 import { tr } from '../i18n/msg/home';
 
-export type AccountTab = 'security' | 'sessions' | 'lang';
+type AccountTab = 'security' | 'sessions' | 'lang';
 const TABS: AccountTab[] = ['security', 'sessions', 'lang'];
 
 /** Which chunks have landed: a lazily defined tag is rendered only after its chunk arrived (GATE2342: never upgraded in place). */
@@ -23,11 +23,11 @@ const ready: Record<AccountTab, boolean> = { security: false, sessions: false, l
 const loading: Partial<Record<AccountTab, Promise<unknown>>> = {};
 
 /** The account sheet is offered to a signed-in person on their own screen: never on a wall panel, never without a server. */
-export function accountOk(h: Pick<HomeHost, 'pol'>, api: () => boolean = isApi): boolean {
+function accountOk(h: Pick<HomeHost, 'pol'>, api: () => boolean = isApi): boolean {
   return api() && !h.pol()?.kiosk;
 }
 
-export function accountTab(v: unknown): AccountTab {
+function accountTab(v: unknown): AccountTab {
   return TABS.includes(v as AccountTab) ? (v as AccountTab) : 'security';
 }
 

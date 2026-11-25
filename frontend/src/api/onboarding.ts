@@ -108,7 +108,7 @@ export const onboardingActive = (on: boolean, hidden: boolean, mayConfigure: boo
 
 // ---------------------------------------------------------------- the checklist (pure)
 
-export type OnboardingState = 'done' | 'open' | 'info';
+type OnboardingState = 'done' | 'open' | 'info';
 
 export interface OnboardingItem {
   id: string;
