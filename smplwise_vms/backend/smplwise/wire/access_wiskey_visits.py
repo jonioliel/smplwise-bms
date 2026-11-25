@@ -104,13 +104,13 @@ class AccessWiskeyVisitsTemplates(ExactModel):
 class AccessWiskeyVisitsLinksLink(ExactModel):
     invite_id: str
     state: str
-    pushed_revision: Num
+    pushed_revision: Num | None  # null for an invitation never pushed (link state `never`)
     current_revision: Num
     in_sync: bool
     pushable: bool
-    wiskey_visit_id: str
+    wiskey_visit_id: str | None  # null until WisKey answered a record
     last_code: Any
-    attempted_at: str
+    attempted_at: str | None  # null for an invitation never pushed
 
 
 class AccessWiskeyVisitsLinks(ExactModel):
