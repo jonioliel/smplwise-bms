@@ -53,7 +53,19 @@ world clock is the real "now" because the board feed reads it) use a window two 
 
 ## Verdicts (TR-03, TR-06)
 
-FILLED IN BELOW AFTER THE RUNNER RUNS.
+Nightly 25.11 on main @ fd600e96d (v2.50.0), the four FAIL rows:
+
+| test | verdict | fix |
+|------|---------|-----|
+| `unit-home-clock.spec.ts:74 [desktop]` midnight roll-over | **test defect (race), not a product defect, not time-of-day.** The test removed the date sensor on the widget (`home-widgets.config`), but `devices-building` hands the widget a freshly normalised config (`homeViewOf` -> `configOf`) on each of its own renders, so the edit was lost at the screen's next render and the widget showed the demo sensor's fixed text `ג׳ בחשוון התשפ״ז` before and after midnight (exactly the failure message). Reproduced in daytime on the runner: the old spec failed 1 of 5 repeats with the same message. The product's midnight roll-over is fine. | the test edits the screen's home block (`devices-building.tree.home`), waits until the computed date is on screen before reading it, and checks after two minutes that it is still computed. New spec: 25/25 passed (5 tests x 5 repeats). |
+| `evidence-fleet-report.spec.ts:39 [mobile]` | **budget under load, not a defect.** 13 page loads + 10 full-page captures; on a quiet runner 16.3 s desktop / 16.5 s mobile. In the nightly the mobile run (and its alone-retry) hit the 60 s test timeout in `waitForSelector` / `screenshot` while the machine was overloaded (the 25.11 nightly filled RAM + swap - owner Q11 a). | `test.setTimeout(180_000)`. 2/2 passed on the runner. |
+| `evidence-tabs-styles.spec.ts:120 [mobile]`, `[tablet]` | **budget under load, not a defect** (7 cold page loads with a fixed 0.9 s settle + 6 captures; 11.6-12.8 s quiet; `page.goto` itself took > 60 s in the nightly retry). `:153 [tablet]` was FLAKY for the same reason. | `test.setTimeout(180_000)` on `:120` and `:153`. Whole file 18/18 passed on desktop, tablet, mobile. |
+
+TR-06: the runner's `~/known_issues.json` held one entry (`pwa-push-new-release-91`, added 2026-10-02, no ticket, no expiry). Its `line: 91`
+no longer matched any test (the spec's tests start at line 93; "a new release" is at 139), so it hid nothing lately: the last two
+pwa-push failures in the runner reports (14.11, `:139` / `:171` [desktop]) were reported FLAKY normally. The spec now passes:
+`evidence-pwa-push.spec.ts` on desktop, tablet, mobile x 3 repeats = 75 passed, 15 skipped (the live-backend group), 0 failed.
+Verdict: entry REMOVED (file is now `[]`; backup `~/known_issues.json.bak_2511`). The engine now refuses such entries anyway.
 
 ## Files
 - `scripts/gate/release_gate.py`, `scripts/gate/release_gate2.sh`, `scripts/gate/nightly_tests.sh`, `scripts/gate/engine_sync.py` (new),
@@ -62,6 +74,25 @@ FILLED IN BELOW AFTER THE RUNNER RUNS.
 - `smplwise_vms/backend/tests/test_notify_whatsapp.py`, `test_notify_email.py`, `test_announce_screens_b295.py`, `test_announce_translate_297.py`
 - `frontend/tests/unit-home-clock.spec.ts`, `evidence-fleet-report.spec.ts`, `evidence-tabs-styles.spec.ts`
 
-## Tests
+## Tests (runner, slot B jobs `p2520_gateharden_*`; branch head 8e025887a for the runs, lint fixes after)
 
-FILLED IN BELOW AFTER THE RUNNER RUNS.
+| what | command | result |
+|------|---------|--------|
+| gate engine selftest (incl. TR-01 real-pytest reproduction, TR-06 cases) | `GATE_SELFTEST_REPO=<wt> ~/smplwisebms/.venv/bin/python scripts/gate/selftest_gate.py` | rc 0, `SELFTEST PASSED` |
+| engine_sync selftest | `python3 scripts/gate/selftest_engine_sync.py` | rc 0, `SELFTEST PASSED` (also on the workstation) |
+| release bundle check | `pytest tests/test_release_bundle_version_2520.py` | 6 passed |
+| release_check suite | `pytest tests/test_release_check.py` | 2 passed, 1 failed: `test_repository_is_release_consistent` - "one version everywhere" (CHANGELOG head is the 2.52.0 DRAFT on the train head). Pre-existing on the base train head, unrelated (the new bundle row is a WARN there, not a FAIL) |
+| WhatsApp | `pytest tests/test_notify_whatsapp.py` | 111 passed |
+| e-mail | `pytest tests/test_notify_email.py` | 47 passed |
+| announcements | `pytest tests/test_announce_screens_b295.py`, `tests/test_announce_translate_297.py` | 15 passed, 11 passed |
+| home clock (new) | `playwright test tests/unit-home-clock.spec.ts --project=desktop --repeat-each=5` | 25 passed |
+| home clock (old spec from main, midnight test) | same, `-g midnight` | 1 failed / 4 passed - the nightly's failure reproduced in daytime |
+| fleet report | `evidence-fleet-report.spec.ts -g "the four pages" --project=desktop --project=mobile` | 2 passed (16.3 s, 16.5 s) |
+| tab styles | `evidence-tabs-styles.spec.ts` desktop + tablet + mobile | 18 passed |
+| PWA push | `evidence-pwa-push.spec.ts` 3 projects x `--repeat-each=3` | 75 passed, 15 skipped (live group), 0 failed |
+| ruff | changed Python files | no F (pyflakes) finding; no new style finding vs the base after the lint commit |
+
+The quiet-hours tests were not run at 23:59 local (no faketime on the runner): NOT_RUN at that minute. By construction they no longer
+read the wall clock for the quiet decision (pinned `notify.now_utc`), resp. use a window around their own test clock.
+
+NOT_RUN: no release gate, no nightly, no full backend or Playwright suite (owner rule: the lead starts gates).

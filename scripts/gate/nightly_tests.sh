@@ -159,7 +159,8 @@ for BR in "${BRANCHES[@]}"; do
     python3 "$HOME/gate2/engine_sync.py" check --set nightly --warn-only --repo "$DIR" --ref "origin/$BR" --home "$HOME" --json "$REP.engine.json" > "$LOGD/engine_sync.log" 2>&1
   fi
   # owner 25.11 (Q11 a): lighter nightly - same parallelism as the release gate, so it no longer fills RAM + swap
-  GATE_PW_SLOTS="${SW_NIGHTLY_PW_SLOTS:-8}" GATE_BACKEND_SHARDS="${SW_NIGHTLY_SHARDS:-4}" GATE_PW_MAX_WORKERS="${SW_NIGHTLY_PW_MAX_WORKERS:-4}" GATE_MIN_FREE_MB="${SW_NIGHTLY_MIN_FREE_MB:-3000}"   GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL="$VMODE" GATE_VISUAL_SCOPE=all \
+  GATE_PW_SLOTS="${SW_NIGHTLY_PW_SLOTS:-8}" GATE_BACKEND_SHARDS="${SW_NIGHTLY_SHARDS:-4}" GATE_PW_MAX_WORKERS="${SW_NIGHTLY_PW_MAX_WORKERS:-4}" GATE_MIN_FREE_MB="${SW_NIGHTLY_MIN_FREE_MB:-3000}" \
+  GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL="$VMODE" GATE_VISUAL_SCOPE=all \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L ${NV[@]+"${NV[@]}"} > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)

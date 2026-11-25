@@ -123,7 +123,8 @@ git -C "$REPO" rev-parse --verify -q "origin/$BR^{commit}" >/dev/null || { echo 
 # GATE-HARDEN-2520 (TR-02): before any test - is the engine we are about to run the engine of the tree under test?
 HSHA="$(git -C "$REPO" rev-parse --short "origin/$BR")"
 if [ -f "$G2/engine_sync.py" ]; then
-  "$PY3" "$G2/engine_sync.py" check --repo "$REPO" --ref "origin/$BR" --home "$HOME" --json "$RES/gate_${TAG}_${HSHA}.engine.json"     ${DRIFT_OK:+--allow-drift "$DRIFT_OK"}
+  "$PY3" "$G2/engine_sync.py" check --repo "$REPO" --ref "origin/$BR" --home "$HOME" --json "$RES/gate_${TAG}_${HSHA}.engine.json" \
+    ${DRIFT_OK:+--allow-drift "$DRIFT_OK"}
   src=$?
   if [ "$src" = 4 ]; then echo "gate2: REFUSED - engine drift (see above); nothing was run"; exit 2; fi
   [ "$src" = 0 ] || echo "gate2: WARNING - the engine drift check could not run (rc=$src); the engine was NOT verified"
