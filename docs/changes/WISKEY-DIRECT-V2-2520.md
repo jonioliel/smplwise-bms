@@ -59,10 +59,13 @@ no new route, no self-grant, no revoke or deletion of a pairing on the wire.
 
 | command | where | exit | result |
 |---|---|---|---|
-| `python -m pytest -q tests/test_wiskey_direct_v2_2520.py` (repo venv) | PC | 0 | 39 passed |
+| `python -m pytest tests/test_wiskey_direct_v2_2520.py` (repo venv) | PC | 0 | 39 passed |
 | `python scripts/gen_wire_types.py --check` | PC | 0 | generated files match |
 | `python scripts/wire_ratchet.py` | PC | 0 | 897 unmodelled = baseline |
-| RUNNER_RESULTS | runner slot B | | |
+| `py -3.12 -m ruff check` on the 6 changed modules + the new test file | PC | 0 findings in them | the 19 findings reported for `tests/test_wk4adopt_295.py` (F401 / F811 fixture imports) are identical at the base |
+| `python -m pytest tests/<file>`, ONE file per process, repo venv, on the final bytes (`185a9aa8a`; the files that reach the bridge-key routes were re-run after its router fix): every test file that imports or scans a changed module, the bridge-key routes or the wire generator (73 files besides the new one) | PC | 0 for 72 files | all passed. Counts: `test_wkdirect_295` 53, `test_wkr5_295` 31, `test_wkjoin_295` 23, `test_bridge_key_rotation_295` 45, `test_bridge_key_activation_295` 30, `test_bridge_keyrot_harness_295` 34, `test_bridge_keyrot_harness_doors_295` 1, `test_wiskey_pairing_2382` 32, `test_wire_routers_b/c/d/e` 66/58/170/95, `test_wire_consumption_2450` 13, `test_wire_calendar_2470` 3, `test_wxh_leftovers_2405` 23, `test_wxh4_emergency_revoke_2407` 22, `test_remote_access` 66, `test_wiskey_join_live_2382` 38, `test_wiskey_mac_adopt_298` 45, `test_wiskey_mac_adopt_298_review` 40, `test_wiskey_adopt_2272_review` 38 (+3 skipped), `_contrib` 39, `_features` 38, `_install` 39 (+2 skipped), `_installer` 6 (+3 skipped), `test_wkr5_295_writer` 11, `test_wkr5_295_bdg` 10, `test_wkcapwire_295` 37, `test_wk4adopt_295` 44, `test_peerquery_295` 47, `test_adoptr6_295` 25, `test_capmap_295` 65, `test_t06_admission_295` 63 (+3 xfailed), `test_wiskey_contract` 53, `test_bridge_stale_discovery_2383` 32, `test_asgi_wiskey_295` 28, `test_authrevoke_2435` 11, `test_intercom_media` 35, `test_wiskey_media_v11` 67, `test_wkvec_295` 141, `test_wiskey_managed_install_2382` 73, `test_wiskey_live_validation_2390` 58, and 31 further files (alignment, camera discovery, error envelope, externalbuild, janitor, owner30 doors, query plans, station media readiness, video transport, w031, m12 policy/maintenance, r2/r3/rc4/rc7, relay map, s4/s5, talk caps, wa queue, wkaudin, wkf01f02, install answers, owner26 callers, intercom shared, mac managed policy) - all exit 0. |
+| `python -m pytest tests/test_wiskey_rc10_pin.py` | PC | 1 | 94 passed, 1 skipped, **3 failed** - `test_every_channel_command_is_an_rc10_command...[relay_inventory / station_sync_v1 / system_status]`: the three channels R1 registered in `services/wiskey_channels.py` (not touched here); belongs to R1 (open question 6) |
+| runner (slot B) | - | - | **NOT_RUN**: queued for ~40 min behind the 2.51 release gate and nine other jobs, then withdrawn (my job only); the PC runs above replaced it |
 | full backend suite, frontend `tsc`, Playwright | - | - | **NOT_RUN** (not in this row; the train gate runs them) |
 | real WisKey / bridge / lab | - | - | **NOT_RUN** by rule. The v2 reply recipe and the whole v2 path are unverified against WisKey; WisKey's own v2 test needs a bridge `native_keyset` Arx does not ship. |
 
@@ -82,3 +85,9 @@ Rollback: revert the commit; no migration, setting or data.
    (`bridge_key_rotated`) as today. a) one-line opt-in (`opener_v2`) in a later row after (1) (recommended) b) leave media on v1 only.
 5. Rotation stays blocked while WisKey is installed, so v2 is dormant there. a) keep the block until (1) is installed and tested
    (recommended) b) lift it now.
+6. `tests/test_wiskey_rc10_pin.py` fails for R1's three new channels (they are not rc.10 commands). a) R1 marks them unpinned /
+   rc19-only in that test (recommended; R1 owns the registry) b) R7 touches it (not done: not R7's file).
+
+Files outside the plan's R7 list, touched by necessity: `tests/test_wk4adopt_295.py` (the byte pin of `wiskey_media_bridge.py`
+follows R7's bytes; the Mac contribution's original hash is kept in a comment) and the new fixtures folder
+`tests/fixtures/wiskey_rc19/direct-v2/` (beside R1's files, like R6's `external-visits-v1/`).
