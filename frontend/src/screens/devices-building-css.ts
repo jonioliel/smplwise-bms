@@ -812,6 +812,15 @@ const HOME_LAYOUT = css`
   .split[data-fit='2'] .arow {
     padding-block: 2px;
   }
+  /* HOME-SCROLL-2-2530: the last fit step (data-squeeze - fit 2, and b's fold, still scroll on a short screen): the top bar compresses -
+     the page title takes the skin's own phone heading size and the page's block spacing the spacing tokens (sw-page's knobs). The floor
+     tiles compress in home-screen-css.ts. Tokens only; a screen that fits never reaches this step. */
+  sw-page[data-squeeze] {
+    --sw-h1: var(--sw-h1-phone, var(--sw-fs-xl));
+    --sw-page-pad-start: var(--sw-s-2);
+    --sw-page-pad-end: var(--sw-s-3);
+    --sw-page-gap: var(--sw-s-2);
+  }
   @media (max-width: 899px) {
     .floors {
       --tw: 150px;

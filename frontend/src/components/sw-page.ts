@@ -36,11 +36,13 @@ export class SwPage extends LitElement {
       display: flex;
       flex-direction: column;
       min-block-size: 100%;
-      padding: 14px var(--sw-page-pad) 24px;
+      /* HOME-SCROLL-2-2530: the block spacing is a knob - these defaults are the page's own; only the home screen's last fit step
+         (devices-building data-squeeze) sets them, to spacing tokens */
+      padding: var(--sw-page-pad-start, 14px) var(--sw-page-pad) var(--sw-page-pad-end, 24px);
       max-inline-size: var(--sw-content-max);
       inline-size: 100%;
       box-sizing: border-box;
-      gap: 14px;
+      gap: var(--sw-page-gap, 14px);
     }
     :host([wide]) {
       max-inline-size: none;
@@ -123,7 +125,7 @@ export class SwPage extends LitElement {
     .body {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: var(--sw-page-gap, 14px);
       min-block-size: 0;
       flex: 1;
     }

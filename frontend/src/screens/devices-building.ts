@@ -448,6 +448,10 @@ export class DevicesBuilding extends LitElement {
   /** HOME-SCROLL-FIX-2530: one step past fit 2, for direction b only - its widget column still reaches below a short screen (1280x800,
    * 1366x768, a landscape tablet), so its cards fold their headings and the clock reads at the display size (home-widgets `data-fold`). */
   @state() private fitFold = false;
+  /** HOME-SCROLL-2-2530: the last step, for every direction - the tightest packing (and b's fold) still scrolls on a short screen (the
+   * tiles view at 1366x768, a landscape tablet): the top bar (the page title, the page's own block spacing) and the floor tiles
+   * compress (`data-squeeze` on sw-page and .page-body; devices-building-css.ts). Tokens only; a screen that fits never gets here. */
+  @state() private fitSqueeze = false;
   /** `?edit=1` was seen and acted on (entered, or refused): not again until the parameter goes and comes back. */
   private editHandled = false;
   private wasEditing = false;
@@ -1348,6 +1352,7 @@ export class DevicesBuilding extends LitElement {
     if (!eligible) {
       if (this.fit !== 0) this.fit = 0;
       if (this.fitFold) this.fitFold = false;
+      if (this.fitSqueeze) this.fitSqueeze = false;
       return;
     }
     const h = this.homeOf(t);
@@ -1358,6 +1363,7 @@ export class DevicesBuilding extends LitElement {
     };
     // HOME-SCROLL-FIX-2530: the fold restarts with the packing (a changed key)
     if (key !== this.fitKey && this.fitFold) this.fitFold = false;
+    if (key !== this.fitKey && this.fitSqueeze) this.fitSqueeze = false; // HOME-SCROLL-2-2530: so does the squeeze
     // CR-G1-HOME-AREA-2440 (06:DUP-10): the step itself is shared with the area screen (a changed key restarts from 0, measured after that render)
     const step = fitStep(this.fit, key, this.fitKey, overflowing);
     this.fitKey = step.lastKey;
@@ -1365,6 +1371,8 @@ export class DevicesBuilding extends LitElement {
     // HOME-SCROLL-FIX-2530: the tightest packing still scrolls and direction b's widget column is drawn - fold its cards (the column is
     // the part that reaches lowest there: five cards stacked beside floors that end much higher)
     else if (step.settled && step.fit === 2 && !this.fitFold && this.renderRoot.querySelector('[data-bgrid]') && overflowing()) this.fitFold = true;
+    // HOME-SCROLL-2-2530: still scrolling after all that (b's fold first where its column is drawn) - the top bar and the floor tiles compress
+    else if (step.settled && step.fit === 2 && !this.fitSqueeze && (this.fitFold || !this.renderRoot.querySelector('[data-bgrid]')) && overflowing()) this.fitSqueeze = true;
   };
 
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
@@ -1808,7 +1816,7 @@ export class DevicesBuilding extends LitElement {
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
-    return html`<sw-page heading=${heading} wide @bulk-request=${this.onBulkRequest}>
+    return html`<sw-page heading=${heading} wide ?data-squeeze=${this.fitSqueeze} @bulk-request=${this.onBulkRequest}>
       <div slot="actions" class="hdr">
         ${ambient.length ? html`<home-ambient-bar .items=${ambient} .config=${h.config} .data=${h.data} .zone=${h.time_zone}></home-ambient-bar>` : nothing}
         ${t.scoped ? html`<sw-badge kind="partial" label=${tr('לפי הקומות שלך')}></sw-badge>` : nothing}
@@ -1816,7 +1824,7 @@ export class DevicesBuilding extends LitElement {
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
       ${this.error && !this.offline ? html`<sw-state-panel compact state="error" heading=${tr('הרענון האחרון נכשל')} hint=${this.error}></sw-state-panel>` : nothing}
-      <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit} data-site-mode=${site ? (atSite ? 'site' : 'building') : nothing}>
+      <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit} ?data-squeeze=${this.fitSqueeze} data-site-mode=${site ? (atSite ? 'site' : 'building') : nothing}>
         ${this.lay.renderBar()}
         ${site ? this.renderSiteBar(site, t, atSite || !quickShown) : nothing}
         ${this.renderBanner(t)}

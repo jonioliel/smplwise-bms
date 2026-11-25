@@ -161,6 +161,16 @@ export const HOME_SCREEN_CSS = css`
     padding-block-end: 44px;
     min-block-size: 96px;
   }
+  /* HOME-SCROLL-2-2530: the home screen's last fit step (data-squeeze): the tile with its quick row drops its resting height and keeps
+     the head line plus the quick row (30 px) under it with a spacing token's air - as the side column's small cards take their content's
+     height at fit 2. The bubble skin's touch-sized actions keep the tall tile. */
+  :host(:not([data-skin='bubble'])) .page-body[data-squeeze] .floors .tile-wrap.has-qa > a.tile {
+    min-block-size: 0;
+    padding-block-end: calc(var(--sw-s-8) + var(--sw-s-2));
+  }
+  :host(:not([data-skin='bubble'])) .page-body[data-squeeze] .floors .tile-wrap > .qa {
+    inset-block-end: var(--sw-s-1);
+  }
   /* the summary tiles share one row on a control screen (the chosen ones; the labels clip before the row wraps) */
   /* WORSTCASE-2310: ...while each tile keeps --dv-kpi-row-min. On the 1024 px tablet all nine kinds shared 881 px: 79 px tiles, a
      13 px text column, "1284 / 2047" cut and the label gone. When the one-row share (--k1) is under the minimum, the row splits into
