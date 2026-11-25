@@ -80,7 +80,11 @@ test_devices, test_storage), 12 pytest processes of 8 files:
 The D2 failure is the clock fix working: the test made "two minutes later" by moving only the summary's WALL clock, which is now a
 clock jump and no longer counts as time down. Its helper `summary_later` now moves both clocks (wall and the monotonic clock the outage
 is measured on) - time passing, not a jump. The ruff findings of the new script are fixed (the release_check ones predate this row).
-After both: RERUN_PENDING
+After both, runner rerun `~/work/p2520_pilotrb_rerun.sh 6d042b75f` (20:24-20:26 UTC): `ruff check` on every changed file exit 0
+("All checks passed!"); `test_soak_edges_2450.py` 12 passed; `test_pilot_safety_2550.py` 6 passed; `test_migration_downgrade_check.py`
+28 passed; `test_release_check.py` 3 passed (all exit 0). Receipts: `~/work/p2520-pilotrb-out/`, `~/work/p2520-pilotrb2-out/` on the runner.
+
+Not run: the whole backend suite (the runner's priority slots were shared by many 2.52 jobs; the 90 related files ran instead).
 
 Not run: AT069 / AT070 / AT071 / AT072 on the real equipment (lab and owner); a real rollback on the lab (hard limit of this row);
 frontend checks (no frontend change).
