@@ -127,7 +127,7 @@ export class SwBridgeKeyCard extends LitElement {
     }
     .grant {
       border-block-start: 1px solid var(--sw-border);
-      padding-block-start: 4px;
+      padding-block-start: var(--sw-s-1);
     }
     .link {
       color: var(--sw-accent-text);
