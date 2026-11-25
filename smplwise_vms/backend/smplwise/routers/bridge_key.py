@@ -110,19 +110,23 @@ def _refused(exc: br.RotationRefused) -> ApiError:
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
     if not (br.mode(conn) == "on" and br.go_live_permitted()) or bkr.is_revoked(conn):
-        return _with_step_up(conn, principal, br.view(conn, request.app.state.settings.data_dir, _peer(request)))
+        return _with_direct(conn, _with_step_up(conn, principal, br.view(conn, request.app.state.settings.data_dir, _peer(request))))
     engine = _engine(request, conn, principal)
     engine.tick()
     with engine.db.connection(mode="read") as fresh:  # the request's snapshot predates the tick
-        return _with_step_up(fresh, principal, br.view(fresh, request.app.state.settings.data_dir, _peer(request)))
+        return _with_direct(fresh, _with_step_up(fresh, principal, br.view(fresh, request.app.state.settings.data_dir, _peer(request))))
 
 
 def _with_step_up(conn: sqlite3.Connection, principal: Principal, view: dict[str, Any]) -> dict[str, Any]:
-    """WXH4: whether THIS administrator can pass the reveal's step-up (an active authenticator of their own) - a hint for the card only.
-    WISKEY-DIRECT-V2-2520: plus the no-I/O direct transport status (`direct_transport`)."""
+    """WXH4: whether THIS administrator can pass the reveal's step-up (an active authenticator of their own) - a hint for the card only."""
     rev = view.get("revocation")
     if isinstance(rev, dict):
         view["revocation"] = {**rev, "step_up_ready": sf.is_enrolled(conn, principal.user_id)}
+    return view
+
+
+def _with_direct(conn: sqlite3.Connection, view: dict[str, Any]) -> dict[str, Any]:
+    """WISKEY-DIRECT-V2-2520: the GET view only (the other routes' answers keep their own closed models)."""
     view["direct_transport"] = _direct_transport(conn)
     return view
 

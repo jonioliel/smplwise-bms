@@ -28,7 +28,9 @@ from smplwise.services.wiskey_listen_adapter import ReceiveDownlink, SyntheticDo
 
 BACKEND = Path(__file__).resolve().parents[1]
 PATCH_AFTER = {  # PATCH_TARGET.json of the Mac delivery: the after-hash of each file on the exact base 9eca5e92
-    "smplwise/services/wiskey_media_bridge.py": "945bb99d101fbe1d2ac7602a1f799f263aa53956d402ffbcd31a0e562edcf978",
+    # WISKEY-DIRECT-V2-2520 (row R7) changed the file (direct v2 / kid): the pin follows the reviewed bytes; the Mac contribution's
+    # original after-hash was 945bb99d101fbe1d2ac7602a1f799f263aa53956d402ffbcd31a0e562edcf978 (63e81463c)
+    "smplwise/services/wiskey_media_bridge.py": "409510b004d715543e6283b4ea57e629e1600240b0ad9194105395ff99f81fbd",
 }
 
 
