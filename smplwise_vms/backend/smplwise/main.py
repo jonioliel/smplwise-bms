@@ -468,7 +468,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             notice_listener.SERVER.start(
                 notice_display.DisplayService(lambda: app.state.db.connection(mode="read", label="notices.display"), settings.data_dir,
-                                              touch=notice_display.touch_seen(app.state.db),
+                                              touch=notice_display.seen_recorder(app.state).note,  # NOTICE-TV-LASTSEEN-2530: the same recorder as the app's routes
                                               capture=notice_display.capture_link(app.state.db, settings.data_dir)), settings.www_dir,
                 caps=notice_listener.settings_caps(lambda: app.state.db.connection(mode="read", label="notices.listener")))
         if settings.tickets_public:  # CR-038 S4: the handler page's listener - on the add-on option alone; its own thread, loop and pool
@@ -524,6 +524,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services.notices import listener as notice_listener
 
         _shutdown_step("notice listener", notice_listener.SERVER.stop)  # CR-NOTICE106: the TV boards' LAN listener
+        from .services.notices import display as _notice_display
+
+        _shutdown_step("notice board last seen", _notice_display.close_seen, app.state)  # NOTICE-TV-LASTSEEN-2530: the final flush, after both feeds stopped
 
         await _in_thread_step("tickets public", tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
         await _in_thread_step("tickets outbox", tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
