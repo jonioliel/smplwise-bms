@@ -24,7 +24,10 @@ async function shot(loc: Locator, name: string) {
 }
 
 async function scheme(page: Page) {
-  await page.emulateMedia({ colorScheme: process.env.SW_SCHEME === 'dark' ? 'dark' : 'light' });
+  const dark = process.env.SW_SCHEME === 'dark';
+  await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
+  // the app's scheme is the browser's own choice, else the installation's `ui.scheme` (light) - not the OS (design/apply.ts)
+  await page.addInitScript((value) => localStorage.setItem('sw.ui.scheme', value), dark ? 'dark' : 'light');
 }
 
 async function english(page: Page) {
