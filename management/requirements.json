@@ -10219,7 +10219,7 @@
   {
     "id": "R-T120-1",
     "title": "Home interface (HOME-SIMPLE-2420) 1",
-    "statement": "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; new regular users open the home interface, administrators the full one; existing users keep the full interface after the upgrade.",
+    "statement": "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; the interface a NEW person opens is the installation setting home.default_mode (default full_all, owner decision HOME-SIMPLE-2421 section 5; home_regular gives the original rule: regular users home, administrators full); existing users keep the full interface after the upgrade.",
     "task_ids": [
       "T120"
     ],
@@ -10267,7 +10267,7 @@
   {
     "id": "R-T120-4",
     "title": "Home interface (HOME-SIMPLE-2420) 4",
-    "statement": "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by administrators only.",
+    "statement": "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by whoever holds scene management (owner decision Q75, HOME-FAVORITES-2500).",
     "task_ids": [
       "T120"
     ],
@@ -14198,6 +14198,198 @@
     "status": "PLANNED",
     "test_ids": [
       "AT-SEC-FIX-2520-1"
+    ]
+  },
+  {
+    "id": "R-LOAD-BUDGET-2530-1",
+    "title": "A written resource budget 2.53 and an automated load run that fails above it (T068)",
+    "statement": "docs/operations/RESOURCE_BUDGET.md carries the 2.53 budget; tests/soak/load_budget.py judges a run against load_budget.json (exit 0 within, 1 over, 2 incomplete) and the 14 h soak runbook exists.",
+    "task_ids": [
+      "LOAD-BUDGET-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LOAD-BUDGET-2530-1"
+    ]
+  },
+  {
+    "id": "R-NOTICE-TV-LASTSEEN-2530-1",
+    "title": "The TV board feed no longer writes \"last seen\" inside the request",
+    "statement": "GET /notices/display/<slug> never begins a write transaction; last_seen_at is written by one background pass a minute for all boards and at shutdown, never backwards.",
+    "task_ids": [
+      "NOTICE-TV-LASTSEEN-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTICE-TV-LASTSEEN-2530-1"
+    ]
+  },
+  {
+    "id": "R-HOME-T120-REST-2530-1",
+    "title": "T120 gap analysis and \"My account\" inside the home interface",
+    "statement": "A home-only person reaches their own security, sign-ins and language from the home interface personal menu (not on a wall panel); the home-only gate neither refuses nor grants anything new.",
+    "task_ids": [
+      "HOME-T120-REST-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-T120-REST-2530-1"
+    ]
+  },
+  {
+    "id": "R-DOCS-ONBOARDING-2530-1",
+    "title": "Getting started checklist, a real Settings > Support tab and the operator guide (T071)",
+    "statement": "A fresh installation shows the getting-started checklist (wizard + readiness checks) to system configurators until hidden; an existing installation stays off; Settings > General > Support shows versions, the redacted log export and how to report a problem; guide chapter 71 he + en.",
+    "task_ids": [
+      "DOCS-ONBOARDING-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOCS-ONBOARDING-2530-1"
+    ]
+  },
+  {
+    "id": "R-MFA-T095-REST-2530-1",
+    "title": "The rest of T095: approval on the phone with number matching, the alarm code as step-up",
+    "statement": "With security.push_approval on (default off) a step-up can be approved on the phone that holds the key by typing the two-digit number; never for once-actions or own factor changes; with security.step_up_alarm_pin on (default off) the personal alarm code proves one disarm / bypass.",
+    "task_ids": [
+      "MFA-T095-REST-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-T095-REST-2530-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-MEDIA-V2-2530-1",
+    "title": "Station media over the signed direct transport v2 (opt-in, default off)",
+    "statement": "With access.station_media_direct_v2 on and bridge 0.10.9+ seen, station media signs v2 with a rotated key and never falls back to v1 or the Home Assistant path; with the gate closed every media path is unchanged.",
+    "task_ids": [
+      "WISKEY-MEDIA-V2-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-MEDIA-V2-2530-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-NOFALLBACK-2-2530-1",
+    "title": "No transport switch after a v2 refusal in the capture lease and the grant engine (WB-01, same root)",
+    "statement": "After a direct-v2 refusal the capture lease message is refused not_sent (wiskey_direct_v2_refused) and the grant engine people write is refused not_sent; v1 keys unchanged.",
+    "task_ids": [
+      "WISKEY-NOFALLBACK-2-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-NOFALLBACK-2-2530-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-KNOWN-TREES-RC20-2530-1",
+    "title": "Arx recognises the published WisKey rc.20 / rc.19 / rc.17 trees by exact digest",
+    "statement": "services/wiskey_known_trees.json labels the published rc.20 managed + manual, rc.19 managed + manual and rc.17 manual trees by their exact wiskey-posix-tree-sha256.v1 digests; any other tree stays unknown; the shipped bundle stays rc.10.",
+    "task_ids": [
+      "WISKEY-KNOWN-TREES-RC20-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-KNOWN-TREES-RC20-2530-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-A2-EXEC-2530-1",
+    "title": "WisKey A2 schedule execution: status only (operations status / pending / review reads), off by default",
+    "statement": "With the switch on (default off, system administrators) the schedule library shows the signed read-only status of a WisKey schedule job; decide / execute / preview / cancel are refused before any byte is sent; Arx never approves or executes.",
+    "task_ids": [
+      "WISKEY-A2-EXEC-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-A2-EXEC-2530-1"
+    ]
+  },
+  {
+    "id": "R-GATE-FIXTURE-LANE-2530-1",
+    "title": "The release gate runs the fixture specs as a lane (one job per fixture group)",
+    "statement": "The release gate engine runs every fixture spec marked \"gate\" in fixture_specs.json as one fixture_<group> job per group; the self-tests pass; the engine is installed on the runner only after 2.52 is released (the lead).",
+    "task_ids": [
+      "GATE-FIXTURE-LANE-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-FIXTURE-LANE-2530-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2530-TRAIN-1",
+    "title": "RELEASE-2530-TRAIN - the 2.53.0 train",
+    "statement": "The 2.53.0 train on release/2530-train takes 2.52.0 in once it is released, passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "task_ids": [
+      "RELEASE-2530-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2530-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-HOME-SCROLL-FIX-2530-1",
+    "title": "Direction b of the home screen without a page scroll (the widget column fits the viewport)",
+    "statement": "The home screen of direction b (cards and tiles views) does not scroll the page at 1440x900 or 1366x768: the widget column has its own fit step (tokens only); evidence-home-screen.spec.ts checks it.",
+    "task_ids": [
+      "HOME-SCROLL-FIX-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-SCROLL-FIX-2530-1"
     ]
   }
 ]

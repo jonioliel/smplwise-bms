@@ -3962,7 +3962,8 @@
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 8212edbb2); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
       "commit fb396fcab (release 2.40.6, on origin/main); also 74d395672 (release 2.40.6, on origin/main) - 2026-11-07 (BOARD-HYGIENE-2407): the long soak harness (T068-SOAK-2406) and the alert-stream write-hold fix found by the overnight run (T068-INGEST-LOCK-2406) are released in v2.40.6. Status kept BACKLOG: dependencies T042, T048, T051, T057, T058 are BACKLOG (chain pinned at T005 / T006).",
       "2026-11-19 (TASKS-SYNC-1911): stays BACKLOG. Core shipped (probe, budget, soak recorded; BACKLOG-HYGIENE-2443). The missing edge tests (disconnects, full disk) are the 2.45.0 row T068-EDGE-2450 (IN_PROGRESS); the card moves when that row is delivered.",
-      "2026-11-25 (MGMT-SYNC-2520): status unchanged. The edge row T068-EDGE-2450 named as its trigger is released in v2.50.0 (merge 54967cb7e, head 856b234af) and is now REVIEW; this card moves with its dependency chain (the registry rule), not on git alone."
+      "2026-11-25 (MGMT-SYNC-2520): status unchanged. The edge row T068-EDGE-2450 named as its trigger is released in v2.50.0 (merge 54967cb7e, head 856b234af) and is now REVIEW; this card moves with its dependency chain (the registry rule), not on git alone.",
+      "2026-11-25 (RELEASE-2530-TRAIN): LOAD-BUDGET-2530 (head 8c299c508, merge 3fe6bf2c3 on release/2530-train) delivers part of this task - see docs/changes/LOAD-BUDGET-2530.md for what is built and what is still open. Status unchanged (dependencies and acceptance not all recorded); merged into the 2.53.0 train, NOT released."
     ],
     "owner": null,
     "commit": null,
@@ -4135,7 +4136,8 @@
       "pre-evidence (2026-09-16, 0.1.29): docs/operations/OPERATOR_GUIDE_HE.md - install checklist install -> NVR -> time -> HA bridge -> go2rtc -> floor/plan -> cameras -> NVR events, each step with the check that proves it (diagnostics / storage / bridge / live) and the failure explanation; daily use; investigation flow (event centre -> event page + correlation -> historical map -> playback -> case -> preserve -> export); recovery (backups, add-on rollback, NVR / HA outages, clocks); privacy and permissions (HA identity only, nothing leaves the add-on, audit, device boundaries); support checklist. Screenshots referenced from the build: private-evidence/*-live (lab, gitignored) and docs/evidence/T007 (public). Open: the guided onboarding wizard as a screen (the checks exist in diagnostics, the wizard does not), user-facing screenshots in the guide itself",
       "2026-09-29 (0.1.133, merge of pilot/T071-setup-wizard e15803a): the wizard is real - GET /setup/state (no device contact) + POST /setup/check/{step} (read-only probes, 5 s per user+step, 20 s deadline, no DB txn during device calls, audited), six steps with evidence + Hebrew explanations + deep links (install, nvr incl. clock drift/DST, ha incl. bridge restart pending, go2rtc smplwise_ streams, floor, camera), 'מוכן לעבודה' summary, shell hint for system admins, no serial/MAC/IP in responses. Tests: 31 wizard + 48 set, Playwright 4 (desktop+phone) + demo 2 + sc26 6; Opus review APPROVED_WITH_NITS (NTP address + deadline fixed). Guides exist in Hebrew (docs/user-guide/he).",
       "2026-09-29 (0.1.138, merge of pilot/nvr-less-mode cf0ba14, owner request): NVR-less mode 'ha_only' derived from the options (mode.py) - no NVR threads, neutral health with HA as the required subsystem, wizard skips NVR/camera steps by mode, 409 nvr_not_configured after each route's permission check, nav hides camera areas for everyone with a direct-link panel, Lovelace/settings/storage/map degrade, switching modes without migration; test/dev launches keep full mode via a labelled placeholder host unless SW_MODE=ha_only. Tests: 54 + 240 set, Playwright 18, existing specs unchanged; Opus review (2 medium) + re-review APPROVED.",
-      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 977ca1e3b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)"
+      "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 977ca1e3b); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
+      "2026-11-25 (RELEASE-2530-TRAIN): DOCS-ONBOARDING-2530 (head 76873fac1, merge 11cf23be5 on release/2530-train) delivers part of this task - see docs/changes/DOCS-ONBOARDING-2530.md for what is built and what is still open. Status unchanged (dependencies and acceptance not all recorded); merged into the 2.53.0 train, NOT released."
     ],
     "owner": null,
     "commit": null,
@@ -5572,7 +5574,8 @@
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - second-factor hardening and follow-ups released. 2.2.1 (merge 88aea3ad of pilot/sec-220, head 4d09457d): the 2.2.0 review finding H1 closed - the optional TOTP second factor and the 'admins' policy now also apply to token-based (bearer) sign-ins over HTTP and the live WebSocket, setting security.second_factor_bearer enforce (default) | off (off audits every skipped check); enabling the factor ends the user's other remote sign-ins, an administrator reset ends the target's sign-ins, an administrator cannot reset their own factor and an enrolled administrator confirms a reset with their own code (review items M1-M4, L1-L3, L5-L9). 2.3.0 (merge 5e66cb39 of pilot/TFA2-followups, head 1bb505b3, migration 0069_second_factor_followups): persisted wrong-code lockout that survives a restart, a reset notice in the user's inbox (no actor, no secret), per-user and per-role override inherit | optional | required (user first, then roles, then the global policy; enforced on browser and token sign-ins), revocation of the phone app's device tokens when the factor is enabled or reset, a neutral note in the remote-access settings that the factor protects the Arx sign-in only; 2 override routes; security follow-ups I2 (single-shot Frigate undo) and I3 (the browser keeps freshly refreshed tokens in memory only while the second factor is pending; merge e0cd78a0). Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). Release 2.3.0 (main 383a03d9; integration branch integ/230, gated head 560b246f): tier L gate on the Linux test machine PASS (backend 6070 passed / 0 failed, preview 6011 passed / 1 flaky that passes alone, dev 620 passed / 1 flaky, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; visual step warning-only 72 pass / 0 differ; docs/release/2.3.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_security_review_220.py (29 test functions), test_second_factor_followups.py (11), test_second_factor.py; Playwright frontend/tests/unit-arx-pending-tokens.spec.ts, unit-second-factor-admin-ui.spec.ts, evidence-second-factor.spec.ts (mocked backend). An internal security review of 2.2.0 was done and its findings fixed in 2.2.1 (no content is reproduced here). Hebrew guide page docs/user-guide/he/82-second-factor_HE.md.",
       "NOT DONE (unchanged by 2.2.1 / 2.3.0): the remote.mfa_policy off|admins|sensitive|all policy with the HA refresh-token check (acceptance 1), step-up for sensitive actions with server challenges and proofs (acceptance 2), the Android Keystore biometric device key, passkeys / WebAuthn with the assetlinks route, push approval with number matching, the alarm-PIN fallback. Not proven: a sign-in from a real phone with a real authenticator app on the owner's installation; the override and lockout behaviour on the owner's installation. Evidence is not acceptance; AT193-AT195 NOT_RUN, AT237 and AT238 NOT_RUN; status stays BACKLOG.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the scope split is now owner-decided (Q44-Q53) and tracked by MFA-STEPUP-TRAIN-2490; this card stays the CR-011 umbrella.",
-      "2026-11-25 (MGMT-SYNC-2520): status unchanged (CR-011 umbrella). The second-factor train it points to (MFA-STEPUP-TRAIN-2490) shipped slices 1-11 in v2.51.0 (main = tag 3d71fb183); slice 12 and MFA-HA-PASSKEY-2520 / MFA-FACTOR-HARDEN-2520 are 2.52 rows. Whether the umbrella's remaining items (push approval with number matching, alarm-PIN fallback, real-phone sign-in) are covered is a lead / owner reading, not a git fact."
+      "2026-11-25 (MGMT-SYNC-2520): status unchanged (CR-011 umbrella). The second-factor train it points to (MFA-STEPUP-TRAIN-2490) shipped slices 1-11 in v2.51.0 (main = tag 3d71fb183); slice 12 and MFA-HA-PASSKEY-2520 / MFA-FACTOR-HARDEN-2520 are 2.52 rows. Whether the umbrella's remaining items (push approval with number matching, alarm-PIN fallback, real-phone sign-in) are covered is a lead / owner reading, not a git fact.",
+      "2026-11-25 (RELEASE-2530-TRAIN): MFA-T095-REST-2530 (head 08e3ed5b6, merge 46692b29e on release/2530-train) delivers part of this task - see docs/changes/MFA-T095-REST-2530.md for what is built and what is still open. Status unchanged (dependencies and acceptance not all recorded); merged into the 2.53.0 train, NOT released."
     ],
     "owner": null,
     "commit": null,
@@ -21340,10 +21343,10 @@
     "owner_role": "engineering",
     "requires_hardware": false,
     "acceptance": [
-      "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; new regular users open the home interface, administrators the full one; existing users keep the full interface after the upgrade.",
+      "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; the interface a NEW person opens is the installation setting home.default_mode (default full_all, owner decision HOME-SIMPLE-2421 section 5; home_regular gives the original rule: regular users home, administrators full); existing users keep the full interface after the upgrade.",
       "A home-only person is refused (403 home_interface_only, audited) on every API area outside the home interface, on the server; the switch to the full interface is refused when the policy locks it.",
       "The home interface (room-centred, Hebrew RTL, no Home Assistant branding or internal terms) shows real floors/rooms, lights (dimmers) and on/off switches, climate, shutters, doors and the intercom call, cameras, electricity, alerts and scenes through the existing control paths; room / house off reaches lights and light-typed switches only.",
-      "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by administrators only.",
+      "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by whoever holds scene management (owner decision Q75, HOME-FAVORITES-2500).",
       "No scrolling on the control screens at 1280x800, 390x844 and 1440x900; touch targets of at least 56 px on the tablet."
     ],
     "requirement_ids": [
@@ -21360,7 +21363,7 @@
       "AT-T120-4",
       "AT-T120-5"
     ],
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -21373,9 +21376,13 @@
       "Implementation and regression tests on pilot/HOME-SIMPLE-2420",
       "Change record docs/changes/HOME-SIMPLE-2420.md with the built / not built table and known limits"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): T120 closed per HOME-T120-REST-2530 question 1 = a. Built across HOME-SIMPLE-2420 / -2421, HOME-V3-P1/P2/P3 (2430-2432), HOME-V3-GAPS-2436, HOME-V3-AUDITFIX-2437, HOME-R32-ANSWERS-2438, HOME-NEXT-2500, HOME-FAVORITES-2500, HOME-WALL-NIGHT-2500, MULTI-BUILDING-HOME/NEXT/SAFETY-2500, MULTI-BUILDING-FILTER-2520 (all released) and HOME-T120-REST-2530 (merge 4f72e6438 on release/2530-train: \"My account\" in the home interface). Gap analysis: docs/changes/HOME-T120-REST-2530.md section 1. Acceptance lines 1 and 4 updated to the owner decisions (home.default_mode default full_all, HOME-SIMPLE-2421; scenes by scene management, Q75).",
+      "2026-11-25 (RELEASE-2530-TRAIN): receipts AT-T120-1..5 PASS at 0a4286b4c (Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only): backend tests/test_home_interface.py, test_home_account_2530.py, test_home_interface_doors_2421.py, test_home_v3_gaps_2436.py, test_me_permissions.py in group be_grp_03 (999 passed; its 1 failure test_gate_always_run is the 2.52 train's gate list, fixed by 9fb8109fb); Playwright home-account-2530 desktop 8 passed; home-simple-2420, home-simple-2421, home-v3-gaps-2436 with the MFA specs desktop + mobile 139 passed / 0 failed; every pixel spec desktop + mobile 536 passed (incl. pixel-home-account-2530, pixel-home-gaps-2436, pixel-home-auditfix-2437, pixel-home-fb-2431, pixel-home-next-2500), 1 failed = pixel-onboarding-2530 Support (the version stand-in, 8cf1444db). Row-level receipts: docs/changes/HOME-T120-REST-2530.md section 3 (runner, 1e6d6d854 / f79f7114b).",
+      "Known limits: no physical lab check from the home interface (one light, switch, shutter, the door, a room off), no real phone / portrait tablet / wall panel, the five other colour themes, keyboard order and measured contrast (HOME-SIMPLE-2420 limit 3) - a separate lab card needs the owner's write approval (HOME-T120-REST-2530 question 3 = a). Rollback: revert the HOME-T120-REST-2530 merge; nothing stored."
+    ],
     "owner": null,
-    "commit": null,
+    "commit": "0a4286b4c",
     "actual_cost_usd": null
   },
   {
@@ -30909,6 +30916,462 @@
     ],
     "owner": null,
     "commit": "99456c1d5",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LOAD-BUDGET-2530",
+    "title": "A written resource budget 2.53 and an automated load run that fails above it (T068)",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "docs/operations/RESOURCE_BUDGET.md carries the 2.53 budget; tests/soak/load_budget.py judges a run against load_budget.json (exit 0 within, 1 over, 2 incomplete) and the 14 h soak runbook exists."
+    ],
+    "requirement_ids": [
+      "R-LOAD-BUDGET-2530-1"
+    ],
+    "test_ids": [
+      "AT-LOAD-BUDGET-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LOAD-BUDGET-2530, change note docs/changes/LOAD-BUDGET-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/LOAD-BUDGET-2530 head 8c299c508 merged 3fe6bf2c3 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 1); change note docs/changes/LOAD-BUDGET-2530.md. Decisions Q1-Q4 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "8c299c508",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTICE-TV-LASTSEEN-2530",
+    "title": "The TV board feed no longer writes \"last seen\" inside the request",
+    "epic": "NOTICES",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "GET /notices/display/<slug> never begins a write transaction; last_seen_at is written by one background pass a minute for all boards and at shutdown, never backwards."
+    ],
+    "requirement_ids": [
+      "R-NOTICE-TV-LASTSEEN-2530-1"
+    ],
+    "test_ids": [
+      "AT-NOTICE-TV-LASTSEEN-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTICE-TV-LASTSEEN-2530, change note docs/changes/NOTICE-TV-LASTSEEN-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/NOTICE-TV-LASTSEEN-2530 head b00fa2971 merged 9ef72a575 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 2); change note docs/changes/NOTICE-TV-LASTSEEN-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "b00fa2971",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-T120-REST-2530",
+    "title": "T120 gap analysis and \"My account\" inside the home interface",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A home-only person reaches their own security, sign-ins and language from the home interface personal menu (not on a wall panel); the home-only gate neither refuses nor grants anything new."
+    ],
+    "requirement_ids": [
+      "R-HOME-T120-REST-2530-1"
+    ],
+    "test_ids": [
+      "AT-HOME-T120-REST-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-T120-REST-2530, change note docs/changes/HOME-T120-REST-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-T120-REST-2530 head 17c61a0b7 merged 4f72e6438 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 3); change note docs/changes/HOME-T120-REST-2530.md. Decisions Q1-Q3 = a; Q1 = a closes T120. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "17c61a0b7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOCS-ONBOARDING-2530",
+    "title": "Getting started checklist, a real Settings > Support tab and the operator guide (T071)",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A fresh installation shows the getting-started checklist (wizard + readiness checks) to system configurators until hidden; an existing installation stays off; Settings > General > Support shows versions, the redacted log export and how to report a problem; guide chapter 71 he + en."
+    ],
+    "requirement_ids": [
+      "R-DOCS-ONBOARDING-2530-1"
+    ],
+    "test_ids": [
+      "AT-DOCS-ONBOARDING-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOCS-ONBOARDING-2530, change note docs/changes/DOCS-ONBOARDING-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/DOCS-ONBOARDING-2530 head 76873fac1 merged 11cf23be5 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 4); change note docs/changes/DOCS-ONBOARDING-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "76873fac1",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-T095-REST-2530",
+    "title": "The rest of T095: approval on the phone with number matching, the alarm code as step-up",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "With security.push_approval on (default off) a step-up can be approved on the phone that holds the key by typing the two-digit number; never for once-actions or own factor changes; with security.step_up_alarm_pin on (default off) the personal alarm code proves one disarm / bypass."
+    ],
+    "requirement_ids": [
+      "R-MFA-T095-REST-2530-1"
+    ],
+    "test_ids": [
+      "AT-MFA-T095-REST-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-T095-REST-2530, change note docs/changes/MFA-T095-REST-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/MFA-T095-REST-2530 head 08e3ed5b6 merged 46692b29e into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 5); change note docs/changes/MFA-T095-REST-2530.md. Decisions Q1-Q4 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "08e3ed5b6",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-MEDIA-V2-2530",
+    "title": "Station media over the signed direct transport v2 (opt-in, default off)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "With access.station_media_direct_v2 on and bridge 0.10.9+ seen, station media signs v2 with a rotated key and never falls back to v1 or the Home Assistant path; with the gate closed every media path is unchanged."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-MEDIA-V2-2530-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-MEDIA-V2-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-MEDIA-V2-2530, change note docs/changes/WISKEY-MEDIA-V2-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-MEDIA-V2-2530 head d29d9a1fd merged 6365fcb17 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 6); change note docs/changes/WISKEY-MEDIA-V2-2530.md. Decisions Q1-Q4 = a. Train fixes 8dfd46115 (English of its two refusals) and f41473bbc (ADR-019 field envelope). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "d29d9a1fd",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-NOFALLBACK-2-2530",
+    "title": "No transport switch after a v2 refusal in the capture lease and the grant engine (WB-01, same root)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "After a direct-v2 refusal the capture lease message is refused not_sent (wiskey_direct_v2_refused) and the grant engine people write is refused not_sent; v1 keys unchanged."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-NOFALLBACK-2-2530-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-NOFALLBACK-2-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-NOFALLBACK-2-2530, change note docs/changes/WISKEY-NOFALLBACK-2-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-NOFALLBACK-2-2530 head a7997abbb merged c74e485f1 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 7); change note docs/changes/WISKEY-NOFALLBACK-2-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "a7997abbb",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-KNOWN-TREES-RC20-2530",
+    "title": "Arx recognises the published WisKey rc.20 / rc.19 / rc.17 trees by exact digest",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "services/wiskey_known_trees.json labels the published rc.20 managed + manual, rc.19 managed + manual and rc.17 manual trees by their exact wiskey-posix-tree-sha256.v1 digests; any other tree stays unknown; the shipped bundle stays rc.10."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-KNOWN-TREES-RC20-2530-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-KNOWN-TREES-RC20-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-KNOWN-TREES-RC20-2530, change note docs/changes/WISKEY-KNOWN-TREES-RC20-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-KNOWN-TREES-RC20-2530 head 8859b3fc7 merged 0a4286b4c into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 8); change note docs/changes/WISKEY-KNOWN-TREES-RC20-2530.md. Decisions Q1 = a, Q2 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "8859b3fc7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-A2-EXEC-2530",
+    "title": "WisKey A2 schedule execution: status only (operations status / pending / review reads), off by default",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "With the switch on (default off, system administrators) the schedule library shows the signed read-only status of a WisKey schedule job; decide / execute / preview / cancel are refused before any byte is sent; Arx never approves or executes."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-A2-EXEC-2530-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-A2-EXEC-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-A2-EXEC-2530, change note docs/changes/WISKEY-A2-EXEC-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-A2-EXEC-2530 head 4a5eb50c7 merged 1ea525393 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 9); change note docs/changes/WISKEY-A2-EXEC-2530.md. Decisions Q1-Q3 = a. Train fix 7b888872e (English of its four refusal texts). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "4a5eb50c7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE-FIXTURE-LANE-2530",
+    "title": "The release gate runs the fixture specs as a lane (one job per fixture group)",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The release gate engine runs every fixture spec marked \"gate\" in fixture_specs.json as one fixture_<group> job per group; the self-tests pass; the engine is installed on the runner only after 2.52 is released (the lead)."
+    ],
+    "requirement_ids": [
+      "R-GATE-FIXTURE-LANE-2530-1"
+    ],
+    "test_ids": [
+      "AT-GATE-FIXTURE-LANE-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GATE-FIXTURE-LANE-2530, change note docs/changes/GATE-FIXTURE-LANE-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/GATE-FIXTURE-LANE-2530 head d52a6e649 merged 6329e4178 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 10); change note docs/changes/GATE-FIXTURE-LANE-2530.md. Decisions Q1-Q4 = a. Engine NOT installed by the train (lead). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "d52a6e649",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2530-TRAIN",
+    "title": "RELEASE-2530-TRAIN - the 2.53.0 train",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.53.0 train on release/2530-train takes 2.52.0 in once it is released, passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2530-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2530-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): release/2530-train cut from release/2520-train 91de5c377 (2.52.0 not released yet). Merged: LOAD-BUDGET-2530 3fe6bf2c3, NOTICE-TV-LASTSEEN-2530 9ef72a575, HOME-T120-REST-2530 4f72e6438, DOCS-ONBOARDING-2530 11cf23be5, MFA-T095-REST-2530 46692b29e, WISKEY-MEDIA-V2-2530 6365fcb17, WISKEY-NOFALLBACK-2-2530 c74e485f1; version bump 4c43d7619 (2.53.0, draft changelog, API inventory 1955 routes); chore/ACCEPT-SWEEP-2530 db79121bd (registry); sync with release/2520-train 8abc5d652 (c9085c0ad) and 9fb8109fb (4cb8ed934); WISKEY-KNOWN-TREES-RC20-2530 0a4286b4c; WISKEY-A2-EXEC-2530 1ea525393; GATE-FIXTURE-LANE-2530 6329e4178 (engine not installed); sync with release/2520-train 6d8fd71e1 (5bca84ee2); HOME-SCROLL-FIX-2530 2d674e581. Train fixes 8dfd46115, f41473bbc (WISKEY-MEDIA-V2 refusals: English, ADR-019 field envelope), 7b888872e (A2 English). Gate NOT_RUN; nothing released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-SCROLL-FIX-2530",
+    "title": "Direction b of the home screen without a page scroll (the widget column fits the viewport)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The home screen of direction b (cards and tiles views) does not scroll the page at 1440x900 or 1366x768: the widget column has its own fit step (tokens only); evidence-home-screen.spec.ts checks it."
+    ],
+    "requirement_ids": [
+      "R-HOME-SCROLL-FIX-2530-1"
+    ],
+    "test_ids": [
+      "AT-HOME-SCROLL-FIX-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-SCROLL-FIX-2530, change note docs/changes/HOME-SCROLL-FIX-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-SCROLL-FIX-2530 head c41c14ad0 merged 2d674e581 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 11); change note docs/changes/HOME-SCROLL-FIX-2530.md. Decisions Q1-Q3 = a (Q1: evidence-home-screen to \"gate\": true in fixture_specs.json once the spec is 23/23 green in one run). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "c41c14ad0",
     "actual_cost_usd": null
   }
 ]

@@ -15652,13 +15652,16 @@
     "procedure": [
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
-    "expected": "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; new regular users open the home interface, administrators the full one; existing users keep the full interface after the upgrade.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "expected": "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; the interface a NEW person opens is the installation setting home.default_mode (default full_all, owner decision HOME-SIMPLE-2421 section 5; home_regular gives the original rule: regular users home, administrators full); existing users keep the full interface after the upgrade.",
+    "status": "PASS",
+    "notes": "2026-11-25 (RELEASE-2530-TRAIN, HOME-T120-REST-2530 question 1 = a): the change record's receipts reviewed and re-run on the merged train; fakes and fixtures only (no lab, no real device - the physical checks of HOME-T120-REST-2530 section 1.3 are a separate lab card, question 3).",
+    "commit": "0a4286b4c",
+    "environment": "Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only",
+    "evidence": [
+      "tests/test_home_interface.py (policy, defaults incl. home.default_mode, rbac.assign, existing users keep full) - runner be_grp_03 at 0a4286b4c, 0 failures in the file",
+      "docs/changes/HOME-T120-REST-2530.md section 1.1 / 3"
+    ],
+    "executed_at": "2026-11-25T20:49:12Z"
   },
   {
     "id": "AT-T120-2",
@@ -15678,12 +15681,15 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A home-only person is refused (403 home_interface_only, audited) on every API area outside the home interface, on the server; the switch to the full interface is refused when the policy locks it.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "2026-11-25 (RELEASE-2530-TRAIN, HOME-T120-REST-2530 question 1 = a): the change record's receipts reviewed and re-run on the merged train; fakes and fixtures only (no lab, no real device - the physical checks of HOME-T120-REST-2530 section 1.3 are a separate lab card, question 3).",
+    "commit": "0a4286b4c",
+    "environment": "Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only",
+    "evidence": [
+      "tests/test_home_interface.py::test_home_only_user_is_refused_on_full_only_routes, tests/test_home_account_2530.py (3) - runner be_grp_03 at 0a4286b4c, 0 failures in these files",
+      "docs/changes/HOME-T120-REST-2530.md section 2"
+    ],
+    "executed_at": "2026-11-25T20:49:12Z"
   },
   {
     "id": "AT-T120-3",
@@ -15703,12 +15709,14 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The home interface (room-centred, Hebrew RTL, no Home Assistant branding or internal terms) shows real floors/rooms, lights (dimmers) and on/off switches, climate, shutters, doors and the intercom call, cameras, electricity, alerts and scenes through the existing control paths; room / house off reaches lights and light-typed switches only.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "2026-11-25 (RELEASE-2530-TRAIN, HOME-T120-REST-2530 question 1 = a): the change record's receipts reviewed and re-run on the merged train; fakes and fixtures only (no lab, no real device - the physical checks of HOME-T120-REST-2530 section 1.3 are a separate lab card, question 3).",
+    "commit": "0a4286b4c",
+    "environment": "Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only",
+    "evidence": [
+      "tests/test_home_interface.py (house / room off reaches lights and light-typed switches only), test_home_interface_doors_2421.py, test_home_v3_gaps_2436.py - runner be_grp_03; Playwright home-simple-2420 / -2421 / home-v3-gaps-2436 desktop + mobile (139 passed with the MFA specs) at 0a4286b4c"
+    ],
+    "executed_at": "2026-11-25T20:49:12Z"
   },
   {
     "id": "AT-T120-4",
@@ -15727,13 +15735,15 @@
     "procedure": [
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
-    "expected": "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by administrators only.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "expected": "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by whoever holds scene management (owner decision Q75, HOME-FAVORITES-2500).",
+    "status": "PASS",
+    "notes": "2026-11-25 (RELEASE-2530-TRAIN, HOME-T120-REST-2530 question 1 = a): the change record's receipts reviewed and re-run on the merged train; fakes and fixtures only (no lab, no real device - the physical checks of HOME-T120-REST-2530 section 1.3 are a separate lab card, question 3).",
+    "commit": "0a4286b4c",
+    "environment": "Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only",
+    "evidence": [
+      "tests/test_home_interface.py (favourites, admin seed, hidden rooms, what opens first, theme) - runner be_grp_03 at 0a4286b4c; scenes by scene management: HOME-FAVORITES-2500 (released)"
+    ],
+    "executed_at": "2026-11-25T20:49:12Z"
   },
   {
     "id": "AT-T120-5",
@@ -15753,12 +15763,14 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "No scrolling on the control screens at 1280x800, 390x844 and 1440x900; touch targets of at least 56 px on the tablet.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "2026-11-25 (RELEASE-2530-TRAIN, HOME-T120-REST-2530 question 1 = a): the change record's receipts reviewed and re-run on the merged train; fakes and fixtures only (no lab, no real device - the physical checks of HOME-T120-REST-2530 section 1.3 are a separate lab card, question 3).",
+    "commit": "0a4286b4c",
+    "environment": "Linux test runner (Ubuntu, backend venv Python 3.12, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run A, ~/work/p2520_t2530_run.sh; fakes and fixtures only",
+    "evidence": [
+      "Playwright home-simple-2420 size sweeps (1280x800, 390x844, 1440x900; 56 px targets on the tablet) and home-account-2530 (8 passed, the sweep on each tab) at 0a4286b4c; every pixel spec 536 passed incl. the home baselines"
+    ],
+    "executed_at": "2026-11-25T20:49:12Z"
   },
   {
     "id": "AT-BACKEND-SAFETY-2435-1",
@@ -21855,6 +21867,306 @@
     "expected": "The step-up lockout count survives a rollback (SEC-1); the attestation chain is checked by one shared function with CA flags (SEC-2); security / remote keys never travel with a backup (SEC-3); restored settings are validated (CORE-04); a replace restore is FK-safe and the drill restores onto a read-only copy, refusals 409 restore_refused (CORE-01); the daily backup runs from the stored last run (CORE-02).",
     "status": "NOT_RUN",
     "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LOAD-BUDGET-2530-1",
+    "requirement_ids": [
+      "R-LOAD-BUDGET-2530-1"
+    ],
+    "task_ids": [
+      "LOAD-BUDGET-2530"
+    ],
+    "title": "A written resource budget 2.53 and an automated load run that fails above it (T068)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "docs/operations/RESOURCE_BUDGET.md carries the 2.53 budget; tests/soak/load_budget.py judges a run against load_budget.json (exit 0 within, 1 over, 2 incomplete) and the 14 h soak runbook exists.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NOTICE-TV-LASTSEEN-2530-1",
+    "requirement_ids": [
+      "R-NOTICE-TV-LASTSEEN-2530-1"
+    ],
+    "task_ids": [
+      "NOTICE-TV-LASTSEEN-2530"
+    ],
+    "title": "The TV board feed no longer writes \"last seen\" inside the request",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "GET /notices/display/<slug> never begins a write transaction; last_seen_at is written by one background pass a minute for all boards and at shutdown, never backwards.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-T120-REST-2530-1",
+    "requirement_ids": [
+      "R-HOME-T120-REST-2530-1"
+    ],
+    "task_ids": [
+      "HOME-T120-REST-2530"
+    ],
+    "title": "T120 gap analysis and \"My account\" inside the home interface",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A home-only person reaches their own security, sign-ins and language from the home interface personal menu (not on a wall panel); the home-only gate neither refuses nor grants anything new.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DOCS-ONBOARDING-2530-1",
+    "requirement_ids": [
+      "R-DOCS-ONBOARDING-2530-1"
+    ],
+    "task_ids": [
+      "DOCS-ONBOARDING-2530"
+    ],
+    "title": "Getting started checklist, a real Settings > Support tab and the operator guide (T071)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A fresh installation shows the getting-started checklist (wizard + readiness checks) to system configurators until hidden; an existing installation stays off; Settings > General > Support shows versions, the redacted log export and how to report a problem; guide chapter 71 he + en.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MFA-T095-REST-2530-1",
+    "requirement_ids": [
+      "R-MFA-T095-REST-2530-1"
+    ],
+    "task_ids": [
+      "MFA-T095-REST-2530"
+    ],
+    "title": "The rest of T095: approval on the phone with number matching, the alarm code as step-up",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "With security.push_approval on (default off) a step-up can be approved on the phone that holds the key by typing the two-digit number; never for once-actions or own factor changes; with security.step_up_alarm_pin on (default off) the personal alarm code proves one disarm / bypass.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-MEDIA-V2-2530-1",
+    "requirement_ids": [
+      "R-WISKEY-MEDIA-V2-2530-1"
+    ],
+    "task_ids": [
+      "WISKEY-MEDIA-V2-2530"
+    ],
+    "title": "Station media over the signed direct transport v2 (opt-in, default off)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "With access.station_media_direct_v2 on and bridge 0.10.9+ seen, station media signs v2 with a rotated key and never falls back to v1 or the Home Assistant path; with the gate closed every media path is unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-NOFALLBACK-2-2530-1",
+    "requirement_ids": [
+      "R-WISKEY-NOFALLBACK-2-2530-1"
+    ],
+    "task_ids": [
+      "WISKEY-NOFALLBACK-2-2530"
+    ],
+    "title": "No transport switch after a v2 refusal in the capture lease and the grant engine (WB-01, same root)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "After a direct-v2 refusal the capture lease message is refused not_sent (wiskey_direct_v2_refused) and the grant engine people write is refused not_sent; v1 keys unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-KNOWN-TREES-RC20-2530-1",
+    "requirement_ids": [
+      "R-WISKEY-KNOWN-TREES-RC20-2530-1"
+    ],
+    "task_ids": [
+      "WISKEY-KNOWN-TREES-RC20-2530"
+    ],
+    "title": "Arx recognises the published WisKey rc.20 / rc.19 / rc.17 trees by exact digest",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "services/wiskey_known_trees.json labels the published rc.20 managed + manual, rc.19 managed + manual and rc.17 manual trees by their exact wiskey-posix-tree-sha256.v1 digests; any other tree stays unknown; the shipped bundle stays rc.10.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-A2-EXEC-2530-1",
+    "requirement_ids": [
+      "R-WISKEY-A2-EXEC-2530-1"
+    ],
+    "task_ids": [
+      "WISKEY-A2-EXEC-2530"
+    ],
+    "title": "WisKey A2 schedule execution: status only (operations status / pending / review reads), off by default",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "With the switch on (default off, system administrators) the schedule library shows the signed read-only status of a WisKey schedule job; decide / execute / preview / cancel are refused before any byte is sent; Arx never approves or executes.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE-FIXTURE-LANE-2530-1",
+    "requirement_ids": [
+      "R-GATE-FIXTURE-LANE-2530-1"
+    ],
+    "task_ids": [
+      "GATE-FIXTURE-LANE-2530"
+    ],
+    "title": "The release gate runs the fixture specs as a lane (one job per fixture group)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The release gate engine runs every fixture spec marked \"gate\" in fixture_specs.json as one fixture_<group> job per group; the self-tests pass; the engine is installed on the runner only after 2.52 is released (the lead).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2530-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2530-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2530-TRAIN"
+    ],
+    "title": "RELEASE-2530-TRAIN - the 2.53.0 train",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 2.53.0 train on release/2530-train takes 2.52.0 in once it is released, passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-SCROLL-FIX-2530-1",
+    "requirement_ids": [
+      "R-HOME-SCROLL-FIX-2530-1"
+    ],
+    "task_ids": [
+      "HOME-SCROLL-FIX-2530"
+    ],
+    "title": "Direction b of the home screen without a page scroll (the widget column fits the viewport)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The home screen of direction b (cards and tiles views) does not scroll the page at 1440x900 or 1366x768: the widget column has its own fit step (tokens only); evidence-home-screen.spec.ts checks it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
     "commit": null,
     "environment": null,
     "evidence": [],

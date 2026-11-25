@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-25T21:30:04.360313+00:00
+Generated: 2026-11-25T22:04:43.332280+00:00
 
-Tasks: 709 | Requirements: 823 | Tests: 840 | Screens: 32
+Tasks: 721 | Requirements: 835 | Tests: 852 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -11,15 +11,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Status counts
 - BACKLOG: 12
 - BLOCKED: 27
-- DONE: 514
+- DONE: 515
 - IN_PROGRESS: 4
-- REVIEW: 152
+- REVIEW: 163
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 614
+- V1: 626
 - V2: 29
 - V3: 3
 
@@ -519,7 +519,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | DONE | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
 | [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
 | [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | DONE | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
-| [T120](tasks/T120.md) | V1 | IN_PROGRESS | Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy | — |
+| [T120](tasks/T120.md) | V1 | DONE | Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy | — |
 | [BACKEND-SAFETY-2435](tasks/BACKEND-SAFETY-2435.md) | V1 | DONE | BACKEND-SAFETY-2435 - five P1 backend safety and stability fixes | — |
 | [BACKLOG-HYGIENE-2443](tasks/BACKLOG-HYGIENE-2443.md) | V1 | DONE | BACKLOG-HYGIENE-2443 - backlog cleanup after the 2.43.7 triage | — |
 | [CR-A11Y-ROWS-2443](tasks/CR-A11Y-ROWS-2443.md) | V1 | DONE | CR-A11Y-ROWS-2443 - keyboard access to clickable rows and cards (screen half of D14) | — |
@@ -764,3 +764,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [GATE-HARDEN-2520](tasks/GATE-HARDEN-2520.md) | V1 | REVIEW | Harden the release gate before the 2.52 gate | — |
 | [SCREENS-FIX-B2-2520](tasks/SCREENS-FIX-B2-2520.md) | V1 | REVIEW | Public-ticket draft bound to its link; calendar pending items carry their revision | — |
 | [SEC-FIX-2520](tasks/SEC-FIX-2520.md) | V1 | REVIEW | Step-up lockout, attestation chain, backup key classes and restore safety (2.52 deep review) | — |
+| [LOAD-BUDGET-2530](tasks/LOAD-BUDGET-2530.md) | V1 | REVIEW | A written resource budget 2.53 and an automated load run that fails above it (T068) | — |
+| [NOTICE-TV-LASTSEEN-2530](tasks/NOTICE-TV-LASTSEEN-2530.md) | V1 | REVIEW | The TV board feed no longer writes "last seen" inside the request | — |
+| [HOME-T120-REST-2530](tasks/HOME-T120-REST-2530.md) | V1 | REVIEW | T120 gap analysis and "My account" inside the home interface | — |
+| [DOCS-ONBOARDING-2530](tasks/DOCS-ONBOARDING-2530.md) | V1 | REVIEW | Getting started checklist, a real Settings > Support tab and the operator guide (T071) | — |
+| [MFA-T095-REST-2530](tasks/MFA-T095-REST-2530.md) | V1 | REVIEW | The rest of T095: approval on the phone with number matching, the alarm code as step-up | — |
+| [WISKEY-MEDIA-V2-2530](tasks/WISKEY-MEDIA-V2-2530.md) | V1 | REVIEW | Station media over the signed direct transport v2 (opt-in, default off) | — |
+| [WISKEY-NOFALLBACK-2-2530](tasks/WISKEY-NOFALLBACK-2-2530.md) | V1 | REVIEW | No transport switch after a v2 refusal in the capture lease and the grant engine (WB-01, same root) | — |
+| [WISKEY-KNOWN-TREES-RC20-2530](tasks/WISKEY-KNOWN-TREES-RC20-2530.md) | V1 | REVIEW | Arx recognises the published WisKey rc.20 / rc.19 / rc.17 trees by exact digest | — |
+| [WISKEY-A2-EXEC-2530](tasks/WISKEY-A2-EXEC-2530.md) | V1 | REVIEW | WisKey A2 schedule execution: status only (operations status / pending / review reads), off by default | — |
+| [GATE-FIXTURE-LANE-2530](tasks/GATE-FIXTURE-LANE-2530.md) | V1 | REVIEW | The release gate runs the fixture specs as a lane (one job per fixture group) | — |
+| [RELEASE-2530-TRAIN](tasks/RELEASE-2530-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2530-TRAIN - the 2.53.0 train | — |
+| [HOME-SCROLL-FIX-2530](tasks/HOME-SCROLL-FIX-2530.md) | V1 | REVIEW | Direction b of the home screen without a page scroll (the widget column fits the viewport) | — |
