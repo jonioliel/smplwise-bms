@@ -942,6 +942,7 @@ export const he = {
     recoveryShownOnce: 'שמור את הקודים במקום בטוח. הם מוצגים עכשיו בלבד, וכל קוד עובד פעם אחת.',
     recoveryCopy: 'העתקה',
     recoveryCopied: 'הקודים הועתקו',
+    reauth: 'לפעולה הזו צריך כניסה טרייה (לפני פחות מ־5 דקות). צא והיכנס שוב, ואז נסה שוב.',
     recoveryDownload: 'הורדה',
     recoverySaved: 'שמרתי את הקודים',
     recoveryListLabel: 'קודי שחזור',

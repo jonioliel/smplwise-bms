@@ -468,13 +468,22 @@ def recovery_regenerate(request: Request, body: RecoveryBody | None = None, prin
     Needs a fresh step-up whatever `security.step_up` says (a stolen session alone must not mint codes that outlive it): a proof that
     counts now on this session (`auth/step-up/verify`, a sign-in or enrolment that just showed the factor), or the CURRENT
     authenticator code in the body / X-Arx-Second-Factor - never a recovery code. Audited `auth.recovery_codes.generated`
-    (or denied with the reason); rate-limited like every factor action."""
+    (or denied with the reason); rate-limited like every factor action.
+    With step-up off (owner Q2 = b) no proof is asked; MFA-FACTOR-HARDEN-2520 N-1: a remote caller without the current code then
+    needs a sign-in of this session within 5 minutes (403 `reauth_required`), the first factor's rule."""
     _limit(principal)
     if not sf.is_enrolled(conn, principal.user_id):
         raise ApiError(409, "recovery_codes_unavailable", RECOVERY_UNAVAILABLE_HE)
     code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
     if not code and not step_up.factor_change_proof_on(conn):
-        pass  # MFA-SECFIX-2500 (owner Q2 = b): with step-up off a new batch asks for no proof (as the other factor changes)
+        # MFA-SECFIX-2500 (owner Q2 = b): with step-up off a new batch asks for no proof (as the other factor changes) -
+        # MFA-FACTOR-HARDEN-2520 N-1: but, like every factor added from outside, a sign-in of this session within 5 minutes
+        try:
+            step_up.require_recent_sign_in(request, "auth.recovery_codes.regenerate")
+        except ApiError as exc:
+            audit(conn, actor=principal, action="auth.recovery_codes.generated", decision="denied", resource_type="user", resource_id=principal.user_id,
+                  reason=exc.code, request_id=_rid(request), details={"method": rc.METHOD, "reason": "regenerate"})
+            raise
     elif code:
         try:
             sf.verify(conn, settings_of(request), principal.user_id, code)
