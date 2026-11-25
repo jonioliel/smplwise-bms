@@ -85,6 +85,9 @@ export const en = {
   'פחות': 'Less',
   'פטור': 'Exempt',
   'פטור לעמדות קיר': 'Exempt wall panels',
+  // MFA-HA-PASSKEY-2520: the passkey as the remote sign-in factor (Users & permissions › Second factor)
+  'מפתח גישה כאימות בכניסה': 'Passkey at sign-in',
+  'מי שיש לו מפתח גישה יאמת בו או בקוד בכל כניסה חדשה מרחוק בדפדפן': 'A user with a passkey verifies with it or the code at every new remote sign-in in a browser',
   'פטורים': 'Exempt',
   'קוד מהאפליקציה': 'App code',
   'רשות': 'Optional',

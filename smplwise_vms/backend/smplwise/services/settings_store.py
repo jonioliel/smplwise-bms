@@ -424,6 +424,10 @@ DEFAULTS: dict[str, str] = {
     # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not
     # count). System administrators only; audited; never restored from a backup.
     "security.passkeys_all_users": "on",
+    # MFA-HA-PASSKEY-2520 (services/passkey_sign_in.py): on = a home-system user's passkey that counts is a remote sign-in factor in the
+    # browser (asked like the authenticator code at every new remote sign-in, and it satisfies the sign-in factor policy); off (default)
+    # = the behaviour of before (the passkey is a step-up method only). system.configure; audited `settings.update`; never restored.
+    "security.passkey_remote_factor": "off",
     # MFA-POLICY-2490 (services/factor_policy.py; design full-2fa-t095 4.1): WHO must show a second factor at a remote sign-in -
     # optional (nobody by this policy) | admins | sensitive | all; mode report (default: evaluated and shown in the compliance view,
     # never refuses - the owner: nobody without a factor is locked out until he switches it on) | enforce; wall-panel users exempt

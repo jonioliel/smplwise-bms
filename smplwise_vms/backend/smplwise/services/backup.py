@@ -285,6 +285,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
 # MFA-PASSKEYS-2490: whether passkeys count for every user is security policy too
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.passkeys_all_users"}
+# MFA-HA-PASSKEY-2520: whether a home-system user's passkey is a remote sign-in factor is security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.passkey_remote_factor"}
 # MFA-POLICY-2490: the sign-in factor policy, its mode, the wall exemption and the long-lived-token rule - a restore never changes them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.factor_policy", "security.factor_policy_mode", "security.factor_wall_exempt", "security.remote_long_lived_tokens"}
 # MFA-DEVICEKEY-2490: what a phone key needs per signature is security policy too

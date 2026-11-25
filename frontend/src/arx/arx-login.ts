@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn, haErrorText, hasPendingSecondFactor, startFlow, submitStep, type LoginFlow } from './auth';
+import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSecondFactorPasskey, completeSignIn, haErrorText, hasPendingSecondFactor, pendingFactorMethods, pendingPasskeyOrigin, startFlow, submitStep, type LoginFlow } from './auth';
 import { t } from '../i18n/he';
 import { brandLogo, loadPublicBrand, onBrandLogo } from '../design/brand-logo';
 import '../components/sw-brand';
@@ -65,6 +65,11 @@ export class ArxLogin extends LitElement {
   @state() private recoveryCode = false;
   /** MFA-SCREENS-2510: the passkey is the chosen way of the second step (the methods chooser; the code form otherwise). */
   @state() private passkeyChosen = false;
+  /** MFA-HA-PASSKEY-2520: how the remote second step of a home-system user may be answered - what the server offered (`totp` alone
+   * when it offered nothing: the owner's switch `security.passkey_remote_factor` off, the step of before) - and the address a passkey
+   * works at. */
+  @state() private haMethods: string[] = pendingFactorMethods();
+  @state() private haPasskeyOrigin: string | null = pendingPasskeyOrigin();
   /** The Android download offer (only on an Android device, only when an administrator configured an address). */
   @state() private offer: AndroidOffer | null = null;
   @query('#username') private usernameEl?: HTMLInputElement;
@@ -479,6 +484,15 @@ export class ArxLogin extends LitElement {
     }, false);
   }
 
+  /** MFA-HA-PASSKEY-2520: the remote second step of a home-system user answered with a passkey (a cancelled ceremony keeps the step). */
+  private async onHaPasskeyFactor() {
+    if (this.busy) return;
+    await this.run(async () => {
+      await completeSecondFactorPasskey();
+      this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
+    });
+  }
+
   /** USR2 phase 4: passkey first - no username, no password; the server answers uniformly when it is not allowed for this passkey. */
   private async onPasskeySignIn() {
     if (this.busy) return;
@@ -619,6 +633,8 @@ export class ArxLogin extends LitElement {
       } catch (err) {
         if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
           // K11: HA accepted the sign-in; the optional second factor of this user is the next step
+          this.haMethods = pendingFactorMethods();
+          this.haPasskeyOrigin = pendingPasskeyOrigin();
           this.step = 'factor';
           this.error = '';
           await this.updateComplete;
@@ -666,7 +682,9 @@ export class ArxLogin extends LitElement {
         if (this.step === 'lfactor' && err instanceof ArxAuthError && ['second_factor_expired', 'second_factor_locked'].includes(err.code)) this.step = 'credentials';
         return;
       }
-      if (!(err instanceof ArxAuthError) || !['network', 'ha_unavailable', 'second_factor_invalid'].includes(err.code)) this.restart(false);
+      // MFA-HA-PASSKEY-2520: a cancelled passkey ceremony, or a passkey not offered (any more), keeps the step like a wrong code
+      if (err instanceof PasskeyCancelled) return;
+      if (!(err instanceof ArxAuthError) || !['network', 'ha_unavailable', 'second_factor_invalid', 'passkey_not_offered'].includes(err.code)) this.restart(false);
     } finally {
       this.busy = false;
     }
@@ -679,14 +697,31 @@ export class ArxLogin extends LitElement {
     this.step = 'credentials';
     this.recoveryCode = false;
     this.passkeyChosen = false;
+    this.haMethods = ['totp'];
+    this.haPasskeyOrigin = null;
     if (clearError) this.error = '';
+  }
+
+  /** MFA-HA-PASSKEY-2520: the server offered the passkey for the remote step, and this page is at the address it works at. */
+  private haPasskeyHere(): boolean {
+    return this.haMethods.includes('passkey') && !!this.haPasskeyOrigin && this.haPasskeyOrigin === window.location.origin;
+  }
+
+  /** MFA-HA-PASSKEY-2520: the remote step of a home-system user whose only factor here is the passkey - no chooser, the button alone. */
+  private haPasskeyOnly(): boolean {
+    return this.step === 'factor' && this.haMethods.includes('passkey') && !this.haMethods.includes('totp');
   }
 
   /** MFA-SCREENS-2510: the ways the second step can be answered here - the authenticator code, a passkey (an Arx-only identity whose
    * browser can use one) and a one-time recovery code (only beside the authenticator code: the codes are made with it). The remote
-   * sign-in of a home-system user offers the code and the recovery code (slice 4 left the passkey out of that step). */
+   * sign-in of a home-system user offers the code and the recovery code - and, MFA-HA-PASSKEY-2520, a passkey when the server offered
+   * one (the owner's switch on) and this browser can use it here. */
   private methods(): ('totp' | 'passkey' | 'recovery')[] {
-    if (this.step === 'factor') return ['totp', 'recovery'];
+    if (this.step === 'factor') {
+      if (!this.haMethods.includes('passkey')) return ['totp', 'recovery']; // the step of before
+      if (!this.haMethods.includes('totp')) return []; // passkey only: the button alone
+      return ['totp', ...(passkeysSupported() && this.haPasskeyHere() ? (['passkey'] as const) : []), 'recovery'];
+    }
     if (this.step !== 'lfactor') return [];
     const totp = this.factorMethods.includes('totp');
     return [...(totp ? (['totp'] as const) : []), ...(this.factorMethods.includes('passkey') && passkeysSupported() ? (['passkey'] as const) : []), ...(totp ? (['recovery'] as const) : [])];
@@ -756,7 +791,7 @@ export class ArxLogin extends LitElement {
           : (this.step === 'factor' || this.step === 'lfactor') && this.recoveryCode
           ? t('secondFactor.recoveryLoginPrompt')
           : this.step === 'factor'
-          ? t('secondFactor.loginPrompt')
+          ? this.passkeyChosen || this.haPasskeyOnly() ? lit('passkeyUse') : t('secondFactor.loginPrompt')
           : this.step === 'lfactor'
           ? this.factorMethods.includes('totp') && !this.passkeyChosen ? lit('codePrompt') : lit('passkeyUse')
           : this.step === 'enrol'
@@ -821,6 +856,16 @@ export class ArxLogin extends LitElement {
         ? html`${this.renderMethods()}<div class="passkey-only" data-arx-passkey-only>
             <button type="button" ?disabled=${this.busy || !passkeysSupported()} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${this.busy ? lit('passkeyWaiting') : lit('passkeyUse')}</button>
             ${passkeysSupported() ? nothing : html`<span class="hint">${lit('passkeyUnsupported')}</span>`}
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
+          </div>`
+        : this.haPasskeyOnly() || (this.step === 'factor' && this.passkeyChosen)
+        ? html`${this.renderMethods()}<div class="passkey-only" data-arx-passkey-only data-arx-ha-passkey>
+            <button type="button" ?disabled=${this.busy || !passkeysSupported() || !this.haPasskeyHere()} @click=${() => void this.onHaPasskeyFactor()} data-arx-passkey-factor>${this.busy ? lit('passkeyWaiting') : lit('passkeyUse')}</button>
+            ${!passkeysSupported()
+              ? html`<span class="hint">${lit('passkeyUnsupported')}</span>`
+              : !this.haPasskeyHere()
+              ? html`<span class="hint" data-arx-passkey-wrong-host>${lit('passkeyWrongHost', { origin: this.haPasskeyOrigin ?? '' })}</span>`
+              : nothing}
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
           </div>`
         : html`${this.renderMethods()}<form @submit=${this.onCode} novalidate>

@@ -12,6 +12,7 @@ import { clientId, redirectUri } from './channel';
 import { clearHassTokens, readHassTokens, seedHassTokens } from './hass-tokens';
 import { tr } from '../i18n/msg/misc';
 import { holdNativeSession, releaseNativeSession, type NativeSignOutReason } from './native-app';
+import { getPasskey, type RequestOptionsJSON } from './webauthn';
 
 const TOKENS_KEY = 'arx.auth.v1';
 
@@ -61,7 +62,8 @@ interface ArxTokens {
 }
 
 export class ArxAuthError extends Error {
-  constructor(public code: string, message: string, public status = 0) {
+  /** MFA-HA-PASSKEY-2520: the answer's `details` (the passkey offer of a 401 second_factor_required); {} when it had none. */
+  constructor(public code: string, message: string, public status = 0, public details: Record<string, unknown> = {}) {
     super(message);
   }
 }
@@ -314,9 +316,48 @@ async function exchange(t: ArxTokens, secondFactor?: string): Promise<ExchangeRe
   } catch {
     throw new ArxAuthError('network', tr('אין חיבור לשרת.'));
   }
-  const data = (await res.json().catch(() => null)) as { code?: string; user_message?: string } & Partial<ExchangeResult> | null;
-  if (!res.ok) throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || tr('השרת דחה את הכניסה.'), res.status);
+  const data = (await res.json().catch(() => null)) as { code?: string; user_message?: string; details?: unknown } & Partial<ExchangeResult> | null;
+  if (!res.ok) {
+    const details = data?.details && typeof data.details === 'object' ? (data.details as Record<string, unknown>) : {};
+    throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || tr('השרת דחה את הכניסה.'), res.status, details);
+  }
   return data as ExchangeResult;
+}
+
+/** MFA-HA-PASSKEY-2520: what the server offered for the pending second step - the `details` of its 401 second_factor_required. Absent
+ * (the owner's switch `security.passkey_remote_factor` off, or no passkey that counts) = the step of before: the code or a recovery code. */
+interface FactorOffer {
+  methods: string[];
+  passkey: { origin: string; publicKey: RequestOptionsJSON } | null;
+  at: number;
+}
+let pendingOffer: FactorOffer | null = null;
+
+function noteOffer(err: ArxAuthError): void {
+  const d = err.details ?? {};
+  const pk = d.passkey as { origin?: unknown; publicKey?: unknown } | undefined;
+  const methods = Array.isArray(d.methods) ? d.methods.filter((m): m is string => typeof m === 'string') : [];
+  pendingOffer = methods.length
+    ? { methods, passkey: pk && typeof pk.origin === 'string' && pk.publicKey && typeof pk.publicKey === 'object' ? { origin: pk.origin, publicKey: pk.publicKey as RequestOptionsJSON } : null, at: Date.now() }
+    : null;
+}
+
+/** The ways the pending second step may be answered (`totp` when the server said nothing - the step of before). */
+export function pendingFactorMethods(): string[] {
+  return pendingOffer?.methods ?? ['totp'];
+}
+
+/** The address a passkey works at, when the server offered one (the configured public address); null otherwise. */
+export function pendingPasskeyOrigin(): string | null {
+  return pendingOffer?.passkey?.origin ?? null;
+}
+
+/** `pk1:<rawId>.<clientDataJSON>.<authenticatorData>.<signature>[.<userHandle>]` - the assertion in the X-Arx-Second-Factor header. */
+function passkeyAnswer(credential: Record<string, unknown>): string {
+  const r = (credential.response ?? {}) as Record<string, unknown>;
+  const parts = [credential.rawId, r.clientDataJSON, r.authenticatorData, r.signature].map((v) => String(v ?? ''));
+  if (typeof r.userHandle === 'string' && r.userHandle) parts.push(r.userHandle);
+  return 'pk1:' + parts.join('.');
 }
 
 /** K11: a sign-in that HA accepted and Arx holds back until the user types the code of their authenticator app (the
@@ -327,6 +368,7 @@ export const hasPendingSecondFactor = () => pendingFactor !== null;
 export async function abandonSecondFactor(): Promise<void> {
   const t = pendingFactor;
   pendingFactor = null;
+  pendingOffer = null;
   if (t) {
     clearTokens();
     await revoke(t.refresh_token);
@@ -335,24 +377,55 @@ export async function abandonSecondFactor(): Promise<void> {
 
 /** The second step of a sign-in: the 6-digit code. A wrong code keeps the step open; a lockout or any other refusal ends it. */
 export async function completeSecondFactor(code: string): Promise<ExchangeResult> {
+  return answerPending(code.replace(/\s+/g, ''));
+}
+
+async function answerPending(answer?: string): Promise<ExchangeResult> {
   const t = pendingFactor;
   if (!t) throw new ArxAuthError('second_factor_required', tr('ההתחברות פגה. יש להיכנס מחדש.'));
   try {
-    const r = await exchange(t, code.replace(/\s+/g, ''));
+    const r = await exchange(t, answer);
     pendingFactor = null;
+    pendingOffer = null;
     t.user_id = r.user.id;
     saveTokens(t);
     seedHassTokens(t);
     markActivity();
     return r;
   } catch (err) {
+    if (err instanceof ArxAuthError && err.code === 'second_factor_required' && !answer) {
+      noteOffer(err); // asked again for a fresh offer: the step stays
+      throw err;
+    }
     if (!(err instanceof ArxAuthError) || !['second_factor_invalid', 'network', 'ha_unavailable'].includes(err.code)) {
       pendingFactor = null;
+      pendingOffer = null;
       clearTokens();
       await revoke(t.refresh_token);
     }
     throw err;
   }
+}
+
+/** MFA-HA-PASSKEY-2520: the second step answered with a passkey. The server's challenge lives 60 s and is single use, so an offer older
+ * than OFFER_FRESH_MS (or one already tried) is renewed first by asking the exchange again without an answer. A cancelled ceremony
+ * (PasskeyCancelled) keeps the step; a refused assertion is `second_factor_invalid` like a wrong code. */
+const OFFER_FRESH_MS = 40_000;
+export async function completeSecondFactorPasskey(): Promise<ExchangeResult> {
+  if (!pendingFactor) throw new ArxAuthError('second_factor_required', tr('ההתחברות פגה. יש להיכנס מחדש.'));
+  let offer = pendingOffer?.passkey && Date.now() - pendingOffer.at < OFFER_FRESH_MS ? pendingOffer.passkey : null;
+  if (!offer) {
+    try {
+      return await answerPending(); // the server stopped asking (its switch went off): this is the sign-in
+    } catch (err) {
+      if (!(err instanceof ArxAuthError && err.code === 'second_factor_required')) throw err;
+    }
+    offer = pendingOffer?.passkey ?? null;
+    if (!offer) throw new ArxAuthError('passkey_not_offered', tr('אימות במפתח גישה אינו זמין כרגע. אמת עם הקוד מאפליקציית האימות.'));
+  }
+  if (pendingOffer) pendingOffer = { ...pendingOffer, at: 0 }; // used once: the next try asks for a fresh challenge
+  const credential = await getPasskey(offer.publicKey);
+  return answerPending(passkeyAnswer(credential));
 }
 
 /** Sign-in finished at HA (an authorization code): tokens, the HA seed, the Arx session. */
@@ -370,6 +443,7 @@ export async function completeSignIn(flow: LoginFlow, code: string): Promise<Exc
   } catch (err) {
     if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
       pendingFactor = t; // K11: HA's part is done; the code of the authenticator app is the second step
+      noteOffer(err); // MFA-HA-PASSKEY-2520: or a passkey, when the server offers one
       throw err;
     }
     // refused by Arx (no remote access, inactive, MFA required): do not leave a valid HA sign-in behind
@@ -400,6 +474,7 @@ export function refreshNow(): Promise<boolean> {
           // The fresh tokens have not passed the Arx factor: they wait in memory only (security review 2.2.0, I3); the stored
           // entry is the one this browser already had verified and stays as it was.
           pendingFactor = fresh;
+          noteOffer(e);
           onSignedOut?.('expired');
           return false;
         }
@@ -474,6 +549,7 @@ export async function resume(): Promise<boolean> {
     }
     if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
       pendingFactor = t;
+      noteOffer(err);
       throw err;
     }
     if (err instanceof ArxAuthError && err.status === 401) return refreshNow();

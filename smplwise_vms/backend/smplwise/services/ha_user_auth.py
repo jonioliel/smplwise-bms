@@ -1111,10 +1111,11 @@ def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: s
 SECOND_FACTOR_HEADER = "x-arx-second-factor"
 
 
-def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
+def second_factor_need(conn, principal: Principal, replaces: str | None, *, passkey: bool = False) -> str:
     """What a NEW remote sign-in must still show: `code` (the user enrolled a TOTP), `enroll` (the policy requires one - the
     user's own override, their roles' or `security.second_factor_policy = admins` for an administrator - and they have none), else `none`. The rotation of the caller's own live session (same user, cookie)
-    is not a new sign-in: the factor was shown when that session began."""
+    is not a new sign-in: the factor was shown when that session began. `passkey` (the browser sign-in only, MFA-HA-PASSKEY-2520): a
+    passkey that counts is a factor too while `security.passkey_remote_factor` is on - asked like the code, and it satisfies the policy."""
     from . import second_factor as sf
 
     old = STORE.get(replaces) if replaces else None
@@ -1122,6 +1123,11 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
         return "none"
     if sf.is_enrolled(conn, principal.user_id):
         return "code"
+    if passkey:
+        from . import passkey_sign_in
+
+        if passkey_sign_in.counts(conn, principal.user_id):
+            return "code"
     # TFA2: the per-user / per-role override on top of the global policy; `required` and no factor = the enrolment-required answer
     value, source = sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)
     if value == "required":
@@ -1225,27 +1231,51 @@ def bearer_factor_enforced(conn) -> bool:
         return True
 
 
-def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
+def _passkey_offer(db: Any, principal: Principal, token: str | None) -> dict[str, Any] | None:
+    """MFA-HA-PASSKEY-2520: the `details` of the browser sign-in's 401 `second_factor_required` - None (the answer of before) unless
+    `security.passkey_remote_factor` is on and the user has a passkey that counts. Never breaks the answer: a failure offers nothing."""
+    if token is None:
+        return None
+    try:
+        from . import passkey_sign_in
+
+        with db.connection(mode="read", label="auth/session passkey offer") as conn:
+            return passkey_sign_in.offer(conn, principal.user_id, token)
+    except ApiError:
+        return None  # the challenge pool is full (429): the code still works
+    except Exception:  # noqa: BLE001
+        log.warning("could not offer the passkey sign-in step", exc_info=True)
+        return None
+
+
+def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any],
+                              token: str | None = None) -> str:
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
     `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
     Failures are audited (the method and the reason only, never the code). Blocking (the database). Returns the method that
-    answered (`totp` / `device_key` / `recovery_code`; MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only)."""
+    answered (`totp` / `device_key` / `recovery_code` / `passkey`; MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only).
+    `token` (the browser exchange only, MFA-HA-PASSKEY-2520): the caller's Home Assistant token - a passkey challenge is offered in the
+    401's details and a `pk1:` answer is checked against it; without it (the bearer path) a passkey answer is refused."""
     from . import recovery_codes as rc
     from . import second_factor as sf
 
     from . import device_keys
+    from . import passkey_sign_in
 
     code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
     if not code:
-        raise ApiError(401, "second_factor_required", sf.REQUIRED_HE)
+        raise ApiError(401, "second_factor_required", sf.REQUIRED_HE, details=_passkey_offer(db, principal, token))
     # MFA-DEVICEKEY-2490 (owner Q51: in the app, password + phone key counts as two-factor): `dk1:<challenge_id>:<signature>` is the
     # phone key's signature of a sign-in challenge (POST auth/device-keys/sign-in/challenge) instead of the authenticator code
-    method = device_keys.METHOD if device_keys.is_answer(code) else "totp"
+    # MFA-HA-PASSKEY-2520: `pk1:...` is a passkey assertion on the challenge of the 401's details (services/passkey_sign_in)
+    method = device_keys.METHOD if device_keys.is_answer(code) else passkey_sign_in.METHOD if passkey_sign_in.is_answer(code) else "totp"
     err: sf.SecondFactorError | None = None
     with db.connection(label="auth/session second factor") as conn:
         try:
             if method == device_keys.METHOD:
                 device_keys.check_sign_in_answer(conn, principal.user_id, code, device_keys.origin_of(settings, conn_like))
+            elif method == passkey_sign_in.METHOD:
+                passkey_sign_in.check_answer(conn, principal, code, token)
             # MFA-RECOVERY-CODES-2490: a one-time recovery code is accepted in place of the authenticator code (spent on success)
             elif rc.verify_factor(conn, settings, principal.user_id, code, "sign_in") == rc.METHOD:
                 rc.audit_use(conn, principal, "sign_in")
@@ -1256,17 +1286,20 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
         return method
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
-    if method != device_keys.METHOD and rc.canonical(code) is not None:
+    if method == "totp" and rc.canonical(code) is not None:
         method = rc.METHOD
     extra = {"why": err.reason} if isinstance(err, device_keys.DeviceKeyError) else {}
+    if isinstance(err, passkey_sign_in.PasskeyFactorError):
+        extra = {"why": f"passkey_{err.reason}"}
     _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": method, **extra}, action="auth.second_factor.failed", subject=principal.user_id)
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
 
 
-async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
+async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any],
+                               token: str | None = None) -> str:
     from starlette.concurrency import run_in_threadpool
 
-    return await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta)
+    return await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta, token)
 
 
 # ---------------------------------------------------------------- the exchange (POST / DELETE auth/session)
@@ -1309,7 +1342,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             refusal = policy_refusal(conn, principal, ha_user)
             if refusal:
                 return principal, refusal, None, "none", False
-            return (principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces),
+            return (principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces, passkey=True),
                     long_lived_check_needed(conn, principal, replaces))
 
     principal, refusal, basis, factor, need_llat = await run_in_threadpool(decide)
@@ -1332,7 +1365,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
         raise await rejected("second_factor_enrollment_required", enrollment_required(factor), principal)
     answered: str | None = None
     if factor == "code":
-        answered = await _check_second_factor(app_state, settings, conn_like, principal, meta)
+        answered = await _check_second_factor(app_state, settings, conn_like, principal, meta, token)
     try:
         session = STORE.create(principal, ha_user, token, exp, ip, replaces=replaces, meta=meta,
                                client_id=arx_client_id(settings, conn_like))
