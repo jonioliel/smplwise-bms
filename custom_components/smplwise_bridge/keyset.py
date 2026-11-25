@@ -381,7 +381,12 @@ class Persister:
       delayed save leaves the set dirty and the next message or the periodic housekeeping retries it (it used to be marked clean at once).
     - HA-06: the config entry's copy of the pairing code is blanked right after the save that retired it AND, idempotently, whenever the
       saved state says the pairing secret is retired but the entry still holds it (`clean_entry()`, also called at setup) - so a restart
-      between the two writes no longer leaves the retired code in the entry."""
+      between the two writes no longer leaves the retired code in the entry.
+    - WISKEY-BRIDGE-KEYSET-2520 (bridge 0.10.9): one save at a time (an asyncio lock: a second `persist()` used to return at once while
+      the first save was still running, so "persist returned" did not mean "saved"); `saved_through(kid, ts)` tells whether the STORE
+      holds a high-water mark of at least `ts` for `kid` (native_keyset admits a WisKey v2 message only then); `control(msg)` is the
+      rotation service's write-ahead step (handle the op, save, go back to the saved state if the save fails), moved here from
+      `__init__.rotate` unchanged so that path and native_keyset share one lock."""
 
     def __init__(self, keyset: KeySet, save: Callable[[dict[str, Any]], Awaitable[None]], entry_code: Callable[[], str],
                  wipe_entry_code: Callable[[], None], spawn: Callable[[Awaitable[None]], Any], *, delay_s: float = SAVE_DELAY_S,
@@ -390,6 +395,9 @@ class Persister:
         self._spawn, self._delay, self._sleep, self._on_error = spawn, delay_s, sleep, on_error
         self._pending = False
         self._saved_retired = keyset.legacy_retired  # what the store holds (loaded at setup, then every successful save)
+        self._saved_hw: dict[str, int] = {} if keyset.dirty else dict(keyset.hw)  # the same for the high-water marks
+        self._lock: asyncio.Lock | None = None
+        self._lock_loop: Any = None
 
     def clean_entry(self) -> bool:
         """Blank the entry's pairing-code copy when the SAVED state has retired the pairing secret. True when it blanked it."""
@@ -399,18 +407,43 @@ class Persister:
             return True
         return False
 
+    def _guard(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:  # one lock per event loop (Home Assistant has one; unit tests make several)
+            self._lock, self._lock_loop = asyncio.Lock(), loop
+        return self._lock
+
     async def persist(self) -> None:
-        if not self.keyset.dirty:
-            return
-        self.keyset.dirty = False
-        state = self.keyset.state()
+        async with self._guard():
+            if not self.keyset.dirty:
+                return
+            self.keyset.dirty = False
+            state = self.keyset.state()
+            try:
+                await self._save(state)
+            except BaseException:
+                self.keyset.dirty = True
+                raise
+            self._saved_retired = bool(state.get("legacy_retired"))
+            self._saved_hw = dict(state.get("hw") or {})
+            self.clean_entry()
+
+    def saved_through(self, kid: str, ts: int) -> bool:
+        """The last successful save holds a high-water mark >= `ts` for `kid` (a restart then refuses every message of `kid` up to `ts`)."""
+        mark = self._saved_hw.get(kid)
+        return isinstance(mark, int) and not isinstance(ts, bool) and isinstance(ts, int) and mark >= ts
+
+    async def control(self, msg: Any, now: float | None = None) -> dict[str, Any]:
+        """One signed key-rotation control message -> the signed answer, saved BEFORE the answer leaves (write-ahead); if the save fails
+        the in-memory state goes back to the saved one and the error propagates (the add-on asks `status` and recovers)."""
+        saved = self.keyset.state()
+        answer = self.keyset.handle_control(msg, now)
         try:
-            await self._save(state)
-        except BaseException:
-            self.keyset.dirty = True
+            await self.persist()
+        except Exception:  # the step did not happen as far as the add-on can tell
+            self.keyset.reload(saved)
             raise
-        self._saved_retired = bool(state.get("legacy_retired"))
-        self.clean_entry()
+        return answer
 
     def save_soon(self) -> None:
         if not self.keyset.dirty or self._pending:
