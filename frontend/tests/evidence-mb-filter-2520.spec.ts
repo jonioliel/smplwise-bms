@@ -8,9 +8,11 @@ import { A, B, RES, appOverflow, homeOf, homeOverflow, openHomeList, openResiden
 // "before" = the answers of a site whose switch / filter setting is off (the answers of the previous version: nothing new is drawn);
 // "after" = the same lists with the server's `building_filter`. Every screen: no page scroll, no sideways overflow.
 //   SW_BASE_URL=http://127.0.0.1:<port>/ SW_SHOTS=<dir> npx playwright test tests/evidence-mb-filter-2520.spec.ts --project=desktop --workers=2
-// SW_SHOTS: where the captures go (default test-results/mb-filter-2520).
+// SW_SHOTS: where the captures go (default test-results/mb-filter-2520). SW_MBF_BEFORE=1 runs only the "before" captures (against a build of
+// the base, which has no filter yet: the shots of the previous version).
 
 const OUT = process.env.SW_SHOTS || 'test-results/mb-filter-2520';
+const BEFORE_ONLY = process.env.SW_MBF_BEFORE === '1';
 const SIZES = [{ id: 'desktop', width: 1440, height: 900 }, { id: 'phone', width: 390, height: 844 }];
 const SCHEMES = ['light', 'dark'] as const;
 
@@ -35,6 +37,7 @@ test.describe('MULTI-BUILDING-FILTER-2520 the building filter of the home lists 
         await homeOf(page).locator('[data-act="p2NtTab"][data-v="all"]').click();
         expect(await homeOverflow(page)).toEqual([]);
         await shot(page, `home-notices-before-${size.id}-${scheme}`);
+        if (BEFORE_ONLY) continue;
 
         await openHomeList(page, 'notices', { after: true, scheme });
         const keys = homeOf(page).locator('[data-act="p2NtBld"]');
@@ -62,6 +65,7 @@ test.describe('MULTI-BUILDING-FILTER-2520 the building filter of the home lists 
         await expect(homeOf(page).locator('[data-act="p2CalBld"]')).toHaveCount(0);
         expect(await homeOverflow(page)).toEqual([]);
         await shot(page, `home-rooms-before-${size.id}-${scheme}`);
+        if (BEFORE_ONLY) continue;
 
         await openHomeList(page, 'calendar/book', { after: true, scheme });
         await expect(homeOf(page).locator(`[data-act="p2CalBld"][data-v="${A}"]`)).toHaveAttribute('aria-pressed', 'true');
@@ -78,6 +82,7 @@ test.describe('MULTI-BUILDING-FILTER-2520 the building filter of the home lists 
   }
 
   test('a wall panel locked to its room draws no control and shows its own tower\'s notices', async ({ page }) => {
+    test.skip(BEFORE_ONLY, 'after only');
     await page.setViewportSize({ width: 1440, height: 900 });
     await openHomeList(page, 'notices', { after: true, scheme: 'light', kiosk: true });
     await expect(homeOf(page).locator('[data-act="p2NtBld"]')).toHaveCount(0);
@@ -97,6 +102,7 @@ test.describe('MULTI-BUILDING-FILTER-2520 the building filter of the home lists 
       await expect(page.locator(`${RES} sw-building-filter`)).toHaveCount(0);
       expect(await appOverflow(page)).toEqual([]);
       await shot(page, `res-rooms-before-phone-${scheme}`);
+      if (BEFORE_ONLY) continue;
 
       await openResident(page, true, scheme);
       const f = page.locator(`${RES} sw-building-filter`);
