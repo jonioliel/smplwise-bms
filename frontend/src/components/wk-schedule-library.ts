@@ -9,6 +9,7 @@ import './sw-drawer';
 import './sw-icon';
 import './wk-action-button';
 import './wk-schedule-draft-form';
+import './wk-schedule-reads';
 import type { StateKind } from './sw-badge';
 import type { AccessStation } from '../api/access-stations';
 import { dateInputLang } from '../api/day-format'; // DATEFMT60-295: Hebrew lang on date / time inputs
@@ -768,7 +769,9 @@ export class WkScheduleLibrary extends LitElement {
           <div class="rows">${lib.map((s) => this.renderScheduleRow(s))}</div>
         </div>
       </sw-card>
-      ${this.renderPlans()} ${this.renderJobs()} ${this.renderEditor()} ${this.renderDeploy()} ${this.editing || this.deploying ? nothing : this.renderAsk()}`;
+      ${this.renderPlans()} ${this.renderJobs()}
+      <wk-schedule-reads data-se-reads .stations=${this.stations} ?live=${this.live}></wk-schedule-reads>
+      ${this.renderEditor()} ${this.renderDeploy()} ${this.editing || this.deploying ? nothing : this.renderAsk()}`;
   }
 
   private renderNote() {
