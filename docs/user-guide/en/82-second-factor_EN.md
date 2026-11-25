@@ -147,10 +147,14 @@ on in "My account" from a local sign-in. Make sure such a user has a local way i
    signed out (phone notifications too), they are told, **and the managers are told**. If the policy requires a factor of them, their
    next remote sign-in asks them to enrol again (the home system's MFA does not count until they do).
 
+**Removing an Arx user's passkey** (Users and permissions > Arx users > the user > "Remove passkey") follows the same rules from
+2.52: the same dialog (what goes, typing the username, your own code), the same limits below, and the user **and the managers** are
+told. If it was their last factor, they too must enrol again.
+
 Reset limits (every refusal is in the audit log):
 
 - not yourself (use "Remove" in your own account, with a code);
-- **at most 3 resets per hour** per administrator;
+- **at most 3 resets per hour** per administrator (removing an Arx user's passkey counts against the same budget);
 - **never the last system administrator who can sign in remotely** if, after the reset, no administrator could. Give another
   administrator a factor first;
 - **from outside only with a fresh sign-in** of yours (5 minutes) - also for removing an Arx user's passkey;

@@ -1,6 +1,7 @@
 /** USR2 phase 4: passkeys of an Arx-only (local) identity (routers/local_passkeys.py). Lists never carry a credential id or a key. */
 import { STEP_UP_INLINE, api, get, patch, put } from './client';
 import type * as PkWire from './generated/wire-local-passkeys';
+import type { FactorResetCheck } from './second-factor';
 
 /* The shapes are the backend's response models (smplwise_vms/backend/smplwise/wire/local_passkeys.py, generated into
  * ./generated/wire-local-passkeys.ts; code review 07:F8 step 2). */
@@ -26,9 +27,14 @@ export const setPasskeyFirst = (on: boolean) => put<PasskeySummary>('auth/passke
 
 /** Administration: identity.directory.read to list, identity.local.manage to remove (with the administrator's own TOTP code when enrolled). */
 export const userPasskeys = (userId: string) => get<PkWire.UserPasskeys>(`identity/local-users/${encodeURIComponent(userId)}/passkeys`);
-export const adminRemovePasskey = (userId: string, id: string, ownCode?: string) =>
-  api<PkWire.UserPasskeyRemoved>(`identity/local-users/${encodeURIComponent(userId)}/passkeys/${encodeURIComponent(id)}`, {
+const adminPasskeyPath = (userId: string, id: string) => `identity/local-users/${encodeURIComponent(userId)}/passkeys/${encodeURIComponent(id)}`;
+/** MFA-PASSKEY-ADMIN-REMOVE-2520: the removal's preflight - the factor reset's (`factorResetCheck`) for one passkey; reads only. */
+export const adminRemovePasskeyCheck = (userId: string, id: string) => get<FactorResetCheck>(`${adminPasskeyPath(userId, id)}/remove-check`);
+/** MFA-PASSKEY-ADMIN-REMOVE-2520: `confirm` = the user's username as the administrator typed it (required, as the factor reset). */
+export const adminRemovePasskey = (userId: string, id: string, confirm: string, ownCode?: string) =>
+  api<PkWire.UserPasskeyRemoved>(adminPasskeyPath(userId, id), {
     method: 'DELETE',
+    body: JSON.stringify({ confirm }),
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
 

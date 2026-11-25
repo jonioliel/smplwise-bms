@@ -14,7 +14,9 @@ import type { TableColumn } from '../components/sw-table';
 import { ApiError, apiUrl, del, describeError, get, patch, post, put } from '../api/client';
 import { fmtWhen, type RoleInfo, type ScopeRef } from '../api/access';
 import { lit, type LocalIdentityKey } from '../i18n/local-identity';
-import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
+import { adminRemovePasskey, adminRemovePasskeyCheck, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
+import type { FactorResetCheck } from '../api/second-factor';
+import { refused, renderResetConfirm, resetConfirmStyles, resetErrorText, typedMatches } from '../components/factor-reset-confirm';
 import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
 import type * as LocalWire from '../api/generated/wire-local-identity';
@@ -42,6 +44,14 @@ interface LinkSent {
 }
 
 type LinkShown = { user: string } & LocalWire.LocalLink;
+
+/** MFA-PASSKEY-ADMIN-REMOVE-2520: an armed passkey removal (which passkey, its preflight, the typed username, the box's error). */
+interface PkArm {
+  pk: string;
+  check: FactorResetCheck | null | undefined;
+  typed: string;
+  error: string;
+}
 
 // sw-table renders the rows in its own shadow root: the cells carry their styles inline (this component's sheet never reaches them)
 const CELL = 'display:flex;flex-direction:column;gap:2px;align-items:flex-start';
@@ -106,11 +116,14 @@ export class SystemLocalUsers extends LitElement {
   @state() private pk: { userId: string; items: PasskeyView[] } | null = null;
   @state() private pkStepUp = false;
   @state() private pkCode = '';
+  /** MFA-PASSKEY-ADMIN-REMOVE-2520: the passkey whose removal is armed - the factor reset's dialog pattern (components/factor-reset-confirm):
+   * its preflight (undefined while read, null when unreadable), the username the administrator typed, and the box's own error. */
+  @state() private pkArm: PkArm | null = null;
   /** CR-LOCAL-ID-SWITCH-2442: the direction waiting for the administrator's confirmation, and the result line after it. */
   @state() private switching: 'on' | 'off' | null = null;
   @state() private switched = '';
 
-  static styles = css`
+  static styles = [resetConfirmStyles, css`
     :host {
       display: block;
     }
@@ -254,7 +267,39 @@ export class SystemLocalUsers extends LitElement {
     .note .actions {
       margin-block-start: 10px;
     }
-  `;
+    /* MFA-PASSKEY-ADMIN-REMOVE-2520: the removal's confirmation under the passkey (the factor reset's pattern, this page's tokens) */
+    .pk-reset {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-2);
+      align-items: flex-start;
+      padding-block: var(--sw-s-2);
+    }
+    .pk-reset .lbl {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .pk-reset .err {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-danger);
+    }
+    .pk-reset form.typed-form {
+      padding: 0;
+    }
+    .pk-reset input.typed {
+      min-block-size: var(--sw-ctl-h-md);
+      padding: var(--sw-s-1) var(--sw-s-2);
+      border: thin solid var(--sw-border-strong);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font-family: inherit;
+    }
+    .pk-reset input.typed:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+  `];
 
   @state() private narrow = false;
   private narrowMq: MediaQueryList | null = null;
@@ -512,22 +557,64 @@ export class SystemLocalUsers extends LitElement {
     }
   }
 
-  private async removePasskey(u: LocalUser, id: string) {
-    if (!(await confirmDialog({ body: lit('passkeyAdminRemoveConfirm'), danger: true }))) return;
-    void this.run(async () => {
-      try {
-        await adminRemovePasskey(u.id, id, this.pkStepUp ? this.pkCode.trim() : undefined);
-      } catch (err) {
-        // the administrator's own TOTP factor is on: the removal needs their current code (CR-011 M1)
-        if (err instanceof ApiError && err.body.code === 'second_factor_step_up_required') this.pkStepUp = true;
-        // MFA-FACTOR-HARDEN-2520 N-5: from outside, the administrator's own sign-in must be less than 5 minutes old
-        if (err instanceof ApiError && err.body.code === 'reauth_required') throw new Error(lit('passkeyReauth'));
-        throw err;
-      }
+  /** MFA-PASSKEY-ADMIN-REMOVE-2520: "remove" arms the box under the passkey and reads the removal's preflight (may it go ahead, the
+   * username to type, whether the user enrols again); an administrator with the authenticator code also types their own code. */
+  private async armPasskeyRemove(u: LocalUser, id: string) {
+    this.pkArm = { pk: id, check: undefined, typed: '', error: '' };
+    this.pkCode = '';
+    let check: FactorResetCheck | null = null;
+    try {
+      check = await adminRemovePasskeyCheck(u.id, id);
+    } catch {
+      check = null; // an older server or a failed read: the typed field is still asked, the server decides
+    }
+    if (this.pkArm?.pk !== id || this.selected !== u.id) return;
+    this.pkArm = { ...this.pkArm, check };
+    if (check?.step_up.methods.includes('totp')) this.pkStepUp = true;
+  }
+
+  private pkReady(): boolean {
+    const arm = this.pkArm;
+    return !!arm && arm.check !== undefined && !refused(arm.check) && typedMatches(arm.check, arm.typed) && (!this.pkStepUp || /^\d{6}$/.test(this.pkCode));
+  }
+
+  private async removePasskey(u: LocalUser) {
+    const arm = this.pkArm;
+    if (!arm || !this.pkReady()) return;
+    this.busy = true;
+    try {
+      await adminRemovePasskey(u.id, arm.pk, arm.typed, this.pkStepUp ? this.pkCode.trim() : undefined);
+      this.pkArm = null;
       this.pkCode = '';
       await this.load();
       await this.loadPasskeys(u.id);
-    });
+    } catch (err) {
+      // the administrator's own TOTP factor is on: the removal needs their current code (CR-011 M1)
+      if (err instanceof ApiError && err.body.code === 'second_factor_step_up_required') this.pkStepUp = true;
+      // MFA-FACTOR-HARDEN-2520 N-5: from outside, the administrator's own sign-in must be less than 5 minutes old
+      const text = err instanceof ApiError && err.body.code === 'reauth_required' ? lit('passkeyReauth') : resetErrorText(err);
+      if (this.pkArm?.pk === arm.pk) this.pkArm = { ...this.pkArm, error: text };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** The armed removal's box: the reset's confirmation (refusal, what goes, the typed username), the own code, remove / cancel. */
+  private renderPasskeyRemove(u: LocalUser, arm: PkArm): TemplateResult {
+    const no = refused(arm.check);
+    return html`<div class="pk-reset" data-local-passkey-remove-box>
+      <div class="lbl">${lit('passkeyAdminRemoveConfirm')}</div>
+      ${renderResetConfirm(arm.check, arm.typed, (v) => { if (this.pkArm) this.pkArm = { ...this.pkArm, typed: v, error: '' }; }, () => void this.removePasskey(u))}
+      ${this.pkStepUp && !no && arm.check !== undefined
+        ? html`<label>${lit('code')}<sw-field><input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
+            @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></sw-field></label>`
+        : nothing}
+      <div class="actions">
+        ${no ? nothing : html`<sw-button size="sm" variant="danger" ?disabled=${this.busy || !this.pkReady()} @click=${() => void this.removePasskey(u)} data-local-passkey-remove-confirm>${lit('passkeyAdminRemove')}</sw-button>`}
+        <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => { this.pkArm = null; this.pkCode = ''; }} data-local-passkey-remove-cancel>${lit('cancel')}</sw-button>
+      </div>
+      ${arm.error ? html`<div class="err" role="alert" data-local-passkey-remove-error>${arm.error}</div>` : nothing}
+    </div>`;
   }
 
   private passkeyFirstOff(u: LocalUser) {
@@ -560,6 +647,7 @@ export class SystemLocalUsers extends LitElement {
       this.pkRequested = u.id;
       void Promise.resolve().then(() => {
         this.pkStepUp = false;
+        this.pkArm = null;
         return this.loadPasskeys(u.id);
       });
     }
@@ -567,11 +655,8 @@ export class SystemLocalUsers extends LitElement {
     return html`<div class="full cell" data-local-passkeys>
       <span class="muted">${lit('passkeysCount', { n: u.passkeys ?? items.length })}${u.passkey_first ? html` · ${lit('passkeyFirstOn')}` : nothing}${u.passkey_only ? html` · ${po('onlyOn')}` : nothing}</span>
       ${items.map((p) => html`<span class="muted" data-local-passkey=${p.id}>${p.label || lit('passkeys')} · ${fmtWhen(p.created_at)}${p.synced ? html` · ${lit('passkeySynced')}` : nothing}${p.usable ? nothing : html` · ${lit('passkeyNotUsable')}`}
-        ${manage ? html`<sw-button size="sm" variant="ghost" @click=${() => this.removePasskey(u, p.id)} ?disabled=${this.busy} data-local-passkey-remove>${lit('passkeyAdminRemove')}</sw-button>` : nothing}</span>`)}
-      ${manage && this.pkStepUp
-        ? html`<label>${lit('code')}<sw-field><input class="ltr" inputmode="numeric" autocomplete="one-time-code" maxlength="6" .value=${this.pkCode}
-            @input=${(e: Event) => (this.pkCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} data-local-passkey-code /></sw-field></label>`
-        : nothing}
+        ${manage && this.pkArm?.pk !== p.id ? html`<sw-button size="sm" variant="ghost" @click=${() => void this.armPasskeyRemove(u, p.id)} ?disabled=${this.busy} data-local-passkey-remove>${lit('passkeyAdminRemove')}</sw-button>` : nothing}</span>
+        ${manage && this.pkArm && this.pkArm.pk === p.id ? this.renderPasskeyRemove(u, this.pkArm) : nothing}`)}
       ${manage && (u.passkey_only || (this.data?.passkey_first_allowed && (u.passkeys ?? items.length) > 0))
         ? html`<div class="actions"><sw-button @click=${() => this.passkeyOnly(u, !u.passkey_only)} ?disabled=${this.busy} data-local-passkey-only>${u.passkey_only ? po('onlyDisable') : po('onlyEnable')} · ${po('onlyLabel')}</sw-button></div>`
         : nothing}

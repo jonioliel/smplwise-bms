@@ -164,12 +164,16 @@ class UserPasskeys(WireModel):
 
 
 class UserPasskeyRemoved(WireModel):
-    """`DELETE /identity/local-users/{id}/passkeys/{pk_id}`: the user id, what the removal did, then the summary."""
+    """`DELETE /identity/local-users/{id}/passkeys/{pk_id}`: the user id, what the removal did, then the summary. MFA-PASSKEY-ADMIN-
+    REMOVE-2520 (additive): `must_enroll` = the removal took the user's last sign-in factor, so they enrol again (as after a reset);
+    `resets_left` = the administrator's resets / removals left this hour (one budget with the factor reset)."""
     user_id: str
     removed: str
     sessions_ended: int
     passkey_first: bool
     factor_cleared: bool
+    must_enroll: bool
+    resets_left: int
     available: bool
     rp_id: str | None
     origin: str | None
