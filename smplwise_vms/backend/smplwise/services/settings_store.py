@@ -330,6 +330,10 @@ DEFAULTS: dict[str, str] = {
     # auto (WisKey's W10 media while WisKey's discovery lists its commands, falling back to Arx's own source when WisKey's answer fails).
     # An Arx decision: a WisKey upgrade alone never changes Arx's live path.
     "access.station_media_provider": "local",
+    # WISKEY-MEDIA-V2-2530 (owner 25.11: media over v2 is a separate part, only after bridge 0.10.9): station media (video, talk, listen)
+    # over WisKey's signed direct transport v2 when the bridge key set is rotated - off (default: v1 exactly as before, a rotated key stays
+    # refused) | on (needs bridge 0.10.9+; a system administrator's switch, audited). services/wiskey_media_v2.py.
+    "access.station_media_direct_v2": "off",
     # W10CLIENT-295 (owner 2026-10-24): the longest a talk through the station may last, in seconds (default 300). WKDIRECT-295: the range is
     # WisKey's own (`station_media_max_talk_seconds`, exact int 1..86400, no 180 s clamp); WisKey's per-station value, advertised in its
     # descriptor, still applies on top: the effective limit is the smaller.
