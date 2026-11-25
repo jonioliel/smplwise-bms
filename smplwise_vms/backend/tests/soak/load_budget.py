@@ -172,7 +172,8 @@ def verdict(lines: list[dict[str, Any]]) -> str:
 def report_markdown(lines: list[dict[str, Any]], measured: dict[str, Any], routes: dict[str, dict[str, Any]], cfg: dict[str, Any]) -> str:
     out = [f"# Load budget run - {verdict(lines)}", "",
            f"Started {cfg.get('started_utc')}; measurement window {round((measured.get('window_s') or 0) / 60, 1)} min; "
-           f"mix: {cfg.get('mix')}; device restarts {'on' if cfg.get('restarts') else 'off'}; reason {measured.get('reason')}.", "",
+           f"mix: {cfg.get('mix')}; device restarts {'on' if cfg.get('restarts') else 'off'}; reason {measured.get('reason')}; "
+           f"host load avg {measured.get('host_load_avg')} / max {measured.get('host_load_max')}.", "",
            "| line | limit | measured | unit | status |", "|---|---|---|---|---|"]
     for r in lines:
         out.append(f"| {r['line']} | {r['limit']} | {r['value']} | {r['unit']} | {r['status']}{' - ' + r['note'] if r.get('note') else ''} |")
@@ -579,6 +580,9 @@ class LoadBudget(Soak):
             "live_opened": live_opened, "live_failed": live_failed,
             "live_failed_pct": round(100 * live_failed / (live_opened + live_failed), 1) if (live_opened + live_failed) else None,
             "requests_in_window": sum(n for k, n in codes.items()),
+            # context, not budget lines: the run shares its host (the runner) with other jobs; a busy host stretches the write-bound routes
+            "host_load_avg": round(statistics.fmean(num("host_load1")), 2) if num("host_load1") else None, "host_load_max": mx("host_load1"),
+            "host_mem_avail_min_mb": min(num("host_mem_avail_mb")) if num("host_mem_avail_mb") else None,
         }
 
     def write_report(self, budget: dict[str, Any], measured: dict[str, Any], table: dict[str, dict[str, Any]], cfg: dict[str, Any]) -> None:

@@ -4,6 +4,126 @@
 backend and the lab NVR / Home Assistant. These numbers describe *this* workstation and lab; the Home Assistant host
 (the add-on's real home) has not been measured yet. Read-only probe: every request is a GET the UI issues anyway.
 
+**Current budget:** the section "Resource budget 2.53" right below is the budget the add-on is held to from 2.53 on, checked by an
+automated run. Everything after it is the history of how the earlier lines were found and fixed (2026-09 / 2026-11).
+
+## Resource budget 2.53 (LOAD-BUDGET-2530)
+
+**How it is checked.** `smplwise_vms/backend/tests/soak/load_budget.py` drives the real backend (its own process, fresh data
+directory) with a realistic mix against the device fakes of the long soak, measures every line below and exits non-zero when one is
+over its limit. The limits live in `smplwise_vms/backend/tests/soak/load_budget.json` (one file, read by the run; changing a limit is
+a reviewed change of that file). The 14 h soak uses the same run with device restarts: `SOAK_14H_RUNBOOK.md`.
+
+```bash
+cd smplwise_vms/backend
+SW_SOAK=1 python tests/soak/load_budget.py --run-dir /tmp/lb --minutes 10        # ~14 min wall; budget_report.md in the run dir
+python tests/soak/load_budget.py --evaluate /tmp/lb [--budget other.json]        # re-judge a finished run
+```
+
+Opt-in (`SW_SOAK=1`), refuses to run inside the add-on, listens on 127.0.0.1 only, never touches a device. On the test runner it is
+queued through the slot wrapper like any other job (one job at a time); `tests/test_load_budget.py` holds its fast unit tests and an
+opt-in one-minute end-to-end run.
+
+**Reference configuration.** Linux test runner (16 threads, Intel Core i7-1260P, 16 GB shared with other jobs), Python 3.12.3,
+SQLite WAL, one uvicorn process (asyncio + h11), the backend under `nice 19` (the slot wrapper). This host is several times faster per
+core than the small Home Assistant boxes the add-on runs on; the latency limits are the product's user-facing targets and keep that
+headroom on purpose, the resource limits (memory, connections, streams) do not depend on CPU speed.
+
+**The mix (per run, all at once).** Devices: 8 cameras on the fake NVR (alert stream ~6 alerts/s over 8 channels: ~4.7k alerts in
+16 min, 29 % coalesced), the fake Home Assistant with 600 entities and ~15-20 `state_changed`/s plus the fake WisKey, the fake
+go2rtc (stream registry + media socket, ~80 KB/s per viewer). Clients, with the UI's own polling periods: 8 camera-wall screens
+(health summary every 15 s, camera list every 2 min), 6 home wall panels (building presence every 30 s, notices every 60 s), 8 notice
+TV boards (feed with token + If-None-Match every 30 s), a notice author (publish + archive every 2 min), 4 operators cycling 13
+screens with 2-6 s think time, an acker (10 s), an exporter (a 10-minute export every 3 min), 3 event-feed WebSockets, 4 live
+viewers opening a camera for 20-90 s then the next. About 3 requests/s, 0.2 MB/s of live media relayed.
+
+**Phases.** Idle 60 s (devices flowing, no clients: the idle memory line), warm-up 120 s (not counted), the measured window, then
+the drain: every client stops and the backend must hold no WebSocket, live session, event subscriber or go2rtc media socket
+within 20 s.
+
+### The budget and what was measured
+
+Run 1: 2026-11-25 14:54Z, commit `f595e84af` (harness) on `release/2520-train` @ `eadaa25b8`, 10-minute window, host load 1-9
+(average 4.1; other jobs). Run 2: 2026-11-25 15:19Z, commit `e2ab53fed` (calibrated budget), 15-minute window, host
+load 4.7-12.6 (average 8.5). Both runs: verdict FAIL (run 1 on two draft limits, corrected; run 2 on three latency lines, see below).
+
+| line | limit | run 1 | run 2 |
+|---|---|---|---|
+| operator screens, p50 / p95 (pooled) | 300 / 1500 ms | 6.2 / 32.6 ms | 7.0 / 44.9 ms |
+| operator screens, worst single route p95 | 2000 ms | 113.8 ms (`/events/windows`) | 184.2 ms (`/ha/entities`) |
+| polling (wall, home panel, TV), p50 / p95 | 150 / 500 ms | 8.5 / 45.4 ms | 9.3 / 379.7 ms |
+| polling, worst single route p95 | 800 ms | 297 ms (TV feed) | **1217 ms (TV feed) FAIL** |
+| writes (ack, export, notice), p95 / worst route p95 | 2000 / 3000 ms | 1022 / 1087 ms (ack) | 1988 / **6037 ms (export create, n = 5) FAIL** |
+| live view, first media chunk p95 | 2000 ms | 970 ms | **3123 ms FAIL** |
+| backend RSS, idle with device sync | 400 MB | 354.9 MB | 353.7 MB |
+| backend RSS, highest under load | 450 MB | 395.6 MB | 405.9 MB |
+| RSS growth over the window (median last 3 - first 3) | 40 MB (120 with restarts) | 27.0 MB | 32.2 MB |
+| RSS slope (leak line) | 15 MB/h, judged on >= 120 min only | not judged (161 MB/h over 10 min: warm-up steps) | not judged (128 MB/h over 15 min) |
+| Python objects growth | 5 % (10 with restarts) | 0.02 % | 0.15 % |
+| backend CPU, average | 25 % of one core (35 with restarts) | 8.9 % (p95 of samples 13.3 %) | 9.0 % (p95 14.6 %) |
+| database + WAL growth | 60 MB/h | 34.1 MB/h (17.5 MB at the end) | 36.6 MB/h (20.9 MB) |
+| largest WAL | 64 MB | 4.1 MB | 4.5 MB |
+| open fds, max / growth | 200 / 20 | 66 / 10 | 68 / 11 |
+| open sockets, max / growth | 80 / 8 | 29 / -4 | 33 / 1 |
+| threads, max / growth | 64 / 4 | 47 / 1 | 49 / 0 |
+| event-loop lag, worst sample p99 | 100 ms | 5.9 ms (single max 264 ms while the host load was 4) | 30.3 ms (single max 221 ms) |
+| go2rtc streams registered | 16 (8 cameras x main / sub) | 8 | 8 |
+| go2rtc media sockets beyond open viewers | 0 | 0 (max 4 = viewers) | 0 (max 4) |
+| after the drain: WebSockets / live sessions / subscribers / go2rtc media | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| HTTP 5xx / unexpected 4xx / client errors | 0 / 0 / 0 (10 / 10 / 60 with restarts) | 0 / 0 / 0 of 1839 requests | 0 / 0 / 0 of 2787 requests |
+| `database is locked` | 0 | 0 | 0 |
+| longest write-lock hold | 3 s | 2.56 s (`events_ingest._write`) | 2.26 s (`ha_sync._write`) |
+| longest write-lock wait | 5 s | 4.71 s (`ha_sync._write`; 123 waits over 1 s) | 3.45 s (`thumbnails.generate`; 259 waits over 1 s) |
+| alerts dropped by the ingest queue | 0 | 0 (high water 59 / 256) | 0 (high water 62) |
+| live views failed | 0 % (5 % with restarts) | 0 of 50 | 0 of 69 |
+
+Run 1's verdict was FAIL on two lines, both limits of the first draft corrected from it: the idle RSS (draft 250 MB, measured
+355 MB) and a "go2rtc streams must not grow" line that is wrong for a short window (streams are registered the first time a camera
+is viewed: 4 -> 8 during the window, then flat). The draft's 250 MB came from the 2026-09 line (< 200 MB, Windows, 0.1.34, 93 MB
+measured); the 2.52 backend with 600 HA entities and every module loaded idles at ~355 MB, and the 2.40.6 soak already saw 251 MB
+at its first loaded sample. The new line (400 MB idle, 450 MB loaded) is the measured value plus ~13 %.
+
+Run 2 (the calibrated budget, on a host twice as busy as in run 1) failed three latency lines, all on routes that wait for the
+write lock: the TV board feed (p95 1217 ms of 800; see the next paragraph), export create (worst p95 6.0 s of 3 s; 5 requests, so
+the p95 is the slowest one) and the first live chunk (p95 3.1 s of 2 s). Every resource, connection, drain and error line passed in
+both runs. The limits were not relaxed after run 2: a breach on a busy host is what the budget is for, and the write-bound routes
+are the ones a slow Home Assistant box will feel first. The run report states the host load (`host_load_avg` / `host_load_max`)
+so a breach can be read against it.
+
+### What the numbers say
+
+- **Reads have a lot of headroom** on this host: the operator screens' pooled p95 was 33-45 ms in both runs; in run 1 every
+  pooled p95 was under 50 ms except writes (~1 s) and the first live chunk (~1 s). The writes' p95 is the fair write queue at work:
+  an acknowledgement waits behind the alert writer and the HA state writer (`waits_over_1s` 123 in 10 minutes in run 1, 259 in
+  15 minutes in run 2), not a slow statement.
+- **The write lock is the line closest to its limit**: longest hold 2.56 s of 3 s (the alert writer) and longest wait 4.71 s of 5 s
+  (the HA state writer) in run 1; 2.26 s / 3.45 s in run 2; both runs with the host's load at 1-13 from other jobs while the backend
+  runs at `nice 19` (the one-minute smoke run on a quieter host, load ~2.5, held the lock at most 1.06 s). The routes that wait for
+  it (acknowledge, export create, live start, the TV feed) are the ones that went over budget in run 2, and the first to watch on a
+  slow Home Assistant box.
+- **Single stalls of 3.6-5.7 s** in run 1 (one or two requests on the health summary, the TV feed, building presence and the first
+  live chunk, at the same minute) coincide with the loop-lag maximum and a host load spike; the p95 of those routes stayed at
+  13-297 ms.
+- **The TV board feed writes.** `GET /notices/display/<slug>` records `last_seen_at` once a minute per board inside the request
+  (`services/notices/display.py` `touch_seen`), so every other poll of a 30 s board waits for the write lock; that is the likely
+  reason the feed's p95 is the highest of the polling routes (297 ms in run 1, 1217 ms in run 2 - over budget - while its p50 stays
+  13-17 ms). Not changed in this row (test-and-docs only); moving the write out of the request is the proposed follow-up.
+- **Memory moves in steps, not a slope**: run 1 366 -> 374 MB in the first 4 minutes of load, flat for 3 minutes, one step to
+  396 MB at an export; run 2 373 -> 375 MB over 4 minutes, steps to 390 MB, flat for 5 minutes, steps to 406 MB. 10-15 minutes cannot
+  tell a leak from allocator high-water marks; the slope line is judged only on runs of 2 h or more
+  (the 14 h soak).
+- **Database growth (34-37 MB/h)** is the fake devices' rate (6 alerts/s, ~15 HA state changes/s around the clock) with nothing old
+  enough to prune; retention (30 days for events and HA history) bounds a real installation. The rate is a budget line so that a
+  change that writes more per event shows up.
+- **Connections are bounded and drain to zero**: fds 48-68, sockets 18-33, every WebSocket, live session, event subscriber and
+  go2rtc media socket closed within the 20 s drain.
+
+### Not covered by this run
+
+- The Home Assistant host itself (CPU per stream / transcode on a real go2rtc): device-dependent, stays open in "Not measured yet".
+- Real NVR search and download timings (the fake answers at once).
+- Multi-day leak check: the 14 h soak with restarts (`SOAK_14H_RUNBOOK.md`) judges the slope line; it runs after the 2.52 gate.
+
 ## Reference configuration
 
 | Item | Value |
@@ -82,6 +202,9 @@ Run 2 (after the fixes), backend restarted seconds before the run (cold caches, 
   visible across the two probe runs (92.5 → 92.6 MB). A multi-day leak check is still open.
 
 ## Budgets the pilot commits to (reference workstation)
+
+> Historical (2026-09, 0.1.x on the Windows workstation). Superseded from 2.53 by "Resource budget 2.53" above; the memory
+> line in particular (< 200 MB) no longer holds for the 2.5x backend (355 MB idle on Linux with 600 HA entities).
 
 | Budget | Target | Measured |
 |---|---|---|
