@@ -119,7 +119,7 @@ test('SCR-05: only a pressed "send" that failed offline goes out by itself; a ch
   }
   // the page wires the "online" event to the queued send only, and shows the queue with a cancel in four languages
   const main = readFileSync(path.join(SRC, 'main.ts'), 'utf8');
-  const online = main.slice(main.indexOf("addEventListener('online'"), main.indexOf("addEventListener('online'") + 300);
+  const online = main.slice(main.indexOf("addEventListener('online'"), main.indexOf("addEventListener('online'") + 500);
   expect(online).toContain('this.queued()');
   expect(main).toContain('resendOnReconnect(this.draft, linkId(this.creds.token))');
   expect(online).not.toContain('hasDraft');
