@@ -35,3 +35,9 @@ const active = (): GenText => (uiLang() === 'en' ? englishText() : he.generator)
 export const GEN: GenText = new Proxy(he.generator, { get: (_t, k) => active()[k as keyof GenText] });
 /** `he.generator.settings` of the active language (each key resolved on read). */
 export const GEN_SETTINGS: GenText['settings'] = new Proxy(he.generator.settings, { get: (_t, k) => active().settings[k as keyof GenText['settings']] });
+
+/** GEN-SENSOR-NAMES-EN-2520: a word the server sends in Hebrew with an English twin (an alert type's `title_en`, the "requires sensor"
+ * `needs_en`, a sensor role's `label_en`): the English on an English page when the server sent one, else the server's Hebrew word (a Hebrew
+ * page - its output is unchanged - or an older server without the English field). */
+export const genServerWord = <T extends string | null | undefined>(heWord: T, enWord?: string | null): T | string =>
+  uiLang() === 'en' && enWord ? enWord : heWord;

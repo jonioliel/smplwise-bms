@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { Caps, capsOf, customRangeError, engineRows, fill, filterQuery, EMPTY_FILTER, flowPlan, gaugeList, metricsOf, phaseTable, phoneKpis, plotSeries, renderTemplate, routeGroups, routingEmpty, effectiveRecipients, availableVars, viewModeOf, alertCounts, sortOpen, toCsv } from '../src/generator/gen-logic';
-import { normalizeViewMode, type GenAlert, type PolicyItem, type SeverityDefaults } from '../src/api/generator';
+import { normalizeViewMode, type GenAlert, type HistoryResponse, type PolicyItem, type SeverityDefaults } from '../src/api/generator';
 import { GRT_KEYS, GRT_TABLES } from '../src/i18n/generator-routing';
 import { INFRA_TABS, applyInfraGenerator, visibleTabs } from '../src/shell/nav';
 import { ROLES, deviceFor, valuesFor, typesFor, GROUPS } from './generator-fixtures';
@@ -114,6 +114,19 @@ test.describe('generator: charts, ranges, view mode', () => {
     const csv = toCsv({ step_s: 300, source: 'rollup_5m', from: 0, to: 600, series: { fuel_pct: [{ t: 0, v: 90, min: 90, max: 90 }, { t: 300, v: 89, min: 89, max: 89 }] }, units: { fuel_pct: '%' }, labels: { fuel_pct: 'דלק' }, range: '24h' }, ['fuel_pct']);
     expect(csv.split('\n')).toHaveLength(3);
     expect(csv.split('\n')[0]).toContain('(%)');
+  });
+  test('GEN-SENSOR-NAMES-EN-2520: csv headers in the page language, the Hebrew file unchanged', () => {
+    const h: HistoryResponse = { step_s: 300, source: 'rollup_5m', from: 0, to: 300, series: { fuel_pct: [{ t: 0, v: 90, min: 90, max: 90 }], battery_v: [{ t: 0, v: 27, min: 27, max: 27 }] }, units: { fuel_pct: '%', battery_v: 'V' }, labels: { fuel_pct: 'מפלס דלק', battery_v: 'מתח מצבר' }, range: '24h' };
+    const withEn: HistoryResponse = { ...h, labels_en: { fuel_pct: 'Fuel level' } };
+    const heOld = toCsv(h, ['fuel_pct', 'battery_v']);
+    expect(heOld.split('\n')[0]).toBe('"time","מפלס דלק (%)","מתח מצבר (V)"');
+    // Hebrew: byte-identical with or without the English names
+    expect(toCsv(withEn, ['fuel_pct', 'battery_v'])).toBe(heOld);
+    expect(toCsv(withEn, ['fuel_pct', 'battery_v'], 'he')).toBe(heOld);
+    // English: the server's English name; a role without one keeps the server's word; the rows are the same
+    const en = toCsv(withEn, ['fuel_pct', 'battery_v'], 'en').split('\n');
+    expect(en[0]).toBe('"time","Fuel level (%)","מתח מצבר (V)"');
+    expect(en.slice(1)).toEqual(heOld.split('\n').slice(1));
   });
 });
 

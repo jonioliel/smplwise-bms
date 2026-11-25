@@ -18,7 +18,7 @@ import {
 } from '../api/generator';
 import { describeError } from '../api/client';
 import { t } from '../i18n/he';
-import { GEN_SETTINGS } from './gen-text';
+import { GEN_SETTINGS, genServerWord } from './gen-text';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -205,8 +205,9 @@ export class GenSettings_ extends LitElement {
         const cur = r.role in edits ? edits[r.role] : r.entity_id;
         const opts = [...(r.candidates ?? [])];
         if (r.entity_id && !opts.some((o) => o.entity_id === r.entity_id)) opts.unshift({ entity_id: r.entity_id, name: r.entity_name ?? r.entity_id, unit: r.unit, score: 0 });
-        return html`<div class="map-row" data-role=${r.role}><div><span class="b">${r.label}</span> ${r.core ? html`<span class="chip c-acc nodot">${S.mapCore}</span>` : nothing}${r.disabled_in_source && !r.mapped ? html`<div class="mut">${S.mapDisabled}</div>` : nothing}</div>
-          <select aria-label=${r.label} .value=${cur ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; const orig = r.entity_id ?? ''; const next = { ...this.roleEdits }; if (v === orig) delete next[r.role]; else next[r.role] = v === '' ? null : v; this.roleEdits = next; }}>
+        const label = genServerWord(r.label, r.label_en); // GEN-SENSOR-NAMES-EN-2520: the sensor's name in the page language
+        return html`<div class="map-row" data-role=${r.role}><div><span class="b" data-role-label>${label}</span> ${r.core ? html`<span class="chip c-acc nodot">${S.mapCore}</span>` : nothing}${r.disabled_in_source && !r.mapped ? html`<div class="mut">${S.mapDisabled}</div>` : nothing}</div>
+          <select aria-label=${label} .value=${cur ?? ''} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; const orig = r.entity_id ?? ''; const next = { ...this.roleEdits }; if (v === orig) delete next[r.role]; else next[r.role] = v === '' ? null : v; this.roleEdits = next; }}>
             <option value="" ?selected=${!cur}>${r.mapped ? S.mapClear : S.mapNone}</option>${opts.map((o) => html`<option value=${o.entity_id} ?selected=${o.entity_id === cur}>${o.name}${o.unit ? ` (${o.unit})` : ''}</option>`)}</select>
           <span class="chip c-${r.mapped ? (r.mapped_by === 'manual' ? 'acc' : 'ok') : 'mut'} nodot">${r.mapped ? (r.mapped_by === 'manual' ? S.mapManual : S.mapAuto) : S.mapNone}</span></div>`;
       })}</div>

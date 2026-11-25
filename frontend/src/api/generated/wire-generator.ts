@@ -72,6 +72,7 @@ export interface GeneratorAlertTypeState {
   title: string;
   available: boolean;
   needs: string | null;
+  needs_en?: string | null;
 }
 
 export interface GeneratorCapabilities {
@@ -168,6 +169,7 @@ export interface GeneratorHistory {
   series: Record<string, GeneratorHistoryPoint[]>;
   units: Record<string, string>;
   labels: Record<string, string>;
+  labels_en?: Record<string, string>;
   range: string;
 }
 
@@ -265,6 +267,7 @@ export interface GeneratorPolicyItem {
   event: boolean;
   available: boolean;
   needs: string | null;
+  needs_en?: string | null;
   message: string;
   message_sample: string;
   policy: GeneratorPolicy | null;
@@ -289,6 +292,7 @@ export interface GeneratorRoleDetail {
 export interface GeneratorRoleMapping {
   role: string;
   label: string;
+  label_en?: string;
   kind: string;
   unit: string;
   core: boolean;

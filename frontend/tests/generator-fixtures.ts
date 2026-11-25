@@ -41,13 +41,22 @@ const TYPES = [
 ] as const;
 /** GEN-UNITS-FIELD-2520: the English titles the server sends with each type (`title_en`, services/generator_catalog.py). */
 export const TITLE_EN: Record<string, string> = { fail_to_start: 'Failed to start', low_oil_pressure: 'Low oil pressure', high_coolant_temp: 'High coolant temperature', low_fuel: 'Low fuel level', overload: 'Overload', battery_low: 'Low battery voltage', mains_lost: 'Mains lost', service_due: 'Service due', controller_offline: 'Controller offline' };
-const NEEDS: Record<string, string[]> = { low_oil_pressure: ['oil_pressure'], high_coolant_temp: ['coolant_temp'], low_fuel: ['fuel_pct'], overload: ['gen_kw', 'load_pct'], battery_low: ['battery_v'], mains_lost: ['mains_available'], service_due: ['service_hours_left'] };
+/** GEN-SENSOR-NAMES-EN-2520: the server's sensor names (services/generator_catalog.py ROLES Hebrew label + ROLE_NAMES_EN) for the roles the mock
+ * names: the routing screen's "requires sensor" (`needs` / `needs_en`) and the sensor-mapping tab (`label` / `label_en`). */
+export const ROLE_NAMES: Record<string, { he: string; en: string }> = {
+  engine_state: { he: 'מצב מנוע', en: 'Engine state' }, gen_v_l1: { he: 'מתח גנרטור L1', en: 'Generator voltage L1' }, fuel_pct: { he: 'מפלס דלק', en: 'Fuel level' },
+  battery_v: { he: 'מתח מצבר', en: 'Battery voltage' }, oil_pressure: { he: 'לחץ שמן', en: 'Oil pressure' }, coolant_temp: { he: 'טמפרטורת נוזל קירור', en: 'Coolant temperature' },
+  load_pct: { he: 'עומס', en: 'Load' }, gen_kw: { he: 'הספק', en: 'Power' }, mains_available: { he: 'רשת זמינה', en: 'Mains available' },
+  service_hours_left: { he: 'שעות לטיפול הבא', en: 'Hours to next service' },
+};
+const roleName = (r: string, lang: 'he' | 'en') => ROLE_NAMES[r]?.[lang] ?? r;
+const NEEDS: Record<string, string[]> = { low_oil_pressure: ['oil_pressure'], high_coolant_temp: ['coolant_temp'], low_fuel: ['fuel_pct'], overload: ['load_pct', 'gen_kw'], battery_low: ['battery_v'], mains_lost: ['mains_available'], service_due: ['service_hours_left'] };
 export const GROUPS = [{ key: 'engine', title: 'מנוע' }, { key: 'fuel', title: 'דלק' }, { key: 'electrical', title: 'חשמל הגנרטור' }, { key: 'mains', title: 'רשת ומתג העברה' }, { key: 'maintenance', title: 'תחזוקה ומבחנים' }, { key: 'comm', title: 'תקשורת ומצב בקר' }];
 
 export const typesFor = (level: Level) => TYPES.map(([key, group, title]) => {
   const need = NEEDS[key];
   const available = !need || need.some((r) => ROLES[level].includes(r));
-  return { key, group, title, available, needs: available ? null : need.join(', ') };
+  return { key, group, title, available, needs: available ? null : need.map((r) => roleName(r, 'he')).join(', '), needs_en: available ? null : need.map((r) => roleName(r, 'en')).join(', ') };
 });
 
 export function deviceFor(id: string, name: string, level: Level, sc: Scenario, open = 0, detail = true): GenDevice {

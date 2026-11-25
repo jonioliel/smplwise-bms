@@ -354,10 +354,13 @@ export function customRangeError(from: string, to: string, retentionDays: number
   return null;
 }
 
-export function toCsv(h: HistoryResponse, roles: string[]): string {
+/** The history as CSV. GEN-SENSOR-NAMES-EN-2520: `lang` 'en' names the columns by the server's English names (`labels_en`); the Hebrew file is
+ * unchanged (the default, and a role without an English name). */
+export function toCsv(h: HistoryResponse, roles: string[], lang: 'he' | 'en' = 'he'): string {
   const times = new Set<number>();
   for (const r of roles) for (const p of h.series[r] ?? []) times.add(p.t);
-  const head = ['time', ...roles.map((r) => `${h.labels[r] ?? r} (${h.units[r] ?? ''})`)];
+  const name = (r: string) => (lang === 'en' ? h.labels_en?.[r] : undefined) ?? h.labels[r] ?? r;
+  const head = ['time', ...roles.map((r) => `${name(r)} (${h.units[r] ?? ''})`)];
   const lines = [...times].sort((a, b) => a - b).map((t) => [new Date(t * 1000).toISOString(), ...roles.map((r) => h.series[r]?.find((p) => p.t === t)?.v ?? '')].join(','));
   return [head.map((c) => `"${c.replace(/"/g, '""')}"`).join(','), ...lines].join('\n');
 }
