@@ -172,7 +172,7 @@ export interface BackupDrillStatusLastCheck {
   name: string;
   ok: boolean;
   severity: string;
-  detail?: Record<string, number>;
+  detail?: unknown;
 }
 
 export interface BackupDrillStatusLastRestore {
@@ -201,6 +201,7 @@ export interface BackupDrillStatusLastTimingsMs {
   scratch_schema: number;
   restore: number;
   verify: number;
+  live_copy_restore?: number;
   total: number;
 }
 
@@ -230,6 +231,8 @@ export interface BackupRestoreBackup {
   update_apply_enabled: BackupRestoreBackupUpdateApplyEnabled;
   backgrounds_rejected: unknown[];
   capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings;
+  dependents_dropped: Record<string, number>;
+  settings_invalid: string[];
   sensitive: BackupRestoreBackupSensitive;
   passwords: BackupRestoreBackupPasswords | null;
   safety_archive: BackupRestoreBackupSafetyArchive | null;

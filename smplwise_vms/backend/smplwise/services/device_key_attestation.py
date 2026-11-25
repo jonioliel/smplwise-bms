@@ -7,7 +7,9 @@ register payload is the exact text the new key then signs (`arx-device-key|v1|re
 Keystore's certificate chain (leaf first, base64 DER) with the registration. This module judges that chain OFFLINE:
 
 1. the leaf certifies the very public key being registered;
-2. every certificate of the path is signed by the next one, and the path ends at a PINNED Google hardware attestation root
+2. every certificate of the path is signed by the next one, every certificate above the leaf is a CA (BasicConstraints cA, keyCertSign
+   when a KeyUsage is present, the pathLenConstraint kept) and only the leaf carries the KeyDescription (SEC-FIX-2520 SEC-2:
+   device_attestation.ca_path_problem), and the path ends at a PINNED Google hardware attestation root
    (`smplwise/assets/attestation/google_roots.json`, fetched from Google's published list and reviewed - no network at runtime). A root
    is matched by its public key, so a chain that carries an older issue of the same root key (Google re-issued its RSA root in 2016,
    2019 and 2022) is anchored all the same; whatever the chain carries above the anchor is ignored;
@@ -182,6 +184,9 @@ def _verify(data: Any, key_spki: bytes, challenge: bytes, now: dt.datetime, pinn
         # the chain carries a pinned root key but its last link to it is broken: a broken chain, not a foreign root
         return Result(FAILED, reason="chain_signature" if anchor is not None else "untrusted_root", chain_len=n)
     root_prefix = pinned.root_spkis[_spki(root)]
+    problem = da.ca_path_problem(path + [root])  # SEC-FIX-2520 SEC-2: every certificate above the leaf is a CA, the extension on the leaf only
+    if problem is not None:
+        return Result(FAILED, reason=problem, root=root_prefix, chain_len=n)
     for cert in path:
         if not (cert.not_valid_before_utc <= now <= cert.not_valid_after_utc):
             return Result(FAILED, reason="certificate_not_valid_now", root=root_prefix, chain_len=n)

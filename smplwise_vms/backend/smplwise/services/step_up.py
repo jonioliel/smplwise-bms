@@ -654,13 +654,15 @@ def guard(conn: sqlite3.Connection, request: Any, principal: Any, permission: st
 
 
 def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: str, *, once: bool = False, reason: str = "step_up_required",
-            error: ApiError | None = None) -> None:
+            error: ApiError | None = None, wrong_code: Any = None) -> None:
     from .. import correlation_id
     from ..audit import audit
     from ..db import read_mode, rollback_and_restart
 
     if not read_mode(conn) and conn.in_transaction:
         rollback_and_restart(conn)  # nothing the request wrote before the gate stays (an ApiError commits)
+        if wrong_code is not None:  # SEC-FIX-2520 SEC-1: the rollback took the wrong-code count with it - count it again
+            reason, error = _recount_wrong_code(conn, principal, wrong_code)
     details = {"permission": permission, "method": request.scope.get("method") or "", "route": _route(request), **({"once": True} if once else {})}
     audit(conn, actor=principal, action="auth.step_up.required" if error is None else "auth.step_up.failed", decision="denied",
           resource_type="step_up", resource_id=permission, reason=reason, request_id=correlation_id.of(request), details=details)
@@ -669,6 +671,30 @@ def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: 
     if once:
         raise ApiError(403, "step_up_required", ONCE_REQUIRED_HE, details=once_details(conn, principal, permission))
     raise required_error(conn, principal, permission)
+
+
+def _wrong_code_error(exc: Any) -> ApiError:
+    status = 429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409
+    return ApiError(status, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked")
+
+
+def _recount_wrong_code(conn: sqlite3.Connection, principal: Any, exc: Any) -> tuple[str, ApiError]:
+    """SEC-FIX-2520 SEC-1 (DEEP-REVIEW-2520-SECURITY): second_factor.verify counted a wrong inline code on the request's
+    transaction, and _refuse rolled that transaction back - the lockout of the conditional once-actions (a new system
+    administrator, a restore) never engaged. Count it again on the fresh transaction (which commits with the refusal, like its
+    audit row): the same FAILURES rule, limits and lockout as every other wrong-code path. A lockout that already ran before
+    this request is left as it is (never re-counted into an unlock); `unreadable` is not a guess and is not counted."""
+    from . import second_factor as sf
+
+    if exc.code not in ("invalid", "locked"):
+        return f"step_up_{exc.code}", _wrong_code_error(exc)
+    if sf.FAILURES.locked(conn, principal.user_id):
+        out = sf.SecondFactorError("locked", sf.LOCKED_HE)
+    elif sf.FAILURES.fail(conn, principal.user_id):
+        out = sf.SecondFactorError("locked", sf.LOCKED_HE)
+    else:
+        out = sf.SecondFactorError("invalid", sf.INVALID_HE)
+    return f"step_up_{out.code}", _wrong_code_error(out)
 
 
 ONCE_REQUIRED_HE = "לפעולה הזו צריך לאשר שוב את הזהות בכל פעם: בקוד הנוכחי מאפליקציית האימות, במפתח גישה או במפתח הטלפון."
@@ -703,9 +729,8 @@ def require_once_when_on(conn: sqlite3.Connection, request: Any, principal: Any,
         except OnceProofMissing:
             _refuse(conn, request, principal, action, once=True)
         except sf.SecondFactorError as exc:
-            status = 429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409
-            _refuse(conn, request, principal, action, once=True, reason=f"step_up_{exc.code}",
-                    error=ApiError(status, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked"))
+            _refuse(conn, request, principal, action, once=True, reason=f"step_up_{exc.code}", error=_wrong_code_error(exc),
+                    wrong_code=exc)
     if state is not None:
         setattr(state, ONCE_DONE_ATTR, action)
         setattr(state, STATE_ATTR, "ok")

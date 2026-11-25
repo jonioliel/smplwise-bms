@@ -325,10 +325,100 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.owner_contacts", "bridge.watchdog", "
 # WXH4-EMERGENCY-REVOKE-2407: an emergency revocation of the bridge key is THIS box's security state - a restore can neither lift it (the
 # bridge operations stay blocked until the bridge proves the new code) nor invent one
 SETTINGS_KEEP = SETTINGS_KEEP | {"bridge.revocation"}
+# SEC-FIX-2520 SEC-3 (DEEP-REVIEW-2520-SECURITY): the older remote sign-in policy was not on this list, so every restore put the
+# archive's (older, possibly looser) values back: the second-factor policy and its bearer switch, the remote-access policy, the
+# administrators' MFA rule and default, the strict CSP, and the Arx-only identities' session / password / lockout rules.
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.second_factor_policy", "security.second_factor_bearer", "remote.policy", "remote.require_mfa_admin",
+                                 "remote.admins_default", "remote.csp_enforce", "remote.session",
+                                 "remote.idle_lock_minutes", "security.local_session", "security.local_admin_session_days",
+                                 "security.local_password_min", "security.local_lock_mode", "security.local_link_ttl_h",
+                                 "security.building_reach"}  # round 14: how far a building binding reaches (permission reach)
+# SEC-FIX-2520 SEC-3: the security and remote-access families are kept BY DEFAULT (fail closed): a `security.*` / `remote.*` key is
+# never exported and never restored unless it is named in SETTINGS_TRAVEL - presentation and resource preferences that hold no
+# sign-in or access rule. Every key of the families is classified by name in SETTINGS_KEEP or SETTINGS_TRAVEL
+# (tests/test_secfix_restore_settings_2520.py fails for a new key that is in neither).
+POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.", "access.station_")
+# DEEP-REVIEW-2520-BACKEND-CORE CORE-04: listening and media through the door stations (privacy policy, the `access.station_*` family -
+# fail closed like the families above) and how long the audit is kept (an archive must never shorten it)
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_listen", "access.station_media", "access.station_media_max_talk_s",
+                                 "access.station_media_provider", "audit.retention_days"}
+SETTINGS_TRAVEL = frozenset({"remote.default_profile", "remote.wall_profile", "remote.max_live_streams", "remote.mse_fallback"})
+
+# CORE-02 (DEEP-REVIEW-2520-BACKEND-CORE): when the automatic daily backup last ran and which archive was last handed to the off-box
+# copies - runtime state of THIS installation (an archive's older record would make the next copy late), never exported or restored
+DAILY_STATE_KEY = "backup.daily.state"
+SETTINGS_KEEP = SETTINGS_KEEP | {DAILY_STATE_KEY}
 
 
 def _kept_setting(key: Any) -> bool:
-    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES))
+    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES)
+                                     or (key.startswith(POLICY_PREFIXES) and key not in SETTINGS_TRAVEL))
+
+
+def _patch_fields() -> dict[str, Any]:
+    """The PATCH /settings model's fields by their settings key (call time: the router is imported only when a restore runs)."""
+    from ..routers.settings import SettingsPatch
+
+    return {f.alias: f for f in SettingsPatch.model_fields.values() if f.alias}
+
+
+def _valid_setting_value(key: str, value: Any, fields: dict[str, Any]) -> bool:
+    """CORE-04 (DEEP-REVIEW-2520-BACKEND-CORE): an archive's settings row passes the checks a normal settings write runs - the
+    PATCH /settings model's type, pattern, enum and range for a key it knows (the stored text as it is, or its JSON for an object,
+    a list or a number), an integer for INT_KEYS. A key that neither knows (a module's own setting, written through its own route)
+    is taken as before. Stored values are text: anything else is refused."""
+    from pydantic import ValidationError
+
+    from ..routers.settings import SettingsPatch
+    from .settings_store import INT_KEYS
+
+    if value is None or value == "":
+        return True  # an empty row reads as the default (settings_store.read_settings: `stored or default`)
+    if not isinstance(value, str):
+        return False
+    if key in INT_KEYS:
+        try:
+            int(value)
+        except ValueError:
+            return False
+    if key not in fields:
+        return True
+    try:
+        SettingsPatch.model_validate({key: value})
+        return True
+    except ValidationError:
+        pass
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return False
+    if parsed is None:
+        return False
+    try:
+        SettingsPatch.model_validate({key: parsed})
+        return True
+    except ValidationError:
+        return False
+
+
+def _drop_invalid_settings(data: dict[str, list[dict[str, Any]]]) -> list[str]:
+    """CORE-04: remove, in place, the archive's settings rows whose value a settings write would refuse; returns their keys. The
+    installation keeps its current value of such a key (a `replace` restore does not delete it) - never a value that breaks
+    GET /settings or the housekeeping pass."""
+    rows = data.get("settings")
+    if not rows:
+        return []
+    fields = _patch_fields()
+    keep: list[dict[str, Any]] = []
+    bad: list[str] = []
+    for r in rows:
+        key = r.get("key") if isinstance(r, dict) else None
+        if isinstance(key, str) and not _kept_setting(key) and not _valid_setting_value(key, r.get("value"), fields):
+            bad.append(key)
+            continue
+        keep.append(r)
+    rows[:] = keep
+    return sorted(set(bad))
 
 
 MAX_UPLOAD = 200 * 1024 * 1024
@@ -583,6 +673,68 @@ def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list
     return out
 
 
+# ---- CORE-01 (DEEP-REVIEW-2520-BACKEND-CORE): the foreign keys of the rows a `replace` restore does not own
+
+def _fk_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
+    """Every foreign key of the schema as (child table, parent table, ON DELETE action), read from SQLite itself."""
+    out: list[tuple[str, str, str]] = []
+    for t in sorted(_tables(conn)):
+        if t.startswith("sqlite_"):
+            continue
+        for fk in conn.execute(f'PRAGMA foreign_key_list("{t}")').fetchall():
+            out.append((t, fk[2], str(fk[6] or "NO ACTION").upper()))
+    return out
+
+
+def restore_dependents(conn: sqlite3.Connection, tables: list[str]) -> list[str]:
+    """The tables OUTSIDE the restore's own list whose rows point - directly, or through another such table - at a table the
+    restore empties (today `maint_files` -> `maint_tasks`, `doc_extractions` -> `maint_files`). Derived from the schema, never a
+    hand-kept list: a new module's table that references a project table is covered the day its migration lands."""
+    scope = set(tables)
+    edges = _fk_edges(conn)
+    out: list[str] = []
+    reach = set(scope)
+    changed = True
+    while changed:
+        changed = False
+        for child, parent, _action in edges:
+            if parent in reach and child not in scope and child not in out:
+                out.append(child)
+                reach.add(child)
+                changed = True
+    return out
+
+
+def _fk_violations(conn: sqlite3.Connection, tables: list[str]) -> set[tuple[Any, ...]]:
+    out: set[tuple[Any, ...]] = set()
+    for t in tables:
+        out.update(tuple(r) for r in conn.execute(f'PRAGMA foreign_key_check("{t}")').fetchall())
+    return out
+
+
+def _settle_dependents(conn: sqlite3.Connection, check: list[str], dependents: set[str], baseline: set[tuple[Any, ...]]) -> dict[str, int]:
+    """After a `replace` restore wrote its rows (foreign keys deferred): a row of a table the restore does not own whose parent
+    did not come back is removed (a certificate file of a task the archive does not have - like the door history whose block is
+    gone); a dependent of such a row follows in the next round. A restored row of the archive itself that points at a missing
+    parent refuses the restore (ValueError, rolled back by the caller) - exactly what the immediate check did before. Violations
+    the database already had before the restore are not this restore's and are left alone. Returns {table: rows removed}."""
+    dropped: dict[str, int] = {}
+    for _ in range(len(dependents) + 2):
+        new = _fk_violations(conn, check) - baseline
+        if not new:
+            return dropped
+        own = sorted({(v[0], v[2]) for v in new if v[0] not in dependents})
+        if own:
+            raise ValueError(f"the archive's {own[0][0]} rows point at {own[0][1]} rows it does not have")
+        for table, rowid, _parent, _fkid in sorted(new, key=lambda v: (v[0], v[1] if v[1] is not None else -1)):
+            if rowid is None:
+                raise ValueError(f"rows of {table} would point at restored rows that are gone")
+            n = conn.execute(f'DELETE FROM "{table}" WHERE rowid = ?', (rowid,)).rowcount
+            if n:
+                dropped[table] = dropped.get(table, 0) + n
+    raise ValueError("the restore could not settle the rows that point at the restored tables")
+
+
 def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]], replace: bool) -> int:
     """Write the archive's rows of one table; returns how many rows were written (what the restore answer reports)."""
     cols_now = set(_columns(conn, table)) - NEVER_EXPORTED_COLUMNS.get(table, frozenset())
@@ -752,21 +904,38 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         keep_sensitive = sorted(sens.SENSITIVE_SETTINGS - brought)
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
         update_switch = _update_switch(conn, data)
+        settings_invalid = _drop_invalid_settings(data)  # CORE-04: before anything is deleted
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
         passkeys_now = _keep_passkeys(conn) if "users" in tables else None  # MFA-SECFIX-2500 SR-6
+        fk_check: list[str] = []
+        fk_dependents: set[str] = set()
+        fk_baseline: set[tuple[Any, ...]] = set()
         if mode == "replace":
+            # CORE-01: rows outside the archive's tables may point at a table emptied here (maint_files -> maint_tasks has no ON DELETE
+            # rule, so the DELETE was refused and the whole restore answered 500). The foreign keys are checked at the end of the
+            # restore instead of on every statement, and the rows that still point nowhere are settled (_settle_dependents).
+            fk_dependents = set(restore_dependents(conn, tables))
+            fk_check = [*tables, *sorted(fk_dependents)]
+            fk_baseline = _fk_violations(conn, fk_check)
+            conn.execute("PRAGMA defer_foreign_keys = ON")  # this transaction only: SQLite switches it off at COMMIT / ROLLBACK
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
-                    kept_keys = [*SETTINGS_KEEP, *keep_sensitive]
-                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(kept_keys))})"
-                                 + "".join(" AND substr(key, 1, ?) <> ?" for _ in SETTINGS_KEEP_PREFIXES),
-                                 [*kept_keys, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
+                    # one rule for what stays (_kept_setting: the keep list, its prefixes and the fail-closed policy families) plus the
+                    # sensitive settings the archive does not bring
+                    sensitive_kept = set(keep_sensitive) | set(settings_invalid)  # CORE-04: an invalid archive value keeps the current one
+                    gone = [r[0] for r in conn.execute("SELECT key FROM settings").fetchall() if not _kept_setting(r[0]) and r[0] not in sensitive_kept]
+                    for i in range(0, len(gone), 400):
+                        part = gone[i:i + 400]
+                        conn.execute(f"DELETE FROM settings WHERE key IN ({', '.join('?' * len(part))})", part)
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
+        if settings_invalid:  # counted with the unsafe rows (the drill's row count subtracts them) and named in the answer
+            skipped["settings"] = skipped.get("settings", 0) + len(settings_invalid)
+            log.warning("restore skipped %s setting(s) whose archive value a settings write would refuse", len(settings_invalid))
         door_blocks_dropped, door_blocks_sanitised = _sanitise_door_blocks(data)
         counts: dict[str, int] = {}
         for t in tables:
@@ -786,6 +955,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             _put_back_passkeys(conn, passkeys_now)
             kept_current.append("auth_webauthn_credentials")  # the restore answer says the passkeys stayed as they are now
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
+        dependents_dropped = _settle_dependents(conn, fk_check, fk_dependents, fk_baseline) if mode == "replace" else {}
+        if dependents_dropped:
+            log.warning("restore removed %s row(s) that pointed at rows the archive does not have", sum(dependents_dropped.values()))
         backgrounds_rejected: list[dict[str, str]] = []  # SEC246 I2
         files = 0
         files_skipped = 0
@@ -869,6 +1041,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "water": water, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
             "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
+            "settings_invalid": settings_invalid[:100], "dependents_dropped": dependents_dropped,
             "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
                           "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},
             "passwords": passwords}
@@ -1076,21 +1249,100 @@ def record_version(db: Database) -> None:
             set_setting(conn, "app.version", __version__)
 
 
-async def daily_loop(db: Database, settings: Settings, interval_s: int = DAILY_SECONDS) -> None:
-    """One automatic copy a day (the first one a day after start-up, so restarts do not pile up copies)."""
-    from starlette.concurrency import run_in_threadpool
+DAILY_START_DELAY_S = 600  # CORE-02: the first look after start-up - a restart loop never writes a copy per start
+DAILY_CHECK_S = 3600  # CORE-02: how often the loop looks whether the daily copy (or its off-box copy) is due
 
-    while True:
-        await asyncio.sleep(interval_s)
+
+def _iso_epoch(value: Any) -> float | None:
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def daily_state(db: Database, settings: Settings) -> dict[str, Any]:
+    """CORE-02: {"last_at": epoch seconds of the last automatic daily backup or None, "archive": its name, "offbox_for": the archive
+    last handed to the off-box copies}. Read from the stored record; an installation that has none yet (written before 2.52) takes the
+    newest `auto-daily` archive's own time, so an upgrade neither skips a day nor writes an extra copy."""
+    with db.connection(mode="read", label="backup.daily_state") as conn:
+        raw = get_setting(conn, DAILY_STATE_KEY)
+    try:
+        state = json.loads(raw) if raw else {}
+    except ValueError:
+        state = {}
+    if not isinstance(state, dict):
+        state = {}
+    last = state.get("last_at")
+    out = {"last_at": float(last) if isinstance(last, (int, float)) else None, "archive": state.get("archive") if isinstance(state.get("archive"), str) else None,
+           "offbox_for": state.get("offbox_for") if isinstance(state.get("offbox_for"), str) else None}
+    if out["last_at"] is None:
+        newest = max((e for e in list_backups(settings) if e.get("kind") == "auto-daily" and e.get("valid")),
+                     key=lambda e: _iso_epoch(e.get("created_at")) or 0.0, default=None)
+        if newest is not None:
+            out["last_at"] = _iso_epoch(newest.get("created_at"))
+            out["archive"] = out["archive"] or newest["name"]
+            out["offbox_for"] = out["offbox_for"] or newest["name"]  # before the record existed, every daily copy was pushed at once
+    return out
+
+
+def _store_daily_state(db: Database, state: dict[str, Any]) -> None:
+    with db.connection(label="backup.daily_state_write") as conn:
+        set_setting(conn, DAILY_STATE_KEY, json.dumps({k: state.get(k) for k in ("last_at", "archive", "offbox_for")}, sort_keys=True))
+
+
+def daily_tick(db: Database, settings: Settings, now: float, interval_s: int = DAILY_SECONDS) -> dict[str, Any]:
+    """CORE-02 (DEEP-REVIEW-2520-BACKEND-CORE): one look of the daily loop, decided by the CLOCK and the stored record - never by the
+    process's uptime (the loop used to wait 24 h from every start, so an installation restarted daily never wrote a copy). Writes the
+    daily backup when the last one is `interval_s` old (or there is none), then hands it to the off-box copies; hands the newest daily
+    archive to the off-box copies when that did not happen (a restart between the two). A failed backup notifies the administrators
+    and is tried again at the next look; the record moves only on success. Returns what it did."""
+    from . import notify_sources, offbox_runtime
+
+    state = daily_state(db, settings)
+    did: dict[str, Any] = {"backup": None, "offbox": None, "failed": False}
+    if state["last_at"] is None or now - state["last_at"] >= interval_s or now < state["last_at"] - 3600:  # a clock set far back counts as due
         try:
-            e = await run_in_threadpool(create_standalone, settings, db, "auto-daily", "daily")
-            removed = await run_in_threadpool(prune, settings)
+            e = create_standalone(settings, db, "auto-daily", "daily")
+            removed = prune(settings)
             log.info("daily backup %s (%d bytes); pruned %s", e["name"], e["bytes"], removed or "nothing")
-            from . import offbox_runtime  # DATASTORE-295 phase 2: the encrypted off-box copies of this backup (enabled targets only)
-
-            await run_in_threadpool(offbox_runtime.after_backup, db, settings, e["name"])
         except Exception as exc:  # noqa: BLE001 - keep the loop alive
             log.warning("daily backup failed: %s", exc)
-            from . import notify_sources  # CR-018: the administrators hear about a failed automatic backup (resolved by the next good one)
+            did["failed"] = True
+            notify_sources.backup_failed(db)  # CR-018: the administrators hear about a failed automatic backup (resolved by the next good one)
+            return did
+        state.update(last_at=now, archive=e["name"])
+        _store_daily_state(db, state)
+        did["backup"] = e["name"]
+    if state["archive"] and state["archive"] != state["offbox_for"] and (backups_dir(settings) / state["archive"]).is_file():
+        did["offbox"] = offbox_runtime.after_backup(db, settings, state["archive"])  # DATASTORE-295 phase 2 (enabled targets only; never raises)
+        state["offbox_for"] = state["archive"]
+        _store_daily_state(db, state)
+    return did
 
-            await run_in_threadpool(notify_sources.backup_failed, db)
+
+def next_daily_wait(state: dict[str, Any], now: float, interval_s: int = DAILY_SECONDS, check_s: int = DAILY_CHECK_S) -> float:
+    """Seconds until the next look: when the next copy falls due, at most `check_s` (a changed clock or a failure is seen within the hour)."""
+    if state.get("last_at") is None:
+        return float(min(check_s, interval_s))
+    return float(max(1.0, min(check_s, state["last_at"] + interval_s - now)))
+
+
+async def daily_loop(db: Database, settings: Settings, interval_s: int = DAILY_SECONDS, *, start_delay_s: float = DAILY_START_DELAY_S,
+                     check_s: float = DAILY_CHECK_S, clock: Any = None) -> None:
+    """One automatic copy a day, by the clock (CORE-02): the first look DAILY_START_DELAY_S after start-up (an overdue copy is written
+    then), afterwards when the next one falls due, at the latest every `check_s`."""
+    import time
+
+    from starlette.concurrency import run_in_threadpool
+
+    now_fn = clock or time.time
+    await asyncio.sleep(start_delay_s)
+    while True:
+        try:
+            await run_in_threadpool(daily_tick, db, settings, now_fn(), interval_s)
+            state = await run_in_threadpool(daily_state, db, settings)
+            wait = next_daily_wait(state, now_fn(), interval_s, int(check_s))
+        except Exception as exc:  # noqa: BLE001 - keep the loop alive (a locked database at this moment: look again later)
+            log.warning("daily backup check failed: %s", exc)
+            wait = float(check_s)
+        await asyncio.sleep(wait)

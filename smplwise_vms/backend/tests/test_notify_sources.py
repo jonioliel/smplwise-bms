@@ -222,7 +222,7 @@ def test_the_backup_loop_signals_a_failure_without_stopping(w, monkeypatch, sett
     monkeypatch.setattr(backup_svc, "create_standalone", boom)
 
     async def one_round():
-        task = asyncio.create_task(backup_svc.daily_loop(w.db, settings, interval_s=0))
+        task = asyncio.create_task(backup_svc.daily_loop(w.db, settings, interval_s=0, start_delay_s=0))  # CORE-02: no start-up delay here
         for _ in range(100):
             await asyncio.sleep(0.05)
             if w.rows("backup.failed"):
