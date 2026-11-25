@@ -216,6 +216,7 @@ const he = {
   deliveryRecipients: 'נמענים',
   deliveryDom: 'יום בחודש',
   deliveryLang: 'שפת ההודעה',
+  deliveryLangRecipient: 'השפה של כל נמען',
   deliveryChannels: 'ערוצים',
   chEmail: 'דוא״ל',
   chWhatsapp: 'וואטסאפ',

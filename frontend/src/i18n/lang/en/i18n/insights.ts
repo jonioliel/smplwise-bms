@@ -201,6 +201,7 @@ export const en = {
   deliveryRecipients: 'Recipients',
   deliveryDom: 'Day of the month',
   deliveryLang: 'Message language',
+  deliveryLangRecipient: "Each recipient's language",
   deliveryChannels: 'Channels',
   chEmail: 'E-mail',
   chWhatsapp: 'WhatsApp',

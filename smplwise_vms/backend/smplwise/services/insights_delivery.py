@@ -7,7 +7,7 @@ screen): neither transport carries a document today, exactly as for the temperat
 document seam here; adding one later is a change of the message builders only.
 
 OFF until the owner turns it on, in this order (each step is checked on the server, not only on the screen):
-1. SETUP - the day, the time, the language and at least one working channel: e-mail needs the installation's outgoing mail to be configured
+1. SETUP - the day, the time, the language (`he`, `en`, or `recipient` = each recipient's own, NOTIFY-LANG-SENDERS-2520) and at least one working channel: e-mail needs the installation's outgoing mail to be configured
    (Settings › התראות › דוא"ל, the notification recipients get it); WhatsApp needs at least one chosen system user.
 2. The report switch (`reports.building.enabled`) is on.
 3. The ENABLE switch (`enabled`), turned on by someone with `system.configure` AND `insights.manage` after steps 1-2 hold. Turning it on records
@@ -59,6 +59,9 @@ _PASS = Every(THROTTLE_S, clock=time.time)  # CR-JANITOR-REGISTRY-2438: the shar
 DEFAULTS: dict[str, Any] = {"enabled": False, "dom": 1, "at": "08:00", "lang": "he", "email": False, "whatsapp": False, "users": [],
                             "enabled_at": None, "enabled_by": None}
 EDITABLE = ("dom", "at", "lang", "email", "whatsapp", "users")
+# NOTIFY-LANG-SENDERS-2520: `recipient` = each recipient's own language, decided when the month is planned: a WhatsApp recipient's `ui.lang`,
+# an e-mail address's the language of the Arx users whose own e-mail it is (services/notify_delivery_lang); unknown = Hebrew.
+LANGS = ("he", "en", "recipient")
 
 
 def whatsapp_wanted(conn: sqlite3.Connection) -> bool:
@@ -130,7 +133,7 @@ def validate(body: Any, conn: sqlite3.Connection) -> dict[str, Any]:
         else:
             out["at"] = v
     if "lang" in body:
-        if body["lang"] not in ("he", "en"):
+        if body["lang"] not in LANGS:
             fields.append("lang")
         else:
             out["lang"] = body["lang"]
@@ -260,22 +263,30 @@ def plan(conn: sqlite3.Connection, month: str, now_ts: float) -> int:
     cfg = load(conn)
     stamp = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     n = 0
+    each = cfg["lang"] == "recipient"
+    fixed = cfg["lang"] if cfg["lang"] in ("he", "en") else "he"
 
-    def add(channel: str, key: str, user_id: str | None) -> None:
+    def add(channel: str, key: str, user_id: str | None, lang: str) -> None:
         nonlocal n
         cur = conn.execute("""INSERT OR IGNORE INTO insights_report_sends(id, month, channel, recipient_key, user_id, lang, status, not_before, created_by, created_at)
-                              VALUES (?,?,?,?,?,?, 'queued', ?, ?, ?)""", (new_id(), month, channel, key, user_id, cfg["lang"], stamp, cfg["enabled_by"], stamp))
+                              VALUES (?,?,?,?,?,?, 'queued', ?, ?, ?)""", (new_id(), month, channel, key, user_id, lang, stamp, cfg["enabled_by"], stamp))
         n += cur.rowcount
 
     if cfg["email"]:
         from . import notify_email
+        from .notify_delivery_lang import address_langs
 
         mail = notify_email.load_config(conn)
-        for a in (mail.recipients if mail else ()):
-            add("email", hashlib.sha256(a.lower().encode("utf-8")).hexdigest()[:16], None)
+        addresses = list(mail.recipients) if mail else []
+        by_address = address_langs(conn, addresses) if each else {}
+        for a in addresses:
+            add("email", hashlib.sha256(a.lower().encode("utf-8")).hexdigest()[:16], None, by_address.get(a, "he") if each else fixed)
     if cfg["whatsapp"]:
+        from .notify_delivery_lang import user_langs
+
+        by_user = user_langs(conn, list(cfg["users"])) if each else {}
         for uid in cfg["users"]:
-            add("whatsapp", uid, uid)
+            add("whatsapp", uid, uid, by_user.get(uid, "he") if each else fixed)
     set_setting(conn, STATE_KEY, json.dumps({"planned": month}))
     return n
 
@@ -305,8 +316,11 @@ def whatsapp_text(model: dict[str, Any]) -> str:
 
 
 def email_message(model: dict[str, Any], link_base: str = "") -> Any:
+    """NOTIFY-LANG-SENDERS-2520: an English report mail is English through and through - the footer, no right-to-left marks, a left-to-right
+    page (before, it carried the Hebrew footer and a right-to-left page). The Hebrew mail is byte for byte as before."""
     from . import building_report as rep
     from . import notify_email as ne
+    from .notify_delivery_lang import word
 
     lang = model["lang"]
     L = rep.LABELS[lang]
@@ -314,8 +328,10 @@ def email_message(model: dict[str, Any], link_base: str = "") -> Any:
     intro = f'{L["month"]}: {model["month"]}'
     note = "הדוח המלא (PDF) זמין להורדה ב-Arx." if lang == "he" else "The full PDF report is available for download in Arx."
     link = f"{link_base}/#/tickets/reports/building" if link_base else ""
-    text = "\n".join([ne._rtl(L["title"]), ne._rtl(intro), "", *[ne._rtl(f"{k}: {v}") for k, v in rows], "", ne._rtl(note), "", ne._rtl(ne.FOOTER)])
-    return ne.Rendered(f'Arx · {L["title"]} {model["month"]}', text, ne._page(L["title"], rows, "info", link, ne.FOOTER, f"{intro} · {note}", cta=False))
+    footer = word(ne.FOOTER, lang)
+    text = "\n".join([ne._rtl(L["title"], lang), ne._rtl(intro, lang), "", *[ne._rtl(f"{k}: {v}", lang) for k, v in rows], "", ne._rtl(note, lang), "",
+                      ne._rtl(footer, lang)])
+    return ne.Rendered(f'Arx · {L["title"]} {model["month"]}', text, ne._page(L["title"], rows, "info", link, footer, f"{intro} · {note}", cta=False, lang=lang))
 
 
 # ---------------------------------------------------------------- sending
