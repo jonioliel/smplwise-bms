@@ -28,6 +28,23 @@ Every row merged with `--no-ff` in the order the lead set; each merge commit nam
 | 16 | `pilot/MFA-FACTOR-HARDEN-2520` | `eeb4bab89` | `32f758bb1` | none | cut from row 10 `284ac25ea`; owner-approved N-1 (fresh sign-in for every factor added from outside), N-5 (fresh sign-in for an administrator's reset from outside), N-6 (content-free notice `security.second_factor_changed`); guide he + en. On the merged tree: `gen_wire_types.py --check` 0 (reset reason `reauth` generated), `build_guide.py --check` up to date, both i18n ratchets and the design ratchet unchanged |
 | 17 | `pilot/ADR019-FAMILY45-2520` | `95d2043a6` | `202e3678f` | none | base main; ADR-019 Step 1 families 4 and 5 (canonical field keys). Lead decisions Q1-Q4 = a; Q1's CHANGELOG line added (`f2c8a3765`: `details.fields` in tickets / messaging / notifications refusals is a list of names, the per-field codes in `details.problems`). `gen_wire_types.py --check` 0; backend refusal ratchet unchanged. `error_contract_inventory.py --write-ratchet` / `--check` do not exist on the train yet: they run once after ADR019-FAMILY678-2520 (lead's order; that row is not final) |
 | 18 | `pilot/MULTI-BUILDING-FILTER-2520` | `66a33d2a6` | `b24dd9cb1` | none | base main; the building filter in the home interface (notice board, shared rooms) and the resident phone calendar; `GET /notices?scope=mine` gains `building`; 10 Linux pixel baselines. `gen_wire_types.py --check` 0 (`wire-notices.ts` as generated); `api_inventory.py` gives the same file (1943 routes); design and i18n ratchets unchanged |
+| 19 | `pilot/NOTIFY-RECIPIENT-LANG-2520` | `7b55e0e76` | `f3fdb961f` | none | cut from row 12 `f493b96a9`; push, e-mail and phone-app notifications in each recipient's language (`services/notify_delivery_lang.py`; WhatsApp unchanged). Backend only. Train fix `61a6959ef` (below). No card in `management/tasks.json` (MGMT-SYNC left it unregistered; open point 9) |
+| 20 | `pilot/WISKEY-R8-2520` | `fee46e05a` | `2b9a3a839` | none | cut from R7 `d4e7d1d3c`; `GET /system/bridge-key/service-grant` (local-only), the v3 service-write contract (journal unwired), the people-write path chosen once, the service approval block + 8 Linux pixel baselines, the "מושבת" hint. `gen_wire_types.py --check` 0; `wire_ratchet.py` 897 = baseline; i18n ratchet unchanged. Train fix `8a91908a3` (below) |
+
+Train fixes after rows 16-20:
+- `61a6959ef` (row 16 x rows 12 / 19): MFA-FACTOR-HARDEN-2520's new notice `security.second_factor_changed` came after I18N-REST-2520
+  wrote the English templates, so the merged train had none - an English reader got it in Hebrew (the centre, and per recipient
+  push / e-mail / app since row 19) and `test_i18n_errors_en_2520::test_every_english_template_belongs_to_a_source_and_keeps_its_placeholders`
+  FAILED (PC: 1 failed / 8 passed without the fix, 9 passed with it; the runner's combined job at `32f758bb1` shows the same failure,
+  146 passed / 1 failed in its group). Added: the English template in `services/notify_policy_en.py`, and `PARAM_VALUES_EN` - the
+  English of the FIXED Hebrew phrases the source puts in `{change}` (`notify_sources.FACTOR_CHANGES_HE`); `notify_policy.render()`
+  swaps such a value only when `lang != "he"` and the source has English (Hebrew output and the stored rows unchanged; names stay as
+  written). New regression test `tests/test_notify_factor_changed_en_2520.py` (6 passed, PC).
+- `8a91908a3` (row 20): `contracts/API_INVENTORY.md` 1943 -> 1944 routes (the new route). Design ratchet: `px-literal` 25509 -> 25512,
+  all three in R8's new block of `components/sw-bridge-key-card.ts` (the row was cut before row 8 lowered the baseline). The on-scale
+  4px padding is now `var(--sw-s-1)` (same 4 px, pixel-neutral); the 1px border and the coarse-pointer 44px touch target stay literal,
+  as row 8 keeps them (its note: 1 px borders / hairlines have no token; a coarse-pointer touch target is `44px` across the
+  components). `--update --allow-raise`: 25509 -> 25511 (the only raise; precedent `85c91c865` of the 2.51 train) - open point 8.
 
 Train fixes after row 12:
 - `f3dfcd158`: the 34 hard-coded Hebrew literals I18N-REST left are the WisKey demo installation (demo rows of `wiskey-events / overview /
@@ -149,17 +166,23 @@ document's finite animations before axe (`2aaa64f5b`) did not change it and was 
 1. **English path of the "מצב WisKey" status block** (row 9): the block's server texts (all its reasons, old and new) are Hebrew only;
    it does not go through `smplwise/i18n.py`. a) a later row moves `wiskey_feature_status.R` to `Msg` keys with English (recommended)
    b) accept Hebrew-only for this installer-facing block.
-2. **`evidence-mfa-screens-2510:88` is intermittent on main too** ("a cancelled step-up keeps the key and says so"): 2 of 3 desktop runs
-   fail at main `3d71fb183` and at the train alike, so it is NOT a 2.52 regression (not checked here how the 2.51 gate saw it). Per the owner's rule
-   (flaky -> quarantine with a ticket and an expiry) a) quarantine it for the 2.52 gate with a ticket to fix the wait after the cancel
-   (recommended) b) leave it and rely on the gate's retry policy.
+2. ~~`evidence-mfa-screens-2510:88` intermittent~~ - RESOLVED by row 15 (FLAKY-FIX-2520: the refusal reason survives the reload, the
+   spec waits for it). Lead decision: no quarantine. Train run at `32f758bb1`, `--repeat-each=5` desktop + mobile: **130 passed, 0 failed**
+   (10 skipped, the shots).
 3. **Harness notes for the gate** (no product change): `unit-mfa-passkeys-2490` fails in a node-only unit run (it needs a localhost
    server, as the gate gives it since `319f81676`); `unit-mfa-ha-passkey-2520` needs `SW_UNIT_PAGES=1` and a `localhost` **dev** server
    (it imports `/src/arx/*.ts`).
 4. The UI bundle (`smplwise_vms/www`, `www-public`) is not rebuilt here; the CHANGELOG 2.52.0 section is a DRAFT.
 5. Bridge 0.10.9: installing 2.52.0 needs ONE owner-approved Home Assistant Core restart.
 
-6. **`camera-discovery-2500` "the whole flow" is intermittent on main** (about half the runs: axe color-contrast at step 1 with blended
-   colours; section 3.2). Not a 2.52 regression, but the gate may hit it. a) quarantine it for the 2.52 gate with a ticket (the axe call
-   at step 1 overlaps the dialog's opening - find what is still blending; a plain wait for CSS animations did not help) (recommended)
-   b) re-run on failure.
+6. ~~`camera-discovery-2500` "the whole flow" intermittent~~ - RESOLVED by row 15 (FLAKY-FIX-2520: `sw-dialog`'s backdrop fade no longer
+   fades the dialog's texts). Lead decision: no quarantine. Train run at `32f758bb1`, "the whole flow" `--repeat-each=5` desktop +
+   mobile: **10 passed, 0 failed** (main failed 10 of 20 before; section 3.2).
+7. **R4's run-time refusal text** (`routers/access_control_station_ops.py` `_error()`, numbered-sync "outcome unknown"): recorded in the
+   backend refusal ratchet (257 -> 258) rather than made a `Msg`, because its subject comes from the module's Hebrew `MESSAGES`.
+   a) a later row moves `_error()` and `MESSAGES` to `Msg` keys with English and lowers the ratchet (recommended) b) keep.
+8. **Design ratchet raised by 2** (`px-literal` 25509 -> 25511, R8's 1px border and coarse-pointer 44px): a) accept for 2.52, as the
+   2.51 train did for new screens (recommended) b) the R8 owner replaces them with tokens once a hairline / touch token exists.
+9. **`NOTIFY-RECIPIENT-LANG-2520` has no card** in `management/tasks.json` (merged as row 19, recorded on RELEASE-2520-TRAIN's card).
+   a) the next MGMT-SYNC registers it as REVIEW with `7b55e0e76` / `f3fdb961f` (recommended) b) the train adds the card.
+10. **Still to come per the lead:** ADR019-FAMILY678-2520 (not final), then `error_contract_inventory.py --write-ratchet` and `--check` once.

@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-25T11:17:47.414401+00:00
+Generated: 2026-11-25T11:50:12.272070+00:00
 
 Tasks: 688 | Requirements: 802 | Tests: 819 | Screens: 32
 
@@ -12,8 +12,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 485
-- IN_PROGRESS: 8
-- REVIEW: 156
+- IN_PROGRESS: 7
+- REVIEW: 157
 
 ## Release scope counts
 - BETA: 20
@@ -734,7 +734,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [MFA-REVIEW-DOCS-2520](tasks/MFA-REVIEW-DOCS-2520.md) | V1 | REVIEW | Security review and documentation of the second factor shipped in 2.49-2.51 (slice 12) | — |
 | [MFA-HA-PASSKEY-2520](tasks/MFA-HA-PASSKEY-2520.md) | V1 | REVIEW | Passkey sign-in for users who come in through the home-system identity | — |
 | [I18N-REST-2520](tasks/I18N-REST-2520.md) | V1 | REVIEW | The remaining translations: frontend literals, server refusal texts, notification titles | — |
-| [WISKEY-R8-2520](tasks/WISKEY-R8-2520.md) | V1 | IN_PROGRESS | Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8) | — |
+| [WISKEY-R8-2520](tasks/WISKEY-R8-2520.md) | V1 | REVIEW | Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8) | — |
 | [WISKEY-SCHED-READS-2520](tasks/WISKEY-SCHED-READS-2520.md) | V1 | IN_PROGRESS | WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly | — |
 | [ADR019-FAMILY45-2520](tasks/ADR019-FAMILY45-2520.md) | V1 | REVIEW | ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey) | — |
 | [ADR019-FAMILY678-2520](tasks/ADR019-FAMILY678-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 6, 7 and 8 | — |
