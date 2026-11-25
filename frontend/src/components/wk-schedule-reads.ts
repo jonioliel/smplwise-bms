@@ -85,9 +85,6 @@ export class WkScheduleReads extends LitElement {
       align-items: flex-end;
       gap: var(--sw-s-2);
     }
-    .start sw-dropdown {
-      min-inline-size: 12rem;
-    }
     .rows {
       display: flex;
       flex-direction: column;
