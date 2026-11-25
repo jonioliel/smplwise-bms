@@ -1,5 +1,22 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.52.0 (pilot) - DRAFT (RELEASE-2520-TRAIN; final text at release) - WisKey rc.19 adoption: intercom system status, relay inventory, numbered station sync, external visits, direct transport v2 and bridge 0.10.9
+
+<!-- DRAFT: the train coordinator's working list, not the release text. The lead writes the final bilingual text at release. -->
+
+### חדש - New
+- הגדרות › בקרת כניסה › "מערכת האינטרקום": מצב מערכת WisKey כפי ש-WisKey מדווח (גרסה, תחנות, סנכרון, עבודות לפי סוג, תבניות הודעה), לקריאה בלבד ובלי לשאול אף התקן. - Settings › Access control › "Intercom system": the WisKey system state as WisKey reports it (version, stations, sync, jobs by kind, message templates), read only and without asking any device.
+- מיפוי ממסרים: "מה WisKey יודע על הממסרים" לכל תחנה, לפי בקשה בלבד; לא משנה את המיפוי המאושר. - Relay map: "what WisKey knows about the relays" per station, on request only; it never changes the approved mapping.
+- סנכרון תחנה עם מספר בקשה כש-WisKey תומך בו; בלי ניסיון חוזר אוטומטי ובלי מעבר לפקודה הישנה אחרי סירוב. - Station sync with a request id when WisKey supports it; no automatic retry and no fallback to the classic command after a refusal.
+- חיבור ישיר ל-WisKey בגרסה 2 (מזהה מפתח, מצב צימוד v2), עם גשר 0.10.9. - WisKey direct transport v2 (key id, pairing status v2), with bridge 0.10.9.
+
+### שופר - Improved
+- רישום ביקורים חיצוניים ב-WisKey לפי החוזה של rc.19; ביקור שהסתיים מוצג כ"הסתיים" לאורך כל המסלול. - External visit records in WisKey follow the rc.19 contract; an ended visit is labelled "ended" end to end.
+- אשף גילוי המצלמות: "אותו דבר לכולן" הוא מתג; צבעים ומידות לפי ערכי העיצוב המשותפים. - Camera discovery wizard: "same for all" is a switch; colours and sizes use the shared design tokens.
+
+### התקנה - Install
+- גשר חדש (0.10.9): דורש הפעלה אחת מחדש של מערכת הבית (באישור הבעלים). אין מיגרציה חדשה. - A new bridge (0.10.9): needs one home system restart (owner-approved). No new migration.
+
 ## 2.51.0 (pilot) - two-step verification for everyone: passkeys, recovery codes, the phone key, a sign-in policy, and an optional confirmation before sensitive changes
 
 ### חדש - New
