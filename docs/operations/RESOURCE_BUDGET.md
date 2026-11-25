@@ -108,6 +108,12 @@ so a breach can be read against it.
   (`services/notices/display.py` `touch_seen`), so every other poll of a 30 s board waits for the write lock; that is the likely
   reason the feed's p95 is the highest of the polling routes (297 ms in run 1, 1217 ms in run 2 - over budget - while its p50 stays
   13-17 ms). Not changed in this row (test-and-docs only); moving the write out of the request is the proposed follow-up.
+  **Fixed in NOTICE-TV-LASTSEEN-2530:** the feed now notes the time in memory only; a background pass writes every board in one
+  transaction every 60 s (and once more at shutdown), so the "last seen" in Settings may lag the TV by at most 60 s (the same bound as
+  before). Re-run once after the change (10-minute window, commit `7c7b461c8`, host load 7.8 /
+  9.25): verdict PASS on all 39 lines, TV feed p50 12.1 / p95 20.1 ms (n = 160), but that run's database was on tmpfs (the runner's
+  disk was full), so its write-lock lines (hold 0.035 s, wait 0.025 s) are not comparable with runs 1-2; see
+  `docs/changes/NOTICE-TV-LASTSEEN-2530.md`.
 - **Memory moves in steps, not a slope**: run 1 366 -> 374 MB in the first 4 minutes of load, flat for 3 minutes, one step to
   396 MB at an export; run 2 373 -> 375 MB over 4 minutes, steps to 390 MB, flat for 5 minutes, steps to 406 MB. 10-15 minutes cannot
   tell a leak from allocator high-water marks; the slope line is judged only on runs of 2 h or more
