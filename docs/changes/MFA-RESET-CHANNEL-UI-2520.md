@@ -110,7 +110,33 @@ key or API inventory change. Files of the 2.52 train rows (WisKey R1-R8, bridge,
 
 ## 2. Tests (real runs)
 
-RUNNER_RESULTS_PLACEHOLDER
+| Where | Command | Result |
+|---|---|---|
+| workstation (Windows, repo venv, `SW_WIRE_STRICT=1`) | `pytest tests/test_mfa_reset_channel_ui_2520.py` (10 tests: off = unchanged and an enrolment answer not read; on = offer + enrolment + sign-in + fresh step-up proof + the passkey asked next time; administrator UV; bound to the sign-in / single use / origin / RP id / UP / wrong ceremony type / malformed; the 5-minute rule; the enforced global policy path; no offer after a reset / all-users off / no address / bearer; answer format; audit hygiene; the reset channel setting) | **10 passed** (exit 0) |
+| workstation | `ruff check` the three changed backend files; esbuild syntax pass of the 10 changed / new TS files | All checks passed; 10 ok |
+| runner slot B, job `~/work/p2520_resetui_run.sh` at `439b0a1c6` | backend shard 0: this row + `test_mfa_ha_passkey_2520`, `test_mfa_passkeys_2490`, `test_local_passkeys`, `test_passkey_only` | **134 passed** |
+| runner | shard 1: `test_second_factor`, `test_second_factor_followups`, `test_mfa_policy_2490`, `test_mfa_screens_2510`, `test_settings_patch_audit_order` | **117 passed** |
+| runner | shard 2: `test_remote_access`, `test_security_review_220`, `test_mfa_devicekey_2490`, `test_mfa_recovery_codes_2490` | **143 passed** |
+| runner | shard 3: `test_mfa_stepup_2490`, `test_mfa_stepup_gates_2490`, `test_mfa_secfix_2500`, `test_mfa_secreview_2500`, `test_mfa_reset_hardening_2510`, `test_mfa_review_docs_2520`, `test_mfa_tokens_2490` | **113 passed** |
+| runner | shard 4: `test_app_session_295`, `test_ha_authority`, route tables, read-conn, wire D, route characterisation | **979 passed** |
+| runner | ruff `smplwise` / `gen_wire_types.py --check` / `design_ratchet.py` | rc 0 / rc 0 / rc 0 (no count above baseline) |
+| runner | `tsc --noEmit -p .` | 0 errors |
+| runner | `tsc -p tsconfig.tests.json` | 1 error at `439b0a1c6` (an unused parameter in this row's unit spec) - fixed in `d6305bc9d`; **0 errors** in job 2 |
+| runner | eslint (the 8 changed src files), lazy-tags-check, `i18n-split-langs --dry`, `npm run build` | all rc 0 |
+| runner | `unused-exports --enforce` | **rc 1**: 9 NEW entries, all in WisKey files of the train base (`access-control/status-wiskey-logic.ts`, `api/wiskey-system-status.ts`, `api/station-ops.ts`, `screens/wiskey-relay-map-logic.ts`) - none in a file this row touches; not re-run on the bare base to confirm (NOT_RUN) |
+| runner | Playwright evidence (preview build): this row + `evidence-mfa-ha-passkey-2520` + `evidence-mfa-screens-2510`, desktop + mobile | 44 passed, 4 failed, 4 skipped at `439b0a1c6`: the 4 failures were this row's two dialog tests that need a browser with WebAuthn, on an IP preview (not a secure context) - the spec now presents WebAuthn to the page (`d6305bc9d`) |
+| runner, job 2 `~/work/p2520_resetui_run2.sh` at `02cbcc301` | this row's evidence spec, desktop + mobile | **18 passed** |
+| runner | `pixel-mfa-screens-2510` `--update-snapshots=changed`, then re-check | 6 passed / 6 passed; ONE baseline rewritten: `mfa-policy-preview-1440-desktop-linux.png` (the new row; the phone baseline is unchanged - the row is below its fold). Looked at. Committed in `02cbcc301`. |
+| runner | unit pages on `localhost` (WebAuthn RP id): this row (incl. the full enrolment ceremony with a CDP virtual authenticator and a cancelled ceremony), `unit-mfa-ha-passkey-2520`, `unit-mfa-signin-methods-2510`, `unit-mfa-passkeys-2490`, `unit-mfa-recovery-codes-2490` | **19 passed**, 7 skipped (not itemised; the shots tests skip without `SW_SHOTS_DIR`) |
+| runner | compare pictures after / before (policy card + row, the remote state, the dialog, the sign-in enrolment step; desktop + phone, light + dark) | written; the "before" runs fail by design after their picture (the row does not exist on the base) |
+
+Compare page: `private/planning/mfa-reset-channel-ui-2520_compare_2026-11-25.html` (local, Hebrew).
+
+NOT_RUN: the full backend suite (only the five shards above), the full Playwright suite, any real device (Chrome / Android / iOS passkeys
+at the lab address), any lab check, the phone app's web view.
+
+Merge trial (`git merge-tree` against `origin/pilot/MFA-FACTOR-HARDEN-2520` at `d4986953a`): `services/user_passkeys.py` merges
+automatically; ONE conflict - the end of `frontend/src/i18n/lang/en/i18n/msg/mfa.ts` (both rows append lines): keep both blocks.
 
 ## 3. Open questions (recommendation first)
 
