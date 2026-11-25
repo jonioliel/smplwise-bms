@@ -47,6 +47,9 @@ ADDED_AFTER_CLEANUP = (
     "messaging_paced",  # WISKEY-WA-QUEUE-2400
     "visits",  # WISKEY-VISITS-2407 (2.40.7): the two visit reads
     "visits_push",  # WISKEY-VISITS-2407 (2.40.7): the one record command (the ask, not in WisKey rc.10)
+    "system_status",  # WISKEY-RESYNC-2520: system/status_v1 + jobs/status_v1 (WisKey rc.19 READs)
+    "relay_inventory",  # WISKEY-RELAY-INV-2520: stations/relay_inventory_v1 (READ; services/wiskey_relay_inventory.py)
+    "station_sync_v1",  # WISKEY-SYNC-V1-2520: sync/station_v1 (services/wiskey_station_ops.py)
 )
 
 

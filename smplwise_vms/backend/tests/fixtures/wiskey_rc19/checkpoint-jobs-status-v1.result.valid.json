@@ -1,0 +1,7 @@
+{
+  "contract": "wiskey-checkpoint-jobs-status.v1",
+  "records": [],
+  "scope": "all_retained_checkpoint_jobs",
+  "history_complete": false,
+  "notification": "original_data_free_refresh_requires_authorized_read"
+}

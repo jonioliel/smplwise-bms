@@ -84,6 +84,7 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "AccessControlProfiles": ("wire-access-control-profiles.ts", ("access_control_profiles",)),
     "AccessControlStationOps": ("wire-access-control-station-ops.ts", ("access_control_station_ops",)),
     "AccessControlStationPeople": ("wire-access-control-station-people.ts", ("access_control_station_people",)),
+    "AccessControlSystemStatus": ("wire-access-control-system-status.ts", ("access_control_system_status",)),  # WISKEY-RESYNC-2520
     "AccessControlTriage": ("wire-access-control-triage.ts", ("access_control_triage",)),
     "AccessControlWaQueue": ("wire-access-control-wa-queue.ts", ("access_control_wa_queue",)),
     "AccessDirectory": ("wire-access-directory.ts", ("access_directory",)),

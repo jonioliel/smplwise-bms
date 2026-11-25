@@ -40,13 +40,13 @@ export interface AccessWiskeyVisitsLinks {
 export interface AccessWiskeyVisitsLinksLink {
   invite_id: string;
   state: string;
-  pushed_revision: number;
+  pushed_revision: number | null;
   current_revision: number;
   in_sync: boolean;
   pushable: boolean;
-  wiskey_visit_id: string;
+  wiskey_visit_id: string | null;
   last_code: unknown;
-  attempted_at: string;
+  attempted_at: string | null;
 }
 
 export interface AccessWiskeyVisitsPush {
