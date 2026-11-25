@@ -30,6 +30,7 @@ import { formatTime, UTC_ZONE } from './wiskey-format';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
 import { tr } from '../i18n/msg/system-b';
+import { wfsGroupLabel, wfsLinkLabel, wfsReasonFix, wfsReasonText, wfsRowLabel } from '../i18n/wiskey-feature-status';
 import { mutedStyles } from '../styles/fragments';
 
 const LINE_KIND: Record<PairingLineState, StateKind> = { ok: 'live', warn: 'stale', blocked: 'error', unknown: 'unknown' };
@@ -372,11 +373,15 @@ export class SystemWiskeyPairing extends LitElement {
 
   private renderFeature(f: FeatureRow) {
     return html`<div class="feat" data-wkp-feature=${f.key} data-state=${f.state}>
-      <span>${f.label}</span>
+      <span>${wfsRowLabel(f)}</span>
       <sw-badge kind=${FEATURE_KIND[f.state]} label=${FEATURE_TEXT[f.state]}></sw-badge>
       <div class="reasons">
-        ${f.reasons.map((r) => html`<div class="reason" data-wkp-reason=${r.code}><span class="kind">${KIND_TEXT[r.kind]}</span>${r.text}${r.fix ? html` <span class="how">· ${tr('איך מפעילים:')} ${r.fix}</span>` : nothing}</div>`)}
-        ${f.link ? html`<a href=${f.link.href} data-wkp-link>${f.link.label}</a>` : nothing}
+        ${f.reasons.map((r) => {
+          // WISKEY-STATUS-I18N-2520: the words follow the page's language from the stable code (Hebrew: the server's own words)
+          const fix = wfsReasonFix(r);
+          return html`<div class="reason" data-wkp-reason=${r.code}><span class="kind">${KIND_TEXT[r.kind]}</span>${wfsReasonText(r)}${fix ? html` <span class="how">· ${tr('איך מפעילים:')} ${fix}</span>` : nothing}</div>`;
+        })}
+        ${f.link ? html`<a href=${f.link.href} data-wkp-link>${wfsLinkLabel(f.link)}</a>` : nothing}
       </div>
     </div>`;
   }
@@ -391,7 +396,7 @@ export class SystemWiskeyPairing extends LitElement {
         <span class="sp"></span>
         <sw-button size="sm" variant="ghost" data-wkp-features-toggle @click=${() => (this.showFeatures = !this.featuresShown)}>${this.featuresShown ? tr('הסתרה') : tr('הצגה')}</sw-button>
       </div>
-      ${this.featuresShown ? groupFeatures(d.features).map(([g, rows]) => html`<div class="group"><h5>${g}</h5>${rows.map((f) => this.renderFeature(f))}</div>`) : nothing}
+      ${this.featuresShown ? groupFeatures(d.features).map(([g, rows]) => html`<div class="group"><h5>${wfsGroupLabel(g)}</h5>${rows.map((f) => this.renderFeature(f))}</div>`) : nothing}
     </div>`;
   }
 

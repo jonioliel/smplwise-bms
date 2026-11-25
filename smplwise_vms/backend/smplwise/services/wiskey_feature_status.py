@@ -71,8 +71,12 @@ R: dict[str, tuple[str, str, str]] = {  # code -> (kind, text, how to turn it on
 
 
 def _reason(code: str, **fmt: Any) -> dict[str, Any]:
+    """One reason. `text` / `fix` are the Hebrew sentences (unchanged); `params` (WISKEY-STATUS-I18N-2520, additive) carries the values
+    the sentence was filled with, so a page in another language says the same thing from the stable `code` (frontend
+    i18n/wiskey-feature-status.ts); {} when the sentence has none."""
     kind, text, fix = R[code]
-    return {"code": code, "kind": kind, "text": text.format(**fmt) if fmt else text, "fix": fix}
+    return {"code": code, "kind": kind, "text": text.format(**fmt) if fmt else text, "fix": fix,
+            "params": {k: v if isinstance(v, (int, float)) and not isinstance(v, bool) else str(v) for k, v in fmt.items()}}
 
 
 def _join_live() -> dict[str, Any]:
@@ -120,7 +124,7 @@ class Facts:
         if not out:  # WISKEY-JOIN-LIVE-2382: the join starts / stops at runtime - say where it is now
             live = self.live.get("state")
             if live in ("starting", "connecting", "stopping"):
-                out.append(_reason("join_starting", what={"starting": "מופעל", "connecting": "מתחבר", "stopping": "נעצר"}[live]))
+                out.append(_reason("join_starting", what={"starting": "מופעל", "connecting": "מתחבר", "stopping": "נעצר"}[live], state=live))
             elif live == "error":
                 out.append(_reason("join_error", error=self.live.get("last_error") or "unknown"))
             elif not self.join:
@@ -316,7 +320,8 @@ def rows(conn: Any, settings: Any) -> list[dict[str, Any]]:
             reasons = check(f)
             state = _state(reasons)
         except Exception as exc:  # noqa: BLE001 - one broken check never hides the others
-            reasons = [{"code": "check_failed", "kind": "RUN", "text": f"לא ניתן לבדוק כרגע ({type(exc).__name__}).", "fix": None}]
+            reasons = [{"code": "check_failed", "kind": "RUN", "text": f"לא ניתן לבדוק כרגע ({type(exc).__name__}).", "fix": None,
+                        "params": {"error": type(exc).__name__}}]
             state = UNKNOWN
         out.append({"row": num, "key": key, "group": group, "label": label, "state": state, "reasons": reasons, "link": link})
     return out

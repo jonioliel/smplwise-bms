@@ -45,8 +45,11 @@ type ReasonKind = 'SET' | 'POL' | 'PAIR' | 'WK' | 'OWN' | 'RUN';
 interface FeatureReason {
   code: string;
   kind: ReasonKind;
+  /** Hebrew (the server's words); the page says it in its own language from `code` + `params` (i18n/wiskey-feature-status.ts). */
   text: string;
   fix: string | null;
+  /** WISKEY-STATUS-I18N-2520 (additive): the values `text` was filled with; {} when none; absent on an older server. */
+  params?: Record<string, string | number>;
 }
 
 export interface FeatureRow {
