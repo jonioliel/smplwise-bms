@@ -34,7 +34,31 @@ python scripts/migrate_legacy.py --options options.json --override hikvision_nvr
 מה לבדוק בדוח: אזהרות בראש; טבלת המצלמות (`set_alias` = יועתק, `no_vms_camera` = להריץ "סנכרון מה־NVR" קודם,
 `keep_vms_alias` = יש כבר כינוי אחר ב־VMS); שורת הזמן (היסט אפקטיבי); אנשים ותפקידים.
 
+## 2א. הייבוא בתוך Arx (מומלץ, מגרסה 2.55)
+
+Arx יודע לקרוא עותק של קובצי הישן בעצמו ולהראות, שורה אחרי שורה, מה ייווצר, מה ישתנה, מה נשאר כמו שהוא, מה מדלגים
+ומה צריך לעשות אדם. הוא לא פותח את הקבצים של הישן עצמם, לא כותב ל־NVR, ל־go2rtc או למערכת הבית.
+
+1. ממירים את העותק לקובץ ייצוא קטן **בלי סיסמאות ובלי PIN** (כתובות רק כטביעת אצבע):
+
+   ```bash
+   python scripts/migrate_legacy.py --backup <גיבוי מערכת הבית לא מוצפן / zip / tar של הקבצים> --export legacy_export.json
+   ```
+
+   אפשר גם `--options ... --override ... --events ... --export legacy_export.json`. גיבוי מוצפן לא נקרא — מעלים את הקבצים עצמם.
+2. **בדיקה יבשה** (מנהל מערכת): `POST /api/v1/migration/legacy/dry-run` עם הקובץ. התשובה: כל פריט עם פעולה
+   (`update` יועתק, `same` זהה, `keep` נשאר הכינוי של Arx, `skip` לא מועבר ולמה, `manual` אדם עושה זאת במסך שנקרא בשמו,
+   `info` לידיעה), אזהרות, ו־`plan_digest`. שום דבר לא נכתב (רק שורת יומן).
+3. **החלה**: `POST /api/v1/migration/legacy/apply?plan_digest=...&confirm=ייבוא מהמערכת הישנה` עם אותו קובץ. רק מנהל מערכת,
+   רק מדפדפן. אם הקובץ או Arx השתנו מאז הבדיקה — נדחה (409) ובודקים שוב. לפני השינוי הראשון נכתב גיבוי
+   `auto-pre-legacy-import`; בלי גיבוי — אין שינוי. נכתבים רק כינויים שהיום ריקים ב־Arx. החלה שנייה של אותו קובץ לא כותבת דבר.
+4. ביטול: שחזור הגיבוי `auto-pre-legacy-import` (הגדרות › גיבוי) או מחיקת הכינויים ידנית.
+
+הניתוח המלא: `docs/legacy/MIGRATION_GAP_ANALYSIS.md`. רשימת הקבלה ליום הבדיקה: `docs/operations/LEGACY_ACCEPTANCE_CHECKLIST_HE.md`.
+
 ## 3. העתקת הכינויים (הכתיבה היחידה, ל־VMS בלבד)
+
+(הדרך הישנה, בלי גיבוי לפני; עדיף הייבוא שבסעיף 2א.)
 
 ```bash
 python scripts/migrate_legacy.py --options options.json --override hikvision_nvr_override.json --vms-url http://127.0.0.1:8099 --apply-aliases

@@ -16,7 +16,14 @@ Usage:
   python scripts/migrate_legacy.py --options options.json [--override hikvision_nvr_override.json]
       [--events hikvision_nvr_event_store.jsonl] [--vms-cameras cameras.json | --vms-url http://127.0.0.1:8099]
       [--vms-options vms_options.json] [--nvr-utc-offset-minutes 120] [--apply-aliases] [--keep DIR]
-      [--json out.json] [--markdown out.md]
+      [--json out.json] [--markdown out.md] [--export legacy_export.json]
+  python scripts/migrate_legacy.py --backup <home-assistant-backup.tar | copy.zip | copy.tar.gz> --export legacy_export.json
+
+LEGACY-MIGRATION-2550: `--backup` reads a whole (unprotected) Home Assistant backup or a ZIP / TAR of the legacy files with the
+same reader Arx uses (smplwise_vms/backend/smplwise/services/legacy_source.py), and `--export` writes the small, SECRET-FREE
+export document (no password, no PIN, hosts only as digests) that Arx's own import takes: POST /api/v1/migration/legacy/dry-run,
+then /apply (system administrator, interactive session, typed confirm word, backup first, empty aliases only, audited). Prefer
+that in-product apply to `--apply-aliases` (which has no backup step).
 """
 from __future__ import annotations
 
@@ -331,9 +338,52 @@ def to_markdown(rep: dict[str, Any]) -> str:
     return "\n".join(L)
 
 
+def legacy_reader() -> Any:
+    """Arx's own reader of the legacy files (standard library only), loaded from the add-on source."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "smplwise_vms" / "backend" / "smplwise" / "services" / "legacy_source.py"
+    spec = importlib.util.spec_from_file_location("smplwise_legacy_source", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules.setdefault("smplwise_legacy_source", mod)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def write_export(src: Any, out: Path) -> None:
+    out.write_text(json.dumps(src.to_export(), ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def backup_export(path: Path, out: Path | None) -> int:
+    """Read a backup / archive copy and print what was found; with `out`, write the secret-free export Arx's import takes."""
+    reader = legacy_reader()
+    try:
+        src = reader.read_path(path)
+    except reader.SourceError as exc:
+        print(f"cannot read {path.name}: {exc.code}", file=sys.stderr)
+        return 2
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except AttributeError:
+        pass
+    names = src.override.get("camera_names") if isinstance(src.override.get("camera_names"), dict) else {}
+    print(f"# Legacy copy - {src.container}, version {src.legacy_version or 'unknown'}, sha256 {src.sha256[:16]}...")
+    print(f"- found: {', '.join(src.found) or 'nothing'}; camera names: {len(names)}; event rows: {src.events.get('rows', 0)}")
+    print(f"- secrets present (values never read out): {', '.join(k for k, v in sorted(src.secrets_present.items()) if v) or 'none'}")
+    if src.warnings:
+        print(f"- warnings: {', '.join(src.warnings)}")
+    if out:
+        write_export(src, out)
+        print(f"- export written: {out.name} (upload it to Arx's legacy import: dry run first, then apply)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--options", required=True, help="legacy add-on options.json")
+    ap.add_argument("--options", help="legacy add-on options.json (or use --backup)")
+    ap.add_argument("--backup", help="a Home Assistant backup, or a ZIP / TAR / JSON copy of the legacy files (read with Arx's own reader)")
+    ap.add_argument("--export", help="write the secret-free export document for Arx's import here")
     ap.add_argument("--override", help="legacy /config/hikvision_nvr_override.json")
     ap.add_argument("--events", help="legacy /config/hikvision_nvr_event_store.jsonl")
     ap.add_argument("--vms-cameras", help="a saved GET /api/v1/cameras response (offline comparison)")
@@ -347,6 +397,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", help="write the report as JSON here")
     ap.add_argument("--markdown", help="write the report as Markdown here (default: print)")
     args = ap.parse_args(argv)
+    if not args.options and not args.backup:
+        ap.error("--options or --backup is required")
+    if args.backup:
+        return backup_export(Path(args.backup), Path(args.export) if args.export else None)
+    if args.export:
+        write_export(legacy_reader().read_parts(options=Path(args.options).read_bytes(),
+                                                override=Path(args.override).read_bytes() if args.override else None,
+                                                events=Path(args.events).read_bytes() if args.events and Path(args.events).exists() else None),
+                     Path(args.export))
 
     options = load_json(Path(args.options))
     override = load_json(Path(args.override)) if args.override else {}

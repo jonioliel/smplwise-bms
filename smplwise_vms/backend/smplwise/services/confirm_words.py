@@ -49,6 +49,7 @@ WORDS: dict[str, Word] = {
     "managed_enabled": Word("מאשר ניהול התקנה", "approve managed install"),  # WisKey managed install switch (also the start-up switch)
     "managed_core_risk": Word("מאשר סיכון סביבה", "approve environment risk"),  # WisKey managed install: accepted Core-image risk
     "managed_adopt": Word("מאשר העברה לניהול", "approve move to managed"),  # WisKey managed install: adoption
+    "legacy_import_apply": Word("ייבוא מהמערכת הישנה", "import legacy"),  # LEGACY-MIGRATION-2550: POST /migration/legacy/apply
     "door_code": Word("קוד {slot}", "code {slot}"),                       # public door code write (slot 1-16)
 }
 

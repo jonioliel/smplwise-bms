@@ -31,7 +31,7 @@ def test_the_table_is_the_owner_list_and_each_word_has_one_english_counterpart()
     assert cw.WORDS["schedules_allow_disarm"] == ("אפשר נטרול", "allow disarm")
     assert cw.WORDS["capture_lookup_wide"] == ("הרחב בירור", "widen lookup")
     assert cw.WORDS["installer_pulse"] == ("פתיחת דלת לבדיקה", "open door for test")
-    assert len(cw.WORDS) == 22
+    assert len(cw.WORDS) == 23  # LEGACY-MIGRATION-2550: + legacy_import_apply
     for key, word in cw.WORDS.items():
         assert word.en.isascii() and word.en == word.en.lower() and word.en == " ".join(word.en.split()), key
         assert not any(ch.isascii() and ch.isalpha() for ch in word.he.replace("{slot}", "")), key
@@ -119,4 +119,5 @@ def test_every_check_of_a_typed_word_goes_through_the_table():
         "routers/nvr_connection.py", "routers/recorders.py", "routers/settings_patch/identity.py", "routers/capture_lease.py", "routers/wiskey_installer_common.py",
         "routers/wiskey_lineage.py", "services/wiskey_relay_map.py", "services/access_external.py", "services/access_grants.py",
         "services/access_visitors.py", "services/wiskey_managed_install.py", "services/wiskey_door_tech.py",
+        "routers/legacy_migration.py",  # LEGACY-MIGRATION-2550
     }
