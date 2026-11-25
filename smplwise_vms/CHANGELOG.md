@@ -15,6 +15,8 @@
 - לוחות ההודעות בטלוויזיה: "נראה לאחרונה" נרשם ברקע פעם בדקה לכל הלוחות יחד, כך שקריאת הלוח לא מחכה לכתיבה. - TV notice boards: "last seen" is recorded in the background once a minute for all boards together, so a board's feed read never waits for a write.
 - WisKey: וידאו, דיבור והאזנה בעמדות יכולים לעבור בחיבור הישיר בגרסה 2 (כבוי כברירת מחדל, רק עם גשר 0.10.9 ומעלה). - WisKey: station video, talk and listen can go over the direct transport v2 (off by default, only with bridge 0.10.9 or newer).
 - WisKey: אחרי סירוב של החיבור הישיר בגרסה 2, גם תפיסת העמדה וכתיבת ההרשאות לא עוברות לדרך אחרת. - WisKey: after a refusal of the direct transport v2, the station capture and the access-grant writes no longer switch to another path either.
+- WisKey: המערכת מזהה גם עצי WisKey מותקנים בגרסאות rc.20, rc.19 ו-rc.17 שפורסמו (לפי טביעה מדויקת); עץ אחר נשאר "לא ידוע". - WisKey: installed WisKey trees of the published rc.20, rc.19 and rc.17 are recognised too (by exact digest); any other tree stays "unknown".
+- WisKey: מצב הביצוע של תזמון שנשלח לאישור הבעלים ב-WisKey מוצג בספריית התזמונים, לקריאה בלבד (כבוי כברירת מחדל); Arx לא מאשר ולא מבצע. - WisKey: the execution status of a schedule sent for the owner's approval in WisKey is shown in the schedule library, read only (off by default); Arx never approves or executes.
 - תקציב משאבים כתוב ובדיקת עומס אוטומטית שנכשלת מעליו (לצוות הפיתוח). - A written resource budget and an automated load run that fails above it (for the development team).
 
 ### התקנה - Install
