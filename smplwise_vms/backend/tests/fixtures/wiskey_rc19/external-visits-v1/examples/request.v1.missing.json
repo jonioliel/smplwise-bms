@@ -1,0 +1,23 @@
+{
+  "type": "hikvision_intercom/visits/record_external_v1",
+  "api_contract": 1,
+  "record": {
+    "external_ref": "synthetic-external-visit",
+    "arx_revision": 1,
+    "user_id": "00000000-0000-4000-8000-000000000821",
+    "status": "approved",
+    "valid_from": "2026-11-14T08:00:00+00:00",
+    "valid_until": "2026-11-14T10:00:00+00:00",
+    "doors": {
+      "synthetic-station": [
+        1
+      ]
+    },
+    "approval": {
+      "kind": "synthetic-approval",
+      "approved_at": "2026-11-14T07:59:00+00:00",
+      "approver_ref": "synthetic-arx-approver"
+    },
+    "end_reason": null
+  }
+}
