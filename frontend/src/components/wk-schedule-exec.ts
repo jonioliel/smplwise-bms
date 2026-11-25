@@ -6,8 +6,7 @@ import './sw-toggle';
 import './wk-action-button';
 import type { StateKind } from './sw-badge';
 import type { AccessStation } from '../api/access-stations';
-import type { Job } from '../api/schedule-writes';
-import { outcomeOf } from '../api/schedule-writes';
+import { outcomeOf, type Job } from '../api/schedule-writes';
 import {
   checkScheduleExecution,
   getScheduleExecution,
