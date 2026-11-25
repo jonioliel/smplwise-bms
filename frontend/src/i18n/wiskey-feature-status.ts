@@ -256,16 +256,10 @@ export const WFS_LINK_SLUG: Readonly<Record<string, string>> = {
   '#/wiskey/door-windows': 'doorWindows',
   '#/system/diagnostics?tab=ha': 'bridgeTab',
 };
-/** The server's Hebrew group name -> its slug. */
-export const WFS_GROUP_SLUG: Readonly<Record<string, string>> = {
-  'חיבור': 'connection',
-  'מדיה ודיבור': 'media',
-  'אנשים': 'people',
-  'דלתות': 'doors',
-  'הודעות': 'messaging',
-  'אירועים': 'events',
-  'התקנה': 'install',
-};
+/** The server's Hebrew group name (the Hebrew table's grp_<slug>) -> its slug. */
+export const WFS_GROUP_SLUG: Readonly<Record<string, string>> = Object.fromEntries(
+  WFS_KEYS.filter((k) => k.startsWith('grp_')).map((k) => [he[k], k.slice(4)]),
+);
 
 function wfsLang(): WfsLang {
   return docLang(['en']);
