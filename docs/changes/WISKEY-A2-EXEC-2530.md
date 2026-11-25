@@ -97,15 +97,37 @@ Frontend (`frontend/src/`):
 
 ## 4. Tests (real results)
 
-See section 4.1 (filled from the runs; NOT_RUN stated where not run).
-
-### 4.1 Results
-
 | command | where | exit | result |
 |---|---|---|---|
-| `python -m pytest -q tests/test_wiskey_schedule_execution_2530.py` (main checkout venv) | PC | 0 | 21 passed |
+| `python -m pytest tests/test_wiskey_schedule_execution_2530.py` (main checkout venv) | PC | 0 | 21 passed |
+| `python -m pytest tests/test_singletons_registered.py` (after registering `_SEEN` / `_BUSY` for the per-test reset) | PC | 0 | 4 passed |
 | `py -3.12 -m ruff check` on the 5 changed / new Python files | PC | 0 | all checks passed |
-| `scripts/gen_wire_types.py` (write) | PC | 0 | one new generated file |
+| `scripts/wire_ratchet.py` | PC | 0 | 897 unmodelled = baseline (the 3 new routes are modelled) |
+| runner slot B, run 2 (`~/work/slotb.sh ~/work/p2520_wka2_run2.sh`, head `a4cb106dd`), one pytest process per file: | | | |
+| - `tests/test_wiskey_schedule_execution_2530.py` | runner | 0 | 21 passed |
+| - `tests/test_wiskey_schedule_writes.py` | runner | 0 | 24 passed |
+| - `tests/test_wkjoin_295.py tests/test_wiskey_direct_v2_2520.py` | runner | 0 | 62 passed |
+| - `tests/test_wiskey_channels.py test_pwclean_295 test_wiskey_rc10_pin test_calendar_attendees_2343` | runner | 0 | 174 passed, 8 skipped |
+| - `test_local_auth_inventory` 4, `test_plan_routes_unique` 1, `test_secfix2_pub07_guard_first` 35, `test_capabilities` 3, `test_raw_body_order` 16 | runner | 0 | all passed |
+| - `tests/test_gate_always_run.py` | runner | 1 | 18 passed, **1 failed**: `test_every_package_scanner_is_listed_or_reviewed` names `test_i18n_errors_en_2520.py`, `test_wiskey_service_grants_v3_2520.py`, `test_wiskey_system_status_2520.py` - other 2.52 rows' files already on the train base, not this row's (this row's test file walks nothing). Belongs to the train. |
+| - `tests/test_singletons_registered.py` | runner | 1 -> 0 | run 2: 1 failed (`_SEEN`, `_BUSY` unregistered - this row's); fixed in `4e72fd85d`; run 3: passed |
+| - wire: `test_wire_routers_b/c/d/e` 66 / 58 / 174 / 95, `test_wire_consumption_2450` 13, `test_error_envelope_family2_2500` 7 | runner | 0 | all passed |
+| - `gen_wire_types.py --check`, `wire_ratchet.py`, `design_ratchet.py` | runner | 0 / 0 / 0 | no count above the baseline |
+| runner slot B, run 3 (`~/work/slotb.sh ~/work/p2520_wka2_run3.sh`, head `4e72fd85d`): | | | |
+| - backend: the new file 21 passed; `test_singletons_registered.py` passed; `test_get_routes_read_conn.py` alone (timeout 5400 s) | runner | 0 | 739 passed (25 min; in the shared shard of run 2 it hit the 900 s timeout at 45 % - a busy runner, not a hang: this row's GET passes the held-lock check, also on the PC with `-k`) |
+| - frontend `tsc --noEmit -p .` / `-p tsconfig.tests.json` | runner | 0 / 0 | 0 errors / 0 errors |
+| - `eslint` on the 10 changed / new frontend files | runner | 0 | clean |
+| - `playwright -c playwright.unit.config.ts tests/unit-schedule-execution-2530.spec.ts` | runner | 0 | 5 passed |
+| - `npm run build` | runner | 0 | built |
+| - `tests/evidence-wiskey-schedule-exec-2530.spec.ts` desktop + mobile | runner | 0 | 10 passed (images in `docs/design/evidence/wiskey-schedule-exec-2530/`) |
+| - `tests/pixel-wiskey-schedule-exec-2530.spec.ts` desktop + mobile, light + dark: `--update-snapshots=all`, then re-check | runner | 0 / 0 | 8 passed / 8 passed (8 Linux baselines committed) |
+| - existing `pixel-wiskey-schedule-writes`, `evidence-wiskey-schedule-writes`, `layout-audit30wk-components` (check, unchanged baselines) | runner | 0 | 31 passed, 1 skipped |
+| run 1 (head `fb53f5aaa`) | runner | - | superseded: a real syntax error in the English strings (an apostrophe; fixed in `a4cb106dd`) broke tsc / eslint / build and everything after it; the water-billing COMMIT failure of `test_wire_consumption_2450` there was the full runner disk (passes in run 2) |
+| full backend suite, full Playwright | - | - | **NOT_RUN** (not in this row; the train gate runs them) |
+| real WisKey rc20 / lab / bridge | - | - | **NOT_RUN** by rule |
+
+Compare page (Hebrew, before / after, desktop + phone, light + dark): `private/planning/wiskey_a2_exec_compare_2026-11-25.html`
+(main checkout, not in git).
 
 ## 5. Not done / limits
 
