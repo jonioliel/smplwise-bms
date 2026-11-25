@@ -50,10 +50,25 @@ PC (one file per process, `C:\cloude\smplwisebms\.venv`):
 | check | command | result |
 | --- | --- | --- |
 | Hebrew byte-identity (one-off script, not committed): base `7b55e0e76` vs this branch. Every catalogue source rendered in Hebrew AND English for 6 param sets (on the branch also with an `_i18n` block present - must not change Hebrew); calendar `when_text` and `message_text` (4 kinds) for 2 events x 2 calendars x 3 organizers x 2 titles x 2 zones x 2 starts x 2 ends x all-day x recurring x occurrence; insights WhatsApp text + report mail (subject, text, HTML) in Hebrew for 3 summaries x 2 link bases | `senders_dump.py <tree>` twice + `he_compare.py` | **9,609 outputs compared, 0 differences** (Hebrew renders 960, English renders 960, calendar `when` 1,536, calendar messages 6,144, insights Hebrew 9); English notification renders without `_i18n` also identical; only the 6 English report mails differ (intended) |
-| new tests | `pytest tests/test_notify_lang_senders_2520.py` | see below |
+| new tests | `pytest tests/test_notify_lang_senders_2520.py` | the first run showed 2 wrong expectations in the new test (a clipped trailing space; Hebrew room name in an English text = data), fixed; the re-run on the PC hit the 15-minute timeout (PC memory) - run on the runner instead, below |
 | ruff (changed backend files + new test) | `py -3.12 -m ruff check ...` | All checks passed |
 
-Runner: see the section below (job `p2520_notifysenders_run.sh`).
+Runner (slot B, job `p2520_notifysenders_run.sh`, HEAD `f97782e11`, 25.11 13:17-13:47 server time):
+
+| check | command | result |
+| --- | --- | --- |
+| backend lint | `scripts/gate/lint_backend.py --strict` | exit 0, 0 findings |
+| wire types | `scripts/gen_wire_types.py --check` | exit 0 |
+| refusal-text inventory | `scripts/i18n_backend_errors.py` | exit 0 (without English: 0) |
+| shard 1: this row's tests, `test_notify_recipient_lang_2520`, `test_i18n_backend_2490` / `b` / `c`, `test_singletons_registered` (6 files) | pytest | exit 0, **78 passed** |
+| shard 2: every `test_notif*` / `test_notify*` file (20 files) | pytest | exit 0, **312 passed** |
+| shard 3: every `test_calendar*` and `test_insight*` file, `test_energy_elecbill77`, `test_energy_billing_api` (14 files) | pytest | exit 0, **2,135 passed** |
+| shard 4: every `test_notice*` file (20 files) | pytest | exit 0, **1,799 passed** |
+| frontend tsc (app / tests) | `npx tsc --noEmit -p tsconfig.json` / `tsconfig.tests.json` | exit 0 / 0, 0 errors |
+| eslint (the 4 changed frontend files) | `npx eslint ...` | exit 0 |
+| i18n split dry run / missing-keys report | `node scripts/i18n-split-langs.mjs --dry` / `node scripts/i18n_missing_keys.mjs` | exit 0 / exit 0 (Hebrew in the English pack: 0) |
+| unused exports / design ratchet | `node scripts/unused-exports.mjs` / `scripts/design_ratchet.py` | exit 0 / exit 0, no count above the baseline |
+| frontend unit tests (all) | `npx playwright test -c playwright.unit.config.ts --workers=2` | **5,234 passed, 15 skipped, 3 failed** - the 3 are `unit-mfa-passkeys-2490.spec.ts` (202, 259, 285): `page.goto ... ERR_CONNECTION_REFUSED at localhost:4173`, they need a preview server this job does not start; nothing of this row is on that path |
 
 NOT_RUN: the release gate and the backend suite outside the runner shards; pixel baselines (no screen changes its look by default: the new
 option is inside the closed language select; no compare page made for that reason - see question 3); a real WhatsApp / SMTP / push service
