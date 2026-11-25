@@ -572,6 +572,8 @@ class LoadBudget(Soak):
             "go2rtc_media_over_viewers": (mx("go2rtc_ws_open") - self.a.viewers) if mx("go2rtc_ws_open") is not None else None,
             "err_5xx": err5, "err_4xx_unexpected": err4, "err_client": errc,
             "db_locked": log.get("database_is_locked"), "write_lock_busy": wl.get("busy_errors"), "write_lock_max_hold_s": wl.get("max_hold_s"),
+            "write_lock_max_wait_s": wl.get("max_wait_s"), "write_lock_max_wait_by": wl.get("max_wait_by"), "write_lock_max_hold_by": wl.get("max_hold_by"),
+            "write_lock_waits_over_1s": wl.get("waits_over_1s"),
             "log_errors": log.get("errors"),
             "ingest_dropped": (last_stats.get("ingest") or {}).get("dropped"), "ingest_high_water": (last_stats.get("ingest") or {}).get("high_water"),
             "live_opened": live_opened, "live_failed": live_failed,
