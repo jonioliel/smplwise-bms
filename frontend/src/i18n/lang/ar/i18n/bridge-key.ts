@@ -123,7 +123,7 @@ export const ar = {
   sgCmd_users_pin_generate: 'إنشاء رمز',
   sgCmd_users_temporary_cancel: 'إلغاء مؤقت',
   sgNoCards: 'البطاقات غير مشمولة في هذا الإذن.',
-  sgCode: 'رمز WisKey: {code}',
+  sgCode: 'الرمز الذي أعاده WisKey:',
   sgOwner: 'مالك النظام وحده يمنح الإذن أو يسحبه، في شاشة أدوات WisKey.',
   sgOpen: 'شاشة أدوات WisKey',
 };

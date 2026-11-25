@@ -165,7 +165,7 @@ test('service grant: every state has its badge word and its plain sentence in al
     }
     for (const k of BKT_KEYS.filter((x) => x.startsWith('sg'))) expect(BKT_TABLES[lang][k] ?? '', `${lang}.${k}`).not.toMatch(/Home Assistant|HA|Ingress|Companion/i);
   }
-  expect(bkt('sgCode', { code: 'Unauthorized' }, 'en')).toBe('WisKey code: Unauthorized');
+  expect(bkt('sgCode', undefined, 'en')).toBe('The code WisKey returned:'); // the code itself is set apart (<bdi dir=ltr>) by the card
 });
 
 test('service grant: the card and the API only READ it - no grant, preview, commit or revoke call anywhere', () => {

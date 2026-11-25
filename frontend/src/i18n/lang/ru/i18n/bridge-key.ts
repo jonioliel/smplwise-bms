@@ -123,7 +123,7 @@ export const ru = {
   sgCmd_users_pin_generate: 'Создание кода',
   sgCmd_users_temporary_cancel: 'Временная отмена',
   sgNoCards: 'Карты в это разрешение не входят.',
-  sgCode: 'Код WisKey: {code}',
+  sgCode: 'Код, который вернул WisKey:',
   sgOwner: 'Только владелец системы выдаёт или отзывает разрешение, на экране инструментов WisKey.',
   sgOpen: 'Экран инструментов WisKey',
 };

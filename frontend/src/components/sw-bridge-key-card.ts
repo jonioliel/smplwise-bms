@@ -227,7 +227,7 @@ export class SwBridgeKeyCard extends LitElement {
           </div>
           <div class="note" data-bridge-key-grant-no-cards>${bkt('sgNoCards')}</div>`
         : nothing}
-      ${code ? html`<div class="note" data-bridge-key-grant-code>${bkt('sgCode', { code })}</div>` : nothing}
+      ${code ? html`<div class="note" data-bridge-key-grant-code>${bkt('sgCode')} <bdi class="ltr" dir="ltr">${code}</bdi></div>` : nothing}
       <div class="row" data-bridge-key-grant-owner>
         <span class="val">${bkt('sgOwner')}</span>
         ${panel ? html`<a class="link" href=${targetHref({ tab: 'tools', tool: null })} data-bridge-key-grant-open>${bkt('sgOpen')}</a>` : nothing}

@@ -123,7 +123,7 @@ export const en = {
   sgCmd_users_pin_generate: 'Generate a code',
   sgCmd_users_temporary_cancel: 'Temporary cancel',
   sgNoCards: 'Cards are not included in this approval.',
-  sgCode: 'WisKey code: {code}',
+  sgCode: 'The code WisKey returned:',
   sgOwner: 'Only the system owner gives or withdraws the approval, in WisKey\'s tools screen.',
   sgOpen: 'WisKey tools screen',
 };

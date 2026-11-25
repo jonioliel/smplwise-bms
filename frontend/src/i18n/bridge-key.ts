@@ -130,7 +130,7 @@ const he = {
   sgCmd_users_pin_generate: 'הפקת קוד',
   sgCmd_users_temporary_cancel: 'ביטול זמני',
   sgNoCards: 'כרטיסים אינם כלולים בהרשאה הזו.',
-  sgCode: 'קוד מ־WisKey: {code}',
+  sgCode: 'הקוד ש־WisKey החזיר:',
   sgOwner: 'רק בעל המערכת נותן או מבטל את ההרשאה, במסך הכלים של WisKey.',
   sgOpen: 'מסך הכלים של WisKey',
 };
