@@ -281,7 +281,7 @@ export class SystemLocalUsers extends LitElement {
     }
     .pk-reset .err {
       font-size: var(--sw-fs-xs);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .pk-reset form.typed-form {
       padding: 0;

@@ -12,6 +12,11 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 const LRI = '⁦';
 const PDI = '⁩';
 const FORWARD = '›';
+/** RELEASE-2520-TRAIN: files whose Hebrew table is a byte-for-byte MIRROR of the server's own texts (their spec asserts the equality) and
+ *  is never shown - on a Hebrew page the screen shows the server's text itself. The separator there is the server's choice. */
+const MIRRORS_SERVER = new Set([
+  'i18n/wiskey-feature-status.ts', // WISKEY-STATUS-I18N-2520: he = services/wiskey_feature_status.py R / links (unit-wiskey-feature-status-i18n-2520)
+]);
 
 test.describe('bidi runs (finding 2)', () => {
   test('an ISO date with a time stays one left-to-right run', () => {
@@ -56,6 +61,7 @@ test.describe('path separator (finding 5)', () => {
         const p = path.join(dir, name);
         if (statSync(p).isDirectory()) { walk(p); continue; }
         if (!p.endsWith('.ts')) continue;
+        if (MIRRORS_SERVER.has(path.relative(SRC, p).split(path.sep).join('/'))) continue;
         readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
           if (!line.includes(FORWARD)) return;
           const t = line.trim();
