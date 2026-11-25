@@ -651,7 +651,7 @@ export class DevicesCameraCard extends LitElement {
                   ? html`<sw-live-player .livePath=${r.live_path} .mode=${effectiveTransport(this.settings)} .poster=${stillUrl(r.entity_id ?? '', this.snapBust)}></sw-live-player>`
                   : html`<img src=${apiUrl(`devices/camera-card/still?entity_id=${encodeURIComponent(r.entity_id ?? '')}&t=${this.snapBust}`)} alt=${name} />`}
             </div>
-            <sw-button slot="footer" data-camera-big-close @click=${() => this.closeBig()}>סגור</sw-button>
+            <sw-button slot="footer" data-camera-big-close @click=${() => this.closeBig()}>${tr('סגור')}</sw-button>
         </sw-dialog>`,
       root,
     );

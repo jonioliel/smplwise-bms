@@ -105,6 +105,7 @@ import { devicesBuildingStyles } from './devices-building-css';
 // CR-G1-HOME-AREA-2440 (06:DUP-10): the pieces the area screen and the quick sheet share live in devices-shared.ts (the area screen no
 // longer imports this module for five small helpers); they stay exported from here for any older importer.
 import { alarmTone, findArea as areaById, FIT_MIN_WIDTH, fitStep, jsonClone, REFRESH_WINDOW_MS, ReloadThrottle, routeDevicePush, scrollParentOf, STRUCTURE_FLASH_MS, withConnected, type FitLevel } from './devices-shared';
+import { tr } from '../i18n/msg/devices';
 export { alarmTone, FIT_MIN_WIDTH, REFRESH_WINDOW_MS, scrollParentOf, STRUCTURE_FLASH_MS };
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
@@ -121,7 +122,7 @@ const PANEL_FILTERS: readonly ItemsFilter[] = ['all', 'active', 'inactive', 'una
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', heating: 'heating', media: 'media', locks: 'locks' };
 
 /** BUILDING-SCOPE-CONTROL-2351: the tooltip of the tiles' panel group control at the site level of a multi-building site. */
-const SITE_BULK_HOLD = 'פעולה קבוצתית זמינה בתוך בניין - בחרו בניין, או "כבה הכל" של האתר';
+const SITE_BULK_HOLD = tr('פעולה קבוצתית זמינה בתוך בניין - בחרו בניין, או "כבה הכל" של האתר');
 
 /** The panel's deep link on the building screen (owner 2026-09-29): `#/devices/building?domain=<kind>[&floor=<id> |
  * &area=<id>][&filter=active|inactive|unavailable]` - the hash-query convention of the other screens (router.ts). */
@@ -164,10 +165,10 @@ function agoHe(what: string, iso: string | null | undefined, now: number = Date.
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
  * was last CHECKED against Home Assistant (last_registry_at - every refresh, changed or not). */
 function structureTiming(sync: HaSyncState | null | undefined, now: number = Date.now()): { changed: string; checked: string } {
-  if (!sync?.last_registry_at) return { changed: 'המבנה טרם נטען', checked: '' };
+  if (!sync?.last_registry_at) return { changed: tr('המבנה טרם נטען'), checked: '' };
   return {
-    changed: agoHe('המבנה עודכן', sync.last_structure_at, now) || 'המבנה לא השתנה מאז ההפעלה',
-    checked: agoHe('נבדק', sync.last_registry_at, now),
+    changed: agoHe(tr('המבנה עודכן'), sync.last_structure_at, now) || tr('המבנה לא השתנה מאז ההפעלה'),
+    checked: agoHe(tr('נבדק'), sync.last_registry_at, now),
   };
 }
 
@@ -183,15 +184,15 @@ interface CountPill {
 
 export function pillsOf(c: DeviceCounts): CountPill[] {
   const out: CountPill[] = [];
-  if (c.lights) out.push({ key: 'lights', icon: 'light', label: 'תאורה', total: c.lights, on: c.lights_on, warm: c.lights_on > 0 });
-  if (c.switches) out.push({ key: 'switches', icon: 'bolt', label: 'מתגים', total: c.switches, on: c.switches_on, warm: c.switches_on > 0 });
-  if (c.covers) out.push({ key: 'covers', icon: 'layers', label: 'תריסים פתוחים', total: c.covers, on: c.covers_open, warm: c.covers_open > 0 });
-  if (c.climate) out.push({ key: 'climate', icon: 'snow', label: 'מיזוג פעיל', total: c.climate, on: c.climate_active, warm: c.climate_active > 0 });
-  if (c.heating) out.push({ key: 'heating', icon: 'flame', label: 'חימום פעיל', total: c.heating, on: c.heating_active, warm: c.heating_active > 0 });
-  if (c.media) out.push({ key: 'media', icon: 'play', label: 'מסכים דולקים', total: c.media, on: c.media_on, warm: c.media_on > 0 });
-  if (c.locks) out.push({ key: 'locks', icon: 'lock', label: 'נעולים', total: c.locks, on: c.locks_locked, warm: false });
-  if (c.cameras) out.push({ key: 'cameras', icon: 'camera', label: 'מצלמות', total: c.cameras, on: null, warm: false });
-  if (c.sensors) out.push({ key: 'sensors', icon: 'sensor', label: 'חיישנים', total: c.sensors, on: null, warm: false });
+  if (c.lights) out.push({ key: 'lights', icon: 'light', label: tr('תאורה'), total: c.lights, on: c.lights_on, warm: c.lights_on > 0 });
+  if (c.switches) out.push({ key: 'switches', icon: 'bolt', label: tr('מתגים'), total: c.switches, on: c.switches_on, warm: c.switches_on > 0 });
+  if (c.covers) out.push({ key: 'covers', icon: 'layers', label: tr('תריסים פתוחים'), total: c.covers, on: c.covers_open, warm: c.covers_open > 0 });
+  if (c.climate) out.push({ key: 'climate', icon: 'snow', label: tr('מיזוג פעיל'), total: c.climate, on: c.climate_active, warm: c.climate_active > 0 });
+  if (c.heating) out.push({ key: 'heating', icon: 'flame', label: tr('חימום פעיל'), total: c.heating, on: c.heating_active, warm: c.heating_active > 0 });
+  if (c.media) out.push({ key: 'media', icon: 'play', label: tr('מסכים דולקים'), total: c.media, on: c.media_on, warm: c.media_on > 0 });
+  if (c.locks) out.push({ key: 'locks', icon: 'lock', label: tr('נעולים'), total: c.locks, on: c.locks_locked, warm: false });
+  if (c.cameras) out.push({ key: 'cameras', icon: 'camera', label: tr('מצלמות'), total: c.cameras, on: null, warm: false });
+  if (c.sensors) out.push({ key: 'sensors', icon: 'sensor', label: tr('חיישנים'), total: c.sensors, on: null, warm: false });
   return out;
 }
 
@@ -632,23 +633,23 @@ export class DevicesBuilding extends LitElement {
     const here = site.shown.find((b) => b.id === this.level) ?? null;
     const canOff = (this.bulkAllowed || !isApi()) && site.shown.some((b) => this.tree && bulkTargets(this.tree, b).length);
     return html`<div class="site-bar" data-site-bar data-site-level=${this.level}>
-      <nav class="crumbs" aria-label="מיקום">
+      <nav class="crumbs" aria-label=${tr('מיקום')}>
         ${here
-          ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>אתר</button><span class="sep" aria-hidden="true">‹</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
-          : html`<span class="crumb here" aria-current="page">אתר${site.model.siteName ? html`<span class="sitename"> · ${bidi(site.model.siteName)}</span>` : nothing}</span>`}
+          ? html`<button type="button" class="crumb" data-site-crumb="site" @click=${() => this.goLevel(SITE_LEVEL)}>${tr('אתר')}</button><span class="sep" aria-hidden="true">‹</span><span class="crumb here" aria-current="page">${bidi(here.name)}</span>`
+          : html`<span class="crumb here" aria-current="page">${tr('אתר')}${site.model.siteName ? html`<span class="sitename"> · ${bidi(site.model.siteName)}</span>` : nothing}</span>`}
       </nav>
       <mapping-health-chip></mapping-health-chip>
-      <span class="bswitch" role="group" aria-label="בניינים" data-site-switch>
-        <button type="button" data-site-switch-btn=${SITE_LEVEL} aria-pressed=${String(!here)} @click=${() => this.goLevel(SITE_LEVEL)}><sw-icon name="building" size=${14}></sw-icon>כל האתר</button>
+      <span class="bswitch" role="group" aria-label=${tr('בניינים')} data-site-switch>
+        <button type="button" data-site-switch-btn=${SITE_LEVEL} aria-pressed=${String(!here)} @click=${() => this.goLevel(SITE_LEVEL)}><sw-icon name="building" size=${14}></sw-icon>${tr('כל האתר')}</button>
         ${site.shown.map((b) => html`<button type="button" class=${classMap({ shared: b.shared })} data-site-switch-btn=${b.id} aria-pressed=${String(here?.id === b.id)} @click=${() => this.goLevel(b.id)}>
-          ${b.shared ? html`<sw-icon name="sparkle" size=${13}></sw-icon>` : nothing}${bidi(b.name)}${b.alerts.length ? html`<span class="dot" aria-label="התראה"></span>` : nothing}</button>`)}
+          ${b.shared ? html`<sw-icon name="sparkle" size=${13}></sw-icon>` : nothing}${bidi(b.name)}${b.alerts.length ? html`<span class="dot" aria-label=${tr('התראה')}></span>` : nothing}</button>`)}
       </span>
       ${canOff && showOff
         ? html`<span class="site-off">
             ${here
-              ? html`<sw-button size="sm" icon="light" data-site-off-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.openSiteOff('lights_off')}>כבה תאורה</sw-button>
-                  <sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" @click=${() => this.openSiteOff('all_off')}>כבה הכל ב${here.name}</sw-button>`
-              : html`<sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" data-site-off-site @click=${() => this.openSiteOff('all_off', SITE_LEVEL)}>כבה הכל באתר…</sw-button>`}
+              ? html`<sw-button size="sm" icon="light" data-site-off-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.openSiteOff('lights_off')}>${tr('כבה תאורה')}</sw-button>
+                  <sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" @click=${() => this.openSiteOff('all_off')}>${tr('כבה הכל ב{name}', { name: here.name })}</sw-button>`
+              : html`<sw-button size="sm" variant="danger" icon="bolt" data-site-off-kind="all_off" data-site-off-site @click=${() => this.openSiteOff('all_off', SITE_LEVEL)}>${tr('כבה הכל באתר…')}</sw-button>`}
           </span>`
         : nothing}
     </div>`;
@@ -670,7 +671,7 @@ export class DevicesBuilding extends LitElement {
   private lay = new DevicesLayoutController(this, {
     scope: 'building',
     id: () => 'main',
-    screenName: () => (this.layout === 'cards' ? 'מסך המבנה ‹ כרטיסי קומה' : 'מסך המבנה ‹ אריחי אזורים'),
+    screenName: () => (this.layout === 'cards' ? tr('מסך המבנה ‹ כרטיסי קומה') : tr('מסך המבנה ‹ אריחי אזורים')),
     measure: () => this.measureGrids(),
     defaultH: (key) => (key.startsWith('floor:') ? 30 : 14),
     label: (key) => this.layLabel(key),
@@ -692,7 +693,7 @@ export class DevicesBuilding extends LitElement {
 
   private layLabel(key: string): string {
     const id = key.slice(key.indexOf(':') + 1);
-    if (id === 'unassigned') return 'ללא שיוך';
+    if (id === 'unassigned') return tr('ללא שיוך');
     const t = this.tree;
     if (key.startsWith('floor:')) return t?.floors.find((f) => f.floor_id === id)?.name ?? id;
     return areaById(t, id)?.name ?? id;
@@ -769,13 +770,13 @@ export class DevicesBuilding extends LitElement {
       this.openSiteOff(kind);
       return;
     }
-    void this.dialog?.show({ scope: 'building', id: '*', name: 'המבנה', kind });
+    void this.dialog?.show({ scope: 'building', id: '*', name: tr('המבנה'), kind });
   }
 
   /** A scope's display name from the tree (the panel shows the server's own name once it loads). */
   private scopeName(scope: ItemsScope, id: string): string {
-    if (scope === 'building') return 'המבנה';
-    if (id === 'unassigned') return 'ללא שיוך';
+    if (scope === 'building') return tr('המבנה');
+    if (id === 'unassigned') return tr('ללא שיוך');
     const t = this.tree;
     if (scope === 'floor') return t?.floors.find((f) => f.floor_id === id)?.name ?? '';
     return areaById(t, id)?.name ?? '';
@@ -1691,7 +1692,7 @@ export class DevicesBuilding extends LitElement {
       const r = await refreshDevicesFromHa();
       this.sync = r.sync;
       if (r.changed) this.flashStructure();
-      else this.noteRefresh('אין שינויים במבנה');
+      else this.noteRefresh(tr('אין שינויים במבנה'));
       await this.load();
       this.live.refreshAll(['tree']); // HOMELIVE-295: the button refreshes every widget, not only the structure
     } catch (err) {
@@ -1749,12 +1750,12 @@ export class DevicesBuilding extends LitElement {
     // owner notes 2026-09-30: the title is the installation's own text (edit mode), empty = the default; shown live while editing
     const heading = ((this.lay.editing && this.homeDraft ? this.homeDraft.title : this.homeSaved.title).trim() || HOME_TITLE_DEFAULT);
     if (this.forbidden) {
-      return html`<sw-page heading=${heading} subheading="המבנה"><sw-state-panel data-devices-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בחשמל והתקנים" hint="נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${heading} subheading=${tr('המבנה')}><sw-state-panel data-devices-state="no_permission" state="forbidden" heading=${tr('אין לך הרשאת צפייה בחשמל והתקנים')} hint=${tr('נדרשת ההרשאה צפייה בחשמל והתקנים. פנה למנהל המערכת.')}></sw-state-panel></sw-page>`;
     }
     const full = this.tree;
     if (!full) {
-      return html`<sw-page heading=${heading} subheading="המבנה" wide>${this.error
-        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
+      return html`<sw-page heading=${heading} subheading=${tr('המבנה')} wide>${this.error
+        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading=${tr('לא ניתן לטעון את עץ המבנה')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel>`
         : this.renderSkeleton()}</sw-page>`;
     }
     // MULTIBUILDING-HOME-2330: a site of several buildings - the site level (cards + grouped tree) or one building's home (today's home
@@ -1790,7 +1791,7 @@ export class DevicesBuilding extends LitElement {
     const widgets = this.renderWidgets(t, h, cardItems, layout);
     const sideLayout = layout === 'side' && cardItems.length > 0;
     const body = html`${!t.floors.length
-        ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
+        ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? tr('אין התקנים בקומות שלך') : tr('אין קומות ואזורים')} hint=${t.scoped ? tr('מוצגות רק הקומות שבהרשאתך.') : tr('המבנה יופיע כאן כשיוגדרו קומות ואזורים.')}></sw-state-panel>`
         : nothing}
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
@@ -1798,11 +1799,11 @@ export class DevicesBuilding extends LitElement {
     return html`<sw-page heading=${heading} wide @bulk-request=${this.onBulkRequest}>
       <div slot="actions" class="hdr">
         ${ambient.length ? html`<home-ambient-bar .items=${ambient} .config=${h.config} .data=${h.data} .zone=${h.time_zone}></home-ambient-bar>` : nothing}
-        ${t.scoped ? html`<sw-badge kind="partial" label="לפי הקומות שלך"></sw-badge>` : nothing}
-        ${isApi() && !connected && !this.offline ? html`<sw-badge data-devices-sync kind="stale" label="לא מסונכרן"></sw-badge>` : nothing}
+        ${t.scoped ? html`<sw-badge kind="partial" label=${tr('לפי הקומות שלך')}></sw-badge>` : nothing}
+        ${isApi() && !connected && !this.offline ? html`<sw-badge data-devices-sync kind="stale" label=${tr('לא מסונכרן')}></sw-badge>` : nothing}
         ${isApi() ? this.renderRefresh() : nothing}
       </div>
-      ${this.error && !this.offline ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
+      ${this.error && !this.offline ? html`<sw-state-panel compact state="error" heading=${tr('הרענון האחרון נכשל')} hint=${this.error}></sw-state-panel>` : nothing}
       <div class="page-body" data-home-direction=${h.direction} data-home-layout=${layout} data-fit=${this.fit} data-site-mode=${site ? (atSite ? 'site' : 'building') : nothing}>
         ${this.lay.renderBar()}
         ${site ? this.renderSiteBar(site, t, atSite || !quickShown) : nothing}
@@ -1843,7 +1844,7 @@ export class DevicesBuilding extends LitElement {
    * so the first paint does not jump when the tree arrives. */
   private renderSkeleton() {
     const block = (cls: string) => html`<div class=${`skl ${cls}`}></div>`;
-    return html`<div class="skeleton" data-devices-state="loading" role="status" aria-label="טוען…" aria-busy="true">
+    return html`<div class="skeleton" data-devices-state="loading" role="status" aria-label=${tr('טוען…')} aria-busy="true">
       <div class="skl-band">${block('wg')}${block('wg')}${block('wg')}${block('wg')}</div>
       <div class="skl-kpis">${block('kpi')}${block('kpi')}${block('kpi')}${block('kpi')}${block('kpi')}</div>
       <div class="skl-split">
@@ -1864,17 +1865,17 @@ export class DevicesBuilding extends LitElement {
     if (!filter && !bulkBuilding) return nothing;
     return html`<div class="toolbar" data-toolbar>
       ${filter
-        ? html`<span class="floor-filter" role="group" aria-label="קומה" data-floor-filter>קומה:
+        ? html`<span class="floor-filter" role="group" aria-label=${tr('קומה')} data-floor-filter>${tr('קומה:')}
             <span class="opts">
-              <button type="button" data-floor-filter-btn="all" aria-pressed=${String(this.selected === 'all')} @click=${() => (this.selected = 'all')}>כל המבנה</button>
+              <button type="button" data-floor-filter-btn="all" aria-pressed=${String(this.selected === 'all')} @click=${() => (this.selected = 'all')}>${tr('כל המבנה')}</button>
               ${floors.map((f) => html`<button type="button" data-floor-filter-btn=${f.floor_id} aria-pressed=${String(this.selected === f.floor_id)} @click=${() => (this.selected = f.floor_id)}>${bidi(f.name)}</button>`)}
             </span>
           </span>`
         : nothing}
       ${bulkBuilding
         ? html`<span class="bulk-buttons" data-bulk-building>
-            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.building('lights_off')}>כבה תאורה בלבד</sw-button>
-            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0 || t.building.switches_on > 0)} @click=${() => this.building('all_off')}>כבה הכל בבניין</sw-button>
+            <sw-button size="sm" icon="light" data-bulk-kind="lights_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0)} @click=${() => this.building('lights_off')}>${tr('כבה תאורה בלבד')}</sw-button>
+            <sw-button size="sm" variant="danger" icon="bolt" data-bulk-kind="all_off" ?disabled=${this.bulkIdle === 'disabled' && !(t.building.lights_on > 0 || t.building.switches_on > 0)} @click=${() => this.building('all_off')}>${tr('כבה הכל בבניין')}</sw-button>
           </span>`
         : nothing}
     </div>`;
@@ -1886,7 +1887,7 @@ export class DevicesBuilding extends LitElement {
     // outcome (an error / "no change") shows for a few seconds after a press, and "מבנה עודכן" after a real change.
     const stale = this.stale;
     return html`<span class="ha-refresh">
-      ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
+      ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label=${tr('מבנה עודכן')}></sw-badge>` : nothing}
       ${this.refreshNote ? html`<span class="refreshed" role="status" data-devices-refresh-note>${this.refreshNote}</span>` : nothing}
       <sw-button size="sm" variant="ghost" icon="refresh" iconOnly label=${this.refreshTip(stale)} data-devices-refresh ?disabled=${this.refreshing} @pointerenter=${this.refreshHover} @focusin=${this.refreshHover} @click=${() => void this.refreshFromHa()}></sw-button>
       ${stale ? html`<span class="stale-dot" data-home-stale aria-hidden="true"></span>` : nothing}
@@ -1899,7 +1900,7 @@ export class DevicesBuilding extends LitElement {
     const timing = structureTiming(this.sync, now);
     const at = this.live.lastOkAt();
     const updated = at ? `${hl('updated')} ${timeText(new Date(at))}` : '';
-    return [this.refreshing ? 'מרענן…' : 'רענן', stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
+    return [this.refreshing ? tr('מרענן…') : tr('רענן'), stale ? hl('stale') : '', updated, timing.changed, timing.checked].filter(Boolean).join(' · ');
   }
 
   /** CR-G1-HOME-AREA-2440 (06:PERF-6): the "לפני …" words are brought up to date on the button alone when the pointer or the focus reaches
@@ -1934,7 +1935,7 @@ export class DevicesBuilding extends LitElement {
         ${repeat(floors, (f) => f.floor_id, (f) => this.renderFloor(f))}
         ${loose
           ? html`<section class=${classMap({ floor: true, laid: this.lay.gridOn('areas:unassigned') })} style="--n:1" data-floor="unassigned">
-              <div class="floor-head"><h2>ללא שיוך</h2><span class="level">התקנים שאינם משויכים לאזור</span></div>
+              <div class="floor-head"><h2>${tr('ללא שיוך')}</h2><span class="level">${tr('התקנים שאינם משויכים לאזור')}</span></div>
               ${this.renderAreasGrid('areas:unassigned', html`${this.lay.wrap('area:unassigned', this.renderTile({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, true))}`)}
             </section>`
           : nothing}
@@ -1968,7 +1969,7 @@ export class DevicesBuilding extends LitElement {
         ${repeat(floors, (f) => f.floor_id, (f) => this.lay.wrap(`floor:${f.floor_id}`, this.renderFloorCard(f)))}
         ${loose || (this.lay.editing && (t.unassigned.counts.entities || !t.scoped))
           ? this.lay.wrap('floor:unassigned', html`<section class="fcard loose" data-floor-card="unassigned" data-lay-key="floor:unassigned">
-              <header><h2>ללא שיוך</h2><span class="lit">${t.unassigned.counts.entities} התקנים שאינם משויכים לאזור</span></header>
+              <header><h2>${tr('ללא שיוך')}</h2><span class="lit">${tr('{entities} התקנים שאינם משויכים לאזור', { entities: t.unassigned.counts.entities })}</span></header>
               <div class="rows">${this.renderAreaRow({ area_id: 'unassigned', name: t.unassigned.name, icon: null, floor_id: null, counts: t.unassigned.counts, has_camera: false }, 'card', true)}</div>
             </section>`)
           : nothing}
@@ -1983,8 +1984,8 @@ export class DevicesBuilding extends LitElement {
     if (!plan && this.layout === 'plan') this.layout = this.prefs.defaultView;
     this.offView = registerScreenView({
       id: 'devices-building-view',
-      label: 'תצוגה',
-      options: [{ value: 'cards', label: 'כרטיסים' }, { value: 'tiles', label: 'אריחים' }, ...(plan ? [{ value: 'plan', label: 'תוכנית' }] : [])],
+      label: tr('תצוגה'),
+      options: [{ value: 'cards', label: tr('כרטיסים') }, { value: 'tiles', label: tr('אריחים') }, ...(plan ? [{ value: 'plan', label: tr('תוכנית') }] : [])],
       value: () => this.layout,
       set: (v) => this.setLayout(v === 'tiles' ? 'tiles' : v === 'plan' && plan ? 'plan' : 'cards'),
       can: () => !this.lay.editing && !this.forbidden,
@@ -2014,16 +2015,16 @@ export class DevicesBuilding extends LitElement {
       ${noTree ? nothing : this.renderTreePanel(t)}
       <div class="planview" data-plan-view>
         ${floors.length > 1
-          ? html`<div class="planfloors" role="group" aria-label="קומות התוכנית" data-plan-floors>
+          ? html`<div class="planfloors" role="group" aria-label=${tr('קומות התוכנית')} data-plan-floors>
               ${floors.map((f) => html`<button class=${f.id === floorId ? 'on' : ''} data-plan-floor=${f.id} aria-pressed=${f.id === floorId} @click=${() => { this.planFloorId = f.id; this.planPop = null; }}>${bidi(f.name)}</button>`)}
             </div>`
           : nothing}
         ${floorId
           ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
           : this.planState === 'ready' && this.planFloors.length
-            ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
+            ? html`<sw-state-panel icon="building" state="empty" heading=${tr('אין תוכנית קומה')} hint=${tr('העלו תוכנית לקומה במפה כדי לראות אותה כאן.')}></sw-state-panel>`
             : this.planState === 'error'
-              ? html`<sw-state-panel data-plan-state="error" state="error" heading="לא ניתן לטעון את תוכניות הקומות" actionLabel="נסה שוב" @action=${() => void this.loadPlanFloors()}></sw-state-panel>`
+              ? html`<sw-state-panel data-plan-state="error" state="error" heading=${tr('לא ניתן לטעון את תוכניות הקומות')} actionLabel=${tr('נסה שוב')} @action=${() => void this.loadPlanFloors()}></sw-state-panel>`
               : html`<sw-state-panel state="loading"></sw-state-panel>`}
         ${pop
           ? html`<div class="planpop" data-plan-pop style=${`left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px`}>
@@ -2068,7 +2069,7 @@ export class DevicesBuilding extends LitElement {
 
   private renderTreePanel(t: DeviceTree) {
     // the count column is always drawn (empty without lights), so the rows line up (owner 2026-09-29)
-    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
+    const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title=${tr('תאורה דולקת')}><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
     const floors = this.floorsOf(t);
     const foldable = floors.filter((f) => f.areas.length);
     const allFolded = foldable.length > 0 && foldable.every((f) => this.collapsed.has(f.floor_id));
@@ -2088,13 +2089,13 @@ export class DevicesBuilding extends LitElement {
     const looseHas = t.unassigned.counts.entities > 0 && (this.layout === 'cards' || this.treeSheet);
     const looseMode = this.screen.tree_unassigned;
     const loose = looseHas && treeUnassignedShown(looseMode, this.lay.editing);
-    return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree ?data-tree-scroll=${scrollTree}>
+    return html`<nav class="tree" aria-label=${tr('עץ המבנה')} data-devices-tree ?data-tree-scroll=${scrollTree}>
       <div class="tree-floor tree-all">
         ${foldable.length > 1
-          ? html`<button type="button" class="tfold" data-tree-fold-all aria-label=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} title=${allFolded ? 'הרחב הכל' : 'כווץ הכל'} @click=${() => this.toggleAllFloors(floors)}>${chev(allFolded)}</button>`
+          ? html`<button type="button" class="tfold" data-tree-fold-all aria-label=${allFolded ? tr('הרחב הכל') : tr('כווץ הכל')} title=${allFolded ? tr('הרחב הכל') : tr('כווץ הכל')} @click=${() => this.toggleAllFloors(floors)}>${chev(allFolded)}</button>`
           : html`<span class="tfold" aria-hidden="true"></span>`}
         <button class=${classMap({ 'tree-row': true, nomenu: true, selected: this.selected === 'all' })} data-tree="all" aria-current=${this.selected === 'all' ? 'true' : 'false'} @click=${() => (this.selected = 'all')}>
-          <sw-icon name="building" size=${15}></sw-icon><span class="nm" title="כל המבנה">כל המבנה</span>${lit(t.building)}
+          <sw-icon name="building" size=${15}></sw-icon><span class="nm" title=${tr('כל המבנה')}>${tr('כל המבנה')}</span>${lit(t.building)}
         </button>
       </div>
       ${repeat(
@@ -2105,13 +2106,13 @@ export class DevicesBuilding extends LitElement {
           return html`<div class="tree-group" data-tree-floor=${f.floor_id} data-folded=${String(folded)}>
           <div class="tree-floor">
             ${f.areas.length
-              ? html`<button type="button" class="tfold" data-tree-fold=${f.floor_id} aria-expanded=${String(!folded)} aria-label=${folded ? 'הרחב קומה' : 'כווץ קומה'} title=${folded ? 'הרחב קומה' : 'כווץ קומה'} @click=${() => this.setCollapsed(f.floor_id, !folded)}>${chev(folded)}</button>`
+              ? html`<button type="button" class="tfold" data-tree-fold=${f.floor_id} aria-expanded=${String(!folded)} aria-label=${folded ? tr('הרחב קומה') : tr('כווץ קומה')} title=${folded ? tr('הרחב קומה') : tr('כווץ קומה')} @click=${() => this.setCollapsed(f.floor_id, !folded)}>${chev(folded)}</button>`
               : html`<span class="tfold" aria-hidden="true"></span>`}
             <button class=${classMap({ 'tree-row': true, nomenu: !(this.bulkAllowed && f.can_bulk), selected: this.selected === f.floor_id })} data-tree-select=${f.floor_id} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} @click=${() => (this.selected = f.floor_id)}>
               <sw-icon name="floor" size=${14}></sw-icon><span class="nm" title=${f.name}>${bidi(f.name)}</span>${lit(f.counts)}
             </button>
             ${this.bulkAllowed && f.can_bulk
-              ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
+              ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" label=${tr('פעולות לקומה')} data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
               : nothing}
           </div>
           ${folded ? nothing : html`<div class="tree-areas">${repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'tree'))}</div>`}
@@ -2180,20 +2181,20 @@ export class DevicesBuilding extends LitElement {
       <header>
         <div class="fh-top">
           ${it?.icon ? html`<sw-icon class="lay-title-icon" .name=${it.icon} size=${16}></sw-icon>` : nothing}
-          <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} data-lines=${this.floorTitleLines} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title=${`${titleOf(it, f.name)} · פתח קומה`} @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
+          <h2><button type="button" class="ftitle" data-floor-title=${f.floor_id} data-lines=${this.floorTitleLines} aria-current=${this.selected === f.floor_id ? 'true' : 'false'} title=${tr('{titleOf} · פתח קומה', { titleOf: titleOf(it, f.name) })} @click=${() => (this.selected = f.floor_id)}>${bidi(titleOf(it, f.name))}</button></h2>
           ${this.bulkAllowed && f.can_bulk ? this.renderFloorOff(f) : nothing}
         </div>
         <div class="fh-chips">
-          ${c.lights && this.hasFloorItem('lights') ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${`תאורה · ${f.name}`} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${ltrNum(c.lights_on)} דולקות מתוך ${ltrNum(c.lights)}</button>` : nothing}
+          ${c.lights && this.hasFloorItem('lights') ? html`<button type="button" class=${classMap({ lit: true, chip: true, warm: c.lights_on > 0 })} data-lit=${c.lights_on} data-floor-chip="lights" aria-haspopup="dialog" aria-expanded=${String(this.isOpen('lights', 'floor', f.floor_id))} title=${tr('תאורה · {name}', { name: f.name })} @click=${() => this.openPanel('lights', 'floor', f.floor_id)}><sw-icon name="light" size=${13}></sw-icon>${tr('{ltrNum} דולקות מתוך {ltrNum2}', { ltrNum: ltrNum(c.lights_on), ltrNum2: ltrNum(c.lights) })}</button>` : nothing}
           <span class="fchips" data-floor-chips=${f.floor_id}>${this.renderFloorChips(f, 12, true)}</span>
         </div>
       </header>
       <div class="rows">
-        ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow empty">אין אזורים בקומה</div>`}
+        ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow empty">${tr('אין אזורים בקומה')}</div>`}
       </div>
       ${this.selected !== f.floor_id
-        ? html`<footer><sw-button size="sm" icon="floor" data-open-floor=${f.floor_id} @click=${() => (this.selected = f.floor_id)}>פתח קומה</sw-button></footer>`
-        : html`<footer><sw-button size="sm" variant="ghost" data-open-floor="all" @click=${() => (this.selected = 'all')}>כל המבנה</sw-button></footer>`}
+        ? html`<footer><sw-button size="sm" icon="floor" data-open-floor=${f.floor_id} @click=${() => (this.selected = f.floor_id)}>${tr('פתח קומה')}</sw-button></footer>`
+        : html`<footer><sw-button size="sm" variant="ghost" data-open-floor="all" @click=${() => (this.selected = 'all')}>${tr('כל המבנה')}</sw-button></footer>`}
     </section>`;
   }
 
@@ -2201,7 +2202,7 @@ export class DevicesBuilding extends LitElement {
    * - a phone shows at most three, a wider screen six - and the rest as "+N"; a tap anywhere on the row opens the area. */
   private renderIndicators(a: DeviceArea) {
     const c = a.counts;
-    if (c.entities === 0) return html`<span class="ind none" data-area-indicators="">אין התקנים</span>`;
+    if (c.entities === 0) return html`<span class="ind none" data-area-indicators="">${tr('אין התקנים')}</span>`;
     const list = areaIndicators(a, this.rows.area);
     const { shown, hidden } = splitRow(list, this.isPhone ? ROW_MAX_PHONE : ROW_MAX_WIDE);
     const one = (i: Indicator) => html`<span class=${classMap({ i: true, warm: i.warm, dim: i.dim, heat: i.icon === 'flame' })} data-ind=${i.id} title=${i.title}><sw-icon name=${i.icon} size=${14}></sw-icon>${i.text ? html`<span class="t">${i.text}</span>` : nothing}</span>`;
@@ -2235,7 +2236,7 @@ export class DevicesBuilding extends LitElement {
           : nothing;
     const body =
       where === 'tree'
-        ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
+        ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title=${tr('תאורה דולקת')}><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`}`
         : quickRow
           ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${mid}`
           : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
@@ -2243,9 +2244,9 @@ export class DevicesBuilding extends LitElement {
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
-    const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label="סיכום האזור"
+    const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label=${tr('סיכום האזור')}
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${tr('{name} · {entities} התקנים · כניסה לאזור', { name: a.name, entities: c.entities })} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
       </devices-bulk-menu>`;
     if (quickRow) {
       return html`<div class="arow-q" data-area-quick-row=${a.area_id} ?data-lit=${on && !this.offline && !bad} ?data-bad=${bad}>${menu}${this.renderQuick(a, rowQuickMax(window.innerWidth), true)}</div>`;
@@ -2254,7 +2255,7 @@ export class DevicesBuilding extends LitElement {
     return html`<div class="tree-area">
       ${menu}
       ${bulk
-        ? html`<span class="quick"><sw-button size="sm" variant="ghost" icon="bolt" data-quick-off=${a.area_id} label=${`כבה אזור: ${a.name}`} @click=${() => void this.dialog?.show({ scope: 'area', id: a.area_id, name: a.name, kind: 'all_off' })}>כבה אזור</sw-button></span>`
+        ? html`<span class="quick"><sw-button size="sm" variant="ghost" icon="bolt" data-quick-off=${a.area_id} label=${tr('כבה אזור: {name}', { name: a.name })} @click=${() => void this.dialog?.show({ scope: 'area', id: a.area_id, name: a.name, kind: 'all_off' })}>${tr('כבה אזור')}</sw-button></span>`
         : nothing}
     </div>`;
   }
@@ -2274,23 +2275,23 @@ export class DevicesBuilding extends LitElement {
     const kpi = (label: string, on: number, total: number, icon: IconName, kind: TileKind, warm = true) =>
       !total
         ? nothing
-        : html`<sw-kpi tag=${this.kpiTag} data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${stale ? '–' : `${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 && !stale ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint="הצג ושלוט" @click=${open(kind)}></sw-kpi>`;
+        : html`<sw-kpi tag=${this.kpiTag} data-kpi=${label} data-tile-kind=${kind} data-value=${`${on}/${total}`} label=${label} value=${stale ? '–' : `${on} / ${total}`} .icon=${icon} tone=${warm && on > 0 && !stale ? 'live' : 'neutral'} layout=${layout} icon-end action ?expanded=${this.isOpen(kind)} hint=${tr('הצג ושלוט')} @click=${open(kind)}></sw-kpi>`;
     // HOME-295 (owner answer 3): the tiles shown are the administrator's choice (or the user's, when the installation lets users choose),
     // in the chosen order; every kind the site has by default. Sensors and cameras are counts (no panel behind them).
     const off = this.offline;
     const count = (label: string, total: number, icon: IconName, kind: string) =>
       html`<sw-kpi tag=${this.kpiTag} data-kpi=${label} data-tile-kind=${kind} data-value=${String(total)} label=${label} value=${off ? '–' : String(total)} .icon=${icon} tone="neutral" layout=${layout} icon-end></sw-kpi>`;
     const one: Record<SummaryKind, () => unknown> = {
-      lights: () => kpi('תאורה דולקת', c.lights_on, c.lights, 'light', 'lights'),
-      switches: () => kpi('מתגים פעילים', c.switches_on, c.switches, 'bolt', 'switches'),
-      covers: () => kpi('תריסים פתוחים', c.covers_open, c.covers, 'layers', 'covers'),
-      climate: () => kpi('מיזוג פעיל', c.climate_active, c.climate, 'snow', 'climate'),
-      heating: () => kpi('חימום פעיל', c.heating_active, c.heating, 'flame', 'heating'),
-      media: () => kpi('מסכים דולקים', c.media_on, c.media, 'play', 'media'),
-      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label="מנעולים נעולים" value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? 'הכול נעול' : 'יש מנעול פתוח'} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint="הצג ושלוט" @click=${open('locks')}></sw-kpi>`,
-      sensors: () => count('חיישנים', c.sensors, 'sensor', 'sensors'),
-      cameras: () => count('מצלמות', c.cameras, 'camera', 'cameras'),
-      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi="אזעקה" data-tile-kind="alarm" label="אזעקה" value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint="הצג" @click=${open('alarm')}></sw-kpi>` : nothing),
+      lights: () => kpi(tr('תאורה דולקת'), c.lights_on, c.lights, 'light', 'lights'),
+      switches: () => kpi(tr('מתגים פעילים'), c.switches_on, c.switches, 'bolt', 'switches'),
+      covers: () => kpi(tr('תריסים פתוחים'), c.covers_open, c.covers, 'layers', 'covers'),
+      climate: () => kpi(tr('מיזוג פעיל'), c.climate_active, c.climate, 'snow', 'climate'),
+      heating: () => kpi(tr('חימום פעיל'), c.heating_active, c.heating, 'flame', 'heating'),
+      media: () => kpi(tr('מסכים דולקים'), c.media_on, c.media, 'play', 'media'),
+      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label=${tr('מנעולים נעולים')} value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? tr('הכול נעול') : tr('יש מנעול פתוח')} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint=${tr('הצג ושלוט')} @click=${open('locks')}></sw-kpi>`,
+      sensors: () => count(tr('חיישנים'), c.sensors, 'sensor', 'sensors'),
+      cameras: () => count(tr('מצלמות'), c.cameras, 'camera', 'cameras'),
+      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi="אזעקה" data-tile-kind="alarm" label=${tr('אזעקה')} value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint=${tr('הצג')} @click=${open('alarm')}></sw-kpi>` : nothing),
     };
     const kinds = summaryKindsShown(this.screen, c);
     // (one row on a control screen: the chosen tiles share it - the mockup)
@@ -2308,17 +2309,17 @@ export class DevicesBuilding extends LitElement {
         ? html`<button type="button" class=${classMap({ chip: true, warm })} data-floor-chip=${kind} aria-haspopup="dialog" aria-expanded=${String(this.isOpen(kind, 'floor', f.floor_id))} title=${`${title} · ${f.name}`} aria-label=${`${title}: ${text} · ${f.name}`} @click=${() => this.openPanel(kind, 'floor', f.floor_id)}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</button>`
         : html`<span class=${classMap({ chip: true, warm })} data-floor-count=${key} title=${title}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</span>`;
     return html`${pills.map((p) => chip(PILL_KIND[p.key], p.key, p.icon, p.on === null ? String(p.total) : `${p.on}/${p.total}`, p.label, p.warm))}
-      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, 'אזעקה', f.counts.alarm !== 'disarmed') : nothing}`;
+      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, tr('אזעקה'), f.counts.alarm !== 'disarmed') : nothing}`;
   }
 
   private renderFloor(f: DeviceFloor) {
     return html`<section class=${classMap({ floor: true, laid: this.lay.gridOn(`areas:${f.floor_id}`) })} style=${`--n:${Math.min(4, Math.max(1, f.areas.length))}`} data-floor=${f.floor_id}>
       <div class="floor-head">
         <h2>${bidi(f.name)}</h2>
-        ${f.level !== null && f.floor_id !== 'none' ? html`<span class="level">מפלס ${ltrNum(f.level)}</span>` : nothing}
-        <span class="level">${f.areas.length} אזורים</span>
+        ${f.level !== null && f.floor_id !== 'none' ? html`<span class="level">${tr('מפלס {ltrNum}', { ltrNum: ltrNum(f.level) })}</span>` : nothing}
+        <span class="level">${tr('{areasCount} אזורים', { areasCount: f.areas.length })}</span>
         ${this.bulkAllowed && f.can_bulk
-          ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" align="start" label="פעולות לקומה" data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
+          ? html`<devices-bulk-menu scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" align="start" label=${tr('פעולות לקומה')} data-bulk-floor=${f.floor_id}></devices-bulk-menu>`
           : nothing}
         <div class="floor-sum" data-floor-sum=${f.floor_id}>${this.renderFloorChips(f, 13)}</div>
       </div>
@@ -2438,7 +2439,7 @@ export class DevicesBuilding extends LitElement {
         <button type="button" class="danger" data-floor-off-kind="all_off" ?disabled=${off} title=${hs('offFloorAll')} aria-label=${`${hs('offFloorAll')} · ${f.name}`} @click=${() => void this.dialog?.show({ scope: 'floor', id: f.floor_id, name: f.name, kind: 'all_off' })}><sw-icon name="bolt" size=${14}></sw-icon>${hs('offAll')}</button>
       </span>`;
     }
-    return html`<devices-bulk-menu class=${this.offline ? 'off-dim' : ''} scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" triggerLabel="כבה קומה" data-floor-menu=${f.floor_id}></devices-bulk-menu>`;
+    return html`<devices-bulk-menu class=${this.offline ? 'off-dim' : ''} scope="floor" .targetId=${f.floor_id} .targetName=${f.name} .counts=${f.counts} variant="menu" triggerLabel=${tr('כבה קומה')} data-floor-menu=${f.floor_id}></devices-bulk-menu>`;
   }
 
   /** The rows above the summary (owner: one row per alert, at most three; no paragraphs): the triggered alarms, or "no connection". */
@@ -2537,7 +2538,7 @@ export class DevicesBuilding extends LitElement {
       ?data-bad=${bad}
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
       style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})${on ? ';--sw-m-tone:var(--sw-lit);--sw-m-on:1' : ''}` : nothing}
-      aria-label=${`${a.name} · ${c.entities} התקנים`}
+      aria-label=${tr('{name} · {entities} התקנים', { name: a.name, entities: c.entities })}
       @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}
     >
       <div class="tile-head">
@@ -2545,11 +2546,11 @@ export class DevicesBuilding extends LitElement {
         <sw-icon .name=${bad ? 'warning' : it?.icon ?? (unassigned ? 'help' : 'home')} size=${16}></sw-icon>
         <span class="name">${bidi(titleOf(it, a.name))}</span>
         ${temp}
-        ${on ? html`<span class="dot" title="יש התקן פעיל"></span>` : nothing}
+        ${on ? html`<span class="dot" title=${tr('יש התקן פעיל')}></span>` : nothing}
       </div>
       ${sub}
     </a>${quick}${bulk
-      ? html`<devices-bulk-menu scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" label="פעולות לאזור" data-bulk-area=${a.area_id}></devices-bulk-menu>`
+      ? html`<devices-bulk-menu scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" label=${tr('פעולות לאזור')} data-bulk-area=${a.area_id}></devices-bulk-menu>`
       : nothing}</div>`;
   }
 }

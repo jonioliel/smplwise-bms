@@ -1257,9 +1257,9 @@ export class InvestigateEvents extends LitElement {
             ${evs.length < w.count ? html`<div class="sub">${tr('{n} אירועים נוספים אינם בסינון הנוכחי.', { n: w.count - evs.length })}</div>` : nothing}
           </div>
           <div class="wfix" data-window-fix>
-            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, 'פוצל מחלון')}>${tr('הפרד לחלון נפרד')}${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
-            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], 'אוחד עם החלון הקודם')}>${tr('אחד עם הקודם ({time})', { time: this.fmt(older.start) })}</sw-button>` : nothing}
-            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], 'אוחד עם החלון הבא')}>${tr('אחד עם הבא ({time})', { time: this.fmt(newer.start) })}</sw-button>` : nothing}
+            ${w.count > 1 ? html`<sw-button size="sm" icon="move" ?disabled=${!ticked.length || ticked.length >= w.count || this.busy} data-window-split @click=${() => this.regroup(ticked, tr('פוצל מחלון'))}>${tr('הפרד לחלון נפרד')}${ticked.length ? ` (${ticked.length})` : ''}</sw-button>` : nothing}
+            ${older ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-older @click=${() => this.regroup([...w.event_ids, ...older.event_ids], tr('אוחד עם החלון הקודם'))}>${tr('אחד עם הקודם ({time})', { time: this.fmt(older.start) })}</sw-button>` : nothing}
+            ${newer ? html`<sw-button size="sm" icon="layers" ?disabled=${this.busy} data-window-join-newer @click=${() => this.regroup([...w.event_ids, ...newer.event_ids], tr('אוחד עם החלון הבא'))}>${tr('אחד עם הבא ({time})', { time: this.fmt(newer.start) })}</sw-button>` : nothing}
             ${w.manual_group_id ? html`<sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.busy} data-window-ungroup @click=${() => this.dissolve(w)}>${tr('בטל קיבוץ ידני')}</sw-button>` : nothing}
           </div>`
         : nothing}

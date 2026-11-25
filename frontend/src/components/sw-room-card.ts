@@ -6,6 +6,7 @@ import './sw-toggle';
 import type { IconName } from './sw-icon';
 import type { HaActionSpec } from '../api/ha';
 import { snapshotUrl } from '../api/media';
+import { tr } from '../i18n/msg/components';
 
 /**
  * PLAN3D-R28-UI-2433 (round 28 mockup, app/room.html): the room card. A tap on a room - its pill, its plate in the 3D, its polygon in
@@ -636,7 +637,7 @@ export class SwRoomCard extends LitElement {
     const page = Math.min(this.pages[key] ?? 0, pages - 1);
     const go = (d: number) => (this.pages = { ...this.pages, [key]: Math.max(0, Math.min(pages - 1, page + d)) });
     return html`${list.slice(page * per, page * per + per).map(row)}${pages > 1
-      ? html`<div class="pager" data-room-pager=${key}><button type="button" aria-label="הקודם" ?disabled=${page === 0} @click=${() => go(-1)}><sw-icon name="chevron" size=${14} flip></sw-icon></button><span class="num">${page + 1}/${pages}</span><button type="button" aria-label="הבא" ?disabled=${page >= pages - 1} @click=${() => go(1)}><sw-icon name="chevron" size=${14}></sw-icon></button></div>`
+      ? html`<div class="pager" data-room-pager=${key}><button type="button" aria-label=${tr('הקודם')} ?disabled=${page === 0} @click=${() => go(-1)}><sw-icon name="chevron" size=${14} flip></sw-icon></button><span class="num">${page + 1}/${pages}</span><button type="button" aria-label=${tr('הבא')} ?disabled=${page >= pages - 1} @click=${() => go(1)}><sw-icon name="chevron" size=${14}></sw-icon></button></div>`
       : nothing}`;
   }
 
@@ -645,9 +646,9 @@ export class SwRoomCard extends LitElement {
     const cam = m.cameras[0];
     if (!cam) return nothing;
     const live = this.liveOn;
-    return html`<button type="button" class="still" data-room-camera=${cam.id} aria-label=${live ? `וידאו חי: ${cam.label}` : `תמונה מהמצלמה: ${cam.label}. לחץ לווידאו חי`} @click=${() => { if (!live) this.liveOn = true; else this.emit('room-card-camera', { id: cam.id }); }}>
+    return html`<button type="button" class="still" data-room-camera=${cam.id} aria-label=${live ? tr('וידאו חי: {label}', { label: cam.label }) : tr('תמונה מהמצלמה: {label}. לחץ לווידאו חי', { label: cam.label })} @click=${() => { if (!live) this.liveOn = true; else this.emit('room-card-camera', { id: cam.id }); }}>
       ${live ? html`<sw-live-player .cameraId=${cam.id} profile="sub" compact .poster=${snapshotUrl(cam.id, this.bust)} fit="cover"></sw-live-player>` : html`<img alt="" src=${snapshotUrl(cam.id, this.bust)} @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />`}
-      <span class="cap"><span>מצלמה · ${cam.label}</span><span>${live ? 'למסך המצלמה' : 'לחץ לווידאו חי'}</span></span>
+      <span class="cap"><span>${tr('מצלמה · {label}', { label: cam.label })}</span><span>${live ? tr('למסך המצלמה') : tr('לחץ לווידאו חי')}</span></span>
     </button>`;
   }
 
@@ -655,34 +656,34 @@ export class SwRoomCard extends LitElement {
     const on = m.lights.filter((l) => l.on).length;
     const off = m.lights.filter((l) => l.on && l.spec && !l.forbidden);
     return html`<div class=${`sec${this.tab === 'lights' ? ' cur' : ''}`} data-tab="lights" data-room-lights>
-      <h3>אורות · ${m.lights.length ? `${on} מתוך ${m.lights.length} דולקים` : 'אין אורות בחדר'}${off.length > 1
-        ? html`<button type="button" class="act" data-room-all-off ?disabled=${m.stale} @click=${() => this.emit<RoomCardBulkDetail>('room-card-bulk', { label: 'כבה הכול', items: off.map((l) => ({ entityId: l.entityId, spec: l.spec! })) })}>כבה הכול</button>`
+      <h3>${tr('אורות · {v}', { v: m.lights.length ? tr('{on} מתוך {lightsCount} דולקים', { on, lightsCount: m.lights.length }) : tr('אין אורות בחדר') })}${off.length > 1
+        ? html`<button type="button" class="act" data-room-all-off ?disabled=${m.stale} @click=${() => this.emit<RoomCardBulkDetail>('room-card-bulk', { label: tr('כבה הכול'), items: off.map((l) => ({ entityId: l.entityId, spec: l.spec! })) })}>${tr('כבה הכול')}</button>`
         : nothing}</h3>
       ${this.paged('lights', m.lights, per, (l) => html`<div class=${`r${l.on ? ' lit' : ''}${l.forbidden ? ' forbidden' : ''}`} data-room-light=${l.entityId}><sw-icon name="light" size=${18}></sw-icon><span class="l">${l.label}</span>
-        ${l.forbidden ? html`<span class="no">אין הרשאה</span>` : html`<sw-toggle label=${l.label} labelHidden .checked=${live(!!l.on)} ?disabled=${!l.spec || l.on === null || m.stale || m.busy === l.entityId} @change=${() => l.spec && this.run(l.entityId, l.spec)}></sw-toggle>`}</div>`)}
+        ${l.forbidden ? html`<span class="no">${tr('אין הרשאה')}</span>` : html`<sw-toggle label=${l.label} labelHidden .checked=${live(!!l.on)} ?disabled=${!l.spec || l.on === null || m.stale || m.busy === l.entityId} @change=${() => l.spec && this.run(l.entityId, l.spec)}></sw-toggle>`}</div>`)}
     </div>`;
   }
 
   private renderClimate(m: RoomCardModel): TemplateResult | typeof nothing {
     const c = m.climate;
-    if (!c) return html`<div class=${`sec${this.tab === 'climate' ? ' cur' : ''}`} data-tab="climate"><h3>אקלים</h3><div class="empty">אין חיישן טמפרטורה בחדר</div></div>`;
+    if (!c) return html`<div class=${`sec${this.tab === 'climate' ? ' cur' : ''}`} data-tab="climate"><h3>${tr('אקלים')}</h3><div class="empty">${tr('אין חיישן טמפרטורה בחדר')}</div></div>`;
     const set = (d: number) => c.spec && c.entityId && c.target !== null && this.run(c.entityId, c.spec, { temperature: Math.min(c.max, Math.max(c.min, Math.round((c.target + d * c.step) * 10) / 10)) });
     return html`<div class=${`sec${this.tab === 'climate' ? ' cur' : ''}`} data-tab="climate" data-room-climate>
-      <h3>אקלים</h3>
-      <div class="climate"><span class="now num">${c.now !== null ? tempText(c.now) : '—'}<small>${c.target === null ? 'עכשיו · חיישן בלבד' : `עכשיו${c.words ? ` · ${c.words}` : ''}`}</small></span>
+      <h3>${tr('אקלים')}</h3>
+      <div class="climate"><span class="now num">${c.now !== null ? tempText(c.now) : '—'}<small>${c.target === null ? tr('עכשיו · חיישן בלבד') : tr('עכשיו{v}', { v: c.words ? ` · ${c.words}` : '' })}</small></span>
         ${c.target !== null
-          ? html`<span class="step"><button type="button" aria-label="הורד" ?disabled=${!c.spec || m.stale || m.busy === c.entityId} @click=${() => set(-1)}><sw-icon name="minus" size=${16}></sw-icon></button><b class="num" aria-label="יעד">${tempText(c.target)}</b><button type="button" aria-label="העלה" ?disabled=${!c.spec || m.stale || m.busy === c.entityId} @click=${() => set(1)}><sw-icon name="plus" size=${16}></sw-icon></button></span>`
+          ? html`<span class="step"><button type="button" aria-label=${tr('הורד')} ?disabled=${!c.spec || m.stale || m.busy === c.entityId} @click=${() => set(-1)}><sw-icon name="minus" size=${16}></sw-icon></button><b class="num" aria-label=${tr('יעד')}>${tempText(c.target)}</b><button type="button" aria-label=${tr('העלה')} ?disabled=${!c.spec || m.stale || m.busy === c.entityId} @click=${() => set(1)}><sw-icon name="plus" size=${16}></sw-icon></button></span>`
           : nothing}</div>
     </div>`;
   }
 
   private renderOpenings(m: RoomCardModel, per: number): TemplateResult {
     return html`<div class=${`sec${this.tab === 'opens' ? ' cur' : ''}`} data-tab="opens" data-room-openings>
-      <h3>דלתות, חלונות ותריסים</h3>
+      <h3>${tr('דלתות, חלונות ותריסים')}</h3>
       ${m.openings.length
-        ? this.paged('opens', m.openings, per, (o) => html`<div class=${`r${o.open ? ' open' : ''}${o.forbidden ? ' forbidden' : ''}`} data-room-opening=${o.entityId}><sw-icon name=${o.icon} size=${18}></sw-icon><span class="l">${o.label}</span><span class="st">${o.forbidden ? 'אין הרשאה' : o.words}</span>
+        ? this.paged('opens', m.openings, per, (o) => html`<div class=${`r${o.open ? ' open' : ''}${o.forbidden ? ' forbidden' : ''}`} data-room-opening=${o.entityId}><sw-icon name=${o.icon} size=${18}></sw-icon><span class="l">${o.label}</span><span class="st">${o.forbidden ? tr('אין הרשאה') : o.words}</span>
             ${o.spec && !o.forbidden ? html`<button type="button" class=${`do${o.spec.sensitive ? ' sens' : ''}`} data-room-opening-action=${o.spec.id} ?disabled=${m.stale || m.busy === o.entityId} @click=${() => this.run(o.entityId, o.spec!)}>${o.spec.label}</button>` : nothing}</div>`)
-        : html`<div class="empty">אין דלתות או חלונות עם חיישן בחדר</div>`}
+        : html`<div class="empty">${tr('אין דלתות או חלונות עם חיישן בחדר')}</div>`}
     </div>`;
   }
 
@@ -693,25 +694,25 @@ export class SwRoomCard extends LitElement {
     const per = sheet ? ROWS_SHEET : this.rows;
     const on = m.lights.filter((l) => l.on).length;
     return html`
-      <button type="button" class="grab" aria-label=${this.sheet === 'full' ? 'הקטן את הכרטיס' : 'הגדל את הכרטיס'} @click=${() => (this.sheet = this.sheet === 'full' ? 'peek' : 'full')}></button>
+      <button type="button" class="grab" aria-label=${this.sheet === 'full' ? tr('הקטן את הכרטיס') : tr('הגדל את הכרטיס')} @click=${() => (this.sheet = this.sheet === 'full' ? 'peek' : 'full')}></button>
       <header>
         <div>
-          <h2>${m.name || 'חדר'}</h2>
+          <h2>${m.name || tr('חדר')}</h2>
           <div class="sub">${m.levelName}</div>
           <div class="tags">
-            ${m.presence ? html`<span class="tag pres"><sw-icon name="user" size=${13}></sw-icon>נוכחות עכשיו</span>` : m.quietMin !== null ? html`<span class="tag">אין תנועה ${m.quietMin} דק׳</span>` : nothing}
-            ${m.open ? html`<span class="tag open">${m.open === 1 ? 'פתוח 1' : `${m.open} פתוחים`}</span>` : nothing}
+            ${m.presence ? html`<span class="tag pres"><sw-icon name="user" size=${13}></sw-icon>${tr('נוכחות עכשיו')}</span>` : m.quietMin !== null ? html`<span class="tag">${tr('אין תנועה {quietMin} דק׳', { quietMin: m.quietMin })}</span>` : nothing}
+            ${m.open ? html`<span class="tag open">${m.open === 1 ? tr('פתוח 1') : tr('{open} פתוחים', { open: m.open })}</span>` : nothing}
           </div>
         </div>
-        <button type="button" class="x" aria-label="סגור" data-room-close @click=${() => this.emit('room-card-close', {})}><sw-icon name="close" size=${18}></sw-icon></button>
+        <button type="button" class="x" aria-label=${tr('סגור')} data-room-close @click=${() => this.emit('room-card-close', {})}><sw-icon name="close" size=${18}></sw-icon></button>
       </header>
       <div class="quick">
-        <button type="button" class=${on ? 'on' : ''} @click=${() => this.openTab('lights')}><sw-icon name="light" size=${18}></sw-icon>אורות <span class="num">${on}/${m.lights.length}</span></button>
+        <button type="button" class=${on ? 'on' : ''} @click=${() => this.openTab('lights')}><sw-icon name="light" size=${18}></sw-icon>${tr('אורות')} <span class="num">${on}/${m.lights.length}</span></button>
         <button type="button" @click=${() => this.openTab('climate')}><sw-icon name="thermometer" size=${18}></sw-icon><span class="num">${m.climate?.now != null ? tempText(m.climate.now) : '—'}</span></button>
-        <button type="button" class=${m.open ? 'al' : ''} @click=${() => this.openTab('opens')}><sw-icon name="door" size=${18}></sw-icon>${m.open ? (m.open === 1 ? 'פתוח 1' : `${m.open} פתוחים`) : 'סגור'}</button>
-        <button type="button" ?disabled=${!m.cameras.length || this.camera === 'none'} @click=${() => this.openTab('cam')}><sw-icon name="camera" size=${18}></sw-icon>מצלמה</button>
+        <button type="button" class=${m.open ? 'al' : ''} @click=${() => this.openTab('opens')}><sw-icon name="door" size=${18}></sw-icon>${m.open ? (m.open === 1 ? tr('פתוח 1') : tr('{open} פתוחים', { open: m.open })) : tr('סגור')}</button>
+        <button type="button" ?disabled=${!m.cameras.length || this.camera === 'none'} @click=${() => this.openTab('cam')}><sw-icon name="camera" size=${18}></sw-icon>${tr('מצלמה')}</button>
       </div>
-      <div class="tabs" role="tablist">${([['lights', 'אורות'], ['climate', 'אקלים'], ['opens', 'פתחים'], ['cam', 'מצלמה']] as const).map(([k, t]) => html`<button type="button" role="tab" aria-pressed=${this.tab === k ? 'true' : 'false'} @click=${() => (this.tab = k)}>${t}</button>`)}</div>
+      <div class="tabs" role="tablist">${([['lights', tr('אורות')], ['climate', tr('אקלים')], ['opens', tr('פתחים')], ['cam', tr('מצלמה')]] as const).map(([k, t]) => html`<button type="button" role="tab" aria-pressed=${this.tab === k ? 'true' : 'false'} @click=${() => (this.tab = k)}>${t}</button>`)}</div>
       <div class="body">
         ${sheet ? html`<div data-tab="cam" class=${this.tab === 'cam' ? 'cur' : ''}>${this.renderCamera(m)}</div>` : this.renderCamera(m)}
         ${this.renderLights(m, sheet ? per + 1 : per)}
@@ -719,8 +720,8 @@ export class SwRoomCard extends LitElement {
         ${this.renderOpenings(m, sheet ? per : Math.max(2, per - 1))}
       </div>
       <footer>
-        ${m.areaHref ? html`<a class="pri" href=${m.areaHref} data-room-open-area>לעמוד החדר</a>` : nothing}
-        <button type="button" data-room-recordings ?disabled=${!m.cameras.length} @click=${() => m.cameras[0] && this.emit('room-card-recordings', { id: m.cameras[0].id })}><sw-icon name="history" size=${16}></sw-icon>הקלטות</button>
+        ${m.areaHref ? html`<a class="pri" href=${m.areaHref} data-room-open-area>${tr('לעמוד החדר')}</a>` : nothing}
+        <button type="button" data-room-recordings ?disabled=${!m.cameras.length} @click=${() => m.cameras[0] && this.emit('room-card-recordings', { id: m.cameras[0].id })}><sw-icon name="history" size=${16}></sw-icon>${tr('הקלטות')}</button>
       </footer>
     `;
   }

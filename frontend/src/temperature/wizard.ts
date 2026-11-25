@@ -15,8 +15,9 @@ import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
 import { errLineStyles } from '../styles/fragments';
+import { tr } from '../i18n/msg/screens';
 
-const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
+const ROLE_KEYS: [string, string][] = [['viewer', tr('צופים')], ['operator', tr('מפעילים')], ['site_admin', tr('מנהלי אתר')], ['system_admin', tr('מנהלי מערכת')]];
 type Defaults = Record<string, boolean | number | string>;
 
 /**

@@ -25,10 +25,10 @@ import { tr } from '../i18n/msg/live';
 const EMPTY: ViewBody = { name: '', cameras: [], cols: 2, rows: 2, shared: false, kiosk: false };
 
 const VIEWS = [
-  { name: 'כל המצלמות', layout: 9, scope: 'משותפת', mobile: '4 · משני', owner: 'יוני', kiosk: true },
-  { name: 'חוץ', layout: 4, scope: 'משותפת', mobile: '2 · משני', owner: 'יוני', kiosk: false },
-  { name: 'פנים', layout: 6, scope: 'משותפת', mobile: 'ללא', owner: 'יוסי', kiosk: false },
-  { name: 'לילה', layout: 4, scope: 'אישית', mobile: '4 · משני', owner: 'דנה', kiosk: false },
+  { name: tr('כל המצלמות'), layout: 9, scope: tr('משותפת'), mobile: tr('4 · משני'), owner: tr('יוני'), kiosk: true },
+  { name: tr('חוץ'), layout: 4, scope: tr('משותפת'), mobile: tr('2 · משני'), owner: tr('יוני'), kiosk: false },
+  { name: tr('פנים'), layout: 6, scope: tr('משותפת'), mobile: tr('ללא'), owner: tr('יוסי'), kiosk: false },
+  { name: tr('לילה'), layout: 4, scope: tr('אישית'), mobile: tr('4 · משני'), owner: tr('דנה'), kiosk: false },
 ];
 
 /** SC09 — saved views manager (legacy layout manager; templates 1/2/4/6/9/12/16/custom). */

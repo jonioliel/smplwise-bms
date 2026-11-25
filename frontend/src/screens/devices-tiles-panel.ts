@@ -87,9 +87,9 @@ function demoRow(entity_id: string, name: string, area: [string, string, string,
   return { entity_id, name, domain, device_class: null, state, available: true, fresh: true, active, icon: null, last_changed: '2026-09-14T07:05:00Z', can_control: false, area_id: area[0], area_name: area[1], floor_id: area[2], floor_name: area[3], ...extra };
 }
 
-const LOBBY: [string, string, string, string] = ['lobby', 'לובי', 'ground', 'קרקע'];
-const KITCHEN: [string, string, string, string] = ['kitchen', 'מטבח', 'ground', 'קרקע'];
-const OFFICE: [string, string, string, string] = ['office', 'משרד', 'first', 'קומה 1'];
+const LOBBY: [string, string, string, string] = ['lobby', tr('לובי'), 'ground', tr('קרקע')];
+const KITCHEN: [string, string, string, string] = ['kitchen', tr('מטבח'), 'ground', tr('קרקע')];
+const OFFICE: [string, string, string, string] = ['office', tr('משרד'), 'first', tr('קומה 1')];
 
 /** Demo mode (no server): the same numbers as the building screen's own demo tree. */
 const DEMO_ROWS: Record<TileKind, DeviceItem[]> = {

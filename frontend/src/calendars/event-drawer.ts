@@ -321,7 +321,7 @@ export class CalEventDrawer extends LitElement {
       return;
     }
     try {
-      this.preview = await (this.ctx as CalCtx).api.previewEvent({ ...b, title: b.title || 'בדיקה' });
+      this.preview = await (this.ctx as CalCtx).api.previewEvent({ ...b, title: b.title || tr('בדיקה') });
     } catch {
       this.preview = null;
     }

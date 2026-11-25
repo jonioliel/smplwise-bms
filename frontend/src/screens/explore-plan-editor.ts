@@ -68,13 +68,14 @@ import { dayTimeText } from '../api/day-format';
 import { confirmDialog } from '../components/confirm-dialog';
 import { explorePlanEditorStyles } from './explore-plan-editor-css';
 import { ToastController } from '../components/toast-controller';
+import { tr } from '../i18n/msg/plan-editor';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
  * back (zoneSaving) are released instead of waiting for a hung connection until the page reloads. */
 const ZONE_SAVE_TIMEOUT_MS = 15000;
 /** A zone request's failure in words: a timeout says so, anything else as describeError does. */
-const zoneErrorText = (err: unknown): string => (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'השרת לא ענה בזמן' : describeError(err));
+const zoneErrorText = (err: unknown): string => (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError') ? tr('השרת לא ענה בזמן') : describeError(err));
 type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[]; area_id?: string | null };
 interface ZoneCandidate {
   polygon: ZonePoint[];
@@ -91,20 +92,20 @@ type Tool = 'select' | 'camera' | 'lights' | 'entity' | 'zones' | 'structure' | 
 type Layer = 'cameras' | 'doors' | 'lights' | 'sensors';
 
 const TOOLS: { id: Tool; icon: IconName; label: string; ready: boolean }[] = [
-  { id: 'select', icon: 'target', label: 'בחירה וגרירה', ready: true },
-  { id: 'camera', icon: 'camera', label: 'הוספת מצלמה', ready: true },
-  { id: 'lights', icon: 'light', label: 'הוספת תאורה (מפסקים)', ready: true },
-  { id: 'entity', icon: 'plus', label: 'התקן אחר', ready: true },
-  { id: 'zones', icon: 'map', label: 'חדרים ואזורים', ready: true },
-  { id: 'structure', icon: 'wall', label: 'מבנה: קירות, דלתות וחלונות', ready: true },
-  { id: 'library', icon: 'grid', label: 'ספריית עצמים', ready: true },
-  { id: 'connectors', icon: 'stairs', label: 'מפלסים ומחברים', ready: true },
-  { id: 'circuits', icon: 'bolt', label: 'מעגלי תאורה', ready: true },
-  { id: 'calibrate', icon: 'scale', label: 'כיול קנה מידה', ready: true },
-  { id: 'walk', icon: 'route', label: 'עמדות סיור', ready: true }, // CR-029 ST7 UI: the saved eye-level viewpoints
-  { id: 'measure', icon: 'ruler', label: 'מדידת מרחק ושטח', ready: true },
-  { id: 'detect', icon: 'sparkle', label: 'זיהוי אוטומטי של קירות ופתחים', ready: true },
-  { id: 'layers', icon: 'layers', label: 'שכבות', ready: true },
+  { id: 'select', icon: 'target', label: tr('בחירה וגרירה'), ready: true },
+  { id: 'camera', icon: 'camera', label: tr('הוספת מצלמה'), ready: true },
+  { id: 'lights', icon: 'light', label: tr('הוספת תאורה (מפסקים)'), ready: true },
+  { id: 'entity', icon: 'plus', label: tr('התקן אחר'), ready: true },
+  { id: 'zones', icon: 'map', label: tr('חדרים ואזורים'), ready: true },
+  { id: 'structure', icon: 'wall', label: tr('מבנה: קירות, דלתות וחלונות'), ready: true },
+  { id: 'library', icon: 'grid', label: tr('ספריית עצמים'), ready: true },
+  { id: 'connectors', icon: 'stairs', label: tr('מפלסים ומחברים'), ready: true },
+  { id: 'circuits', icon: 'bolt', label: tr('מעגלי תאורה'), ready: true },
+  { id: 'calibrate', icon: 'scale', label: tr('כיול קנה מידה'), ready: true },
+  { id: 'walk', icon: 'route', label: tr('עמדות סיור'), ready: true }, // CR-029 ST7 UI: the saved eye-level viewpoints
+  { id: 'measure', icon: 'ruler', label: tr('מדידת מרחק ושטח'), ready: true },
+  { id: 'detect', icon: 'sparkle', label: tr('זיהוי אוטומטי של קירות ופתחים'), ready: true },
+  { id: 'layers', icon: 'layers', label: tr('שכבות'), ready: true },
 ];
 
 /** Tools that work on the Plan Studio structure document (they need map.edit on the floor). */
@@ -145,13 +146,13 @@ const WALL_PICK_PX = 14;
 /** Screen pixels beyond an opening's own width in which a placing click selects that opening instead of adding one. */
 const OPENING_PICK_MARGIN_PX = 6;
 /** The walls and openings of a structure in the publish previews ("קיר אחד, 3 פתחים"). */
-const wallsAndOpenings = (walls: number, openings: number) => `${countLabel(walls, 'קיר אחד', 'קירות')}, ${countLabel(openings, 'פתח אחד', 'פתחים')}`;
+const wallsAndOpenings = (walls: number, openings: number) => `${countLabel(walls, tr('קיר אחד'), tr('קירות'))}, ${countLabel(openings, tr('פתח אחד'), tr('פתחים'))}`;
 
 const LAYERS: { id: Layer; label: string }[] = [
-  { id: 'cameras', label: 'מצלמות' },
-  { id: 'doors', label: 'דלתות ומנעולים' },
-  { id: 'lights', label: 'תאורה ומתגים' },
-  { id: 'sensors', label: 'חיישנים' },
+  { id: 'cameras', label: tr('מצלמות') },
+  { id: 'doors', label: tr('דלתות ומנעולים') },
+  { id: 'lights', label: tr('תאורה ומתגים') },
+  { id: 'sensors', label: tr('חיישנים') },
 ];
 
 /**
@@ -161,7 +162,7 @@ const LAYERS: { id: Layer; label: string }[] = [
  * is overwritten silently), publish a draft plan, and the stylized "SMPLWISE language" rendering.
  */
 type DiffMode = 'publish' | 'rollback' | 'compare';
-const GEOM_LABEL: Record<string, string> = { asset: 'קובץ', page: 'עמוד', rotation: 'סיבוב', crop: 'חיתוך', width_px: 'רוחב', height_px: 'גובה' };
+const GEOM_LABEL: Record<string, string> = { asset: tr('קובץ'), page: tr('עמוד'), rotation: tr('סיבוב'), crop: tr('חיתוך'), width_px: tr('רוחב'), height_px: tr('גובה') };
 const fmtWhen = (iso: string | null | undefined) => (iso ? dayTimeText(new Date(iso)) : '');
 
 @customElement('explore-plan-editor')
@@ -430,7 +431,7 @@ export class ExplorePlanEditor extends LitElement {
     this.busy = true;
     try {
       const r = await realignAnchors(this.bundle.floorId, mode);
-      this.error = r.moved || !r.skipped ? '' : `${r.skipped} פריטים לא ניתנים ליישור אוטומטי (שרטוט אחר) — בדוק אותם ולחץ "אשר מיקומים".`;
+      this.error = r.moved || !r.skipped ? '' : tr('{skipped} פריטים לא ניתנים ליישור אוטומטי (שרטוט אחר) — בדוק אותם ולחץ "אשר מיקומים".', { skipped: r.skipped });
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -557,17 +558,17 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!b) return;
     if (b.source === 'demo') {
-      this.toaster.show('נתוני הדגמה: הזיהוי עובד מול השרת.', { ms: 0 });
+      this.toaster.show(tr('נתוני הדגמה: הזיהוי עובד מול השרת.'), { ms: 0 });
       return;
     }
     this.detecting = true;
     this.error = '';
     try {
       const r = await detectZones(b.floorId, this.detectStrength);
-      this.candidates = r.rooms.map((room, i) => ({ polygon: room.polygon, name: `חדר ${i + 1}`, kind: 'room' as ZoneKind, include: true }));
+      this.candidates = r.rooms.map((room, i) => ({ polygon: room.polygon, name: tr('חדר {v}', { v: i + 1 }), kind: 'room' as ZoneKind, include: true }));
       this.selectedZoneId = null;
       this.selectedId = null;
-      this.flash(r.rooms.length ? `${r.rooms.length} חדרים זוהו · תן שמות ושמור` : 'לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית', 5000);
+      this.flash(r.rooms.length ? tr('{roomsCount} חדרים זוהו · תן שמות ושמור', { roomsCount: r.rooms.length }) : tr('לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית'), 5000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -590,7 +591,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = await acceptZones(b.floorId, chosen.map((c) => ({ polygon: c.polygon, name: c.name, kind: c.kind })), this.replaceAuto);
       this.candidates = null;
       this.zones = r.zones;
-      this.flash(`${r.created.length} חדרים נשמרו`, 3000);
+      this.flash(tr('{createdCount} חדרים נשמרו', { createdCount: r.created.length }), 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -627,18 +628,18 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!d || !b || d.length < 3) return;
     if (b.source === 'demo') {
-      this.toaster.show('נתוני הדגמה: השמירה עובדת מול השרת.', { ms: 0 });
+      this.toaster.show(tr('נתוני הדגמה: השמירה עובדת מול השרת.'), { ms: 0 });
       this.drawing = null;
       return;
     }
     this.zoneBusy = true;
     this.error = '';
     try {
-      const z = await createZone(b.floorId, { name: `אזור ${this.zones.length + 1}`, kind: 'zone', polygon: d });
+      const z = await createZone(b.floorId, { name: tr('אזור {v}', { v: this.zones.length + 1 }), kind: 'zone', polygon: d });
       this.drawing = null;
       this.zones = [...this.zones, z];
       this.selectedZoneId = z.id;
-      this.flash('האזור נוצר · תן לו שם', 3000);
+      this.flash(tr('האזור נוצר · תן לו שם'), 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -653,7 +654,7 @@ export class ExplorePlanEditor extends LitElement {
     try {
       const r = await this.sendZonePatch(z, body);
       if (r === 'conflict') {
-        this.error = 'האזור השתנה בינתיים על ידי עורך אחר; נטען מחדש בלי לדרוס.';
+        this.error = tr('האזור השתנה בינתיים על ידי עורך אחר; נטען מחדש בלי לדרוס.');
         await this.load();
       } else if (r !== 'ok') this.error = r;
     } finally {
@@ -682,8 +683,7 @@ export class ExplorePlanEditor extends LitElement {
     // ends every share and its members and deletes the room (all or nothing)
     const home = z.shared?.role === 'home';
     const names = (z.shared?.floors ?? []).map((f) => bidi(f.name)).join(', ');
-    if (!(await confirmDialog({ body: home ? `למחוק את "${z.name}"?
-החדר משותף עם ${names}. המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.` : `למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`, danger: true }))) return;
+    if (!(await confirmDialog({ body: home ? tr('למחוק את "{name}"?\nהחדר משותף עם {names}. המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.', { name: z.name, names }) : tr('למחוק את "{name}"? המצלמות והישויות בקומה לא מושפעות.', { name: z.name }), danger: true }))) return;
     this.zoneBusy = true;
     this.error = '';
     try {
@@ -714,7 +714,7 @@ export class ExplorePlanEditor extends LitElement {
   private async unshare(z: SpatialZone, floorId: string) {
     const name = z.shared?.role === 'mirror' ? z.shared.home_floor_name : z.shared?.floors?.find((f) => f.floor_id === floorId)?.name ?? '';
     // review L7: an un-share restores nothing the conversion removed (the duplicate content of the other floor)
-    if (!(await confirmDialog({ body: `לבטל את השיתוף של "${z.name}"? התוכן של החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}, והמצלמות וההתקנים שלו יפסיקו להיות משותפים. מה שהוסר בזמן השיתוף (התוכן הכפול) לא יחזור.`, danger: true }))) return;
+    if (!(await confirmDialog({ body: tr('לבטל את השיתוף של "{name}"? התוכן של החדר יישאר רק ב{v}{v2}, והמצלמות וההתקנים שלו יפסיקו להיות משותפים. מה שהוסר בזמן השיתוף (התוכן הכפול) לא יחזור.', { name: z.name, v: z.shared?.role === 'mirror' ? name : tr('קומה הזו'), v2: z.shared?.role === 'mirror' ? tr(' ולא יוצג כאן') : tr(' ולא יוצג ב{name}', { name }) }), danger: true }))) return;
     this.zoneBusy = true;
     this.error = '';
     try {
@@ -748,7 +748,7 @@ export class ExplorePlanEditor extends LitElement {
     try {
       if (add) await addShareMember(zoneId, a.resource_type, a.resource_id);
       else await removeShareMember(zoneId, a.resource_type, a.resource_id);
-      this.flash(add ? 'נוסף לחלל המשותף: מוצג בשתי הקומות' : 'הוסר מהחלל המשותף: מוצג רק בקומה שלו', 4000);
+      this.flash(add ? tr('נוסף לחלל המשותף: מוצג בשתי הקומות') : tr('הוסר מהחלל המשותף: מוצג רק בקומה שלו'), 4000);
       await this.reloadShared();
     } catch (err) {
       this.error = describeError(err);
@@ -827,7 +827,7 @@ export class ExplorePlanEditor extends LitElement {
     const d = this.shareDlg;
     if (!r || !d?.preview) return;
     if (!(await this.studio.flush())) {
-      this.shareDlg = { ...d, error: 'שמור את טיוטת המבנה לפני השיתוף.' };
+      this.shareDlg = { ...d, error: tr('שמור את טיוטת המבנה לפני השיתוף.') };
       return;
     }
     this.shareDlg = { ...d, busy: true, error: '' };
@@ -836,7 +836,7 @@ export class ExplorePlanEditor extends LitElement {
       await shareZone(r.zoneId, body);
       this.shareDlg = null;
       this.selectedZoneId = null;
-      this.flash('החדר משותף עכשיו לשתי הקומות', 4000);
+      this.flash(tr('החדר משותף עכשיו לשתי הקומות'), 4000);
       await this.reloadShared();
     } catch (err) {
       this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
@@ -850,44 +850,44 @@ export class ExplorePlanEditor extends LitElement {
     const other = d.floors.find((f) => f.floor_id === d.floorId);
     const p = d.preview;
     const count = (n: number, one: string, many: string) => (n ? countLabel(n, one, many) : '');
-    const removed = p ? [count(p.remove.objects, 'עצם אחד', 'עצמים'), count(p.remove.walls, 'קיר פנימי אחד (ציור כפול של המגרש)', 'קירות פנימיים (ציור כפול של המגרש)'), count(p.remove.openings, 'פתח אחד', 'פתחים'), count(p.remove.labels, 'תווית אחת', 'תוויות'), count(p.remove.connectors, 'מחבר אחד', 'מחברים')].filter(Boolean) : [];
-    const fate: Record<string, string> = { member: 'משותף - נשאר במקומו', drop_duplicate: 'עותק כפול - יוסר', kept: 'מוצב גם במקום אחר בקומה של החדר - נשאר, לא משותף' };
+    const removed = p ? [count(p.remove.objects, tr('עצם אחד'), tr('עצמים')), count(p.remove.walls, tr('קיר פנימי אחד (ציור כפול של המגרש)'), tr('קירות פנימיים (ציור כפול של המגרש)')), count(p.remove.openings, tr('פתח אחד'), tr('פתחים')), count(p.remove.labels, tr('תווית אחת'), tr('תוויות')), count(p.remove.connectors, tr('מחבר אחד'), tr('מחברים'))].filter(Boolean) : [];
+    const fate: Record<string, string> = { member: tr('משותף - נשאר במקומו'), drop_duplicate: tr('עותק כפול - יוסר'), kept: tr('מוצב גם במקום אחר בקומה של החדר - נשאר, לא משותף') };
     const removeFloor = p ? p.other_floor.name : '';
-    return html`<sw-dialog open heading="הפוך לחלל משותף" subheading=${d.zone.name} data-share-dialog @close=${() => (this.shareDlg = null)}>
-      <div class="note">חלל משותף הוא חדר אחד ששייך לשתי קומות (חלל בגובה כפול): כל קומה שומרת את המתאר והקירות שלה, התוכן נשמר פעם אחת, מוצג בשתי הקומות ואפשר לערוך אותו משתיהן.</div>
+    return html`<sw-dialog open heading=${tr('הפוך לחלל משותף')} subheading=${d.zone.name} data-share-dialog @close=${() => (this.shareDlg = null)}>
+      <div class="note">${tr('חלל משותף הוא חדר אחד ששייך לשתי קומות (חלל בגובה כפול): כל קומה שומרת את המתאר והקירות שלה, התוכן נשמר פעם אחת, מוצג בשתי הקומות ואפשר לערוך אותו משתיהן.')}</div>
       ${d.floors.length
-        ? html`<sw-field label="הקומה השנייה"><select data-share-floor @change=${(e: Event) => this.pickShareFloor((e.target as HTMLSelectElement).value)}>${d.floors.map((f) => html`<option value=${f.floor_id} ?selected=${f.floor_id === d.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>`
-        : d.busy ? nothing : html`<div class="err">אין בבניין קומה נוספת שמותר לך לערוך.</div>`}
+        ? html`<sw-field label=${tr('הקומה השנייה')}><select data-share-floor @change=${(e: Event) => this.pickShareFloor((e.target as HTMLSelectElement).value)}>${d.floors.map((f) => html`<option value=${f.floor_id} ?selected=${f.floor_id === d.floorId}>${bidi(f.name)}</option>`)}</select></sw-field>`
+        : d.busy ? nothing : html`<div class="err">${tr('אין בבניין קומה נוספת שמותר לך לערוך.')}</div>`}
       ${other
-        ? html`<sw-field label="איפה הרצפה של החדר" hint="ברירת המחדל: הקומה התחתונה (המגרש)"><select data-share-home @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, homeHere: (e.target as HTMLSelectElement).value === 'here', preview: null }; void this.previewShareNow(); }}>
-            <option value="here" ?selected=${d.homeHere}>${`בקומה הזו (${bidi(b.floorName)})`}</option>
-            <option value="there" ?selected=${!d.homeHere}>${`ב${bidi(other.name)}`}</option>
+        ? html`<sw-field label=${tr('איפה הרצפה של החדר')} hint=${tr('ברירת המחדל: הקומה התחתונה (המגרש)')}><select data-share-home @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, homeHere: (e.target as HTMLSelectElement).value === 'here', preview: null }; void this.previewShareNow(); }}>
+            <option value="here" ?selected=${d.homeHere}>${tr('בקומה הזו ({bidi})', { bidi: bidi(b.floorName) })}</option>
+            <option value="there" ?selected=${!d.homeHere}>${tr('ב{bidi}', { bidi: bidi(other.name) })}</option>
           </select></sw-field>
           ${d.homeHere
-            ? html`<sw-field label=${`החדר הכפול ב${bidi(other.name)}`}><select data-share-duplicate @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.shareDlg = { ...this.shareDlg!, duplicateId: v === '__auto' ? null : v === '__none' ? '' : v }; void this.previewShareNow(); }}>
-                <option value="__auto" ?selected=${d.duplicateId === null}>${p?.duplicate ? `זוהה אוטומטית: ${p.duplicate.name}` : 'ללא - המתאר ייבנה מהחדר הזה'}</option>
+            ? html`<sw-field label=${tr('החדר הכפול ב{bidi}', { bidi: bidi(other.name) })}><select data-share-duplicate @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; this.shareDlg = { ...this.shareDlg!, duplicateId: v === '__auto' ? null : v === '__none' ? '' : v }; void this.previewShareNow(); }}>
+                <option value="__auto" ?selected=${d.duplicateId === null}>${p?.duplicate ? tr('זוהה אוטומטית: {name}', { name: p.duplicate.name }) : tr('ללא - המתאר ייבנה מהחדר הזה')}</option>
                 ${d.otherZones.map((z) => html`<option value=${z.id} ?selected=${d.duplicateId === z.id}>${z.name}</option>`)}
               </select></sw-field>`
-            : html`<sw-field label=${`החדר ב${bidi(other.name)} שיישאר`}><select data-share-other-zone @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, otherZoneId: (e.target as HTMLSelectElement).value }; void this.previewShareNow(); }}>
+            : html`<sw-field label=${tr('החדר ב{bidi} שיישאר', { bidi: bidi(other.name) })}><select data-share-other-zone @change=${(e: Event) => { this.shareDlg = { ...this.shareDlg!, otherZoneId: (e.target as HTMLSelectElement).value }; void this.previewShareNow(); }}>
                 ${d.otherZones.map((z) => html`<option value=${z.id} ?selected=${d.otherZoneId === z.id}>${z.name}</option>`)}
               </select></sw-field>`}`
         : nothing}
-      ${d.busy ? html`<div class="note">מחשב…</div>` : nothing}
+      ${d.busy ? html`<div class="note">${tr('מחשב…')}</div>` : nothing}
       ${p
         ? html`<div class="share-preview" data-share-preview>
-            <div class="kv"><span class="k">הרצפה</span><span>${bidi(`${p.zone.floor_name}`)} · "${p.zone.name}"</span></div>
-            <div class="kv"><span class="k">המתאר ב${bidi(removeFloor)}</span><span data-share-outline>${p.outline.kept ? `"${p.duplicate?.name ?? ''}" נשאר - עם ${countLabel(p.boundary_walls_kept.length, 'הקיר שלאורכו', 'הקירות שלאורכו')}` : 'ייבנה מהחדר הזה'}</span></div>
-            <div class="kv"><span class="k">יוסר מ${bidi(removeFloor)}</span><span data-share-removed>${removed.length ? removed.join(', ') : 'שום דבר'}</span></div>
-            <div class="kv"><span class="k">מצלמות והתקנים</span><span data-share-anchors>${p.anchors.length
+            <div class="kv"><span class="k">${tr('הרצפה')}</span><span>${bidi(`${p.zone.floor_name}`)} · "${p.zone.name}"</span></div>
+            <div class="kv"><span class="k">${tr('המתאר ב{bidi}', { bidi: bidi(removeFloor) })}</span><span data-share-outline>${p.outline.kept ? tr('"{v}" נשאר - עם {countLabel}', { v: p.duplicate?.name ?? '', countLabel: countLabel(p.boundary_walls_kept.length, tr('הקיר שלאורכו'), tr('הקירות שלאורכו')) }) : tr('ייבנה מהחדר הזה')}</span></div>
+            <div class="kv"><span class="k">${tr('יוסר מ{bidi}', { bidi: bidi(removeFloor) })}</span><span data-share-removed>${removed.length ? removed.join(', ') : tr('שום דבר')}</span></div>
+            <div class="kv"><span class="k">${tr('מצלמות והתקנים')}</span><span data-share-anchors>${p.anchors.length
               ? p.anchors.map((a) => html`<div>${a.name ?? a.resource_id} · ${fate[a.action] ?? a.action}</div>`)
-              : 'אין'}</span></div>
-            ${p.aligned ? nothing : html`<div class="err" data-share-alignment>ודא את יישור הקומות: המתאר של הקומה התחתונה לא נופל בתוך המתאר של העליונה.</div>`}
-            <div class="note">${p.same_frame ? 'לשתי התוכניות אותה מסגרת: החדר יוצג באותו מקום.' : 'לתוכניות מסגרות שונות: החדר יותאם למקום של החדר הכפול לפי המטרים.'} כל קומה שומרת את המתאר והקירות שלה; התוכן (טריבונות, סימוני מגרש, עצמים) נשמר בקומת הרצפה ומוצג בשתיהן. שינוי מהקומה השנייה מתפרסם עם פרסום של כל אחת מהן.</div>
+              : tr('אין')}</span></div>
+            ${p.aligned ? nothing : html`<div class="err" data-share-alignment>${tr('ודא את יישור הקומות: המתאר של הקומה התחתונה לא נופל בתוך המתאר של העליונה.')}</div>`}
+            <div class="note">${tr('{v} כל קומה שומרת את המתאר והקירות שלה; התוכן (טריבונות, סימוני מגרש, עצמים) נשמר בקומת הרצפה ומוצג בשתיהן. שינוי מהקומה השנייה מתפרסם עם פרסום של כל אחת מהן.', { v: p.same_frame ? tr('לשתי התוכניות אותה מסגרת: החדר יוצג באותו מקום.') : tr('לתוכניות מסגרות שונות: החדר יותאם למקום של החדר הכפול לפי המטרים.') })}</div>
           </div>`
         : nothing}
       ${d.error ? html`<div class="err">${d.error}</div>` : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.shareDlg = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-share-apply ?disabled=${!p || d.busy} @click=${() => this.applyShare()}>שתף את החדר</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.shareDlg = null)}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-share-apply ?disabled=${!p || d.busy} @click=${() => this.applyShare()}>${tr('שתף את החדר')}</sw-button>
     </sw-dialog>`;
   }
 
@@ -898,19 +898,19 @@ export class ExplorePlanEditor extends LitElement {
     const s = z.shared;
     if (s?.role === 'mirror') {
       return html`<div class="shared-box" data-zone-shared="mirror"><span class="chip">${sharedChip(s)}</span>
-        <div class="note" data-zone-created-on>האזור נוצר ב${bidi(s.home_floor_name)} — מחק אותו שם, או בטל שיתוף כאן</div>
-        ${s.home_floor_name === OTHER_FLOOR ? nothing : html`<sw-button size="sm" variant="ghost" data-zone-goto-home ?disabled=${this.zoneBusy} @click=${() => this.gotoHomeFloor(z)}>עבור ל${bidi(s.home_floor_name)}</sw-button>`}
-        <div class="note">חלל משותף עם ${bidi(s.home_floor_name)}: המתאר והקירות כאן הם של הקומה הזו; התוכן (טריבונות, סימונים, עצמים) נשמר שם ומוצג בשתי הקומות, ועריכה שלו כאן מופיעה בשתיהן.</div>
+        <div class="note" data-zone-created-on>${tr('האזור נוצר ב{bidi} — מחק אותו שם, או בטל שיתוף כאן', { bidi: bidi(s.home_floor_name) })}</div>
+        ${s.home_floor_name === OTHER_FLOOR ? nothing : html`<sw-button size="sm" variant="ghost" data-zone-goto-home ?disabled=${this.zoneBusy} @click=${() => this.gotoHomeFloor(z)}>${tr('עבור ל{bidi}', { bidi: bidi(s.home_floor_name) })}</sw-button>`}
+        <div class="note">${tr('חלל משותף עם {bidi}: המתאר והקירות כאן הם של הקומה הזו; התוכן (טריבונות, סימונים, עצמים) נשמר שם ומוצג בשתי הקומות, ועריכה שלו כאן מופיעה בשתיהן.', { bidi: bidi(s.home_floor_name) })}</div>
         <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.reloadShared()}></sw-share-members>
-        ${b.permissions.structure ? html`<sw-button size="sm" variant="ghost" data-zone-unshare ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, b.floorId)}>בטל שיתוף</sw-button>` : nothing}</div>`;
+        ${b.permissions.structure ? html`<sw-button size="sm" variant="ghost" data-zone-unshare ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, b.floorId)}>${tr('בטל שיתוף')}</sw-button>` : nothing}</div>`;
     }
     if (s?.role === 'home') {
       return html`<div class="shared-box" data-zone-shared="home"><span class="chip">${sharedChip(s)}</span>
-        <div class="note">משותף עם ${(s.floors ?? []).map((f) => bidi(f.name)).join(', ')}: התוכן של החדר מוצג גם שם.</div>
+        <div class="note">${tr('משותף עם {join}: התוכן של החדר מוצג גם שם.', { join: (s.floors ?? []).map((f) => bidi(f.name)).join(', ') })}</div>
         <sw-share-members .zoneId=${s.zone_id} @members-changed=${() => void this.reloadShared()}></sw-share-members>
-        ${b.permissions.structure ? (s.floors ?? []).map((f) => html`<sw-button size="sm" variant="ghost" data-zone-unshare=${f.floor_id} ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, f.floor_id)}>בטל שיתוף עם ${bidi(f.name)}</sw-button>`) : nothing}</div>`;
+        ${b.permissions.structure ? (s.floors ?? []).map((f) => html`<sw-button size="sm" variant="ghost" data-zone-unshare=${f.floor_id} ?disabled=${this.zoneBusy} @click=${() => this.unshare(z, f.floor_id)}>${tr('בטל שיתוף עם {bidi}', { bidi: bidi(f.name) })}</sw-button>`) : nothing}</div>`;
     }
-    return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title="חדר ששייך לשתי קומות - חלל בגובה כפול" @click=${() => this.openShare(z)}>הפוך לחלל משותף</sw-button></div>` : nothing;
+    return b.permissions.structure ? html`<div class="btns"><sw-button size="sm" icon="floor" data-zone-share ?disabled=${this.zoneBusy} title=${tr('חדר ששייך לשתי קומות - חלל בגובה כפול')} @click=${() => this.openShare(z)}>${tr('הפוך לחלל משותף')}</sw-button></div>` : nothing;
   }
 
   /** "חלל משותף · השינוי יופיע גם בקומה X" on the selected item of a shared room (either floor). */
@@ -918,7 +918,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const a = this.selected;
     let text = '';
-    if (a?.shared) text = `חלל משותף · השינוי יופיע גם ב${bidi(a.shared.home_floor_name)}`;
+    if (a?.shared) text = tr('חלל משותף · השינוי יופיע גם ב{bidi}', { bidi: bidi(a.shared.home_floor_name) });
     else if (a && doc) text = sharedHint(doc, null, [a.position.x, a.position.y]);
     else if (this.geomSel && doc) {
       const item = findGeomItem(doc, this.geomSel.id);
@@ -928,18 +928,18 @@ export class ExplorePlanEditor extends LitElement {
     const cam = a?.resource_type === 'camera';
     // B1: an anchor inside a shared room that is not a member stays on its floor; the editor offers to add it
     const member = a ? (a.room_candidate
-      ? html`<div class="shared-hint" data-share-candidate><sw-icon name="floor" size=${14}></sw-icon>${cam ? 'מצלמה בתוך החלל המשותף שאינה חברה בו - הוסף?' : 'התקן בתוך החלל המשותף שאינו חבר בו - הוסף?'}
-          ${can ? html`<sw-button size="sm" variant="ghost" data-share-member-add ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.room_candidate!, true)}>הוסף לחלל המשותף</sw-button>` : nothing}</div>`
+      ? html`<div class="shared-hint" data-share-candidate><sw-icon name="floor" size=${14}></sw-icon>${cam ? tr('מצלמה בתוך החלל המשותף שאינה חברה בו - הוסף?') : tr('התקן בתוך החלל המשותף שאינו חבר בו - הוסף?')}
+          ${can ? html`<sw-button size="sm" variant="ghost" data-share-member-add ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.room_candidate!, true)}>${tr('הוסף לחלל המשותף')}</sw-button>` : nothing}</div>`
       : (a.shared_member || a.shared) && can
-        ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-share-member-remove ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.shared_member ?? a.shared!.zone_id, false)}>הסר מהחלל המשותף</sw-button></div>`
+        ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-share-member-remove ?disabled=${this.zoneBusy} @click=${() => this.setShareMember(a, a.shared_member ?? a.shared!.zone_id, false)}>${tr('הסר מהחלל המשותף')}</sw-button></div>`
         : nothing) : nothing;
     // re-review N3: under the upper level on the home floor an item is the floor's own unless marked as the room's
     // content (the tribune that rises through the upper floor is; a storage room under it is not)
     const own = this.geomSel && doc ? findGeomItem(doc, this.geomSel.id) : null;
     const zone = own && (this.geomSel?.kind === 'object' || this.geomSel?.kind === 'label') ? overhangZone(doc, own) : null;
     const mark = zone && own
-      ? html`<label class="shared-hint" data-shared-content-toggle><sw-toggle size="sm" labelHidden in-label label="חלק מהחלל המשותף (מוצג גם בקומה השנייה)" .checked=${own.shared_space_id === zone} ?disabled=${!this.bundle?.permissions.structure}
-          @change=${(e: Event) => this.setSharedContent(own.id, toggled(e) ? zone : null)}></sw-toggle> חלק מהחלל המשותף (מוצג גם בקומה השנייה)</label>`
+      ? html`<label class="shared-hint" data-shared-content-toggle><sw-toggle size="sm" labelHidden in-label label=${tr('חלק מהחלל המשותף (מוצג גם בקומה השנייה)')} .checked=${own.shared_space_id === zone} ?disabled=${!this.bundle?.permissions.structure}
+          @change=${(e: Event) => this.setSharedContent(own.id, toggled(e) ? zone : null)}></sw-toggle> ${tr('חלק מהחלל המשותף (מוצג גם בקומה השנייה)')}</label>`
       : nothing;
     return html`${text ? html`<div class="shared-hint" data-shared-hint><sw-icon name="floor" size=${14}></sw-icon>${text}</div>` : nothing}${member}${mark}`;
   }
@@ -1082,7 +1082,7 @@ export class ExplorePlanEditor extends LitElement {
       if (v && v.zoneId === z.id && v.index < z.polygon.length) {
         // a picked corner goes alone (0.1.87); a zone keeps at least three corners
         if (z.polygon.length <= 3) {
-          this.flash('לאזור נשארו שלוש פינות: אי אפשר להסיר עוד פינה', 3000);
+          this.flash(tr('לאזור נשארו שלוש פינות: אי אפשר להסיר עוד פינה'), 3000);
           return;
         }
         this.zoneVertexSel = null;
@@ -1130,7 +1130,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private async save(): Promise<boolean> {
     if (!this.bundle || this.bundle.source === 'demo') {
-      this.toaster.show('נתוני הדגמה: השינויים נשמרים רק במסך זה.', { ms: 0 });
+      this.toaster.show(tr('נתוני הדגמה: השינויים נשמרים רק במסך זה.'), { ms: 0 });
       this.dirty = new Set();
       return true;
     }
@@ -1153,12 +1153,12 @@ export class ExplorePlanEditor extends LitElement {
         }
       }
       if (conflict) {
-        this.error = 'חלק מהפריטים השתנו בינתיים על ידי עורך אחר; המפה נטענה מחדש בלי לדרוס את השינוי שלו.';
+        this.error = tr('חלק מהפריטים השתנו בינתיים על ידי עורך אחר; המפה נטענה מחדש בלי לדרוס את השינוי שלו.');
         await this.load();
         return false;
       }
       this.dirty = new Set();
-      this.flash('המיקומים נשמרו', 2500);
+      this.flash(tr('המיקומים נשמרו'), 2500);
       return true;
     } catch (err) {
       this.error = describeError(err);
@@ -1172,7 +1172,7 @@ export class ExplorePlanEditor extends LitElement {
     const p = this.placing;
     if (!p || !this.bundle) return;
     if (this.bundle.source === 'demo') {
-      this.toaster.show('נתוני הדגמה: הוספה עובדת מול השרת.', { ms: 0 });
+      this.toaster.show(tr('נתוני הדגמה: הוספה עובדת מול השרת.'), { ms: 0 });
       this.placing = null;
       return;
     }
@@ -1190,7 +1190,7 @@ export class ExplorePlanEditor extends LitElement {
       await this.load();
       this.selectedId = a.id;
       this.tool = 'select';
-      this.flash(`${this.anchorName(a)} הוצב · גרור לדיוק, קבע כיוון בידיות`, 4000);
+      this.flash(tr('{anchorName} הוצב · גרור לדיוק, קבע כיוון בידיות', { anchorName: this.anchorName(a) }), 4000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1202,10 +1202,10 @@ export class ExplorePlanEditor extends LitElement {
     const a = this.selected;
     if (!a || !this.bundle) return;
     if (this.bundle.source === 'demo') {
-      this.toaster.show('נתוני הדגמה: הסרה עובדת מול השרת.', { ms: 0 });
+      this.toaster.show(tr('נתוני הדגמה: הסרה עובדת מול השרת.'), { ms: 0 });
       return;
     }
-    if (!(await confirmDialog({ body: `להסיר את "${this.anchorName(a)}" מהמפה? המקור עצמו לא נמחק.`, danger: true }))) return;
+    if (!(await confirmDialog({ body: tr('להסיר את "{anchorName}" מהמפה? המקור עצמו לא נמחק.', { anchorName: this.anchorName(a) }), danger: true }))) return;
     this.busy = true;
     this.error = '';
     try {
@@ -1257,7 +1257,7 @@ export class ExplorePlanEditor extends LitElement {
       draft = this.versions.find((v) => v.id === b.planVersionId);
     }
     if (!draft) {
-      this.error = 'לא נמצאה טיוטה לפרסום — טען מחדש';
+      this.error = tr('לא נמצאה טיוטה לפרסום — טען מחדש');
       return;
     }
     await this.openDiff('publish', draft);
@@ -1283,7 +1283,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomDiff = null;
       // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
       const shared = (r.shared_published ?? []).length > 0;
-      this.flash(r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים בחלל המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו', 4000);
+      this.flash(r.unchanged && !shared ? tr('אין שינוי לפרסום') : shared ? tr('המבנה פורסם, כולל השינויים בחלל המשותף; הצופים רואים אותם עכשיו') : tr('המבנה פורסם; הצופים רואים אותו עכשיו'), 4000);
       await this.loadStudio(b, true); // refresh what viewers see (the published hash)
     } catch (err) {
       this.geomDiff = { ...d, error: describeError(err) };
@@ -1317,10 +1317,10 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (d.mode === 'publish') {
         await publishVersion(d.version.id);
-        this.toaster.show('הגרסה פורסמה; הצופים רואים אותה עכשיו', { ms: 0 });
+        this.toaster.show(tr('הגרסה פורסמה; הצופים רואים אותה עכשיו'), { ms: 0 });
       } else {
         await rollbackVersion(d.version.id, d.version.revision, d.data.from?.id ?? null);
-        this.toaster.show('הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו', { ms: 0 });
+        this.toaster.show(tr('הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו'), { ms: 0 });
       }
       const done = this.info;
       this.diff = null;
@@ -1390,7 +1390,7 @@ export class ExplorePlanEditor extends LitElement {
       await setRenderMode(this.bundle.planVersionId, mode);
       this.stylized = null;
       await this.load();
-      this.flash(mode === 'stylized' ? 'המפה מציגה עכשיו את שפת Arx' : 'המפה מציגה את תוכנית המקור', 3000);
+      this.flash(mode === 'stylized' ? tr('המפה מציגה עכשיו את שפת Arx') : tr('המפה מציגה את תוכנית המקור'), 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1616,7 +1616,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private createLevel(doc: GeometryDoc, v: LevelDialogView) {
     if (doc.levels.some((l) => l.elevation_m === v.elevation)) {
-      this.levelDialog = { ...v, error: 'כבר יש מפלס בגובה הזה' };
+      this.levelDialog = { ...v, error: tr('כבר יש מפלס בגובה הזה') };
       return;
     }
     const r = addLevel(doc, v.name, v.elevation, v.ceiling);
@@ -1624,7 +1624,7 @@ export class ExplorePlanEditor extends LitElement {
     this.lastEdit = 'structure';
     this.levelDialog = null;
     this.setLevelFilter(r.id);
-    this.flash(`המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`, 4000);
+    this.flash(tr('המפלס "{name}" נוסף; פריטים חדשים יוצבו בו', { name: v.name }), 4000);
   }
 
   /** Edit mode: name, heights, and - for a level that is not the default - "make it the default" (patchLevel clears the
@@ -1639,14 +1639,14 @@ export class ExplorePlanEditor extends LitElement {
     const r3 = (x: number) => Math.round(x * 1000) / 1000;
     const patch = { name: v.name.trim(), elevation_m: r3(v.elevation), ceiling_height_m: r3(v.ceiling), ...(v.makeDefault && !l.is_default ? { is_default: true } : {}) };
     if (doc.levels.some((x) => x.id !== id && x.elevation_m === patch.elevation_m)) {
-      this.levelDialog = { ...v, error: 'כבר יש מפלס בגובה הזה' };
+      this.levelDialog = { ...v, error: tr('כבר יש מפלס בגובה הזה') };
       return;
     }
     this.levelDialog = null;
     if (patch.name === l.name && patch.elevation_m === l.elevation_m && patch.ceiling_height_m === l.ceiling_height_m && !patch.is_default) return; // nothing changed: no undo step
     this.studio.commit(patchLevel(doc, id, patch));
     this.lastEdit = 'structure';
-    this.flash(patch.is_default ? `המפלס "${patch.name}" עודכן והוא המפלס הראשי עכשיו` : `המפלס "${patch.name}" עודכן`, 4000);
+    this.flash(patch.is_default ? tr('המפלס "{name}" עודכן והוא המפלס הראשי עכשיו', { name: patch.name }) : tr('המפלס "{name}" עודכן', { name: patch.name }), 4000);
   }
 
   /** Edit mode: removeLevel refuses (null) the default level and a level anything still sits on; the dialog then says
@@ -1664,17 +1664,17 @@ export class ExplorePlanEditor extends LitElement {
     if (!next) {
       const used = levelUsage(doc, l.id);
       const why = [
-        ...(l.is_default ? ['זה המפלס הראשי - הפוך מפלס אחר לראשי קודם'] : []),
-        ...(used > 0 ? [`יש בו עוד ${countLabel(used, 'פריט אחד', 'פריטים')} (קירות, תוויות, עצמים או מחברים) - העבר או מחק אותם קודם`] : []),
+        ...(l.is_default ? [tr('זה המפלס הראשי - הפוך מפלס אחר לראשי קודם')] : []),
+        ...(used > 0 ? [tr('יש בו עוד {countLabel} (קירות, תוויות, עצמים או מחברים) - העבר או מחק אותם קודם', { countLabel: countLabel(used, tr('פריט אחד'), tr('פריטים')) })] : []),
       ];
-      this.levelDialog = { ...v, error: `אי אפשר למחוק את המפלס: ${why.join('; ')}.` };
+      this.levelDialog = { ...v, error: tr('אי אפשר למחוק את המפלס: {join}.', { join: why.join('; ') }) };
       return;
     }
     this.studio.commit(next);
     this.lastEdit = 'structure';
     this.levelDialog = null;
     if (this.levelFilter === l.id) this.setLevelFilter(null);
-    this.flash(`המפלס "${l.name}" נמחק (ביטול: Ctrl+Z)`, 4000);
+    this.flash(tr('המפלס "{name}" נמחק (ביטול: Ctrl+Z)', { name: l.name }), 4000);
   }
 
   /** The other floors of this building the person may edit, with their levels and frames, for the "מחבר אל" picker
@@ -1708,12 +1708,12 @@ export class ExplorePlanEditor extends LitElement {
       await this.loadStudio(b, true); // the server changed both drafts: this one has a new revision
       this.geomSel = { id: connectorId, kind: 'connector' };
       const f = this.linkTargets.find((x) => x.floor_id === r.target.floor_id);
-      const where = `${f?.name ?? 'הקומה השנייה'} · ${f?.levels.find((l) => l.id === r.target.level_id)?.name ?? ''}`;
+      const where = `${f?.name ?? tr('הקומה השנייה')} · ${f?.levels.find((l) => l.id === r.target.level_id)?.name ?? ''}`;
       this.flash(r.target.placement === 'centred'
-        ? `המדרגות קושרו אל ${where}. לשתי הקומות אין מסגרת משותפת, לכן בקומה השנייה הן נוצרו במרכז התוכנית: מקם את המדרגות בקומה השנייה.`
+        ? tr('המדרגות קושרו אל {where}. לשתי הקומות אין מסגרת משותפת, לכן בקומה השנייה הן נוצרו במרכז התוכנית: מקם את המדרגות בקומה השנייה.', { where })
         : r.target.placement === 'aligned' && r.target.frame === 'size'
-          ? `המחבר קושר אל ${where}; בקומה השנייה הוא הונח באותו מקום בתוכנית (לשתי התוכניות אותן מידות): ודא את המיקום בקומה השנייה.`
-          : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`, 7000);
+          ? tr('המחבר קושר אל {where}; בקומה השנייה הוא הונח באותו מקום בתוכנית (לשתי התוכניות אותן מידות): ודא את המיקום בקומה השנייה.', { where })
+          : tr('המחבר קושר אל {where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה', { where }), 7000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1767,7 +1767,7 @@ export class ExplorePlanEditor extends LitElement {
         return;
       }
       const r = await deleteTwin(b.planVersionId, id, floorId);
-      this.flash(r.removed ? 'המחבר נמחק גם בקומה השנייה' : 'בקומה השנייה לא נמצא מחבר תאום', 4000);
+      this.flash(r.removed ? tr('המחבר נמחק גם בקומה השנייה') : tr('בקומה השנייה לא נמצא מחבר תאום'), 4000);
     } catch (err) {
       this.error = describeError(err);
     }
@@ -1835,7 +1835,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderConnectorTool(b: MapBundle) {
     const doc = this.studio.doc;
-    if (!doc) return html`<sw-card heading="מפלסים ומחברים"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: המחברים עובדים מול השרת.' : this.error || 'טוען…'}</div></sw-card>`;
+    if (!doc) return html`<sw-card heading=${tr('מפלסים ומחברים')}><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: המחברים עובדים מול השרת.') : this.error || tr('טוען…')}</div></sw-card>`;
     return renderConnectorPanel(
       { ...this.connectorView(doc), mode: this.connMode, start: this.connStart, sel: this.geomSel?.kind === 'connector' ? doc.connectors.find((c) => c.id === this.geomSel!.id) : undefined },
       this.connectorActions(),
@@ -1876,7 +1876,7 @@ export class ExplorePlanEditor extends LitElement {
     this.remember(itemId);
     this.pickTool('connectors');
     this.geomSel = { id: r.id, kind: 'connector' };
-    this.flash('המדרגות הונחו כמחבר: בחר ב"מחבר אל" לאיזה מפלס או קומה הן מובילות', 5000);
+    this.flash(tr('המדרגות הונחו כמחבר: בחר ב"מחבר אל" לאיזה מפלס או קומה הן מובילות'), 5000);
   }
 
   /** The switch catalogue of a circuit: the synced switch and light entities, asked by domain so no other domain crowds them out. */
@@ -1915,13 +1915,13 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitSel = r.id;
     this.membersMode = true;
     this.circuitPlacing = null; // another circuit: a lamp type armed for the previous one does not carry over
-    this.flash('המעגל נוצר: לחץ על המנורות שלו', 4000);
+    this.flash(tr('המעגל נוצר: לחץ על המנורות שלו'), 4000);
   }
 
   private renderCircuitTool(b: MapBundle) {
     const doc = this.studio.doc;
     const lib = this.library;
-    if (!doc) return html`<sw-card heading="מעגלי תאורה"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: המעגלים עובדים מול השרת.' : this.error || 'טוען…'}</div></sw-card>`;
+    if (!doc) return html`<sw-card heading=${tr('מעגלי תאורה')}><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: המעגלים עובדים מול השרת.') : this.error || tr('טוען…')}</div></sw-card>`;
     return renderCircuitPanel(
       { doc, sel: doc.circuits.find((k) => k.id === this.circuitSel), membersMode: this.membersMode, power: (k) => circuitPower(doc, k, (id) => (lib ? itemOf(lib, id) : undefined)), creating: this.circuitNew,
         saveState: this.studio.saveState, colors: CIRCUIT_COLORS, lamps: lib ? lib.items.filter((i) => i.role === 'light') : [], placing: this.circuitPlacing },
@@ -2053,7 +2053,7 @@ export class ExplorePlanEditor extends LitElement {
   private bindObject(objectId: string, a: Anchor) {
     this.edit((d) => patchObject(d, objectId, { anchor_ref: { resource_type: a.resource_type, resource_id: a.resource_id }, position: [a.position.x, a.position.y], rotation_deg: a.rotation_degrees }));
     this.bindOffer = null;
-    this.flash(`העצם הוא עכשיו הגוף של ${this.anchorName(a)}`, 3000);
+    this.flash(tr('העצם הוא עכשיו הגוף של {anchorName}', { anchorName: this.anchorName(a) }), 3000);
   }
 
   // ---- arrays, groups, custom items (T085) ----
@@ -2065,7 +2065,7 @@ export class ExplorePlanEditor extends LitElement {
     const item = o && lib ? itemOf(lib, o.item_id) : undefined;
     if (!doc || !o) return;
     if (this.phone.matches) {
-      this.flash('מערכים זמינים בדסקטופ בלבד', 3000);
+      this.flash(tr('מערכים זמינים בדסקטופ בלבד'), 3000);
       return;
     }
     const d = item ? arrayDefaults(item) : { spacingX: round(o.size.w_m + 0.05), spacingY: round(o.size.d_m + 0.45) };
@@ -2079,14 +2079,14 @@ export class ExplorePlanEditor extends LitElement {
     if (!b || !doc || !a) return;
     const r = addArray(doc, a.objectId, a, b.width, b.height, effectiveScale(doc).scale);
     if (!r) {
-      this.arrayDialog = { ...a, error: 'לא ניתן ליצור את המערך (העצם כבר במערך, או שיש יותר מדי עצמים)' }; // inside the dialog: the bar is behind the modal
+      this.arrayDialog = { ...a, error: tr('לא ניתן ליצור את המערך (העצם כבר במערך, או שיש יותר מדי עצמים)') }; // inside the dialog: the bar is behind the modal
       return;
     }
     this.arrayDialog = null;
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.groupId, kind: 'group' };
-    this.flash(`${r.ids.length} עצמים במערך אחד`, 4000);
+    this.flash(tr('{idsCount} עצמים במערך אחד', { idsCount: r.ids.length }), 4000);
   }
 
   private deleteGroup(withMembers: boolean) {
@@ -2104,7 +2104,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc || !lib || !o) return;
     const item = itemOf(lib, o.item_id);
     this.customDialog = {
-      objectId, nameHe: item ? `${item.names.he} (מותאם)` : '', nameEn: item?.names.en ?? '', category: item?.category ?? 'storage', shape: item?.shape ?? 'box', icon: item?.icon ?? 'box',
+      objectId, nameHe: item ? tr('{he} (מותאם)', { he: item.names.he }) : '', nameEn: item?.names.en ?? '', category: item?.category ?? 'storage', shape: item?.shape ?? 'box', icon: item?.icon ?? 'box',
       color: item?.color_token ?? 'object', size: { ...o.size }, basedOn: item ? (item.custom ? item.based_on : item.id) : null, busy: false, error: '',
       params: JSON.parse(JSON.stringify(o.params)) as Record<string, unknown>, z: item && item.z_ref === 'ceiling' ? item.z_m : o.z_m,
     };
@@ -2122,7 +2122,7 @@ export class ExplorePlanEditor extends LitElement {
       this.remember(item.id);
       this.libCategory = 'recent';
       this.libQ = '';
-      this.flash(`הפריט "${item.names.he}" נוסף לספרייה`, 4000);
+      this.flash(tr('הפריט "{he}" נוסף לספרייה', { he: item.names.he }), 4000);
     } catch (err) {
       this.customDialog = { ...c, busy: false, error: describeError(err) };
     }
@@ -2138,10 +2138,10 @@ export class ExplorePlanEditor extends LitElement {
       } catch {
         parsed = null; // not JSON at all
       }
-      if (parsed?.format !== 'smplwise-catalog-1' || !Array.isArray(parsed.items)) throw new Error('הקובץ אינו ייצוא של ספרייה מותאמת (smplwise-catalog-1)');
+      if (parsed?.format !== 'smplwise-catalog-1' || !Array.isArray(parsed.items)) throw new Error(tr('הקובץ אינו ייצוא של ספרייה מותאמת (smplwise-catalog-1)'));
       const r = await importItems(parsed.items);
       await this.loadLibraryFor(b);
-      this.flash(`${r.imported} יובאו, ${r.replaced} הוחלפו`, 4000);
+      this.flash(tr('{imported} יובאו, {replaced} הוחלפו', { imported: r.imported, replaced: r.replaced }), 4000);
     } catch (err) {
       this.error = err instanceof Error && !(err instanceof ApiError) ? err.message : describeError(err);
     }
@@ -2383,7 +2383,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (mode === 'curve' || mode === 'wall' || mode === 'curved' || mode === 'glass') return; // the bend mode; a drawing mode is handled above
     if (mode === 'label') {
-      const r = addLabel(doc, p, 'תווית');
+      const r = addLabel(doc, p, tr('תווית'));
       const level = this.placeOpts(doc).levelId;
       this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchLabel(r.doc, r.id, { level_id: level }));
       this.lastEdit = 'structure';
@@ -2397,7 +2397,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / zoom);
     if (!hit) {
-      this.flash('לחץ על קיר כדי להציב פתח', 2500);
+      this.flash(tr('לחץ על קיר כדי להציב פתח'), 2500);
       return;
     }
     const existing = this.openingAt(doc, hit.wall, hit.t);
@@ -2418,9 +2418,9 @@ export class ExplorePlanEditor extends LitElement {
     const draft = this.wallDraft;
     if (draft && draft.length >= 2) {
       this.finishWall(); // a wall being drawn is kept, not thrown away by the shortcut
-      this.flash('הקיר שבציור נשמר; סמן דלת פעיל');
+      this.flash(tr('הקיר שבציור נשמר; סמן דלת פעיל'));
     } else if (draft) {
-      this.flash('נקודת הקיר שהתחלת בוטלה; סמן דלת פעיל');
+      this.flash(tr('נקודת הקיר שהתחלת בוטלה; סמן דלת פעיל'));
     }
     if (this.curveDraft && this.curveDraft.length >= 2) this.finishCurve(false); // a curved wall being drawn is kept too
     this.curveDraft = null;
@@ -2453,7 +2453,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     if (this.doorGhost && doc && !ghostWall(doc, this.doorGhost)) {
       this.dropDoorGhost();
-      this.flash('הקיר של ההצעה הוסר; ההצעה בוטלה');
+      this.flash(tr('הקיר של ההצעה הוסר; ההצעה בוטלה'));
     }
   }
 
@@ -2465,7 +2465,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!o) return false;
     this.doorGhost = null;
     this.geomSel = { id: o.id, kind: 'opening' };
-    this.flash('כאן כבר יש דלת: היא נבחרה');
+    this.flash(tr('כאן כבר יש דלת: היא נבחרה'));
     return true;
   }
 
@@ -2494,7 +2494,7 @@ export class ExplorePlanEditor extends LitElement {
     const hit = nearestWall(p, this.shownWalls(doc), W, H, WALL_PICK_PX / zoom);
     if (b.source !== 'api' || !b.planVersionId) {
       if (!hit) {
-        this.flash('לחץ על קיר כדי להציב דלת', 2500);
+        this.flash(tr('לחץ על קיר כדי להציב דלת'), 2500);
         return;
       }
       const dg = defaultGhost(doc, hit.wall, hit.t, p, W, H);
@@ -2511,13 +2511,13 @@ export class ExplorePlanEditor extends LitElement {
       if (token !== this.doorToken || !cur || this.tool !== 'structure' || this.studioMode !== 'markdoor') return;
       const g = ghostFromProposal(cur, r, W, H, this.wallDefaults);
       if (!ghostWall(cur, g)) {
-        this.flash('הקיר של ההצעה לא נמצא בטיוטה; שמור ונסה שוב', 4000);
+        this.flash(tr('הקיר של ההצעה לא נמצא בטיוטה; שמור ונסה שוב'), 4000);
         return;
       }
       if (!this.selectExisting(g)) this.doorGhost = g;
     } catch (err) {
       if (token !== this.doorToken) return;
-      this.flash(err instanceof ApiError && err.code === 'door_proposal_timeout' ? 'ההצעה לא חושבה בזמן; לחץ שוב' : describeError(err), 4500);
+      this.flash(err instanceof ApiError && err.code === 'door_proposal_timeout' ? tr('ההצעה לא חושבה בזמן; לחץ שוב') : describeError(err), 4500);
     } finally {
       if (token === this.doorToken) this.doorAsking = false;
     }
@@ -2553,11 +2553,11 @@ export class ExplorePlanEditor extends LitElement {
    * warning and the accept / cancel buttons (the same as Enter and Esc). */
   private renderMarkDoorHint() {
     const g = this.doorGhost;
-    if (this.doorAsking) return html`<div class="placing-hint" data-mark-door-hint="asking"><span>מחפש את הדלת בשרטוט…</span></div>`;
-    if (!g) return html`<div class="placing-hint" data-mark-door-hint="idle"><span>סמן דלת: לחץ על סמל הדלת בתוכנית · Esc לביטול</span></div>`;
+    if (this.doorAsking) return html`<div class="placing-hint" data-mark-door-hint="asking"><span>${tr('מחפש את הדלת בשרטוט…')}</span></div>`;
+    if (!g) return html`<div class="placing-hint" data-mark-door-hint="idle"><span>${tr('סמן דלת: לחץ על סמל הדלת בתוכנית · Esc לביטול')}</span></div>`;
     const width = fmtMetres(g.width_m, effectiveScale(this.studio.doc!).estimated, this.showEstimates);
     return html`<div class="placing-hint bindbar" data-mark-door-hint="ghost" data-ghost-found=${g.found}><span><b data-ghost-note-text>${g.note}</b> · ${width}${g.warning ? html` · <span data-ghost-warning>${g.warning}</span>` : nothing}
-      <button data-ghost-accept-btn @click=${() => this.acceptDoorGhost()}>אשר (Enter)</button><button data-ghost-cancel-btn @click=${() => this.dropDoorGhost()}>בטל (Esc)</button></span></div>`;
+      <button data-ghost-accept-btn @click=${() => this.acceptDoorGhost()}>${tr('אשר (Enter)')}</button><button data-ghost-cancel-btn @click=${() => this.dropDoorGhost()}>${tr('בטל (Esc)')}</button></span></div>`;
   }
 
   private finishWall() {
@@ -2745,7 +2745,7 @@ export class ExplorePlanEditor extends LitElement {
       const o = doc?.objects.find((x) => x.id === id);
       const item = o && lib ? itemOf(lib, o.item_id) : undefined;
       if (item && !circuitEligible(item)) {
-        this.flash(`${item.names.he} אינו גוף תאורה`, 2500);
+        this.flash(tr('{he} אינו גוף תאורה', { he: item.names.he }), 2500);
         return;
       }
       const cid = this.circuitSel;
@@ -2940,8 +2940,8 @@ export class ExplorePlanEditor extends LitElement {
     if (!failed.length) return;
     const conflict = failed.some((f) => f.why === 'conflict');
     if (conflict) await this.load(); // the other editor's version of the zones (load clears the message: it is set after)
-    const why = conflict ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : failed[0].why;
-    this.error = `${failed.length} מתוך ${moves.length} אזורים לא הוזזו (${why}). שאר הבחירה זזה; האזורים שלא זזו נבחרו לבדם - גרור אותם למקומם (ביטול ב-Ctrl+Z מחזיר רק קירות ועצמים, לא אזורים)`;
+    const why = conflict ? tr('אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש') : failed[0].why;
+    this.error = tr('{failedCount} מתוך {movesCount} אזורים לא הוזזו ({why}). שאר הבחירה זזה; האזורים שלא זזו נבחרו לבדם - גרור אותם למקומם (ביטול ב-Ctrl+Z מחזיר רק קירות ועצמים, לא אזורים)', { failedCount: failed.length, movesCount: moves.length, why });
     // only when the user has not picked something else meanwhile (a tool switch or a new selection wins)
     if (this.tool !== 'select' || this.multi !== selectedAtDrop) return;
     const left = new Set(this.zones.map((z) => z.id));
@@ -2959,15 +2959,15 @@ export class ExplorePlanEditor extends LitElement {
     const zs = items.filter((i) => i.kind === 'zone').map((i) => zoneById.get(i.id)).filter((z): z is SpatialZone => !!z);
     const demo = this.bundle?.source === 'demo';
     const others = items.length - zs.length;
-    const zonesText = zs.length === 1 ? `את "${zs[0].name}"` : `${zs.length} אזורים`;
-    const ask = others ? `למחוק ${zonesText} יחד עם ${countLabel(others, 'הפריט האחר שנבחר', 'הפריטים האחרים שנבחרו')}?` : `למחוק ${zonesText}?`;
-    if (zs.length && !demo && !(await confirmDialog({ body: `${ask} מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.`, danger: true }))) return;
+    const zonesText = zs.length === 1 ? tr('את "{name}"', { name: zs[0].name }) : tr('{zsCount} אזורים', { zsCount: zs.length });
+    const ask = others ? tr('למחוק {zonesText} יחד עם {countLabel}?', { zonesText, countLabel: countLabel(others, tr('הפריט האחר שנבחר'), tr('הפריטים האחרים שנבחרו')) }) : tr('למחוק {zonesText}?', { zonesText });
+    if (zs.length && !demo && !(await confirmDialog({ body: tr('{ask} מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.', { ask }), danger: true }))) return;
     const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
     if (ids.length) this.edit((d) => removeItems(d, ids));
     this.setSelection([]);
     if (!zs.length) return;
     if (demo) {
-      this.flash('נתוני הדגמה: אזורים נמחקים רק מול השרת.', 3000);
+      this.flash(tr('נתוני הדגמה: אזורים נמחקים רק מול השרת.'), 3000);
       return;
     }
     this.zoneBusy = true;
@@ -2980,7 +2980,7 @@ export class ExplorePlanEditor extends LitElement {
       this.zoneBusy = false;
     }
     if (!failed.length) return;
-    this.error = `${failed.length} מתוך ${zs.length} אזורים לא נמחקו (${failed[0].why}); הם נבחרו שוב כדי לנסות שוב`;
+    this.error = tr('{failedCount} מתוך {zsCount} אזורים לא נמחקו ({why}); הם נבחרו שוב כדי לנסות שוב', { failedCount: failed.length, zsCount: zs.length, why: failed[0].why });
     const left = new Set(this.zones.map((z) => z.id));
     const nothingSelected = !this.multi.length && !this.geomSel && !this.selectedZoneId && !this.selectedId;
     if (this.tool === 'select' && nothingSelected) this.setSelection(failed.filter((f) => left.has(f.z.id)).map((f): MultiItem => ({ id: f.z.id, kind: 'zone' })));
@@ -3062,8 +3062,8 @@ export class ExplorePlanEditor extends LitElement {
     const before = new Map(doc.objects.map((o) => [o.id, o]));
     const moved = next.objects.filter((o) => before.get(o.id) !== o).length; // an object that did not move stays the same object
     this.edit(() => next);
-    const action = what === 'x' ? 'פיזור לרוחב' : what === 'y' ? 'פיזור לגובה' : 'יישור';
-    this.multiNote = moved ? `${action}: ${countLabel(moved, 'עצם אחד זז', 'עצמים זזו')} (ביטול ב-Ctrl+Z)` : `${action}: העצמים כבר במקומם, שום דבר לא זז`;
+    const action = what === 'x' ? tr('פיזור לרוחב') : what === 'y' ? tr('פיזור לגובה') : tr('יישור');
+    this.multiNote = moved ? tr('{action}: {countLabel} (ביטול ב-Ctrl+Z)', { action, countLabel: countLabel(moved, tr('עצם אחד זז'), tr('עצמים זזו')) }) : tr('{action}: העצמים כבר במקומם, שום דבר לא זז', { action });
   }
 
   /** The selected objects that can join a lighting circuit, by circuitEligible - the rule the circuit tool's own click
@@ -3114,8 +3114,8 @@ export class ExplorePlanEditor extends LitElement {
   /** The failed part of a bulk zone update in words: "2 מתוך 3 אזורים לא עודכנו (why)". */
   private zoneFailText(r: { sent: number; failed: { why: string }[] }): string {
     if (!r.failed.length) return '';
-    const why = r.failed.some((f) => f.why === 'conflict') ? 'אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש' : r.failed[0].why;
-    return ` · ${r.failed.length} מתוך ${r.sent} אזורים לא עודכנו (${why})`;
+    const why = r.failed.some((f) => f.why === 'conflict') ? tr('אזור השתנה בינתיים על ידי עורך אחר ונטען מחדש') : r.failed[0].why;
+    return tr(' · {failedCount} מתוך {sent} אזורים לא עודכנו ({why})', { failedCount: r.failed.length, sent: r.sent, why });
   }
 
   /** The bulk panel's tags (T085): one tag added to every selected item that lacks it, or removed from every one that has
@@ -3143,9 +3143,9 @@ export class ExplorePlanEditor extends LitElement {
     const r = demo ? { sent: 0, failed: [] } : await this.patchZones(zs, zoneBody);
     if (this.multi !== selectedAt) return; // the user picked something else meanwhile: the note belongs to that
     const changed = inDoc + r.sent - r.failed.length;
-    this.multiNote = (add ? `התגית "${tag}" נוספה ל־${changed} מתוך ${items.length} פריטים` : `התגית "${tag}" הוסרה מ־${changed} פריטים`)
-      + (full ? ` · ${countLabel(full, 'פריט אחד', 'פריטים')} כבר עם ${TAG_MAX_COUNT} תגיות` : '')
-      + (demo && zs.length ? ' · נתוני הדגמה: אזורים נשמרים רק מול השרת' : '')
+    this.multiNote = (add ? tr('התגית "{tag}" נוספה ל־{changed} מתוך {itemsCount} פריטים', { tag, changed, itemsCount: items.length }) : tr('התגית "{tag}" הוסרה מ־{changed} פריטים', { tag, changed }))
+      + (full ? tr(' · {countLabel} כבר עם {TAG_MAX_COUNT} תגיות', { countLabel: countLabel(full, tr('פריט אחד'), tr('פריטים')), TAG_MAX_COUNT }) : '')
+      + (demo && zs.length ? tr(' · נתוני הדגמה: אזורים נשמרים רק מול השרת') : '')
       + this.zoneFailText(r);
   }
 
@@ -3175,10 +3175,10 @@ export class ExplorePlanEditor extends LitElement {
     if (stayed.size) this.setSelection(this.multiItems.filter((i) => !stayed.has(i.id)));
     if (follow) this.levelFilter = levelId;
     const done = moved + r.sent - r.failed.length;
-    const note = `${countLabel(done, 'פריט אחד הועבר', 'פריטים הועברו')} למפלס "${level.name}"`
-      + (demo && zs.length ? ' · נתוני הדגמה: אזורים נשמרים רק מול השרת' : '')
+    const note = tr('{countLabel} למפלס "{name}"', { countLabel: countLabel(done, tr('פריט אחד הועבר'), tr('פריטים הועברו')), name: level.name })
+      + (demo && zs.length ? tr(' · נתוני הדגמה: אזורים נשמרים רק מול השרת') : '')
       + this.zoneFailText(r)
-      + (stayed.size ? ` · ${countLabel(stayed.size, 'האזור שלא הועבר הוצא מהבחירה', 'האזורים שלא הועברו הוצאו מהבחירה')}` : '');
+      + (stayed.size ? ` · ${countLabel(stayed.size, tr('האזור שלא הועבר הוצא מהבחירה'), tr('האזורים שלא הועברו הוצאו מהבחירה'))}` : '');
     this.multiNote = note;
     if (r.failed.length) this.error = note; // also when fewer than two items are left and the panel with the note is gone
   }
@@ -3196,8 +3196,8 @@ export class ExplorePlanEditor extends LitElement {
     this.edit(() => r.doc);
     const rest = items.length - r.added.length;
     this.multiNote = rest
-      ? `${r.added.length} מתוך ${items.length} פריטים שנבחרו נוספו למעגל "${k.name}"; ${countLabel(rest, 'האחר אינו גוף תאורה', 'האחרים אינם גופי תאורה')}`
-      : `${countLabel(r.added.length, 'גוף תאורה אחד נוסף', 'גופי תאורה נוספו')} למעגל "${k.name}"`;
+      ? tr('{addedCount} מתוך {itemsCount} פריטים שנבחרו נוספו למעגל "{name}"; {countLabel}', { addedCount: r.added.length, itemsCount: items.length, name: k.name, countLabel: countLabel(rest, tr('האחר אינו גוף תאורה'), tr('האחרים אינם גופי תאורה')) })
+      : tr('{countLabel} למעגל "{name}"', { countLabel: countLabel(r.added.length, tr('גוף תאורה אחד נוסף'), tr('גופי תאורה נוספו')), name: k.name });
   }
 
   /** The tags of everything the level filter shows (Ctrl+A's set), with how many items carry each: the select-by-tag
@@ -3219,7 +3219,7 @@ export class ExplorePlanEditor extends LitElement {
     const hits = itemsWithTag(doc, this.pickableZones, tag, this.activeLevel);
     this.setSelection(hits);
     if (!hits.length) {
-      this.flash(`אין פריטים עם התגית "${tag}" במפלס המוצג`, 3000);
+      this.flash(tr('אין פריטים עם התגית "{tag}" במפלס המוצג', { tag }), 3000);
     }
   }
 
@@ -3406,7 +3406,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.zoneSaving && this.multiMember(d)) {
       // B1: a group drag dropped while the previous drop's zones are still being saved would start from polygons and
       // revisions those answers are about to replace - refused, and said so, instead of losing a delta silently
-      this.flash('האזורים של ההזזה הקודמת עדיין נשמרים; גרור שוב בעוד רגע', 3000);
+      this.flash(tr('האזורים של ההזזה הקודמת עדיין נשמרים; גרור שוב בעוד רגע'), 3000);
       return;
     }
     const m = doc ? this.multiDragged(doc, d) : null;
@@ -3562,7 +3562,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       const derivedConn = kind === 'connector' ? this.studio.doc?.connectors.find((c) => c.id === id) : undefined;
       if (derivedConn && connectorDerived(derivedConn)) {
-        this.flash('המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו', 4000); // the server regenerates it on every save
+        this.flash(tr('המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו'), 4000); // the server regenerates it on every save
         return true;
       }
       if (derivedConn && derivedConn.floor_ids.length) {
@@ -3671,7 +3671,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       await copyGeometryFrom(b.planVersionId, fromVersionId);
       if (await this.loadStudio(b, true)) {
-        this.flash('המבנה הועתק לטיוטה; בדוק מיקומים ופרסם', 4000);
+        this.flash(tr('המבנה הועתק לטיוטה; בדוק מיקומים ופרסם'), 4000);
       }
     } catch (err) {
       this.error = describeError(err);
@@ -3746,7 +3746,7 @@ export class ExplorePlanEditor extends LitElement {
       const limit = timedOut && told > 0 ? told : limitS;
       this.detectRun = {
         busy: false, startedAt: 0, elapsed: 0, timedOut, limitS: limit,
-        error: timedOut ? `הזיהוי לא הסתיים${limit ? ` תוך ${limit} שניות` : ' בזמן'}. נסה שוב בעוצמת ניקוי נמוכה יותר (תוכנית גדולה או סריקה רועשת לוקחות זמן).` : describeError(err),
+        error: timedOut ? tr('הזיהוי לא הסתיים{v}. נסה שוב בעוצמת ניקוי נמוכה יותר (תוכנית גדולה או סריקה רועשת לוקחות זמן).', { v: limit ? tr(' תוך {limit} שניות', { limit }) : tr(' בזמן') }) : describeError(err),
       };
     } finally {
       if (token === this.detectToken) {
@@ -3921,7 +3921,7 @@ export class ExplorePlanEditor extends LitElement {
       const m = r.merge;
       this.discardCandidates();
       this.geomSel = null;
-      this.flash(`${countLabel(ids.length, 'פריט אחד נוסף', 'פריטים נוספו')} לטיוטת המבנה${m?.removed_auto ? ` · ${m.removed_auto} קודמים הוחלפו` : ''}${m?.removed_manual_openings ? ` · ${countLabel(m.removed_manual_openings, 'פתח ידני אחד הוסר', 'פתחים ידניים הוסרו')} עם הקירות שלהם` : ''}; בדוק ופרסם`, 6000);
+      this.flash(tr('{countLabel} לטיוטת המבנה{v}{v2}; בדוק ופרסם', { countLabel: countLabel(ids.length, tr('פריט אחד נוסף'), tr('פריטים נוספו')), v: m?.removed_auto ? tr(' · {removed_auto} קודמים הוחלפו', { removed_auto: m.removed_auto }) : '', v2: m?.removed_manual_openings ? tr(' · {countLabel} עם הקירות שלהם', { countLabel: countLabel(m.removed_manual_openings, tr('פתח ידני אחד הוסר'), tr('פתחים ידניים הוסרו')) }) : '' }), 6000);
     } catch (err) {
       if (moved()) return;
       const e = this.acceptErrorOf(err);
@@ -3943,16 +3943,16 @@ export class ExplorePlanEditor extends LitElement {
     const rawIssues = Array.isArray(details.issues) ? (details.issues as unknown[]) : [];
     const issues = rawIssues
       .filter((i): i is { id?: unknown; message?: unknown } => typeof i === 'object' && i !== null)
-      .map((i) => ({ id: typeof i.id === 'string' ? i.id : null, message: typeof i.message === 'string' ? i.message : 'בעיה במבנה' }));
+      .map((i) => ({ id: typeof i.id === 'string' ? i.id : null, message: typeof i.message === 'string' ? i.message : tr('בעיה במבנה') }));
     const ids = [...new Set([...rawIds, ...issues.map((i) => i.id).filter((x): x is string => !!x)])].filter((id) => known.has(id));
     const copy: Record<string, string> = {
-      stale_revision: 'טיוטת המבנה השתנתה בינתיים (עריכה בחלון אחר). טען את הטיוטה מחדש ואשר שוב; המועמדים נשארים.',
-      unknown_candidate: 'מועמד שסומן לאישור לא נמצא בין המועמדים שנשלחו; הרץ זיהוי מחדש.',
-      orphan_opening: 'פתח סומן לאישור בלי הקיר שלו: קבל גם את הקיר או דחה את הפתח.',
-      candidate_source: 'מועמד בלי מקור אוטומטי או מיובא נשלח לאישור; הרץ זיהוי מחדש.',
-      duplicate_candidate: 'אותו מועמד נשלח פעמיים; הרץ זיהוי מחדש.',
-      candidate_shape: 'צורת מועמד שגויה (למשל פתח בלי מזהה קיר); דחה את המסומנים ברשימה ונסה שוב.',
-      geometry_structure: 'המועמדים שנבחרו יוצרים מבנה לא תקין, ודבר לא נשמר. דחה או תקן את המסומנים ונסה שוב.',
+      stale_revision: tr('טיוטת המבנה השתנתה בינתיים (עריכה בחלון אחר). טען את הטיוטה מחדש ואשר שוב; המועמדים נשארים.'),
+      unknown_candidate: tr('מועמד שסומן לאישור לא נמצא בין המועמדים שנשלחו; הרץ זיהוי מחדש.'),
+      orphan_opening: tr('פתח סומן לאישור בלי הקיר שלו: קבל גם את הקיר או דחה את הפתח.'),
+      candidate_source: tr('מועמד בלי מקור אוטומטי או מיובא נשלח לאישור; הרץ זיהוי מחדש.'),
+      duplicate_candidate: tr('אותו מועמד נשלח פעמיים; הרץ זיהוי מחדש.'),
+      candidate_shape: tr('צורת מועמד שגויה (למשל פתח בלי מזהה קיר); דחה את המסומנים ברשימה ונסה שוב.'),
+      geometry_structure: tr('המועמדים שנבחרו יוצרים מבנה לא תקין, ודבר לא נשמר. דחה או תקן את המסומנים ונסה שוב.'),
     };
     return { code: err.code, message: copy[err.code] ?? describeError(err), ids, issues, stale: err.code === 'stale_revision' };
   }
@@ -3998,7 +3998,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (moved()) return;
       if (!this.canEstimate) {
-        this.error = 'לתוכנית כבר יש כיול מדוד; ההערכה לא הוחלה.';
+        this.error = tr('לתוכנית כבר יש כיול מדוד; ההערכה לא הוחלה.');
         return;
       }
       const r = await calibrateEstimate(versionId, hint.scale_m_per_px, hint.reason);
@@ -4007,11 +4007,11 @@ export class ExplorePlanEditor extends LitElement {
       if (!(await this.loadStudio(this.bundle, true)) || moved()) return;
       this.rescaleCandidates();
       this.hintApplied = true;
-      this.flash(`קנה מידה משוער נשמר: ≈ ${fmtScale(r.scale_m_per_px)}`, 4000);
+      this.flash(tr('קנה מידה משוער נשמר: ≈ {fmtScale}', { fmtScale: fmtScale(r.scale_m_per_px) }), 4000);
     } catch (err) {
       if (moved() || !this.bundle) return;
       if (err instanceof ApiError && err.code === 'calibration_measured') {
-        this.error = 'לתוכנית כבר יש כיול מדוד (כנראה מחלון אחר); הערכה לא מחליפה אותו. המידות לפי הכיול הקיים.';
+        this.error = tr('לתוכנית כבר יש כיול מדוד (כנראה מחלון אחר); הערכה לא מחליפה אותו. המידות לפי הכיול הקיים.');
         if ((await this.loadStudio(this.bundle, true)) && !moved()) this.rescaleCandidates(); // the measured calibration arrives and the hint goes away
       } else this.error = describeError(err);
     } finally {
@@ -4028,7 +4028,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = await acceptZones(b.floorId, rooms.map((x) => ({ polygon: x.polygon, name: x.name })), false);
       this.zones = r.zones;
       this.cands = this.cands ? { ...this.cands, result: { ...this.cands.result, rooms: [] } } : null;
-      this.flash(`${countLabel(rooms.length, 'חדר אחד נוסף', 'חדרים נוספו')} כאזורים; תן להם שמות בכלי "חדרים ואזורים"`, 4000);
+      this.flash(tr('{countLabel} כאזורים; תן להם שמות בכלי "חדרים ואזורים"', { countLabel: countLabel(rooms.length, tr('חדר אחד נוסף'), tr('חדרים נוספו')) }), 4000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -4039,7 +4039,7 @@ export class ExplorePlanEditor extends LitElement {
   private renderDetectTool(b: MapBundle) {
     const doc = this.studio.doc;
     if (!doc || !b.planVersionId) {
-      return html`<sw-card heading="זיהוי אוטומטי" data-detect-panel><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: הזיהוי עובד מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+      return html`<sw-card heading=${tr('זיהוי אוטומטי')} data-detect-panel><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: הזיהוי עובד מול השרת.') : this.error || tr('טוען את טיוטת המבנה…')}</div></sw-card>`;
     }
     const { scale, estimated } = effectiveScale(doc);
     const c = this.cands;
@@ -4218,7 +4218,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const versionId = b.planVersionId;
     if (!doc || !versionId) {
-      return html`<sw-card heading="מבנה"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: ציור המבנה עובד מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+      return html`<sw-card heading=${tr('מבנה')}><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: ציור המבנה עובד מול השרת.') : this.error || tr('טוען את טיוטת המבנה…')}</div></sw-card>`;
     }
     return renderStudioPanel(
       {
@@ -4245,7 +4245,7 @@ export class ExplorePlanEditor extends LitElement {
         setMaterialStyle: (st) => (this.matStyle = st),
         setMode: (m) => {
           if ((DRAW_MODES.includes(m) || m === 'curve') && this.phone.matches) {
-            this.flash('ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים', 4000);
+            this.flash(tr('ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים'), 4000);
             return;
           }
           this.studioMode = m;
@@ -4338,7 +4338,7 @@ export class ExplorePlanEditor extends LitElement {
     const doc = this.studio.doc;
     const lib = this.library;
     if (!doc || !lib || !b.planVersionId) {
-      return html`<sw-card heading="ספריית עצמים"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: הספרייה נטענת מהשרת.' : this.error || 'טוען את הספרייה…'}</div></sw-card>`;
+      return html`<sw-card heading=${tr('ספריית עצמים')}><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: הספרייה נטענת מהשרת.') : this.error || tr('טוען את הספרייה…')}</div></sw-card>`;
     }
     const { estimated } = effectiveScale(doc);
     const canManage = b.permissions.structure; // catalog.manage rides with the editor roles (editor, site_admin, system_admin); the server refuses otherwise
@@ -4417,7 +4417,7 @@ export class ExplorePlanEditor extends LitElement {
       const { a, b: end, metres } = this.calib;
       const tip = end ?? this.hover;
       if (!a || !tip) return [];
-      return [{ a, b: tip, label: end ? (parseFloat(metres) > 0 ? `${metres} מ׳` : '? מ׳') : '', tone: end ? 'accent' : 'muted' }];
+      return [{ a, b: tip, label: end ? (parseFloat(metres) > 0 ? tr('{metres} מ׳', { metres }) : tr('? מ׳')) : '', tone: end ? 'accent' : 'muted' }];
     }
     if (this.tool === 'measure') {
       const fixed = this.measurePts;
@@ -4454,8 +4454,8 @@ export class ExplorePlanEditor extends LitElement {
       }
       const r = await calibrate(bundle.planVersionId, all);
       await this.loadStudio(bundle, true); // the server rewrote the draft's dimensions
-      const residual = all.length > 1 && r.residual_pct !== null ? ` · ${all.length} זוגות, סטייה ${r.residual_pct.toFixed(1)}%` : '';
-      this.calib = { ...EMPTY_CALIB, result: `קנה המידה נשמר: ${fmtScale(r.scale_m_per_px)}${residual}`, warning: r.warning ?? '' };
+      const residual = all.length > 1 && r.residual_pct !== null ? tr(' · {allCount} זוגות, סטייה {residual_pct}%', { allCount: all.length, residual_pct: r.residual_pct.toFixed(1) }) : '';
+      this.calib = { ...EMPTY_CALIB, result: tr('קנה המידה נשמר: {fmtScale}{residual}', { fmtScale: fmtScale(r.scale_m_per_px), residual }), warning: r.warning ?? '' };
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -4480,12 +4480,12 @@ export class ExplorePlanEditor extends LitElement {
   private async rollbackStructure(row: GeometryVersionRow) {
     const b = this.bundle;
     if (!b?.planVersionId || !row.id) return;
-    if (!(await confirmDialog({ body: `לשחזר את המבנה שפורסם ב-${fmtWhen(row.published_at)}? המבנה הנוכחי נשמר בהיסטוריה.` }))) return;
+    if (!(await confirmDialog({ body: tr('לשחזר את המבנה שפורסם ב-{fmtWhen}? המבנה הנוכחי נשמר בהיסטוריה.', { fmtWhen: fmtWhen(row.published_at) }) }))) return;
     this.busy = true;
     this.error = '';
     try {
       await rollbackGeometry(b.planVersionId, row.id);
-      this.flash('המבנה שוחזר ופורסם; הצופים רואים אותו עכשיו', 4000);
+      this.flash(tr('המבנה שוחזר ופורסם; הצופים רואים אותו עכשיו'), 4000);
       await this.loadStudio(b, true);
       await this.loadVersions();
     } catch (err) {
@@ -4497,16 +4497,16 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderStructureHistory(b: MapBundle) {
     if (!b.permissions.structure || !this.geomVersions.length) return nothing;
-    const counts = (c: Record<string, number>) => [c.walls ? `${c.walls} קירות` : '', c.openings ? `${c.openings} פתחים` : '', c.objects ? `${c.objects} עצמים` : '', c.connectors ? `${c.connectors} מחברים` : ''].filter(Boolean).join(' · ') || 'מבנה ריק';
-    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">היסטוריית המבנה<span class="muted">כל פרסום של קירות, פתחים ועצמים נשמר; שחזור מפרסם מחדש גרסה מהארכיון כגרסה חדשה</span></span></div>
+    const counts = (c: Record<string, number>) => [c.walls ? tr('{walls} קירות', { walls: c.walls }) : '', c.openings ? tr('{openings} פתחים', { openings: c.openings }) : '', c.objects ? tr('{objects} עצמים', { objects: c.objects }) : '', c.connectors ? tr('{connectors} מחברים', { connectors: c.connectors }) : ''].filter(Boolean).join(' · ') || tr('מבנה ריק');
+    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">${tr('היסטוריית המבנה')}<span class="muted">${tr('כל פרסום של קירות, פתחים ועצמים נשמר; שחזור מפרסם מחדש גרסה מהארכיון כגרסה חדשה')}</span></span></div>
       <div class="vlist" data-geom-version-list>
         ${this.geomVersions.map((g) => html`<div class="vrow ${g.status === 'published' ? 'cur' : ''}" data-geom-version-row data-geom-version-id=${g.id ?? ''} data-geom-version-status=${g.status}>
           <div class="meta">
-            <span><sw-badge kind=${g.status === 'published' ? 'recorded' : 'neutral'} label=${g.status === 'published' ? 'מפורסם' : 'ארכיון'}></sw-badge> <span class="ltr">${fmtWhen(g.published_at ?? g.created_at)}</span>${g.archived_at ? html` <span class="note">עד ${fmtWhen(g.archived_at)}</span>` : nothing}</span>
+            <span><sw-badge kind=${g.status === 'published' ? 'recorded' : 'neutral'} label=${g.status === 'published' ? tr('מפורסם') : tr('ארכיון')}></sw-badge> <span class="ltr">${fmtWhen(g.published_at ?? g.created_at)}</span>${g.archived_at ? html` <span class="note">${tr('עד {fmtWhen}', { fmtWhen: fmtWhen(g.archived_at) })}</span>` : nothing}</span>
             <span class="note">${counts(g.counts)}${g.published_by ? ` · ${g.published_by}` : ''}</span>
           </div>
           <div class="acts">
-            ${g.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-geom-rollback ?disabled=${this.busy} @click=${() => void this.rollbackStructure(g)}>שחזר מבנה</sw-button>` : nothing}
+            ${g.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-geom-rollback ?disabled=${this.busy} @click=${() => void this.rollbackStructure(g)}>${tr('שחזר מבנה')}</sw-button>` : nothing}
           </div>
         </div>`)}
       </div>`;
@@ -4523,7 +4523,7 @@ export class ExplorePlanEditor extends LitElement {
     this.imageNote = '';
     try {
       await uploadFloorImage(b.floorId, variant, file);
-      this.imageNote = variant === 'off' ? 'תמונת הקומה נשמרה' : 'תמונת התאורה נשמרה';
+      this.imageNote = variant === 'off' ? tr('תמונת הקומה נשמרה') : tr('תמונת התאורה נשמרה');
       await this.loadSideData(b);
       await this.load(); // the map draws it at once
     } catch (err) {
@@ -4535,11 +4535,11 @@ export class ExplorePlanEditor extends LitElement {
 
   private async removeImage(variant: FloorImageVariant) {
     const b = this.bundle;
-    if (!b || !(await confirmDialog({ body: variant === 'off' ? 'להסיר את תמונת הקומה?' : 'להסיר את תמונת התאורה?', danger: true }))) return;
+    if (!b || !(await confirmDialog({ body: variant === 'off' ? tr('להסיר את תמונת הקומה?') : tr('להסיר את תמונת התאורה?'), danger: true }))) return;
     this.imageBusy = true;
     try {
       await deleteFloorImage(b.floorId, variant);
-      this.imageNote = 'התמונה הוסרה';
+      this.imageNote = tr('התמונה הוסרה');
       await this.loadSideData(b);
       await this.load();
     } catch (err) {
@@ -4558,7 +4558,7 @@ export class ExplorePlanEditor extends LitElement {
       const layout = await putFloorImageLayout(b.floorId, d.corners, d.opacity);
       this.floorImages = this.floorImages ? { ...this.floorImages, layout } : this.floorImages;
       this.alignDraft = null;
-      this.imageNote = 'היישור נשמר';
+      this.imageNote = tr('היישור נשמר');
       await this.load();
     } catch (err) {
       this.imageNote = describeError(err);
@@ -4583,35 +4583,35 @@ export class ExplorePlanEditor extends LitElement {
     const slot = (variant: FloorImageVariant, row: typeof off, title: string, hint: string) => html`<div class="row" data-floor-image-row=${variant}>
       <span class="lbl">${title}<span class="muted">${row ? `${row.width}×${row.height} · ${Math.round(row.bytes / 1024)} KB` : hint}</span></span>
       <span class="btns" style="margin:0">
-        <label class="upl"><input type="file" accept="image/png,image/jpeg" data-floor-image-input=${variant} ?disabled=${this.imageBusy} @change=${(e: Event) => void this.uploadImage(variant, e.target as HTMLInputElement)} /><sw-button size="sm" icon="upload" ?disabled=${this.imageBusy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).closest('label') as HTMLLabelElement | null)?.querySelector('input')?.click()}>${row ? 'החלף' : 'העלה'}</sw-button></label>
-        ${row ? html`<sw-button size="sm" variant="ghost" icon="trash" data-floor-image-delete=${variant} ?disabled=${this.imageBusy} @click=${() => void this.removeImage(variant)}>הסר</sw-button>` : nothing}
+        <label class="upl"><input type="file" accept="image/png,image/jpeg" data-floor-image-input=${variant} ?disabled=${this.imageBusy} @change=${(e: Event) => void this.uploadImage(variant, e.target as HTMLInputElement)} /><sw-button size="sm" icon="upload" ?disabled=${this.imageBusy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).closest('label') as HTMLLabelElement | null)?.querySelector('input')?.click()}>${row ? tr('החלף') : tr('העלה')}</sw-button></label>
+        ${row ? html`<sw-button size="sm" variant="ghost" icon="trash" data-floor-image-delete=${variant} ?disabled=${this.imageBusy} @click=${() => void this.removeImage(variant)}>${tr('הסר')}</sw-button>` : nothing}
       </span>
     </div>`;
-    return html`<sw-card heading="תמונת הקומה" subheading="תמונה של הקומה מכל מקור (הדמיה, תוכנית צבעונית, צילום מודל); ממוקמת פעם אחת ומוצגת במפה מתחת למצבי החדרים" data-floor-images>
-      ${slot('off', off, 'תמונה בסיסית', 'PNG או JPEG עד 12 MB; מוצגת תמיד')}
-      ${slot('on', on, 'תמונה עם תאורה', 'אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה')}
+    return html`<sw-card heading=${tr('תמונת הקומה')} subheading=${tr('תמונה של הקומה מכל מקור (הדמיה, תוכנית צבעונית, צילום מודל); ממוקמת פעם אחת ומוצגת במפה מתחת למצבי החדרים')} data-floor-images>
+      ${slot('off', off, tr('תמונה בסיסית'), tr('PNG או JPEG עד 12 MB; מוצגת תמיד'))}
+      ${slot('on', on, tr('תמונה עם תאורה'), tr('אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה'))}
       ${off || on
-        ? html`<div class="row" style="margin-block-start:8px"><span class="lbl">יישור על התוכנית<span class="muted">גרור את הפינות אל פינות הקומה בתוכנית (או את התמונה כולה); מקשי החצים מכוונים פינה מסומנת</span></span>
-            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="הצג את תוכנית הרקע" .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = toggled(e))}></sw-toggle> הצג את תוכנית הרקע</label></div>
+        ? html`<div class="row" style="margin-block-start:8px"><span class="lbl">${tr('יישור על התוכנית')}<span class="muted">${tr('גרור את הפינות אל פינות הקומה בתוכנית (או את התמונה כולה); מקשי החצים מכוונים פינה מסומנת')}</span></span>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('הצג את תוכנית הרקע')} .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = toggled(e))}></sw-toggle> ${tr('הצג את תוכנית הרקע')}</label></div>
           <sw-floor-image-align data-floor-image-align .planWidth=${b.width} .planHeight=${b.height} .planUrl=${b.imageUrl} .showPlan=${this.alignShowPlan} .imageUrl=${floorImageUrl(off ?? on)}
             .corners=${draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]]} .opacity=${draft?.opacity ?? 1} .rooms=${this.zones.map((z) => ({ id: z.id, polygon: z.polygon }))} .walls=${this.alignWalls(b)} ?disabled=${this.imageBusy}
             @corners-change=${(e: CustomEvent<{ corners: Corners }>) => (this.alignDraft = { corners: e.detail.corners, opacity: draft?.opacity ?? 1 })}></sw-floor-image-align>
           <div class="two">
-            <sw-field label="שקיפות התמונה במפה"><input type="range" min="0.2" max="1" step="0.05" data-ltr data-floor-image-opacity .value=${String(draft?.opacity ?? 1)} @input=${(e: Event) => (this.alignDraft = { corners: draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
+            <sw-field label=${tr('שקיפות התמונה במפה')}><input type="range" min="0.2" max="1" step="0.05" data-ltr data-floor-image-opacity .value=${String(draft?.opacity ?? 1)} @input=${(e: Event) => (this.alignDraft = { corners: draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
             <div class="btns" style="align-items:flex-end">
-              <sw-button variant="primary" size="sm" icon="check" data-floor-image-save ?disabled=${!dirty || this.imageBusy} @click=${() => void this.saveAlignment()}>שמור יישור</sw-button>
-              <sw-button variant="ghost" size="sm" data-floor-image-reset ?disabled=${this.imageBusy || (!dirty && isDefaultCorners(layout?.corners))} @click=${() => (this.alignDraft = { corners: [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: 1 })}>אפס</sw-button>
+              <sw-button variant="primary" size="sm" icon="check" data-floor-image-save ?disabled=${!dirty || this.imageBusy} @click=${() => void this.saveAlignment()}>${tr('שמור יישור')}</sw-button>
+              <sw-button variant="ghost" size="sm" data-floor-image-reset ?disabled=${this.imageBusy || (!dirty && isDefaultCorners(layout?.corners))} @click=${() => (this.alignDraft = { corners: [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: 1 })}>${tr('אפס')}</sw-button>
             </div>
           </div>`
         : nothing}
       ${this.imageNote ? html`<div class="note" data-floor-image-note role="status">${this.imageNote}</div>` : nothing}
-      <div class="note">התמונה נשמרת במתקן בלבד ונכללת בגיבוי; שום דבר לא נשלח החוצה. תמונה בפרספקטיבה (צילום) מיושרת בקירוב - עדיף רינדור ישר מלמעלה או איזומטרי.</div>
+      <div class="note">${tr('התמונה נשמרת במתקן בלבד ונכללת בגיבוי; שום דבר לא נשלח החוצה. תמונה בפרספקטיבה (צילום) מיושרת בקירוב - עדיף רינדור ישר מלמעלה או איזומטרי.')}</div>
     </sw-card>`;
   }
 
   private renderCalibrate(bundle: MapBundle) {
     const doc = this.studio.doc;
-    if (!doc) return html`<sw-card heading="כיול קנה מידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: הכיול עובד מול השרת.' : 'טוען…'}</div></sw-card>`;
+    if (!doc) return html`<sw-card heading=${tr('כיול קנה מידה')}><div class="note">${bundle.source === 'demo' ? tr('נתוני הדגמה: הכיול עובד מול השרת.') : tr('טוען…')}</div></sw-card>`;
     const { scale, estimated } = effectiveScale(doc);
     const c = this.calib;
     const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
@@ -4654,7 +4654,7 @@ export class ExplorePlanEditor extends LitElement {
     const level = z.level_id ?? defaultLevelId(doc);
     const defaultId = resolved.rooms[z.id]?.floor ?? resolved.levels[level]?.floor ?? 'concrete';
     return renderMaterialField(
-      { key: `rooms:${z.id}`, label: 'חומר הרצפה', host: 'floor', value: room?.floor_material_id ?? null, defaultId, style: this.matStyle },
+      { key: `rooms:${z.id}`, label: tr('חומר הרצפה'), host: 'floor', value: room?.floor_material_id ?? null, defaultId, style: this.matStyle },
       {
         pick: (id) => this.edit((d) => withDocVersion(setSurface(d.rooms.some((r) => r.id === z.id) ? d : { ...d, rooms: [...d.rooms, { id: z.id, level_id: z.level_id ?? null }] }, 'rooms', z.id, 'floor_material_id', id))),
         setStyle: (st) => (this.matStyle = st),
@@ -4679,7 +4679,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderWalkTool(b: MapBundle) {
     const doc = this.studio.doc;
-    if (!doc) return html`<sw-card heading="עמדות סיור"><div class="note">${b.source === 'demo' ? 'נתוני הדגמה: העמדות נשמרות מול השרת.' : this.error || 'טוען את טיוטת המבנה…'}</div></sw-card>`;
+    if (!doc) return html`<sw-card heading=${tr('עמדות סיור')}><div class="note">${b.source === 'demo' ? tr('נתוני הדגמה: העמדות נשמרות מול השרת.') : this.error || tr('טוען את טיוטת המבנה…')}</div></sw-card>`;
     const { scale, estimated } = effectiveScale(doc);
     const patch = (id: string, fn: (p: WalkPosition) => WalkPosition) => this.edit((d) => { const p = (d.walk_positions ?? []).find((q) => q.id === id); return p ? withDocVersion(upsertWalkPosition(d, fn(p))) : d; });
     return renderWalkCard(
@@ -4705,7 +4705,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private renderMeasure(bundle: MapBundle) {
     const doc = this.studio.doc;
-    if (!doc) return html`<sw-card heading="מדידה"><div class="note">${bundle.source === 'demo' ? 'נתוני הדגמה: המדידה עובדת מול השרת.' : 'טוען…'}</div></sw-card>`;
+    if (!doc) return html`<sw-card heading=${tr('מדידה')}><div class="note">${bundle.source === 'demo' ? tr('נתוני הדגמה: המדידה עובדת מול השרת.') : tr('טוען…')}</div></sw-card>`;
     const { scale, estimated } = effectiveScale(doc);
     return renderMeasurePanel(this.measurePts, bundle.width, bundle.height, scale, estimated, this.showEstimates, () => {
       this.measurePts = [];
@@ -4738,19 +4738,19 @@ export class ExplorePlanEditor extends LitElement {
     // one visually moved the other, since both were just bound to the same value. Now there is exactly one
     // slider per concept, and the precise number entry lives on the distance row instead of duplicating it.
     return html`<div class="row" data-coverage style="flex-direction:column;align-items:stretch;gap:6px">
-      <span class="lbl">שטח כיסוי${poly ? ' · מצולע ידני' : ''}<span class="muted">${poly ? `${poly.length} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה` : 'שני מחוונים נפרדים לגמרי זה מזה: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה.'}</span></span>
-      ${poly ? nothing : html`<label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-width>רוחב
-          <input type="range" min="10" max="180" step="1" style="flex:1" .value=${String(Math.round(a.field_of_view_degrees ?? 90))} aria-label="רוחב שדה הראייה" @input=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Number((e.target as HTMLInputElement).value) })} />
-          <span class="ltr" style="min-inline-size:64px">${Math.round((a.field_of_view_degrees ?? 90) / 2)}° לכל צד</span></label>
-        <label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-distance>מרחק
-          <input type="range" min="2" max="100" step="1" style="flex:1" .value=${String(pct)} aria-label="מרחק ראייה" @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
-          <input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius style="inline-size:56px" .value=${String(pct)} aria-label="מרחק ראייה, אחוז מדויק" @change=${(e: Event) => this.apply(a.id, { coverage_radius: Math.min(1, Math.max(0.02, Number((e.target as HTMLInputElement).value) / 100)) })} />
+      <span class="lbl">${tr('שטח כיסוי{v}', { v: poly ? tr(' · מצולע ידני') : '' })}<span class="muted">${poly ? tr('{polyCount} נקודות · גרירה מזיזה, לחיצה על נקודת אמצע מוסיפה, לחיצה כפולה מסירה', { polyCount: poly.length }) : tr('שני מחוונים נפרדים לגמרי זה מזה: רוחב (כמה ימינה ושמאלה, שווה לשני הצדדים) ומרחק (עד איפה המצלמה רואה). אפשר גם לגרור את הידיות על המפה.')}</span></span>
+      ${poly ? nothing : html`<label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-width>${tr('רוחב')}
+          <input type="range" min="10" max="180" step="1" style="flex:1" .value=${String(Math.round(a.field_of_view_degrees ?? 90))} aria-label=${tr('רוחב שדה הראייה')} @input=${(e: Event) => this.apply(a.id, { field_of_view_degrees: Number((e.target as HTMLInputElement).value) })} />
+          <span class="ltr" style="min-inline-size:64px">${tr('{v}° לכל צד', { v: Math.round((a.field_of_view_degrees ?? 90) / 2) })}</span></label>
+        <label class="note" style="display:flex;gap:8px;align-items:center" data-coverage-distance>${tr('מרחק')}
+          <input type="range" min="2" max="100" step="1" style="flex:1" .value=${String(pct)} aria-label=${tr('מרחק ראייה')} @input=${(e: Event) => this.apply(a.id, { coverage_radius: Number((e.target as HTMLInputElement).value) / 100 })} />
+          <input type="number" step="1" min="2" max="100" data-ltr data-coverage-radius style="inline-size:56px" .value=${String(pct)} aria-label=${tr('מרחק ראייה, אחוז מדויק')} @change=${(e: Event) => this.apply(a.id, { coverage_radius: Math.min(1, Math.max(0.02, Number((e.target as HTMLInputElement).value) / 100)) })} />
           <span class="ltr" style="min-inline-size:24px">%</span></label>`}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         ${poly
-          ? html`<sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>חזרה לקשת</sw-button>`
-          : html`${radius ? html`<sw-button size="sm" variant="ghost" @click=${() => this.apply(a.id, { coverage_radius: null })}>מרחק לברירת מחדל</sw-button>` : nothing}
-            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${toPolygon}>כיסוי ידני (מצולע)</sw-button>`}
+          ? html`<sw-button size="sm" icon="undo" data-coverage-cone @click=${() => this.apply(a.id, { coverage_polygon: null })}>${tr('חזרה לקשת')}</sw-button>`
+          : html`${radius ? html`<sw-button size="sm" variant="ghost" @click=${() => this.apply(a.id, { coverage_radius: null })}>${tr('מרחק לברירת מחדל')}</sw-button>` : nothing}
+            <sw-button size="sm" icon="edit" data-coverage-polygon @click=${toPolygon}>${tr('כיסוי ידני (מצולע)')}</sw-button>`}
       </div>
     </div>`;
   }
@@ -4765,57 +4765,57 @@ export class ExplorePlanEditor extends LitElement {
       return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : null;
     };
     return html`<div class="two" data-anchor-3d>
-      <sw-field label="גובה התקנה (מ׳)" hint=${`ברירת מחדל ${d.mount_height_m} מ׳ · לתצוגת התלת-ממד`}><input type="number" step="0.1" min="0" max="30" data-ltr data-anchor-mount placeholder=${String(d.mount_height_m)} .value=${live(a.mount_height_m == null ? '' : String(a.mount_height_m))} @change=${(e: Event) => this.apply(a.id, { mount_height_m: num((e.target as HTMLInputElement).value, 0, 30) })} /></sw-field>
-      ${withTilt ? html`<sw-field label="הטיה (°)" hint=${`ברירת מחדל ${d.tilt_deg}° · חיובי = מטה`}><input type="number" step="any" min="-90" max="90" data-ltr data-anchor-tilt placeholder=${String(d.tilt_deg)} .value=${live(a.tilt_deg == null ? '' : String(a.tilt_deg))} @change=${(e: Event) => this.apply(a.id, { tilt_deg: num((e.target as HTMLInputElement).value, -90, 90) })} /></sw-field>` : nothing}
+      <sw-field label=${tr('גובה התקנה (מ׳)')} hint=${tr('ברירת מחדל {mount_height_m} מ׳ · לתצוגת התלת-ממד', { mount_height_m: d.mount_height_m })}><input type="number" step="0.1" min="0" max="30" data-ltr data-anchor-mount placeholder=${String(d.mount_height_m)} .value=${live(a.mount_height_m == null ? '' : String(a.mount_height_m))} @change=${(e: Event) => this.apply(a.id, { mount_height_m: num((e.target as HTMLInputElement).value, 0, 30) })} /></sw-field>
+      ${withTilt ? html`<sw-field label=${tr('הטיה (°)')} hint=${tr('ברירת מחדל {tilt_deg}° · חיובי = מטה', { tilt_deg: d.tilt_deg })}><input type="number" step="any" min="-90" max="90" data-ltr data-anchor-tilt placeholder=${String(d.tilt_deg)} .value=${live(a.tilt_deg == null ? '' : String(a.tilt_deg))} @change=${(e: Event) => this.apply(a.id, { tilt_deg: num((e.target as HTMLInputElement).value, -90, 90) })} /></sw-field>` : nothing}
     </div>`;
   }
 
   private renderCameraInspector(a: Anchor) {
     const cam = a.camera;
     const fov = a.field_of_view_degrees ?? 0;
-    return html`<sw-card heading="הגדרות מצלמה" subheading="גרירה במפה, ידיות לכיוון ולשדה הראייה, או הזנה מדויקת">
-      <div class="kv"><span class="k">מצלמה</span><strong>${this.anchorName(a)}</strong></div>
-      <div class="kv"><span class="k">מקור</span><span class=${cam && isStandaloneRow(cam) ? '' : 'ltr'}>${cam ? editorCameraSource(cam) : a.resource_id}</span></div>
-      <sw-field label="כיוון מבט (°)" style="margin-block-start:10px"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(a.rotation_degrees))} @change=${(e: Event) => this.apply(a.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
+    return html`<sw-card heading=${tr('הגדרות מצלמה')} subheading=${tr('גרירה במפה, ידיות לכיוון ולשדה הראייה, או הזנה מדויקת')}>
+      <div class="kv"><span class="k">${tr('מצלמה')}</span><strong>${this.anchorName(a)}</strong></div>
+      <div class="kv"><span class="k">${tr('מקור')}</span><span class=${cam && isStandaloneRow(cam) ? '' : 'ltr'}>${cam ? editorCameraSource(cam) : a.resource_id}</span></div>
+      <sw-field label=${tr('כיוון מבט (°)')} style="margin-block-start:10px"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(a.rotation_degrees))} @change=${(e: Event) => this.apply(a.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
       <div class="two">
-        <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
-        <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
+        <sw-field label=${tr('מיקום X (%)')}><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
+        <sw-field label=${tr('מיקום Y (%)')}><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
-      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
-      <sw-field label="תווית (אופציונלי)"><input .value=${a.label ?? ''} @change=${(e: Event) => this.apply(a.id, { label: (e.target as HTMLInputElement).value || null })} /></sw-field>
-      <sw-field label="מיקום התווית"><select data-label-pos @change=${(e: Event) => this.apply(a.id, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label=${tr('מפלס')}><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
+      <sw-field label=${tr('תווית (אופציונלי)')}><input .value=${a.label ?? ''} @change=${(e: Event) => this.apply(a.id, { label: (e.target as HTMLInputElement).value || null })} /></sw-field>
+      <sw-field label=${tr('מיקום התווית')}><select data-label-pos @change=${(e: Event) => this.apply(a.id, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', tr('אוטומטי')], ['top', tr('מעל')], ['bottom', tr('מתחת')], ['left', tr('משמאל')], ['right', tr('מימין')]].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${this.renderMount(a, true)}
       ${fov ? this.renderCoverage(a) : nothing}
-      <div class="row"><span class="lbl">הצג כיסוי משוער<span class="muted">זווית לתכנון, לא מדידת כיסוי בפועל</span></span><sw-toggle ?checked=${!!fov} label=${fov ? 'מוצג' : 'מוסתר'} @click=${() => this.apply(a.id, { field_of_view_degrees: fov ? null : 90 })}></sw-toggle></div>
-      <div class="row"><span class="lbl">0° = למעלה, עם כיוון השעון<span class="muted">שינוי כיוון במפה אינו פקודת PTZ למצלמה</span></span></div>
-      <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? ' · שינויים לא שמורים' : ''} · חצים = הזזה עדינה (Shift = גדולה) · Delete = הסרה</div>
+      <div class="row"><span class="lbl">${tr('הצג כיסוי משוער')}<span class="muted">${tr('זווית לתכנון, לא מדידת כיסוי בפועל')}</span></span><sw-toggle ?checked=${!!fov} label=${fov ? tr('מוצג') : tr('מוסתר')} @click=${() => this.apply(a.id, { field_of_view_degrees: fov ? null : 90 })}></sw-toggle></div>
+      <div class="row"><span class="lbl">${tr('0° = למעלה, עם כיוון השעון')}<span class="muted">${tr('שינוי כיוון במפה אינו פקודת PTZ למצלמה')}</span></span></div>
+      <div class="note" style="margin-block-start:6px">${tr('revision {revision}{v} · חצים = הזזה עדינה (Shift = גדולה) · Delete = הסרה', { revision: a.revision, v: this.dirty.has(a.id) ? tr(' · שינויים לא שמורים') : '' })}</div>
       <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
-        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>שמירת מיקום</sw-button>
-        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${() => this.removeSelected()}>הסר מהמפה</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>${tr('שמירת מיקום')}</sw-button>
+        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${() => this.removeSelected()}>${tr('הסר מהמפה')}</sw-button>
       </div>
     </sw-card>`;
   }
 
   private renderEntityInspector(a: Anchor) {
     const e = a.entity;
-    return html`<sw-card heading="הגדרות ישות" subheading="הצבה בלבד; שליטה דורשת הרשאה נפרדת">
-      <div class="kv"><span class="k">ישות</span><strong>${this.anchorName(a)}</strong></div>
-      <div class="kv"><span class="k">מזהה</span><span class="ltr">${a.resource_id}</span></div>
-      ${e ? html`<div class="kv"><span class="k">מצב עכשיו</span><span>${stateLabel(e)}</span></div><div class="kv"><span class="k">סוג</span><span>${domainLabel(e.domain)}</span></div>` : nothing}
-      <sw-field label="שכבה" style="margin-block-start:8px"><select @change=${(ev: Event) => this.apply(a.id, { layer_id: (ev.target as HTMLSelectElement).value })}>${LAYERS.filter((l) => l.id !== 'cameras').map((l) => html`<option value=${l.id} ?selected=${a.layer_id === l.id}>${l.label}</option>`)}</select></sw-field>
+    return html`<sw-card heading=${tr('הגדרות ישות')} subheading=${tr('הצבה בלבד; שליטה דורשת הרשאה נפרדת')}>
+      <div class="kv"><span class="k">${tr('ישות')}</span><strong>${this.anchorName(a)}</strong></div>
+      <div class="kv"><span class="k">${tr('מזהה')}</span><span class="ltr">${a.resource_id}</span></div>
+      ${e ? html`<div class="kv"><span class="k">${tr('מצב עכשיו')}</span><span>${stateLabel(e)}</span></div><div class="kv"><span class="k">${tr('סוג')}</span><span>${domainLabel(e.domain)}</span></div>` : nothing}
+      <sw-field label=${tr('שכבה')} style="margin-block-start:8px"><select @change=${(ev: Event) => this.apply(a.id, { layer_id: (ev.target as HTMLSelectElement).value })}>${LAYERS.filter((l) => l.id !== 'cameras').map((l) => html`<option value=${l.id} ?selected=${a.layer_id === l.id}>${l.label}</option>`)}</select></sw-field>
       <div class="two">
-        <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
-        <sw-field label="מיקום Y (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
+        <sw-field label=${tr('מיקום X (%)')}><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
+        <sw-field label=${tr('מיקום Y (%)')}><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.y * 100).toFixed(1)} @change=${(ev: Event) => this.apply(a.id, { position: { x: a.position.x, y: Math.min(1, Math.max(0, Number((ev.target as HTMLInputElement).value) / 100)) } })} /></sw-field>
       </div>
-      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
-      <sw-field label="שם במפה (ידני)"><input data-entity-name placeholder=${e?.name ?? a.resource_id} .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value.trim() || null })} /></sw-field>
-      <sw-field label="מיקום התווית"><select data-label-pos @change=${(ev: Event) => this.apply(a.id, { label_pos: (ev.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label=${tr('מפלס')}><select data-anchor-level @change=${(ev: Event) => this.apply(a.id, { level_id: (ev.target as HTMLSelectElement).value || null })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(a.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
+      <sw-field label=${tr('שם במפה (ידני)')}><input data-entity-name placeholder=${e?.name ?? a.resource_id} .value=${a.label ?? ''} @change=${(ev: Event) => this.apply(a.id, { label: (ev.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+      <sw-field label=${tr('מיקום התווית')}><select data-label-pos @change=${(ev: Event) => this.apply(a.id, { label_pos: (ev.target as HTMLSelectElement).value })}>${[['auto', tr('אוטומטי')], ['top', tr('מעל')], ['bottom', tr('מתחת')], ['left', tr('משמאל')], ['right', tr('מימין')]].map(([v, l]) => html`<option value=${v} ?selected=${(a.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${this.renderMount(a, false)}
-      <div class="note">ריק = השם המקורי${e?.name ? ` („${e.name}“)` : ''}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.</div>
-      <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? ' · שינויים לא שמורים' : ''}</div>
+      <div class="note">${tr('ריק = השם המקורי{v}. השם הידני מוצג במפה, ברשימת הצד ובכרטיס.', { v: e?.name ? ` („${e.name}“)` : '' })}</div>
+      <div class="note" style="margin-block-start:6px">revision ${a.revision}${this.dirty.has(a.id) ? tr(' · שינויים לא שמורים') : ''}</div>
       <div style="display:flex;gap:8px;margin-block-start:10px;flex-wrap:wrap">
-        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>שמירת מיקום</sw-button>
-        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${() => this.removeSelected()}>הסר מהמפה</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${!this.dirty.size || this.busy} @click=${() => this.save()}>${tr('שמירת מיקום')}</sw-button>
+        <sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.busy} @click=${() => this.removeSelected()}>${tr('הסר מהמפה')}</sw-button>
       </div>
     </sw-card>`;
   }
@@ -4833,34 +4833,34 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'camera') {
       // NVRLESS-CAMERAS-2411: without an NVR only cameras without a recorder can be placed (leftover NVR rows stay out, NN1 D5)
       const available = visibleCameras(b.cameras, cap('nvr')).filter((c) => !anchoredIds.has(c.id));
-      return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
+      return html`<sw-card heading=${tr('הוספת מצלמה')} subheading=${tr('בחר מצלמה ואז לחץ על התוכנית במקום המבוקש')}>
         ${available.length
           ? html`<div class="list">${available.map((c) => html`<button class=${this.placing?.kind === 'camera' && this.placing.camera.id === c.id ? 'on' : ''} @click=${() => (this.placing = { kind: 'camera', camera: c })}><span>${c.name}</span><span class=${isStandaloneRow(c) ? '' : 'ltr'}>${editorCameraMeta(c)}</span></button>`)}</div>`
-          : html`<div class="note">${b.cameras.length ? 'כל המצלמות הרשומות כבר מוצבות על הקומה.' : 'אין מצלמות רשומות עדיין; הגילוי מה־NVR רץ אוטומטית.'}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div>`}
+          : html`<div class="note">${b.cameras.length ? tr('כל המצלמות הרשומות כבר מוצבות על הקומה.') : tr('אין מצלמות רשומות עדיין; הגילוי מה־NVR רץ אוטומטית.')}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${() => navigate('/system/devices')}>${tr('למצלמות')}</sw-button></div>`}
       </sw-card>`;
     }
     if (this.tool === 'entity' || this.tool === 'lights') {
       const lights = this.tool === 'lights';
       const results = (this.entResults ?? []).filter((e) => !anchoredIds.has(e.entity_id));
-      return html`<sw-card heading=${lights ? 'הוספת תאורה' : 'הוספת התקן אחר'} subheading=${lights ? 'מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.' : 'כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית'} data-tool-panel=${this.tool}>
-        <sw-field><input type="search" placeholder=${lights ? 'חיפוש מפסק לפי שם או אזור' : 'חיפוש לפי שם, entity_id או אזור'} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
+      return html`<sw-card heading=${lights ? tr('הוספת תאורה') : tr('הוספת התקן אחר')} subheading=${lights ? tr('מפסקים (switch) מהקטלוג; לחץ על התוכנית להצבה. השם ניתן לשינוי אחרי ההצבה.') : tr('כל ישות אחרת בקטלוג (דלתות, חיישנים, מזגנים…) ואז לחיצה על התוכנית')} data-tool-panel=${this.tool}>
+        <sw-field><input type="search" placeholder=${lights ? tr('חיפוש מפסק לפי שם או אזור') : tr('חיפוש לפי שם, entity_id או אזור')} data-ltr .value=${this.entQ} @input=${(e: Event) => this.onEntQuery((e.target as HTMLInputElement).value)} /></sw-field>
         ${this.entMeta ? html`<sw-building-filter data-ent-building .filter=${this.entMeta} value=${this.entMeta.building ?? ''}
           @building-change=${(e: CustomEvent<{ value: string }>) => { this.entBuilding = e.detail.value; void this.searchEntities(); }}></sw-building-filter>` : nothing}
-        ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><sw-toggle size="sm" labelHidden in-label label="להציג גם ישויות light (נורות חכמות)" data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = toggled(e); void this.searchEntities(); }}></sw-toggle> להציג גם ישויות light (נורות חכמות)</label>` : nothing}
+        ${lights ? html`<label class="note" style="display:flex;gap:6px;align-items:center"><sw-toggle size="sm" labelHidden in-label label=${tr('להציג גם ישויות light (נורות חכמות)')} data-lights-all .checked=${this.lightsAll} @change=${(e: Event) => { this.lightsAll = toggled(e); void this.searchEntities(); }}></sw-toggle> ${tr('להציג גם ישויות light (נורות חכמות)')}</label>` : nothing}
         ${b.source === 'demo'
-          ? html`<div class="note">נתוני הדגמה: החיפוש עובד מול השרת.</div>`
+          ? html`<div class="note">${tr('נתוני הדגמה: החיפוש עובד מול השרת.')}</div>`
           : this.entBusy && !this.entResults
-            ? html`<div class="note">מחפש…</div>`
+            ? html`<div class="note">${tr('מחפש…')}</div>`
             : results.length
               ? html`<div class="list">${results.map((e) => html`<button class=${this.placing?.kind === 'entity' && this.placing.entity.entity_id === e.entity_id ? 'on' : ''} @click=${() => (this.placing = { kind: 'entity', entity: e })}><span>${e.name || e.original_name || e.entity_id}<div class="note" style="margin:0">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${stateLabel(e)}</div></span><span class="ltr">${e.entity_id}</span></button>`)}</div>`
-              : html`<div class="note">${this.entResults ? 'לא נמצאו ישויות (או שכולן כבר מוצבות).' : ''}</div>`}
+              : html`<div class="note">${this.entResults ? tr('לא נמצאו ישויות (או שכולן כבר מוצבות).') : ''}</div>`}
       </sw-card>`;
     }
     if (this.tool === 'layers') {
-      return html`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
+      return html`<sw-card heading=${tr('שכבות')} subheading=${tr('מה מוצג בעורך (לא משפיע על הצופים)')}>
         <div class="layerlist">${LAYERS.filter((l) => l.id !== 'cameras' || cap('cameras_available')).map((l) => html`<label><sw-toggle size="sm" labelHidden in-label label=${l.label} .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if (toggled(e)) next.add(l.id); else next.delete(l.id); this.layers = next; }}></sw-toggle> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
-          <label><sw-toggle size="sm" labelHidden in-label label="חדרים ואזורים" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = toggled(e))}></sw-toggle> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
-          ${b.imageUrl ? html`<label><sw-toggle size="sm" labelHidden in-label label="תמונת התוכנית" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, toggled(e))}></sw-toggle> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
+          <label><sw-toggle size="sm" labelHidden in-label label=${tr('חדרים ואזורים')} .checked=${this.showZones} @change=${(e: Event) => (this.showZones = toggled(e))}></sw-toggle> ${tr('חדרים ואזורים')} <span class="note">(${this.zones.length})</span></label>
+          ${b.imageUrl ? html`<label><sw-toggle size="sm" labelHidden in-label label=${tr('תמונת התוכנית')} data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, toggled(e))}></sw-toggle> ${tr('תמונת התוכנית')} <span class="note">(${this.planImage ? tr('מתחת לשרטוט') : tr('מוסתרת, רקע נקי')})</span></label>` : nothing}</div>
         ${this.studio.doc
           ? renderGridOptions({ ...this.grid, steps: GRID_STEPS_M, estimated: effectiveScale(this.studio.doc).estimated, showEstimates: this.showEstimates },
               (on) => this.setGrid(b.floorId, { on }), (stepM) => this.setGrid(b.floorId, { stepM }))
@@ -4870,9 +4870,9 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'zones') return this.renderZonesPanel(b);
     if (this.tool === 'select' && this.multiShown.length && this.studio.doc) return this.renderMultiPanel();
     if (this.tool === 'select' && this.geomSel && this.studio.doc) return html`${this.renderSelectionPanel(b)}${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}`;
-    return html`<sw-card heading="מאפיינים"><div class="note" data-select-hint>${b.permissions.structure && this.studio.doc
-      ? 'לחץ על סיכה, קיר, פתח, תווית, עצם או אזור במפה כדי לבחור ולערוך אותם, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה: סיכה, פתח, תווית ועצם מיד, קיר ואזור אחרי שנבחרו. הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'
-      : 'בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.'}</div>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}</sw-card>`;
+    return html`<sw-card heading=${tr('מאפיינים')}><div class="note" data-select-hint>${b.permissions.structure && this.studio.doc
+      ? tr('לחץ על סיכה, קיר, פתח, תווית, עצם או אזור במפה כדי לבחור ולערוך אותם, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה: סיכה, פתח, תווית ועצם מיד, קיר ואזור אחרי שנבחרו. הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.')
+      : tr('בחר סיכה במפה כדי לערוך אותה, או הוסף מצלמה / ישות מסרגל הכלים. גרירה מזיזה; הידיות על המצלמה הנבחרת קובעות כיוון ושדה ראייה. הצבה יוצרת Binding בלבד ואינה משנה תצורת מקור.')}</div>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}</sw-card>`;
   }
 
   /** The select tool with a structure item selected (0.1.87): the item's own inspector, as its studio tool shows it,
@@ -4933,22 +4933,22 @@ export class ExplorePlanEditor extends LitElement {
     const linked = this.zoneCamera?.anchor_id ? this.anchors.find((a) => a.id === this.zoneCamera!.anchor_id) : undefined;
     const sug = this.camSuggestions?.zoneId === z.id ? this.camSuggestions.items : null;
     const hasCams = this.anchors.some((a) => a.resource_type === 'camera');
-    const pct = (d: number) => (d === 0 ? 'בתוך האזור' : `במרחק ${Math.max(1, Math.round(d * 100))}%`);
+    const pct = (d: number) => (d === 0 ? tr('בתוך האזור') : tr('במרחק {v}%', { v: Math.max(1, Math.round(d * 100)) }));
     return html`<div class="cam-suggest" data-cam-suggest>
-      ${linked ? html`<div class="kv" data-zone-camera><span class="k">מצלמת האזור</span><span>${bidi(this.anchorName(linked))}</span></div>` : nothing}
+      ${linked ? html`<div class="kv" data-zone-camera><span class="k">${tr('מצלמת האזור')}</span><span>${bidi(this.anchorName(linked))}</span></div>` : nothing}
       ${b.permissions.edit && hasCams
-        ? html`<div class="btns"><sw-button size="sm" icon="camera" data-cam-suggest-ask ?disabled=${this.zoneBusy} @click=${() => this.askCameraSuggestions(z)}>הצע מצלמה קרובה</sw-button>${linked ? html`<sw-button size="sm" variant="ghost" data-cam-suggest-clear ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, null)}>הסר קישור</sw-button>` : nothing}</div>`
+        ? html`<div class="btns"><sw-button size="sm" icon="camera" data-cam-suggest-ask ?disabled=${this.zoneBusy} @click=${() => this.askCameraSuggestions(z)}>${tr('הצע מצלמה קרובה')}</sw-button>${linked ? html`<sw-button size="sm" variant="ghost" data-cam-suggest-clear ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, null)}>${tr('הסר קישור')}</sw-button>` : nothing}</div>`
         : nothing}
       ${sug
         ? sug.length
           ? html`<div class="cam-sug-list" data-cam-suggest-list>${sug.map((c) => {
               const a = this.anchors.find((x) => x.id === c.id);
               return html`<div class="cam-sug" data-cam-suggestion=${c.id}>
-                <span class="cam-sug-name">${a ? bidi(this.anchorName(a)) : c.id}<span class="note" style="margin:0">${pct(c.distance)}${c.facing === null ? ' · ללא שדה ראייה' : c.facing >= 0.5 ? ' · פונה לאזור' : ' · לא פונה לאזור'}</span></span>
-                <sw-button size="sm" variant="primary" icon="check" data-cam-suggest-accept ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, c.id)}>קבל</sw-button>
+                <span class="cam-sug-name">${a ? bidi(this.anchorName(a)) : c.id}<span class="note" style="margin:0">${pct(c.distance)}${c.facing === null ? tr(' · ללא שדה ראייה') : c.facing >= 0.5 ? tr(' · פונה לאזור') : tr(' · לא פונה לאזור')}</span></span>
+                <sw-button size="sm" variant="primary" icon="check" data-cam-suggest-accept ?disabled=${this.zoneBusy} @click=${() => this.setZoneCamera(z, c.id)}>${tr('קבל')}</sw-button>
               </div>`;
             })}</div>`
-          : html`<div class="note" data-cam-suggest-none>אין מצלמה בקרבת האזור בטווח שהוגדר בהגדרות &gt; מפה</div>`
+          : html`<div class="note" data-cam-suggest-none>${tr('אין מצלמה בקרבת האזור בטווח שהוגדר בהגדרות')} &gt; ${tr('מפה')}</div>`
         : nothing}
     </div>`;
   }
@@ -4957,31 +4957,31 @@ export class ExplorePlanEditor extends LitElement {
     const cams = this.anchors.filter((a) => a.resource_type === 'camera' && pointInPolygon(a.position, z.polygon));
     const ents = this.anchors.filter((a) => a.resource_type !== 'camera' && pointInPolygon(a.position, z.polygon));
     return html`<div class="zone-insp" data-zone-inspector>
-      <sw-field label="שם"><input .value=${z.name} placeholder="למשל: לובי, מחסן, חדר ישיבות" @change=${(e: Event) => this.patchZone(z, { name: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label=${tr('שם')}><input .value=${z.name} placeholder=${tr('למשל: לובי, מחסן, חדר ישיבות')} @change=${(e: Event) => this.patchZone(z, { name: (e.target as HTMLInputElement).value })} /></sw-field>
       <div class="two">
-        <sw-field label="סוג"><select @change=${(e: Event) => this.patchZone(z, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${z.kind === k.id}>${k.label}</option>`)}</select></sw-field>
-        <sw-field label="צבע"><input type="color" data-ltr .value=${z.color} @change=${(e: Event) => this.patchZone(z, { color: (e.target as HTMLInputElement).value })} /></sw-field>
+        <sw-field label=${tr('סוג')}><select @change=${(e: Event) => this.patchZone(z, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${z.kind === k.id}>${k.label}</option>`)}</select></sw-field>
+        <sw-field label=${tr('צבע')}><input type="color" data-ltr .value=${z.color} @change=${(e: Event) => this.patchZone(z, { color: (e.target as HTMLInputElement).value })} /></sw-field>
       </div>
-      <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
+      <sw-field label=${tr('מיקום שם החדר')}><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', tr('אוטומטי')], ['top', tr('מעל')], ['bottom', tr('מתחת')], ['left', tr('משמאל')], ['right', tr('מימין')]].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${this.renderRoomMaterial(z)}
-      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
+      ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label=${tr('מפלס')}><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
       ${this.areas.length
-        ? html`<sw-field label="אזור בעץ ההתקנים" hint=${z.area_id && !this.areas.some((a) => a.area_id === z.area_id) ? 'האזור המקושר כבר לא קיים' : '"הצג על המפה" מהעץ ומדף האזור מגיע לחדר הזה; לחיצה על החדר במפה פותחת את האזור'}>
+        ? html`<sw-field label=${tr('אזור בעץ ההתקנים')} hint=${z.area_id && !this.areas.some((a) => a.area_id === z.area_id) ? tr('האזור המקושר כבר לא קיים') : tr('"הצג על המפה" מהעץ ומדף האזור מגיע לחדר הזה; לחיצה על החדר במפה פותחת את האזור')}>
             <select data-zone-area ?disabled=${this.zoneBusy} @change=${(e: Event) => this.patchZone(z, { area_id: (e.target as HTMLSelectElement).value })}>
-              <option value="" ?selected=${!z.area_id}>ללא קישור</option>
+              <option value="" ?selected=${!z.area_id}>${tr('ללא קישור')}</option>
               ${this.areas.map((a) => html`<option value=${a.area_id} ?selected=${z.area_id === a.area_id}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
             </select></sw-field>`
         : nothing}
       ${this.renderZoneTags(z)}
       ${this.renderZoneShare(z)}
       ${this.renderCameraSuggest(z)}
-      <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
-      <div class="kv"><span class="k">התקנים באזור</span><span>${ents.length ? `${ents.length} ישויות` : 'אין'}</span></div>
-      <div class="row"><span class="lbl">הכללה בחיפוש מרחבי<span class="muted">זמין לחוקי התראה ולחיפוש לפי מקום</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? 'כלול' : 'לא כלול'} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
-      <div class="note">${z.polygon.length} פינות · ${z.source === 'auto' ? 'זוהה אוטומטית מהתוכנית' : 'צויר ידנית'} · revision ${z.revision}</div>
-      <div class="note" data-zone-hint>גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על פינה מסיר אותה</div>
-      <div class="note">אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.</div>
-      <div class="btns">${z.shared?.role === 'mirror' ? nothing : html`<sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>מחק אזור</sw-button>`}<sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>סגור</sw-button></div>
+      <div class="kv"><span class="k">${tr('מצלמות באזור')}</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : tr('אין')}</span></div>
+      <div class="kv"><span class="k">${tr('התקנים באזור')}</span><span>${ents.length ? tr('{entsCount} ישויות', { entsCount: ents.length }) : tr('אין')}</span></div>
+      <div class="row"><span class="lbl">${tr('הכללה בחיפוש מרחבי')}<span class="muted">${tr('זמין לחוקי התראה ולחיפוש לפי מקום')}</span></span><sw-toggle ?checked=${z.searchable} label=${z.searchable ? tr('כלול') : tr('לא כלול')} @click=${() => this.patchZone(z, { searchable: !z.searchable })}></sw-toggle></div>
+      <div class="note">${tr('{polygonCount} פינות · {v} · revision {revision}', { polygonCount: z.polygon.length, v: z.source === 'auto' ? tr('זוהה אוטומטית מהתוכנית') : tr('צויר ידנית'), revision: z.revision })}</div>
+      <div class="note" data-zone-hint>${tr('גרור פינה כדי לשנות צורה, גרור נקודת אמצע כדי להוסיף פינה, גרור את הגוף כדי להזיז; Delete על פינה מסיר אותה')}</div>
+      <div class="note">${tr('אזור במפה הוא הקשר מרחבי בלבד: אינו אזור זיהוי במצלמה ואינו מסכת פרטיות, ואינו משנה תצורת NVR.')}</div>
+      <div class="btns">${z.shared?.role === 'mirror' ? nothing : html`<sw-button size="sm" variant="danger" icon="trash" ?disabled=${this.zoneBusy} @click=${() => this.removeZone(z)}>${tr('מחק אזור')}</sw-button>`}<sw-button size="sm" variant="ghost" @click=${() => (this.selectedZoneId = null)}>${tr('סגור')}</sw-button></div>
     </div>`;
   }
 
@@ -4998,67 +4998,67 @@ export class ExplorePlanEditor extends LitElement {
   private renderZonesPanel(b: MapBundle) {
     const cands = this.candidates;
     const sel = this.selectedZone;
-    return html`<sw-card heading="חדרים ואזורים" subheading="זיהוי מהתוכנית או ציור ידני; השמות מופיעים במפה">
+    return html`<sw-card heading=${tr('חדרים ואזורים')} subheading=${tr('זיהוי מהתוכנית או ציור ידני; השמות מופיעים במפה')}>
       ${cands
-        ? html`<div class="note">${cands.length} חדרים זוהו · סמן, תן שם ושמור. הפוליגונים מוצגים במפה בקו מקווקו.</div>
-            <div class="candlist">${cands.map((c, i) => html`<div class="cand" data-candidate><input type="checkbox" .checked=${c.include} aria-label="כלול" @change=${(e: Event) => this.setCandidate(i, { include: (e.target as HTMLInputElement).checked })} /><i class="sw" style="background:${PALETTE[i % PALETTE.length]}"></i><input class="name" .value=${c.name} placeholder="שם החדר" aria-label="שם החדר" @input=${(e: Event) => this.setCandidate(i, { name: (e.target as HTMLInputElement).value })} /><select aria-label="סוג" @change=${(e: Event) => this.setCandidate(i, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${c.kind === k.id}>${k.label}</option>`)}</select></div>`)}</div>
-            ${this.zones.some((z) => z.source === 'auto') ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="החלף את החדרים שזוהו אוטומטית בעבר" .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = toggled(e))}></sw-toggle> החלף את החדרים שזוהו אוטומטית בעבר (${this.zones.filter((z) => z.source === 'auto').length})</label>` : nothing}
-            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.zoneBusy || !cands.some((c) => c.include)} @click=${() => this.acceptCandidates()}>שמור ${cands.filter((c) => c.include).length} חדרים</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.candidates = null)}>בטל</sw-button></div>`
+        ? html`<div class="note">${tr('{candsCount} חדרים זוהו · סמן, תן שם ושמור. הפוליגונים מוצגים במפה בקו מקווקו.', { candsCount: cands.length })}</div>
+            <div class="candlist">${cands.map((c, i) => html`<div class="cand" data-candidate><input type="checkbox" .checked=${c.include} aria-label=${tr('כלול')} @change=${(e: Event) => this.setCandidate(i, { include: (e.target as HTMLInputElement).checked })} /><i class="sw" style="background:${PALETTE[i % PALETTE.length]}"></i><input class="name" .value=${c.name} placeholder=${tr('שם החדר')} aria-label=${tr('שם החדר')} @input=${(e: Event) => this.setCandidate(i, { name: (e.target as HTMLInputElement).value })} /><select aria-label=${tr('סוג')} @change=${(e: Event) => this.setCandidate(i, { kind: (e.target as HTMLSelectElement).value as ZoneKind })}>${ZONE_KINDS.map((k) => html`<option value=${k.id} ?selected=${c.kind === k.id}>${k.label}</option>`)}</select></div>`)}</div>
+            ${this.zones.some((z) => z.source === 'auto') ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('החלף את החדרים שזוהו אוטומטית בעבר')} .checked=${this.replaceAuto} @change=${(e: Event) => (this.replaceAuto = toggled(e))}></sw-toggle> ${tr('החלף את החדרים שזוהו אוטומטית בעבר ({n})', { n: this.zones.filter((z) => z.source === 'auto').length })}</label>` : nothing}
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.zoneBusy || !cands.some((c) => c.include)} @click=${() => this.acceptCandidates()}>${tr('שמור {n} חדרים', { n: cands.filter((c) => c.include).length })}</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.candidates = null)}>${tr('בטל')}</sw-button></div>`
         : this.drawing
-          ? html`<div class="note">לחץ על התוכנית להוספת פינות (${this.drawing.length} עד כה). לחיצה על הפינה הראשונה או Enter סוגרים את הצורה · Esc לביטול.</div>
-            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.drawing.length < 3 || this.zoneBusy} @click=${() => this.finishDrawing()}>סיים אזור</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.drawing = null)}>בטל</sw-button></div>`
-          : html`<div class="row"><span class="lbl">זיהוי חדרים מהתוכנית<span class="muted">עיבוד מקומי של הקירות (ללא AI); החדרים מוצעים ואתה נותן להם שמות</span></span><select aria-label="עוצמת זיהוי" @change=${(e: Event) => (this.detectStrength = (e.target as HTMLSelectElement).value as Strength)}><option value="light" ?selected=${this.detectStrength === 'light'}>קל</option><option value="medium" ?selected=${this.detectStrength === 'medium'}>בינוני</option><option value="strong" ?selected=${this.detectStrength === 'strong'}>חזק</option></select></div>
-            <div class="btns"><sw-button variant="primary" size="sm" icon="map" ?disabled=${this.detecting || b.source === 'demo' || b.planStatus === 'none'} @click=${() => this.detect()}>${this.detecting ? 'מזהה…' : 'זהה חדרים'}</sw-button><sw-button size="sm" icon="edit" ?disabled=${this.zoneBusy} @click=${() => this.startDrawing()}>צייר אזור</sw-button></div>`}
+          ? html`<div class="note">${tr('לחץ על התוכנית להוספת פינות ({drawingCount} עד כה). לחיצה על הפינה הראשונה או Enter סוגרים את הצורה · Esc לביטול.', { drawingCount: this.drawing.length })}</div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.drawing.length < 3 || this.zoneBusy} @click=${() => this.finishDrawing()}>${tr('סיים אזור')}</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.drawing = null)}>${tr('בטל')}</sw-button></div>`
+          : html`<div class="row"><span class="lbl">${tr('זיהוי חדרים מהתוכנית')}<span class="muted">${tr('עיבוד מקומי של הקירות (ללא AI); החדרים מוצעים ואתה נותן להם שמות')}</span></span><select aria-label=${tr('עוצמת זיהוי')} @change=${(e: Event) => (this.detectStrength = (e.target as HTMLSelectElement).value as Strength)}><option value="light" ?selected=${this.detectStrength === 'light'}>${tr('קל')}</option><option value="medium" ?selected=${this.detectStrength === 'medium'}>${tr('בינוני')}</option><option value="strong" ?selected=${this.detectStrength === 'strong'}>${tr('חזק')}</option></select></div>
+            <div class="btns"><sw-button variant="primary" size="sm" icon="map" ?disabled=${this.detecting || b.source === 'demo' || b.planStatus === 'none'} @click=${() => this.detect()}>${this.detecting ? tr('מזהה…') : tr('זהה חדרים')}</sw-button><sw-button size="sm" icon="edit" ?disabled=${this.zoneBusy} @click=${() => this.startDrawing()}>${tr('צייר אזור')}</sw-button></div>`}
       ${this.zones.length
-        ? html`<div class="note" style="margin-block-start:10px">${this.zones.length} אזורים בקומה · לחיצה בוחרת במפה</div>
-            <div class="list">${this.zones.map((z) => html`<button class=${z.id === this.selectedZoneId ? 'on' : ''} data-zone-row @click=${() => { this.selectedZoneId = z.id === this.selectedZoneId ? null : z.id; this.selectedId = null; }}><span><i class="sw" style="background:${z.color}"></i>${z.name}</span><span class="note" style="margin:0">${zoneKindLabel(z.kind)}${z.source === 'auto' ? ' · אוטומטי' : ''}</span></button>`)}</div>`
-        : cands || this.drawing ? nothing : html`<div class="note" style="margin-block-start:10px">עדיין אין חדרים או אזורים בקומה.</div>`}
+        ? html`<div class="note" style="margin-block-start:10px">${tr('{zonesCount} אזורים בקומה · לחיצה בוחרת במפה', { zonesCount: this.zones.length })}</div>
+            <div class="list">${this.zones.map((z) => html`<button class=${z.id === this.selectedZoneId ? 'on' : ''} data-zone-row @click=${() => { this.selectedZoneId = z.id === this.selectedZoneId ? null : z.id; this.selectedId = null; }}><span><i class="sw" style="background:${z.color}"></i>${z.name}</span><span class="note" style="margin:0">${zoneKindLabel(z.kind)}${z.source === 'auto' ? tr(' · אוטומטי') : ''}</span></button>`)}</div>`
+        : cands || this.drawing ? nothing : html`<div class="note" style="margin-block-start:10px">${tr('עדיין אין חדרים או אזורים בקומה.')}</div>`}
       ${sel ? this.renderZoneInspector(sel) : nothing}
     </sw-card>`;
   }
 
   private renderVersionCard(b: MapBundle) {
     const st = this.stylized;
-    return html`<sw-card heading="גרסת תוכנית" subheading=${b.planStatus === 'draft' ? 'טיוטה: צופים רואים את הגרסה הקודמת' : b.planStatus === 'published' ? 'גרסה מפורסמת' : 'אין תוכנית'}>
+    return html`<sw-card heading=${tr('גרסת תוכנית')} subheading=${b.planStatus === 'draft' ? tr('טיוטה: צופים רואים את הגרסה הקודמת') : b.planStatus === 'published' ? tr('גרסה מפורסמת') : tr('אין תוכנית')}>
       ${b.planStatus === 'none'
         ? nothing
-        : html`<div class="row"><span class="lbl">תצוגת המפה<span class="muted">${b.renderMode === 'stylized' ? 'שפת Arx (עיבוד אוטומטי של המקור)' : 'תוכנית המקור כפי שהועלתה'}</span></span>${b.renderMode === 'stylized' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('source')}>הצג מקור</sw-button>` : b.stylizedAvailable ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>הצג שפת Arx</sw-button>` : nothing}</div>
-          <div class="row"><span class="lbl">עיבוד לשפת Arx<span class="muted">בחר מה להשאיר מהתוכנית; המקור נשמר תמיד</span></span></div>
+        : html`<div class="row"><span class="lbl">${tr('תצוגת המפה')}<span class="muted">${b.renderMode === 'stylized' ? tr('שפת Arx (עיבוד אוטומטי של המקור)') : tr('תוכנית המקור כפי שהועלתה')}</span></span>${b.renderMode === 'stylized' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('source')}>${tr('הצג מקור')}</sw-button>` : b.stylizedAvailable ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>${tr('הצג שפת Arx')}</sw-button>` : nothing}</div>
+          <div class="row"><span class="lbl">${tr('עיבוד לשפת Arx')}<span class="muted">${tr('בחר מה להשאיר מהתוכנית; המקור נשמר תמיד')}</span></span></div>
           <div class="two" data-stylize-opts>
-            <sw-field label="עוצמת ניקוי"><select aria-label="עוצמת ניקוי" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, strength: (e.target as HTMLSelectElement).value as Strength })}><option value="light" ?selected=${this.stylizeOpts.strength === 'light'}>קל · קירות דקים נשמרים</option><option value="medium" ?selected=${this.stylizeOpts.strength === 'medium'}>בינוני · קירות כפולים מאוחדים</option><option value="strong" ?selected=${this.stylizeOpts.strength === 'strong'}>חזק · מדרגות וריהוט לגושים</option></select></sw-field>
-            <sw-field label="מילוי חדרים"><select aria-label="מילוי חדרים" @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, roomFill: (e.target as HTMLSelectElement).value as RoomFill })}>${(Object.keys(ROOM_FILL_LABEL) as RoomFill[]).map((k) => html`<option value=${k} ?selected=${this.stylizeOpts.roomFill === k}>${ROOM_FILL_LABEL[k]}</option>`)}</select></sw-field>
+            <sw-field label=${tr('עוצמת ניקוי')}><select aria-label=${tr('עוצמת ניקוי')} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, strength: (e.target as HTMLSelectElement).value as Strength })}><option value="light" ?selected=${this.stylizeOpts.strength === 'light'}>${tr('קל · קירות דקים נשמרים')}</option><option value="medium" ?selected=${this.stylizeOpts.strength === 'medium'}>${tr('בינוני · קירות כפולים מאוחדים')}</option><option value="strong" ?selected=${this.stylizeOpts.strength === 'strong'}>${tr('חזק · מדרגות וריהוט לגושים')}</option></select></sw-field>
+            <sw-field label=${tr('מילוי חדרים')}><select aria-label=${tr('מילוי חדרים')} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, roomFill: (e.target as HTMLSelectElement).value as RoomFill })}>${(Object.keys(ROOM_FILL_LABEL) as RoomFill[]).map((k) => html`<option value=${k} ?selected=${this.stylizeOpts.roomFill === k}>${ROOM_FILL_LABEL[k]}</option>`)}</select></sw-field>
           </div>
-          <label class="chk"><sw-toggle size="sm" labelHidden in-label label="ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)" .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: toggled(e) })}></sw-toggle> ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)</label>
-          <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize()}>${this.stylizing ? 'מעבד…' : 'עבד תצוגה מקדימה'}</sw-button></div>
+          <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)')} .checked=${this.stylizeOpts.keepLines} @change=${(e: Event) => (this.stylizeOpts = { ...this.stylizeOpts, keepLines: toggled(e) })}></sw-toggle> ${tr('ריהוט, דלתות וקווים דקים מהתוכנית (בגוון עדין)')}</label>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="image" ?disabled=${this.stylizing || b.source === 'demo'} @click=${() => this.stylize()}>${this.stylizing ? tr('מעבד…') : tr('עבד תצוגה מקדימה')}</sw-button></div>
           ${st
-            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">מקור</div><img src=${st.source_url} alt="תוכנית מקור" /></div><div><div class="note" data-stylize-caption>שפת Arx · ${st.rooms} חדרים · ${ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill} · ${st.keep_lines ? 'עם קווים דקים' : 'ללא קווים דקים'}</div><img src=${st.stylized_url} alt="שפת Arx" /></div></div>
-              <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>השתמש בתוצאה</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.stylized = null)}>סגור</sw-button></div>
-              <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`
+            ? html`<div class="compare" style="margin-block-start:8px"><div><div class="note">${tr('מקור')}</div><img src=${st.source_url} alt=${tr('תוכנית מקור')} /></div><div><div class="note" data-stylize-caption>${tr('שפת Arx · {rooms} חדרים · {v} · {v2}', { rooms: st.rooms, v: ROOM_FILL_LABEL[st.room_fill] ?? st.room_fill, v2: st.keep_lines ? tr('עם קווים דקים') : tr('ללא קווים דקים') })}</div><img src=${st.stylized_url} alt=${tr('שפת Arx')} /></div></div>
+              <div style="display:flex;gap:8px;margin-block-start:8px"><sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${() => this.useRender('stylized')}>${tr('השתמש בתוצאה')}</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.stylized = null)}>${tr('סגור')}</sw-button></div>
+              <div class="note" style="margin-block-start:6px">${tr('עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.')}</div>`
             : nothing}`}
       ${this.renderVersionHistory(b)}
       ${this.renderStructureHistory(b)}
-      <div style="margin-block-start:8px"><sw-button size="sm" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>ייבוא תוכנית חדשה</sw-button></div>
+      <div style="margin-block-start:8px"><sw-button size="sm" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${tr('ייבוא תוכנית חדשה')}</sw-button></div>
     </sw-card>
     ${this.renderFloorImages(b)}`;
   }
 
   private renderVersionHistory(b: MapBundle) {
     if (!this.versions.length) return nothing;
-    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">היסטוריית גרסאות<span class="muted">כל פרסום נשמר; אפשר להשוות ולשחזר גרסה מהארכיון בלי לאבד עוגנים</span></span></div>
+    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">${tr('היסטוריית גרסאות')}<span class="muted">${tr('כל פרסום נשמר; אפשר להשוות ולשחזר גרסה מהארכיון בלי לאבד עוגנים')}</span></span></div>
       <div class="vlist" data-version-list>
         ${this.versions.map((v) => {
           const cur = v.id === b.planVersionId;
           const kind = v.status === 'published' ? 'recorded' : v.status === 'draft' ? 'partial' : 'neutral';
-          const label = v.status === 'published' ? 'מפורסמת' : v.status === 'draft' ? 'טיוטה' : 'ארכיון';
+          const label = v.status === 'published' ? tr('מפורסמת') : v.status === 'draft' ? tr('טיוטה') : tr('ארכיון');
           return html`<div class="vrow ${cur ? 'cur' : ''}" data-version-row data-version-id=${v.id} data-version-status=${v.status}>
             <img src=${resourceUrl(v.image_url)} alt="" loading="lazy" />
             <div class="meta">
               <span><sw-badge kind=${kind} label=${label}></sw-badge> <span class="ltr">${fmtWhen(v.published_at ?? v.created_at)}</span></span>
-              <span class="note">${v.width_px}×${v.height_px}${v.rotation ? ` · סיבוב ${v.rotation}°` : ''}${v.crop ? ' · חיתוך' : ''} · ${v.anchors_on ?? 0} פריטים${v.notes ? ` · ${v.notes}` : ''}</span>
+              <span class="note">${tr('{width_px}×{height_px}{v}{v2} · {v3} פריטים{v4}', { width_px: v.width_px, height_px: v.height_px, v: v.rotation ? tr(' · סיבוב {rotation}°', { rotation: v.rotation }) : '', v2: v.crop ? tr(' · חיתוך') : '', v3: v.anchors_on ?? 0, v4: v.notes ? ` · ${v.notes}` : '' })}</span>
             </div>
             <div class="acts">
-              ${v.status !== 'published' ? html`<sw-button size="sm" variant="ghost" data-version-compare ?disabled=${this.busy} @click=${() => this.openDiff(v.status === 'draft' && b.permissions.publish ? 'publish' : 'compare', v)}>השווה</sw-button>` : nothing}
-              ${v.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-version-rollback ?disabled=${this.busy} @click=${() => this.openDiff('rollback', v)}>שחזר</sw-button>` : nothing}
+              ${v.status !== 'published' ? html`<sw-button size="sm" variant="ghost" data-version-compare ?disabled=${this.busy} @click=${() => this.openDiff(v.status === 'draft' && b.permissions.publish ? 'publish' : 'compare', v)}>${tr('השווה')}</sw-button>` : nothing}
+              ${v.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-version-rollback ?disabled=${this.busy} @click=${() => this.openDiff('rollback', v)}>${tr('שחזר')}</sw-button>` : nothing}
             </div>
           </div>`;
         })}
@@ -5075,34 +5075,34 @@ export class ExplorePlanEditor extends LitElement {
     const structure = doc && (doc.walls.length || doc.openings.length || doc.labels.length || doc.objects.length || doc.connectors.length) ? doc : null;
     // Every error blocks, with an item id or not: the confirm stays off until the issue list is clear (no 422 round trip).
     const blocked = !!structure && this.studio.issues.some((i) => i.severity === 'error');
-    const title = d.mode === 'publish' ? 'פרסום גרסה' : d.mode === 'rollback' ? 'שחזור גרסה מהארכיון' : 'השוואת גרסאות';
-    const sub = d.mode === 'publish' ? 'מה ישתנה לצופים ומה יקרה לפריטים המוצבים' : d.mode === 'rollback' ? 'הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון' : 'מול הגרסה המפורסמת';
+    const title = d.mode === 'publish' ? tr('פרסום גרסה') : d.mode === 'rollback' ? tr('שחזור גרסה מהארכיון') : tr('השוואת גרסאות');
+    const sub = d.mode === 'publish' ? tr('מה ישתנה לצופים ומה יקרה לפריטים המוצבים') : d.mode === 'rollback' ? tr('הגרסה תפורסם מחדש כעותק חדש; הגרסה הנוכחית תעבור לארכיון') : tr('מול הגרסה המפורסמת');
     return html`<sw-dialog open heading=${title} subheading=${sub} data-diff-dialog @close=${() => (this.diff = null)}>
       ${d.error ? html`<div class="err" data-diff-error>${d.error}</div>` : nothing}
       ${!data
-        ? html`<div class="note">טוען השוואה…</div>`
+        ? html`<div class="note">${tr('טוען השוואה…')}</div>`
         : html`<div class="compare">
-              <div><div class="note">${data.from ? `מפורסמת · ${fmtWhen(data.from.published_at ?? data.from.created_at)}` : 'אין גרסה מפורסמת'}</div>${data.from ? html`<img src=${resourceUrl(data.from.image_url)} alt="הגרסה המפורסמת" />` : html`<div class="note">—</div>`}</div>
-              <div><div class="note">${d.mode === 'rollback' ? 'לשחזור' : 'חדשה'} · ${fmtWhen(data.to.published_at ?? data.to.created_at)}</div><img src=${resourceUrl(data.to.image_url)} alt="הגרסה החדשה" /></div>
+              <div><div class="note">${data.from ? tr('מפורסמת · {fmtWhen}', { fmtWhen: fmtWhen(data.from.published_at ?? data.from.created_at) }) : tr('אין גרסה מפורסמת')}</div>${data.from ? html`<img src=${resourceUrl(data.from.image_url)} alt=${tr('הגרסה המפורסמת')} />` : html`<div class="note">—</div>`}</div>
+              <div><div class="note">${d.mode === 'rollback' ? tr('לשחזור') : tr('חדשה')} · ${fmtWhen(data.to.published_at ?? data.to.created_at)}</div><img src=${resourceUrl(data.to.image_url)} alt=${tr('הגרסה החדשה')} /></div>
             </div>
             <div class="dsum" data-diff-summary>
               ${data.from
                 ? data.geometry.same
-                  ? html`<sw-badge kind="recorded" label="גאומטריה זהה"></sw-badge>`
-                  : html`<sw-badge kind="partial" label=${`שינוי: ${data.geometry.changes.map((c) => GEOM_LABEL[c.field] ?? c.field).join(', ')}`}></sw-badge>`
-                : html`<sw-badge kind="neutral" label="פרסום ראשון"></sw-badge>`}
-              <span>${data.anchors.total} פריטים מוצבים · ${data.anchors.carried} עוברים כמו שהם · ${data.anchors.needs_alignment} ידרשו יישור</span>
+                  ? html`<sw-badge kind="recorded" label=${tr('גאומטריה זהה')}></sw-badge>`
+                  : html`<sw-badge kind="partial" label=${tr('שינוי: {join}', { join: data.geometry.changes.map((c) => GEOM_LABEL[c.field] ?? c.field).join(', ') })}></sw-badge>`
+                : html`<sw-badge kind="neutral" label=${tr('פרסום ראשון')}></sw-badge>`}
+              <span>${tr('{total} פריטים מוצבים · {carried} עוברים כמו שהם · {needs_alignment} ידרשו יישור', { total: data.anchors.total, carried: data.anchors.carried, needs_alignment: data.anchors.needs_alignment })}</span>
             </div>
             ${structure
-              ? html`<div class="note" data-diff-structure>המבנה של הטיוטה (${wallsAndOpenings(structure.walls.length, structure.openings.length)}) יפורסם יחד עם הגרסה${blocked ? '; יש בו שגיאות שחוסמות את הפרסום עד לתיקון: ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה' : ''}.</div>`
+              ? html`<div class="note" data-diff-structure>${tr('המבנה של הטיוטה ({wallsAndOpenings}) יפורסם יחד עם הגרסה{v}.', { wallsAndOpenings: wallsAndOpenings(structure.walls.length, structure.openings.length), v: blocked ? tr('; יש בו שגיאות שחוסמות את הפרסום עד לתיקון: ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה') : '' })}</div>`
               : nothing}
             ${data.anchors.items.length
-              ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? 'מצלמה' : 'ישות'} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? 'עובר' : 'יישור נדרש'}</span></div>`)}</div>`
+              ? html`<div class="ditems" data-diff-items>${data.anchors.items.map((i) => html`<div><span>${i.resource_type === 'camera' ? tr('מצלמה') : tr('ישות')} · ${i.name}</span><span class=${i.outcome === 'carried' ? '' : 'err'}>${i.outcome === 'carried' ? tr('עובר') : tr('יישור נדרש')}</span></div>`)}</div>`
               : nothing}
-            ${data.anchors.needs_alignment ? html`<div class="note">פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.</div>` : nothing}`}
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.diff = null)}>${d.mode === 'compare' ? 'סגור' : 'ביטול'}</sw-button>
+            ${data.anchors.needs_alignment ? html`<div class="note">${tr('פריטים שידרשו יישור נשארים במקומם על גרסת התוכנית הקודמת ומסומנים במפה; שום פריט לא מוזז למיקום מומצא.')}</div>` : nothing}`}
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.diff = null)}>${d.mode === 'compare' ? tr('סגור') : tr('ביטול')}</sw-button>
       ${d.mode !== 'compare' && data
-        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy || blocked} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? 'פרסם גרסה' : 'שחזר ופרסם'}</sw-button>`
+        ? html`<sw-button slot="footer" variant="primary" icon=${d.mode === 'publish' ? 'check' : 'history'} data-diff-confirm ?disabled=${this.busy || blocked} @click=${() => this.confirmDiff()}>${d.mode === 'publish' ? tr('פרסם גרסה') : tr('שחזר ופרסם')}</sw-button>`
         : nothing}
     </sw-dialog>`;
   }
@@ -5113,72 +5113,72 @@ export class ExplorePlanEditor extends LitElement {
     const data = d.data;
     const errors = data ? data.issues.filter((i) => i.severity === 'error') : [];
     const rows = data ? Object.entries(data.diff.collections) : [];
-    return html`<sw-dialog open heading="פרסום המבנה" subheading="מה ישתנה לצופים במפה" data-geom-diff @close=${() => (this.geomDiff = null)}>
+    return html`<sw-dialog open heading=${tr('פרסום המבנה')} subheading=${tr('מה ישתנה לצופים במפה')} data-geom-diff @close=${() => (this.geomDiff = null)}>
       ${d.error ? html`<div class="err" data-geom-diff-error>${d.error}</div>` : nothing}
       ${!data
         ? d.error
           ? nothing
-          : html`<div class="note">טוען השוואה…</div>`
+          : html`<div class="note">${tr('טוען השוואה…')}</div>`
         : html`<div class="ditems" data-geom-diff-rows>
               ${rows.length
-                ? rows.map(([coll, c]) => html`<div><span>${COLL_LABEL[coll] ?? coll}</span><span>${c.added.length} נוספו · ${c.changed.length} שונו · ${c.removed.length} הוסרו</span></div>`)
-                : html`<div><span>אין שינוי בפריטים</span></div>`}
-              ${data.diff.calibration_changed ? html`<div><span>כיול</span><span>קנה המידה השתנה</span></div>` : nothing}
+                ? rows.map(([coll, c]) => html`<div><span>${COLL_LABEL[coll] ?? coll}</span><span>${tr('{addedCount} נוספו · {changedCount} שונו · {removedCount} הוסרו', { addedCount: c.added.length, changedCount: c.changed.length, removedCount: c.removed.length })}</span></div>`)
+                : html`<div><span>${tr('אין שינוי בפריטים')}</span></div>`}
+              ${data.diff.calibration_changed ? html`<div><span>${tr('כיול')}</span><span>${tr('קנה המידה השתנה')}</span></div>` : nothing}
               ${(data.shared_pending ?? []).filter((p) => p.invalid || (p.changes ?? 0) > 0).map((p) => html`<div data-geom-shared-pending>
-                <span>כולל שינויים בחלל המשותף${p.home_floor_name ? ` (${bidi(p.home_floor_name)})` : ''}</span>
-                <span>${p.invalid ? (p.items?.length ? `${countLabel(p.items.length, 'פריט אחד לא מוכן', 'פריטים לא מוכנים')} לפרסום` : 'התוכן של החלל המשותף לא תקין - הפרסום ייחסם') : countLabel(p.changes ?? 0, 'שינוי אחד', 'שינויים')}</span>
+                <span>${tr('כולל שינויים בחלל המשותף{v}', { v: p.home_floor_name ? ` (${bidi(p.home_floor_name)})` : '' })}</span>
+                <span>${p.invalid ? (p.items?.length ? tr('{countLabel} לפרסום', { countLabel: countLabel(p.items.length, tr('פריט אחד לא מוכן'), tr('פריטים לא מוכנים')) }) : tr('התוכן של החלל המשותף לא תקין - הפרסום ייחסם')) : countLabel(p.changes ?? 0, tr('שינוי אחד'), tr('שינויים'))}</span>
               </div>
               ${p.invalid && p.items?.length ? html`<div class="note" data-geom-shared-invalid>${p.items.map((i) => html`<div>${i.id.split(':').pop()} · ${i.message}</div>`)}
-                <label><sw-toggle size="sm" labelHidden in-label label="פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)" data-geom-shared-skip .checked=${d.skip.length > 0} @change=${(e: Event) => { this.geomDiff = { ...d, skip: toggled(e) ? p.items!.map((i) => i.id) : [] }; }}></sw-toggle> פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)</label></div>` : nothing}`)}
+                <label><sw-toggle size="sm" labelHidden in-label label=${tr('פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)')} data-geom-shared-skip .checked=${d.skip.length > 0} @change=${(e: Event) => { this.geomDiff = { ...d, skip: toggled(e) ? p.items!.map((i) => i.id) : [] }; }}></sw-toggle> ${tr('פרסם בלי הפריטים האלה (הם יישארו כמו שפורסמו)')}</label></div>` : nothing}`)}
             </div>
-            <div class="note">${data.published_counts ? `כעת: ${wallsAndOpenings(data.published_counts.walls, data.published_counts.openings)}` : 'פרסום ראשון של מבנה'} · אחרי הפרסום: ${wallsAndOpenings(data.counts.walls, data.counts.openings)}</div>
-            ${errors.length ? html`<div class="err" data-geom-diff-error>${countLabel(errors.length, 'שגיאה חוסמת אחת', 'שגיאות חוסמות')} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.</div>` : nothing}`}
-      <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0 || (data.shared_pending ?? []).some((p) => p.invalid && !(p.items?.length && d.skip.length))} @click=${() => this.confirmGeomPublish()}>פרסם מבנה</sw-button>
+            <div class="note">${tr('{v} · אחרי הפרסום: {wallsAndOpenings}', { v: data.published_counts ? tr('כעת: {wallsAndOpenings}', { wallsAndOpenings: wallsAndOpenings(data.published_counts.walls, data.published_counts.openings) }) : tr('פרסום ראשון של מבנה'), wallsAndOpenings: wallsAndOpenings(data.counts.walls, data.counts.openings) })}</div>
+            ${errors.length ? html`<div class="err" data-geom-diff-error>${tr('{countLabel} בטיוטה: הפרסום חסום עד לתיקון. ראה את הסימון האדום על המפה ואת רשימת הבעיות של המבנה.', { countLabel: countLabel(errors.length, tr('שגיאה חוסמת אחת'), tr('שגיאות חוסמות')) })}</div>` : nothing}`}
+      <sw-button slot="footer" variant="ghost" data-geom-cancel @click=${() => (this.geomDiff = null)}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-geom-publish ?disabled=${this.busy || !data || errors.length > 0 || (data.shared_pending ?? []).some((p) => p.invalid && !(p.items?.length && d.skip.length))} @click=${() => this.confirmGeomPublish()}>${tr('פרסם מבנה')}</sw-button>
     </sw-dialog>`;
   }
 
   render() {
     const b = this.bundle;
-    if (this.error && !b) return html`<sw-page heading="עורך תוכנית"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
-    if (!b) return html`<sw-page heading="עורך תוכנית"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.error && !b) return html`<sw-page heading=${tr('עורך תוכנית')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    if (!b) return html`<sw-page heading=${tr('עורך תוכנית')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const sel = this.selected;
     const dirty = this.dirty.size;
     const cams = this.anchors.filter((a) => a.resource_type === 'camera').length;
     const ents = this.anchors.length - cams;
     return html`
-      <sw-page heading="עורך תוכנית" subheading=${`${b.buildingName} · ${b.floorName} · ${b.planStatus === 'draft' ? 'טיוטה' : b.planStatus === 'published' ? 'תוכנית מפורסמת' : 'אין תוכנית'} · העוגנים נשמרים בנפרד מתמונת המקור${b.source === 'demo' ? ' · נתוני הדגמה' : ''}`} crumbs=${`אתרים | ${b.siteName} | ${b.buildingName} | ${b.floorName}`} wide>
+      <sw-page heading=${tr('עורך תוכנית')} subheading=${tr('{buildingName} · {floorName} · {v} · העוגנים נשמרים בנפרד מתמונת המקור{v2}', { buildingName: b.buildingName, floorName: b.floorName, v: b.planStatus === 'draft' ? tr('טיוטה') : b.planStatus === 'published' ? tr('תוכנית מפורסמת') : tr('אין תוכנית'), v2: b.source === 'demo' ? tr(' · נתוני הדגמה') : '' })} crumbs=${tr('אתרים | {siteName} | {buildingName} | {floorName}', { siteName: b.siteName, buildingName: b.buildingName, floorName: b.floorName })} wide>
         ${b.permissions.publish && (b.planStatus === 'draft' || this.studio.pendingPublish)
-          ? html`<sw-button slot="actions" variant="primary" icon="check" data-publish ?disabled=${this.busy} @click=${() => this.publish()}>${b.planStatus === 'draft' ? 'פרסום גרסה' : 'פרסום המבנה'}</sw-button>`
+          ? html`<sw-button slot="actions" variant="primary" icon="check" data-publish ?disabled=${this.busy} @click=${() => this.publish()}>${b.planStatus === 'draft' ? tr('פרסום גרסה') : tr('פרסום המבנה')}</sw-button>`
           : nothing}
-        <sw-button slot="actions" icon="eye" @click=${() => navigate(`/explore/floors/${b.floorId}`)}>תצוגה מקדימה</sw-button>
-        <sw-button slot="actions" ?disabled=${!dirty || this.busy} icon="check" @click=${() => this.save()}>${dirty ? `שמירה (${dirty})` : 'הכל שמור'}</sw-button>
-        <sw-button slot="actions" variant="ghost" icon="history" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}>ביטול שינוי</sw-button>
+        <sw-button slot="actions" icon="eye" @click=${() => navigate(`/explore/floors/${b.floorId}`)}>${tr('תצוגה מקדימה')}</sw-button>
+        <sw-button slot="actions" ?disabled=${!dirty || this.busy} icon="check" @click=${() => this.save()}>${dirty ? tr('שמירה ({dirty})', { dirty }) : tr('הכל שמור')}</sw-button>
+        <sw-button slot="actions" variant="ghost" icon="history" ?disabled=${!this.undo.length} @click=${() => this.doUndo()}>${tr('ביטול שינוי')}</sw-button>
         ${b.planStatus === 'none'
-          ? html`<sw-state-panel icon="map" state="empty" heading="לקומה אין תוכנית" hint="העלה תוכנית קודם; אחר כך אפשר להציב מצלמות וישויות."><div style="margin-block-start:10px"><sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>העלאת תוכנית</sw-button> <sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button></div></sw-state-panel>`
+          ? html`<sw-state-panel icon="map" state="empty" heading=${tr('לקומה אין תוכנית')} hint=${tr('העלה תוכנית קודם; אחר כך אפשר להציב מצלמות וישויות.')}><div style="margin-block-start:10px"><sw-button variant="primary" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>${tr('העלאת תוכנית')}</sw-button> <sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>${tr('בקשה לאדריכל')}</sw-button></div></sw-state-panel>`
           : html`<div class="layout">
               <div class="mapwrap">
                 <div class="bar">
-                  <span class="autosave ${dirty ? 'dirty' : ''}"><i></i>${dirty ? `${dirty} שינויים לא שמורים` : 'הכל שמור'}</span>
+                  <span class="autosave ${dirty ? 'dirty' : ''}"><i></i>${dirty ? tr('{dirty} שינויים לא שמורים', { dirty }) : tr('הכל שמור')}</span>
                   ${this.info ? html`<span style="color:var(--sw-success-text)">${this.info}</span>` : nothing}
                   ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
                   <span class="grow"></span>
-                  ${b.needsAlignment ? html`<sw-badge kind="partial" label="פריטים מגרסת תוכנית קודמת — בדוק מיקומים"></sw-badge>
-                    <sw-button size="sm" data-realign-crop ?disabled=${this.busy} title="כשהגרסה החדשה היא חיתוך אחר של אותו שרטוט, המיקומים מחושבים דרך שני החיתוכים" @click=${() => this.realign('crop')}>יישר לפי החיתוך</sw-button>
-                    <sw-button size="sm" variant="ghost" data-realign-accept ?disabled=${this.busy} title="אחרי בדיקה בעין: הפריטים נרשמים על הגרסה הנוכחית כפי שהם" @click=${() => this.realign('accept')}>אשר מיקומים</sw-button>` : nothing}
-                  <span>גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה</span>
+                  ${b.needsAlignment ? html`<sw-badge kind="partial" label=${tr('פריטים מגרסת תוכנית קודמת — בדוק מיקומים')}></sw-badge>
+                    <sw-button size="sm" data-realign-crop ?disabled=${this.busy} title=${tr('כשהגרסה החדשה היא חיתוך אחר של אותו שרטוט, המיקומים מחושבים דרך שני החיתוכים')} @click=${() => this.realign('crop')}>${tr('יישר לפי החיתוך')}</sw-button>
+                    <sw-button size="sm" variant="ghost" data-realign-accept ?disabled=${this.busy} title=${tr('אחרי בדיקה בעין: הפריטים נרשמים על הגרסה הנוכחית כפי שהם')} @click=${() => this.realign('accept')}>${tr('אשר מיקומים')}</sw-button>` : nothing}
+                  <span>${tr('גרירה מזיזה · גלגלת = זום · ידיות = כיוון ושדה ראייה')}</span>
                   ${this.phone.matches
                     ? nothing
-                    : html`<button class="icon ${this.panMode ? 'on' : ''}" data-tool-pan ?disabled=${this.detectBusy} title="יד: הזזת התוכנית קבועה - כל גרירה מזיזה, עד לחיצה חוזרת או Esc" aria-label="מצב הזזה (יד)" aria-pressed=${this.panMode} @click=${() => (this.panMode = !this.panMode)}><sw-icon name="hand" size=${15}></sw-icon></button>
-                        <button class="icon" data-tool-help title="קיצורי מקלדת" aria-label="קיצורי מקלדת" @click=${() => (this.shortcutsOpen = true)}><sw-icon name="help" size=${15}></sw-icon></button>`}
+                    : html`<button class="icon ${this.panMode ? 'on' : ''}" data-tool-pan ?disabled=${this.detectBusy} title=${tr('יד: הזזת התוכנית קבועה - כל גרירה מזיזה, עד לחיצה חוזרת או Esc')} aria-label=${tr('מצב הזזה (יד)')} aria-pressed=${this.panMode} @click=${() => (this.panMode = !this.panMode)}><sw-icon name="hand" size=${15}></sw-icon></button>
+                        <button class="icon" data-tool-help title=${tr('קיצורי מקלדת')} aria-label=${tr('קיצורי מקלדת')} @click=${() => (this.shortcutsOpen = true)}><sw-icon name="help" size=${15}></sw-icon></button>`}
                 </div>
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
-                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels.filter((l) => this.sharedLevels || !l.shared), this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
-                <div class="rail" role="toolbar" aria-label="כלי עריכה">
+                ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels.filter((l) => this.sharedLevels || !l.shared), this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title=${tr('רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)')} @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>${tr('רשת')}</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
+                <div class="rail" role="toolbar" aria-label=${tr('כלי עריכה')}>
                   ${TOOLS.filter((tl) => tl.id !== 'camera' || cap('cameras_available')).map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
-                  <button title="ביטול (Ctrl+Z)" aria-label="ביטול" data-rail-undo ?disabled=${this.detectBusy || !this.undoTarget} @click=${() => this.undoAny()}><sw-icon name="history" size=${18}></sw-icon></button>
-                  <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>
+                  <button title=${tr('ביטול (Ctrl+Z)')} aria-label=${tr('ביטול')} data-rail-undo ?disabled=${this.detectBusy || !this.undoTarget} @click=${() => this.undoAny()}><sw-icon name="history" size=${18}></sw-icon></button>
+                  <button title=${tr('בצע שוב (Ctrl+Y)')} aria-label=${tr('בצע שוב')} data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? EMPTY}
@@ -5207,25 +5207,25 @@ export class ExplorePlanEditor extends LitElement {
                   @marker-orient=${(e: CustomEvent<{ id: string; rotation: number; fov: number }>) => this.apply(e.detail.id, { rotation_degrees: e.detail.rotation, field_of_view_degrees: e.detail.fov })}
                   @marker-coverage=${(e: CustomEvent<{ id: string; radius?: number; polygon?: { x: number; y: number }[] }>) => this.apply(e.detail.id, e.detail.polygon ? { coverage_polygon: e.detail.polygon.map((p) => [p.x, p.y] as [number, number]) } : { coverage_radius: e.detail.radius })}
                   @plan-click=${(e: CustomEvent<{ x: number; y: number; shift?: boolean }>) => (this.tool === 'detect' ? (this.candSel = null) : this.drawing ? this.addDraftPoint(e.detail.x, e.detail.y) : this.studioPlacing ? this.studioClick(e.detail.x, e.detail.y, !!e.detail.shift) : this.place(e.detail.x, e.detail.y))} @dragover=${(e: DragEvent) => { if (e.dataTransfer?.types.includes('text/x-sw-item')) e.preventDefault(); }} @drop=${(e: DragEvent) => this.onItemDrop(e)}></sw-plan-canvas>
-                ${this.placing ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב את ${this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id} · Esc לביטול</span></div>` : nothing}
-                ${this.drawing ? html`<div class="placing-hint"><span>ציור אזור: לחץ להוספת פינות (${this.drawing.length}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול</span></div>` : nothing}
-                ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>לחץ על התוכנית כדי להציב ${this.placingItem.names.he} · Esc לביטול</span></div>` : nothing}
-                ${this.connMode ? html`<div class="placing-hint"><span>${this.connStart ? 'לחץ על הנקודה השנייה' : 'לחץ על הנקודה הראשונה'} · Esc לביטול</span></div>` : nothing}
+                ${this.placing ? html`<div class="placing-hint"><span>${tr('לחץ על התוכנית כדי להציב את {v} · Esc לביטול', { v: this.placing.kind === 'camera' ? this.placing.camera.name : this.placing.entity.name || this.placing.entity.entity_id })}</span></div>` : nothing}
+                ${this.drawing ? html`<div class="placing-hint"><span>${tr('ציור אזור: לחץ להוספת פינות ({drawingCount}) · לחיצה על הפינה הראשונה או Enter מסיימים · Esc לביטול', { drawingCount: this.drawing.length })}</span></div>` : nothing}
+                ${this.placingItem && !this.bindOffer ? html`<div class="placing-hint"><span>${tr('לחץ על התוכנית כדי להציב {he} · Esc לביטול', { he: this.placingItem.names.he })}</span></div>` : nothing}
+                ${this.connMode ? html`<div class="placing-hint"><span>${tr('{v} · Esc לביטול', { v: this.connStart ? tr('לחץ על הנקודה השנייה') : tr('לחץ על הנקודה הראשונה') })}</span></div>` : nothing}
                 ${this.tool === 'circuits' && this.membersMode
                   ? this.circuitPlacing
                     ? html`<div class="placing-hint" data-circuit-placing><span>${circuitPlacingHint(this.circuitPlacing)}</span></div>`
-                    : html`<div class="placing-hint"><span>לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל · Esc לסיום</span></div>`
+                    : html`<div class="placing-hint"><span>${tr('לחץ על מנורה כדי להוסיף או להסיר אותה מהמעגל · Esc לסיום')}</span></div>`
                   : nothing}
-                ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
-                    <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
+                ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>${tr('העצם ליד {anchorName} — להפוך אותו לגוף של הישות?', { anchorName: this.anchorName(this.bindOffer.anchor) })}
+                    <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>${tr('הצמד לישות')}</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>${tr('לא')}</button></span></div>` : nothing}
                 ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
                 ${this.curveDraft ? this.renderCurveHint(b) : nothing}
-                ${this.wallDraft ? html`<div class="placing-hint float" data-wall-hint><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
-                <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
+                ${this.wallDraft ? html`<div class="placing-hint float" data-wall-hint><span>${tr('ציור קיר: {wallDraftCount} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול', { wallDraftCount: this.wallDraft.length })}</span></div>` : nothing}
+                <div class="legend"><span><i></i>${tr('מצלמות · {cams}', { cams })}</span><span><i class="ent"></i>${tr('התקנים · {ents}', { ents })}</span><span><i class="zone"></i>${tr('אזורים · {zonesCount}', { zonesCount: this.zones.length })}</span></div>
               </div>
               <div class="props">
                 ${this.renderSharedHint()}
-                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading="אזור" subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}` : this.renderToolPanel(b)}
+                ${sel ? (sel.resource_type === 'camera' ? this.renderCameraInspector(sel) : this.renderEntityInspector(sel)) : this.selectedZone && this.tool !== 'zones' ? html`<sw-card heading=${tr('אזור')} subheading=${this.selectedZone.name}>${this.renderZoneInspector(this.selectedZone)}</sw-card>${this.multiOn ? html`<div class="note" data-multi-hint>${MULTI_HINT}</div>` : nothing}` : this.renderToolPanel(b)}
                 ${(sel || (this.selectedZone && this.tool !== 'zones')) && this.tool !== 'select' ? this.renderToolPanel(b) : nothing}
                 ${this.renderVersionCard(b)}
               </div>

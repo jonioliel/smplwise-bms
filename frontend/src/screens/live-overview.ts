@@ -796,9 +796,9 @@ export class LiveOverview extends LitElement {
     const online = demoWall.filter((c) => c.state === 'live' || c.state === 'stale').length;
     const unacked = demoEvents.filter((e) => !e.acked);
     const spotlights = [
-      { kind: 'critical', title: 'מצלמה מנותקת: מסדרון מזרחי', meta: 'קומה 0 · מאז 07:55', why: 'מוצג כי אין הקלטה ממצלמה זו כבר שעתיים', link: '#/system/devices' },
-      { kind: 'alert', title: `${unacked.length} אירועים שלא נבדקו`, meta: 'אדם בכניסה הראשית 10:14, רכב בחצר 09:42', why: 'מוצג כי אירועי אדם/רכב מחכים לסימון טיפול', link: '#/investigate/events' },
-      { kind: 'alert', title: 'החיבור לתשתית המערכת לא רענן', meta: 'סנכרון אחרון לפני 4 דק׳', why: 'מוצג כי מצבי הישויות עלולים להיות מיושנים', link: '#/system/diagnostics' },
+      { kind: 'critical', title: tr('מצלמה מנותקת: מסדרון מזרחי'), meta: tr('קומה 0 · מאז 07:55'), why: tr('מוצג כי אין הקלטה ממצלמה זו כבר שעתיים'), link: '#/system/devices' },
+      { kind: 'alert', title: tr('{unackedCount} אירועים שלא נבדקו', { unackedCount: unacked.length }), meta: tr('אדם בכניסה הראשית 10:14, רכב בחצר 09:42'), why: tr('מוצג כי אירועי אדם/רכב מחכים לסימון טיפול'), link: '#/investigate/events' },
+      { kind: 'alert', title: tr('החיבור לתשתית המערכת לא רענן'), meta: tr('סנכרון אחרון לפני 4 דק׳'), why: tr('מוצג כי מצבי הישויות עלולים להיות מיושנים'), link: '#/system/diagnostics' },
     ];
     const used = 0.68;
     const r = 34;
@@ -806,8 +806,8 @@ export class LiveOverview extends LitElement {
     const favorites = demoWall.filter((x) => x.state === 'live').slice(0, 2);
     const layout = this.tiles.layout;
     return html`
-      <sw-page heading="בוקר טוב, יוני" subheading=${tr('המערכת פועלת · גשר לא רענן · נתוני הדגמה')}>
-        <div slot="actions" class="date">יום שני, 14 בספטמבר 2026<br />10:24</div>
+      <sw-page heading=${tr('בוקר טוב, יוני')} subheading=${tr('המערכת פועלת · גשר לא רענן · נתוני הדגמה')}>
+        <div slot="actions" class="date">${tr('יום שני, 14 בספטמבר 2026')}<br />10:24</div>
         <div class="kpis" data-overview-kpis>
           <sw-kpi data-overview-tile="cameras" icon="camera" tone="live" value=${String(online)} label=${tr('מצלמות')} detail=${tr('מחוברות')} layout=${layout} href="#/system/devices?sort=offline" hint=${tr('פתח את רשימת המצלמות')}></sw-kpi>
           <sw-kpi data-overview-tile="sites" icon="building" value=${String(demoSites.length)} label=${tr('אתרים')} detail=${tr('פעילים')} tone="neutral" layout=${layout} href="#/explore/sites" hint=${tr('פתח את האתרים')}></sw-kpi>

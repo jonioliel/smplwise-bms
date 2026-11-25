@@ -21,12 +21,12 @@ import { dayMonthTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/investigate';
 
 const RESULTS = [
-  { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'מקליט: זיהוי אדם (Smart)' },
-  { scene: 'lobby', when: '14.09.2026 10:13', cam: 'לובי', why: 'מקליט: תנועה + סמיכות במפה לכניסה' },
-  { scene: 'parking', when: '14.09.2026 06:43', cam: 'חניה מקורה', why: 'מקליט: חציית קו' },
-  { scene: 'entrance', when: '14.09.2026 08:12', cam: 'כניסה ראשית', why: 'התקן: דלת נפתחה + תנועה' },
-  { scene: 'corridor', when: '13.09.2026 23:10', cam: 'מסדרון מזרחי', why: 'מקליט: זיהוי אדם' },
-  { scene: 'backyard', when: '13.09.2026 18:03', cam: 'חצר אחורית', why: 'מקליט: תנועה' },
+  { scene: 'entrance', when: '14.09.2026 10:14', cam: tr('כניסה ראשית'), why: tr('מקליט: זיהוי אדם (Smart)') },
+  { scene: 'lobby', when: '14.09.2026 10:13', cam: tr('לובי'), why: tr('מקליט: תנועה + סמיכות במפה לכניסה') },
+  { scene: 'parking', when: '14.09.2026 06:43', cam: tr('חניה מקורה'), why: tr('מקליט: חציית קו') },
+  { scene: 'entrance', when: '14.09.2026 08:12', cam: tr('כניסה ראשית'), why: tr('התקן: דלת נפתחה + תנועה') },
+  { scene: 'corridor', when: '13.09.2026 23:10', cam: tr('מסדרון מזרחי'), why: tr('מקליט: זיהוי אדם') },
+  { scene: 'backyard', when: '13.09.2026 18:03', cam: tr('חצר אחורית'), why: tr('מקליט: תנועה') },
 ] as const;
 
 /** SC19 — AI search (board 2 screen 9, Beta): search-by pills, "search by person" card, similar matches grid. Metadata filters first; AI only with a real index. */

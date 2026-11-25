@@ -585,7 +585,7 @@ export class CalResident extends LitElement {
     this.actionError = '';
     const end = new Date(this.start.getTime() + this.duration * 60000);
     try {
-      const r = await this.ctx.api.createEvent({ calendar_id: cal.id, kind: 'booking', title: this.evTitle.trim() || 'הזמנת חדר', start: this.start.toISOString(), end: end.toISOString(), headcount: this.people });
+      const r = await this.ctx.api.createEvent({ calendar_id: cal.id, kind: 'booking', title: this.evTitle.trim() || tr('הזמנת חדר'), start: this.start.toISOString(), end: end.toISOString(), headcount: this.people });
       this.sheet = null;
       this.start = null;
       this.roomId = '';
@@ -658,7 +658,7 @@ export class CalResident extends LitElement {
     this.busy = true;
     this.actionError = '';
     try {
-      const r = await this.ctx.api.createEvent({ calendar_id: a.calendar_id, kind: 'booking', title: o.title ?? 'הזמנת חדר', start: a.start.toISOString(), end: a.end.toISOString() });
+      const r = await this.ctx.api.createEvent({ calendar_id: a.calendar_id, kind: 'booking', title: o.title ?? tr('הזמנת חדר'), start: a.start.toISOString(), end: a.end.toISOString() });
       const ev = await this.ctx.api.event(o.event_id);
       await this.ctx.api.cancelEvent(o.event_id, ev.event.revision);
       this.sheet = null;

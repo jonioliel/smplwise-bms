@@ -311,7 +311,7 @@ export class StyleguideScreen extends LitElement {
       <div data-3d-demo style="display:flex;flex-direction:column;gap:8px;max-inline-size:720px">
         ${this.demo3d.desc
           ? html`<sw-plan-3d style="block-size:360px;border:1px solid var(--sw-border);border-radius:var(--sw-r-md)" .description=${this.demo3d.desc} .selectedId=${this.demo3d.selected} .labels=${demoSceneLabels('f0')}
-                .cameras=${[{ id: 'cam-1', label: 'כניסה ראשית' }, { id: 'cam-2', label: 'לובי' }]} exportName="demo-floor"
+                .cameras=${[{ id: 'cam-1', label: tr('כניסה ראשית') }, { id: 'cam-2', label: tr('לובי') }]} exportName="demo-floor"
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => (this.demo3d = { ...this.demo3d, selected: e.detail.id })}
                 @realistic-change=${(e: CustomEvent<{ on: boolean }>) => this.onRealistic(e.detail.on)}></sw-plan-3d>
               <div style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">${tr('נבחר:')} <span class="ltr" data-3d-demo-selected>${this.demo3d.selected ?? ''}</span></div>`

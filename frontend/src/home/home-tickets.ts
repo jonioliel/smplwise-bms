@@ -139,7 +139,7 @@ registerScreen((h: HomeHost) => ({
       if (!c) return h.toast(tr('בחרו נושא לפנייה.'));
       const text = d.text.trim();
       // the default title is saved with the request and read by the staff: it stays Hebrew in every interface language
-      const title = (text ? text.split('\n')[0] : `תקלה: ${c.name}`).slice(0, 120);
+      const title = (text ? text.split('\n')[0] : tr('תקלה: {name}', { name: c.name })).slice(0, 120);
       st.busy = true;
       h.requestUpdate();
       void newTicket({ department_id: c.department_id, category_id: c.category_id, title, where: d.where.trim(), text, client_request_id: d.crid })

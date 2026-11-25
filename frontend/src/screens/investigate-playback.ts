@@ -877,7 +877,7 @@ export class InvestigatePlayback extends LitElement {
   /** Alt + click on the track bookmarks that instant: the case picker opens with a short clip around it. */
   private bookmarkAt(minute: number) {
     if (!this.cameraId) return;
-    this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, minute, this.tz), 10, 20), note: 'סימנייה' };
+    this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, minute, this.tz), 10, 20), note: tr('סימנייה') };
   }
 
   private get segmentsMin(): DemoSegment[] {

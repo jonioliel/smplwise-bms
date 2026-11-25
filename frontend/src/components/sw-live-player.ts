@@ -12,6 +12,7 @@ import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freeze
 import { frameSaysReplaced, replacedCloseCode } from '../api/socket-replaced';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
+import { tr } from '../i18n/msg/components';
 
 /**
  * Live player over the add-on's WebSocket relay (go2rtc signalling behind it).
@@ -80,7 +81,7 @@ export const SOCKET_OPEN_MS = 10000;
 /** WARMUP-POLISH-2421: the safety net of one attempt - no state may stay on "מתחבר…" longer than this (every step's own bound - the
  * WebRTC connect / first-frame watch, the MSE first fragment - is shorter; this only catches a path none of them covers). */
 export const CONNECTING_CAP_MS = 60000;
-export const CONNECT_TIMEOUT_HE = 'שרת הווידאו אינו עונה';
+export const CONNECT_TIMEOUT_HE = tr('שרת הווידאו אינו עונה');
 /** go2rtc starts the fMP4 stream at the next key frame; the lab NVR's GOP is ~8 s. */
 const MSE_TIMEOUT_MS = 20000;
 /** Automatic reconnect after a transient failure (not after 4401/4403/4429): 3 s, 6 s, 12 s … max 30 s. */
@@ -88,16 +89,16 @@ const RETRY_BASE_MS = 3000;
 const RETRY_MAX_MS = 30000;
 
 /** The remote live cap (`remote_live_cap`, WebSocket close 4429): what the tile says, and who may raise it. Never a retry. */
-export const liveCapTitle = (max: number) => `הגעת למכסת הזרמים החיים בחיבור הזה${max > 0 ? ` (${max})` : ''}`;
-const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק';
-const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
+export const liveCapTitle = (max: number) => tr('הגעת למכסת הזרמים החיים בחיבור הזה{v}', { v: max > 0 ? ` (${max})` : '' });
+const LIVE_CAP_HINT_ADMIN = tr('אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק');
+const LIVE_CAP_HINT_OTHER = tr('פנה למנהל המערכת');
 
 /** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
 /** How often the snapshot behind a capped / still-only stream is re-fetched (exported for the home tile's "מתעדכנת כל" line). */
 export const STILL_REFRESH_MS = 10000;
 
 /** VIDEO-SUB-FALLBACK-2402: the quiet tag of a tile that moved from its sub stream to the main one. */
-export const SUB_FALLBACK_HE = 'עבר לזרם הראשי';
+export const SUB_FALLBACK_HE = tr('עבר לזרם הראשי');
 /** SKIN-QA-FOLLOWUP-2404: below this player width (px) the fallback tag is a 20 px chip at the bottom-end corner (see .subtag). */
 export const SUB_CHIP_MAX = 160;
 /** The chip's long press, with the wall phone bar's timings (wall-phone-bar.ts KEY_HINT_*): the hold, how long the words show, and the
@@ -106,10 +107,10 @@ const SUB_HINT_PRESS_MS = 450;
 const SUB_HINT_SHOW_MS = 2500;
 const SUB_HINT_MOVE_PX = 10;
 /** VIDEO-SUB-FALLBACK-2402: an explicit quality whose stream gives nothing (never switched). */
-const NO_MEDIA_HE = (p: Profile) => (p === 'sub' ? 'הזרם המשני לא מגיע מהמצלמה' : 'הזרם הראשי לא מגיע מהמצלמה');
+const NO_MEDIA_HE = (p: Profile) => (p === 'sub' ? tr('הזרם המשני לא מגיע מהמצלמה') : tr('הזרם הראשי לא מגיע מהמצלמה'));
 
 /** VIDEO-TRANSPORT-2400: what a frozen live MSE stream says while it reconnects. */
-const FROZEN_HE = 'הווידאו נעצר · מתחבר מחדש';
+const FROZEN_HE = tr('הווידאו נעצר · מתחבר מחדש');
 
 /** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
 const MAX_AHEAD_S = 25;
@@ -821,7 +822,7 @@ export class SwLivePlayer extends LitElement {
     }
     // VIDEO-SUB-FALLBACK-2402: no sub step left (a connect failure walked the policy's own order first): the main twin
     if (!this.decodeFailed && this.trySubFallback()) return;
-    const message = this.decodeFailed && this.mode === 'webrtc' ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי' : reason;
+    const message = this.decodeFailed && this.mode === 'webrtc' ? tr('WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי') : reason;
     this.fail(message, !this.decodeFailed); // undecodable everywhere: retrying the same chain cannot help
   }
 
@@ -866,7 +867,7 @@ export class SwLivePlayer extends LitElement {
     if ((!this.cameraId && !this.wsUrl && !this.livePath) || !this.active) return;
     // NN1: no socket without a live source and a media server; the screens are hidden then, this is the last line for a stray tile
     if (isApi() && !cap('live_video')) {
-      this.fail('וידאו חי אינו זמין', false);
+      this.fail(tr('וידאו חי אינו זמין'), false);
       return;
     }
     // HEALTH-GO2RTC-2430: the tab already knows the video service is down - say so and wait for the recovery, no socket
@@ -900,7 +901,7 @@ export class SwLivePlayer extends LitElement {
     try {
       ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile, this.h265Flag(step?.transport ?? (mseNow || this.mode === 'mse' ? 'mse' : 'webrtc')), this.subFellBack ? this.fallbackWhy || 'sub_error' : '')));
     } catch (err) {
-      this.fail('לא ניתן לפתוח חיבור');
+      this.fail(tr('לא ניתן לפתוח חיבור'));
       return;
     }
     ws.binaryType = 'arraybuffer';
@@ -917,7 +918,7 @@ export class SwLivePlayer extends LitElement {
     // it now ends the WebRTC attempt the usual way - the next step or MSE, else the player's error with its retry.
     const webrtc = () => {
       this.startWebrtc().catch(() => {
-        if (gen === this.generation) this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+        if (gen === this.generation) this.webrtcFailed(tr('WebRTC לא נתמך בדפדפן'));
       });
     };
     ws.onopen = () => {
@@ -969,7 +970,7 @@ export class SwLivePlayer extends LitElement {
     }
     // go2rtc drops the socket when its WebRTC consumer dies: in auto mode that is a transport failure, not the end.
     if ((this.mode === 'auto' || this.laddered || this.hasChainStep()) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
-      this.webrtcFailed('WebRTC נכשל');
+      this.webrtcFailed(tr('WebRTC נכשל'));
       return;
     }
     if (!this.retry && this.status === 'playing' && ev.code < 4000) {
@@ -979,7 +980,7 @@ export class SwLivePlayer extends LitElement {
       this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended', code: ev.code }, bubbles: true, composed: true }));
       return;
     }
-    const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? VIDEO_SERVER_DOWN : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
+    const reason = ev.code === 4403 ? tr('אין הרשאת צפייה') : ev.code === 4429 ? tr('הגיע למכסת הזרמים') : ev.code === 4503 ? VIDEO_SERVER_DOWN : ev.code === 4401 ? tr('נדרשת הזדהות') : ev.code === 4404 ? tr('סשן הניגון פג') : ev.code === 4410 ? tr('הסשן הוחלף') : this.status === 'playing' ? tr('החיבור נותק') : tr('החיבור נסגר');
     this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410, ev.code); // a quota hit retries later; a denial does not
   }
 
@@ -1193,8 +1194,8 @@ export class SwLivePlayer extends LitElement {
     const preferredSkipped = !first || first.profile !== pref || first.transport !== 'webrtc';
     const decode = preferredSkipped || this.decodeFailed || !this.steps().length;
     // decoding: the owner's wording; never connected: UDP to go2rtc is likely blocked, and MSE (the tunnel) is off
-    const why = this.mode === 'webrtc' ? 'הוגדר WebRTC בלבד' : 'MSE דרך המנהרה כבוי בהגדרות ‹ גישה מרחוק';
-    const message = decode ? undecodableMessage(pref) : `${reason || 'WebRTC לא התחבר (ייתכן ש-UDP חסום)'} · ${why}`;
+    const why = this.mode === 'webrtc' ? tr('הוגדר WebRTC בלבד') : tr('MSE דרך המנהרה כבוי בהגדרות ‹ גישה מרחוק');
+    const message = decode ? undecodableMessage(pref) : `${reason || tr('WebRTC לא התחבר (ייתכן ש-UDP חסום)')} · ${why}`;
     this.fail(message, !decode);
   }
 
@@ -1214,7 +1215,7 @@ export class SwLivePlayer extends LitElement {
       pc = new RTCPeerConnection({ iceServers: LIVE_ICE_SERVERS });
     } catch {
       // WARMUP-POLISH-2421: no WebRTC in this browser (or it refused the peer connection): the MSE path, never a stuck spinner
-      this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+      this.webrtcFailed(tr('WebRTC לא נתמך בדפדפן'));
       return;
     }
     this.pc = pc;
@@ -1235,7 +1236,7 @@ export class SwLivePlayer extends LitElement {
       // CR-008 review M2: under a plan, a transient `disconnected` before the first frame is not a failure (ICE may
       // recover on a mobile link); only `failed` / `closed` end the step - the first-frame watch bounds the wait
       if (this.laddered && this.status !== 'playing' && pc.connectionState === 'disconnected') return;
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') this.webrtcFailed('WebRTC נכשל');
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') this.webrtcFailed(tr('WebRTC נכשל'));
     };
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -1248,7 +1249,7 @@ export class SwLivePlayer extends LitElement {
       this.send({ type: 'webrtc/offer', value: offer.sdp });
     } catch {
       if (gen !== this.generation) return;
-      this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+      this.webrtcFailed(tr('WebRTC לא נתמך בדפדפן'));
       return;
     }
     window.clearTimeout(this.timer);
@@ -1264,7 +1265,7 @@ export class SwLivePlayer extends LitElement {
       // 2560×1440 from the NVR main profile) — MSE plays the same stream. Not connected: UDP is blocked.
       const connected = this.pc?.connectionState === 'connected';
       if (connected) this.webrtcConnected = true;
-      this.webrtcFailed(connected ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי' : 'WebRTC לא התחבר (UDP חסום?)');
+      this.webrtcFailed(connected ? tr('WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי') : tr('WebRTC לא התחבר (UDP חסום?)'));
     }, WEBRTC_TIMEOUT_MS);
   }
 
@@ -1356,12 +1357,12 @@ export class SwLivePlayer extends LitElement {
       // no ICE connection and no byte within the connect bound: WebRTC is unreachable from here - MSE, now
       if (connectCap && now - started >= connectCap && bytes <= 0 && pc.connectionState !== 'connected' && !this.webrtcConnected) {
         stop();
-        this.webrtcFailed('WebRTC לא התחבר (ייתכן ש-UDP חסום)');
+        this.webrtcFailed(tr('WebRTC לא התחבר (ייתכן ש-UDP חסום)'));
         return;
       }
       if (bytes > 0 && decoded === 0 && now - firstBytesAt >= this.decodeGraceMs()) {
         stop();
-        this.webrtcFailed('WebRTC התחבר אך הדפדפן לא מפענח את הזרם', true);
+        this.webrtcFailed(tr('WebRTC התחבר אך הדפדפן לא מפענח את הזרם'), true);
         return;
       }
       if (now - started >= cap && !(bytes > 0 && decoded === 0)) {
@@ -1372,7 +1373,7 @@ export class SwLivePlayer extends LitElement {
         // with nothing rendered is a decode failure.
         const connected = pc.connectionState === 'connected' || this.webrtcConnected;
         const decode = (bytes > 0 && decoded < 0) || (bytes < 0 && connected) || (!this.laddered && connected);
-        this.webrtcFailed(decode ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם' : 'WebRTC לא התחבר (ייתכן ש-UDP חסום)', decode);
+        this.webrtcFailed(decode ? tr('WebRTC התחבר אך הדפדפן לא מפענח את הזרם') : tr('WebRTC לא התחבר (ייתכן ש-UDP חסום)'), decode);
         return;
       }
       rearm();
@@ -1414,7 +1415,7 @@ export class SwLivePlayer extends LitElement {
 
   private webrtcFailed(reason: string, decode = false) {
     if (this.status === 'playing' && this.transport === 'webrtc') {
-      this.fail('החיבור נותק');
+      this.fail(tr('החיבור נותק'));
       return;
     }
     if (this.laddered) {
@@ -1443,7 +1444,7 @@ export class SwLivePlayer extends LitElement {
 
   private startMse() {
     if (!('MediaSource' in window)) {
-      this.fail('MSE לא נתמך בדפדפן');
+      this.fail(tr('MSE לא נתמך בדפדפן'));
       return;
     }
     window.clearTimeout(this.timer);
@@ -1469,7 +1470,7 @@ export class SwLivePlayer extends LitElement {
       this.failKind = 'sub_no_media';
       const live = !!this.cameraId && !this.wsUrl;
       if (live) console.warn('sw-live-player: no media', this.effectiveProfile, this.mseTrace());
-      this.mseFailed(live ? NO_MEDIA_HE(this.effectiveProfile) : `לא התקבל וידאו (${this.mseTrace()})`);
+      this.mseFailed(live ? NO_MEDIA_HE(this.effectiveProfile) : tr('לא התקבל וידאו ({mseTrace})', { mseTrace: this.mseTrace() }));
     }, MSE_TIMEOUT_MS);
   }
 
@@ -1493,7 +1494,7 @@ export class SwLivePlayer extends LitElement {
       void this.video.play().catch(() => undefined);
       this.flush();
     } catch {
-      this.mseFailed('הדפדפן לא תומך ב־codec של המצלמה', true);
+      this.mseFailed(tr('הדפדפן לא תומך ב־codec של המצלמה'), true);
     }
   }
 
@@ -1532,7 +1533,7 @@ export class SwLivePlayer extends LitElement {
     }
     switch (msg.type) {
       case 'webrtc/answer':
-        void this.pc?.setRemoteDescription({ type: 'answer', sdp: msg.value ?? '' }).catch(() => this.webrtcFailed('WebRTC: תשובה לא תקינה'));
+        void this.pc?.setRemoteDescription({ type: 'answer', sdp: msg.value ?? '' }).catch(() => this.webrtcFailed(tr('WebRTC: תשובה לא תקינה')));
         break;
       case 'webrtc/candidate':
         void this.pc?.addIceCandidate({ candidate: msg.value ?? '', sdpMid: '0' }).catch(() => undefined);
@@ -1542,17 +1543,17 @@ export class SwLivePlayer extends LitElement {
         break;
       case 'error':
         if (this.laddered && msg.value === 'upstream_unavailable') this.fail(VIDEO_SERVER_DOWN); // no step can help; retried later
-        else if (this.laddered && this.transport === 'webrtc' && msg.value !== 'access_lost') this.webrtcFailed('WebRTC נכשל'); // never a raw code on screen
+        else if (this.laddered && this.transport === 'webrtc' && msg.value !== 'access_lost') this.webrtcFailed(tr('WebRTC נכשל')); // never a raw code on screen
         else if (!this.laddered && this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(msg.value ?? 'WebRTC', msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost');
         // a LAN chain with a step left: go2rtc refused this stream (e.g. no common codec) - the next step, never a loop
         else if (this.hasChainStep() && this.status !== 'playing' && msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost') {
-          if (this.transport === 'webrtc') this.webrtcFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
-          else this.mseFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
+          if (this.transport === 'webrtc') this.webrtcFailed(tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), true);
+          else this.mseFailed(tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), true);
         }
         else if (this.laddered && msg.value !== 'access_lost' && this.status !== 'playing' && this.trySubFallback()) break; // VIDEO-SUB-FALLBACK-2402
-        else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`, true, msg.value ?? undefined);
+        else if (this.laddered && msg.value !== 'access_lost') this.fail(tr('שגיאה בזרם הווידאו'), true, msg.value ?? undefined);
         else if (this.lanChained && msg.value !== 'access_lost' && msg.value !== 'upstream_unavailable' && this.status !== 'playing' && this.trySubFallback()) break;
-        else this.fail(msg.value === 'upstream_unavailable' ? VIDEO_SERVER_DOWN : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
+        else this.fail(msg.value === 'upstream_unavailable' ? VIDEO_SERVER_DOWN : msg.value === 'access_lost' ? tr('ההרשאה לצפייה במצלמה הזו הוסרה') : tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), msg.value !== 'access_lost', msg.value ?? undefined);
         break;
       default:
         break;
@@ -1606,7 +1607,7 @@ export class SwLivePlayer extends LitElement {
         return;
       }
       console.warn('sw-live-player: appendBuffer failed', name, (err as Error)?.message);
-      this.fail(`שגיאת buffer (${name})`);
+      this.fail(tr('שגיאת buffer ({name})', { name }));
     }
   }
 
@@ -1688,8 +1689,8 @@ export class SwLivePlayer extends LitElement {
   /** CR-008 D7: the announcement when the plan fell back (another profile, or MSE through the tunnel). */
   private fallbackNotice(step: VideoStep): string {
     const pref = (this.preferred || this.decodeLadderFirst() || step.profile) as Profile;
-    if (step.profile !== pref) return `${undecodableMessage(pref)} · מוצג הזרם ${step.profile === 'sub' ? 'המשני' : 'הראשי'}`;
-    if (step.transport === 'mse') return 'WebRTC לא זמין לזרם הזה · הווידאו עובר ב־MSE דרך המנהרה (מוצא אחרון)';
+    if (step.profile !== pref) return tr('{undecodableMessage} · מוצג הזרם {v}', { undecodableMessage: undecodableMessage(pref), v: step.profile === 'sub' ? tr('המשני') : tr('הראשי') });
+    if (step.transport === 'mse') return tr('WebRTC לא זמין לזרם הזה · הווידאו עובר ב־MSE דרך המנהרה (מוצא אחרון)');
     return '';
   }
 
@@ -1699,7 +1700,7 @@ export class SwLivePlayer extends LitElement {
     const notice = this.fallbackNotice(step);
     const playing = this.status === 'playing';
     // review nit: the badge claims what PLAYS only while it plays; before that it says what is being tried
-    return html`<span class="vbadge ${step.transport} ${playing ? '' : 'trying'}" data-video-badge data-step=${badgeLabel(step)} data-state=${playing ? 'playing' : 'trying'} title=${notice || badgeLabel(step)}>${playing ? badgeLabel(step) : `מנסה ${badgeLabel(step)}…`}</span>
+    return html`<span class="vbadge ${step.transport} ${playing ? '' : 'trying'}" data-video-badge data-step=${badgeLabel(step)} data-state=${playing ? 'playing' : 'trying'} title=${notice || badgeLabel(step)}>${playing ? badgeLabel(step) : tr('מנסה {badgeLabel}…', { badgeLabel: badgeLabel(step) })}</span>
       ${notice && this.showNotices ? html`<div class="vnotice" data-video-notice role="status">${notice}</div>` : nothing}`;
   }
 
@@ -1719,15 +1720,15 @@ export class SwLivePlayer extends LitElement {
       <video class=${showPoster ? 'hidden' : ''} autoplay playsinline muted @playing=${this.onPlaying} @timeupdate=${this.onTimeUpdate}></video>
       ${this.stillNotice && this.status !== 'playing'
         ? html`<div class="stillnote" data-h265-still role="status"><sw-icon name="camera" size=${12}></sw-icon><span data-player-error>${this.stillNotice}</span></div>`
-        : this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : ''}…</span></div></div>` : nothing}
+        : this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>${tr('מתחבר{v}…', { v: this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : '' })}</span></div></div>` : nothing}
       ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
-          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.serviceDown && !this.compact && can('system.configure') && !onRemote() ? html`<sw-video-service-picker compact data-video-service-picker></sw-video-service-picker>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.serviceDown && !this.compact && can('system.configure') && !onRemote() ? html`<sw-video-service-picker compact data-video-service-picker></sw-video-service-picker>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>${tr('נסה שוב')}</button>` : nothing}</div></div>`
           : nothing}
-      ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
-      ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}
-      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? (this.capped ? 'מכסה' : 'לא זמין') : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
+      ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>${tr('הקטע הסתיים')}</span></div></div>` : nothing}
+      ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>${tr('לא מחובר')}</span></div></div>` : nothing}
+      <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? tr('הקלטה') : tr('חי')} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? tr('מתחבר') : this.status === 'error' ? (this.capped ? tr('מכסה') : tr('לא זמין')) : this.status === 'ended' ? tr('הסתיים') : tr('תמונה')}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
       ${this.renderServed()}
       ${this.subFellBack && this.status !== 'error'
@@ -1736,8 +1737,8 @@ export class SwLivePlayer extends LitElement {
               ><sw-icon class="subico" name="arrowUp" size=${12} aria-hidden="true"></sw-icon><span class="subtxt">${SUB_FALLBACK_HE}</span></span
             >${this.subHint && this.subChip ? html`<span class="subhint" role="status" data-sub-fallback-hint>${SUB_FALLBACK_HE}</span>` : nothing}`
         : nothing}
-      ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
-      ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
+      ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>${tr('הקש להפעלה')}</button>` : nothing}
+      ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? tr('הפעל שמע') : tr('השתק')} aria-label=${this.muted ? tr('הפעל שמע') : tr('השתק')} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;
   }
 }

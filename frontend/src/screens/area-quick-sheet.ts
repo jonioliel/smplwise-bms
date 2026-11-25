@@ -39,6 +39,7 @@ import {
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { areaEntityIds, Memo2, NO_EXTRA, presenceWho, ReloadThrottle, routeDevicePush, sensorValueText } from './devices-shared'; // CR-G1-HOME-AREA-2440 (06:DUP-10)
 import { areaQuickSheetStyles } from './area-quick-sheet-css';
+import { tr } from '../i18n/msg/devices';
 
 const reducedMotion = () => {
   try {
@@ -903,7 +904,7 @@ export class AreaQuickSheet extends LitElement {
 
   private renderBody() {
     if (this.error && !this.detail) return html`<div class="note" data-qc-error role="alert">${this.error}</div>`;
-    if (!this.detail) return html`<div class="spin" role="status" aria-label="טוען"></div>`;
+    if (!this.detail) return html`<div class="spin" role="status" aria-label=${tr('טוען')}></div>`;
     const secs = this.sections;
     if (!secs.length) return html`<div class="note" data-qc-empty>${this.availableSections.length ? hs('qcEmptyLayout') : hs('qcEmpty')}</div>`;
     return repeat(secs, (s) => s, (s) => this.renderSection(s));
@@ -965,7 +966,7 @@ export class AreaQuickSheet extends LitElement {
     const on = r.active && r.available && r.state !== 'unavailable';
     const icon: IconName = card === 'lighting' ? 'light' : card === 'switches' ? 'bolt' : card === 'climate' ? 'snow' : card === 'heating' ? 'flame' : card === 'covers' ? 'layers' : 'play';
     // a climate unit: its mode, the room now and the target - words, not an arrow (an arrow flips its meaning in a right-to-left line)
-    const state = card === 'climate' && r.domain === 'climate' ? `${rowLabel(r)} · ${deg(r.current_temperature)}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${deg(r.target_temperature)}` : ''}` : rowLabel(r);
+    const state = card === 'climate' && r.domain === 'climate' ? `${rowLabel(r)} · ${deg(r.current_temperature)}${r.target_temperature !== null && r.target_temperature !== undefined ? tr(' · יעד {deg}', { deg: deg(r.target_temperature) }) : ''}` : rowLabel(r);
     return html`<div class=${classMap({ row: true, on, pending: this.ctl.rowPendingVisible(r.entity_id) })} data-qc-row=${r.entity_id} data-card=${card} data-active=${String(on)}>
       <sw-icon .name=${icon} size=${16}></sw-icon>
       <span class="nm">${bidi(r.name)}</span>

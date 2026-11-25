@@ -23,6 +23,7 @@ import { glassT, operationLabel, tintLabel } from '../i18n/plan-glass';
 import { renderMaterialField, type MaterialHost } from './plan-studio6-panel';
 import type { ResolvedMaterials, VisualStyle } from '../map/material-resolve';
 import { AUTO_MAX_M, AUTO_MIN_M, GLASS_THICKNESS_M, GLAZING_DEFAULTS, GLAZED_HEIGHT_RANGE, MULLION_RANGE, OPERATIONS, PANEL_WIDTH_RANGE, SILL_RANGE, TINTS, applyAutoDivide, glazingOf, panelCount, patchGlazing, patchOperable, toGlassPatch, toSolidPatch, toggleOperable, type Glazing, type GlassTint, type PanelOperation } from '../map/glass-wall';
+import { tr } from '../i18n/msg/plan-studio';
 
 /** The structure tool's modes. 'curved' draws a wall through points (curve-fit.ts), 'glass' a glass wall (straight or
  * through points, GlassDraw.curved); 'curve' bends segments of an existing wall (no chip: the wall inspector and C). */
@@ -40,30 +41,30 @@ export interface GeomSel {
 }
 
 /** The second help line of the opening modes: an existing opening is taken, not doubled (owner report on 0.1.82). */
-const OPENING_DRAG_HINT = 'גרירת פתח קיים מזיזה אותו לאורך הקיר; חצים להזזה עדינה (Shift = צעד גדול)';
+const OPENING_DRAG_HINT = tr('גרירת פתח קיים מזיזה אותו לאורך הקיר; חצים להזזה עדינה (Shift = צעד גדול)');
 
 /** The select mode's help (hotfix 0.1.87): a wall moves as a whole by its body, but only once it is selected, so a first
  * press never moves anything. The select tool shows the same line. */
-const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.';
+const SELECT_HINT = tr('לחץ על קיר, פתח, תווית או עצם כדי לבחור. קיר זז רק אחרי שנבחר: גרירת גוף הקיר הנבחר מזיזה את כולו, גרירת פינה שלו משנה את צורתו. פתח נגרר לאורך הקיר, תווית ועצם למקומם; החצים מזיזים בעדינות את מה שנבחר (Shift = צעד גדול) · Esc מבטל את הבחירה. במסך מגע כל פריט זז רק אחרי שנבחר, כך שהזזת המפה באצבע לא מזיזה פריטים.');
 
 /** The "סמן דלת" tool (T087): a click on a door symbol in the plan proposes the door from the drawing. */
-const MARK_DOOR_HINT = 'לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.';
-const MARK_DOOR_TIP = 'סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל';
+const MARK_DOOR_HINT = tr('לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.');
+const MARK_DOOR_TIP = tr('סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל');
 
 /** The chips of the structure tool (WALLP, owner request 2026-10-08): the three wall tools first - straight, curved
  * through points, glass - then the openings and the label. The bend mode has no chip (`chip: false`): it is reached from
  * the selected wall's inspector or the C key, and shows a "done" button while it is on. `aria` is the chip's accessible
  * name when it says more than the label (the glass wall is also found as "קיר מסך"). */
 export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string; tip?: string; key?: string; aria?: string; chip?: false }[] = [
-  { id: 'select', label: 'בחירה', hint: SELECT_HINT },
-  { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
+  { id: 'select', label: tr('בחירה'), hint: SELECT_HINT },
+  { id: 'wall', label: tr('קיר'), hint: tr('לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.') },
   { id: 'curved', label: curveT('modeCurved'), hint: curveT('hintCurved'), tip: curveT('tipCurved'), key: 'R' },
   { id: 'glass', label: glassT('tool'), hint: glassT('toolHint'), tip: glassT('toolTip'), key: 'G', aria: `${glassT('tool')} (${glassT('alias')})` },
-  { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.', drag: OPENING_DRAG_HINT },
-  { id: 'markdoor', label: 'סמן דלת', hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP, key: 'D' },
-  { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
-  { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.', drag: OPENING_DRAG_HINT },
-  { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
+  { id: 'door', label: tr('דלת'), hint: tr('לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.'), drag: OPENING_DRAG_HINT },
+  { id: 'markdoor', label: tr('סמן דלת'), hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP, key: 'D' },
+  { id: 'window', label: tr('חלון'), hint: tr('לחץ על קיר כדי להציב חלון.'), drag: OPENING_DRAG_HINT },
+  { id: 'passage', label: tr('מעבר'), hint: tr('פתח בלי דלת בקיר.'), drag: OPENING_DRAG_HINT },
+  { id: 'label', label: tr('תווית'), hint: tr('לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.'), drag: tr('גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)') },
   { id: 'curve', label: curveT('modeCurve'), hint: curveT('hintCurve'), tip: curveT('tipCurve'), key: 'C', chip: false },
 ];
 
@@ -76,7 +77,7 @@ export interface GlassDraw {
 }
 export const GLASS_DRAW_DEFAULTS: GlassDraw = { curved: false, thickness_m: GLASS_THICKNESS_M, panel_width_m: GLAZING_DEFAULTS.panel_width_m };
 
-const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך', glass: 'קיר זכוכית' };
+const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: tr('חיצוני'), interior: tr('פנימי'), partition: tr('מחיצה'), railing: tr('מעקה'), low: tr('קיר נמוך'), glass: tr('קיר זכוכית') };
 /** The kind's name in the kind choice; the glass wall's follows the page language (i18n/plan-glass). */
 const kindLabel = (k: WallKind): string => (k === 'glass' ? glassT('kind') : WALL_KIND_LABEL[k]);
 /** The solid kind a window wall converts back to with one click. */
@@ -88,38 +89,38 @@ export function kindPatch(w: GeomWall, k: WallKind): Partial<GeomWall> {
   if (k === 'glass') return toGlassPatch(w);
   return w.kind === 'glass' ? toSolidPatch(k) : { kind: k };
 }
-const OPENING_KIND_LABEL: Record<OpeningKind, string> = { door: 'דלת', window: 'חלון', passage: 'מעבר' };
-const SWING_LABEL: Record<Swing, string> = { right: 'לצד ימין של הקיר', left: 'לצד שמאל של הקיר', double: 'כנף כפולה', sliding: 'הזזה', none: 'ללא כנף' };
-const HINGE_LABEL: Record<Hinge, string> = { start: 'בצד תחילת הקיר', end: 'בצד סוף הקיר' };
+const OPENING_KIND_LABEL: Record<OpeningKind, string> = { door: tr('דלת'), window: tr('חלון'), passage: tr('מעבר') };
+const SWING_LABEL: Record<Swing, string> = { right: tr('לצד ימין של הקיר'), left: tr('לצד שמאל של הקיר'), double: tr('כנף כפולה'), sliding: tr('הזזה'), none: tr('ללא כנף') };
+const HINGE_LABEL: Record<Hinge, string> = { start: tr('בצד תחילת הקיר'), end: tr('בצד סוף הקיר') };
 /** A double or sliding door has no hinge jamb to pick: the same field chooses the side of the wall it opens to. */
-const SIDE_LABEL: Record<Hinge, string> = { start: 'לצד שמאל של הקיר', end: 'לצד ימין של הקיר' };
+const SIDE_LABEL: Record<Hinge, string> = { start: tr('לצד שמאל של הקיר'), end: tr('לצד ימין של הקיר') };
 const sideSwing = (s: Swing | undefined): boolean => s === 'double' || s === 'sliding';
 export const SAVE_LABEL: Record<SaveState, string> = {
-  idle: 'טיוטת המבנה',
-  pending: 'שינויים ממתינים לשמירה…',
-  saving: 'שומר…',
-  saved: 'הטיוטה נשמרה · הצופים יראו אותה אחרי פרסום',
-  error: 'השמירה נכשלה',
+  idle: tr('טיוטת המבנה'),
+  pending: tr('שינויים ממתינים לשמירה…'),
+  saving: tr('שומר…'),
+  saved: tr('הטיוטה נשמרה · הצופים יראו אותה אחרי פרסום'),
+  error: tr('השמירה נכשלה'),
 };
 
 /** Hebrew names of the document's collections (publish previews). */
 export const COLL_LABEL: Record<string, string> = {
-  walls: 'קירות',
-  openings: 'פתחים',
-  labels: 'תוויות',
-  levels: 'מפלסים',
-  rooms: 'חדרים',
-  objects: 'עצמים',
-  circuits: 'מעגלי תאורה',
-  connectors: 'מחברים',
-  groups: 'קבוצות',
+  walls: tr('קירות'),
+  openings: tr('פתחים'),
+  labels: tr('תוויות'),
+  levels: tr('מפלסים'),
+  rooms: tr('חדרים'),
+  objects: tr('עצמים'),
+  circuits: tr('מעגלי תאורה'),
+  connectors: tr('מחברים'),
+  groups: tr('קבוצות'),
 };
 
 /** Metres for display: "≈" when the plan is not calibrated (design section 6). Owner decision 2026-09-23: the setting
  * `plan.estimates` = false hides metres until the plan is calibrated (`show` = false). */
 export function fmtMetres(m: number, estimated: boolean, show = true): string {
-  if (estimated && !show) return 'לא מכויל';
-  return `${estimated ? '≈' : ''}${m < 10 ? m.toFixed(2) : m.toFixed(1)} מ׳`;
+  if (estimated && !show) return tr('לא מכויל');
+  return tr('{v}{v2} מ׳', { v: estimated ? '≈' : '', v2: m < 10 ? m.toFixed(2) : m.toFixed(1) });
 }
 
 /** A count with its noun: the singular phrase for one ("קיר אחד"), otherwise the number and the plural ("3 קירות"). */
@@ -134,12 +135,12 @@ function autoCount(doc: GeometryDoc): number {
 }
 
 export function fmtScale(scaleMPerPx: number): string {
-  return `1 מ׳ = ${(1 / scaleMPerPx).toFixed(1)} פיקסלים בתוכנית`;
+  return tr('1 מ׳ = {v} פיקסלים בתוכנית', { v: (1 / scaleMPerPx).toFixed(1) });
 }
 
 export function fmtArea(m2: number, estimated: boolean, show = true): string {
-  if (estimated && !show) return 'לא מכויל';
-  return `${estimated ? '≈' : ''}${m2 < 100 ? m2.toFixed(1) : m2.toFixed(0)} מ״ר`;
+  if (estimated && !show) return tr('לא מכויל');
+  return tr('{v}{v2} מ״ר', { v: estimated ? '≈' : '', v2: m2 < 100 ? m2.toFixed(1) : m2.toFixed(0) });
 }
 
 interface StudioView {
@@ -220,18 +221,18 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
   const mode = STUDIO_MODES.find((m) => m.id === v.mode) ?? STUDIO_MODES[0];
   const empty = !v.doc.walls.length && !v.doc.openings.length && !v.doc.labels.length;
   if (v.compact) {
-    return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-compact data-studio-save=${v.saveState}>
+    return html`<sw-card heading=${tr('מבנה')} subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-compact data-studio-save=${v.saveState}>
       <div class="note" data-select-geom-hint>${SELECT_HINT}</div>
       ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
       ${v.saveState === 'error'
         ? html`<div class="err">${v.saveError} ${v.conflict
-            ? html`<button class="linkbtn" data-studio-reload @click=${() => a.reload()}>טען מחדש</button>`
-            : html`<button class="linkbtn" data-studio-retry @click=${() => a.retry()}>נסה שוב</button>`}</div>`
+            ? html`<button class="linkbtn" data-studio-reload @click=${() => a.reload()}>${tr('טען מחדש')}</button>`
+            : html`<button class="linkbtn" data-studio-retry @click=${() => a.retry()}>${tr('נסה שוב')}</button>`}</div>`
         : nothing}
     </sw-card>`;
   }
-  return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
-    <div class="modes" role="group" aria-label="כלי ציור">
+  return html`<sw-card heading=${tr('מבנה')} subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
+    <div class="modes" role="group" aria-label=${tr('כלי ציור')}>
       ${STUDIO_MODES.filter((m) => m.chip !== false).map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-label=${m.aria ?? nothing} aria-keyshortcuts=${m.key ?? nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
     </div>
     <div class="note">${v.mode === 'glass' && v.glassDraw?.curved ? glassT('toolHintCurved') : mode.hint}</div>
@@ -239,12 +240,12 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     ${v.mode === 'curve' ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-bend-done @click=${() => a.setMode('select')}>${curveT('bendDone')}</sw-button></div>` : nothing}
     ${v.mode === 'wall' || v.mode === 'curved' ? renderWallDefaults(v.wallDefaults, a) : nothing}
     ${v.mode === 'glass' ? renderGlassDraw(v.glassDraw ?? GLASS_DRAW_DEFAULTS, a) : nothing}
-    <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${v.doc.dimensions.calibration?.status === 'estimated' ? `≈ ${fmtScale(scale)} (הערכה, לא מדוד)` : estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
-    <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}${autoCount(v.doc) ? html` · <span data-studio-auto-count>${autoCount(v.doc)} אוטומטיים / מיובאים</span>` : nothing}</div>
+    <div class="row"><span class="lbl">${tr('קנה מידה')}<span class="muted" data-studio-scale>${v.doc.dimensions.calibration?.status === 'estimated' ? tr('≈ {fmtScale} (הערכה, לא מדוד)', { fmtScale: fmtScale(scale) }) : estimated ? (v.showEstimates ? tr('לא מכויל: מידות משוערות (≈)') : tr('לא מכויל: מידות מוסתרות עד הכיול')) : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? tr('כיול') : tr('כיול מחדש')}</sw-button></div>
+    <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, tr('קיר אחד'), tr('קירות'))} · ${countLabel(v.doc.openings.length, tr('פתח אחד'), tr('פתחים'))} · ${countLabel(v.doc.labels.length, tr('תווית אחת'), tr('תוויות'))}${autoCount(v.doc) ? html` · <span data-studio-auto-count>${tr('{autoCount} אוטומטיים / מיובאים', { autoCount: autoCount(v.doc) })}</span>` : nothing}</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
     ${errors.length || warnings.length ? renderIssues(errors, warnings, a) : nothing}
     ${empty && v.copyCandidates.length ? renderCopy(v.copyCandidates, a, v.busy) : nothing}
-    <div class="exports" role="group" aria-label="ייצוא המבנה">
+    <div class="exports" role="group" aria-label=${tr('ייצוא המבנה')}>
       <a class="btnlink" data-export-svg href=${v.exportSvg} download>SVG</a>
       <a class="btnlink" data-export-png href=${v.exportPng} download>PNG</a>
       <a class="btnlink" data-export-dxf href=${v.exportDxf} download>${pkgT('dxf')}</a>
@@ -256,21 +257,21 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
       <a class="btnlink" data-export-ifc href=${v.exportIfc} download>${ifcT('ifc')}</a>
       <label class="btnlink" data-import-ifc-label>${ifcT('importIfc')}<input type="file" accept=".ifc,application/x-step,model/ifc" data-import-ifc hidden ?disabled=${v.busy}
         @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importIfc(f); (e.target as HTMLInputElement).value = ''; }} /></label>
-      <span class="note">ייצוא הטיוטה כפי שהיא</span>
+      <span class="note">${tr('ייצוא הטיוטה כפי שהיא')}</span>
     </div>
     ${v.saveState === 'error'
       ? html`<div class="err">${v.saveError} ${v.conflict
-          ? html`<button class="linkbtn" data-studio-reload @click=${() => a.reload()}>טען מחדש</button>`
-          : html`<button class="linkbtn" data-studio-retry @click=${() => a.retry()}>נסה שוב</button>`}</div>`
+          ? html`<button class="linkbtn" data-studio-reload @click=${() => a.reload()}>${tr('טען מחדש')}</button>`
+          : html`<button class="linkbtn" data-studio-retry @click=${() => a.retry()}>${tr('נסה שוב')}</button>`}</div>`
       : nothing}
   </sw-card>`;
 }
 
 function renderWallDefaults(d: WallDefaults, a: StudioActions) {
   return html`<div class="two">
-    <sw-field label="עובי קיר (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr data-wall-thickness .value=${String(d.thickness_m)}
+    <sw-field label=${tr('עובי קיר (מ׳)')}><input type="number" min="0.01" max="3" step="0.01" data-ltr data-wall-thickness .value=${String(d.thickness_m)}
       @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.setWallDefaults({ ...d, thickness_m: x }); }} /></sw-field>
-    <sw-field label="סוג קיר"><select aria-label="סוג קיר" data-wall-kind @change=${(e: Event) => a.setWallDefaults({ ...d, kind: (e.target as HTMLSelectElement).value as WallKind })}>
+    <sw-field label=${tr('סוג קיר')}><select aria-label=${tr('סוג קיר')} data-wall-kind @change=${(e: Event) => a.setWallDefaults({ ...d, kind: (e.target as HTMLSelectElement).value as WallKind })}>
       ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${kindLabel(k)}</option>`)}
     </select></sw-field>
   </div>`;
@@ -294,7 +295,7 @@ function renderGlassDraw(g: GlassDraw, a: StudioActions) {
 /** The level an item sits on (only shown when the floor has more than one). */
 function levelSelect(levels: GeomLevel[], current: string, onPick: (levelId: string) => void) {
   if (levels.length < 2) return nothing;
-  return html`<sw-field label="מפלס"><select data-item-level @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>${levels.map((l) => html`<option value=${l.id} ?selected=${l.id === current}>${l.name} (${l.elevation_m} מ׳)</option>`)}</select></sw-field>`;
+  return html`<sw-field label=${tr('מפלס')}><select data-item-level @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}>${levels.map((l) => html`<option value=${l.id} ?selected=${l.id === current}>${tr('{name} ({elevation_m} מ׳)', { name: l.name, elevation_m: l.elevation_m })}</option>`)}</select></sw-field>`;
 }
 
 function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: number, estimated: boolean) {
@@ -316,34 +317,34 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const area = wallOutlineAreaM2(w, v.W, v.H, scale); // a closed outline (round rooms included): the floor area it encloses
   const points = curvePoints(w); // a wall drawn through points: its clicked points are its handles
   return html`<div class="sel" data-selected-wall=${w.id}>
-    <div class="selhead"><strong>${w.kind === 'glass' ? kindLabel(w.kind) : `קיר ${WALL_KIND_LABEL[w.kind]}`}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}${area !== null ? html` · ${curveT('area')} <span data-wall-area>${fmtArea(area, estimated, v.showEstimates)}</span>` : nothing}</span></div>
+    <div class="selhead"><strong>${w.kind === 'glass' ? kindLabel(w.kind) : tr('קיר {v}', { v: WALL_KIND_LABEL[w.kind] })}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, tr('פתח אחד'), tr('פתחים'))}${area !== null ? html` · ${curveT('area')} <span data-wall-area>${fmtArea(area, estimated, v.showEstimates)}</span>` : nothing}</span></div>
     ${renderSourceBadge(w)}
-    ${w.external_ids?.origin === 'door_tool' ? html`<div class="note" data-wall-door-tool>קטע קיר שנוסף עם דלת בכלי "סמן דלת": בדוק את עוביו ואת החיבור לקירות הסמוכים.</div>` : nothing}
+    ${w.external_ids?.origin === 'door_tool' ? html`<div class="note" data-wall-door-tool>${tr('קטע קיר שנוסף עם דלת בכלי "סמן דלת": בדוק את עוביו ואת החיבור לקירות הסמוכים.')}</div>` : nothing}
     <div class="two">
-      <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
+      <sw-field label=${tr('עובי (מ׳)')}><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
-      <sw-field label="סוג"><select aria-label="סוג קיר" data-selected-wall-kind ?disabled=${!!v.phone && w.kind === 'glass'} @change=${(e: Event) => a.patchWall(w.id, kindPatch(w, (e.target as HTMLSelectElement).value as WallKind))}>
+      <sw-field label=${tr('סוג')}><select aria-label=${tr('סוג קיר')} data-selected-wall-kind ?disabled=${!!v.phone && w.kind === 'glass'} @change=${(e: Event) => a.patchWall(w.id, kindPatch(w, (e.target as HTMLSelectElement).value as WallKind))}>
         ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${w.kind === k} ?disabled=${!!v.phone && k === 'glass' && w.kind !== 'glass'}>${kindLabel(k)}</option>`)}
       </select></sw-field>
     </div>
     ${w.kind === 'glass' ? renderGlazing(w, v, a, len) : nothing}
     ${a.setMaterial && v.materials && w.kind !== 'glass'
-      ? renderMaterialField({ key: `walls:${w.id}`, label: 'חומר הקיר', host: 'wall' as MaterialHost, value: w.material_id ?? null, defaultId: v.materials.walls[w.id] ?? 'plaster_white', style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!('walls', w.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
+      ? renderMaterialField({ key: `walls:${w.id}`, label: tr('חומר הקיר'), host: 'wall' as MaterialHost, value: w.material_id ?? null, defaultId: v.materials.walls[w.id] ?? 'plaster_white', style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!('walls', w.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
       : nothing}
-    <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
+    <sw-field label=${tr('גובה (מ׳, ריק = עד התקרה)')}><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
     ${renderItemTags(w.tags, (tags) => a.patchWall(w.id, { tags }))}
     ${v.mode === 'curve' ? renderCurve(w, v, a, scale) : nothing}
     ${points ? renderCurvePoints(w, points.length, v, a) : nothing}
     ${v.mode === 'select' && v.sel?.vertex !== undefined && !points
-      ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
+      ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>${tr('פינה {v} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); {v2}', { v: v.sel.vertex + 1, v2: cornerRemovable(w.polyline) ? tr('Delete מוחק את הפינה.') : tr('Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.') })}</div>`
       : nothing}
     ${!v.phone && !v.compact && v.mode === 'select' ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-wall-bend title=${curveT('tipCurve')} @click=${() => a.setMode('curve')}>${curveT('bendOpen')}</sw-button></div>` : nothing}
     <div class="btns">${w.kind === 'glass'
         ? html`<sw-button size="sm" variant="ghost" data-wall-to-solid ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, SOLID_FALLBACK))}>${glassT('toSolid')}</sw-button>`
         : html`<sw-button size="sm" variant="ghost" data-wall-to-glass ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, 'glass'))}>${glassT('toGlass')}</sw-button>`}</div>
-    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>${tr('מחק קיר')}</sw-button><span class="note">${tr('הפתחים שבקיר נמחקים איתו')}</span></div>
   </div>`;
 }
 
@@ -430,7 +431,7 @@ function renderGlazing(w: GeomWall, v: StudioView, a: StudioActions, lengthM: nu
     else a.say?.(glassT('autoNone')); // nothing fits: the document is unchanged, a short message says so
   };
   return html`<div class="glazing" data-glazing-inspector=${w.id} data-glazing-panels=${n}>
-    <div class="selhead"><strong>${glassT('glazing')}</strong><span class="muted" data-glazing-summary>${n} ${glassT('panels')} · ${(lengthM / n).toFixed(2)} מ׳</span></div>
+    <div class="selhead"><strong>${glassT('glazing')}</strong><span class="muted" data-glazing-summary>${tr('{n} {glassT} · {v} מ׳', { n, glassT: glassT('panels'), v: (lengthM / n).toFixed(2) })}</span></div>
     <div class="two">
       <sw-field label=${glassT('panelWidth')}><input type="number" data-ltr data-glazing-width min=${PANEL_WIDTH_RANGE[0]} max=${PANEL_WIDTH_RANGE[1]} step="0.05" ?disabled=${ro} .value=${String(g.panel_width_m)}
         @change=${(e: Event) => num(e, PANEL_WIDTH_RANGE, (x) => set({ panel_width_m: x, panel_count: null }))} /></sw-field>
@@ -491,72 +492,72 @@ function renderPlacement(o: GeomOpening, v: StudioView, a: StudioActions, scale:
     input.value = fmt(t); // shows the kept value also when the clamp left the position as it was
   };
   // The arrow keys work in screen directions: the opening follows the arrow along its wall (owner ruling on 0.1.83).
-  const keys = 'חצים מזיזים את הפתח לכיוון החץ לאורך הקיר.';
+  const keys = tr('חצים מזיזים את הפתח לכיוון החץ לאורך הקיר.');
   return estimated
-    ? html`<sw-field label="מיקום על הקיר (%)" hint=${`מרכז הפתח: 0 = תחילת הקיר, 100 = סופו. ${keys}`}><input type="number" min="0" max="100" step="0.1" data-ltr data-opening-percent
-        aria-label="מיקום על הקיר (%)" .value=${fmt(o.t)} @change=${set} /></sw-field>`
-    : html`<sw-field label="מרחק מתחילת הקיר (מ׳)" hint=${`עד מרכז הפתח; אורך הקיר ${lengthM.toFixed(2)} מ׳. ${keys}`}><input type="number" min=${(lo * lengthM).toFixed(2)} max=${(hi * lengthM).toFixed(2)} step="0.01"
-        data-ltr data-opening-distance aria-label="מרחק מתחילת הקיר (מ׳)" .value=${fmt(o.t)} @change=${set} /></sw-field>`;
+    ? html`<sw-field label=${tr('מיקום על הקיר (%)')} hint=${tr('מרכז הפתח: 0 = תחילת הקיר, 100 = סופו. {keys}', { keys })}><input type="number" min="0" max="100" step="0.1" data-ltr data-opening-percent
+        aria-label=${tr('מיקום על הקיר (%)')} .value=${fmt(o.t)} @change=${set} /></sw-field>`
+    : html`<sw-field label=${tr('מרחק מתחילת הקיר (מ׳)')} hint=${tr('עד מרכז הפתח; אורך הקיר {lengthM} מ׳. {keys}', { lengthM: lengthM.toFixed(2), keys })}><input type="number" min=${(lo * lengthM).toFixed(2)} max=${(hi * lengthM).toFixed(2)} step="0.01"
+        data-ltr data-opening-distance aria-label=${tr('מרחק מתחילת הקיר (מ׳)')} .value=${fmt(o.t)} @change=${set} /></sw-field>`;
 }
 
 function renderOpening(o: GeomOpening, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
   return html`<div class="sel" data-selected-opening=${o.id}>
-    <div class="selhead"><strong>${OPENING_KIND_LABEL[o.kind]}</strong><span class="muted">${o.width_m.toFixed(2)} מ׳ רוחב${o.anchor_ref ? ' · מקושר לישות' : ''}</span></div>
+    <div class="selhead"><strong>${OPENING_KIND_LABEL[o.kind]}</strong><span class="muted">${tr('{width_m} מ׳ רוחב{v}', { width_m: o.width_m.toFixed(2), v: o.anchor_ref ? tr(' · מקושר לישות') : '' })}</span></div>
     ${renderSourceBadge(o)}
     <div class="two">
-      <sw-field label="סוג"><select aria-label="סוג פתח" @change=${(e: Event) => a.patchOpening(o.id, kindDefaults((e.target as HTMLSelectElement).value as OpeningKind))}>
+      <sw-field label=${tr('סוג')}><select aria-label=${tr('סוג פתח')} @change=${(e: Event) => a.patchOpening(o.id, kindDefaults((e.target as HTMLSelectElement).value as OpeningKind))}>
         ${(Object.keys(OPENING_KIND_LABEL) as OpeningKind[]).map((k) => html`<option value=${k} ?selected=${o.kind === k}>${OPENING_KIND_LABEL[k]}</option>`)}
       </select></sw-field>
-      <sw-field label="רוחב (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.width_m)}
+      <sw-field label=${tr('רוחב (מ׳)')}><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.width_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 10) a.patchOpening(o.id, { width_m: x }); }} /></sw-field>
     </div>
     ${renderPlacement(o, v, a, scale, estimated)}
     <div class="two">
-      <sw-field label="גובה (מ׳)"><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.height_m)}
+      <sw-field label=${tr('גובה (מ׳)')}><input type="number" min="0.1" max="10" step="0.05" data-ltr .value=${String(o.height_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 10) a.patchOpening(o.id, { height_m: x }); }} /></sw-field>
       ${o.kind === 'window'
-        ? html`<sw-field label="גובה אדן (מ׳)"><input type="number" min="0" max="10" step="0.05" data-ltr .value=${String(o.sill_m)}
+        ? html`<sw-field label=${tr('גובה אדן (מ׳)')}><input type="number" min="0" max="10" step="0.05" data-ltr .value=${String(o.sill_m)}
             @change=${(e: Event) => { const x = numberOf(e); if (x >= 0 && x <= 10) a.patchOpening(o.id, { sill_m: x }); }} /></sw-field>`
         : nothing}
     </div>
     ${o.kind === 'door'
       ? html`<div class="two">
-          <sw-field label="כיוון פתיחה"><select aria-label="כיוון פתיחה" @change=${(e: Event) => a.patchOpening(o.id, { swing: (e.target as HTMLSelectElement).value as Swing })}>
+          <sw-field label=${tr('כיוון פתיחה')}><select aria-label=${tr('כיוון פתיחה')} @change=${(e: Event) => a.patchOpening(o.id, { swing: (e.target as HTMLSelectElement).value as Swing })}>
             ${(Object.keys(SWING_LABEL) as Swing[]).map((k) => html`<option value=${k} ?selected=${o.swing === k}>${SWING_LABEL[k]}</option>`)}
           </select></sw-field>
-          <sw-field label=${sideSwing(o.swing) ? 'צד הפתיחה' : 'ציר'}><select aria-label=${sideSwing(o.swing) ? 'צד הפתיחה' : 'ציר'} data-opening-hinge @change=${(e: Event) => a.patchOpening(o.id, { hinge: (e.target as HTMLSelectElement).value as Hinge })}>
+          <sw-field label=${sideSwing(o.swing) ? tr('צד הפתיחה') : tr('ציר')}><select aria-label=${sideSwing(o.swing) ? tr('צד הפתיחה') : tr('ציר')} data-opening-hinge @change=${(e: Event) => a.patchOpening(o.id, { hinge: (e.target as HTMLSelectElement).value as Hinge })}>
             ${(Object.keys(HINGE_LABEL) as Hinge[]).map((k) => html`<option value=${k} ?selected=${o.hinge === k}>${(sideSwing(o.swing) ? SIDE_LABEL : HINGE_LABEL)[k]}</option>`)}
           </select></sw-field>
         </div>`
       : nothing}
-    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק ${OPENING_KIND_LABEL[o.kind]}</sw-button></div>
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>${tr('מחק {v}', { v: OPENING_KIND_LABEL[o.kind] })}</sw-button></div>
   </div>`;
 }
 
 function renderLabel(l: GeomLabel, v: StudioView, a: StudioActions) {
   return html`<div class="sel" data-selected-label=${l.id}>
-    <sw-field label="טקסט"><input type="text" maxlength="80" data-label-text .value=${l.text}
+    <sw-field label=${tr('טקסט')}><input type="text" maxlength="80" data-label-text .value=${l.text}
       @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patchLabel(l.id, { text: x }); }} /></sw-field>
-    <sw-field label="גודל"><input type="number" min="6" max="200" step="1" data-ltr .value=${String(l.size)}
+    <sw-field label=${tr('גודל')}><input type="number" min="6" max="200" step="1" data-ltr .value=${String(l.size)}
       @change=${(e: Event) => { const x = numberOf(e); if (x >= 6 && x <= 200) a.patchLabel(l.id, { size: x }); }} /></sw-field>
     ${levelSelect(v.levels, l.level_id, (lv) => a.setLevel(l.id, lv))}
-    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(l.id)}>מחק תווית</sw-button></div>
+    <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(l.id)}>${tr('מחק תווית')}</sw-button></div>
   </div>`;
 }
 
 function renderIssues(errors: GeometryIssue[], warnings: GeometryIssue[], a: StudioActions) {
   return html`<div class="issues" data-studio-issues>
-    <div class="ilbl">${errors.length ? `${errors.length} שגיאות חוסמות פרסום` : 'אין שגיאות חוסמות'}${warnings.length ? ` · ${warnings.length} אזהרות` : ''}</div>
+    <div class="ilbl">${errors.length ? tr('{errorsCount} שגיאות חוסמות פרסום', { errorsCount: errors.length }) : tr('אין שגיאות חוסמות')}${warnings.length ? tr(' · {warningsCount} אזהרות', { warningsCount: warnings.length }) : ''}</div>
     ${[...errors, ...warnings].slice(0, 20).map((i) => html`<button class="issue ${i.severity}" data-issue=${i.code} data-issue-id=${i.id ?? ''} ?disabled=${!i.id} @click=${() => { if (i.id) a.focus(i.id); }}>${i.message}</button>`)}
   </div>`;
 }
 
 function renderCopy(cands: CopyCandidate[], a: StudioActions, busy: boolean) {
   return html`<div class="copy" data-copy-candidates>
-    <div class="ilbl">להתחיל ממבנה קיים?</div>
+    <div class="ilbl">${tr('להתחיל ממבנה קיים?')}</div>
     ${cands.map((c) => html`<button class="issue" data-copy-from=${c.version_id} ?disabled=${busy} @click=${() => a.copyFrom(c.version_id)}>
-      <span>העתק ${countLabel(c.walls, 'קיר אחד', 'קירות')} ו${c.openings === 1 ? '' : '־'}${countLabel(c.openings, 'פתח אחד', 'פתחים')} מגרסה ${c.status === 'published' ? 'מפורסמת' : c.status === 'draft' ? 'בטיוטה' : 'מהארכיון'}</span>
-      <span class="muted">${c.same_drawing ? 'אותו שרטוט' : 'שרטוט אחר: המיקומים לא מיושרים, בדוק אותם'}</span>
+      <span>${tr('העתק {countLabel} ו{v}{countLabel2} מגרסה {v2}', { countLabel: countLabel(c.walls, tr('קיר אחד'), tr('קירות')), v: c.openings === 1 ? '' : '־', countLabel2: countLabel(c.openings, tr('פתח אחד'), tr('פתחים')), v2: c.status === 'published' ? tr('מפורסמת') : c.status === 'draft' ? tr('בטיוטה') : tr('מהארכיון') })}</span>
+      <span class="muted">${c.same_drawing ? tr('אותו שרטוט') : tr('שרטוט אחר: המיקומים לא מיושרים, בדוק אותם')}</span>
     </button>`)}
   </div>`;
 }
@@ -585,42 +586,42 @@ export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void
   const currentOk = !!v.a && !!v.b && v.pixels !== null && v.pixels >= 5 && metres > 0 && metres <= 1000;
   const ready = (currentOk || pairs.length > 0) && !v.busy;
   const canAdd = currentOk && pairs.length < 3 && !v.busy && !!onAddPair;
-  const notCalibrated = v.showEstimates ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : 'התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)';
-  return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? notCalibrated : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
+  const notCalibrated = v.showEstimates ? tr('התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)') : tr('התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)');
+  return html`<sw-card heading=${tr('כיול קנה מידה')} subheading=${v.estimated ? notCalibrated : tr('מכויל · {fmtScale}', { fmtScale: fmtScale(v.scale) })} data-calib-panel>
     <ol class="steps">
-      <li class=${v.a ? 'done' : ''}>לחץ על נקודה שהמרחק ממנה ידוע, למשל פינת קיר</li>
-      <li class=${v.b ? 'done' : ''}>לחץ על הנקודה השנייה</li>
-      <li>הקלד את המרחק האמיתי ביניהן</li>
+      <li class=${v.a ? 'done' : ''}>${tr('לחץ על נקודה שהמרחק ממנה ידוע, למשל פינת קיר')}</li>
+      <li class=${v.b ? 'done' : ''}>${tr('לחץ על הנקודה השנייה')}</li>
+      <li>${tr('הקלד את המרחק האמיתי ביניהן')}</li>
     </ol>
-    <sw-field label="מרחק (מ׳)"><input type="number" min="0.01" max="1000" step="0.01" data-ltr data-calib-metres .value=${v.metres} ?disabled=${!v.b}
+    <sw-field label=${tr('מרחק (מ׳)')}><input type="number" min="0.01" max="1000" step="0.01" data-ltr data-calib-metres .value=${v.metres} ?disabled=${!v.b}
       @input=${(e: Event) => onMetres((e.target as HTMLInputElement).value)} /></sw-field>
     ${v.pixels !== null
-      ? html`<div class=${tooClose ? 'note err' : 'note'}>${v.pixels.toFixed(0)} פיקסלים בתוכנית${tooClose ? ' · הנקודות קרובות מדי' : metres > 0 ? ` · 1 מ׳ = ${(v.pixels / metres).toFixed(1)} פיקסלים` : ''}</div>`
+      ? html`<div class=${tooClose ? 'note err' : 'note'}>${tr('{pixels} פיקסלים בתוכנית{v}', { pixels: v.pixels.toFixed(0), v: tooClose ? tr(' · הנקודות קרובות מדי') : metres > 0 ? tr(' · 1 מ׳ = {v} פיקסלים', { v: (v.pixels / metres).toFixed(1) }) : '' })}</div>`
       : nothing}
     ${pairs.length
-      ? html`<div class="note" data-calib-pairs>זוגות שנמדדו: ${pairs.map((p, i) => html`<span class="pair" data-calib-pair=${i}>${p.metres} מ׳ / ${p.pixels.toFixed(0)} px${onDropPair ? html` <button type="button" class="x" aria-label="הסר זוג" data-calib-drop=${i} @click=${() => onDropPair(i)}>×</button>` : nothing}</span>`)}</div>`
+      ? html`<div class="note" data-calib-pairs>${tr('זוגות שנמדדו:')} ${pairs.map((p, i) => html`<span class="pair" data-calib-pair=${i}>${tr('{metres} מ׳ / {pixels} px', { metres: p.metres, pixels: p.pixels.toFixed(0) })}${onDropPair ? html` <button type="button" class="x" aria-label=${tr('הסר זוג')} data-calib-drop=${i} @click=${() => onDropPair(i)}>×</button>` : nothing}</span>`)}</div>`
       : nothing}
     <div class="btns">
-      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>שמור כיול${pairs.length ? ` (${pairs.length + (currentOk ? 1 : 0)} זוגות)` : ''}</sw-button>
-      ${onAddPair ? html`<sw-button size="sm" icon="plus" data-calib-add ?disabled=${!canAdd} title="עד ארבעה זוגות; הממוצע משוקלל לפי האורך ומוצגת הסטייה" @click=${onAddPair}>זוג נוסף</sw-button>` : nothing}
-      <sw-button variant="ghost" size="sm" data-calib-reset @click=${onReset}>נקה נקודות</sw-button>
+      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>${tr('שמור כיול{v}', { v: pairs.length ? tr(' ({v} זוגות)', { v: pairs.length + (currentOk ? 1 : 0) }) : '' })}</sw-button>
+      ${onAddPair ? html`<sw-button size="sm" icon="plus" data-calib-add ?disabled=${!canAdd} title=${tr('עד ארבעה זוגות; הממוצע משוקלל לפי האורך ומוצגת הסטייה')} @click=${onAddPair}>${tr('זוג נוסף')}</sw-button>` : nothing}
+      <sw-button variant="ghost" size="sm" data-calib-reset @click=${onReset}>${tr('נקה נקודות')}</sw-button>
     </div>
     ${v.result ? html`<div class="note" data-calib-result>${v.result}</div>` : nothing}
     ${v.warning ? html`<div class="err" data-calib-warning>${v.warning}</div>` : nothing}
-    <div class="note">המיקומים על המפה לא זזים, רק המטרים משתנים. הכיול נכנס לטיוטת המבנה והצופים רואים אותו אחרי פרסום.</div>
+    <div class="note">${tr('המיקומים על המפה לא זזים, רק המטרים משתנים. הכיול נכנס לטיוטת המבנה והצופים רואים אותו אחרי פרסום.')}</div>
   </sw-card>`;
 }
 
 export function renderMeasurePanel(pts: Pt[], W: number, H: number, scale: number, estimated: boolean, show: boolean, onClear: () => void): TemplateResult {
   const total = pts.length > 1 ? lengthPx(pts, W, H) * scale : 0;
-  const sub = estimated ? (show ? 'לא מכויל: הערכים משוערים (≈)' : 'לא מכויל: המידות מוסתרות עד הכיול (הגדרות)') : 'לפי הכיול של גרסת התוכנית';
-  return html`<sw-card heading="מדידה" subheading=${sub} data-measure-panel>
-    <div class="note">לחץ נקודות על התוכנית. Shift מבטל הצמדה לזוויות, Esc מנקה.</div>
+  const sub = estimated ? (show ? tr('לא מכויל: הערכים משוערים (≈)') : tr('לא מכויל: המידות מוסתרות עד הכיול (הגדרות)')) : tr('לפי הכיול של גרסת התוכנית');
+  return html`<sw-card heading=${tr('מדידה')} subheading=${sub} data-measure-panel>
+    <div class="note">${tr('לחץ נקודות על התוכנית. Shift מבטל הצמדה לזוויות, Esc מנקה.')}</div>
     <div class="measure-val" data-measure-distance>${pts.length > 1 ? fmtMetres(total, estimated, show) : '—'}</div>
     ${pts.length >= 3
-      ? html`<div class="note">שטח המצולע <span class="measure-val" data-measure-area>${fmtArea(polygonAreaM2(pts, W, H, scale), estimated, show)}</span> · היקף ${fmtMetres(perimeterM(pts, W, H, scale), estimated, show)}</div>`
+      ? html`<div class="note">${tr('שטח המצולע')} <span class="measure-val" data-measure-area>${fmtArea(polygonAreaM2(pts, W, H, scale), estimated, show)}</span> ${tr('· היקף {fmtMetres}', { fmtMetres: fmtMetres(perimeterM(pts, W, H, scale), estimated, show) })}</div>`
       : nothing}
-    <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!pts.length} @click=${onClear}>נקה</sw-button></div>
+    <div class="btns"><sw-button variant="ghost" size="sm" data-measure-clear ?disabled=${!pts.length} @click=${onClear}>${tr('נקה')}</sw-button></div>
   </sw-card>`;
 }
 
@@ -643,10 +644,10 @@ export interface DetectOpts {
 
 /** The detect panel's rule checkboxes after the hollow walls (detector 1.4): option key, data attribute, label. */
 const DETECT_RULES: readonly { key: 'sectionLines' | 'joinGaps' | 'stepsRegions' | 'columns'; attr: string; label: string }[] = [
-  { key: 'sectionLines', attr: 'section', label: 'קווי חתך החוצים את המבנה אינם קירות' },
-  { key: 'joinGaps', attr: 'join', label: 'רווח קטן מ־30 ס״מ בלי סימון - קיר אחד' },
-  { key: 'stepsRegions', attr: 'steps', label: 'הצע טריבונה משורות מקבילות' },
-  { key: 'columns', attr: 'columns', label: 'הצע עמודים וקו מעטפת ביניהם' },
+  { key: 'sectionLines', attr: 'section', label: tr('קווי חתך החוצים את המבנה אינם קירות') },
+  { key: 'joinGaps', attr: 'join', label: tr('רווח קטן מ־30 ס״מ בלי סימון - קיר אחד') },
+  { key: 'stepsRegions', attr: 'steps', label: tr('הצע טריבונה משורות מקבילות') },
+  { key: 'columns', attr: 'columns', label: tr('הצע עמודים וקו מעטפת ביניהם') },
 ];
 export interface DetectRunState {
   busy: boolean;
@@ -738,9 +739,9 @@ interface DetectActions {
   removeAuto?(step: 'ask' | 'confirm' | 'cancel'): void;
 }
 
-const CAND_KIND_LABEL: Record<CandKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר' };
-const CAND_KIND_ONLY: Record<CandKind, string> = { wall: 'רק קירות', door: 'רק דלתות', window: 'רק חלונות', passage: 'רק מעברים' };
-const SOURCE_BADGE: Record<string, string> = { auto: 'זוהה אוטומטית', imported: 'יובא מ־DXF' };
+const CAND_KIND_LABEL: Record<CandKind, string> = { wall: tr('קיר'), door: tr('דלת'), window: tr('חלון'), passage: tr('מעבר') };
+const CAND_KIND_ONLY: Record<CandKind, string> = { wall: tr('רק קירות'), door: tr('רק דלתות'), window: tr('רק חלונות'), passage: tr('רק מעברים') };
+const SOURCE_BADGE: Record<string, string> = { auto: tr('זוהה אוטומטית'), imported: tr('יובא מ־DXF') };
 /** The candidate list shows this many rows; the map shows them all. */
 const CAND_ROWS = 300;
 /** The lighter strength a timed-out run is offered to retry with. */
@@ -749,7 +750,7 @@ export const lighterStrength = (s: number): number => Math.max(0.3, Math.round((
 /** The badge of a wall or opening that a detector or an import produced (phase 3): source and confidence. */
 function renderSourceBadge(item: { source: string; confidence: number }): TemplateResult | typeof nothing {
   if (item.source === 'manual') return nothing;
-  return html`<span class="badge" data-auto-badge=${item.source}>${SOURCE_BADGE[item.source] ?? item.source} · ביטחון ${item.confidence.toFixed(2)}</span>`;
+  return html`<span class="badge" data-auto-badge=${item.source}>${tr('{v} · ביטחון {confidence}', { v: SOURCE_BADGE[item.source] ?? item.source, confidence: item.confidence.toFixed(2) })}</span>`;
 }
 
 function candKind(set: CandidateSet, id: string): CandKind {
@@ -764,36 +765,36 @@ function candScore(set: CandidateSet, id: string): number {
 /** The size that matters of a candidate, in metres of the document's effective scale ("≈" while it is an estimate). */
 function candSize(v: DetectView, set: CandidateSet, id: string): string {
   const w = set.walls.find((x) => x.id === id);
-  if (w) return `עובי ${fmtMetres(w.thickness_m, v.estimated, v.showEstimates)}`;
+  if (w) return tr('עובי {fmtMetres}', { fmtMetres: fmtMetres(w.thickness_m, v.estimated, v.showEstimates) });
   const o = set.openings.find((x) => x.id === id);
-  return o ? `רוחב ${fmtMetres(o.width_m, v.estimated, v.showEstimates)}` : '';
+  return o ? tr('רוחב {fmtMetres}', { fmtMetres: fmtMetres(o.width_m, v.estimated, v.showEstimates) }) : '';
 }
 
 export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResult {
   const c = v.cands;
   const o = v.opts;
-  return html`<sw-card heading="זיהוי אוטומטי" subheading="קירות, דלתות וחלונות מהתוכנית · עיבוד מקומי, ללא AI וללא שליחה החוצה" data-detect-panel data-detect-state=${v.run.busy ? 'running' : c ? 'candidates' : 'idle'} aria-busy=${v.run.busy || v.busy ? 'true' : 'false'}>
+  return html`<sw-card heading=${tr('זיהוי אוטומטי')} subheading=${tr('קירות, דלתות וחלונות מהתוכנית · עיבוד מקומי, ללא AI וללא שליחה החוצה')} data-detect-panel data-detect-state=${v.run.busy ? 'running' : c ? 'candidates' : 'idle'} aria-busy=${v.run.busy || v.busy ? 'true' : 'false'}>
     ${c
       ? renderCandidates(v, c, a)
-      : html`<div class="note">הזיהוי מציע מועמדים בשכבה נפרדת (כחול מקווקו). דבר לא נשמר עד "אשר", ודבר לא מתפרסם בלי פרסום.</div>
+      : html`<div class="note">${tr('הזיהוי מציע מועמדים בשכבה נפרדת (כחול מקווקו). דבר לא נשמר עד "אשר", ודבר לא מתפרסם בלי פרסום.')}</div>
           <div class="chks">
-            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="קירות" data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = toggled(e); a.setOpts({ ...o, walls: on, openings: on && o.openings }); }}></sw-toggle> קירות</label>
-            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="פתחים (דלתות, חלונות, מעברים)" data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: toggled(e) })}></sw-toggle> פתחים (דלתות, חלונות, מעברים)</label>
-            <label class="chk"><sw-toggle size="sm" labelHidden in-label label="קירות חלולים (חיצוניים דקים)" data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: toggled(e) })}></sw-toggle> קירות חלולים (חיצוניים דקים)</label>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('קירות')} data-detect-walls .checked=${o.walls} @change=${(e: Event) => { const on = toggled(e); a.setOpts({ ...o, walls: on, openings: on && o.openings }); }}></sw-toggle> ${tr('קירות')}</label>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('פתחים (דלתות, חלונות, מעברים)')} data-detect-openings .checked=${o.openings} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, openings: toggled(e) })}></sw-toggle> ${tr('פתחים (דלתות, חלונות, מעברים)')}</label>
+            <label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('קירות חלולים (חיצוניים דקים)')} data-detect-hollow .checked=${o.hollow !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, hollow: toggled(e) })}></sw-toggle> ${tr('קירות חלולים (חיצוניים דקים)')}</label>
             ${DETECT_RULES.map((rule) => html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${rule.label} data-detect-rule=${rule.attr} .checked=${o[rule.key] !== false} ?disabled=${!o.walls} @change=${(e: Event) => a.setOpts({ ...o, [rule.key]: toggled(e) })}></sw-toggle> ${rule.label}</label>`)}
           </div>
-          <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
+          <sw-field label=${tr('עוצמת ניקוי: {strength} (קל ← חזק)', { strength: o.strength.toFixed(2) })}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
-          ${v.autoInDraft ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="החלף אוטומטיים קודמים" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: toggled(e) })}></sw-toggle> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
+          ${v.autoInDraft ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('החלף אוטומטיים קודמים')} data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: toggled(e) })}></sw-toggle> ${tr('החלף אוטומטיים קודמים ({autoInDraft} בטיוטה)', { autoInDraft: v.autoInDraft })}</label>` : nothing}
           ${v.autoRemovable && a.removeAuto ? renderRemoveAuto(v, a) : nothing}
           <div class="btns">
-            <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run aria-busy=${v.run.busy ? 'true' : 'false'} ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
-            ${v.run.busy ? html`<span class="note">הזיהוי רץ בשרת${v.run.limitS ? ` (עד ${v.run.limitS} שניות)` : ''}; הכפתור ייפתח כשיסיים.</span>` : nothing}
+            <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run aria-busy=${v.run.busy ? 'true' : 'false'} ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`${tr('מזהה…')} <span data-detect-elapsed>${v.run.elapsed}</span> ${tr('שנ׳')}` : tr('זהה אוטומטית')}</sw-button>
+            ${v.run.busy ? html`<span class="note">${tr('הזיהוי רץ בשרת{v}; הכפתור ייפתח כשיסיים.', { v: v.run.limitS ? tr(' (עד {limitS} שניות)', { limitS: v.run.limitS }) : '' })}</span>` : nothing}
           </div>
           ${v.run.error
             ? html`<div class="err" role="alert" data-detect-error=${v.run.timedOut ? 'detect_timeout' : 'failed'}>${v.run.error}</div>
                 ${v.run.timedOut && o.strength > 0.3
-                  ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-retry ?disabled=${v.run.busy || v.busy} @click=${() => a.retryLighter()}>נסה שוב בעוצמה ${lighterStrength(o.strength).toFixed(2)}</sw-button></div>`
+                  ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-retry ?disabled=${v.run.busy || v.busy} @click=${() => a.retryLighter()}>${tr('נסה שוב בעוצמה {v}', { v: lighterStrength(o.strength).toFixed(2) })}</sw-button></div>`
                   : nothing}`
             : nothing}`}
   </sw-card>`;
@@ -804,12 +805,12 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
 function renderRemoveAuto(v: DetectView, a: DetectActions): TemplateResult {
   const n = v.autoRemovable ?? 0;
   return v.removeAutoAsk
-    ? html`<div class="note" role="alert" data-detect-remove-auto-ask>להסיר מהטיוטה ${n} פריטים שזוהו אוטומטית? פריטים שצוירו ביד, יובאו או ננעלו נשארים. אפשר להחזיר בביטול שינוי (Ctrl+Z).</div>
+    ? html`<div class="note" role="alert" data-detect-remove-auto-ask>${tr('להסיר מהטיוטה {n} פריטים שזוהו אוטומטית? פריטים שצוירו ביד, יובאו או ננעלו נשארים. אפשר להחזיר בביטול שינוי (Ctrl+Z).', { n })}</div>
         <div class="btns">
-          <sw-button variant="danger" size="sm" icon="trash" data-detect-remove-auto-confirm ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('confirm')}>הסר ${n} פריטים</sw-button>
-          <sw-button variant="ghost" size="sm" data-detect-remove-auto-cancel @click=${() => a.removeAuto?.('cancel')}>ביטול</sw-button>
+          <sw-button variant="danger" size="sm" icon="trash" data-detect-remove-auto-confirm ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('confirm')}>${tr('הסר {n} פריטים', { n })}</sw-button>
+          <sw-button variant="ghost" size="sm" data-detect-remove-auto-cancel @click=${() => a.removeAuto?.('cancel')}>${tr('ביטול')}</sw-button>
         </div>`
-    : html`<div class="btns"><sw-button variant="ghost" size="sm" icon="trash" data-detect-remove-auto ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('ask')}>הסר את כל מה שזוהה אוטומטית (${n})</sw-button></div>`;
+    : html`<div class="btns"><sw-button variant="ghost" size="sm" icon="trash" data-detect-remove-auto ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('ask')}>${tr('הסר את כל מה שזוהה אוטומטית ({n})', { n })}</sw-button></div>`;
 }
 
 function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActions): TemplateResult {
@@ -821,69 +822,69 @@ function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActio
   const err = v.acceptError;
   const bad = new Set(err?.ids ?? []);
   const existing = c.existingAuto.walls + c.existingAuto.openings + (c.existingAuto.objects ?? 0);
-  const earlier = c.source !== 'detect' ? 'מיובאים' : 'אוטומטיים';
-  const origin = c.source === 'dxf' ? ' · מיובאים מ־DXF' : c.source === 'ifc' ? ` · ${ifcT('origin')}` : c.elapsedMs !== null ? ` · זוהו ב־${(c.elapsedMs / 1000).toFixed(1)} שנ׳` : '';
-  return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(set.openings.length, 'פתח אחד', 'פתחים')}${set.objects.length ? ` · ${countLabel(set.objects.length, 'עצם אחד', 'עצמים')}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> מסומנים לאישור${origin}</div>
+  const earlier = c.source !== 'detect' ? tr('מיובאים') : tr('אוטומטיים');
+  const origin = c.source === 'dxf' ? tr(' · מיובאים מ־DXF') : c.source === 'ifc' ? ` · ${ifcT('origin')}` : c.elapsedMs !== null ? tr(' · זוהו ב־{v} שנ׳', { v: (c.elapsedMs / 1000).toFixed(1) }) : '';
+  return html`<div class="note" data-detect-summary>${countLabel(set.walls.length, tr('קיר אחד'), tr('קירות'))} · ${countLabel(set.openings.length, tr('פתח אחד'), tr('פתחים'))}${set.objects.length ? ` · ${countLabel(set.objects.length, tr('עצם אחד'), tr('עצמים'))}` : ''} · <span data-detect-accepted>${v.acceptedCount}</span> ${tr('מסומנים לאישור{origin}', { origin })}</div>
     ${outsideMainSummary(set) ? html`<div class="note warn" data-detect-outside-main>${outsideMainSummary(set)}</div>` : nothing}
     ${c.ifc ? html`<div class="note" data-ifc-summary>${ifcSummary(c.ifc)}</div>
       ${c.ifc.skipped_total ? html`<ul class="note ifc-skipped" data-ifc-skipped>${ifcSkippedLines(c.ifc).map((line) => html`<li>${line}</li>`)}</ul>` : nothing}` : nothing}
-    ${!ids.length ? html`<div class="note" data-detect-empty>לא נמצאו קירות. נסה עוצמת ניקוי אחרת, או צייר בכלי "מבנה".</div>` : nothing}
+    ${!ids.length ? html`<div class="note" data-detect-empty>${tr('לא נמצאו קירות. נסה עוצמת ניקוי אחרת, או צייר בכלי "מבנה".')}</div>` : nothing}
     ${c.hint && v.estimated && v.canEstimate && !v.hintApplied
       ? html`<div class="hint" data-calib-hint>
-          <div>התוכנית לא מכוילת. לפי רוחב דלת אופייני (0.9 מ׳, ${countLabel(c.hint.doors, 'דלת אחת', 'דלתות')}): <strong>${fmtScale(c.hint.scale_m_per_px)}</strong> — משוער.</div>
-          <div class="btns"><sw-button size="sm" icon="scale" data-calib-hint-apply ?disabled=${v.busy} @click=${() => a.applyHint()}>השתמש בהערכה</sw-button><span class="note">מומלץ לפני האישור: המידות במטרים של המועמדים יחושבו לפי ההערכה, ויוצגו עם ≈ עד כיול בשתי נקודות</span></div>
+          <div>${tr('התוכנית לא מכוילת. לפי רוחב דלת אופייני (0.9 מ׳, {countLabel}):', { countLabel: countLabel(c.hint.doors, tr('דלת אחת'), tr('דלתות')) })} <strong>${fmtScale(c.hint.scale_m_per_px)}</strong> ${tr('— משוער.')}</div>
+          <div class="btns"><sw-button size="sm" icon="scale" data-calib-hint-apply ?disabled=${v.busy} @click=${() => a.applyHint()}>${tr('השתמש בהערכה')}</sw-button><span class="note">${tr('מומלץ לפני האישור: המידות במטרים של המועמדים יחושבו לפי ההערכה, ויוצגו עם ≈ עד כיול בשתי נקודות')}</span></div>
         </div>`
       : v.hintApplied
-        ? html`<div class="note" data-calib-hint-applied>קנה מידה משוער נשמר (≈ ${fmtScale(v.scale)}); כיול בשתי נקודות יחליף אותו</div>`
+        ? html`<div class="note" data-calib-hint-applied>${tr('קנה מידה משוער נשמר (≈ {fmtScale}); כיול בשתי נקודות יחליף אותו', { fmtScale: fmtScale(v.scale) })}</div>`
         : nothing}
-    <div class="modes" role="group" aria-label="קבלת מועמדים">
-      <button data-detect-accept-all ?disabled=${v.busy} @click=${() => a.acceptAll()}>קבל הכול</button>
-      <button data-detect-accept-conf ?disabled=${v.busy} @click=${() => a.acceptAbove(0.8)}>קבל מעל 0.8</button>
+    <div class="modes" role="group" aria-label=${tr('קבלת מועמדים')}>
+      <button data-detect-accept-all ?disabled=${v.busy} @click=${() => a.acceptAll()}>${tr('קבל הכול')}</button>
+      <button data-detect-accept-conf ?disabled=${v.busy} @click=${() => a.acceptAbove(0.8)}>${tr('קבל מעל 0.8')}</button>
       ${present.map((k) => html`<button data-detect-accept-kind=${k} ?disabled=${v.busy} @click=${() => a.acceptKinds([k])}>${CAND_KIND_ONLY[k]}</button>`)}
-      <button data-detect-reject-all ?disabled=${v.busy} @click=${() => a.rejectAll()}>דחה הכול</button>
+      <button data-detect-reject-all ?disabled=${v.busy} @click=${() => a.rejectAll()}>${tr('דחה הכול')}</button>
     </div>
-    <div class="note">${v.narrow ? html`<span data-detect-phone-note>בטלפון אפשר לקבל או לדחות מועמדים; תיקון קצוות של קיר מועמד זמין במסך רחב.</span>` : 'לחיצה על מועמד במפה או על התיבה ברשימה מקבלת / דוחה אותו; גרירת קצה של הקיר המסומן מתקנת אותו לפני האישור.'}</div>
+    <div class="note">${v.narrow ? html`<span data-detect-phone-note>${tr('בטלפון אפשר לקבל או לדחות מועמדים; תיקון קצוות של קיר מועמד זמין במסך רחב.')}</span>` : tr('לחיצה על מועמד במפה או על התיבה ברשימה מקבלת / דוחה אותו; גרירת קצה של הקיר המסומן מתקנת אותו לפני האישור.')}</div>
     <div class="dlist" data-cand-list>
       ${ids.slice(0, CAND_ROWS).map((id) => {
         const k = candKind(set, id);
         const state = c.states[id] ?? 'accepted';
         return html`<div class="dcand ${state} ${id === c.sel ? 'on' : ''} ${bad.has(id) ? 'bad' : ''}" data-cand-row=${id} data-cand-state=${state} ?data-cand-bad=${bad.has(id)}>
-          <input type="checkbox" aria-label=${`קבל ${CAND_KIND_LABEL[k]}`} .checked=${state === 'accepted'} ?disabled=${v.busy} @change=${() => a.toggle(id)} />
+          <input type="checkbox" aria-label=${tr('קבל {v}', { v: CAND_KIND_LABEL[k] })} .checked=${state === 'accepted'} ?disabled=${v.busy} @change=${() => a.toggle(id)} />
           <button class="linkbtn" aria-label=${`${CAND_KIND_LABEL[k]} ${candScore(set, id).toFixed(2)}${isOutsideMain(set, id) ? ` ${OUTSIDE_MAIN_HE}` : ''}`} @click=${() => a.focus(id)}>${CAND_KIND_LABEL[k]}</button>
           ${isOutsideMain(set, id) ? html`<span class="outside" data-cand-outside-main>${OUTSIDE_MAIN_HE}</span>` : nothing}
           <span class="muted ltr" aria-hidden="true">${candScore(set, id).toFixed(2)}</span>
         </div>`;
       })}
-      ${ids.length > CAND_ROWS ? html`<div class="note">מוצגים ${CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.</div>` : nothing}
+      ${ids.length > CAND_ROWS ? html`<div class="note">${tr('מוצגים {CAND_ROWS} הראשונים ברשימה; במפה מוצגים כולם.', { CAND_ROWS })}</div>` : nothing}
     </div>
-    ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${CAND_KIND_LABEL[sel.kind]} נבחר${isOutsideMain(set, sel.id) ? ` · ${OUTSIDE_MAIN_HE}` : ''} · ביטחון ${sel.score.toFixed(2)} · ${candSize(v, set, sel.id)} · ${(c.states[sel.id] ?? 'accepted') === 'accepted' ? 'יאושר' : 'נדחה'}</div>` : nothing}
-    ${set.objects.length ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${`כולל ${objectsSummary(set, c.source)}`} data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects(toggled(e))}></sw-toggle> כולל ${objectsSummary(set, c.source)}</label>` : nothing}
-    ${existing ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${`החלף ${earlier} קודמים`} data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: toggled(e) })}></sw-toggle> החלף ${earlier} קודמים (${existing} בטיוטה)</label>` : nothing}
-    ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>ייבא ${countLabel(c.rooms, 'חדר אחד', 'חדרים')} כאזורים</sw-button><span class="note">החדרים נשמרים כאזורים, לא כחלק מהמבנה</span></div>` : nothing}
+    ${sel ? html`<div class="note" data-cand-selected=${sel.id}>${tr('{v} נבחר{v2} · ביטחון {score} · {candSize} · {v3}', { v: CAND_KIND_LABEL[sel.kind], v2: isOutsideMain(set, sel.id) ? ` · ${OUTSIDE_MAIN_HE}` : '', score: sel.score.toFixed(2), candSize: candSize(v, set, sel.id), v3: (c.states[sel.id] ?? 'accepted') === 'accepted' ? tr('יאושר') : tr('נדחה') })}</div>` : nothing}
+    ${set.objects.length ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('כולל {objectsSummary}', { objectsSummary: objectsSummary(set, c.source) })} data-detect-objects .checked=${v.objectsOn} @change=${(e: Event) => a.setObjects(toggled(e))}></sw-toggle> ${tr('כולל {objectsSummary}', { objectsSummary: objectsSummary(set, c.source) })}</label>` : nothing}
+    ${existing ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('החלף {earlier} קודמים', { earlier })} data-detect-replace .checked=${v.opts.replaceAuto} @change=${(e: Event) => a.setOpts({ ...v.opts, replaceAuto: toggled(e) })}></sw-toggle> ${tr('החלף {earlier} קודמים ({existing} בטיוטה)', { earlier, existing })}</label>` : nothing}
+    ${c.rooms ? html`<div class="btns"><sw-button size="sm" icon="map" data-detect-rooms ?disabled=${v.busy} @click=${() => a.importRooms()}>${tr('ייבא {countLabel} כאזורים', { countLabel: countLabel(c.rooms, tr('חדר אחד'), tr('חדרים')) })}</sw-button><span class="note">${tr('החדרים נשמרים כאזורים, לא כחלק מהמבנה')}</span></div>` : nothing}
     ${err
       ? html`<div class="err" role="alert" data-detect-accept-error=${err.code}>${err.message}</div>
           ${err.issues.length
             ? html`<div class="issues" data-detect-issues>${err.issues.slice(0, 20).map((i) => html`<button class="issue error" ?disabled=${!i.id || !ids.includes(i.id)} @click=${() => { if (i.id) a.focus(i.id); }}>${i.message}</button>`)}</div>`
             : nothing}
-          ${err.stale ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-reload ?disabled=${v.busy} @click=${() => a.reload()}>טען את הטיוטה מחדש</sw-button><span class="note">המועמדים נשארים; אחרי הטעינה אשר שוב</span></div>` : nothing}`
+          ${err.stale ? html`<div class="btns"><sw-button size="sm" icon="refresh" data-detect-reload ?disabled=${v.busy} @click=${() => a.reload()}>${tr('טען את הטיוטה מחדש')}</sw-button><span class="note">${tr('המועמדים נשארים; אחרי הטעינה אשר שוב')}</span></div>` : nothing}`
       : nothing}
     ${v.ask
       ? html`<div class="hint" data-detect-replace-confirm>
-          <div><strong>להחליף את ה${earlier} הקודמים?</strong></div>
-          <div data-detect-replace-counts>יוסרו מהטיוטה ${countLabel(v.ask.existing.walls, 'קיר אחד', 'קירות')} ו־${countLabel(v.ask.existing.openings, 'פתח אחד', 'פתחים')}${v.ask.existing.objects ? ` ו־${countLabel(v.ask.existing.objects, 'עצם אחד', 'עצמים')}` : ''} ${earlier} שנוספו קודם (פריטים נעולים נשארים).</div>
+          <div><strong>${tr('להחליף את ה{earlier} הקודמים?', { earlier })}</strong></div>
+          <div data-detect-replace-counts>${tr('יוסרו מהטיוטה {countLabel} ו־{countLabel2}{v} {earlier} שנוספו קודם (פריטים נעולים נשארים).', { countLabel: countLabel(v.ask.existing.walls, tr('קיר אחד'), tr('קירות')), countLabel2: countLabel(v.ask.existing.openings, tr('פתח אחד'), tr('פתחים')), v: v.ask.existing.objects ? tr(' ו־{countLabel}', { countLabel: countLabel(v.ask.existing.objects, tr('עצם אחד'), tr('עצמים')) }) : '', earlier })}</div>
           ${v.ask.manualOnAuto
-            ? html`<div class="err" data-detect-replace-manual>${countLabel(v.ask.manualOnAuto, 'פתח ידני אחד', 'פתחים ידניים')} על קירות אלה ${v.ask.manualOnAuto === 1 ? 'יוסר' : 'יוסרו'} איתם.</div>`
-            : html`<div class="note">פתח ידני שיושב על קיר שיוסר — יוסר איתו.</div>`}
+            ? html`<div class="err" data-detect-replace-manual>${tr('{countLabel} על קירות אלה {v} איתם.', { countLabel: countLabel(v.ask.manualOnAuto, tr('פתח ידני אחד'), tr('פתחים ידניים')), v: v.ask.manualOnAuto === 1 ? tr('יוסר') : tr('יוסרו') })}</div>`
+            : html`<div class="note">${tr('פתח ידני שיושב על קיר שיוסר — יוסר איתו.')}</div>`}
           <div class="btns">
-            <sw-button variant="primary" size="sm" icon="check" data-detect-replace-go ?disabled=${v.busy} @click=${() => a.confirmReplace()}>החלף ואשר ${v.acceptedCount}</sw-button>
-            <sw-button variant="ghost" size="sm" data-detect-replace-cancel ?disabled=${v.busy} @click=${() => a.cancelReplace()}>חזור</sw-button>
+            <sw-button variant="primary" size="sm" icon="check" data-detect-replace-go ?disabled=${v.busy} @click=${() => a.confirmReplace()}>${tr('החלף ואשר {acceptedCount}', { acceptedCount: v.acceptedCount })}</sw-button>
+            <sw-button variant="ghost" size="sm" data-detect-replace-cancel ?disabled=${v.busy} @click=${() => a.cancelReplace()}>${tr('חזור')}</sw-button>
           </div>
         </div>`
       : html`<div class="btns">
-          <sw-button variant="primary" size="sm" icon="check" data-detect-confirm ?disabled=${v.busy || !v.acceptedCount} @click=${() => a.confirm()}>אשר ${v.acceptedCount}</sw-button>
-          <sw-button variant="ghost" size="sm" data-detect-discard ?disabled=${v.busy} @click=${() => a.discard()}>בטל</sw-button>
+          <sw-button variant="primary" size="sm" icon="check" data-detect-confirm ?disabled=${v.busy || !v.acceptedCount} @click=${() => a.confirm()}>${tr('אשר {acceptedCount}', { acceptedCount: v.acceptedCount })}</sw-button>
+          <sw-button variant="ghost" size="sm" data-detect-discard ?disabled=${v.busy} @click=${() => a.discard()}>${tr('בטל')}</sw-button>
         </div>`}
-    <div class="note">האישור מוסיף לטיוטת המבנה בלבד (Ctrl+Z מבטל); הצופים יראו את התוצאה אחרי פרסום.</div>`;
+    <div class="note">${tr('האישור מוסיף לטיוטת המבנה בלבד (Ctrl+Z מבטל); הצופים יראו את התוצאה אחרי פרסום.')}</div>`;
 }
 
 // ---------------------------------------------------------------- the library and the object inspector (T085)
@@ -930,28 +931,28 @@ export function renderLibraryPanel(v: LibraryView, a: LibraryActions): TemplateR
     : v.category === 'favorites' ? v.lib.items.filter((i) => v.favorites.includes(i.id)) : v.lib.items;
   const found = libSearch(pool, v.q, special ? null : v.category);
   const items = found.slice(0, LIB_ROWS);
-  return html`<sw-card heading="ספריית עצמים" subheading=${v.placing ? `לחץ על התוכנית כדי להציב: ${v.placing.names.he} · Esc לביטול` : `${v.lib.items.length} פריטים · חיפוש בעברית ובאנגלית`} data-library-panel data-studio-save=${v.saveState}>
-    <sw-field><input type="search" data-lib-search placeholder="חיפוש: כיסא, מטף, bleachers…" .value=${v.q} @input=${(e: Event) => a.setQuery((e.target as HTMLInputElement).value)} /></sw-field>
-    <div class="modes" role="group" aria-label="קטגוריות">
-      <button class=${v.category === null ? 'on' : ''} data-lib-cat="all" @click=${() => a.setCategory(null)}>הכול</button>
-      <button class=${v.category === 'recent' ? 'on' : ''} data-lib-cat="recent" @click=${() => a.setCategory('recent')}>לאחרונה</button>
-      <button class=${v.category === 'favorites' ? 'on' : ''} data-lib-cat="favorites" @click=${() => a.setCategory('favorites')}>מועדפים</button>
+  return html`<sw-card heading=${tr('ספריית עצמים')} subheading=${v.placing ? tr('לחץ על התוכנית כדי להציב: {he} · Esc לביטול', { he: v.placing.names.he }) : tr('{itemsCount} פריטים · חיפוש בעברית ובאנגלית', { itemsCount: v.lib.items.length })} data-library-panel data-studio-save=${v.saveState}>
+    <sw-field><input type="search" data-lib-search placeholder=${tr('חיפוש: כיסא, מטף, bleachers…')} .value=${v.q} @input=${(e: Event) => a.setQuery((e.target as HTMLInputElement).value)} /></sw-field>
+    <div class="modes" role="group" aria-label=${tr('קטגוריות')}>
+      <button class=${v.category === null ? 'on' : ''} data-lib-cat="all" @click=${() => a.setCategory(null)}>${tr('הכול')}</button>
+      <button class=${v.category === 'recent' ? 'on' : ''} data-lib-cat="recent" @click=${() => a.setCategory('recent')}>${tr('לאחרונה')}</button>
+      <button class=${v.category === 'favorites' ? 'on' : ''} data-lib-cat="favorites" @click=${() => a.setCategory('favorites')}>${tr('מועדפים')}</button>
       ${v.lib.categories.map((c) => html`<button class=${v.category === c.id ? 'on' : ''} data-lib-cat=${c.id} @click=${() => a.setCategory(c.id)}>${c.he}</button>`)}
     </div>
-    ${v.placing ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-lib-cancel @click=${() => a.cancelPlacing()}>סיים הצבה</sw-button></div>` : nothing}
+    ${v.placing ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-lib-cancel @click=${() => a.cancelPlacing()}>${tr('סיים הצבה')}</sw-button></div>` : nothing}
     <div class="list libl">
-      ${items.length ? items.map((i) => html`<div class="libitem ${v.placing?.id === i.id ? 'on' : ''}" data-lib-item=${i.id} role="button" tabindex="0" draggable="true" title=${`${i.names.he} · ${i.size.w_m}×${i.size.d_m}×${i.size.h_m} מ׳`}
+      ${items.length ? items.map((i) => html`<div class="libitem ${v.placing?.id === i.id ? 'on' : ''}" data-lib-item=${i.id} role="button" tabindex="0" draggable="true" title=${tr('{he} · {w_m}×{d_m}×{h_m} מ׳', { he: i.names.he, w_m: i.size.w_m, d_m: i.size.d_m, h_m: i.size.h_m })}
           @dragstart=${(e: DragEvent) => e.dataTransfer?.setData('text/x-sw-item', i.id)} @click=${() => a.pick(i)} @keydown=${(e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && a.pick(i)}>
-          <span class="nm">${i.names.he}${i.custom ? html` <span class="muted">מותאם</span>` : nothing}</span>
+          <span class="nm">${i.names.he}${i.custom ? html` <span class="muted">${tr('מותאם')}</span>` : nothing}</span>
           <span class="muted ltr">${i.size.w_m}×${i.size.d_m} m</span>
-          <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label="מועדף" aria-pressed=${v.favorites.includes(i.id) ? 'true' : 'false'} @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}><sw-icon name="star" size=${14}></sw-icon></button>
-        </div>`) : html`<div class="note">${v.category === 'recent' ? 'עדיין לא הוצבו פריטים בדפדפן הזה.' : v.category === 'favorites' ? 'סמן את הכוכב ליד פריט כדי לשמור אותו כאן.' : 'לא נמצאו פריטים.'}</div>`}
+          <button class="fav ${v.favorites.includes(i.id) ? 'on' : ''}" data-lib-fav=${i.id} aria-label=${tr('מועדף')} aria-pressed=${v.favorites.includes(i.id) ? 'true' : 'false'} @click=${(e: Event) => { e.stopPropagation(); a.toggleFavorite(i.id); }}><sw-icon name="star" size=${14}></sw-icon></button>
+        </div>`) : html`<div class="note">${v.category === 'recent' ? tr('עדיין לא הוצבו פריטים בדפדפן הזה.') : v.category === 'favorites' ? tr('סמן את הכוכב ליד פריט כדי לשמור אותו כאן.') : tr('לא נמצאו פריטים.')}</div>`}
     </div>
-    ${found.length > LIB_ROWS ? html`<div class="note" data-lib-more>מוצגים ${LIB_ROWS} · חפש או בחר קטגוריה</div>` : nothing}
-    ${v.phone ? html`<div class="note">בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.</div>` : nothing}
-    ${v.canManage ? html`<div class="exports" role="group" aria-label="הספרייה המותאמת">
-      <a class="btnlink" data-lib-export href=${v.exportHref} download>ייצוא הספרייה המותאמת</a>
-      <label class="btnlink">ייבוא<input type="file" accept="application/json,.json" data-lib-import hidden @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importFile(f); (e.target as HTMLInputElement).value = ''; }} /></label>
+    ${found.length > LIB_ROWS ? html`<div class="note" data-lib-more>${tr('מוצגים {LIB_ROWS} · חפש או בחר קטגוריה', { LIB_ROWS })}</div>` : nothing}
+    ${v.phone ? html`<div class="note">${tr('בטלפון: הצבה והזזה של עצם בודד; מערכים וציור קירות בדסקטופ.')}</div>` : nothing}
+    ${v.canManage ? html`<div class="exports" role="group" aria-label=${tr('הספרייה המותאמת')}>
+      <a class="btnlink" data-lib-export href=${v.exportHref} download>${tr('ייצוא הספרייה המותאמת')}</a>
+      <label class="btnlink">${tr('ייבוא')}<input type="file" accept="application/json,.json" data-lib-import hidden @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importFile(f); (e.target as HTMLInputElement).value = ''; }} /></label>
     </div>` : nothing}
   </sw-card>`;
 }
@@ -992,7 +993,7 @@ function paramField(o: GeomObject, name: string, spec: ParamSpec, levels: GeomLe
   const value = o.params[name];
   if (spec.type === 'level') {
     return html`<sw-field label=${spec.he}><select data-object-param=${name} @change=${(e: Event) => a.patch(o.id, { params: { ...o.params, [name]: (e.target as HTMLSelectElement).value || null } })}>
-      <option value="" ?selected=${!value}>ללא</option>${levels.filter((l) => l.id !== o.level_id).map((l) => html`<option value=${l.id} ?selected=${value === l.id}>${l.name} (${l.elevation_m} מ׳)</option>`)}</select></sw-field>`;
+      <option value="" ?selected=${!value}>${tr('ללא')}</option>${levels.filter((l) => l.id !== o.level_id).map((l) => html`<option value=${l.id} ?selected=${value === l.id}>${tr('{name} ({elevation_m} מ׳)', { name: l.name, elevation_m: l.elevation_m })}</option>`)}</select></sw-field>`;
   }
   const step = spec.type === 'int' ? 1 : 0.1;
   return html`<sw-field label=${spec.he}><input type="number" data-ltr data-object-param=${name} min=${String(spec.min ?? '')} max=${String(spec.max ?? '')} step=${String(step)} .value=${value === null || value === undefined ? '' : String(value)}
@@ -1006,30 +1007,30 @@ export function renderObjectInspector(v: ObjectView, a: ObjectActions): Template
   // one hook per field (data-object-w / -d / -h): lit has no binding for an attribute's name, so each is a boolean attribute
   const size = (key: 'w_m' | 'd_m' | 'h_m', label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-object-w=${key === 'w_m'} ?data-object-d=${key === 'd_m'} ?data-object-h=${key === 'h_m'} .value=${String(o.size[key])}
       @change=${(e: Event) => { const x = numberOf(e); if (x >= 0.05 && x <= 100) a.patch(o.id, { size: { ...o.size, [key]: x } }); }} /></sw-field>`;
-  return html`<sw-card heading=${name} subheading=${v.item ? `${v.lib_category(v.item)}${v.item.custom ? ' · פריט מותאם' : ''}` : 'הפריט לא קיים בספרייה: העצם מצויר כתיבה'} data-selected-object=${o.id}>
-    <sw-field label="שם על המפה (אופציונלי)"><input type="text" maxlength="80" data-object-label .value=${o.label ?? ''} @change=${(e: Event) => a.patch(o.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+  return html`<sw-card heading=${name} subheading=${v.item ? `${v.lib_category(v.item)}${v.item.custom ? tr(' · פריט מותאם') : ''}` : tr('הפריט לא קיים בספרייה: העצם מצויר כתיבה')} data-selected-object=${o.id}>
+    <sw-field label=${tr('שם על המפה (אופציונלי)')}><input type="text" maxlength="80" data-object-label .value=${o.label ?? ''} @change=${(e: Event) => a.patch(o.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
     ${o.anchor_ref
-      ? html`<div class="note" data-object-bound>הגוף של ${v.anchorName ?? o.anchor_ref.resource_id}: המיקום, המצב וההרשאות מהעוגן. <button class="linkbtn" data-object-unbind @click=${() => a.unbind(o.id)}>נתק מהישות</button></div>`
+      ? html`<div class="note" data-object-bound>${tr('הגוף של {v}: המיקום, המצב וההרשאות מהעוגן.', { v: v.anchorName ?? o.anchor_ref.resource_id })} <button class="linkbtn" data-object-unbind @click=${() => a.unbind(o.id)}>${tr('נתק מהישות')}</button></div>`
       : nothing}
     <div class="two">
-      <sw-field label="מפלס"><select data-item-level @change=${(e: Event) => a.patch(o.id, { level_id: (e.target as HTMLSelectElement).value })}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === o.level_id}>${l.name}</option>`)}</select></sw-field>
-      <sw-field label="סיבוב (°)"><input type="number" min="0" max="359" step="1" data-ltr data-object-rotation .value=${String(Math.round(o.rotation_deg))} ?disabled=${!!o.anchor_ref}
+      <sw-field label=${tr('מפלס')}><select data-item-level @change=${(e: Event) => a.patch(o.id, { level_id: (e.target as HTMLSelectElement).value })}>${v.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === o.level_id}>${l.name}</option>`)}</select></sw-field>
+      <sw-field label=${tr('סיבוב (°)')}><input type="number" min="0" max="359" step="1" data-ltr data-object-rotation .value=${String(Math.round(o.rotation_deg))} ?disabled=${!!o.anchor_ref}
         @change=${(e: Event) => { const x = numberOf(e); if (Number.isFinite(x)) a.patch(o.id, { rotation_deg: ((Math.round(x) % 360) + 360) % 360 }); }} /></sw-field>
     </div>
-    <div class="three">${size('w_m', 'רוחב (מ׳)')}${size('d_m', 'עומק (מ׳)')}${size('h_m', 'גובה (מ׳)')}</div>
-    <sw-field label="גובה מהרצפה (מ׳)"><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
+    <div class="three">${size('w_m', tr('רוחב (מ׳)'))}${size('d_m', tr('עומק (מ׳)'))}${size('h_m', tr('גובה (מ׳)'))}</div>
+    <sw-field label=${tr('גובה מהרצפה (מ׳)')}><input type="number" min="-50" max="500" step="0.05" data-ltr data-object-z .value=${String(o.z_m)} @change=${(e: Event) => { const x = numberOf(e); if (x >= -50 && x <= 500) a.patch(o.id, { z_m: x }); }} /></sw-field>
     ${v.item ? Object.entries(v.item.params_schema).map(([k, spec]) => paramField(o, k, spec, v.levels, a)) : nothing}
     ${a.setMaterial && v.materialDefault
-      ? renderMaterialField({ key: `objects:${o.id}`, label: 'חומר', host: 'object', value: o.material_id ?? null, defaultId: v.materialDefault, style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!(o.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
+      ? renderMaterialField({ key: `objects:${o.id}`, label: tr('חומר'), host: 'object', value: o.material_id ?? null, defaultId: v.materialDefault, style: v.materialStyle ?? 'light' }, { pick: (id) => a.setMaterial!(o.id, id), setStyle: (s) => a.setMaterialStyle?.(s) })
       : nothing}
     ${renderItemTags(o.tags, (tags) => a.patch(o.id, { tags }))}
-    ${group ? html`<div class="note" data-object-group>חלק ממערך של ${group.member_ids.length}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>בחר את המערך</button>` : nothing}</div>` : nothing}
-    <div class="note">${v.estimated ? (v.showEstimates ? 'המידות במטרים משוערות (≈) עד הכיול' : 'לא מכויל: המידות מוצגות כערכי הפריט') : 'המידות במטרים לפי הכיול'} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה</div>
+    ${group ? html`<div class="note" data-object-group>${tr('חלק ממערך של {member_idsCount}', { member_idsCount: group.member_ids.length })}${a.selectGroup ? html` · <button class="linkbtn" data-select-group @click=${() => a.selectGroup?.(group.id)}>${tr('בחר את המערך')}</button>` : nothing}</div>` : nothing}
+    <div class="note">${tr('{v} · חצים = הזזה עדינה (Shift = גדולה) · Alt+גרירה = שכפול · Delete = מחיקה', { v: v.estimated ? (v.showEstimates ? tr('המידות במטרים משוערות (≈) עד הכיול') : tr('לא מכויל: המידות מוצגות כערכי הפריט')) : tr('המידות במטרים לפי הכיול') })}</div>
     <div class="btns">
-      ${a.duplicate ? html`<sw-button size="sm" icon="layers" data-object-duplicate title="עותק ליד העצם, נבחר ומוכן לגרירה (גם Ctrl+D, או Alt+גרירה של העצם)" @click=${() => a.duplicate?.(o.id)}>שכפל</sw-button>` : nothing}
-      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref || !!o.group_id} title=${v.phone ? 'מערכים בדסקטופ בלבד' : o.group_id ? 'העצם כבר במערך' : 'שורות × עמודות מהעצם הזה'} @click=${() => a.array?.(o.id)}>מערך</sw-button>` : nothing}
-      ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>צור פריט מזה</sw-button>` : nothing}
-      <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>מחק</sw-button>
+      ${a.duplicate ? html`<sw-button size="sm" icon="layers" data-object-duplicate title=${tr('עותק ליד העצם, נבחר ומוכן לגרירה (גם Ctrl+D, או Alt+גרירה של העצם)')} @click=${() => a.duplicate?.(o.id)}>${tr('שכפל')}</sw-button>` : nothing}
+      ${a.array ? html`<sw-button size="sm" icon="grid" data-object-array ?disabled=${v.phone || !!o.anchor_ref || !!o.group_id} title=${v.phone ? tr('מערכים בדסקטופ בלבד') : o.group_id ? tr('העצם כבר במערך') : tr('שורות × עמודות מהעצם הזה')} @click=${() => a.array?.(o.id)}>${tr('מערך')}</sw-button>` : nothing}
+      ${v.canManage && a.custom ? html`<sw-button size="sm" icon="plus" data-object-custom @click=${() => a.custom?.(o.id)}>${tr('צור פריט מזה')}</sw-button>` : nothing}
+      <sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(o.id)}>${tr('מחק')}</sw-button>
     </div>
   </sw-card>`;
 }
@@ -1043,12 +1044,12 @@ interface GroupActions {
 
 export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined, a: GroupActions): TemplateResult {
   const p = g.params as { rows?: number; cols?: number; spacing_x_m?: number; spacing_y_m?: number };
-  return html`<sw-card heading=${g.kind === 'array' ? `מערך של ${g.member_ids.length}` : `קבוצה של ${g.member_ids.length}`} subheading=${item ? item.names.he : ''} data-selected-group=${g.id}>
-    ${g.kind === 'array' && p.rows ? html`<div class="note">${p.rows} שורות × ${p.cols} עמודות · רווח ${p.spacing_x_m} × ${p.spacing_y_m} מ׳</div>` : nothing}
-    <div class="note">גרירת אחד העצמים מזיזה את כל המערך · Delete מוחק (ושואל אם למחוק גם את העצמים)</div>
+  return html`<sw-card heading=${g.kind === 'array' ? tr('מערך של {member_idsCount}', { member_idsCount: g.member_ids.length }) : tr('קבוצה של {member_idsCount}', { member_idsCount: g.member_ids.length })} subheading=${item ? item.names.he : ''} data-selected-group=${g.id}>
+    ${g.kind === 'array' && p.rows ? html`<div class="note">${tr('{rows} שורות ×', { rows: p.rows })} ${p.cols} ${tr('עמודות · רווח')} ${p.spacing_x_m} × ${p.spacing_y_m} ${tr('מ׳')}</div>` : nothing}
+    <div class="note">${tr('גרירת אחד העצמים מזיזה את כל המערך · Delete מוחק (ושואל אם למחוק גם את העצמים)')}</div>
     <div class="btns">
-      ${g.member_ids[0] ? html`<sw-button size="sm" variant="ghost" data-group-first @click=${() => a.select(g.member_ids[0])}>בחר עצם אחד</sw-button>` : nothing}
-      <sw-button size="sm" variant="danger" icon="trash" data-group-delete @click=${() => a.askDelete(g.id)}>מחק מערך</sw-button>
+      ${g.member_ids[0] ? html`<sw-button size="sm" variant="ghost" data-group-first @click=${() => a.select(g.member_ids[0])}>${tr('בחר עצם אחד')}</sw-button>` : nothing}
+      <sw-button size="sm" variant="danger" icon="trash" data-group-delete @click=${() => a.askDelete(g.id)}>${tr('מחק מערך')}</sw-button>
     </div>
   </sw-card>`;
 }
@@ -1056,7 +1057,7 @@ export function renderGroupInspector(g: GeomGroup, item: CatalogItem | undefined
 // ---------------------------------------------------------------- multi-selection (T085)
 
 /** How several items are picked in the editor's select tool (owner report 2026-09-26). */
-export const MULTI_HINT = 'Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: רווח + גרירה, או גרירה בכפתור האמצעי; גלגלת לזום.';
+export const MULTI_HINT = tr('Shift+לחיצה מוסיפה קיר, עצם או אזור לבחירה או מוציאה אותו ממנה; גרירת מלבן מרקע ריק בוחרת את מה שנמצא בתוכו במלואו; Ctrl+A בוחר את כל מה שמוצג במפלס; Esc מנקה. הזזת התוכנית: רווח + גרירה, או גרירה בכפתור האמצעי; גלגלת לזום.');
 
 // ---------------------------------------------------------------- keyboard shortcuts help (T085, owner request 2026-09-27)
 
@@ -1075,52 +1076,52 @@ interface ShortcutGroup {
  * sync by hand: nothing here is generated from the handler. */
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: 'בחירה',
+    title: tr('בחירה'),
     items: [
-      { keys: 'Shift+לחיצה', desc: 'מוסיף פריט לבחירה או מוציא אותו ממנה' },
-      { keys: 'גרירת מלבן מרקע ריק', desc: 'בוחרת את כל מה שבתוכה במלואו' },
-      { keys: 'Ctrl+A', desc: 'בוחר את כל מה שמוצג במפלס הנוכחי' },
-      { keys: 'Esc', desc: 'מנקה את הבחירה, או סוגר את הפעולה הפתוחה' },
+      { keys: tr('Shift+לחיצה'), desc: tr('מוסיף פריט לבחירה או מוציא אותו ממנה') },
+      { keys: tr('גרירת מלבן מרקע ריק'), desc: tr('בוחרת את כל מה שבתוכה במלואו') },
+      { keys: 'Ctrl+A', desc: tr('בוחר את כל מה שמוצג במפלס הנוכחי') },
+      { keys: 'Esc', desc: tr('מנקה את הבחירה, או סוגר את הפעולה הפתוחה') },
     ],
   },
   {
-    title: 'עריכה',
+    title: tr('עריכה'),
     items: [
-      { keys: 'Delete / Backspace', desc: 'מוחק את מה שנבחר' },
-      { keys: 'Ctrl+D', desc: 'משכפל את מה שנבחר' },
-      { keys: 'Alt+גרירה', desc: 'גורר עותק, במקום להזיז את המקור' },
-      { keys: 'חצים', desc: 'מזיזים את הנבחר צעד קטן; Shift+חץ = צעד גדול' },
-      { keys: 'Ctrl+Z / Ctrl+Y', desc: 'ביטול וחזרה על הפעולה האחרונה' },
-      { keys: 'Ctrl+S', desc: 'שמירה' },
+      { keys: 'Delete / Backspace', desc: tr('מוחק את מה שנבחר') },
+      { keys: 'Ctrl+D', desc: tr('משכפל את מה שנבחר') },
+      { keys: tr('Alt+גרירה'), desc: tr('גורר עותק, במקום להזיז את המקור') },
+      { keys: tr('חצים'), desc: tr('מזיזים את הנבחר צעד קטן; Shift+חץ = צעד גדול') },
+      { keys: 'Ctrl+Z / Ctrl+Y', desc: tr('ביטול וחזרה על הפעולה האחרונה') },
+      { keys: 'Ctrl+S', desc: tr('שמירה') },
     ],
   },
   {
-    title: 'תצוגה וניווט',
+    title: tr('תצוגה וניווט'),
     items: [
-      { keys: 'רווח+גרירה, או גרירה בכפתור האמצעי', desc: 'מזיז את התוכנית (פאן)' },
-      { keys: 'כפתור היד בסרגל העליון', desc: 'מצב הזזה קבוע: כל גרירה מזיזה את התוכנית, עד לחיצה חוזרת עליו או Esc' },
-      { keys: 'גלגלת העכבר', desc: 'זום פנימה והחוצה סביב הסמן' },
+      { keys: tr('רווח+גרירה, או גרירה בכפתור האמצעי'), desc: tr('מזיז את התוכנית (פאן)') },
+      { keys: tr('כפתור היד בסרגל העליון'), desc: tr('מצב הזזה קבוע: כל גרירה מזיזה את התוכנית, עד לחיצה חוזרת עליו או Esc') },
+      { keys: tr('גלגלת העכבר'), desc: tr('זום פנימה והחוצה סביב הסמן') },
     ],
   },
   {
-    title: 'כלים ספציפיים',
+    title: tr('כלים ספציפיים'),
     items: [
-      { keys: 'ציור קיר (מבנה)', desc: 'Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה' },
-      { keys: 'D', desc: 'סמן דלת (כלי המבנה): לחיצה על סמל דלת מציעה אותה; Enter מאשר, Esc מבטל את ההצעה' },
+      { keys: tr('ציור קיר (מבנה)'), desc: tr('Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה') },
+      { keys: 'D', desc: tr('סמן דלת (כלי המבנה): לחיצה על סמל דלת מציעה אותה; Enter מאשר, Esc מבטל את ההצעה') },
       { keys: 'R', desc: curveT('tipCurved') },
       { keys: 'G', desc: glassT('toolTip') },
       { keys: 'C', desc: curveT('tipCurve') },
-      { keys: 'ציור אזור', desc: 'לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל' },
-      { keys: 'מפלסים ומחברים', desc: 'Esc מבטל את נקודת ההתחלה שנבחרה למחבר' },
-      { keys: 'מדידה / כיול', desc: 'Esc מנקה את הנקודות שנבחרו עד כה' },
-      { keys: 'זיהוי אוטומטי', desc: 'Delete/Backspace מסיר מועמד נבחר; Esc סוגר וחוזר לכלי הבחירה' },
-      { keys: 'מעגלי תאורה', desc: 'Esc מבטל את סוג הגוף הממתין להצבה, ואז סוגר את מצב חברי המעגל' },
+      { keys: tr('ציור אזור'), desc: tr('לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל') },
+      { keys: tr('מפלסים ומחברים'), desc: tr('Esc מבטל את נקודת ההתחלה שנבחרה למחבר') },
+      { keys: tr('מדידה / כיול'), desc: tr('Esc מנקה את הנקודות שנבחרו עד כה') },
+      { keys: tr('זיהוי אוטומטי'), desc: tr('Delete/Backspace מסיר מועמד נבחר; Esc סוגר וחוזר לכלי הבחירה') },
+      { keys: tr('מעגלי תאורה'), desc: tr('Esc מבטל את סוג הגוף הממתין להצבה, ואז סוגר את מצב חברי המעגל') },
     ],
   },
 ];
 
 export function renderShortcutsDialog(onClose: () => void): TemplateResult {
-  return html`<sw-dialog open heading="קיצורי מקלדת" subheading="כל הקיצורים הפעילים כרגע בעורך התוכנית" data-shortcuts-dialog @close=${onClose}>
+  return html`<sw-dialog open heading=${tr('קיצורי מקלדת')} subheading=${tr('כל הקיצורים הפעילים כרגע בעורך התוכנית')} data-shortcuts-dialog @close=${onClose}>
     <div class="shortcuts">
       ${SHORTCUT_GROUPS.map(
         (g) => html`<div class="shortcuts-group" data-shortcuts-group=${g.title}>
@@ -1129,7 +1130,7 @@ export function renderShortcutsDialog(onClose: () => void): TemplateResult {
         </div>`
       )}
     </div>
-    <sw-button slot="footer" variant="primary" data-shortcuts-close @click=${onClose}>סגור</sw-button>
+    <sw-button slot="footer" variant="primary" data-shortcuts-close @click=${onClose}>${tr('סגור')}</sw-button>
   </sw-dialog>`;
 }
 
@@ -1154,19 +1155,19 @@ export function renderTagsField(v: { chips: TagChip[]; bulk?: boolean; full?: bo
   };
   const off = !!(v.full || v.disabled);
   const hint = v.bulk
-    ? 'לחיצה על תגית מסירה אותה מכל הנבחרים שיש להם אותה (המספר: כמה מהם); תגית חדשה נוספת לכולם'
+    ? tr('לחיצה על תגית מסירה אותה מכל הנבחרים שיש להם אותה (המספר: כמה מהם); תגית חדשה נוספת לכולם')
     : v.full
-      ? `הגעת למקסימום של ${TAG_MAX_COUNT} תגיות; לחיצה על תגית מסירה אותה`
-      : `לסימון ולבחירה מהירה (בחירה לפי תגית ליד המפלסים) · לחיצה על תגית מסירה אותה · עד ${TAG_MAX_COUNT} תגיות של ${TAG_MAX_LEN} תווים`;
-  return html`<sw-field label=${v.bulk ? 'תגיות בבחירה' : 'תגיות'} hint=${hint}><div class="tagsfield" data-tags-field>
+      ? tr('הגעת למקסימום של {TAG_MAX_COUNT} תגיות; לחיצה על תגית מסירה אותה', { TAG_MAX_COUNT })
+      : tr('לסימון ולבחירה מהירה (בחירה לפי תגית ליד המפלסים) · לחיצה על תגית מסירה אותה · עד {TAG_MAX_COUNT} תגיות של {TAG_MAX_LEN} תווים', { TAG_MAX_COUNT, TAG_MAX_LEN });
+  return html`<sw-field label=${v.bulk ? tr('תגיות בבחירה') : tr('תגיות')} hint=${hint}><div class="tagsfield" data-tags-field>
     ${v.chips.length
       ? html`<div class="tagchips" data-tag-chips>${v.chips.map((c) => html`<sw-chip icon="close" data-tag=${c.tag} data-tag-count=${v.bulk && c.count !== undefined ? String(c.count) : nothing} .count=${v.bulk ? c.count : undefined}
-          title=${v.bulk ? `הסר את "${c.tag}" מכל הנבחרים` : `הסר את התגית "${c.tag}"`} @click=${() => { if (!v.disabled) onRemove(c.tag); }}>${c.tag}</sw-chip>`)}</div>`
-      : html`<div class="note" data-tag-none>${v.bulk ? 'לאף פריט בבחירה אין תגיות' : 'אין תגיות'}</div>`}
+          title=${v.bulk ? tr('הסר את "{tag}" מכל הנבחרים', { tag: c.tag }) : tr('הסר את התגית "{tag}"', { tag: c.tag })} @click=${() => { if (!v.disabled) onRemove(c.tag); }}>${c.tag}</sw-chip>`)}</div>`
+      : html`<div class="note" data-tag-none>${v.bulk ? tr('לאף פריט בבחירה אין תגיות') : tr('אין תגיות')}</div>`}
     <div class="tagadd">
-      <input type="text" maxlength=${String(TAG_MAX_LEN)} data-tag-input aria-label=${v.bulk ? 'תגית להוספה לכל הנבחרים' : 'תגית חדשה'} placeholder="תגית חדשה, למשל: מטבח" ?disabled=${off}
+      <input type="text" maxlength=${String(TAG_MAX_LEN)} data-tag-input aria-label=${v.bulk ? tr('תגית להוספה לכל הנבחרים') : tr('תגית חדשה')} placeholder=${tr('תגית חדשה, למשל: מטבח')} ?disabled=${off}
         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); add(e.target as HTMLInputElement); } }} />
-      <sw-button size="sm" icon="plus" data-tag-add ?disabled=${off} @click=${(e: Event) => add((e.currentTarget as HTMLElement).parentElement?.querySelector('input'))}>${v.bulk ? 'הוסף לכולם' : 'הוסף'}</sw-button>
+      <sw-button size="sm" icon="plus" data-tag-add ?disabled=${off} @click=${(e: Event) => add((e.currentTarget as HTMLElement).parentElement?.querySelector('input'))}>${v.bulk ? tr('הוסף לכולם') : tr('הוסף')}</sw-button>
     </div>
   </div></sw-field>`;
 }
@@ -1182,9 +1183,9 @@ function renderItemTags(tags: string[] | undefined, set: (tags: string[]) => voi
 /** Select by tag (T085): a small picker beside the level chips over the canvas - the tags of what the level filter shows,
  * each with how many walls, objects and zones carry it there; picking one selects them all in the select tool. */
 export function renderTagPicker(tags: TagChip[], onPick: (tag: string) => void): TemplateResult {
-  return html`<select class="tagpick" data-tag-select aria-label="בחירה לפי תגית" title="בוחר את כל הקירות, העצמים והאזורים עם התגית, במפלס המוצג"
+  return html`<select class="tagpick" data-tag-select aria-label=${tr('בחירה לפי תגית')} title=${tr('בוחר את כל הקירות, העצמים והאזורים עם התגית, במפלס המוצג')}
     @change=${(e: Event) => { const s = e.target as HTMLSelectElement; const t = s.value; s.value = ''; if (t) onPick(t); }}>
-    <option value="" selected>בחירה לפי תגית…</option>${tags.map((t) => html`<option value=${t.tag}>${t.tag} (${t.count})</option>`)}
+    <option value="" selected>${tr('בחירה לפי תגית…')}</option>${tags.map((t) => html`<option value=${t.tag}>${t.tag} (${t.count})</option>`)}
   </select>`;
 }
 
@@ -1225,23 +1226,23 @@ interface MultiActions {
 /** The six align actions and the two distribute actions of the bulk panel (T085), with their labels. Left and right are
  * the plan's own directions (map geometry is never mirrored by RTL). */
 const ALIGN_ACTIONS: readonly { mode: AlignMode; label: string; title: string }[] = [
-  { mode: 'left', label: 'יישור לשמאל', title: 'הקצוות השמאליים של העצמים על הקצה השמאלי של הבחירה' },
-  { mode: 'right', label: 'יישור לימין', title: 'הקצוות הימניים של העצמים על הקצה הימני של הבחירה' },
-  { mode: 'top', label: 'יישור למעלה', title: 'הקצוות העליונים של העצמים על הקצה העליון של הבחירה' },
-  { mode: 'bottom', label: 'יישור למטה', title: 'הקצוות התחתונים של העצמים על הקצה התחתון של הבחירה' },
-  { mode: 'center-y', label: 'מרכזים בקו אופקי', title: 'מרכזי העצמים על קו אופקי אחד, באמצע הבחירה (למשל שורת מנורות)' },
-  { mode: 'center-x', label: 'מרכזים בקו אנכי', title: 'מרכזי העצמים על קו אנכי אחד, באמצע הבחירה' },
+  { mode: 'left', label: tr('יישור לשמאל'), title: tr('הקצוות השמאליים של העצמים על הקצה השמאלי של הבחירה') },
+  { mode: 'right', label: tr('יישור לימין'), title: tr('הקצוות הימניים של העצמים על הקצה הימני של הבחירה') },
+  { mode: 'top', label: tr('יישור למעלה'), title: tr('הקצוות העליונים של העצמים על הקצה העליון של הבחירה') },
+  { mode: 'bottom', label: tr('יישור למטה'), title: tr('הקצוות התחתונים של העצמים על הקצה התחתון של הבחירה') },
+  { mode: 'center-y', label: tr('מרכזים בקו אופקי'), title: tr('מרכזי העצמים על קו אופקי אחד, באמצע הבחירה (למשל שורת מנורות)') },
+  { mode: 'center-x', label: tr('מרכזים בקו אנכי'), title: tr('מרכזי העצמים על קו אנכי אחד, באמצע הבחירה') },
 ];
 
 /** The align / distribute block of the bulk panel: from two objects that can move; distribute from three. */
 function renderAlignActions(v: MultiView, a: MultiActions): TemplateResult {
   if (v.alignable < 2) return html``;
   const others = v.walls + v.zones;
-  const hint = `ביחס למסגרת של ${v.alignable} העצמים שנבחרו · צעד ביטול אחד${others ? ' · קירות ואזורים שבבחירה לא זזים' : ''}`;
-  return html`<sw-field label="יישור ופיזור העצמים" hint=${hint}><div class="alignbtns" data-multi-align>
+  const hint = tr('ביחס למסגרת של {alignable} העצמים שנבחרו · צעד ביטול אחד{v}', { alignable: v.alignable, v: others ? tr(' · קירות ואזורים שבבחירה לא זזים') : '' });
+  return html`<sw-field label=${tr('יישור ופיזור העצמים')} hint=${hint}><div class="alignbtns" data-multi-align>
     ${ALIGN_ACTIONS.map((x) => html`<sw-button size="sm" variant="ghost" data-align=${x.mode} title=${x.title} ?disabled=${v.busy} @click=${() => a.align(x.mode)}>${x.label}</sw-button>`)}
-    <sw-button size="sm" variant="ghost" data-distribute="x" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? 'פיזור צריך לפחות שלושה עצמים' : 'רווחים שווים בין העצמים לרוחב; הקיצוניים נשארים במקומם'} @click=${() => a.distribute('x')}>פיזור שווה לרוחב</sw-button>
-    <sw-button size="sm" variant="ghost" data-distribute="y" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? 'פיזור צריך לפחות שלושה עצמים' : 'רווחים שווים בין העצמים לגובה; הקיצוניים נשארים במקומם'} @click=${() => a.distribute('y')}>פיזור שווה לגובה</sw-button>
+    <sw-button size="sm" variant="ghost" data-distribute="x" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? tr('פיזור צריך לפחות שלושה עצמים') : tr('רווחים שווים בין העצמים לרוחב; הקיצוניים נשארים במקומם')} @click=${() => a.distribute('x')}>${tr('פיזור שווה לרוחב')}</sw-button>
+    <sw-button size="sm" variant="ghost" data-distribute="y" ?disabled=${v.busy || v.alignable < 3} title=${v.alignable < 3 ? tr('פיזור צריך לפחות שלושה עצמים') : tr('רווחים שווים בין העצמים לגובה; הקיצוניים נשארים במקומם')} @click=${() => a.distribute('y')}>${tr('פיזור שווה לגובה')}</sw-button>
   </div></sw-field>`;
 }
 
@@ -1259,46 +1260,46 @@ const GRID_SIZE_WORDS = ['צפוף מאוד', 'צפוף', 'בינוני', 'מר�
 export function renderGridOptions(v: GridOptionsView, onToggle: (on: boolean) => void, onStep: (m: number) => void): TemplateResult {
   const words = v.estimated && !v.showEstimates;
   const label = (m: number, i: number) => (words ? GRID_SIZE_WORDS[i] ?? fmtMetres(m, false) : fmtMetres(m, v.estimated));
-  const hint = v.estimated ? 'לפי קנה מידה משוער עד שהתוכנית תכויל' : 'לפי קנה המידה המכויל של התוכנית';
+  const hint = v.estimated ? tr('לפי קנה מידה משוער עד שהתוכנית תכויל') : tr('לפי קנה המידה המכויל של התוכנית');
   return html`<div class="gridopts" data-grid-options>
-    <label><sw-toggle size="sm" labelHidden in-label label="רשת עזר" data-grid-toggle .checked=${v.on} @change=${(e: Event) => onToggle(toggled(e))}></sw-toggle> רשת עזר</label>
-    <div class="note">גרירה והצבה של עצם נצמדות לצמתי הרשת; Ctrl בזמן הגרירה - בלי הצמדה.</div>
-    <sw-field label="מרווח הרשת" hint=${hint}>
+    <label><sw-toggle size="sm" labelHidden in-label label=${tr('רשת עזר')} data-grid-toggle .checked=${v.on} @change=${(e: Event) => onToggle(toggled(e))}></sw-toggle> ${tr('רשת עזר')}</label>
+    <div class="note">${tr('גרירה והצבה של עצם נצמדות לצמתי הרשת; Ctrl בזמן הגרירה - בלי הצמדה.')}</div>
+    <sw-field label=${tr('מרווח הרשת')} hint=${hint}>
       <select data-grid-step ?disabled=${!v.on} @change=${(e: Event) => onStep(Number((e.target as HTMLSelectElement).value))}>
         ${v.steps.map((m, i) => html`<option value=${String(m)} ?selected=${m === v.stepM}>${label(m, i)}</option>`)}
       </select>
     </sw-field>
-    <div class="note">בזמן גרירה של עצם מופיעים קווי יישור כשקצה או מרכז שלו מתיישר עם עצם אחר, והעצם נצמד אליהם.</div>
+    <div class="note">${tr('בזמן גרירה של עצם מופיעים קווי יישור כשקצה או מרכז שלו מתיישר עם עצם אחר, והעצם נצמד אליהם.')}</div>
   </div>`;
 }
 
 /** The select tool with two or more walls, objects and zones selected: what is selected and the actions on all of them. */
 export function renderMultiSelection(v: MultiView, a: MultiActions): TemplateResult {
   const total = v.walls + v.objects + v.zones;
-  const parts = [v.walls ? countLabel(v.walls, 'קיר אחד', 'קירות') : '', v.objects ? countLabel(v.objects, 'עצם אחד', 'עצמים') : '', v.zones ? countLabel(v.zones, 'אזור אחד', 'אזורים') : ''].filter(Boolean).join(' · ');
-  return html`<sw-card heading=${`${total} פריטים נבחרו`} subheading=${`${parts} · ${SAVE_LABEL[v.saveState]}`} data-multi-panel data-multi-count=${total} data-studio-save=${v.saveState}>
-    <div class="note">גרירת אחד מהם מזיזה את כולם יחד · Delete מוחק את כולם · Ctrl+D משכפל את העצמים שבבחירה</div>
-    ${v.zones ? html`<div class="note" data-multi-zones-note>הזזה, מחיקה, תגיות ומפלס של אזורים נשמרים מיד ואינם חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד</div>` : nothing}
+  const parts = [v.walls ? countLabel(v.walls, tr('קיר אחד'), tr('קירות')) : '', v.objects ? countLabel(v.objects, tr('עצם אחד'), tr('עצמים')) : '', v.zones ? countLabel(v.zones, tr('אזור אחד'), tr('אזורים')) : ''].filter(Boolean).join(' · ');
+  return html`<sw-card heading=${tr('{total} פריטים נבחרו', { total })} subheading=${`${parts} · ${SAVE_LABEL[v.saveState]}`} data-multi-panel data-multi-count=${total} data-studio-save=${v.saveState}>
+    <div class="note">${tr('גרירת אחד מהם מזיזה את כולם יחד · Delete מוחק את כולם · Ctrl+D משכפל את העצמים שבבחירה')}</div>
+    ${v.zones ? html`<div class="note" data-multi-zones-note>${tr('הזזה, מחיקה, תגיות ומפלס של אזורים נשמרים מיד ואינם חלק מהביטול (Ctrl+Z); קירות ועצמים חוזרים בצעד ביטול אחד')}</div>` : nothing}
     ${v.note ? html`<div class="note multinote" data-multi-note role="status">${v.note}</div>` : nothing}
     ${renderAlignActions(v, a)}
     ${renderTagsField({ chips: v.tags, bulk: true, disabled: v.busy }, (t) => a.addTag(t), (t) => a.removeTag(t))}
     ${v.levels.length > 1
-      ? html`<sw-field label="העבר את כל הבחירה למפלס" hint="קירות ועצמים בצעד ביטול אחד; הפתחים עוברים עם הקיר שלהם">
+      ? html`<sw-field label=${tr('העבר את כל הבחירה למפלס')} hint=${tr('קירות ועצמים בצעד ביטול אחד; הפתחים עוברים עם הקיר שלהם')}>
           <select data-multi-level ?disabled=${v.busy} @change=${(e: Event) => { const s = e.target as HTMLSelectElement; const lv = s.value; s.value = ''; if (lv) a.setLevel(lv); }}>
-            <option value="" selected>בחר מפלס…</option>${v.levels.map((l) => html`<option value=${l.id}>${l.name} (${l.elevation_m} מ׳)</option>`)}
+            <option value="" selected>${tr('בחר מפלס…')}</option>${v.levels.map((l) => html`<option value=${l.id}>${tr('{name} ({elevation_m} מ׳)', { name: l.name, elevation_m: l.elevation_m })}</option>`)}
           </select></sw-field>`
       : nothing}
     ${v.lights
-      ? html`<sw-field label="הוסף למעגל תאורה" hint=${v.lights === total ? 'כל הנבחרים הם גופי תאורה' : `רק ${countLabel(v.lights, 'גוף התאורה שבבחירה מצטרף', 'גופי התאורה שבבחירה מצטרפים')}; קירות, אזורים ועצמים אחרים לא`}>
+      ? html`<sw-field label=${tr('הוסף למעגל תאורה')} hint=${v.lights === total ? tr('כל הנבחרים הם גופי תאורה') : tr('רק {countLabel}; קירות, אזורים ועצמים אחרים לא', { countLabel: countLabel(v.lights, tr('גוף התאורה שבבחירה מצטרף'), tr('גופי התאורה שבבחירה מצטרפים')) })}>
           ${v.circuits.length
-            ? html`<div class="tagchips" data-multi-circuits>${v.circuits.map((k) => html`<sw-chip dot=${circuitVar(k.color_token)} data-multi-circuit=${k.id} title=${`הוסף את גופי התאורה שבבחירה למעגל ${k.name}`} @click=${() => { if (!v.busy) a.joinCircuit(k.id); }}>${k.name}</sw-chip>`)}</div>`
-            : html`<div class="note" data-multi-no-circuits>אין עדיין מעגלים בקומה; צור מעגל בכלי "מעגלי תאורה".</div>`}
+            ? html`<div class="tagchips" data-multi-circuits>${v.circuits.map((k) => html`<sw-chip dot=${circuitVar(k.color_token)} data-multi-circuit=${k.id} title=${tr('הוסף את גופי התאורה שבבחירה למעגל {name}', { name: k.name })} @click=${() => { if (!v.busy) a.joinCircuit(k.id); }}>${k.name}</sw-chip>`)}</div>`
+            : html`<div class="note" data-multi-no-circuits>${tr('אין עדיין מעגלים בקומה; צור מעגל בכלי "מעגלי תאורה".')}</div>`}
         </sw-field>`
       : nothing}
     <div class="btns">
-      ${v.objects ? html`<sw-button size="sm" icon="layers" data-multi-duplicate ?disabled=${v.busy} title="עותק של כל העצמים שנבחרו, כגוש אחד ליד הבחירה (גם Ctrl+D)" @click=${() => a.duplicate()}>${v.objects === 1 ? 'שכפל את העצם' : `שכפל ${v.objects} עצמים`}</sw-button>` : nothing}
-      <sw-button size="sm" variant="danger" icon="trash" data-multi-delete ?disabled=${v.busy} @click=${() => a.remove()}>מחק הכל</sw-button>
-      <sw-button size="sm" variant="ghost" data-multi-clear @click=${() => a.clear()}>נקה בחירה</sw-button>
+      ${v.objects ? html`<sw-button size="sm" icon="layers" data-multi-duplicate ?disabled=${v.busy} title=${tr('עותק של כל העצמים שנבחרו, כגוש אחד ליד הבחירה (גם Ctrl+D)')} @click=${() => a.duplicate()}>${v.objects === 1 ? tr('שכפל את העצם') : tr('שכפל {objects} עצמים', { objects: v.objects })}</sw-button>` : nothing}
+      <sw-button size="sm" variant="danger" icon="trash" data-multi-delete ?disabled=${v.busy} @click=${() => a.remove()}>${tr('מחק הכל')}</sw-button>
+      <sw-button size="sm" variant="ghost" data-multi-clear @click=${() => a.clear()}>${tr('נקה בחירה')}</sw-button>
     </div>
     <div class="note" data-multi-hint>${MULTI_HINT}</div>
   </sw-card>`;
@@ -1320,29 +1321,29 @@ export function renderArrayDialog(v: ArrayDialogView, onChange: (patch: Partial<
   const total = Math.floor(v.rows) * Math.floor(v.cols);
   const ok = total >= 2 && total <= v.max && v.spacingX > 0 && v.spacingY > 0;
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
-  return html`<sw-dialog open heading="מערך" subheading=${`שורות × עמודות של ${v.item?.names.he ?? 'העצם'}; העצם שנבחר הוא הראשון`} data-array-dialog @close=${onCancel}>
+  return html`<sw-dialog open heading=${tr('מערך')} subheading=${tr('שורות × עמודות של {v}; העצם שנבחר הוא הראשון', { v: v.item?.names.he ?? tr('העצם') })} data-array-dialog @close=${onCancel}>
     ${v.error ? html`<div class="err" data-array-error>${v.error}</div>` : nothing}
     <div class="two">
-      <sw-field label="שורות"><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: Math.max(1, num(e) || 1) })} /></sw-field>
-      <sw-field label="עמודות"><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: Math.max(1, num(e) || 1) })} /></sw-field>
+      <sw-field label=${tr('שורות')}><input type="number" min="1" max="60" step="1" data-ltr data-array-rows .value=${String(v.rows)} @input=${(e: Event) => onChange({ rows: Math.max(1, num(e) || 1) })} /></sw-field>
+      <sw-field label=${tr('עמודות')}><input type="number" min="1" max="60" step="1" data-ltr data-array-cols .value=${String(v.cols)} @input=${(e: Event) => onChange({ cols: Math.max(1, num(e) || 1) })} /></sw-field>
     </div>
     <div class="two">
-      <sw-field label="רווח בין עמודות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sx .value=${String(v.spacingX)} @input=${(e: Event) => onChange({ spacingX: num(e) })} /></sw-field>
-      <sw-field label="רווח בין שורות (מ׳)"><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sy .value=${String(v.spacingY)} @input=${(e: Event) => onChange({ spacingY: num(e) })} /></sw-field>
+      <sw-field label=${tr('רווח בין עמודות (מ׳)')}><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sx .value=${String(v.spacingX)} @input=${(e: Event) => onChange({ spacingX: num(e) })} /></sw-field>
+      <sw-field label=${tr('רווח בין שורות (מ׳)')}><input type="number" min="0.05" max="50" step="0.05" data-ltr data-array-sy .value=${String(v.spacingY)} @input=${(e: Event) => onChange({ spacingY: num(e) })} /></sw-field>
     </div>
-    <sw-field label="כיוון (°)" hint="0 = העמודות ימינה והשורות למטה; 90 = מסובב"><input type="number" min="0" max="359" step="1" data-ltr data-array-dir .value=${String(v.directionDeg)} @input=${(e: Event) => onChange({ directionDeg: num(e) || 0 })} /></sw-field>
-    <div class="note" data-array-total>${total} עצמים${total > v.max ? ` · יותר מ־${v.max} במערך אחד` : ''}</div>
-    <sw-button slot="footer" variant="ghost" data-array-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant="primary" icon="check" data-array-create ?disabled=${!ok} @click=${onCreate}>צור מערך</sw-button>
+    <sw-field label=${tr('כיוון (°)')} hint=${tr('0 = העמודות ימינה והשורות למטה; 90 = מסובב')}><input type="number" min="0" max="359" step="1" data-ltr data-array-dir .value=${String(v.directionDeg)} @input=${(e: Event) => onChange({ directionDeg: num(e) || 0 })} /></sw-field>
+    <div class="note" data-array-total>${tr('{total} עצמים{v}', { total, v: total > v.max ? tr(' · יותר מ־{max} במערך אחד', { max: v.max }) : '' })}</div>
+    <sw-button slot="footer" variant="ghost" data-array-cancel @click=${onCancel}>${tr('ביטול')}</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-array-create ?disabled=${!ok} @click=${onCreate}>${tr('צור מערך')}</sw-button>
   </sw-dialog>`;
 }
 
 export function renderGroupDeleteDialog(count: number, onAll: () => void, onKeep: () => void, onCancel: () => void): TemplateResult {
-  return html`<sw-dialog open heading="מחיקת מערך" subheading=${`המערך מכיל ${count} עצמים`} data-group-delete-dialog @close=${onCancel}>
-    <div class="note">למחוק גם את העצמים, או להשאיר אותם על המפה כעצמים בודדים?</div>
-    <sw-button slot="footer" variant="ghost" data-group-delete-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" data-group-delete-keep @click=${onKeep}>השאר את העצמים</sw-button>
-    <sw-button slot="footer" variant="danger" icon="trash" data-group-delete-all @click=${onAll}>מחק הכול</sw-button>
+  return html`<sw-dialog open heading=${tr('מחיקת מערך')} subheading=${tr('המערך מכיל {count} עצמים', { count })} data-group-delete-dialog @close=${onCancel}>
+    <div class="note">${tr('למחוק גם את העצמים, או להשאיר אותם על המפה כעצמים בודדים?')}</div>
+    <sw-button slot="footer" variant="ghost" data-group-delete-cancel @click=${onCancel}>${tr('ביטול')}</sw-button>
+    <sw-button slot="footer" data-group-delete-keep @click=${onKeep}>${tr('השאר את העצמים')}</sw-button>
+    <sw-button slot="footer" variant="danger" icon="trash" data-group-delete-all @click=${onAll}>${tr('מחק הכול')}</sw-button>
   </sw-dialog>`;
 }
 
@@ -1368,25 +1369,25 @@ export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, o
   const sizeField = (key: keyof GeomSize, label: string) => html`<sw-field label=${label}><input type="number" min="0.05" max="100" step="0.05" data-ltr ?data-custom-w=${key === 'w_m'} ?data-custom-d=${key === 'd_m'} ?data-custom-h=${key === 'h_m'}
       aria-invalid=${sizeOk(v.size[key]) ? 'false' : 'true'} style=${sizeOk(v.size[key]) ? '' : 'border-color: var(--sw-danger)'} .value=${Number.isFinite(v.size[key]) ? String(v.size[key]) : ''}
       @input=${(e: Event) => onChange({ size: { ...v.size, [key]: num(e) } })} /></sw-field>`;
-  return html`<sw-dialog open heading="פריט מותאם" subheading=${v.basedOn ? `מבוסס על ${lib.items.find((i) => i.id === v.basedOn)?.names.he ?? v.basedOn}: הפריט החדש נשמר בספרייה של המתקן` : 'פריט חדש בספרייה של המתקן'} data-custom-dialog @close=${onCancel}>
+  return html`<sw-dialog open heading=${tr('פריט מותאם')} subheading=${v.basedOn ? tr('מבוסס על {v}: הפריט החדש נשמר בספרייה של המתקן', { v: lib.items.find((i) => i.id === v.basedOn)?.names.he ?? v.basedOn }) : tr('פריט חדש בספרייה של המתקן')} data-custom-dialog @close=${onCancel}>
     ${v.error ? html`<div class="err">${v.error}</div>` : nothing}
     <div class="two">
-      <sw-field label="שם (עברית)"><input type="text" maxlength="80" data-custom-name .value=${v.nameHe} @input=${(e: Event) => onChange({ nameHe: (e.target as HTMLInputElement).value })} /></sw-field>
-      <sw-field label="שם (אנגלית, לחיפוש)"><input type="text" maxlength="80" data-ltr data-custom-name-en .value=${v.nameEn} @input=${(e: Event) => onChange({ nameEn: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label=${tr('שם (עברית)')}><input type="text" maxlength="80" data-custom-name .value=${v.nameHe} @input=${(e: Event) => onChange({ nameHe: (e.target as HTMLInputElement).value })} /></sw-field>
+      <sw-field label=${tr('שם (אנגלית, לחיפוש)')}><input type="text" maxlength="80" data-ltr data-custom-name-en .value=${v.nameEn} @input=${(e: Event) => onChange({ nameEn: (e.target as HTMLInputElement).value })} /></sw-field>
     </div>
     <div class="two">
-      <sw-field label="קטגוריה"><select data-custom-category @change=${(e: Event) => onChange({ category: (e.target as HTMLSelectElement).value })}>${lib.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === v.category}>${c.he}</option>`)}</select></sw-field>
-      <sw-field label="צורה"><select data-custom-shape @change=${(e: Event) => onChange({ shape: (e.target as HTMLSelectElement).value as ObjectShape })}>${OBJECT_SHAPES.map((s) => html`<option value=${s} ?selected=${s === v.shape}>${s}</option>`)}</select></sw-field>
+      <sw-field label=${tr('קטגוריה')}><select data-custom-category @change=${(e: Event) => onChange({ category: (e.target as HTMLSelectElement).value })}>${lib.categories.map((c) => html`<option value=${c.id} ?selected=${c.id === v.category}>${c.he}</option>`)}</select></sw-field>
+      <sw-field label=${tr('צורה')}><select data-custom-shape @change=${(e: Event) => onChange({ shape: (e.target as HTMLSelectElement).value as ObjectShape })}>${OBJECT_SHAPES.map((s) => html`<option value=${s} ?selected=${s === v.shape}>${s}</option>`)}</select></sw-field>
     </div>
     <div class="two">
-      <sw-field label="סמל"><select data-custom-icon @change=${(e: Event) => onChange({ icon: (e.target as HTMLSelectElement).value })}>${SYMBOL_IDS.map((s) => html`<option value=${s} ?selected=${s === v.icon}>${s}</option>`)}</select></sw-field>
-      <sw-field label="צבע"><select data-custom-color @change=${(e: Event) => onChange({ color: (e.target as HTMLSelectElement).value })}>${COLOR_TOKENS.map((c) => html`<option value=${c} ?selected=${c === v.color}>${c}</option>`)}</select></sw-field>
+      <sw-field label=${tr('סמל')}><select data-custom-icon @change=${(e: Event) => onChange({ icon: (e.target as HTMLSelectElement).value })}>${SYMBOL_IDS.map((s) => html`<option value=${s} ?selected=${s === v.icon}>${s}</option>`)}</select></sw-field>
+      <sw-field label=${tr('צבע')}><select data-custom-color @change=${(e: Event) => onChange({ color: (e.target as HTMLSelectElement).value })}>${COLOR_TOKENS.map((c) => html`<option value=${c} ?selected=${c === v.color}>${c}</option>`)}</select></sw-field>
     </div>
-    <div class="three">${sizeField('w_m', 'רוחב (מ׳)')}${sizeField('d_m', 'עומק (מ׳)')}${sizeField('h_m', 'גובה (מ׳)')}</div>
-    ${badSize ? html`<div class="err" data-custom-size-error>כל מידה בין 0.05 ל־100 מ׳</div>` : nothing}
-    <div class="note">הגובה מהרצפה, הפרמטרים וסוגי הישויות נלקחים מהפריט שעליו הוא מבוסס.</div>
-    <sw-button slot="footer" variant="ghost" data-custom-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim() || badSize} @click=${onCreate}>${v.busy ? 'שומר…' : 'צור פריט'}</sw-button>
+    <div class="three">${sizeField('w_m', tr('רוחב (מ׳)'))}${sizeField('d_m', tr('עומק (מ׳)'))}${sizeField('h_m', tr('גובה (מ׳)'))}</div>
+    ${badSize ? html`<div class="err" data-custom-size-error>${tr('כל מידה בין 0.05 ל־100 מ׳')}</div>` : nothing}
+    <div class="note">${tr('הגובה מהרצפה, הפרמטרים וסוגי הישויות נלקחים מהפריט שעליו הוא מבוסס.')}</div>
+    <sw-button slot="footer" variant="ghost" data-custom-cancel @click=${onCancel}>${tr('ביטול')}</sw-button>
+    <sw-button slot="footer" variant="primary" icon="check" data-custom-create ?disabled=${v.busy || !v.nameHe.trim() || badSize} @click=${onCreate}>${v.busy ? tr('שומר…') : tr('צור פריט')}</sw-button>
   </sw-dialog>`;
 }
 
@@ -1397,13 +1398,13 @@ export function renderCustomItemDialog(v: CustomItemView, lib: CatalogLibrary, o
  * pencil is a sibling of the chip, not inside it: sw-chip is itself a button. */
 export function renderLevelChips(levels: GeomLevel[], current: string | null, onPick: (id: string | null) => void, onAdd?: () => void, onEdit?: (id: string) => void): TemplateResult {
   if (levels.length < 2 && !onAdd) return html``;
-  const chip = (l: GeomLevel) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${l.name} · ${l.elevation_m >= 0 ? '+' : '−'}${Math.abs(l.elevation_m).toFixed(1)} מ׳</sw-chip>`;
-  return html`<div class="levelchips" role="group" aria-label="מפלסים" data-level-chips>
-    <sw-chip data-level-chip="all" ?selected=${current === null} @click=${() => onPick(null)}>כל המפלסים</sw-chip>
+  const chip = (l: GeomLevel) => html`<sw-chip data-level-chip=${l.id} ?selected=${current === l.id} @click=${() => onPick(l.id)}>${tr('{name} · {v}{v2} מ׳', { name: l.name, v: l.elevation_m >= 0 ? '+' : '−', v2: Math.abs(l.elevation_m).toFixed(1) })}</sw-chip>`;
+  return html`<div class="levelchips" role="group" aria-label=${tr('מפלסים')} data-level-chips>
+    <sw-chip data-level-chip="all" ?selected=${current === null} @click=${() => onPick(null)}>${tr('כל המפלסים')}</sw-chip>
     ${[...levels].sort((a, b) => b.elevation_m - a.elevation_m).map((l) => onEdit
-      ? html`<span class="levelchip">${chip(l)}<sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${`עריכת המפלס ${l.name}`} data-level-edit=${l.id} @click=${() => onEdit(l.id)}></sw-button></span>`
+      ? html`<span class="levelchip">${chip(l)}<sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${tr('עריכת המפלס {name}', { name: l.name })} data-level-edit=${l.id} @click=${() => onEdit(l.id)}></sw-button></span>`
       : chip(l))}
-    ${onAdd ? html`<sw-chip data-level-add icon="plus" @click=${onAdd}>מפלס</sw-chip>` : nothing}
+    ${onAdd ? html`<sw-chip data-level-add icon="plus" @click=${onAdd}>${tr('מפלס')}</sw-chip>` : nothing}
   </div>`;
 }
 
@@ -1434,26 +1435,26 @@ export function renderLevelDialog(v: LevelDialogView, a: LevelDialogActions): Te
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
   const ok = v.name.trim().length > 0 && v.elevation >= -50 && v.elevation <= 500 && v.ceiling > 0 && v.ceiling <= 50;
   const editing = v.id !== null;
-  return html`<sw-dialog open heading=${editing ? 'עריכת מפלס' : 'מפלס חדש'} subheading="גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה" data-level-dialog data-level-editing=${v.id ?? nothing} @close=${a.cancel}>
+  return html`<sw-dialog open heading=${editing ? tr('עריכת מפלס') : tr('מפלס חדש')} subheading=${tr('גובה הרצפה יחסית למפלס הראשי (0), וגובה התקרה מעליה')} data-level-dialog data-level-editing=${v.id ?? nothing} @close=${a.cancel}>
     ${v.error ? html`<div class="err" data-level-error>${v.error}</div>` : nothing}
-    <sw-field label="שם"><input type="text" maxlength="60" data-level-name placeholder="למשל: אולם תחתון" .value=${v.name} @input=${(e: Event) => a.change({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+    <sw-field label=${tr('שם')}><input type="text" maxlength="60" data-level-name placeholder=${tr('למשל: אולם תחתון')} .value=${v.name} @input=${(e: Event) => a.change({ name: (e.target as HTMLInputElement).value })} /></sw-field>
     <div class="two">
-      <sw-field label="גובה רצפה (מ׳)" hint="שלילי = מתחת למפלס הראשי"><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => a.change({ elevation: num(e) })} /></sw-field>
-      <sw-field label="גובה תקרה (מ׳)"><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => a.change({ ceiling: num(e) })} /></sw-field>
+      <sw-field label=${tr('גובה רצפה (מ׳)')} hint=${tr('שלילי = מתחת למפלס הראשי')}><input type="number" min="-50" max="500" step="0.1" data-ltr data-level-elevation .value=${String(v.elevation)} @input=${(e: Event) => a.change({ elevation: num(e) })} /></sw-field>
+      <sw-field label=${tr('גובה תקרה (מ׳)')}><input type="number" min="0.1" max="50" step="0.1" data-ltr data-level-ceiling .value=${String(v.ceiling)} @input=${(e: Event) => a.change({ ceiling: num(e) })} /></sw-field>
     </div>
-    ${editing && v.isDefault ? html`<div class="note" data-level-is-default>זה המפלס הראשי: פריטים חדשים מוצבים בו כשאין סינון מפלס.</div>` : nothing}
-    ${editing && !v.isDefault ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="הפוך למפלס הראשי" data-level-make-default .checked=${v.makeDefault} @change=${(e: Event) => a.change({ makeDefault: toggled(e) })}></sw-toggle> הפוך למפלס הראשי</label>` : nothing}
-    ${editing ? html`<sw-button slot="footer" variant="danger" icon="trash" data-level-delete @click=${a.remove}>מחק מפלס</sw-button>` : nothing}
-    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${a.cancel}>ביטול</sw-button>
+    ${editing && v.isDefault ? html`<div class="note" data-level-is-default>${tr('זה המפלס הראשי: פריטים חדשים מוצבים בו כשאין סינון מפלס.')}</div>` : nothing}
+    ${editing && !v.isDefault ? html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('הפוך למפלס הראשי')} data-level-make-default .checked=${v.makeDefault} @change=${(e: Event) => a.change({ makeDefault: toggled(e) })}></sw-toggle> ${tr('הפוך למפלס הראשי')}</label>` : nothing}
+    ${editing ? html`<sw-button slot="footer" variant="danger" icon="trash" data-level-delete @click=${a.remove}>${tr('מחק מפלס')}</sw-button>` : nothing}
+    <sw-button slot="footer" variant="ghost" data-level-cancel @click=${a.cancel}>${tr('ביטול')}</sw-button>
     ${editing
-      ? html`<sw-button slot="footer" variant="primary" icon="check" data-level-save ?disabled=${!ok} @click=${a.submit}>שמור</sw-button>`
-      : html`<sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${a.submit}>הוסף מפלס</sw-button>`}
+      ? html`<sw-button slot="footer" variant="primary" icon="check" data-level-save ?disabled=${!ok} @click=${a.submit}>${tr('שמור')}</sw-button>`
+      : html`<sw-button slot="footer" variant="primary" icon="check" data-level-create ?disabled=${!ok} @click=${a.submit}>${tr('הוסף מפלס')}</sw-button>`}
   </sw-dialog>`;
 }
 
 // ---------------------------------------------------------------- connectors (T085)
 
-export const CONNECTOR_LABEL: Record<ConnectorKind, string> = { stairs: 'מדרגות', ramp: 'רמפה', tribune: 'טריבונה', elevator: 'מעלית', ladder: 'סולם' };
+export const CONNECTOR_LABEL: Record<ConnectorKind, string> = { stairs: tr('מדרגות'), ramp: tr('רמפה'), tribune: tr('טריבונה'), elevator: tr('מעלית'), ladder: tr('סולם') };
 
 interface ConnectorView {
   doc: GeometryDoc;
@@ -1490,15 +1491,15 @@ interface ConnectorActions {
  * (floor_ids set) before asking for level_to, so a null here is a target not chosen yet - never "another floor" (a
  * freshly drawn connector starts that way, T085 review 2026-09-26). */
 function connectorLevelName(levels: GeomLevel[], id: string | null): string {
-  return id ? levels.find((l) => l.id === id)?.name ?? id : 'לא נבחר';
+  return id ? levels.find((l) => l.id === id)?.name ?? id : tr('לא נבחר');
 }
 
 /** Where a connector leads, in words: "קומה 1 · גלריה" for another floor, the level's name here, or "לא נבחר". */
 export function connectorTargetName(levels: GeomLevel[], c: Pick<GeomConnector, 'floor_ids' | 'far' | 'level_to'>): string {
   if (c.floor_ids.length) {
     const far = c.far;
-    if (far?.missing) return 'קומה שנמחקה';
-    if (!far?.floor_name) return 'קומה אחרת';
+    if (far?.missing) return tr('קומה שנמחקה');
+    if (!far?.floor_name) return tr('קומה אחרת');
     return far.level_name ? `${far.floor_name} · ${far.level_name}` : far.floor_name;
   }
   return connectorLevelName(levels, c.level_to);
@@ -1511,9 +1512,9 @@ export function connectorDerived(c: Pick<GeomConnector, 'object_id' | 'source'>)
 }
 
 const STAIR_DRAW_HINT: Record<StairShape, [string, string]> = {
-  straight: ['לחץ על תחילת המדרגות', 'לחץ על סוף המדרגות'],
-  l: ['לחץ על תחילת המהלך הראשון', 'לחץ על סוף המהלך הראשון (הכיוון והאורך)'],
-  u: ['לחץ על תחילת המהלך הראשון', 'לחץ על סוף המהלך הראשון (הכיוון והאורך)'],
+  straight: [tr('לחץ על תחילת המדרגות'), tr('לחץ על סוף המדרגות')],
+  l: [tr('לחץ על תחילת המהלך הראשון'), tr('לחץ על סוף המהלך הראשון (הכיוון והאורך)')],
+  u: [tr('לחץ על תחילת המהלך הראשון'), tr('לחץ על סוף המהלך הראשון (הכיוון והאורך)')],
 };
 
 export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): TemplateResult {
@@ -1521,24 +1522,24 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
   const levelName = (id: string | null) => connectorLevelName(levels, id);
   const sel = v.sel;
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
-  const hint = v.mode === 'stairs' ? STAIR_DRAW_HINT[v.stairShape][v.start ? 1 : 0] : v.mode ? (v.start ? `לחץ על הנקודה השנייה של ${CONNECTOR_LABEL[v.mode]}` : `לחץ על הנקודה הראשונה של ${CONNECTOR_LABEL[v.mode]}`) : '';
-  return html`<sw-card heading="מפלסים ומחברים" subheading=${v.mode ? `${hint}${v.start ? ' · Esc לביטול' : ''}` : 'מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות'} data-connector-panel data-studio-save=${v.saveState}>
-    <div class="modes" role="group" aria-label="סוג מחבר">
+  const hint = v.mode === 'stairs' ? STAIR_DRAW_HINT[v.stairShape][v.start ? 1 : 0] : v.mode ? (v.start ? tr('לחץ על הנקודה השנייה של {v}', { v: CONNECTOR_LABEL[v.mode] }) : tr('לחץ על הנקודה הראשונה של {v}', { v: CONNECTOR_LABEL[v.mode] })) : '';
+  return html`<sw-card heading=${tr('מפלסים ומחברים')} subheading=${v.mode ? `${hint}${v.start ? tr(' · Esc לביטול') : ''}` : tr('מדרגות, רמפה, מעלית וסולם בין מפלסים ובין קומות')} data-connector-panel data-studio-save=${v.saveState}>
+    <div class="modes" role="group" aria-label=${tr('סוג מחבר')}>
       ${(['stairs', 'ramp', 'elevator', 'ladder'] as ConnectorKind[]).map((k) => html`<button class=${v.mode === k ? 'on' : ''} data-conn-mode=${k} aria-pressed=${v.mode === k} @click=${() => a.setMode(v.mode === k ? null : k)}>${CONNECTOR_LABEL[k]}</button>`)}
     </div>
     ${v.mode === 'stairs'
-      ? html`<div class="modes" role="group" aria-label="צורת המדרגות" data-stair-draw-shapes>
+      ? html`<div class="modes" role="group" aria-label=${tr('צורת המדרגות')} data-stair-draw-shapes>
           ${STAIR_SHAPES.map((s) => html`<button class=${v.stairShape === s ? 'on' : ''} data-stair-draw-shape=${s} aria-pressed=${v.stairShape === s} @click=${() => a.setStairShape(s)}>${STAIR_SHAPE_TEXT[s]}</button>`)}
         </div>`
       : nothing}
-    <sw-field label="גובה קומה (רצפה עד רצפה, מ׳)" hint="כמה עולות מדרגות לקומה שמעל; ברירת מחדל 3"><input type="number" min=${FLOOR_HEIGHT_RANGE[0]} max=${FLOOR_HEIGHT_RANGE[1]} step="0.05" data-ltr data-floor-height .value=${String(floorHeight(v.doc))}
+    <sw-field label=${tr('גובה קומה (רצפה עד רצפה, מ׳)')} hint=${tr('כמה עולות מדרגות לקומה שמעל; ברירת מחדל 3')}><input type="number" min=${FLOOR_HEIGHT_RANGE[0]} max=${FLOOR_HEIGHT_RANGE[1]} step="0.05" data-ltr data-floor-height .value=${String(floorHeight(v.doc))}
       @change=${(e: Event) => { const x = num(e); if (x >= FLOOR_HEIGHT_RANGE[0] && x <= FLOOR_HEIGHT_RANGE[1]) a.setFloorHeight(Math.round(x * 100) / 100); }} /></sw-field>
-    <div class="note">שתי לחיצות על התוכנית מציירות מחבר (הצמדה לפינות קירות); במדרגות L ו־U הלחיצה השנייה קובעת את הכיוון ואת אורך המהלך הראשון, והפודסט והמהלך השני נוצרים לבד. מדרגות ומעלית מהספרייה מונחות כאן כמחבר. טריבונה היא עצם מהספרייה: המחבר שלה נוצר לבד כשמגדירים לאיזה מפלס היא יורדת.</div>
+    <div class="note">${tr('שתי לחיצות על התוכנית מציירות מחבר (הצמדה לפינות קירות); במדרגות L ו־U הלחיצה השנייה קובעת את הכיוון ואת אורך המהלך הראשון, והפודסט והמהלך השני נוצרים לבד. מדרגות ומעלית מהספרייה מונחות כאן כמחבר. טריבונה היא עצם מהספרייה: המחבר שלה נוצר לבד כשמגדירים לאיזה מפלס היא יורדת.')}</div>
     ${v.doc.connectors.length
       ? html`<div class="list">${v.doc.connectors.map((c) => html`<button class=${sel?.id === c.id ? 'on' : ''} data-conn-row=${c.id} @click=${() => a.select(c.id)}>
-          <span>${CONNECTOR_LABEL[c.kind] ?? c.kind}${connectorDerived(c) ? ' (מעצם)' : ''}</span><span class="note" style="margin:0">${levelName(c.level_from)} ← ${connectorTargetName(levels, c)}</span>
+          <span>${CONNECTOR_LABEL[c.kind] ?? c.kind}${connectorDerived(c) ? tr(' (מעצם)') : ''}</span><span class="note" style="margin:0">${levelName(c.level_from)} ← ${connectorTargetName(levels, c)}</span>
         </button>`)}</div>`
-      : html`<div class="note">עדיין אין מחברים בקומה.</div>`}
+      : html`<div class="note">${tr('עדיין אין מחברים בקומה.')}</div>`}
     ${sel ? renderConnectorInspector(sel, v, a, levelName, num) : nothing}
   </sw-card>`;
 }
@@ -1547,11 +1548,11 @@ export function renderConnectorPanel(v: ConnectorView, a: ConnectorActions): Tem
 export function renderConnectorSelection(v: ConnectorView & { sel: GeomConnector }, a: ConnectorActions): TemplateResult {
   const levelName = (id: string | null) => connectorLevelName(v.doc.levels, id);
   const num = (e: Event) => parseFloat((e.target as HTMLInputElement).value);
-  return html`<sw-card heading="מחבר" subheading=${SAVE_LABEL[v.saveState]} data-connector-panel data-studio-save=${v.saveState}>${renderConnectorInspector(v.sel, v, a, levelName, num)}</sw-card>`;
+  return html`<sw-card heading=${tr('מחבר')} subheading=${SAVE_LABEL[v.saveState]} data-connector-panel data-studio-save=${v.saveState}>${renderConnectorInspector(v.sel, v, a, levelName, num)}</sw-card>`;
 }
 
 const STAIR_SHAPES: StairShape[] = ['straight', 'l', 'u'];
-const STAIR_SHAPE_TEXT: Record<StairShape, string> = { straight: 'ישר', l: 'L (פנייה 90°)', u: 'U (חצי סיבוב)' };
+const STAIR_SHAPE_TEXT: Record<StairShape, string> = { straight: tr('ישר'), l: tr('L (פנייה 90°)'), u: tr('U (חצי סיבוב)') };
 
 /** The stairs model of a stair connector (T085): shape, turn side, steps per flight, a mid landing on a straight run,
  * landing depth, the 90-degree turn. Every change regenerates the walking line from its start (the editor's
@@ -1567,30 +1568,30 @@ function renderStairModel(c: GeomConnector, a: ConnectorActions, num: (e: Event)
     a.patchStair(c.id, { flights: flights.map((f, k) => (k === i ? { steps: n } : f)) });
   };
   return html`<div class="stairs" data-stair-model=${model ? shape : 'none'}>
-    <div class="modes" role="group" aria-label="צורת המדרגות">
+    <div class="modes" role="group" aria-label=${tr('צורת המדרגות')}>
       ${STAIR_SHAPES.map((s) => html`<button class=${model && shape === s ? 'on' : ''} data-stair-shape=${s} aria-pressed=${model && shape === s} @click=${() => a.patchStair(c.id, { shape: s })}>${STAIR_SHAPE_TEXT[s]}</button>`)}
     </div>
     ${model
       ? html`<div class="two">
-          ${flights.map((f, i) => html`<sw-field label=${two ? `מדרגות במהלך ${i + 1}` : 'מדרגות'}><input type="number" min="1" max=${MAX_STAIR_STEPS} step="1" data-ltr data-stair-steps=${i} .value=${String(f.steps)} @change=${steps(i)} /></sw-field>`)}
+          ${flights.map((f, i) => html`<sw-field label=${two ? tr('מדרגות במהלך {v}', { v: i + 1 }) : tr('מדרגות')}><input type="number" min="1" max=${MAX_STAIR_STEPS} step="1" data-ltr data-stair-steps=${i} .value=${String(f.steps)} @change=${steps(i)} /></sw-field>`)}
         </div>
         <div class="two">
           ${shape !== 'straight'
-            ? html`<sw-field label="פנייה"><select data-stair-turn @change=${(e: Event) => a.patchStair(c.id, { turn: (e.target as HTMLSelectElement).value as 'left' | 'right' })}>
-                <option value="right" ?selected=${c.turn !== 'left'}>ימינה</option><option value="left" ?selected=${c.turn === 'left'}>שמאלה</option></select></sw-field>`
-            : html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label="פודסט באמצע" data-stair-mid .checked=${two} @change=${(e: Event) => {
+            ? html`<sw-field label=${tr('פנייה')}><select data-stair-turn @change=${(e: Event) => a.patchStair(c.id, { turn: (e.target as HTMLSelectElement).value as 'left' | 'right' })}>
+                <option value="right" ?selected=${c.turn !== 'left'}>${tr('ימינה')}</option><option value="left" ?selected=${c.turn === 'left'}>${tr('שמאלה')}</option></select></sw-field>`
+            : html`<label class="chk"><sw-toggle size="sm" labelHidden in-label label=${tr('פודסט באמצע')} data-stair-mid .checked=${two} @change=${(e: Event) => {
                 const on = toggled(e);
                 const total = flights.reduce((n, f) => n + f.steps, 0);
                 a.patchStair(c.id, { flights: on ? [{ steps: Math.max(1, Math.ceil(total / 2)) }, { steps: Math.max(1, Math.floor(total / 2)) }] : [{ steps: Math.min(MAX_STAIR_STEPS, total) }] });
-              }}></sw-toggle> פודסט באמצע</label>`}
+              }}></sw-toggle> ${tr('פודסט באמצע')}</label>`}
           ${two || shape !== 'straight'
-            ? html`<sw-field label="עומק הפודסט (מ׳)"><input type="number" min=${LANDING_RANGE[0]} max=${LANDING_RANGE[1]} step="0.1" data-ltr data-stair-landing .value=${String(c.landing_depth_m ?? c.width_m)}
+            ? html`<sw-field label=${tr('עומק הפודסט (מ׳)')}><input type="number" min=${LANDING_RANGE[0]} max=${LANDING_RANGE[1]} step="0.1" data-ltr data-stair-landing .value=${String(c.landing_depth_m ?? c.width_m)}
                 @change=${(e: Event) => { const x = num(e); if (x >= LANDING_RANGE[0] && x <= LANDING_RANGE[1]) a.patchStair(c.id, { landing_depth_m: x }); }} /></sw-field>`
             : nothing}
         </div>
-        <div class="note" data-stair-caption-note>${stairCaption({ flights, shape }) || '—'} · גרירת פינה משנה את המסלול; שינוי כאן מסדר אותו מחדש מנקודת ההתחלה.</div>`
-      : html`<div class="note">בחר צורה כדי לצייר מהלכים, מדרגות ופודסט.</div>`}
-    <div class="btns"><sw-button size="sm" variant="ghost" data-conn-rotate @click=${() => a.rotate(c.id)}>סובב 90°</sw-button></div>
+        <div class="note" data-stair-caption-note>${tr('{v} · גרירת פינה משנה את המסלול; שינוי כאן מסדר אותו מחדש מנקודת ההתחלה.', { v: stairCaption({ flights, shape }) || '—' })}</div>`
+      : html`<div class="note">${tr('בחר צורה כדי לצייר מהלכים, מדרגות ופודסט.')}</div>`}
+    <div class="btns"><sw-button size="sm" variant="ghost" data-conn-rotate @click=${() => a.rotate(c.id)}>${tr('סובב 90°')}</sw-button></div>
   </div>`;
 }
 
@@ -1609,55 +1610,55 @@ function renderConnectorInspector(c: GeomConnector, v: ConnectorView, a: Connect
   const target = connectorTargetName(v.doc.levels, c);
   return html`<div class="sel" data-selected-connector=${c.id}>
     <div class="selhead"><strong>${CONNECTOR_LABEL[c.kind] ?? c.kind}</strong><span class="muted" data-conn-head-label>${connectorLabelOf(v.doc, c)}</span></div>
-    ${derived ? html`<div class="note" data-conn-derived>נגזר מעצם (${c.object_id ?? ''}): המיקום, הרוחב והמפלסים מגיעים מהעצם; ערוך אותו בספריית העצמים.</div>` : nothing}
+    ${derived ? html`<div class="note" data-conn-derived>${tr('נגזר מעצם ({v}): המיקום, הרוחב והמפלסים מגיעים מהעצם; ערוך אותו בספריית העצמים.', { v: c.object_id ?? '' })}</div>` : nothing}
     <div class="two">
-      <sw-field label="סוג"><select data-conn-kind ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { kind: (e.target as HTMLSelectElement).value as ConnectorKind })}>${(['stairs', 'ramp', 'elevator', 'ladder', 'tribune'] as ConnectorKind[]).map((k) => html`<option value=${k} ?selected=${k === c.kind}>${CONNECTOR_LABEL[k]}</option>`)}</select></sw-field>
-      <sw-field label="רוחב (מ׳)"><input type="number" min=${minWidth} max=${maxWidth} step="0.1" data-ltr data-conn-width ?disabled=${derived} .value=${String(c.width_m)}
+      <sw-field label=${tr('סוג')}><select data-conn-kind ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { kind: (e.target as HTMLSelectElement).value as ConnectorKind })}>${(['stairs', 'ramp', 'elevator', 'ladder', 'tribune'] as ConnectorKind[]).map((k) => html`<option value=${k} ?selected=${k === c.kind}>${CONNECTOR_LABEL[k]}</option>`)}</select></sw-field>
+      <sw-field label=${tr('רוחב (מ׳)')}><input type="number" min=${minWidth} max=${maxWidth} step="0.1" data-ltr data-conn-width ?disabled=${derived} .value=${String(c.width_m)}
         @change=${(e: Event) => { const x = num(e); if (!(x >= minWidth && x <= maxWidth)) return; if (stairs && hasStairModel(c)) a.patchStair(c.id, { width_m: x }); else a.patch(c.id, { width_m: x }); }} /></sw-field>
     </div>
     <div class="two">
-      <sw-field label="ממפלס"><select data-conn-from ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { level_from: (e.target as HTMLSelectElement).value })}>${v.doc.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_from}>${l.name}</option>`)}</select></sw-field>
-      <sw-field label="מחבר אל"><select data-conn-target aria-label="מחבר אל: מפלס בקומה הזו או מפלס בקומה אחרת" ?disabled=${derived || v.linkBusy} @change=${(e: Event) => { const val = (e.target as HTMLSelectElement).value; if (val) a.setTarget(c.id, val); }}>
-        <option value="" ?selected=${!current}>${cross ? `${target} · בחר מפלס` : 'בחר מפלס או קומה'}</option>
-        ${groups.here.length ? html`<optgroup label="בקומה הזו">${groups.here.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</optgroup>` : nothing}
+      <sw-field label=${tr('ממפלס')}><select data-conn-from ?disabled=${derived} @change=${(e: Event) => a.patch(c.id, { level_from: (e.target as HTMLSelectElement).value })}>${v.doc.levels.map((l) => html`<option value=${l.id} ?selected=${l.id === c.level_from}>${l.name}</option>`)}</select></sw-field>
+      <sw-field label=${tr('מחבר אל')}><select data-conn-target aria-label=${tr('מחבר אל: מפלס בקומה הזו או מפלס בקומה אחרת')} ?disabled=${derived || v.linkBusy} @change=${(e: Event) => { const val = (e.target as HTMLSelectElement).value; if (val) a.setTarget(c.id, val); }}>
+        <option value="" ?selected=${!current}>${cross ? tr('{target} · בחר מפלס', { target }) : tr('בחר מפלס או קומה')}</option>
+        ${groups.here.length ? html`<optgroup label=${tr('בקומה הזו')}>${groups.here.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</optgroup>` : nothing}
         ${derived ? nothing : groups.floors.map((f) => html`<optgroup label=${f.name}>${f.options.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</optgroup>`)}
       </select></sw-field>
     </div>
-    ${v.linkBusy ? html`<div class="note" data-conn-linking>מקשר לקומה השנייה…</div>` : nothing}
-    ${twinCopy ? html`<div class="note" data-conn-twin-origin>אלה מדרגות שקושרו מקומה אחרת: כדי לקשר אותן לקומה שלישית, קשר מחדש מהקומה המקורית.</div>` : nothing}
+    ${v.linkBusy ? html`<div class="note" data-conn-linking>${tr('מקשר לקומה השנייה…')}</div>` : nothing}
+    ${twinCopy ? html`<div class="note" data-conn-twin-origin>${tr('אלה מדרגות שקושרו מקומה אחרת: כדי לקשר אותן לקומה שלישית, קשר מחדש מהקומה המקורית.')}</div>` : nothing}
     ${cross && !derived
-      ? html`<div class="note" data-conn-twin-note>מקושר אל ${target}: אותו מחבר מופיע בטיוטה של שתי הקומות. הזזה כאן לא מזיזה את המדרגות בקומה השנייה, ולהפך.</div>`
+      ? html`<div class="note" data-conn-twin-note>${tr('מקושר אל {target}: אותו מחבר מופיע בטיוטה של שתי הקומות. הזזה כאן לא מזיזה את המדרגות בקומה השנייה, ולהפך.', { target })}</div>`
       : nothing}
-    ${c.needs_placement ? html`<div class="note warn" data-conn-placement>מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת. גרור אותן למקומן.</div>` : nothing}
-    ${!c.needs_placement && c.check_placement ? html`<div class="note warn" data-conn-check-placement>ודא את המיקום: צורת המדרגות עודכנה מהקומה השנייה והמסלול נבנה מחדש מנקודת ההתחלה שלהן כאן.</div>` : nothing}
-    ${c.needs_placement || c.check_placement ? html`<div class="btns"><sw-button size="sm" data-conn-confirm-place @click=${() => a.confirmPlacement(c.id)}>אישור מיקום</sw-button></div>` : nothing}
+    ${c.needs_placement ? html`<div class="note warn" data-conn-placement>${tr('מקם את המדרגות בקומה הזו: הן נוצרו במרכז התוכנית כי לשתי הקומות אין מסגרת משותפת. גרור אותן למקומן.')}</div>` : nothing}
+    ${!c.needs_placement && c.check_placement ? html`<div class="note warn" data-conn-check-placement>${tr('ודא את המיקום: צורת המדרגות עודכנה מהקומה השנייה והמסלול נבנה מחדש מנקודת ההתחלה שלהן כאן.')}</div>` : nothing}
+    ${c.needs_placement || c.check_placement ? html`<div class="btns"><sw-button size="sm" data-conn-confirm-place @click=${() => a.confirmPlacement(c.id)}>${tr('אישור מיקום')}</sw-button></div>` : nothing}
     ${stairs ? renderStairModel(c, a, num) : nothing}
-    <sw-field label="תווית (אופציונלי; ריק = הפרש הגובה או הקומה)"><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
-    <div class="note" data-conn-route>${levelName(c.level_from)} ← ${target}${derived ? '' : ' · גרירת פינה מזיזה פינה, גרירת המחבר הנבחר מזיזה את כולו'}</div>
-    ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>מחק מחבר</sw-button></div>` : nothing}
+    <sw-field label=${tr('תווית (אופציונלי; ריק = הפרש הגובה או הקומה)')}><input type="text" maxlength="80" data-conn-label ?disabled=${derived} .value=${c.label ?? ''} @change=${(e: Event) => a.patch(c.id, { label: (e.target as HTMLInputElement).value.trim() || null })} /></sw-field>
+    <div class="note" data-conn-route>${levelName(c.level_from)} ← ${target}${derived ? '' : tr(' · גרירת פינה מזיזה פינה, גרירת המחבר הנבחר מזיזה את כולו')}</div>
+    ${!derived ? html`<div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(c.id)}>${tr('מחק מחבר')}</sw-button></div>` : nothing}
   </div>`;
 }
 
 /** "למחוק גם בקומה השנייה?" (T085): deleting a connector linked to another floor asks whether its twin goes too; the
  * default (the primary button) deletes both. */
 export function renderTwinDeleteDialog(target: string, canBoth: boolean, onBoth: () => void, onHere: () => void, onCancel: () => void): TemplateResult {
-  return html`<sw-dialog open heading="מחיקת מחבר בין קומות" subheading=${`המחבר מקושר אל ${target}`} data-twin-delete-dialog @close=${onCancel}>
+  return html`<sw-dialog open heading=${tr('מחיקת מחבר בין קומות')} subheading=${tr('המחבר מקושר אל {target}', { target })} data-twin-delete-dialog @close=${onCancel}>
     ${canBoth
-      ? html`<div class="note">למחוק גם בקומה השנייה?</div><div class="note warn" data-twin-delete-immediate>המחיקה בקומה השנייה מיידית: Ctrl+Z מחזיר את המדרגות רק כאן.</div>`
-      : html`<div class="note" data-twin-delete-noperm>אין לך הרשאת עריכה בקומה השנייה: המדרגות יימחקו רק כאן, והתאום שם יסומן כמקושר לשום מקום.</div>`}
-    <sw-button slot="footer" variant="ghost" data-twin-delete-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant=${canBoth ? 'secondary' : 'danger'} data-twin-delete-here @click=${onHere}>רק בקומה הזו</sw-button>
-    ${canBoth ? html`<sw-button slot="footer" variant="danger" icon="trash" data-twin-delete-both autofocus @click=${onBoth}>מחק בשתי הקומות</sw-button>` : nothing}
+      ? html`<div class="note">${tr('למחוק גם בקומה השנייה?')}</div><div class="note warn" data-twin-delete-immediate>${tr('המחיקה בקומה השנייה מיידית: Ctrl+Z מחזיר את המדרגות רק כאן.')}</div>`
+      : html`<div class="note" data-twin-delete-noperm>${tr('אין לך הרשאת עריכה בקומה השנייה: המדרגות יימחקו רק כאן, והתאום שם יסומן כמקושר לשום מקום.')}</div>`}
+    <sw-button slot="footer" variant="ghost" data-twin-delete-cancel @click=${onCancel}>${tr('ביטול')}</sw-button>
+    <sw-button slot="footer" variant=${canBoth ? 'secondary' : 'danger'} data-twin-delete-here @click=${onHere}>${tr('רק בקומה הזו')}</sw-button>
+    ${canBoth ? html`<sw-button slot="footer" variant="danger" icon="trash" data-twin-delete-both autofocus @click=${onBoth}>${tr('מחק בשתי הקומות')}</sw-button>` : nothing}
   </sw-dialog>`;
 }
 
 /** Changing where linked stairs lead removes the twin on the other floor at once (review B1, L2): asked first. */
 export function renderLinkConfirmDialog(kind: 'unlink' | 'relink', target: string, onOk: () => void, onCancel: () => void): TemplateResult {
-  return html`<sw-dialog open heading=${kind === 'relink' ? 'קישור לקומה אחרת' : 'ביטול הקישור בין הקומות'} subheading=${`המדרגות מקושרות עכשיו אל ${target}`} data-link-confirm-dialog=${kind} @close=${onCancel}>
-    <div class="note">${kind === 'relink' ? 'הקישור לקומה חדשה ימחק את המדרגות מהקומה הנוכחית שלהן שם.' : 'המדרגות יובילו למפלס בקומה הזו, והתאום בקומה השנייה יימחק.'}</div>
-    <div class="note warn">המחיקה בקומה השנייה מיידית ואינה מתבטלת ב־Ctrl+Z.</div>
-    <sw-button slot="footer" variant="ghost" data-link-confirm-cancel @click=${onCancel}>ביטול</sw-button>
-    <sw-button slot="footer" variant="danger" data-link-confirm-ok @click=${onOk}>${kind === 'relink' ? 'קשר ומחק שם' : 'בטל קישור ומחק שם'}</sw-button>
+  return html`<sw-dialog open heading=${kind === 'relink' ? tr('קישור לקומה אחרת') : tr('ביטול הקישור בין הקומות')} subheading=${tr('המדרגות מקושרות עכשיו אל {target}', { target })} data-link-confirm-dialog=${kind} @close=${onCancel}>
+    <div class="note">${kind === 'relink' ? tr('הקישור לקומה חדשה ימחק את המדרגות מהקומה הנוכחית שלהן שם.') : tr('המדרגות יובילו למפלס בקומה הזו, והתאום בקומה השנייה יימחק.')}</div>
+    <div class="note warn">${tr('המחיקה בקומה השנייה מיידית ואינה מתבטלת ב־Ctrl+Z.')}</div>
+    <sw-button slot="footer" variant="ghost" data-link-confirm-cancel @click=${onCancel}>${tr('ביטול')}</sw-button>
+    <sw-button slot="footer" variant="danger" data-link-confirm-ok @click=${onOk}>${kind === 'relink' ? tr('קשר ומחק שם') : tr('בטל קישור ומחק שם')}</sw-button>
   </sw-dialog>`;
 }
 
@@ -1695,10 +1696,10 @@ interface CircuitActions {
 }
 
 /** Members mode (owner report 2026-09-26: "add lamps" placed nothing on a click on the map): both of its interactions. */
-const CIRCUIT_MEMBERS_HINT = 'לחץ על מנורה קיימת כדי להוסיף או להסיר אותה מהמעגל, או בחר סוג מנורה למטה ולחץ על התוכנית כדי להציב מנורה חדשה שכבר מחוברת למעגל';
+const CIRCUIT_MEMBERS_HINT = tr('לחץ על מנורה קיימת כדי להוסיף או להסיר אותה מהמעגל, או בחר סוג מנורה למטה ולחץ על התוכנית כדי להציב מנורה חדשה שכבר מחוברת למעגל');
 
 /** The hint while a lamp type is armed: the next click on the plan places it, already on the circuit. */
-export const circuitPlacingHint = (item: CatalogItem): string => `לחץ על התוכנית כדי להציב ${item.names.he} ישירות במעגל · Esc לביטול`;
+export const circuitPlacingHint = (item: CatalogItem): string => tr('לחץ על התוכנית כדי להציב {he} ישירות במעגל · Esc לביטול', { he: item.names.he });
 
 /** The circuit colour as a CSS variable: a document string reaches the inline style only through the whitelist. */
 const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ?? 'circuit-1'})`;
@@ -1706,21 +1707,21 @@ const circuitVar = (token: string): string => `var(--sw-${circuitToken(token) ??
 export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateResult {
   const c = v.creating;
   const sel = v.sel;
-  return html`<sw-card heading="מעגלי תאורה" subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : 'כמה מנורות על ישות מפסק אחת'} data-circuit-panel data-studio-save=${v.saveState}>
+  return html`<sw-card heading=${tr('מעגלי תאורה')} subheading=${v.membersMode ? (v.placing ? circuitPlacingHint(v.placing) : CIRCUIT_MEMBERS_HINT) : tr('כמה מנורות על ישות מפסק אחת')} data-circuit-panel data-studio-save=${v.saveState}>
     ${v.doc.circuits.length
       ? html`<div class="list">${v.doc.circuits.map((k) => html`<button class=${sel?.id === k.id ? 'on' : ''} data-circuit-row=${k.id} style=${`--kc: ${circuitVar(k.color_token)}`} @click=${() => a.select(sel?.id === k.id ? null : k.id)}>
           <span>${k.name}</span><span class="note ltr" style="margin:0">${k.member_ids.length} · ${v.power(k)} W · ${k.switch_entity_id}</span>
         </button>`)}</div>`
-      : html`<div class="note">עדיין אין מעגלים בקומה.</div>`}
+      : html`<div class="note">${tr('עדיין אין מעגלים בקומה.')}</div>`}
     ${c
       ? html`<div class="sel" data-circuit-new-form>
-          <sw-field label="שם המעגל"><input type="text" maxlength="80" data-circuit-name placeholder="למשל: אולם צפון" .value=${c.name} @input=${(e: Event) => a.setNew({ name: (e.target as HTMLInputElement).value })} /></sw-field>
-          <sw-field label="ישות המפסק (switch / light)"><input type="search" data-ltr data-circuit-switch-q placeholder="חיפוש בקטלוג" .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field label=${tr('שם המעגל')}><input type="text" maxlength="80" data-circuit-name placeholder=${tr('למשל: אולם צפון')} .value=${c.name} @input=${(e: Event) => a.setNew({ name: (e.target as HTMLInputElement).value })} /></sw-field>
+          <sw-field label=${tr('ישות המפסק (switch / light)')}><input type="search" data-ltr data-circuit-switch-q placeholder=${tr('חיפוש בקטלוג')} .value=${c.q} @input=${(e: Event) => a.setNew({ q: (e.target as HTMLInputElement).value })} /></sw-field>
           <div class="list">${c.results.slice(0, 20).map((e) => html`<button class=${c.entity?.entity_id === e.entity_id ? 'on' : ''} data-circuit-switch=${e.entity_id} @click=${() => a.setNew({ entity: e })}><span>${e.name || e.original_name || e.entity_id}</span><span class="ltr">${e.entity_id}</span></button>`)}</div>
-          <sw-field label="צבע"><select data-circuit-color @change=${(e: Event) => a.setNew({ color: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === c.color}>מעגל ${i + 1}</option>`)}</select></sw-field>
-          <div class="btns"><sw-button variant="primary" size="sm" icon="check" data-circuit-create ?disabled=${c.busy || !c.name.trim() || !c.entity} @click=${() => a.create()}>צור מעגל</sw-button><sw-button variant="ghost" size="sm" data-circuit-cancel @click=${() => a.cancelNew()}>ביטול</sw-button></div>
+          <sw-field label=${tr('צבע')}><select data-circuit-color @change=${(e: Event) => a.setNew({ color: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === c.color}>${tr('מעגל {v}', { v: i + 1 })}</option>`)}</select></sw-field>
+          <div class="btns"><sw-button variant="primary" size="sm" icon="check" data-circuit-create ?disabled=${c.busy || !c.name.trim() || !c.entity} @click=${() => a.create()}>${tr('צור מעגל')}</sw-button><sw-button variant="ghost" size="sm" data-circuit-cancel @click=${() => a.cancelNew()}>${tr('ביטול')}</sw-button></div>
         </div>`
-      : html`<div class="btns"><sw-button size="sm" icon="plus" data-circuit-new @click=${() => a.startNew()}>מעגל חדש</sw-button></div>`}
+      : html`<div class="btns"><sw-button size="sm" icon="plus" data-circuit-new @click=${() => a.startNew()}>${tr('מעגל חדש')}</sw-button></div>`}
     ${sel && !c ? renderCircuitInspector(sel, v, a) : nothing}
   </sw-card>`;
 }
@@ -1728,21 +1729,21 @@ export function renderCircuitPanel(v: CircuitView, a: CircuitActions): TemplateR
 function renderCircuitInspector(k: GeomCircuit, v: CircuitView, a: CircuitActions) {
   return html`<div class="sel" data-selected-circuit=${k.id} style=${`--kc: ${circuitVar(k.color_token)}`}>
     <div class="selhead"><strong>${k.name}</strong><span class="muted ltr">${k.switch_entity_id}</span></div>
-    <div class="note"><span data-circuit-count>${countLabel(k.member_ids.length, 'מנורה אחת', 'מנורות')}</span> · <span data-circuit-power>${v.power(k)} W</span></div>
+    <div class="note"><span data-circuit-count>${countLabel(k.member_ids.length, tr('מנורה אחת'), tr('מנורות'))}</span> · <span data-circuit-power>${v.power(k)} W</span></div>
     <div class="two">
-      <sw-field label="שם"><input type="text" maxlength="80" data-circuit-rename .value=${k.name} @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patch(k.id, { name: x }); }} /></sw-field>
-      <sw-field label="צבע"><select @change=${(e: Event) => a.patch(k.id, { color_token: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === k.color_token}>מעגל ${i + 1}</option>`)}</select></sw-field>
+      <sw-field label=${tr('שם')}><input type="text" maxlength="80" data-circuit-rename .value=${k.name} @change=${(e: Event) => { const x = (e.target as HTMLInputElement).value.trim(); if (x) a.patch(k.id, { name: x }); }} /></sw-field>
+      <sw-field label=${tr('צבע')}><select @change=${(e: Event) => a.patch(k.id, { color_token: (e.target as HTMLSelectElement).value })}>${v.colors.map((col, i) => html`<option value=${col} ?selected=${col === k.color_token}>${tr('מעגל {v}', { v: i + 1 })}</option>`)}</select></sw-field>
     </div>
     <div class="btns">
-      <sw-button size="sm" variant=${v.membersMode ? 'primary' : 'ghost'} icon="light" data-circuit-members aria-pressed=${v.membersMode} @click=${() => a.toggleMembers()}>${v.membersMode ? 'סיים בחירת מנורות' : 'הוסף / הסר מנורות'}</sw-button>
-      <sw-button size="sm" variant="ghost" icon="trash" data-circuit-delete @click=${() => a.remove(k.id)}>מחק מעגל</sw-button>
+      <sw-button size="sm" variant=${v.membersMode ? 'primary' : 'ghost'} icon="light" data-circuit-members aria-pressed=${v.membersMode} @click=${() => a.toggleMembers()}>${v.membersMode ? tr('סיים בחירת מנורות') : tr('הוסף / הסר מנורות')}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="trash" data-circuit-delete @click=${() => a.remove(k.id)}>${tr('מחק מעגל')}</sw-button>
     </div>
-    ${v.membersMode && v.lamps.length ? html`<div class="note">מנורה חדשה: בחר סוג ולחץ על התוכנית (לחיצה נוספת על הסוג מבטלת)</div>
-      <div class="modes lamps" role="group" aria-label="סוג מנורה להצבה במעגל" data-circuit-lamps>${v.lamps.map((i) => {
+    ${v.membersMode && v.lamps.length ? html`<div class="note">${tr('מנורה חדשה: בחר סוג ולחץ על התוכנית (לחיצה נוספת על הסוג מבטלת)')}</div>
+      <div class="modes lamps" role="group" aria-label=${tr('סוג מנורה להצבה במעגל')} data-circuit-lamps>${v.lamps.map((i) => {
         const on = v.placing?.id === i.id;
-        return html`<button class=${on ? 'on' : ''} data-circuit-lamp=${i.id} aria-pressed=${on} title=${`${i.names.he} · ${i.size.w_m}×${i.size.d_m} מ׳`} @click=${() => a.armLamp(on ? null : i)}><svg viewBox="0 0 24 24" aria-hidden="true">${symbolOf(i.icon)}</svg><span>${i.names.he}</span></button>`;
+        return html`<button class=${on ? 'on' : ''} data-circuit-lamp=${i.id} aria-pressed=${on} title=${tr('{he} · {w_m}×{d_m} מ׳', { he: i.names.he, w_m: i.size.w_m, d_m: i.size.d_m })} @click=${() => a.armLamp(on ? null : i)}><svg viewBox="0 0 24 24" aria-hidden="true">${symbolOf(i.icon)}</svg><span>${i.names.he}</span></button>`;
       })}</div>` : nothing}
-    <div class="note">המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת ההתקן הקיימת, באותן הרשאות.</div>
+    <div class="note">${tr('המצב החי של המנורות נגזר מהמפסק; ההפעלה מהמפה החיה היא פעולת ההתקן הקיימת, באותן הרשאות.')}</div>
   </div>`;
 }
 
