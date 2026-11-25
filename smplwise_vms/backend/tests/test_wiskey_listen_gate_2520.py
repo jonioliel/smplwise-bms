@@ -5,16 +5,23 @@ Software only: the feature-status row is computed from in-memory facts, and the 
 WisKey station (tests/w10_fake_station.py). No real station, no audio, no lab, nothing sent anywhere else."""
 from __future__ import annotations
 
+import asyncio
+import time
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from test_wkf01f02_295 import OPTS, ListeningStation, _describe, gset, listen_schema  # noqa: F401 - fixtures used by name
+from w10_fake_station import SECRET
 
+from smplwise.errors import ApiError
+from smplwise.services import intercom_media as im
 from smplwise.services import wiskey_direct_discovery as dd
 from smplwise.services import wiskey_direct_join
 from smplwise.services import wiskey_feature_status as wfs
 from smplwise.services import wiskey_media_bridge as bridge
 from smplwise.services import wiskey_media_contract as w10
+from smplwise.services.wiskey_listen_adapter import ListenUnavailable, WiskeyDownlinkChannel
 
 LISTEN_CMDS = [w10.DESCRIBE, w10.STREAM_LEASE, w10.TALK_OPEN, w10.TALK_FRAME, w10.TALK_FLOOR, w10.TALK_CLOSE]
 
@@ -210,3 +217,74 @@ def test_reading_the_row_sends_nothing(monkeypatch):
 
     monkeypatch.setattr(bridge.DirectApiTransport, "connect", refuse)
     assert codes(wfs._listen(FakeFacts(caps=None))) == ["listen_unknown"]
+
+
+# ================================================================ the runtime: a listen never opens a talk WisKey does not offer
+
+async def _downlink(station: ListeningStation, settings: Any) -> WiskeyDownlinkChannel:
+    async def connector(_purpose: str) -> Any:
+        return station.connect()
+
+    media = bridge.SignedBridgeTransport(connector, bridge.BridgeSigner(lambda: SECRET))
+    provider = im.WiskeyBridgeProvider(media, discovery=lambda _s: {"commands": LISTEN_CMDS}, pump_options=dict(OPTS))
+    raw = await _describe(station, media)
+    d = im.parse_descriptor(w10.project_descriptor(raw), station_id="entry-a", provider=provider.name)
+    return WiskeyDownlinkChannel(provider, settings, d, actor_id="op-1", actor_name="Dana Operator", request_id="req-r5-1",
+                                 expires_at=time.time() + 60)
+
+
+def test_a_listen_without_the_stations_offer_is_refused_before_talk_open(gset, listen_schema):  # noqa: F811
+    station = ListeningStation(offer=False)
+
+    async def scenario() -> None:
+        ch = await _downlink(station, gset)
+        with pytest.raises(ApiError) as exc:
+            await ch.open()
+        assert exc.value.status == 503 and exc.value.details == {"reason": "listen_not_offered"}
+
+    asyncio.run(scenario())
+    assert station.by_command(w10.DESCRIBE), "the read-only descriptor is read"
+    assert not station.by_command(w10.TALK_OPEN), "no talk is opened for a listen WisKey does not offer (fail closed)"
+    assert not station.by_command(w10.TALK_CLOSE) and not station.talks and not station.frames_sink
+
+
+def test_a_listen_with_the_offer_asks_for_the_sound_and_sends_no_uplink(gset, listen_schema):  # noqa: F811
+    station = ListeningStation()
+
+    async def scenario() -> None:
+        ch = await _downlink(station, gset)
+        await ch.open()
+        await ch.close("stopped")
+
+    asyncio.run(scenario())
+    opens = station.by_command(w10.TALK_OPEN)
+    assert len(opens) == 1 and opens[0].params.get("listen") is True
+    assert not station.by_command(w10.TALK_FLOOR) and not station.frames_sink
+
+
+def test_a_talk_is_not_a_listen_and_keeps_opening_without_the_offer(gset, listen_schema):  # noqa: F811
+    """The gate is the listen session's only: an ordinary talk without the offer opens exactly as before (WKF01F02-295)."""
+    station = ListeningStation(offer=False)
+
+    async def scenario() -> None:
+        async def connector(_purpose: str) -> Any:
+            return station.connect()
+
+        media = bridge.SignedBridgeTransport(connector, bridge.BridgeSigner(lambda: SECRET))
+        provider = im.WiskeyBridgeProvider(media, discovery=lambda _s: {"commands": LISTEN_CMDS}, pump_options=dict(OPTS))
+        raw = await _describe(station, media)
+        d = im.parse_descriptor(w10.project_descriptor(raw), station_id="entry-a", provider=provider.name)
+        talk = im.WiskeyBridgeTalkChannel(provider, gset, d, w10.Actor("op-1", "Dana Operator"), "req-r5-2", time.time() + 60)
+        assert talk.listen_only is False
+        await talk.open()
+        assert not talk.listening
+        await talk.close("ended")
+
+    asyncio.run(scenario())
+    assert station.listen_asked == [None]
+
+
+def test_an_unconfigured_downlink_still_refuses():
+    with pytest.raises(ListenUnavailable) as exc:
+        asyncio.run(WiskeyDownlinkChannel().open())
+    assert exc.value.code == "listen_not_configured"
