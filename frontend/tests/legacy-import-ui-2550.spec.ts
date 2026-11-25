@@ -188,6 +188,36 @@ test.describe('LEGACY-IMPORT-UI-2550: the legacy import card', () => {
     });
   }
 
+  // the before / after pages of the compare page (SW_SHOTS=1 only): "before" is the same build with the import routes missing (404) - the
+  // tab exactly as it was; "after" is the report and the result (the backup list then labels the new kind), light and dark
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`evidence pages (${scheme})`, async ({ page }) => {
+      test.skip(!process.env.SW_SHOTS, 'screenshots only');
+      const full = async (name: string) => {
+        fs.mkdirSync(SHOTS_OUT, { recursive: true });
+        await page.screenshot({ path: path.join(SHOTS_OUT, `page-${name}-${scheme}-${test.info().project.name}.png`), fullPage: true });
+      };
+      const m = await installLegacyMock(page, { runs: true });
+      m.status = 'missing';
+      await gotoApp(page, `/?design=a&scheme=${scheme}#/system/diagnostics?tab=backup`);
+      await expect(page.locator('system-diagnostics [data-backup-row]').first()).toBeVisible({ timeout: 30_000 });
+      await expect.poll(() => page.locator(`${CARD} sw-card`).count()).toBe(0);
+      await full('before');
+      m.status = 'ok';
+      await gotoApp(page, `/?design=a&scheme=${scheme}#/system/diagnostics?tab=backup`);
+      await expect(page.locator(`${CARD} [data-legacy-pick]`)).toBeVisible({ timeout: 30_000 });
+      await chooseFile(page);
+      await full('after-report');
+      await page.locator(`${CARD} [data-legacy-apply-open]`).click();
+      await page.locator(`${CARD} [data-legacy-confirm]`).fill('ייבוא מהמערכת הישנה');
+      await page.screenshot({ path: path.join(SHOTS_OUT, `page-after-dialog-${scheme}-${test.info().project.name}.png`) });
+      await page.locator(`${CARD} [data-legacy-apply]`).click();
+      await expect(page.locator(`${CARD} [data-legacy-result]`)).toBeVisible();
+      await expect(page.locator('system-diagnostics [data-backup-row]').filter({ hasText: PRE_IMPORT.name })).toBeVisible();
+      await full('after-result');
+    });
+  }
+
   test('the English interface: the labels and the server notes in English', async ({ page }) => {
     await installLegacyMock(page, { lang: 'en' });
     const card = await open(page);
