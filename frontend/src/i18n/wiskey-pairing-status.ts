@@ -168,7 +168,7 @@ function sentence(key: string, lang: WpsLang, vars: Record<string, unknown> = {}
   return fill(raw, vars as Record<string, string | number>);
 }
 
-export interface WpsLine {
+interface WpsLine {
   key: string;
   label: string;
   reason: string;

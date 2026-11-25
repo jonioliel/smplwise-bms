@@ -12,7 +12,7 @@ import type { Tone } from './schedule-editor-logic';
 
 export type ReadState = 'sending' | 'not_sent' | 'accepted' | 'running' | 'completed' | 'refused' | 'unknown';
 export const READ_STATES: readonly ReadState[] = ['sending', 'not_sent', 'accepted', 'running', 'completed', 'refused', 'unknown'];
-export const STARTABLE = ['readiness', 'dependencies'] as const;
+const STARTABLE = ['readiness', 'dependencies'] as const;
 export const SHOWN = 5;
 
 export function readState(state: string | null | undefined): ReadState {
@@ -36,7 +36,7 @@ export function readTone(state: string | null | undefined): Tone {
   }
 }
 
-export type SupportState = 'supported' | 'unsupported' | 'unavailable' | 'loading' | 'failed';
+type SupportState = 'supported' | 'unsupported' | 'unavailable' | 'loading' | 'failed';
 
 /** The block's support line: `loading` before the first answer, `failed` when the list itself could not be read. */
 export function supportState(support: ScheduleReadsSupport | null | undefined, failed = false): SupportState {

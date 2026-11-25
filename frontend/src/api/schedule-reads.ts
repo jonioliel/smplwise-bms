@@ -17,7 +17,7 @@ import type { ScheduleRead, ScheduleReadAnswer, ScheduleReadsList, ScheduleReads
 export type { ScheduleRead, ScheduleReadAnswer, ScheduleReadsList, ScheduleReadsSupport };
 
 /** The closed Arx actions (the server maps them to WisKey's six inspection operations). */
-export type ScheduleReadAction = 'readiness' | 'dependencies' | 'assess' | 'plan_preview' | 'plan_recheck' | 'claim_preview';
+type ScheduleReadAction = 'readiness' | 'dependencies' | 'assess' | 'plan_preview' | 'plan_recheck' | 'claim_preview';
 
 const BASE = 'access-control/schedules/reads';
 

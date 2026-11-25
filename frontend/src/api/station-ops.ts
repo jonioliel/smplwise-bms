@@ -78,11 +78,11 @@ export interface MaintenanceView {
   sync_gate?: SyncGate;
 }
 
-export type SyncMode = 'request_id' | 'classic';
+type SyncMode = 'request_id' | 'classic';
 /** null: a sync may be sent; `outcome_pending`: the earlier one is still out; `readback_required`: a status read must answer first. */
-export type SyncGate = 'outcome_pending' | 'readback_required' | null;
+type SyncGate = 'outcome_pending' | 'readback_required' | null;
 /** Where Arx's request stands in the intercom system's observation (null without a known request id or observation). */
-export type SyncMatch = 'running' | 'queued' | 'finished' | 'not_observed' | null;
+type SyncMatch = 'running' | 'queued' | 'finished' | 'not_observed' | null;
 
 export interface SyncRequestView {
   station_id: string;
