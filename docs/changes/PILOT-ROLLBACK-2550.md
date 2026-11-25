@@ -61,11 +61,26 @@ Workstation (Windows 11, Python 3.12, `C:\cloude\smplwisebms\.venv`, one file pe
 | `tests/test_migration_downgrade_check.py` | 0 | 28 passed |
 | `tests/test_health_summary.py` | 0 | 1 passed |
 | `tests/test_commit_release_limiter.py` | 0 | 2 passed |
+| `tests/test_soak_edges_2450.py -k "d1 or d2"` (after the helper change) | 0 | 2 passed |
 | `scripts/migration_downgrade_check.py --chain v2.48.0,v2.49.0,v2.50.0,v2.51.0,HEAD` | 0 | PASS (5 steps) |
 | `scripts/migration_downgrade_check.py --from v2.30.0 --to v2.40.0` | 1 | FAIL as expected (0196) |
 | `scripts/release_check.py` | 0 | ready; new check "v2.51.0 -> this tree: 2 migration(s) added, 2 backward-compatible, 0 not" |
 
-Runner (slot B, `~/work/p2520_pilotrb_run.sh`): RUNNER_RESULTS_PENDING
+Runner (Linux, `~/work/p2520_pilotrb_run.sh e6106ed27` through `slotb.sh`, 2026-11-25 19:22-20:19 UTC): the 90 backend test files
+that touch the changed code (every file naming events_ingest / disconnected_since / media_reach / health_report / the health summary /
+close_gap / the commit path / storage_full / release_check / the Frigate and Provision loops, plus test_singletons_registered,
+test_devices, test_storage), 12 pytest processes of 8 files:
+
+| Group | Exit | Result |
+|---|---|---|
+| 1-9, 11, 12 | 0 | 170 + 106 (2 skipped) + 185 (1 skipped) + 170 + 273 + 138 + 198 + 127 + 159 + 217 (3 skipped) + 27 passed |
+| 10 | 1 | 147 passed, **1 failed**: `test_soak_edges_2450.py::test_d2_nvr_alert_stream_flaps_three_times` |
+| `ruff check` (the changed files) | 1 | findings only in `scripts/migration_downgrade_check.py` (style: `re.I`, `check=`, imports, `pairwise`) and the pre-existing ones of `release_check.py` |
+
+The D2 failure is the clock fix working: the test made "two minutes later" by moving only the summary's WALL clock, which is now a
+clock jump and no longer counts as time down. Its helper `summary_later` now moves both clocks (wall and the monotonic clock the outage
+is measured on) - time passing, not a jump. The ruff findings of the new script are fixed (the release_check ones predate this row).
+After both: RERUN_PENDING
 
 Not run: AT069 / AT070 / AT071 / AT072 on the real equipment (lab and owner); a real rollback on the lab (hard limit of this row);
 frontend checks (no frontend change).

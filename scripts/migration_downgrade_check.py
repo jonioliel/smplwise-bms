@@ -40,9 +40,11 @@ import re
 import sqlite3
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = "smplwise_vms/backend/smplwise"
@@ -62,7 +64,7 @@ class Source(Protocol):
 
 
 def _git(root: Path, *args: str) -> str:
-    out = subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=60)
+    out = subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=60, check=False)
     if out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {out.stderr.decode('utf-8', 'replace').strip()}")
     return out.stdout.decode("utf-8", "replace")
@@ -75,7 +77,7 @@ def read_blobs(root: Path, shas: list[str]) -> dict[str, str]:
     """Every blob in one `git cat-file --batch` (one process, not one per file)."""
     want = [s for s in dict.fromkeys(shas) if s not in _BLOBS]
     if want:
-        out = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"], input=("\n".join(want) + "\n").encode(), capture_output=True, timeout=120)
+        out = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"], input=("\n".join(want) + "\n").encode(), capture_output=True, timeout=120, check=False)
         if out.returncode != 0:
             raise RuntimeError(f"git cat-file: {out.stderr.decode('utf-8', 'replace').strip()}")
         data, pos = out.stdout, 0
@@ -252,22 +254,22 @@ def judge_statement(stmt: str, base: Schema, before: Schema, positional: Callabl
     def f(ok: bool, reason: str) -> Finding:
         return Finding(stmt[:200], "compatible" if ok else "incompatible", reason)
 
-    m = re.match(rf"CREATE\s+(?:TEMP\w*\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}", stmt, re.I)
+    m = re.match(rf"CREATE\s+(?:TEMP\w*\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}", stmt, re.IGNORECASE)
     if m:
         return f(True, "new table" if mine(m.group(1)) else "already there (IF NOT EXISTS): no change")
-    m = re.match(rf"CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}\s+ON\s+{IDENT}", stmt, re.I)
+    m = re.match(rf"CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}\s+ON\s+{IDENT}", stmt, re.IGNORECASE)
     if m:
         unique, table = bool(m.group(1)), m.group(3)
         if unique and not mine(table):
             return f(False, f"UNIQUE index on {table}, a table older code writes: an older write may be refused")
         return f(True, "index" + (" on a new table" if mine(table) else " (not unique)"))
-    if re.match(r"CREATE\s+(?:TEMP\w*\s+)?VIEW\b", stmt, re.I):
+    if re.match(r"CREATE\s+(?:TEMP\w*\s+)?VIEW\b", stmt, re.IGNORECASE):
         return f(True, "new view")
-    m = re.match(rf"CREATE\s+(?:TEMP\w*\s+)?TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}.*?\bON\s+{IDENT}", stmt, re.I | re.S)
+    m = re.match(rf"CREATE\s+(?:TEMP\w*\s+)?TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?{IDENT}.*?\bON\s+{IDENT}", stmt, re.IGNORECASE | re.DOTALL)
     if m:
         table = m.group(2)
         return f(mine(table), "trigger on a new table" if mine(table) else f"trigger on {table}: older code's writes fire a trigger it does not know")
-    m = re.match(rf"ALTER\s+TABLE\s+{IDENT}\s+ADD\s+(?:COLUMN\s+)?{IDENT}(.*)$", stmt, re.I | re.S)
+    m = re.match(rf"ALTER\s+TABLE\s+{IDENT}\s+ADD\s+(?:COLUMN\s+)?{IDENT}(.*)$", stmt, re.IGNORECASE | re.DOTALL)
     if m:
         table, col, rest = m.group(1), m.group(2), m.group(3).upper()
         if mine(table):
@@ -279,11 +281,11 @@ def judge_statement(stmt: str, base: Schema, before: Schema, positional: Callabl
             return f(False, f"{table}.{col}: older code fills {table} by position (INSERT INTO {table} VALUES/SELECT without a column list) in "
                             + ", ".join(where[:3]))
         return f(True, f"new column {table}.{col} (nullable or defaulted): older code never names it")
-    m = re.match(rf"ALTER\s+TABLE\s+{IDENT}\s+(RENAME|DROP)\b", stmt, re.I)
+    m = re.match(rf"ALTER\s+TABLE\s+{IDENT}\s+(RENAME|DROP)\b", stmt, re.IGNORECASE)
     if m:
         table = m.group(1)
         return f(mine(table), f"{m.group(2).lower()} on a new table" if mine(table) else f"{m.group(2).upper()} on {table}: older code still uses the old shape")
-    m = re.match(rf"DROP\s+(TABLE|VIEW|TRIGGER|INDEX)\s+(?:IF\s+EXISTS\s+)?{IDENT}", stmt, re.I)
+    m = re.match(rf"DROP\s+(TABLE|VIEW|TRIGGER|INDEX)\s+(?:IF\s+EXISTS\s+)?{IDENT}", stmt, re.IGNORECASE)
     if m:
         kind, name = m.group(1).upper(), m.group(2).lower()
         if kind == "TABLE":
@@ -296,13 +298,13 @@ def judge_statement(stmt: str, base: Schema, before: Schema, positional: Callabl
         if idx and idx[1]:
             return f(False, f"drops unique index {name}: an older upsert (ON CONFLICT / OR IGNORE) on {idx[0]} loses its target")
         return f(True, "drops an index that was not unique (speed only)")
-    m = re.match(rf"(?:WITH\b.*?\)\s*)?(?:UPDATE\s+(?:OR\s+\w+\s+)?|DELETE\s+FROM\s+|(?:INSERT|REPLACE)\s+(?:OR\s+\w+\s+)?INTO\s+){IDENT}", stmt, re.I | re.S)
+    m = re.match(rf"(?:WITH\b.*?\)\s*)?(?:UPDATE\s+(?:OR\s+\w+\s+)?|DELETE\s+FROM\s+|(?:INSERT|REPLACE)\s+(?:OR\s+\w+\s+)?INTO\s+){IDENT}", stmt, re.IGNORECASE | re.DOTALL)
     if m:
         table = m.group(1)
         if mine(table):
             return f(True, f"data of a new table ({table})")
         return f(False, f"rewrites rows of {table}, a table older code reads: it may meet values it does not understand")
-    if u.startswith("PRAGMA") or u.startswith("SELECT") or u.startswith("ANALYZE") or u.startswith("REINDEX"):
+    if u.startswith(("PRAGMA", "SELECT", "ANALYZE", "REINDEX")):
         return f(True, "no schema or data change")
     return f(False, "statement this check cannot judge")
 
@@ -477,7 +479,7 @@ def main(argv: list[str] | None = None) -> int:
             refs = [r.strip() for r in args.chain.split(",") if r.strip()]
             if len(refs) < 2:
                 ap.error("--chain needs two refs or more")
-            pairs = list(zip(refs, refs[1:])) + ([(refs[0], refs[-1])] if len(refs) > 2 else [])
+            pairs = list(pairwise(refs)) + ([(refs[0], refs[-1])] if len(refs) > 2 else [])
         elif args.old:
             pairs = [(args.old, args.new)]
         else:
