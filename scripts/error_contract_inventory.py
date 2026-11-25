@@ -20,6 +20,12 @@ Static scan (ast for the backend, regular expressions for the frontend); nothing
   CLIENT that sends it, from the route path (HA bridge, phone app, web UI); bodies taken as a plain `dict` are listed apart;
 * the frontend reads of error `details` keys (`details.field`, `details.fields`, `details.key`, `details.errors`, ...).
 
+    python scripts/error_contract_inventory.py --check         # the ADR-019 ratchet: exit 1 when a family's legacy 422 count grew
+    python scripts/error_contract_inventory.py --write-ratchet # lower the baseline after a family row (never raise it by hand)
+
+The ratchet (ADR019-FAMILY678-2520, ADR-019 "Validation evidence") is `scripts/error_contract_ratchet.json`: the legacy 422 sites per
+family (`legacy_422_by_family`); a family's count may only go down and a family that is not in the baseline may not appear.
+
 The numbers are a static approximation: a status or `details` built at run time is reported as `dynamic`, a wrapper the
 pattern does not recognise is missed. The ADR quotes the counts with that caveat; the tests pin the classifier on a small
 tree and that the scan runs on the real code."""
@@ -634,14 +640,36 @@ def markdown(rep: dict[str, Any]) -> str:
     return "\n".join(out) + "\n"
 
 
+RATCHET = REPO / "scripts" / "error_contract_ratchet.json"
+
+
+def ratchet_problems(now: dict[str, int], base: dict[str, Any]) -> list[str]:
+    """The families whose legacy 422 count is above the baseline (a new family counts from 0); [] when the ratchet holds."""
+    allowed = base.get("legacy_422_by_family", {})
+    return [f"{fam}: {n} legacy 422 sites (baseline {allowed.get(fam, 0)})" for fam, n in sorted(now.items()) if n > allowed.get(fam, 0)]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--frontend", type=Path, default=FRONTEND)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--check", action="store_true", help="the ADR-019 ratchet against scripts/error_contract_ratchet.json")
+    ap.add_argument("--write-ratchet", action="store_true", help="write the current legacy counts as the new baseline")
     a = ap.parse_args(argv)
     rep = build(a.root, a.frontend)
     sys.stdout.reconfigure(encoding="utf-8")
+    now = rep["summary"]["legacy_422_by_family"]
+    if a.write_ratchet:
+        doc = {"_note": "ADR-019 ratchet: legacy 422 sites per family (scripts/error_contract_inventory.py --check); counts may only go down.",
+               "legacy_422_by_family": dict(sorted(now.items())), "total": sum(now.values())}
+        RATCHET.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        print(f"wrote {RATCHET.name}: {doc['total']} legacy 422 sites")
+        return 0
+    if a.check:
+        bad = ratchet_problems(now, json.loads(RATCHET.read_text(encoding="utf-8")))
+        print("\n".join(bad) if bad else f"error contract ratchet holds: {sum(now.values())} legacy 422 sites")
+        return 1 if bad else 0
     print(json.dumps(rep, ensure_ascii=False, indent=1, default=str) if a.json else markdown(rep))
     return 0
 

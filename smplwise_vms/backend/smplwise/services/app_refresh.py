@@ -34,7 +34,7 @@ from typing import Any, Callable
 
 from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import LOCAL_ADMIN_PERMISSIONS, Principal, permissions_anywhere
 from . import app_refresh_key as dk
 from . import device_attestation as att
@@ -310,63 +310,62 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor: Princ
     for key, value in body.items():
         if key == xs.FEATURE_KEY:  # SESSIONEXCH2-295: the WebView session exchange (off | on; decision 430: no keyless mode)
             if value not in xs.MODES:
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(xs.MODES)})
+                raise field_error("ערך לא תקין.", [key], legacy={"field": key}, extra={"allowed": list(xs.MODES)})
             if value != xs.mode(conn):
                 changes[key] = value
         elif key in xs.POLICY:
             _, lo, hi = xs.POLICY[key]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-                raise ApiError(422, "validation", f"ערך בין {lo} ל־{hi}.", details={"field": key})
+                raise field_error(f"ערך בין {lo} ל־{hi}.", [key], legacy={"field": key})
             changes[key] = value
         elif key == FEATURE_KEY:
             if value not in ("on", "off"):
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key})
+                raise field_error("ערך לא תקין.", [key], legacy={"field": key})
             if value != ("on" if enabled(conn) else "off"):
                 changes[key] = value
         elif key == DEVICE_KEY_KEY:
             if value not in DEVICE_KEY_MODES:
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(DEVICE_KEY_MODES)})
+                raise field_error("ערך לא תקין.", [key], legacy={"field": key}, extra={"allowed": list(DEVICE_KEY_MODES)})
             if value != device_key_mode(conn):
                 changes[key] = value
         elif key == ATTEST_MODE_KEY:
             if value not in ATTEST_MODES:
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(ATTEST_MODES)})
+                raise field_error("ערך לא תקין.", [key], legacy={"field": key}, extra={"allowed": list(ATTEST_MODES)})
             if value != attest_mode(conn):
                 changes[key] = value
         elif key == ATTEST_LEVEL_KEY:
             if value not in att.LEVELS:
-                raise ApiError(422, "validation", "ערך לא תקין.", details={"field": key, "allowed": list(att.LEVELS)})
+                raise field_error("ערך לא תקין.", [key], legacy={"field": key}, extra={"allowed": list(att.LEVELS)})
             if value != attest_min_level(conn):
                 changes[key] = value
         elif key == ATTEST_ROOTS_KEY:
             pem = clean_roots(value)
             if pem is None:
-                raise ApiError(422, "validation", "תעודות האמון אינן תקינות.", details={"field": key, "max": att.MAX_ROOTS_PEM})
+                raise field_error("תעודות האמון אינן תקינות.", [key], legacy={"field": key}, extra={"max": att.MAX_ROOTS_PEM})
             if pem != attest_roots(conn):
                 changes[key] = pem
         elif key in NOTICE_DEFAULTS:
             default, max_len, allowed = NOTICE_DEFAULTS[key]
             text = default if value is None else clean_notice(value, max_len, allowed)
             if text is None:
-                raise ApiError(422, "validation", NOTICE_INVALID_HE, details={"field": key, "max": max_len, "placeholders": list(allowed)})
+                raise field_error(NOTICE_INVALID_HE, [key], legacy={"field": key}, extra={"max": max_len, "placeholders": list(allowed)})
             if text != notice_template(conn, key):
                 changes[key] = text
         elif key in POLICY:
             _, lo, hi = POLICY[key]
             if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-                raise ApiError(422, "validation", f"ערך בין {lo} ל־{hi}.", details={"field": key})
+                raise field_error(f"ערך בין {lo} ל־{hi}.", [key], legacy={"field": key})
             changes[key] = value
         else:
-            raise ApiError(422, "validation", "הגדרה לא מוכרת.", details={"field": str(key)[:80]})
+            raise field_error("הגדרה לא מוכרת.", [str(key)[:80]], legacy={"field": str(key)[:80]})
     merged = {**policy(conn), **{k: v for k, v in changes.items() if k in POLICY}}
     if merged[IDLE_KEY] > merged[ABSOLUTE_KEY]:
-        raise ApiError(422, "validation", "משך חוסר הפעילות לא יכול לעלות על משך החיים המרבי.", details={"field": IDLE_KEY, "max": merged[ABSOLUTE_KEY]})
+        raise field_error("משך חוסר הפעילות לא יכול לעלות על משך החיים המרבי.", [IDLE_KEY], legacy={"field": IDLE_KEY}, extra={"max": merged[ABSOLUTE_KEY]})
     exchange_on = changes.get(xs.FEATURE_KEY, xs.mode(conn)) == "on"
     if changes.get(xs.FEATURE_KEY) == "on" and changes.get(FEATURE_KEY, "on" if enabled(conn) else "off") != "on":
-        raise ApiError(422, "validation", "את חיבור מסך האפליקציה מפעילים רק כשהכניסה השמורה באפליקציה פעילה.", details={"field": xs.FEATURE_KEY})
+        raise field_error("את חיבור מסך האפליקציה מפעילים רק כשהכניסה השמורה באפליקציה פעילה.", [xs.FEATURE_KEY], legacy={"field": xs.FEATURE_KEY})
     if exchange_on and merged[ACCESS_KEY] > xs.ACCESS_MAX_WHILE_ON:  # review S-02 / F-09: a short access token while it can become a session
-        raise ApiError(422, "validation", f"כשחיבור מסך האפליקציה פעיל, תוקף אסימון הגישה עד {xs.ACCESS_MAX_WHILE_ON} דקות.",
-                       details={"field": ACCESS_KEY, "max": xs.ACCESS_MAX_WHILE_ON})
+        raise field_error(f"כשחיבור מסך האפליקציה פעיל, תוקף אסימון הגישה עד {xs.ACCESS_MAX_WHILE_ON} דקות.", [ACCESS_KEY], legacy={"field": ACCESS_KEY}, extra={"max": xs.ACCESS_MAX_WHILE_ON})
     ended = 0
     for key, value in changes.items():
         set_setting(conn, key, str(value))

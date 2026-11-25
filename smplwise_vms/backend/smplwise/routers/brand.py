@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import unlocked
-from ..errors import ApiError, not_found, validation
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import brand_assets as ba
 from ._common import rid as _rid
@@ -98,7 +98,7 @@ def brand_put(body: BrandBody, request: Request, principal: Principal = Depends(
         try:
             changes[_FIELD_KEY[field]] = ba.normalise_setting(_FIELD_KEY[field], value)
         except ValueError as exc:
-            raise validation(f"הערך אינו תקין: {_FIELD_TEXT[field]}", field=field, reason=str(exc)) from exc
+            raise field_error(f"הערך אינו תקין: {_FIELD_TEXT[field]}", [field], legacy={"field": field}, extra={"reason": str(exc)}) from exc
     for key, value in changes.items():
         set_setting(conn, key, value)
     if changes:

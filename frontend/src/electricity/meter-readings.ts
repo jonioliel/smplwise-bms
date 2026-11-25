@@ -4,7 +4,7 @@ import '../components/sw-dialog';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-button';
-import { ApiError, describeError } from '../api/client';
+import { describeError, fieldsOf } from '../api/client';
 import {
   addCalibration,
   addManualReading,
@@ -355,7 +355,7 @@ export class ElecReadingDialogs extends LitElement {
       this.close();
     } catch (err) {
       this.error = describeError(err);
-      const fields = err instanceof ApiError ? ((err.body.details as { fields?: string[] } | undefined)?.fields ?? []) : [];
+      const fields = fieldsOf(err); // ADR-019: the one field reader
       if (fields.length) this.fieldErrors = Object.fromEntries(fields.map((f) => [f === 'read_at' ? 'when' : f === 'effective_date' ? 'date' : f === 'offset_kwh' ? 'offset' : f === 'anchor_reading_id' ? 'anchor' : f, ' ']));
     } finally {
       this.busy = false;

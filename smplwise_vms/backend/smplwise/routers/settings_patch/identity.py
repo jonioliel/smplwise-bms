@@ -9,7 +9,7 @@ from fastapi import Request
 
 from ...audit import audit
 from ...db import get_setting
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import Principal
 from ...services import confirm_words
 from ...services import settings_patch_identity_store as store
@@ -38,7 +38,7 @@ def _local_only_identity_key(conn: sqlite3.Connection, request: Request, princip
         return
     audit(conn, actor=principal, action="identity.local.setting_local_only", decision="denied", resource_type="installation", resource_id="local_identity",
           reason="remote_channel", request_id=_rid(request), details={"key": key})
-    raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
+    raise field_error(LOCAL_ONLY_HE, [key], code="local_only", status=403, legacy={"field": key})
 
 
 def allow_disarm(patch: Patch) -> None:
@@ -58,7 +58,7 @@ def allow_disarm(patch: Patch) -> None:
             if changes["schedules.allow_disarm"] == "true":
                 patch.disarm_word = confirm_words.typed_lang("schedules_allow_disarm", disarm_confirm)
             if changes["schedules.allow_disarm"] == "true" and patch.disarm_word is None:
-                raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
+                raise field_error(f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", ["schedules.allow_disarm_confirm"], code="confirm_required", legacy={"field": "schedules.allow_disarm_confirm"})
             patch.disarm_change = changes["schedules.allow_disarm"]
 
 
@@ -124,7 +124,7 @@ def public_url(patch: Patch) -> None:
         raw = changes["security.local_public_url"].strip()
         value = local_reset.normalize_public_url(raw) if raw else ""
         if value is None:
-            raise ApiError(422, "validation", "כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", details={"field": "security.local_public_url"})
+            raise field_error("כתובת הגישה מרחוק: https://שם-מארח בלבד (בלי נתיב, בלי כתובת IP).", ["security.local_public_url"], legacy={"field": "security.local_public_url"})
         if value != (get_setting(conn, "security.local_public_url", "") or ""):
             _local_only_identity_key(conn, request, principal, "security.local_public_url")
             if not is_system_admin(conn, principal.user_id):
@@ -150,7 +150,7 @@ def passkey_settings(patch: Patch) -> None:
         if key == "security.local_passkey_android":
             targets = local_passkeys.android_targets(value)
             if targets is None:
-                raise ApiError(422, "validation", "אפליקציית אנדרואיד: שורות בצורה package.name:AA:BB:...(טביעת SHA-256).", details={"field": key})
+                raise field_error("אפליקציית אנדרואיד: שורות בצורה package.name:AA:BB:...(טביעת SHA-256).", [key], legacy={"field": key})
             value = "\n".join(f"{p}:{f}" for p, f in targets)
         if value == (get_setting(conn, key, DEFAULTS[key]) or DEFAULTS[key]):
             changes.pop(key)
@@ -209,7 +209,7 @@ def factor_reset_channel(patch: Patch) -> None:
     if changes[key] == "any" and is_remote(request):
         audit(conn, actor=principal, action="security.factor_reset_channel", decision="denied", resource_type="installation", resource_id="*",
               reason="remote_channel", request_id=_rid(request), details={"to": changes[key]})
-        raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": key})
+        raise field_error(LOCAL_ONLY_HE, [key], code="local_only", status=403, legacy={"field": key})
     audit(conn, actor=principal, action="security.factor_reset_channel", decision="allowed", resource_type="installation", resource_id="*",
           request_id=_rid(request), details={"to": changes[key]})
 
@@ -244,8 +244,7 @@ def local_purge(patch: Patch) -> None:
         purge_word = confirm_words.typed_lang("privacy_local_purge", purge_confirm) if key == "privacy.local_purge" and new == "on" else None
         if key == "privacy.local_purge" and new == "on" and purge_word is None:
             due = len(local_privacy.purge_due(conn))
-            raise ApiError(422, "confirm_required", f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".",
-                           details={"field": "privacy.local_purge_confirm", "due_now": due})
+            raise field_error(f"המחיקה אינה הפיכה. כדי להפעיל אותה יש להקליד \"{LOCAL_PURGE_WORD}\".", ["privacy.local_purge_confirm"], code="confirm_required", legacy={"field": "privacy.local_purge_confirm"}, extra={"due_now": due})
         audit(conn, actor=principal, action="privacy.local_purge.setting", decision="allowed", resource_type="installation", resource_id="local_privacy",
               request_id=_rid(request),
               details={"key": key, "from": old, "to": new, "channel": "remote" if is_remote(request) else "local", **({"confirm_word": purge_word} if purge_word else {})})

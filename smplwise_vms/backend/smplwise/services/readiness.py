@@ -24,7 +24,7 @@ from typing import Any, Callable
 from ..audit import audit
 from ..config import Settings
 from ..db import get_setting, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..i18n import t
 from . import readiness_text  # noqa: F401 - registers the report's texts (I18N-BACKEND-2490)
 from . import values
@@ -95,12 +95,12 @@ def update_settings(conn: sqlite3.Connection, principal: Principal, changes: dic
     """Validate and store; {key: (before, after)} of what changed. Unknown key / bad value = 422; the "almost" band must stay below the advice score."""
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", t("readiness.invalid_setting"), details={"key": str(key)[:64]})
+            raise field_error(t("readiness.invalid_setting"), [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
     merged = {**settings_view(conn), **changes}
     if int(merged["readiness.band_almost_min"]) >= int(merged["readiness.advice_score"]):
-        raise ApiError(422, "invalid_setting", t("readiness.band_below_advice"), details={"key": "readiness.band_almost_min"})
+        raise field_error(t("readiness.band_below_advice"), ["readiness.band_almost_min"], code="invalid_setting", legacy={"key": "readiness.band_almost_min"})
     if all(int(merged[f"readiness.weight.{cid}"]) == 0 for cid in CHECKS):
-        raise ApiError(422, "invalid_setting", t("readiness.one_weight"), details={"key": "readiness.weight"})
+        raise field_error(t("readiness.one_weight"), ["readiness.weight"], code="invalid_setting", legacy={"key": "readiness.weight"})
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         before = setting(conn, key)

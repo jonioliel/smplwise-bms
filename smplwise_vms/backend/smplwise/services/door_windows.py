@@ -32,7 +32,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..audit import audit
 from ..db import Database, get_setting, new_id, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import STATION, Principal, authorize
 from . import door_windows_engine as dwe
 
@@ -116,7 +116,7 @@ def update_settings(conn: sqlite3.Connection, changes: dict[str, Any]) -> dict[s
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+            raise field_error("ערך לא תקין להגדרה.", [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
     if changes.get(AUTOMATION_ACTOR) == "on" and not automation_actor_available():
         # T16: the refusal of an automation opening a door is lifted by a setting only when the contract reports the capability - fail closed
         raise ApiError(409, "automation_actor_unavailable", "הפעלה מאוטומציה אינה זמינה: אין עדיין זהות אוטומציה מאומתת.")

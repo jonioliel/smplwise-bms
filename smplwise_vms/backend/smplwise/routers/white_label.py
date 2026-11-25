@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import set_setting, unlocked
-from ..errors import ApiError, not_found, validation
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import brand_assets as ba
 from ..services import white_label as wl
@@ -59,7 +59,7 @@ def wl_put(body: WhiteLabelBody, request: Request, principal: Principal = Depend
         try:
             changes[_FIELD_KEY[field]] = wl.normalise_field(_FIELD_KEY[field], value)
         except ValueError as exc:
-            raise validation(f"הערך אינו תקין: {_FIELD_TEXT[field]}", field=field, reason=str(exc)) from exc
+            raise field_error(f"הערך אינו תקין: {_FIELD_TEXT[field]}", [field], legacy={"field": field}, extra={"reason": str(exc)}) from exc
     for key, value in changes.items():
         set_setting(conn, key, value)
     if changes:

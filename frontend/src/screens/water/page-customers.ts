@@ -7,7 +7,7 @@ import '../../components/sw-state-panel';
 import '../../components/sw-table';
 import type { TableColumn } from '../../components/sw-table';
 import '../../electricity/elec-ui'; // elec-dialog (the electricity confirmation dialog)
-import { ApiError, describeError } from '../../api/client';
+import { ApiError, describeError, fieldsOf } from '../../api/client';
 import { waterBilling, type Customer } from '../../api/water-billing';
 import { navigate } from '../../router';
 import { onWaterAccess, waterAccess, type WaterAccess } from '../../water/access';
@@ -135,8 +135,8 @@ export class WaterCustomersPage extends LitElement {
         navigate(`${BASE}/${c.id}`);
       }
     } catch (e) {
-      const fields = e instanceof ApiError ? (e.body.details?.fields as string[] | undefined) : undefined;
-      if (fields?.length) this.errs = Object.fromEntries(fields.map((k) => [k, describeError(e)]));
+      const fields = fieldsOf(e); // ADR-019: the one field reader
+      if (fields.length) this.errs = Object.fromEntries(fields.map((k) => [k, describeError(e)]));
       else this.error = describeError(e);
     } finally {
       this.busy = false;

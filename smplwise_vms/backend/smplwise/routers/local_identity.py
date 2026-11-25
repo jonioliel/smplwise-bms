@@ -62,7 +62,7 @@ from .. import guarded_route
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import bump_permission_revision, now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require, role_name, scope_name
 from ..remote_channel import csrf_reason, is_remote
@@ -120,8 +120,9 @@ def public_post(path: str, **kwargs: Any):
 
 
 def _error(request: Request, status: int, code: str, message: str, headers: dict[str, str] | None = None, retryable: bool = False) -> JSONResponse:
-    return JSONResponse(status_code=status, headers=headers or {},
-                        content={"code": code, "user_message": message, "retryable": retryable, "correlation_id": _rid(request) or "", "details": {}})
+    """A refusal answered directly (it carries a header, or comes before the route raises): the one envelope, built by `ApiError.payload()`
+    (ADR019-FAMILY678-2520; the same five keys it built by hand)."""
+    return JSONResponse(status_code=status, headers=headers or {}, content=ApiError(status, code, message, retryable=retryable).payload(_rid(request) or ""))
 
 
 def _session_cookie(response: Response, request: Request, value: str, s: li.LocalSession) -> None:
@@ -480,14 +481,14 @@ def _passkey_first_allowed(conn: sqlite3.Connection) -> bool:
 def _validate_email(email: str | None) -> str | None:
     email = (email or "").strip() or None
     if email and not li.EMAIL_RE.match(email):
-        raise ApiError(422, "validation", "כתובת הדוא״ל אינה תקינה.", details={"field": "email"})
+        raise field_error("כתובת הדוא״ל אינה תקינה.", ["email"], legacy={"field": "email"})
     return email
 
 
 def _clean_text(value: str | None, field: str) -> str | None:
     value = (value or "").strip() or None
     if value and any(ord(c) < 32 or ord(c) == 127 for c in value):
-        raise ApiError(422, "validation", "טקסט רגיל בלבד.", details={"field": field})
+        raise field_error("טקסט רגיל בלבד.", [field], legacy={"field": field})
     return value
 
 
@@ -562,12 +563,12 @@ def _create_local_user(body: LocalUserCreate, request: Request, principal: Princ
     _feature_on(conn)
     key = li.username_key(body.username)
     if not li.USERNAME_RE.match(key):
-        raise ApiError(422, "validation", USERNAME_HE, details={"field": "username"})
+        raise field_error(USERNAME_HE, ["username"], legacy={"field": "username"})
     display = _clean_text(body.display_name, "display_name")
     if not display:
-        raise ApiError(422, "validation", "שם התצוגה חסר.", details={"field": "display_name"})
+        raise field_error("שם התצוגה חסר.", ["display_name"], legacy={"field": "display_name"})
     if len(display) > 60:
-        raise ApiError(422, "validation", DISPLAY_LONG_HE, details={"field": "display_name"})
+        raise field_error(DISPLAY_LONG_HE, ["display_name"], legacy={"field": "display_name"})
     email = _validate_email(body.email)
     notes = _clean_text(body.notes, "notes")
     scope = (body.scope_type, body.scope_id)
@@ -717,7 +718,7 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     if "display_name" in fields:
         name = _clean_text(fields["display_name"], "display_name")
         if not name:
-            raise ApiError(422, "validation", "שם התצוגה חסר.", details={"field": "display_name"})
+            raise field_error("שם התצוגה חסר.", ["display_name"], legacy={"field": "display_name"})
         store.set_display_name(conn, user_id, name)
         changed["display_name"] = True
     if "email" in fields:

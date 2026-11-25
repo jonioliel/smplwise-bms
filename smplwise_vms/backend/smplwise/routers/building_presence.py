@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import principal_light, shared_steps
-from ..errors import ApiError, forbidden, validation
+from ..errors import ApiError, field_error, forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import area_presence as ap
 from ..services import building_presence as bp
@@ -83,7 +83,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
     Owner 02.11 (round 14): presence.building.view without presence.view gets the people part as an anonymous count only
     (`{count, names: null, more: 0, anonymous: true}`, services/area_presence.py) - never a name or any per-person field."""
     if len(area_id) > 120:
-        raise validation("אזור לא תקין.", field="area_id")
+        raise field_error("אזור לא תקין.", ["area_id"], legacy={"field": "area_id"})
     db = request.app.state.db
     with db.connection(mode="read", label="presence.area") as conn:
         shared_steps(request, conn, principal, light=True)
@@ -136,7 +136,7 @@ def set_building_settings(body: SettingsIn, request: Request, principal: Princip
         try:
             cfg = bp.set_config(conn, body.model_dump(exclude_none=True))
         except ValueError as exc:
-            raise validation("ערך לא תקין.", field=str(exc)) from None
+            raise field_error("ערך לא תקין.", [str(exc)], legacy={"field": str(exc)}) from None
         audit(conn, actor=principal, action="presence.building.settings", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details=cfg)
         if "enabled" in body.model_fields_set and body.enabled is False:  # switching OFF stops the history and erases it (nothing about the past is kept)
             bph.purge(conn)

@@ -26,7 +26,7 @@ from typing import Any, Callable
 
 from ..audit import audit
 from ..db import new_id, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import values
 from ..rbac import INSTALLATION, Principal, authorize, require
 from .timeutil import iso_utc, parse_utc
@@ -89,10 +89,10 @@ def update_settings(conn: sqlite3.Connection, principal: Principal, changes: dic
     ends every open window at once (reason `switched_off`) so a later switch-on never revives a stale window."""
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+            raise field_error("ערך לא תקין להגדרה.", [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
     merged = {**settings_view(conn), **changes}
     if int(merged["quiet.windows.default_minutes"]) > int(merged["quiet.windows.max_minutes"]):
-        raise ApiError(422, "invalid_setting", "משך ברירת המחדל גדול מהמקסימום.", details={"key": "quiet.windows.default_minutes"})
+        raise field_error("משך ברירת המחדל גדול מהמקסימום.", ["quiet.windows.default_minutes"], code="invalid_setting", legacy={"key": "quiet.windows.default_minutes"})
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         before = setting(conn, key)

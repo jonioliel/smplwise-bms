@@ -9,7 +9,7 @@
  * store in ./electricity-billing-mock.ts (the schedules.ts / schedules-mock.ts pattern). The server drops every money key for
  * a caller without `energy.bills` (the keys are absent, not null); the UI never draws money without that permission.
  */
-import { ApiError, api, apiBlob, apiUrl, del, get, patch, post, put } from './client';
+import { ApiError, api, apiBlob, apiUrl, del, fieldsOf, get, patch, post, problemsOf, put } from './client';
 import { isApi } from './session';
 import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
 // the meters endpoints have ONE client (electricity-meters.ts, ELECTRICITY_INTERFACES.md section 3); this module never calls them itself
@@ -723,15 +723,13 @@ export const elecForbidden = (err: unknown): boolean => err instanceof ApiError 
 export function elecCustomerNumberError(err: unknown): boolean {
   if (!(err instanceof ApiError)) return false;
   if (err.body.code.startsWith('customer_number')) return true;
-  const f = err.body.details?.fields as unknown;
-  return Array.isArray(f) ? f.includes('customer_number') : !!f && typeof f === 'object' && 'customer_number' in f;
+  return fieldsOf(err).includes('customer_number'); // ADR-019: `fields` as names, or the legacy map
 }
-/** `details.fields` of a 422 validation error: field name -> message */
+/** The per-field messages of a 422 validation error: field name -> message. ADR-019 (ADR019-FAMILY678-2520): read through
+ * `problemsOf` (canonical `problems` with a message; the legacy `fields` map); a problem without its own text (a refused tariff
+ * definition or formula: the text is the error's message) is not a field message. */
 export function elecFieldErrors(err: unknown): Record<string, string> {
-  if (!(err instanceof ApiError)) return {};
-  const f = err.body.details?.fields as unknown;
-  if (f && typeof f === 'object' && !Array.isArray(f)) return f as Record<string, string>;
-  return {};
+  return Object.fromEntries(problemsOf(err).filter((p) => !!p.message).map((p) => [p.field, p.message as string]));
 }
 
 

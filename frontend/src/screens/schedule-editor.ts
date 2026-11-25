@@ -20,7 +20,7 @@ import './schedule-lowering-dialog';
 import './schedule-create-dialog';
 import './schedules-week-view';
 import '../components/sw-schedule-bar';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, issuesOf } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';
 import {
@@ -1437,7 +1437,7 @@ export class ScheduleEditor extends LitElement {
         return;
       }
       if (e.code === 'validation' || e.code === 'slots_overlap') {
-        const errs = (details.errors as Problem[] | undefined) ?? [];
+        const errs: Problem[] = issuesOf(e); // ADR-019: canonical `problems` first, the legacy `errors` list second
         this.previewFor = this.currentDraft(); // the server just judged this draft
         this.preview = { ...(this.preview ?? { valid: false, warnings: [], upcoming: [], conditional: false, sensitive: false, lowering: false, requires: { sensitive_permission: false, confirm_lowering: false, alarm_code: false } }), valid: false, errors: errs.length ? errs : [{ path: '', code: e.code, message: e.message }] };
         this.showErrors = true;

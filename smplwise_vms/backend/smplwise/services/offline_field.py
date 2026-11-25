@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 
 from ..audit import audit
 from ..db import new_id, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import values
 from ..rbac import Principal
 from .tickets import access, model, service, store
@@ -88,7 +88,7 @@ def require_enabled(conn: sqlite3.Connection) -> None:
 def update_settings(conn: sqlite3.Connection, principal: Principal, changes: dict[str, Any], rid: str | None) -> dict[str, tuple[str, str]]:
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+            raise field_error("ערך לא תקין להגדרה.", [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
     out: dict[str, tuple[str, str]] = {}
     for key, value in changes.items():
         before = setting(conn, key)

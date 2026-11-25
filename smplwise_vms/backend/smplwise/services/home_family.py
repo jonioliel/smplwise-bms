@@ -29,7 +29,7 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting, now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal, permissions_anywhere
 
 TIME_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
@@ -237,7 +237,7 @@ def notify_set(conn: sqlite3.Connection, principal: Principal, muted: list[str] 
     if muted is not None:
         bad = [m for m in muted if m not in CATEGORIES]
         if bad:
-            raise HomeFamilyError(422, "validation", "סוג התראה לא מוכר.", details={"field": "muted"})
+            raise field_error("סוג התראה לא מוכר.", ["muted"], legacy={"field": "muted"}, cls=HomeFamilyError)
         clean = sorted({m for m in muted if m not in mobile_push.CRITICAL_CATEGORIES})
         for row in conn.execute("SELECT * FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL", (principal.user_id,)).fetchall():
             mobile_push.set_muted(conn, row, clean)
@@ -245,7 +245,7 @@ def notify_set(conn: sqlite3.Connection, principal: Principal, muted: list[str] 
         cur = _dnd_row(conn, principal.user_id)
         new = {**cur, **{k: v for k, v in dnd.items() if k in ("enabled", "start", "end")}}
         if not isinstance(new["enabled"], bool) or not TIME_RE.match(str(new["start"])) or not TIME_RE.match(str(new["end"])) or new["start"] == new["end"]:
-            raise HomeFamilyError(422, "validation", "שעות השקט אינן תקינות.", details={"field": "dnd"})
+            raise field_error("שעות השקט אינן תקינות.", ["dnd"], legacy={"field": "dnd"}, cls=HomeFamilyError)
         conn.execute(
             """INSERT INTO home_notify_quiet (user_id, enabled, start_hm, end_hm, updated_at) VALUES (?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET enabled = excluded.enabled, start_hm = excluded.start_hm, end_hm = excluded.end_hm, updated_at = excluded.updated_at""",
@@ -286,11 +286,11 @@ def is_scene_schedule(item: dict[str, Any]) -> str | None:
 
 def scene_draft(name: str, scene_entity: str, at: str, days: list[str]) -> dict[str, Any]:
     if not isinstance(scene_entity, str) or not re.match(r"^scene\.[a-z0-9_]{1,120}$", scene_entity):
-        raise HomeFamilyError(422, "validation", "אפשר לתזמן כאן סצנה בלבד.", details={"field": "scene"})
+        raise field_error("אפשר לתזמן כאן סצנה בלבד.", ["scene"], legacy={"field": "scene"}, cls=HomeFamilyError)
     if not TIME_RE.match(at or ""):
-        raise HomeFamilyError(422, "validation", "השעה אינה תקינה.", details={"field": "at"})
+        raise field_error("השעה אינה תקינה.", ["at"], legacy={"field": "at"}, cls=HomeFamilyError)
     want = [d for d in DAYS if d in set(days or [])]
     if not want:
-        raise HomeFamilyError(422, "validation", "בחרו לפחות יום אחד.", details={"field": "days"})
+        raise field_error("בחרו לפחות יום אחד.", ["days"], legacy={"field": "days"}, cls=HomeFamilyError)
     return {"name": name.strip()[:80] or None, "weekdays": ["daily"] if len(want) == 7 else want, "repeat": "repeat",
             "slots": [{"start": at, "actions": [{"service": "scene.turn_on", "entity_id": scene_entity}]}]}

@@ -13,7 +13,7 @@
  * `{"persona": "admin" | "manager" | "viewer" | "none", "availability": "ok" | "component_missing" | "ha_unavailable" |
  * "feature_disabled" | "error", "empty": true}`.
  */
-import { ApiError } from './client';
+import { ApiError, issueDetails } from './client';
 import { confirmWordMatches } from '../i18n/confirm-words';
 import {
   ALL_CLASSES,
@@ -861,9 +861,9 @@ export class ScheduleDemoStore {
     if (v.errors.length) {
       const first = v.errors[0];
       if (first.code === 'sensitive_permission_required') fail(403, first.code, first.message);
-      if (first.code === 'slots_overlap') fail(422, 'slots_overlap', 'משבצות חופפות באותו תזמון.', { errors: v.errors });
-      if (first.code === 'disarm_not_allowed' || first.code === 'script_not_approved') fail(422, first.code, first.message, { errors: v.errors });
-      fail(422, 'validation', `ערך לא תקין — ${first.path}: ${first.message}`, { errors: v.errors });
+      if (first.code === 'slots_overlap') fail(422, 'slots_overlap', 'משבצות חופפות באותו תזמון.', { errors: v.errors, ...issueDetails(v.errors) });
+      if (first.code === 'disarm_not_allowed' || first.code === 'script_not_approved') fail(422, first.code, first.message, { errors: v.errors, ...issueDetails(v.errors) });
+      fail(422, 'validation', `ערך לא תקין — ${first.path}: ${first.message}`, { errors: v.errors, ...issueDetails(v.errors) });
     }
     if (v.lowering && !confirmLowering) fail(409, 'lowering_confirmation_required', 'תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.');
   }

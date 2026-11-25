@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from ..audit import audit
 from ..db import get_setting, set_setting
-from ..errors import ApiError
+from ..errors import field_error
 from ..rbac import Principal
 from .scenario_model import HHMM_RE
 
@@ -117,14 +117,14 @@ def update(conn: sqlite3.Connection, principal: Principal, changes: dict[str, An
     norm: dict[str, str] = {}
     for key, v in changes.items():
         if key not in SETTINGS:
-            raise ApiError(422, "invalid_setting", "הגדרה לא מוכרת.", details={"key": str(key)[:64]})
+            raise field_error("הגדרה לא מוכרת.", [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
         if isinstance(v, bool):
             v = "true" if v else "false"
         elif isinstance(v, int):
             v = str(v)
         n = SETTINGS[key][1](v)
         if n is None:
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": key})
+            raise field_error("ערך לא תקין להגדרה.", [key], code="invalid_setting", legacy={"key": key})
         norm[key] = n
     changed: list[str] = []
     for key, n in norm.items():

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal, get_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import home_wall_events_store as store
 from ..services import home_interface as hi
@@ -84,7 +84,7 @@ def wall_event(body: WallEventBody, request: Request, principal: Principal = Dep
             cal = fam[0]
         data = {"calendar_id": cal["id"], "kind": "event", "title": body.title.strip(), "start": body.start, "end": body.end, "all_day": body.all_day}
         if not data["title"]:
-            raise ApiError(422, "validation", "כתבו מה האירוע.", details={"field": "title"})
+            raise field_error("כתבו מה האירוע.", ["title"], legacy={"field": "title"})
         out = events.create(ctx, model.read_settings(conn), data, cr._now())
         ev = out["event"]
         cr._audit(conn, principal, request, "calendar.event.create", "calendar_event", ev["id"], calendar_id=ev["calendar_id"], state=out["state"], recurring=False, via="wall_panel")

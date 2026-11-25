@@ -187,7 +187,7 @@ def test_cw2442_the_wider_lookup_takes_the_hebrew_or_the_english_word_only(world
     url = "/api/v1/access/capture-lease/settings"
     for text in bad("capture_lookup_wide"):
         r = c.put(url, json={"lookup_scope": "holder_or_audit_readers", "lookup_scope_confirm": text}, headers=as_user("joni"))
-        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "lookup_scope_confirm"}, text
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "lookup_scope_confirm", "fields": ["lookup_scope_confirm"]}, text  # ADR019-FAMILY678-2520
     with db.connection(mode="read") as conn:
         assert cl.lookup_scope(conn) == "holder"
     typed = good("capture_lookup_wide", lang)

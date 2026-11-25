@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, read_gate, settings_of
-from ..errors import ApiError
+from ..errors import field_error
 from ..i18n import localize_for
 from ..rbac import INSTALLATION, Principal, ROLES, custom_roles, require, role_name
 from ..services import door_authority, intercom_calls, intercom_sync, wiskey_camera
@@ -101,7 +101,7 @@ def put_call_settings(request: Request, body: dict[str, Any], principal: Princip
     try:
         value = intercom_calls.validate_settings(body, known)
     except intercom_calls.SettingsInvalid as exc:
-        raise ApiError(422, "validation", str(exc), details={"field": exc.field}) from None
+        raise field_error(str(exc), [exc.field], legacy={"field": exc.field}) from None
     old = intercom_calls.load_settings(conn)
     intercom_calls.save_settings(conn, value)
     audit(conn, actor=principal, action="intercom.call_banner.settings", decision="allowed", resource_type="setting", resource_id=intercom_calls.SETTING_KEY,
