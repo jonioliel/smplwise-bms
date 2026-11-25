@@ -41,7 +41,30 @@ PAIRING-Q2 = a. Status: implemented and tested against fakes only. Nothing insta
 
 ## 4. Tests (real results)
 
-See section 4 below the line (filled from the runs).
+| command | where | exit | result |
+|---|---|---|---|
+| `python -m pytest -q tests/test_wiskey_schedule_reads_2520.py` (repo venv) | PC | 0 | 73 passed |
+| `py -3.12 -m ruff check` on the 4 new Python files | PC | 0 | all checks passed |
+| `gen_wire_types.py --check`, `wire_ratchet.py` | PC + runner | 0 / 0 | generated files match; 897 unmodelled = baseline (the 3 new routes are modelled) |
+| runner slot B (`~/work/slotb.sh ~/work/sr_run.sh`, head `bc4c5a942`), backend one process per shard: | | | |
+| - `tests/test_wiskey_schedule_reads_2520.py` | runner | 0 | 73 passed |
+| - `tests/test_wkjoin_295.py tests/test_wiskey_direct_v2_2520.py` | runner | 0 | 62 passed |
+| - `tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_wiskey_rc10_pin.py tests/test_calendar_attendees_2343.py` (registries, migration sequence) | runner | 0 | 174 passed, 8 skipped |
+| - `tests/test_wire_routers_b/c/d/e`, `test_wire_consumption_2450`, `test_error_envelope_family2_2500` | runner | 0 | 413 passed |
+| - `tests/test_get_routes_read_conn.py test_local_auth_inventory.py test_plan_routes_unique.py test_secfix2_pub07_guard_first.py test_gate_always_run.py test_capabilities.py test_singletons_registered.py test_raw_body_order.py` | runner | 1 | 819 passed, **1 failed**: `test_gate_always_run::test_every_package_scanner_is_listed_or_reviewed` names `test_wiskey_system_status_2520.py` (R1's file, already on the train base) as unlisted - not this row's file; this row's test file is not flagged. Belongs to the train / R1. |
+| - `tests/test_wiskey_schedule_writes.py` | runner | 1 | 23 passed, **1 failed**: `test_audit_rows_name_the_actor_and_resource_and_never_a_token_or_a_window` asserts the text `07:00` (a draft window) is absent from the audit rows; the run happened at 13:06:45 UTC and an envelope's `expires_at` was `...13:07:00Z`, which contains `07:00`. A clock-dependent false positive of the existing test (this row changes neither the writes router nor that test); it passes at any other minute. Not re-run (slot B queue was ~3.5 h). |
+| - frontend `tsc --noEmit -p .` / `-p tsconfig.tests.json` | runner | 0 / 0 | 0 errors / 0 errors |
+| - `eslint` on the 10 changed / new frontend files | runner | 0 | clean |
+| - `playwright -c playwright.unit.config.ts tests/unit-schedule-reads-2520.spec.ts` | runner | 0 | 6 passed |
+| - `npm run build` | runner | 0 | built |
+| - `tests/evidence-wiskey-schedule-reads-2520.spec.ts` desktop + mobile | runner | 0 | 8 passed (images in `docs/design/evidence/wiskey-schedule-reads-2520/`) |
+| - `tests/pixel-wiskey-schedule-reads-2520.spec.ts` desktop + mobile, light + dark: `--update-snapshots=all`, then re-check | runner | 0 / 0 | 8 passed / 8 passed (8 Linux baselines committed) |
+| - existing `pixel-wiskey-schedule-writes`, `evidence-wiskey-schedule-writes`, `layout-audit30wk-components` (check, unchanged baselines) | runner | 0 | 31 passed, 1 skipped |
+| full backend suite, full Playwright | - | - | **NOT_RUN** (not in this row; the train gate runs them) |
+| real WisKey rc20 / lab / bridge | - | - | **NOT_RUN** by rule |
+
+Compare page (Hebrew, before / after, desktop + phone, light + dark): `private/planning/wiskey_sched_reads_compare_2026-11-25.html`
+(main checkout, not in git).
 
 ## 5. Not done / limits
 
