@@ -63,6 +63,7 @@ import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../api/setup-hint';
+import { dismissOnboarding, loadOnboardingDismissal, ONBOARDING_HREF, onboardingActive, onboardingLoaded, onOnboardingDismissed, onOnboardingEnabled, parseEnabled, resetOnboardingFor, setOnboardingEnabled } from '../api/onboarding';
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, applySynopticHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
@@ -134,6 +135,14 @@ export class SwApp extends LitElement {
     return s && hintVisible(s, this.setupDis) ? { done: s.done, total: s.total } : null;
   }
   private stopSetupDismissal: (() => void) | null = null;
+  /** DOCS-ONBOARDING-2530 (T071): the first-run getting-started checklist - the installation's switch (`onboarding.enabled`) and this
+   * user's own "hide" (/me/prefs `onboarding.dismissed`), both kept in api/onboarding.ts. */
+  @state() private onbOn = false;
+  @state() private onbHidden = false;
+  private stopOnboarding: (() => void)[] = [];
+  private get onboardingRow(): boolean {
+    return this.session.mode === 'api' && onboardingLoaded() && onboardingActive(this.onbOn, this.onbHidden, can('system.configure'));
+  }
   @state() private searchQ = '';
   @state() private searchResults: SearchResult[] = [];
   /** MULTI-BUILDING-NEXT-2500: the search's building ('' = the whole site) and the filter the last search answered (null = none). */
@@ -1947,6 +1956,7 @@ export class SwApp extends LitElement {
       startIncidents(s.mode === 'api' && !!s.me?.modules?.incidents); // CR-LIVEEVENT100: the open-incident pill / dots (OFF by default, the static demo too)
       setReadinessChip(s.mode === 'api' ? s.me?.readiness : null); // CR-READY96: the score chip on the settings entry (configure holders only)
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
+      if (resetOnboardingFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysStarted) void loadOnboardingDismissal(); // DOCS-ONBOARDING-2530: the same per-user rule
       if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysStarted) {
         this.setupDis = null;
         this.setupSum = null;
@@ -2022,7 +2032,12 @@ export class SwApp extends LitElement {
           // NVR-less mode: a start screen that needs the NVR opens the map (or, with the map hidden, the device control)
           if (routeMissing(parseRoute(`#${target}`)).length) target = hideMap ? START_ROUTES.devices : START_ROUTES.explore;
           target = landingTarget(target, true, canNav, navOrder());
+          // DOCS-ONBOARDING-2530 (T071): the installation's getting-started switch ("true" only on a fresh installation)
+          setOnboardingEnabled(parseEnabled(ps['onboarding.enabled']));
+          if (parseEnabled(ps['onboarding.enabled']) && can('system.configure')) void loadOnboardingDismissal(); // the row waits for this user's choice
+          const firstLanding = this.landedDefault;
           if (this.landedDefault) this.land(target);
+          if (firstLanding) void this.landOnOnboarding(target);
           this.requestUpdate();
         }).catch(() => undefined).finally(() => {
           // settings unreadable: still no bare address - "ראשי", or this user's first tab
@@ -2044,6 +2059,8 @@ export class SwApp extends LitElement {
       }
     });
     window.addEventListener('sw-setup-state', this.onSetupState);
+    // the dismissal's first read answers "not hidden" too: render either way, so the row waits for it (onboardingRow: onboardingLoaded())
+    this.stopOnboarding.push(onOnboardingEnabled((on) => (this.onbOn = on)), onOnboardingDismissed((d) => { this.onbHidden = d; this.requestUpdate(); }));
     void loadSession();
     window.addEventListener('keydown', this.onGlobalKey);
     // WisKey embed API v1: the tab row follows the panel's catalog and its confirmed location
@@ -2289,6 +2306,8 @@ export class SwApp extends LitElement {
     window.removeEventListener('sw-setup-state', this.onSetupState);
     this.stopSetupDismissal?.();
     this.stopSetupDismissal = null;
+    for (const s of this.stopOnboarding) s();
+    this.stopOnboarding = [];
     this.shellPoll.cancel('system');
     this.sysStarted = false;
   }
@@ -2418,7 +2437,31 @@ export class SwApp extends LitElement {
     void dismissHint(this.setupSum);
   }
 
+  /** DOCS-ONBOARDING-2530 (T071): what the operator of a FRESH installation sees first - the default landing of the session (an address
+   * of its own is never replaced) moves on to the getting-started checklist while it is on and this user has not hidden it. Once per tab
+   * session, so "back" or a reload of the start screen stays where it is. */
+  private async landOnOnboarding(target: string) {
+    if (!this.onbOn || this.session.mode !== 'api' || !can('system.configure') || this.embedded()) return;
+    const hidden = await loadOnboardingDismissal();
+    if (hidden || !this.onbOn || window.location.hash !== `#${target}`) return;
+    try {
+      if (window.sessionStorage.getItem('arx.onboarding.landed') === '1') return;
+      window.sessionStorage.setItem('arx.onboarding.landed', '1');
+    } catch {
+      /* storage blocked: land on the checklist this time */
+    }
+    window.location.replace(ONBOARDING_HREF);
+  }
+
+  /** DOCS-ONBOARDING-2530: while the getting-started checklist is on for this user, its row stands in for the setup hint (the checklist
+   * starts with the wizard's required steps). Hidden on the checklist itself. */
+  private renderOnboardingRow() {
+    if (this.gated || (this.route?.mode === 'system' && this.route.segments[1] === 'onboarding')) return nothing;
+    return html`<div class="setuphint" role="status" data-onboarding-row><sw-icon name="info" size=${16}></sw-icon><span><b>${tr('ברוכים הבאים')}</b> · ${tr('רשימת תחילת העבודה מראה מה מגדירים קודם')}</span><a href=${ONBOARDING_HREF}>${tr('לרשימת תחילת העבודה')}</a><button type="button" class="x" aria-label=${tr('הסתר את רשימת תחילת העבודה')} title=${tr('הסתר את רשימת תחילת העבודה')} data-onboarding-row-dismiss @click=${() => void dismissOnboarding()}><sw-icon name="close" size=${14}></sw-icon></button></div>`;
+  }
+
   private renderSetupHint() {
+    if (this.onboardingRow) return this.renderOnboardingRow();
     const h = this.setupHint;
     if (!h || this.gated || (this.route?.mode === 'system' && this.route.segments[1] === 'wizard')) return nothing;
     return html`<div class="setuphint" role="status" data-setup-hint><sw-icon name="info" size=${16}></sw-icon><span><b>${SETUP_HINT_TEXT.title}</b> · ${SETUP_HINT_TEXT.progress(h.done, h.total)}</span><a href="#/system/wizard">${SETUP_HINT_TEXT.toWizard}</a><button type="button" class="x" aria-label=${SETUP_HINT_TEXT.dismiss} title=${SETUP_HINT_TEXT.dismiss} data-setup-hint-dismiss @click=${() => this.dismissSetupHint()}><sw-icon name="close" size=${14}></sw-icon></button></div>`;
@@ -2779,6 +2822,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'readiness') return html`<system-readiness></system-readiness>`; // הגדרות › מוכנות (CR-READY96)
+        if (s[1] === 'onboarding') return html`<system-onboarding></system-onboarding>`; // DOCS-ONBOARDING-2530: תחילת עבודה (T071)
         if (s[1] === 'wiskey-validation') return html`<system-wiskey-validation></system-wiskey-validation>`; // WISKEY-LIVE-VALIDATION-2390: הגדרות › בדיקת קבלה לעמדות
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
@@ -3099,7 +3143,10 @@ export class SwApp extends LitElement {
     const h = this.setupHint;
     return html`<span slot="pills" class="menu-pills">
       ${this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label=${tr('נתוני הדגמה')} data-demo-pill></sw-badge>` : nothing}
-      ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>${SETUP_HINT_TEXT.title} · ${h.done}/${h.total}</a>` : nothing}
+      ${this.onboardingRow
+        ? html`<a class="setup-pill" href=${ONBOARDING_HREF} data-onboarding-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay(ONBOARDING_HREF); }}><sw-icon name="info" size=${14}></sw-icon>${tr('תחילת עבודה')}</a>`
+        : nothing}
+      ${h && !this.onboardingRow ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>${SETUP_HINT_TEXT.title} · ${h.done}/${h.total}</a>` : nothing}
     </span>`;
   }
 

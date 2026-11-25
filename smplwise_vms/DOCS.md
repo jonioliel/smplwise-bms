@@ -161,6 +161,24 @@ installation in six steps and says, for each one that is not done, what is wrong
   link to the wizard; × hides it until the browser session ends.
 - Without a backend (the design preview) the wizard shows fixture data.
 
+## Getting started and support (2.53, DOCS-ONBOARDING-2530)
+
+- **Getting-started list** (`#/system/onboarding`, `system.configure` at installation scope): an ordered list of what to set up first -
+  the setup wizard's required steps as one row, then the installation-readiness checks a new installation goes through (clock, floors,
+  people, notifications, backup, remote access, modules, the optional hand-over), then the support page. Each row shows the state the
+  wizard / the readiness report measure now and links to the screen where it is done; nothing is ticked by hand and nothing is written.
+- **Fresh installations only:** the setting `onboarding.enabled` defaults to `false` (an existing installation never shows the list after
+  an update). The first start of a new installation (its database created by that start) stores `true` once. While it is on, a
+  system administrator's default landing of a browser tab moves on to the list once (a deep link is never replaced) and a row "Welcome"
+  under the tabs (a pill in the phone's personal menu) leads to it, standing in for the wizard's "complete the installation" row.
+- **Two switches:** Settings › General › Support › "Getting-started list" turns it on or off for the installation (saved at once, audited;
+  never carried by a backup or changed by a restore); "Hide the list" (or the row's ✕) is the user's own (`/me/prefs`
+  `onboarding.dismissed`) and "Show again" brings it back.
+- **Settings › General › Support** now holds the versions to quote (server, interface build, bridge, home system), the redacted log
+  export (the same card as Health and jobs, T033) and the steps for reporting a problem. The placeholder "support bundle" card (a
+  disabled "later" button and two switches that did nothing) is gone: the redacted log export is that bundle.
+- Guide: `docs/user-guide/he/71-getting-started-support_HE.md` (English: `docs/user-guide/en/71-getting-started-support_EN.md`).
+
 ## NVR-less mode (Home Assistant only)
 
 The add-on also runs without a Hikvision NVR, for an installation that uses it for electricity and device control only.

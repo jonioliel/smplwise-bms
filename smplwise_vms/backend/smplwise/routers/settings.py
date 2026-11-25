@@ -123,6 +123,7 @@ class SettingsPatch(BaseModel):
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
+    onboarding_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="onboarding.enabled")  # DOCS-ONBOARDING-2530
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_page_size_schedules: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules")
     ui_page_size_schedules_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules_phone")

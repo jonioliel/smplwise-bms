@@ -1581,6 +1581,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // T071: the wizard reads GET /setup/state, which needs system.configure at installation scope
   '#/system/wizard': ['system.configure'],
   '#/system/readiness': ['system.configure'], // CR-READY96: GET /readiness needs system.configure at installation scope
+  '#/system/onboarding': ['system.configure'], // DOCS-ONBOARDING-2530: the getting-started checklist reads /setup/state and /readiness (installation scope)
   // CR-013: the screen catalogue (a design / support tool), for system administrators only
   '#/screens': ['system.configure'],
 };
@@ -1600,7 +1601,7 @@ export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: st
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report', '#/system/intercom-installer', INTERCOM_OPS_HREF, INCIDENTS_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/onboarding', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report', '#/system/intercom-installer', INTERCOM_OPS_HREF, INCIDENTS_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
