@@ -31,6 +31,7 @@ import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { sct } from '../i18n/settings-cards';
 import { tr } from '../i18n/msg/system-b';
 import { wfsGroupLabel, wfsLinkLabel, wfsReasonFix, wfsReasonText, wfsRowLabel } from '../i18n/wiskey-feature-status';
+import { wpsLineFix, wpsLineLabel, wpsLineText, wpsProviderRowLabel, wpsSteps } from '../i18n/wiskey-pairing-status';
 import { mutedStyles } from '../styles/fragments';
 
 const LINE_KIND: Record<PairingLineState, StateKind> = { ok: 'live', warn: 'stale', blocked: 'error', unknown: 'unknown' };
@@ -326,16 +327,18 @@ export class SystemWiskeyPairing extends LitElement {
       return html`<div class="chips" data-wkp-provider><span class="chip" data-wkp-provider-choice=${String(f.choice ?? '')}>${PROVIDER_TEXT[String(f.choice)] ?? String(f.choice ?? '')}</span>
           <span class="chip">${tr('רשימת ערוץ השירות:')} <bdi>${f.feed_reason ? String(f.feed_reason) : tr('מפרסמת וידאו')}</bdi></span>
           ${codes.map((c) => html`<span class="chip" data-wkp-readiness=${c}><bdi>${c}</bdi></span>`)}</div>
-        ${row ? html`<a href=${row.href} data-wkp-provider-link>${tr('לשורה "{label}"', { label: row.label })}</a>` : nothing}`;
+        ${row ? html`<a href=${row.href} data-wkp-provider-link>${tr('לשורה "{label}"', { label: wpsProviderRowLabel(row) })}</a>` : nothing}`;
     }
     return nothing;
   }
 
   private renderLine(l: PairingLine) {
+    // WISKEY-PAIRING-I18N-2520: the words follow the page's language from the stable reason / fix code (Hebrew: the server's own words)
+    const fix = wpsLineFix(l);
     return html`<div class="line" data-wkp-line=${l.key} data-state=${l.state}>
-      <span class="lbl">${l.label}</span>
+      <span class="lbl">${wpsLineLabel(l)}</span>
       <sw-badge kind=${LINE_KIND[l.state]} label=${LINE_TEXT[l.state]}></sw-badge>
-      <div class="body"><span>${l.text}</span>${this.renderFacts(l)}${l.fix ? html`<span class="fix ${l.state === 'blocked' ? 'blocked' : ''}" data-wkp-fix>${tr('איך מתקנים:')} ${l.fix}</span>` : nothing}</div>
+      <div class="body"><span>${wpsLineText(l)}</span>${this.renderFacts(l)}${fix ? html`<span class="fix ${l.state === 'blocked' ? 'blocked' : ''}" data-wkp-fix>${tr('איך מתקנים:')} ${fix}</span>` : nothing}</div>
     </div>`;
   }
 
@@ -350,7 +353,7 @@ export class SystemWiskeyPairing extends LitElement {
               ? html`<div class="code"><span>${tr('קוד הצימוד:')}</span><code data-wkp-code>${r.pairing_code}</code>
                   <sw-button size="sm" icon="copy" @click=${() => this.copy(r.pairing_code ?? '')}>${this.copied ? tr('הועתק') : tr('העתקה')}</sw-button></div>`
               : nothing}
-            <ol data-wkp-repair-steps>${r.steps.map((s) => html`<li>${s}</li>`)}</ol>`
+            <ol data-wkp-repair-steps>${wpsSteps(r.steps, r.step_codes, { url: r.addon_url }).map((s) => html`<li>${s}</li>`)}</ol>`
         : html`<div class="muted">${d.repair.announce ? tr('Arx יכול לתקן את זה בעצמו: ליצור קוד צימוד חדש ולשלוח אותו לגשר. פעולה של מנהל מערכת, נרשמת ביומן.') : tr('Arx יכול לתקן את זה בעצמו: ליצור קוד צימוד חדש (את הקוד מזינים בגשר בתשתית המערכת). פעולה של מנהל מערכת, נרשמת ביומן.')}</div>
             <div><sw-button variant="danger" size="sm" icon="link" data-wkp-repair-open ?disabled=${!!this.busy} @click=${() => (this.confirming = true)}>${tr('צימוד מחדש')}</sw-button></div>`}
     </div>`;
@@ -447,7 +450,7 @@ export class SystemWiskeyPairing extends LitElement {
             ${this.error && !this.confirming ? html`<div class="err" role="alert" style="margin-block-start:8px">${this.error}</div>` : nothing}
             ${d
               ? html`<div class="lines">${d.lines.map((l) => this.renderLine(l))}</div>
-                  ${d.owner_steps.length ? html`<div class="section" data-wkp-steps><h4>${tr('מה נדרש מחוץ ל־Arx')}</h4><ol>${d.owner_steps.map((s) => html`<li>${s}</li>`)}</ol></div>` : nothing}
+                  ${d.owner_steps.length ? html`<div class="section" data-wkp-steps><h4>${tr('מה נדרש מחוץ ל־Arx')}</h4><ol>${wpsSteps(d.owner_steps, d.owner_step_codes).map((s) => html`<li>${s}</li>`)}</ol></div>` : nothing}
                   ${this.renderRepair(d)} ${this.renderFeatures(d)} ${this.renderTriage()} ${this.renderConfirm(d)}`
               : nothing}`}
     </sw-card>`;

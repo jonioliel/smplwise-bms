@@ -16,6 +16,10 @@ export interface PairingLine {
   reason: string;
   text: string;
   fix: string | null;
+  /** WISKEY-PAIRING-I18N-2520 (additive; absent on an older server): the FIX key of `fix`, and the values `text` was filled with
+   * (`<name>_code` = the code of a value that is itself a word). The page says the line in its language from these (i18n/wiskey-pairing-status.ts). */
+  fix_code?: string | null;
+  params?: Record<string, unknown>;
   facts: Record<string, unknown>;
 }
 
@@ -71,6 +75,8 @@ export interface PairingStatus {
   probe: PairingProbe | null;
   repair: { available: boolean; reason: string | null; announce: boolean; addon_url: string };
   owner_steps: string[];
+  /** WISKEY-PAIRING-I18N-2520 (additive): the codes of `owner_steps`, one per step. */
+  owner_step_codes?: string[];
   features: FeatureRow[];
 }
 
@@ -81,6 +87,8 @@ export interface RepairResult {
   addon_url: string;
   paired_at: string | null;
   steps: string[];
+  /** WISKEY-PAIRING-I18N-2520 (additive): the codes of `steps`, one per step (`{url}` = `addon_url`). */
+  step_codes?: string[];
   status: PairingStatus;
 }
 
