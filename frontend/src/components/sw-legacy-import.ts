@@ -302,8 +302,10 @@ export class SwLegacyImport extends LitElement {
         <sw-icon name="check" size=${13}></sw-icon>${out.already_applied ? tr('הקובץ הזה כבר יובא: לא השתנה דבר ולא נכתב גיבוי.') : tr('הייבוא הסתיים: הועתקו {n} כינויים, {m} נשארו כמו שהם.', { n: out.applied, m: out.unchanged })}
       </div>
       <dl class="facts" data-legacy-result-facts>
-        <div><dt>${tr('גיבוי לפני השינוי')}</dt><dd data-legacy-result-backup>${out.backup ? html`<bdi class="ltr">${out.backup.name}</bdi> · ${fmtBytes(out.backup.bytes)}` : tr('לא נדרש')}</dd></div>
-        ${chans ? html`<div><dt>${tr('ערוצים שעודכנו')}</dt><dd class="num" data-legacy-result-channels>${chans}</dd></div>` : nothing}
+        <div><dt>${tr('גיבוי לפני השינוי')}</dt><dd data-legacy-result-backup>${out.backup
+          ? html`<span class="ltr block">${out.backup.name}</span><span class="muted size">${fmtBytes(out.backup.bytes)}</span>`
+          : tr('לא נדרש')}</dd></div>
+        ${chans ? html`<div><dt>${tr('ערוצים שעודכנו')}</dt><dd class="num"><span class="ltr" data-legacy-result-channels>${chans}</span></dd></div>` : nothing}
         <div><dt>${tr('נרשם')}</dt><dd>${dayMonthTimeText(new Date(out.run.at))}${out.run.by ? html` · <bdi>${out.run.by}</bdi>` : nothing}</dd></div>
         <div><dt>${tr('טביעת הקובץ')}</dt><dd><code class="ltr">${shortSha(out.run.sha256)}</code></dd></div>
       </dl>
@@ -325,12 +327,13 @@ export class SwLegacyImport extends LitElement {
   private renderDialog(r: LegacyReport) {
     const word = confirmWord('legacy_import_apply');
     const ok = confirmWordTyped('legacy_import_apply', this.confirm) !== null;
-    const kind = this.status?.backup_kind ?? 'auto-pre-legacy-import';
+    // the kind is a left-to-right name inside a sentence: first-strong isolates keep its hyphens and the parentheses in place
+    const kind = `⁨${this.status?.backup_kind ?? 'auto-pre-legacy-import'}⁩`;
     return html`<sw-dialog open heading=${tr('ייבוא מהמערכת הישנה')} subheading=${this.file?.name ?? ''} data-legacy-dialog @close=${() => { if (this.busy !== 'apply') this.dialog = false; }}>
       <div class="msg ok" role="note" data-legacy-dialog-backup><sw-icon name="history" size=${13}></sw-icon>${tr('לפני כל שינוי ייכתב גיבוי של הפרויקט ({kind}). אם הגיבוי לא נכתב - שום דבר לא משתנה.', { kind })}</div>
       <div class="muted" data-legacy-dialog-what>${tr('ישתנו ב־Arx {n} כינויי מצלמות שריקים היום. כינוי קיים לא נדרס. ב־NVR, במערכת הבית וב־go2rtc לא ישתנה דבר.', { n: writeCount(r) })}</div>
       ${this.dialogErr ? html`<div class="msg err" role="alert" data-legacy-dialog-error><sw-icon name="warning" size=${13}></sw-icon>${this.dialogErr}</div>` : nothing}
-      <label class="muted cw" for="legacy-confirm">${tr('לאישור הקלידו')} <code>${word}</code></label>
+      <label class="muted cw" for="legacy-confirm">${tr('לאישור הקלידו')} <b class="word" data-legacy-word>${word}</b></label>
       <input id="legacy-confirm" class="confirm-in" dir="auto" autocomplete="off" data-legacy-confirm placeholder=${word} .value=${this.confirm}
         @input=${(e: Event) => (this.confirm = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && ok) void this.apply(); }} />
       <div slot="footer"><sw-button variant="primary" icon="upload" ?disabled=${!ok || !!this.busy} data-legacy-apply @click=${() => void this.apply()}>${this.busy === 'apply' ? tr('מייבא…') : tr('ייבא עכשיו')}</sw-button>
@@ -371,6 +374,9 @@ export class SwLegacyImport extends LitElement {
     .facts dd { margin: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); overflow-wrap: anywhere; }
     .facts .num { font-variant-numeric: tabular-nums; }
     .ltr { direction: ltr; unicode-bidi: isolate; }
+    .facts .block { display: block; text-align: end; }
+    .facts .size { display: block; font-weight: var(--sw-fw-regular, normal); font-size: var(--sw-fs-sm); }
+    .word { color: var(--sw-heading, var(--sw-text)); unicode-bidi: isolate; }
     code { font-family: var(--sw-font-mono, monospace); }
     .cw { display: block; margin-block-start: var(--sw-s-3); }
     .confirm-in { inline-size: 100%; box-sizing: border-box; font: inherit; margin-block-start: var(--sw-s-2); padding: var(--sw-s-2) var(--sw-s-3);

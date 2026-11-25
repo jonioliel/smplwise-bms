@@ -39,7 +39,8 @@ async function compare(page: Page, info: TestInfo, name: string, whole = false) 
     return;
   }
   const opts = { maxDiffPixels: 40, animations: 'disabled' as const };
-  if (whole) await expect(page).toHaveScreenshot(file, opts);
+  // the phone: the viewport (the card is taller than the phone screen; the shell's bottom bar sits over its end)
+  if (whole || info.project.name === 'mobile') await expect(page).toHaveScreenshot(file, opts);
   else await expect(page.locator(CARD)).toHaveScreenshot(file, opts);
 }
 

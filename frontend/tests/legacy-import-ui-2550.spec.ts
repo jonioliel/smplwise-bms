@@ -230,8 +230,10 @@ test.describe('LEGACY-IMPORT-UI-2550: the legacy import card', () => {
     await expect(table.locator('tr[data-legacy-item="cameras.ch1"]')).toContainText('Channel 1');
     await expect(table.locator('tr[data-legacy-item="cameras.ch1"]')).toContainText('The legacy name will be copied');
     await card.locator('[data-legacy-apply-open]').click();
-    await expect(card.locator('[data-legacy-dialog] code')).toHaveText('import legacy');
-    await expect(card.locator('[data-legacy-dialog-backup]')).toContainText('A project backup (auto-pre-legacy-import) is written before any change');
+    await expect(card.locator('[data-legacy-word]')).toHaveText('import legacy');
+    await expect(card.locator('[data-legacy-dialog-backup]')).toContainText('A project backup (');
+    await expect(card.locator('[data-legacy-dialog-backup]')).toContainText('auto-pre-legacy-import');
+    await expect(card.locator('[data-legacy-dialog-backup]')).toContainText(') is written before any change');
     await shot(page, 'legacy-en-dialog');
   });
 });
