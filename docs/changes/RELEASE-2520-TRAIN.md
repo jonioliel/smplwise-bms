@@ -42,6 +42,12 @@ Every row merged with `--no-ff` in the order the lead set; each merge commit nam
 | 30 | `pilot/I18N-RUNTIME-ERRORS-2520` | `8420d7bdf` | `189ec3f4a` | 10 modules + 2 ratchets | base row 12. Where the ADR-019 rows had moved a refusal to `field_error(f"...", [fields], code=, legacy=, extra=)` and this row made the text `tpl(...)` in the old call (backup, brand, capture_lease, settings_patch/identity x2, white_label, access_external, access_grants x2, app_refresh x3, automation_ops, schedule_ops - 14 hunks): kept BOTH, HEAD's `field_error` with the row's `tpl(...)` (Tpl is a Msg; field_error passes it on); ruff F clean. Ratchet files regenerated. Lead Q1 = a at the merge: station_ops' three `_error()` texts and wiskey_visits' generic refusal as `tpl()` (MESSAGES values as English "words"), SCHED-READS' three constant texts in `error_text_en.json` -> backend refusal ratchet **258 -> 0** run-time, 0 without English. EN ratchet `keptTotal` 868 -> 871 (`--allow-raise`, the row's documented +3) |
 | 31 | `pilot/WISKEY-STATUS-I18N-2520` | `4c0014602` | `9d42de979` | none | base `eadaa25b8`; the "מצב WisKey" reasons in the page language (open point 1). All 33 reason codes of the merged `wiskey_feature_status.R` have a Hebrew and an English entry; `i18n-split-langs --dry` moves nothing |
 | 32 | `pilot/WISKEY-VISITS-ENDED-FILTER-2520` | `6d744bd41` | `f343f829b` | none | base `eadaa25b8`; Q1 = a, Q2 = a. `gen_wire_types --check` 0; `GUIDE_ALL_HE.html` rebuilt in the merge (`--check` said stale after it) |
+| 33 | `pilot/GEN-SENSOR-NAMES-EN-2520` | `e0d4a597b` | `78a8ad1f2` | none | cut from row 28; English generator sensor names (additive `needs_en`, `label_en`, `labels_en`) and CSV headers in the page language; `gen_wire_types --check` 0, ratchets unchanged |
+| 34 | `pilot/WISKEY-NOFALLBACK-FIX-2520` | `76ee24bcb` | `af0021b2c` | none | base `189ec3f4a`; WB-01 no classic people write after a v2 refusal, WB-03 discovery re-read with backoff; backend only; Q1-Q4 = a |
+| 35 | `pilot/WISKEY-PAIRING-I18N-2520` | `fba8a8062` | `7109362dc` | none | cut from row 31; additive fix_code / params / step codes on the pairing card + a he / en catalogue; `gen_wire_types --check` 0. Q1 = a train fix `9fb9b9cfa` (below) |
+| 36 | `pilot/SCREENS-FIX-B-2520` | `1226df73d` | `026d1e55f` | none | base `bd20831e6`; frontend only (public ticket with ar / ru packs, home calendar, resident calendars, investigation playback + `playback-day.ts`). The public bundle is rebuilt with the train's UI rebuild (`build:public:addon`; public chunk budget 62 KB) |
+| 37 | `pilot/OVERLAY-FADE-2520` | `f628421cc` | `c5adefc60` | none | cut from row 23; overlay entrances move-only + the `unit-overlay-fade-2520` checker + the "דורש אישור" heading token. Design ratchet lowered 25514 -> 25513 (`997dbe643`). Its phone notification-centre failures (the runner's disk-full window) re-run in section 3.5 |
+| 38 | `pilot/BRIDGE-REPAIR-LEGACY-2520` | `fadca9072` | `764e442c7` | none | base `189ec3f4a`; bridge `keyset.py` + `__init__.py` (WB-02 a legacy untagged store is a re-pair; WB-07 the PairingFence); `sync_integration --check` up to date. sha256 of BOTH copies (`custom_components/` and `smplwise_vms/integration/`), as expected: `keyset.py` `05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4`, `__init__.py` `4b497464e7f27a4edd02a0d3f1338d951d864428644c6908a061164856d86fe1`, `native_keyset.py` `5fda54de2f2caffe78bb32d4bddce2784d607f285be48f3e6eedc500bc97d1df` (unchanged) |
 
 Train fixes after rows 16-20:
 - `61a6959ef` (row 16 x rows 12 / 19): MFA-FACTOR-HARDEN-2520's new notice `security.second_factor_changed` came after I18N-REST-2520
@@ -66,6 +72,25 @@ Train fixes after rows 22-32:
   merged rows that had none (STARTING-STYLE-AUDIT, MFA-PASSKEY-ADMIN-REMOVE, MFA-RESET-CHANNEL-UI, NOTIFY-LANG-SENDERS, I18N-RUNTIME-ERRORS,
   WISKEY-STATUS-I18N, WISKEY-VISITS-ENDED-FILTER), each REVIEW with R-/AT- entries (AT NOT_RUN); rows 22, 27, 28 -> REVIEW;
   `project_status.py --write` PASS (697 tasks, 811 requirements).
+
+Train fixes after rows 33-38:
+- `bd20831e6` (row 27 x rows 17 / 22): SCHED-READS' invalid-draft refusal was a legacy 422 (`details.field`) - after the error-contract
+  ratchet went to 0 (`53a6b8da8`), `error_contract_inventory --check` failed ("access: 1 legacy 422 sites") and so did FAMILY45's /
+  FAMILY678's "no legacy left" tests (rows 22-32 job). Now `field_error(..., problems, legacy={"field"}, extra=...)` like the writes router;
+  `--check` holds at 0; `test_wiskey_schedule_reads_2520` on the PC 73 passed.
+- `928f05e64`: the CHANGELOG 2.52.0 heading lost its upper-case DRAFT mark - `release_check.changelog_head()` skips a DRAFT heading, so the
+  head read 2.51.0 against version files at 2.52.0 and `test_release_check` failed. The section's own comment still says it is the train's
+  draft list. `release_check.py`: one version everywhere 2.52.0 (only the v2.52.0 tag is missing, as expected); `test_release_check` 3 passed.
+- `e328f3ca2` (rows 24, 31): `unit-a11y-polished-lint` - `.pk-reset .err` (system-local-users.ts) on `var(--sw-danger-text)` instead of the
+  bare state colour; `unit-uxfix-rtl` - `i18n/wiskey-feature-status.ts` is a byte-for-byte mirror of the server's Hebrew texts (its spec
+  asserts the equality; it is never shown - a Hebrew page shows the server's text), and the server's texts use U+203A (148 Hebrew lines in
+  68 backend files); the RTL guard skips that one mirror file (`MIRRORS_SERVER`, reason beside it) - open point 11.
+- `9fb9b9cfa` (row 35, lead Q1 = a): `scripts/i18n_backend_errors.py` also reads the `text` keyword of `require_system_admin`
+  (`TEXT_KEYWORD_GATES`); that found four constant texts without English (the pairing card's two, `access_grants` readiness,
+  `wiskey_managed`) - now in `error_text_en.json`; inventory 0 without English, BE ratchet 0 / 0.
+- `628c0e259` (lead Q3 = a): `test_capmap_295` - the reviewed successor of `services/ha_bridge.py` (58cfc913... -> 3a7ee1f8...) after
+  I18N-RUNTIME-ERRORS: ten argument-check refusals of the generic device route f-string -> `tpl()` (same Hebrew) + the import, nothing else
+  (`git diff a7ba23483 33e121b63`); capmap on the PC 65 passed.
 
 Train fixes after row 12:
 - `f3dfcd158`: the 34 hard-coded Hebrew literals I18N-REST left are the WisKey demo installation (demo rows of `wiskey-events / overview /
@@ -264,3 +289,6 @@ Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
 9. ~~Cards missing~~ - DONE (`e98e8e544`, nine cards registered). Was: `NOTIFY-RECIPIENT-LANG-2520` (row 19) and `ADR019-L14-STRICT-F123-2520` (row 21) had no card in `management/tasks.json` (recorded on RELEASE-2520-TRAIN's card).
    a) the next MGMT-SYNC registers it as REVIEW with `7b55e0e76` / `f3fdb961f` (recommended) b) the train adds the card.
 10. ~~FAMILY678 and the error-contract ratchet~~ - DONE (rows 22, `53a6b8da8`: 0 legacy 422 sites).
+11. **The RTL guard's mirror exemption** (`e328f3ca2`): `i18n/wiskey-feature-status.ts` keeps the server's U+203A. a) keep the exemption;
+    the server's Hebrew separators move to U+2039 in a later row together with the mirror (recommended) b) change the server's 14 texts now.
+12. **Runner disk-full window** (this evening): failures with "database or disk is full" / ENOSPC were re-run, not triaged (section 3.5).
