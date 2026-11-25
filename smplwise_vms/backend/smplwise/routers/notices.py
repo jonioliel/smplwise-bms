@@ -18,7 +18,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
@@ -26,6 +26,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissions_anywhere, require
+from ..services import building_filter
 from ..services import connection_store as cstore
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
@@ -726,7 +727,12 @@ def _visible(conn: sqlite3.Connection, principal: Principal, n: dict[str, Any], 
 
 
 @router.get("/notices", **wire(W.NoticesList))
-def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def list_notices(scope: Literal["mine", "all"] = "mine", building: str | None = Query(None, max_length=120),
+                 principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """MULTI-BUILDING-FILTER-2520: the reader's list (`scope=mine`) on a multi-building site names, per notice, the buildings its audience
+    floors (and the floors of its audience areas) serve, and `building` narrows it to one building's notices; a notice with no floor in
+    its audience (everyone / groups / roles) shows under every building. services/building_filter: display only, after the audience
+    rule - a notice is never added. The managers' list (`scope=all`) is unchanged."""
     can = _can(conn, principal)
     if scope == "all":
         _need_anywhere(conn, principal, PERM_MANAGE)
@@ -743,8 +749,20 @@ def list_notices(scope: Literal["mine", "all"] = "mine", principal: Principal = 
     boards = store.boards_of(conn, [n["id"] for n in rows])
     read = store.read_ids(conn, principal.user_id)
     counts = store.read_counts(conn) if scope == "all" else {}
-    return {"notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
-            "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty", "show_places_tree")}}
+    out: dict[str, Any] = {
+        "notices": [_notice_out(n, now, boards[n["id"]], manager=scope == "all", read=n["id"] in read, reads=counts.get(n["id"], 0)) for n in rows],
+        "can": can, "now": model.iso(now), "defaults": {k: store.settings(conn)[k] for k in ("default_days", "default_severity", "push_default", "home_empty", "show_places_tree")}}
+    bf = building_filter.prepare(conn, building) if scope == "mine" else None
+    if bf is not None:
+        building_filter.apply(bf, out["notices"], [bf.place(floors=_audience_floors(conn, n)) for n in rows], out, "notices")
+    return out
+
+
+def _audience_floors(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
+    """MULTI-BUILDING-FILTER-2520: the floors a notice's audience names - its floors and the floors of its areas ([] = no place: everyone,
+    groups or roles only)."""
+    a = aud.parse(n["audience_json"])
+    return [f for f in a.get("floors") or [] if isinstance(f, str)] + aud._area_floors(conn, [x for x in a.get("areas") or [] if isinstance(x, str)])
 
 
 @router.post("/notices/audience/preview", **wire(W.NoticeAudiencePreview))

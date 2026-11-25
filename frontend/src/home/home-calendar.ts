@@ -3,6 +3,9 @@
 // /calendar/events/{id}/cancel|withdraw - every one checks its own permission (calendar.view / calendar.book and the calendar's role).
 // A wall panel locked to its room shows the day (owner decision round 27 q12 "ב") and may ADD an event to the family calendar (owner
 // answer 11.11, HOME-V3-FOLLOWUP-B-2431: POST /home/wall/events) - no room booking, no cancel. Lists page; nothing scrolls.
+// MULTI-BUILDING-FILTER-2520 (T119 MB-HOME-IFACE step 7): on a multi-building site whose shared rooms sit in two or more buildings, the
+// "חדרים משותפים" tab shows one building's rooms (home-list-building.ts: opens on the home's building); a room of the shared building
+// shows under every building. "ההזמנות שלי" stays the person's whole list.
 import { html, nothing } from 'lit';
 import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
@@ -12,12 +15,14 @@ import { wallEvent } from './home-fb-api';
 import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
+import { keepBuilding, readChosen } from '../components/building-filter-logic';
+import { HomeListFilter } from './home-list-building';
 
 interface Draft { title: string; day: string; from: number; to: number; cal: string; room: string }
 const st: {
   cals: Calendar[]; occ: Occurrence[]; rooms: RoomDay[]; mine: Occurrence[]; pending: { event_id: string; title: string; start: string; end: string; calendar_id: string }[];
-  day: string | null; tab: 'day' | 'book'; at: number; loading: boolean; error: string; draft: Draft; busy: boolean;
-} = { cals: [], occ: [], rooms: [], mine: [], pending: [], day: null, tab: 'day', at: 0, loading: false, error: '', draft: { title: '', day: '', from: 1080, to: 1140, cal: '', room: '' }, busy: false };
+  day: string | null; tab: 'day' | 'book'; at: number; loading: boolean; error: string; draft: Draft; busy: boolean; bf: HomeListFilter;
+} = { cals: [], occ: [], rooms: [], mine: [], pending: [], day: null, tab: 'day', at: 0, loading: false, error: '', draft: { title: '', day: '', from: 1080, to: 1140, cal: '', room: '' }, busy: false, bf: new HomeListFilter() };
 
 const family = () => st.cals.filter((c) => c.type !== 'room' && c.type !== 'maintenance' && !c.archived);
 const bookable = (c: Calendar) => !!c.my_role && ['book', 'edit', 'manage'].includes(c.my_role);
@@ -43,6 +48,7 @@ function load(h: HomeHost, force = false) {
       ]);
       st.occ = o.occurrences.filter((x) => x.state !== 'cancelled').sort((a, b) => a.start.localeCompare(b.start));
       st.rooms = r.rooms;
+      st.bf.set('building_filter' in r ? r.building_filter : null);
       const roomIds = new Set(roomCals().map((c) => c.id));
       st.mine = m.occurrences.filter((x) => roomIds.has(x.calendar_id) && x.state !== 'cancelled');
       st.pending = m.pending.filter((x) => roomIds.has(x.calendar_id) && !st.mine.some((y) => y.event_id === x.event_id));
@@ -144,6 +150,7 @@ registerScreen((h: HomeHost) => ({
       <div class="dlg-acts"><button class="hbtn strong" data-act="p2CalSave" ?disabled=${st.busy}>${bk ? tr('שלח בקשה') : tr('שמור')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
   },
   acts: {
+    p2CalBld: (el) => { st.bf.choose(h.bld, el.dataset.v ?? ''); h.page = { ...h.page, bkR: 0 }; h.requestUpdate(); }, // MULTI-BUILDING-FILTER-2520
     p2CalTab: (el) => { st.tab = el.dataset.v as 'day' | 'book'; h.page = { ...h.page, cal: 0 }; h.go('calendar/' + st.tab); },
     p2CalWeek: (el) => { h.saveMyLayout({ cal_week: el.dataset.v === 'week' ? 'week' : 'next' }); h.page = { ...h.page, cal: 0 }; },
     p2CalDay: (el) => { st.day = el.dataset.v ?? null; h.page = { ...h.page, cal: 0 }; h.requestUpdate(); },
@@ -206,13 +213,17 @@ registerScreen((h: HomeHost) => ({
 }));
 
 function book(h: HomeHost, sg: unknown) {
-  const pr = paged(st.rooms, h.phone ? 2 : 4, h.pg('bkR'));
+  // MULTI-BUILDING-FILTER-2520: the chosen building's rooms (the book tab is never drawn on a locked wall panel)
+  const b = st.bf.value(h.bld, h.kioskLocked(), readChosen());
+  const bSeg = st.bf.drawn(h.kioskLocked()) ? h.seg('p2CalBld', st.bf.keys(tr('כל הבניינים')), b, tr('בניין')) : nothing;
+  const pr = paged(keepBuilding(st.rooms, b), h.phone ? 2 : 4, h.pg('bkR'));
   const mine = [
     ...st.mine.map((m) => ({ id: m.event_id, cal: m.calendar_id, start: m.start, end: m.end, state: m.state })),
     ...st.pending.map((p) => ({ id: p.event_id, cal: p.calendar_id, start: p.start, end: p.end, state: 'pending' })),
   ].sort((a, b) => a.start.localeCompare(b.start));
   const pm = paged(mine, h.phone ? 2 : 3, h.pg('bkM'));
-  return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), sg)}
+  // on a phone the buildings take their own row under the tabs (two segmented rows side by side would not fit 390 px)
+  return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), html`${sg}${h.phone ? nothing : bSeg}`)}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}
     <div class="doors-body bk"><section class="door-list" aria-label="${tr('חדרים')}">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>${tr('הזמן')}</button></div>`)
       : h.empty('door', st.loading ? tr('טוענים…') : tr('אין חדרים להזמנה'), tr('כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.'))}${h.pager('bkR', pr.pages)}</section>
       <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from . import WireModel
+from .building_filter import BuildingFilter
 
 # routes without a JSON body (pictures)
 NO_JSON = frozenset({
@@ -201,6 +202,8 @@ class NoticeRow(WireModel):
     pushed_at: str | None = None
     push_generation: int = 0
     reads: int = 0
+    # MULTI-BUILDING-FILTER-2520: the buildings the notice's audience serves - only when the answer carries `building_filter`
+    buildings: list[str] | None = None
 
 
 class NoticesCan(WireModel):
@@ -228,6 +231,8 @@ class NoticesList(WireModel):
     can: NoticesCan
     now: str
     defaults: NoticesDefaults
+    # MULTI-BUILDING-FILTER-2520: only in the reader's list on a multi-building site whose notices sit in two or more buildings
+    building_filter: BuildingFilter | None = None
 
 
 class NoticeAudiencePreview(WireModel):

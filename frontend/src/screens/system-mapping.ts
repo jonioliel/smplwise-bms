@@ -525,7 +525,7 @@ export class SystemMapping extends LitElement {
     const text: Record<FilterMode, string> = { on: tr('מוצג'), off: tr('מוסתר') };
     return html`<div class="set" data-mapping-setting="filter">
       <span class="l">${tr('סינון לפי בניין ברשימות')}</span>
-      <span class="h">${cur === 'on' ? tr('כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.') : tr('הרשימות מוצגות לכל האתר, בלי בחירת בניין.')}</span>
+      <span class="h">${cur === 'on' ? tr('כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית, החיפוש הכללי, ובממשק הביתי גם לוח ההודעות והחדרים המשותפים, מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.') : tr('הרשימות מוצגות לכל האתר, בלי בחירת בניין.')}</span>
       <sw-segmented label=${tr('סינון לפי בניין ברשימות')} value=${cur} ?disabled=${!can} @change=${(e: CustomEvent<SegmentedChange>) => void this.setFilter(e.detail.value as FilterMode)}
         .options=${FILTER_MODES.map((v) => ({ value: v, label: text[v], attrs: { 'data-mapping-option': v } }))}></sw-segmented></div>`;
   }

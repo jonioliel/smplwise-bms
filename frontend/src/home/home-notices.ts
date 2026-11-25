@@ -4,6 +4,9 @@
 // sheet (the single allowed scroll of the home interface); the list pages. A wall panel locked to its room shows the board too (q12 "ב").
 // HOME-NEXT-2500 (owner 22.11, Q72): a wall panel is shared - no "קראתי" there; a notice is "new" for 48 hours after it was published
 // (installation setting, wall-notice-logic.ts). The "new" filter, the badges and the counts follow that rule on a wall panel.
+// MULTI-BUILDING-FILTER-2520 (T119 MB-HOME-IFACE step 7): on a multi-building site whose notices reach the person in two or more buildings,
+// the board shows one building's notices (home-list-building.ts: opens on the home's building), each notice for several of them with
+// "גם ב..."; a notice for everyone shows under every building. The badges and the counts follow the chosen building.
 import { html, nothing } from 'lit';
 import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
@@ -13,14 +16,18 @@ import { getBuses, listNotices, readNotice, type Buses, type Notice } from './ho
 import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
 import { isNewNotice, sharedNewHours } from './wall-notice-logic';
+import { alsoNote, keepBuilding, readChosen } from '../components/building-filter-logic';
+import { HomeListFilter } from './home-list-building';
 
-const st: { list: Notice[]; bus: Buses | null; tab: 'new' | 'all'; at: number; loading: boolean; error: string } = { list: [], bus: null, tab: 'new', at: 0, loading: false, error: '' };
+const st: { list: Notice[]; bus: Buses | null; tab: 'new' | 'all'; at: number; loading: boolean; error: string; bf: HomeListFilter } = {
+  list: [], bus: null, tab: 'new', at: 0, loading: false, error: '', bf: new HomeListFilter(),
+};
 
 function load(h: HomeHost, force = false) {
   if (!has('notices') || st.loading || (!force && st.at && Date.now() - st.at < 60_000)) return;
   st.loading = true;
   void Promise.all([listNotices(), has('transit') ? getBuses().catch(() => null) : Promise.resolve(null)])
-    .then(([n, b]) => { st.list = n.notices; st.bus = b; st.error = ''; st.at = Date.now(); })
+    .then(([n, b]) => { st.list = n.notices; st.bf.set(n.building_filter); st.bus = b; st.error = ''; st.at = Date.now(); })
     .catch((e) => { st.error = errText(e); })
     .finally(() => { st.loading = false; h.requestUpdate(); });
 }
@@ -28,7 +35,10 @@ function load(h: HomeHost, force = false) {
 /** HOME-NEXT-2500: the "new" window of this screen in hours (a wall panel), or 0 = "new" is "not read by me". */
 const sharedH = (h: HomeHost) => sharedNewHours(!!h.pol()?.kiosk, h.pol()?.wall);
 const isNew = (h: HomeHost, n: Notice) => isNewNotice(n, h.now.getTime(), sharedH(h));
-const unread = (h: HomeHost) => st.list.filter((n) => isNew(h, n)).length;
+/** MULTI-BUILDING-FILTER-2520: the chosen building ('' = every building) and the notices shown under it. */
+const chosen = (h: HomeHost) => st.bf.value(h.bld, h.kioskLocked(), readChosen());
+const shown = (h: HomeHost) => keepBuilding(st.list, chosen(h));
+const unread = (h: HomeHost) => shown(h).filter((n) => isNew(h, n)).length;
 const important = (n: Notice) => n.pinned || n.severity === 'important' || n.severity === 'urgent' || n.severity === 'critical';
 
 registerMoreTile({
@@ -56,10 +66,14 @@ registerScreen((h: HomeHost) => ({
     const n = unread(h);
     const shared = sharedH(h) > 0;
     const tab = n ? st.tab : 'all';
-    const list = tab === 'new' ? st.list.filter((x) => isNew(h, x)) : st.list;
+    const b = chosen(h);
+    const all = shown(h);
+    const list = tab === 'new' ? all.filter((x) => isNew(h, x)) : all;
+    // on a phone the buildings take their own row under the tabs (two segmented rows side by side would not fit 390 px)
+    const bSeg = st.bf.drawn(h.kioskLocked()) ? h.seg('p2NtBld', st.bf.keys(tr('כל הבניינים')), b, tr('בניין')) : nothing;
     const pg = paged(list, h.phone ? 3 : 4, h.pg('nt'));
-    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : shared ? tr('אין הודעות חדשות') : tr('קראת את כל ההודעות'), h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון')), h.pager('nt', pg.pages))}${busLine(h)}
-      <div class="card-grid ntg">${pg.items.length ? pg.items.map((x) => { const fresh = isNew(h, x); return html`<button class=${'tile ncard' + (fresh ? ' new' : '')} data-act="p2Notice" data-id=${x.id}><span class="nh">${fresh ? html`<span class="newp">${tr('חדש')}</span>` : nothing}${important(x) ? html`<span class="pinp" data-tone="warn">${hi('bell')}${tr('חשוב')}</span>` : nothing}<span class="muted clamp1">${whenText(x.published_at ?? x.starts_at, h.now)}</span></span><b class="nt clamp2">${x.title}</b><span class="nb">${x.body.slice(0, 220)}</span></button>`; })
+    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : shared ? tr('אין הודעות חדשות') : tr('קראת את כל ההודעות'), html`${h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון'))}${h.phone ? nothing : bSeg}`, h.pager('nt', pg.pages))}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}${busLine(h)}
+      <div class="card-grid ntg">${pg.items.length ? pg.items.map((x) => { const fresh = isNew(h, x); return html`<button class=${'tile ncard' + (fresh ? ' new' : '')} data-act="p2Notice" data-id=${x.id}><span class="nh">${fresh ? html`<span class="newp">${tr('חדש')}</span>` : nothing}${important(x) ? html`<span class="pinp" data-tone="warn">${hi('bell')}${tr('חשוב')}</span>` : nothing}<span class="muted clamp1">${[whenText(x.published_at ?? x.starts_at, h.now), alsoNote(x.buildings, b, st.bf.meta)].filter(Boolean).join(' · ')}</span></span><b class="nt clamp2">${x.title}</b><span class="nb">${x.body.slice(0, 220)}</span></button>`; })
         : h.empty('board', st.loading ? tr('טוענים…') : tr('אין הודעות בלוח'), tr('הודעות מוועד הבית ומחברת הניהול יופיעו כאן.'))}</div>`;
   },
   ovl(o: ExtOvl) {
@@ -72,6 +86,7 @@ registerScreen((h: HomeHost) => ({
   },
   acts: {
     p2NtTab: (el) => { st.tab = el.dataset.v as 'new' | 'all'; h.page = { ...h.page, nt: 0 }; h.requestUpdate(); },
+    p2NtBld: (el) => { st.bf.choose(h.bld, el.dataset.v ?? ''); h.page = { ...h.page, nt: 0 }; h.requestUpdate(); }, // MULTI-BUILDING-FILTER-2520
     p2Notice: (el) => { h.ovl = { type: 'ext', mod: 'p2notices', id: el.dataset.id ?? '' } as ExtOvl; },
     p2NoticeRead: (el) => {
       const n = st.list.find((k) => k.id === el.dataset.id);
