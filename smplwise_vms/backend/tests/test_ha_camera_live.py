@@ -705,7 +705,7 @@ def test_source_error(value, code):
 
 def test_sanitize_frame():
     assert hls.sanitize_frame(ENTITY, '{"type":"mse","value":"x"}') == '{"type":"mse","value":"x"}'
-    assert hls.sanitize_frame(ENTITY, "not json {") == "not json {"
+    assert hls.sanitize_frame(ENTITY, "not json {") is None, "VIDEO-SECFIX-2520: the shared relay rule drops text that is not a JSON object"
     assert ENTITY not in hls._STALE
     assert json.loads(hls.sanitize_frame(ENTITY, '{"type":"error","value":"rtsp://u:p@h/x"}')) == {"type": "error", "value": "upstream_unavailable"}
     assert ENTITY in hls._STALE

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, forbidden
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
@@ -133,6 +133,7 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
     client = nvr_write._client(settings)
     try:
         for ch in sorted(wanted):
+            cam_of_ch = next((str(c["id"]) for c in every if int(c["channel"]) == ch), None)  # VIDEO-SECFIX-2520: the row keeps its camera
             for t in types:
                 path = nvr_write.trigger_path(t, ch)
                 with unlocked(conn):
@@ -144,7 +145,7 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
                     with unlocked(conn):
                         rec = nvr_write.apply_change(settings, conn, principal, kind="notify_center", permission=NOTIFY_PERMISSION, target=f"{t}-{ch}", path=path,
                                                      mutate=lambda x, on=body.enabled: nvr_write.with_center(x, on), note=("הפעלת" if body.enabled else "כיבוי") + " Notify Surveillance Center",
-                                                     request_id=_rid(request), client=client)
+                                                     request_id=_rid(request), client=client, camera_id=cam_of_ch)
                     results.append({"channel": ch, "type": t, "status": rec["status"], "change_id": rec["id"]})
                 except ApiError as exc:
                     results.append({"channel": ch, "type": t, "status": "failed", "reason": exc.code})
@@ -184,7 +185,7 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
     with unlocked(conn):
         rec = nvr_write.apply_change(camera_settings(settings_of(request), cam), conn, principal, kind="detection", permission="nvr.config.detection", target=f"motion-{ch}",
                                      path=nvr_write.motion_path(ch), mutate=lambda x: nvr_write.motion_document(x, cells=body.cells, sensitivity=sensitivity, enabled=body.enabled),
-                                     note="זיהוי תנועה: " + " + ".join(parts), request_id=_rid(request))
+                                     note="זיהוי תנועה: " + " + ".join(parts), request_id=_rid(request), camera_id=camera_id)
     _ZONES_CACHE.pop(camera_id, None)
     rec["sensitivity_written"] = sensitivity
     return rec
@@ -456,7 +457,7 @@ def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal 
     with unlocked(conn):
         return nvr_write.apply_change(camera_settings(settings_of(request), cam), conn, principal, kind="osd", permission="nvr.config.osd", target=f"osd-{ch}", path=nvr_system.overlays_path(ch),
                                       mutate=lambda x: nvr_system.osd_document(x, name_enabled=body.name_enabled, datetime_enabled=body.datetime_enabled, date_style=body.date_style, time_style=body.time_style, display_week=body.display_week),
-                                      note="OSD: " + " + ".join(parts), request_id=_rid(request))
+                                      note="OSD: " + " + ".join(parts), request_id=_rid(request), camera_id=camera_id)
 
 
 class NameIn(_Body):
@@ -470,7 +471,7 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
     name = (body.name or cam["alias"] or cam["name_source"] or dn.name("nvr.channel", dn.lang_of(conn, principal), n=ch))[:32]  # I18N-EN-2490 (owner N53)
     _guard(camera_settings(settings_of(request), cam), conn, principal, "osd", request, f"name-{ch}")
     with unlocked(conn):
-        rec = nvr_system.set_channel_name(camera_settings(settings_of(request), cam), conn, principal, ch, name, request_id=_rid(request))
+        rec = nvr_system.set_channel_name(camera_settings(settings_of(request), cam), conn, principal, ch, name, request_id=_rid(request), camera_id=camera_id)
     return {**rec, "name": name}
 
 
@@ -537,7 +538,7 @@ def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, princi
             if status != 200:
                 raise ApiError(409, "nvr_not_supported", "לערוץ הזה אין לוח זימון מהסוג הזה ב־NVR.", details={"kind": kind, "status": status})
             return nvr_write.apply_change(settings, conn, principal, kind="schedule", permission="nvr.config.events", target=f"{kind}-schedule-{ch}", path=path,
-                                          mutate=lambda x: nvr_schedule.schedule_document(x, days), note=f"לוח זימון {nvr_write.TYPE_LABEL.get(nvr_schedule.SCHEDULE_KINDS[kind][1], kind)}: {active} טווחים", request_id=_rid(request), client=client)
+                                          mutate=lambda x: nvr_schedule.schedule_document(x, days), note=f"לוח זימון {nvr_write.TYPE_LABEL.get(nvr_schedule.SCHEDULE_KINDS[kind][1], kind)}: {active} טווחים", request_id=_rid(request), client=client, camera_id=camera_id)
         finally:
             client.close()
 
@@ -561,7 +562,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
     _guard(camera_settings(settings_of(request), cam), conn, principal, "record_schedule", request, f"track-{track}")
     with unlocked(conn):
         return nvr_write.apply_change(camera_settings(settings_of(request), cam), conn, principal, kind="record_schedule", permission="nvr.config.schedule", target=f"track-{track}", path=nvr_schedule.track_path(track),
-                                      mutate=lambda x: nvr_schedule.track_document(x, days, enabled=body.enabled, schedule_enabled=body.schedule_enabled), note="לוח הקלטה: " + " + ".join(parts), request_id=_rid(request))
+                                      mutate=lambda x: nvr_schedule.track_document(x, days, enabled=body.enabled, schedule_enabled=body.schedule_enabled), note="לוח הקלטה: " + " + ".join(parts), request_id=_rid(request), camera_id=camera_id)
 
 
 @router.get("/cameras/{camera_id}/smart")
@@ -604,12 +605,12 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
         """The lab firmware writes shapes and parameters but answers invalidOperation when the document is enabled
         through the NVR (the camera's own VCA resource decides): retry without the enable flag and say so."""
         try:
-            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, spec), note=note, request_id=_rid(request))
+            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, spec), note=note, request_id=_rid(request), camera_id=camera_id)
         except ApiError as exc:
             if exc.code != "source_forbidden" or not spec.get("enabled"):
                 raise
             shapes = {k: v for k, v in spec.items() if k != "enabled"}
-            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, shapes), note=note + " (ההפעלה נדחתה)", request_id=_rid(request))
+            results[key] = nvr_write.apply_change(settings, conn, principal, kind="smart", permission="nvr.config.smart", target=f"{key}-{ch}", path=path, mutate=lambda x: build(x, shapes), note=note + " (ההפעלה נדחתה)", request_id=_rid(request), camera_id=camera_id)
             results[key]["enable_refused"] = True
 
     with unlocked(conn):
@@ -640,13 +641,60 @@ def _require_stream_change(conn: sqlite3.Connection, principal: Principal, r: sq
         require_camera(conn, principal, r["camera_id"], nvr_settings.WRITE_PERMISSION)
 
 
+# VIDEO-SECFIX-2520 (deep review V-04): the permissions that open a camera's NVR settings for reading (_camera_config_scope)
+READ_PERMISSIONS = ("system.configure", NOTIFY_PERMISSION, *NVR_PERMISSIONS)
+
+
+def _require_change_cameras(conn: sqlite3.Connection, principal: Principal, r: sqlite3.Row, permissions: tuple[str, ...]) -> None:
+    """VIDEO-SECFIX-2520 (deep review V-04): a change of a camera's setting keeps that camera's scope (T055) - its documents and
+    its undo are refused (403, audited) unless one of `permissions` holds on every camera the row touches
+    (nvr_write.change_cameras: the camera recorded with it, and the camera on the channel / track it writes to). A camera-level
+    row whose camera cannot be determined (written before 2.52 for a channel no camera holds now) fails closed: only a caller
+    holding one of `permissions` on every camera (no deny anywhere) passes. A recorder-level change (clock, NTP, ...) has no
+    camera scope. The first permission is the one an audited refusal names."""
+    from ..services.access import camera_allowed, camera_scope
+
+    camera_level, cams = nvr_write.change_cameras(conn, r)
+    if not camera_level:
+        return
+    if not cams:
+        if any(camera_scope(conn, principal, perm).everything for perm in permissions):
+            return
+        audit(conn, actor=principal, action=permissions[0], decision="denied", resource_type="nvr", resource_id=r["target"], reason="camera_unknown",
+              details={"change_id": r["id"], "kind": r["kind"]})
+        raise forbidden(permission=permissions[0], target_type="nvr", target_id=r["target"], reason="camera_unknown")
+    for cid in sorted(cams):
+        if not any(camera_allowed(conn, principal, cid, perm) for perm in permissions):
+            require_camera(conn, principal, cid, permissions[0])  # the audited 403 naming the camera
+
+
+def _change_visible(conn: sqlite3.Connection, principal: Principal) -> Callable[[sqlite3.Row], bool] | None:
+    """VIDEO-SECFIX-2520 (deep review V-04): which non-stream rows of the change log this caller may see - the read rule of a
+    camera's NVR settings over the row's cameras (fail closed as in _require_change_cameras). None = all of them (a caller
+    holding a read permission on every camera)."""
+    from ..services.access import camera_scope
+
+    scopes = [camera_scope(conn, principal, perm) for perm in READ_PERMISSIONS]
+    if any(sc.everything for sc in scopes):
+        return None
+
+    def visible(r: sqlite3.Row) -> bool:
+        camera_level, cams = nvr_write.change_cameras(conn, r)
+        if not camera_level:
+            return True
+        return bool(cams) and all(any(sc.allows(cid) for sc in scopes) for cid in cams)
+
+    return visible
+
+
 @router.get("/nvr/changes")
 def list_changes(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), limit: int = Query(50, ge=1, le=500),
                  camera_id: str | None = Query(None, max_length=64), recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); fields is an object.
     CR-NVR-GUARD-2438: each row says whether its recorder's settings switch is on now (`writes_enabled`: the undo needs it)."""
     _require_read(conn, principal)
-    rows = nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal), recorder_id=recorder_id)
+    rows = nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal), recorder_id=recorder_id,
+                                  row_visible=_change_visible(conn, principal))
     on: dict[str, bool] = {}
     for row in rows:
         rid = row.get("recorder_id") or PRIMARY
@@ -658,13 +706,17 @@ def list_changes(request: Request, principal: Principal = Depends(current_princi
 
 @router.get("/nvr/changes/{change_id}")
 def get_change(change_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """The change with both documents (for the "before / after" view). A stream change only for its installer (review M1)."""
+    """The change with both documents (for the "before / after" view). A stream change only for its installer (review M1).
+    VIDEO-SECFIX-2520 (deep review V-04): any other change of a camera's setting only for a caller who may read that camera's
+    NVR settings (the change's own permission first, then the other read permissions)."""
     _require_read(conn, principal)
     r = nvr_write.get_change(conn, change_id)
     if not r:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
     if r["kind"] == nvr_settings.KIND:
         _require_stream_change(conn, principal, r)
+    else:
+        _require_change_cameras(conn, principal, r, (r["permission"], *(p for p in READ_PERMISSIONS if p != r["permission"])))
     return nvr_write.change_detail(r)
 
 
@@ -693,8 +745,9 @@ def _rollback_gate(change_id: str, principal: Principal = Depends(current_princi
         _require_stream_change(conn, principal, r)
     else:
         require(conn, principal, r["permission"], INSTALLATION)
-        if r["kind"] == "privacy_mask" and r["camera_id"]:  # NVRMASK-295: the undo of a mask also needs the camera in scope
-            require_camera(conn, principal, r["camera_id"], r["permission"])
+        # NVRMASK-295 (a mask), VIDEO-SECFIX-2520 (deep review V-04, every camera setting): the undo needs the change's own
+        # permission on its camera too - the rule of the write it undoes; a camera that cannot be determined fails closed
+        _require_change_cameras(conn, principal, r, (r["permission"],))
     return principal
 
 

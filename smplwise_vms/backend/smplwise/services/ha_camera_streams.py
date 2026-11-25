@@ -69,7 +69,7 @@ REREAD_WINDOW_S = 60.0
 WRITE_GRACE_S = 120.0  # reconcile leaves a stream alone this long after we wrote it (its opt-in may not be committed yet)
 STREAM_SHAPE_RE = re.compile(r"^smplwise_ha_[a-z0-9_]{1,100}$")  # exactly what ha_stream_name builds; reconcile deletes nothing else
 CODE_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
-LIVE_ERROR_FRAME = json.dumps({"type": "error", "value": "upstream_unavailable"})
+LIVE_ERROR_VALUE = "upstream_unavailable"  # the code a viewer receives for any go2rtc error frame (sanitize_frame)
 
 # the bridge's refusal codes -> (status, our code, message)
 _BRIDGE_REFUSALS: dict[str, tuple[int, str, str]] = {
@@ -379,17 +379,12 @@ def mark_stale(entity_id: str) -> None:
 
 def sanitize_frame(entity_id: str, text: str) -> str | None:
     """A text frame from go2rtc on its way to a viewer. An error frame (its text may carry an address or a credential of the
-    camera) becomes the fixed `upstream_unavailable` and marks the stream stale; everything else is passed on. Never raises."""
-    if not text.startswith("{"):
-        return text
-    try:
-        msg = json.loads(text)
-    except ValueError:
-        return text
-    if isinstance(msg, dict) and msg.get("type") == "error":
-        mark_stale(entity_id)
-        return LIVE_ERROR_FRAME
-    return text
+    camera) becomes the fixed `upstream_unavailable` and marks the stream stale; everything else is passed on. Never raises.
+    VIDEO-SECFIX-2520: the shared rule of every relay route (services/relay.sanitize_upstream_frame) - so a text frame that is
+    not a JSON object is dropped here too."""
+    from .relay import sanitize_upstream_frame
+
+    return sanitize_upstream_frame(text, error_value=LIVE_ERROR_VALUE, on_error=lambda: mark_stale(entity_id))
 
 
 def note_session_end(entity_id: str, reason: str, seconds: float) -> None:

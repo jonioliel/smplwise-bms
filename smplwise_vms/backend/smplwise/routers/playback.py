@@ -30,7 +30,7 @@ from ..services import playback_store as store
 from ..services import recordings
 from ..services.access import require_camera
 from ..services.leases import CameraLease
-from ..services.relay import close_with_error, relay_ws
+from ..services.relay import close_with_error, relay_ws, sanitize_upstream_frame
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
@@ -228,13 +228,24 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
     stop_evt = asyncio.Event()
     handle = pb.register_relay(session, my_gen)
     handle.bind_stop(lambda: loop.call_soon_threadsafe(stop_evt.set))
+    # VIDEO-SECFIX-2520 (deep review V-01): go2rtc's error frames never reach the viewer (the shared fixed code of every relay
+    # route); the server keeps the classified, sanitized form only (services/live_diag.py - no address, URL or credential)
+    from ..services.live_diag import LiveDiag
+
+    diag = LiveDiag()
+
+    def on_text(text: str) -> str | None:
+        with contextlib.suppress(Exception):  # an observer never breaks the relay
+            diag.down_text(text)
+        return sanitize_upstream_frame(text)
+
     try:
         try:
             if superseded():  # a seek landed between the accept and here: never open an upstream socket for an old generation
                 reason = "superseded"
             else:
                 reason = await relay_ws(websocket, client.ws_url(session.stream), client.ws_headers(), on_down, should_stop=lease.should_stop, stop_event=stop_evt,
-                                        close_timeout=pb.UPSTREAM_CLOSE_TIMEOUT_S)
+                                        close_timeout=pb.UPSTREAM_CLOSE_TIMEOUT_S, on_text=on_text)
         finally:
             pb.release_relay(session, my_gen, handle)  # the upstream socket is closed now (relay_ws's `async with` has exited)
         if lease.lost:
@@ -265,3 +276,6 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         gen_ms = session.gen_media_ms if session.generation == my_gen else None
         log.info("playback session %s g%s socket closed: %s (%d bytes, first media %s ms)", session.id, my_gen, reason, session.bytes_down,
                  gen_ms if gen_ms is not None else "-")
+        diag_details = diag.details()
+        if diag_details.get("upstream_error"):
+            log.warning("playback session %s g%s: go2rtc error %s: %s", session.id, my_gen, diag_details["upstream_error"], diag_details.get("upstream_error_text", ""))
