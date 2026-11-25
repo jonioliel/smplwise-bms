@@ -2413,8 +2413,10 @@ def fixture_lane_run(wt, fe, logd, extra, hard_fail):
              "est": fixture_group_estimate(cls, g, costs)} for g, r in cls["fixture_groups"].items()]
     with Phase("playwright-fixture", f"the fixture lane: {len(jobs)} groups, {slots} at a time"):
         res = run_pool(jobs, slots, lambda j: fixture_block(wt, fe, logd, cls, j["group"]))
-    extra["pool"] = {lab: {"start_s": st, "wall_s": w, "error": f"{type(r).__name__}: {r}"[:200] if isinstance(r, BaseException) else None}
-                     for lab, (r, st, w) in res.items()}
+    extra["pool"] = {"slots": slots, "early": 0,   # the v2 pool's shape (the report reads it)
+                     "jobs": [{"label": j["label"], "cat": j["cat"], "workers": j["workers"], "files": len(j["names"]), "est_s": round(j["est"]),
+                               "start_s": res.get(j["label"], (0, None, None))[1], "wall_s": res.get(j["label"], (0, None, None))[2]}
+                              for j in _order(jobs)]}
     for lab, (r, _st, _w) in res.items():
         if isinstance(r, BaseException):
             count("fixture", "fail"); item("fixture", lab, "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")

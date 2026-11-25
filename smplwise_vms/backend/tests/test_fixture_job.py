@@ -44,10 +44,12 @@ def test_the_gate_and_the_job_agree():
     # CURVEDGATE-297: the two curved-wall specs joined the gate (same fake backend as the camera card); GATE-FIXTURE-LANE-2530: the
     # fixture lane - the specs every released gate used to skip, each with its own fixture backend (or none)
     expected = {"evidence-camera-card.spec.ts", "evidence-curved-walls.spec.ts", "evidence-curve-points.spec.ts",
-                "evidence-floorstrip.spec.ts", "evidence-home-screen.spec.ts", "evidence-nvrless-cameras-2412.spec.ts",
-                "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts",
-                "evidence-wiskey-capture.spec.ts", "devpolish-2331-shoot.spec.ts", "hand-switch-home-personal-2500-shots.spec.ts",
-                "hand-switch-home-edit-2500-shots.spec.ts"}
+                "evidence-floorstrip.spec.ts", "evidence-nvrless-cameras-2412.spec.ts", "devpolish-2331-shoot.spec.ts",
+                "hand-switch-home-personal-2500-shots.spec.ts", "hand-switch-home-edit-2500-shots.spec.ts"}
+    # listed for the job, not (yet) the gate - each failed on the runner for a reason recorded in the JSON ("_why_not_gate"):
+    # the WisKey specs predate the native people screen (CR-036 S7), the media spec's pre-S1 guesses, the home screen's 18 px scroll
+    assert not fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos")})
+    assert not GROUPS["devices"]["specs"]["evidence-home-screen.spec.ts"]["gate"]
     assert gate.FIXTURE_SPECS == fj.gate_specs(GROUPS) == expected
     assert {n for g in gate.fixture_groups(ROOT / "frontend").values() for n in g["specs"]} == expected
 
@@ -145,11 +147,12 @@ def test_the_gate_runs_one_pool_job_per_fixture_group():
     gate = _load("release_gate_cls", "scripts/gate/release_gate.py")
     cls = gate.classify(ROOT / "frontend", "L")
     assert set(cls["fixture_groups"]) == {k for k, g in GROUPS.items() if any(s.get("gate") for s in g["specs"].values())}
-    assert cls["fixture_groups"]["wiskey"] == {n: ["desktop"] for n in GROUPS["wiskey"]["specs"]}
+    assert cls["fixture_groups"]["shots_home_edit"] == {"hand-switch-home-edit-2500-shots.spec.ts": ["desktop"]}
+    assert "wiskey" not in cls["fixture_groups"]   # no "gate": true spec in it
     jobs = [j for j in gate.v2_jobs(cls, {}, "L", False) if j["kind"] == "fixture"]
     assert sorted(j["group"] for j in jobs) == sorted(cls["fixture_groups"])
     by = {j["group"]: j for j in jobs}
-    assert by["shots_devpolish"]["workers"] == 1 and by["wiskey"]["workers"] == 2   # a backend + a browser weigh two slots
+    assert by["shots_devpolish"]["workers"] == 1 and by["nvrless_recorder"]["workers"] == 2   # a backend + a browser weigh two slots
     assert by["nvrless_cameras"]["est"] > by["nvrless_recorder"]["est"]               # the `then` stage runs the spec again
     assert gate.classify(ROOT / "frontend", "M")["fixture_groups"] == {}              # below tier L no fixture group runs (as before)
 
@@ -163,9 +166,11 @@ def test_the_gate_falls_back_to_the_devices_group_without_the_json(tmp_path):
 def test_the_selection_keeps_only_the_selected_fixture_specs():
     gate = _load("release_gate_sel", "scripts/gate/release_gate.py")
     cls = gate.classify(ROOT / "frontend", "L")
-    sel = {"frontend": {"selected": ["evidence-wiskey-editor.spec.ts"], "dropped": ["x"]}, "full": {}}
+    sel = {"frontend": {"selected": ["evidence-nvrless-cameras-2412.spec.ts"], "dropped": ["x"]}, "full": {}}
     out = gate.filter_classification(cls, sel)
-    assert out["fixture_groups"] == {"wiskey": {"evidence-wiskey-editor.spec.ts": ["desktop"]}}
+    three = ["desktop", "tablet", "mobile"]
+    assert out["fixture_groups"] == {"nvrless_cameras": {"evidence-nvrless-cameras-2412.spec.ts": three},
+                                     "nvrless_recorder": {"evidence-nvrless-cameras-2412.spec.ts": three}}
 
 
 def test_the_list_names_the_groups_without_a_backend(monkeypatch, capsys):

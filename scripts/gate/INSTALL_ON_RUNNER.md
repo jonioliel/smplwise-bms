@@ -10,6 +10,7 @@ Files (keep them together in one directory, the runner convention is `~/`):
 | `gate_durations.json` | seconds per Playwright spec file from the last accepted gate: a committed seed that `release_gate.py` uses only for files no `gate_*.logs/pw_*.json` on the runner has timed (balances the `--workers=1` chunks); since GATESPEED-293 also `backend_seconds` (per backend test file, v2 shard split), `backend_shard_seconds_total` and `pixel_phase_seconds` (`--plan` estimates); optional, the engine runs without it |
 | `selftest_gate.py` | self-test with a fake suite; proves the gate fails on a crash and on zero tests |
 | `timing_lane.sh` | GATELANES-297: the non-blocking timing lane (`@timing-lane` / `timing_lane` tests), started by `release_gate.sh` in the background after a gate; waits for a quiet machine; reports in `~/smplwise-results/timing-lane/` (`docs/testing/GATE_LANES.md`) |
+| `fixture_lane.sh` | GATE-FIXTURE-LANE-2530: the fixture groups of `frontend/tests/fixtures/fixture_specs.json` on their own (`GATE_LANE=fixture` of the engine next to it); a tier-L gate runs the same groups itself; reports in `~/smplwise-results/fixture-lane/` (`docs/testing/GATE_LANES.md` section 5); `engine_sync.py install --files fixture_lane.sh` |
 | `addon_build_check.sh` | SUPERVISOR-BUILD-GATE-2341: the Supervisor-style image build + smoke test; run from the branch under test, not copied (section below) |
 | `runner_cleanup.sh` | disk housekeeping by the retention rules below (dry run by default) |
 
