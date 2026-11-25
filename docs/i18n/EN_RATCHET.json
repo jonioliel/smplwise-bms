@@ -20,5 +20,6 @@
  "hardcodedTotal": 34,
  "hardcoded": {
   "screens/wiskey-*": 34
- }
+ },
+ "keptTotal": 834
 }
