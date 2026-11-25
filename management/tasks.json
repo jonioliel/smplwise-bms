@@ -27742,10 +27742,11 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q11 = fix after a comparison page (the fix is visible, so the comparison page comes first).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> REVIEW: delivered by pilot/FLAKY-SWEEP-2480 (the product fix DOOR-TECH-REREAD-2480 in components/wk-door-tech.ts; head 67efe251c, merged 848f2ec20 on the 2.48.0 train; change note docs/changes/FLAKY-SWEEP-2480.md). Shipped in v2.48.0 (gate run 3 PASS at 09acc2db4). There is no docs/changes/DOOR-TECH-HOLD-FIX-2480.md and no comparison-page record found, and AT-DOOR-TECH-HOLD-FIX-2480-1 is NOT_RUN, so not DONE. Open: the owner's Q11 condition (comparison page first) is not recorded.",
-      "2026-11-25 (MGMT-SYNC-2520): stays REVIEW. A local branch pilot/DOOR-TECH-HOLD-FIX-2520 (worktree C:\\cloude\\smplwise-doorhold, at main 3d71fb183, no commits, not pushed) is writing docs/changes/DOOR-TECH-HOLD-FIX-2480.md (untracked at this sync): the owner's Q11 comparison-page condition is being worked on."
+      "2026-11-25 (MGMT-SYNC-2520): stays REVIEW. A local branch pilot/DOOR-TECH-HOLD-FIX-2520 (worktree C:\\cloude\\smplwise-doorhold, at main 3d71fb183, no commits, not pushed) is writing docs/changes/DOOR-TECH-HOLD-FIX-2480.md (untracked at this sync): the owner's Q11 comparison-page condition is being worked on.",
+      "2026-11-25 (RELEASE-2520-TRAIN): the fix 5efb30eb1 shipped in v2.48.0; its change note docs/changes/DOOR-TECH-HOLD-FIX-2480.md came with pilot/DOOR-TECH-HOLD-FIX-2520 (b7c4a474a, docs only) merged 35365a2be into the 2.52 train (row 29). REVIEW with 5efb30eb1 (DONE needs its acceptance test PASS)."
     ],
     "owner": null,
-    "commit": "67efe251c",
+    "commit": "5efb30eb1",
     "actual_cost_usd": null
   },
   {
@@ -29766,7 +29767,7 @@
     "test_ids": [
       "AT-WISKEY-SCHED-READS-2520-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29779,10 +29780,11 @@
       "Branch pilot/WISKEY-SCHED-READS-2520, change note docs/changes/WISKEY-SCHED-READS-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-SCHED-READS-2520 head bc4c5a942 (43 commit(s) ahead of origin/main 3d71fb183). Cut on the 2.52 train (b5604b743); its own commits are 56d0d3290 and bc4c5a942; change note draft docs/changes/WISKEY-SCHED-READS-2520.md. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-SCHED-READS-2520 head bc4c5a942 (43 commit(s) ahead of origin/main 3d71fb183). Cut on the 2.52 train (b5604b743); its own commits are 56d0d3290 and bc4c5a942; change note draft docs/changes/WISKEY-SCHED-READS-2520.md. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): pilot/WISKEY-SCHED-READS-2520 head 8c1f3ae90 merged c3af014da into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 27). Migration 0225 (free on the train). Train follow-ups f8fa8c508 (API inventory 1948, gate_always_run.json entry, clock-independent audit check; lead decisions Q1-Q4 = a) and 493beba09 (design ratchet px-literal +3 for components/wk-schedule-reads.ts); its 3 constant refusal texts got English in 189ec3f4a. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "8c1f3ae90",
     "actual_cost_usd": null
   },
   {
@@ -29843,7 +29845,7 @@
     "test_ids": [
       "AT-ADR019-FAMILY678-2520-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29856,10 +29858,11 @@
       "Branch pilot/ADR019-FAMILY678-2520, change note docs/changes/ADR019-FAMILY678-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/ADR019-FAMILY678-2520 head e6ef0cc46 (5 commit(s) ahead of origin/main 3d71fb183). Change note docs/changes/ADR019-FAMILY678-2520.md; runner run queued per the note. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/ADR019-FAMILY678-2520 head e6ef0cc46 (5 commit(s) ahead of origin/main 3d71fb183). Change note docs/changes/ADR019-FAMILY678-2520.md; runner run queued per the note. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): pilot/ADR019-FAMILY678-2520 head 1eef30527 merged 22ba0e9fb into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 22). error_contract_inventory --write-ratchet + --check once after FAMILY45 + FAMILY678 (53a6b8da8): 74 -> 0 legacy 422 sites. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "1eef30527",
     "actual_cost_usd": null
   },
   {
@@ -29999,7 +30002,7 @@
     "test_ids": [
       "AT-GEN-UNITS-FIELD-2520-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -30012,10 +30015,11 @@
       "Branch pilot/GEN-UNITS-FIELD-2520, change note docs/changes/GEN-UNITS-FIELD-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/GEN-UNITS-FIELD-2520 head ae7a252d3 (1 commit(s) ahead of origin/main 3d71fb183). Follow-up of GEN-UNITS-FIELD-2490 (released v2.49.0). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/GEN-UNITS-FIELD-2520 head ae7a252d3 (1 commit(s) ahead of origin/main 3d71fb183). Follow-up of GEN-UNITS-FIELD-2490 (released v2.49.0). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): pilot/GEN-UNITS-FIELD-2520 head 8ae3cbaa3 merged 890a645cf into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 28). evidence-genlog-092 'switch on' (tablet) re-run and classified in the train note. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "8ae3cbaa3",
     "actual_cost_usd": null
   },
   {
@@ -30054,10 +30058,353 @@
       "2026-11-25 (RELEASE-2520-TRAIN): rows merged on release/2520-train in this order - WISKEY-RESYNC-2520 7ba2c445a, WISKEY-R2-2520 f94bbdeea, WISKEY-R3-2520 0e04d43eb, WISKEY-R4-2520 564e98d71, WISKEY-R6-2520 94def9d34, WISKEY-R7-2520 4b4d83847, WISKEY-BRIDGE-KEYSET-2520 4b2bf1ea4 (+ re-pair fix bfe445ee6), DESIGN-LITERALS-2510 10ee1aa8f, version 2.52.0 a9dd8243c, WISKEY-R5-2520 7a3a3154f, MFA-REVIEW-DOCS-2520 0154ba924, MFA-HA-PASSKEY-2520 b5604b743, I18N-REST-2520 0f690fec1 (+ f3dfcd158, 714fe967e), MGMT-SYNC-2520 dd4d70330, FLAKY-FIX-2520 1cc3aedb6, MFA-FACTOR-HARDEN-2520 32f758bb1. Checks per row in docs/changes/RELEASE-2520-TRAIN.md section 3. Release gate NOT_RUN (the lead runs it); nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-FAMILY45-2520 202e3678f (+ changelog f2c8a3765) and MULTI-BUILDING-FILTER-2520 b24dd9cb1. Still to come per the lead: ADR019-FAMILY678-2520 (then error_contract_inventory --write-ratchet / --check). Gate NOT_RUN; nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): also merged NOTIFY-RECIPIENT-LANG-2520 f3fdb961f (+ fix 61a6959ef) and WISKEY-R8-2520 2b9a3a839 (+ fix 8a91908a3). Still to come per the lead: ADR019-FAMILY678-2520. Gate NOT_RUN; nothing released.",
-      "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-L14-STRICT-F123-2520 6a1b42ef5 (+ changelog 66cca52e8). Gate NOT_RUN; nothing released."
+      "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-L14-STRICT-F123-2520 6a1b42ef5 (+ changelog 66cca52e8). Gate NOT_RUN; nothing released.",
+      "2026-11-25 (RELEASE-2520-TRAIN): rows 22-32 merged - ADR019-FAMILY678-2520 22ba0e9fb (+ ratchet 53a6b8da8), STARTING-STYLE-AUDIT-2520 a605434f8, MFA-PASSKEY-ADMIN-REMOVE-2520 299dda4d9 (+ 48536a4e4), MFA-RESET-CHANNEL-UI-2520 b6cd0d9aa, NOTIFY-LANG-SENDERS-2520 bb80821ed, WISKEY-SCHED-READS-2520 c3af014da (+ f8fa8c508, 493beba09), GEN-UNITS-FIELD-2520 890a645cf, DOOR-TECH-HOLD-FIX-2520 35365a2be, I18N-RUNTIME-ERRORS-2520 189ec3f4a, WISKEY-STATUS-I18N-2520 9d42de979, WISKEY-VISITS-ENDED-FILTER-2520 f343f829b. Nine cards registered at the merge (NOTIFY-RECIPIENT-LANG-2520 and ADR019-L14-STRICT-F123-2520 per the lead, and the seven other merged rows that had none). Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTIFY-RECIPIENT-LANG-2520",
+    "title": "Notifications go out in each recipient's language",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Web push, e-mail and the phone app render a notification in the recipient's interface language (e-mail: the language of the users owning the address, Hebrew otherwise); WhatsApp unchanged; a Hebrew recipient gets the same bytes as before."
+    ],
+    "requirement_ids": [
+      "R-NOTIFY-RECIPIENT-LANG-2520-1"
+    ],
+    "test_ids": [
+      "AT-NOTIFY-RECIPIENT-LANG-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTIFY-RECIPIENT-LANG-2520, change note docs/changes/NOTIFY-RECIPIENT-LANG-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/NOTIFY-RECIPIENT-LANG-2520 head 7b55e0e76 merged f3fdb961f into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 19); change note docs/changes/NOTIFY-RECIPIENT-LANG-2520.md. Train fix 61a6959ef (the English of security.second_factor_changed). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "7b55e0e76",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-L14-STRICT-F123-2520",
+    "title": "Web-UI request bodies extra=forbid, families 1-3 (ADR-019 L14)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 19 family-3 request models (nvr_write, nvr_privacy, mask_copy, cameras) refuse unknown fields with 422 (details.fields / details.problems); scripts/request_strict_ratchet.py keeps the tolerant-model count from rising."
+    ],
+    "requirement_ids": [
+      "R-ADR019-L14-STRICT-F123-2520-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-L14-STRICT-F123-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-L14-STRICT-F123-2520, change note docs/changes/ADR019-L14-STRICT-F123-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/ADR019-L14-STRICT-F123-2520 head 0204770f4 merged 6a1b42ef5 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 21); change note docs/changes/ADR019-L14-STRICT-F123-2520.md. Lead decisions Q1 = a, Q2 = a; CHANGELOG line 66cca52e8. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "0204770f4",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "STARTING-STYLE-AUDIT-2520",
+    "title": "Every @starting-style entrance audited for the two sw-dialog faults",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every @starting-style entrance applies (placed after the rule it starts from) and never fades a layer that holds text; the unit-starting-style-audit-2520 checker keeps it so."
+    ],
+    "requirement_ids": [
+      "R-STARTING-STYLE-AUDIT-2520-1"
+    ],
+    "test_ids": [
+      "AT-STARTING-STYLE-AUDIT-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/STARTING-STYLE-AUDIT-2520, change note docs/changes/STARTING-STYLE-AUDIT-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/STARTING-STYLE-AUDIT-2520 head 900de0c46 merged a605434f8 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 23); change note docs/changes/STARTING-STYLE-AUDIT-2520.md. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "900de0c46",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-PASSKEY-ADMIN-REMOVE-2520",
+    "title": "An administrator's removal of an Arx-only identity's passkey meets the factor reset's rules",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "An administrator's removal of another identity's passkey has a preflight (remove-check) and follows the factor reset's rules (fresh sign-in, last remote administrator, notices)."
+    ],
+    "requirement_ids": [
+      "R-MFA-PASSKEY-ADMIN-REMOVE-2520-1"
+    ],
+    "test_ids": [
+      "AT-MFA-PASSKEY-ADMIN-REMOVE-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-PASSKEY-ADMIN-REMOVE-2520, change note docs/changes/MFA-PASSKEY-ADMIN-REMOVE-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/MFA-PASSKEY-ADMIN-REMOVE-2520 head 18b6ff7f0 merged 299dda4d9 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 24); change note docs/changes/MFA-PASSKEY-ADMIN-REMOVE-2520.md. API inventory 48536a4e4 (1945 routes). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "18b6ff7f0",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-RESET-CHANNEL-UI-2520",
+    "title": "The reset channel on the second-factor tab; step-up dialog wording; a passkey as the enrolment",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The factor-reset channel is set on the second-factor tab (back to 'anywhere' only from the local network); the step-up dialog says when a passkey cannot be used in this browser; the sign-in's enrolment step offers a passkey."
+    ],
+    "requirement_ids": [
+      "R-MFA-RESET-CHANNEL-UI-2520-1"
+    ],
+    "test_ids": [
+      "AT-MFA-RESET-CHANNEL-UI-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-RESET-CHANNEL-UI-2520, change note docs/changes/MFA-RESET-CHANNEL-UI-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/MFA-RESET-CHANNEL-UI-2520 head 06375d311 merged b6cd0d9aa into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 25); change note docs/changes/MFA-RESET-CHANNEL-UI-2520.md. Decisions Q1-Q4 = a; msg/mfa.ts conflict kept both blocks. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "06375d311",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTIFY-LANG-SENDERS-2520",
+    "title": "The senders around the notification pipeline speak the recipient's language",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Calendar attendee notices and insights delivery render in the recipient's language (the _i18n param overlay); Hebrew unchanged."
+    ],
+    "requirement_ids": [
+      "R-NOTIFY-LANG-SENDERS-2520-1"
+    ],
+    "test_ids": [
+      "AT-NOTIFY-LANG-SENDERS-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTIFY-LANG-SENDERS-2520, change note docs/changes/NOTIFY-LANG-SENDERS-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/NOTIFY-LANG-SENDERS-2520 head aafbd5ccd merged bb80821ed into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 26); change note docs/changes/NOTIFY-LANG-SENDERS-2520.md. Decisions Q1-Q4 = a. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "aafbd5ccd",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "I18N-RUNTIME-ERRORS-2520",
+    "title": "Run-time refusal texts in English; the service worker's own words in the user's language",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every run-time refusal text is a tpl() with an English template (Hebrew byte-identical); the backend refusal ratchet is 0 run-time f-strings; the service worker's offline page follows the user's language."
+    ],
+    "requirement_ids": [
+      "R-I18N-RUNTIME-ERRORS-2520-1"
+    ],
+    "test_ids": [
+      "AT-I18N-RUNTIME-ERRORS-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/I18N-RUNTIME-ERRORS-2520, change note docs/changes/I18N-RUNTIME-ERRORS-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/I18N-RUNTIME-ERRORS-2520 head 8420d7bdf merged 189ec3f4a into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 30); change note docs/changes/I18N-RUNTIME-ERRORS-2520.md. Lead decision Q1 = a done at the merge: station_ops x3 and wiskey_visits as tpl(); BE ratchet 258 -> 0. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "8420d7bdf",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-STATUS-I18N-2520",
+    "title": "'מצב WisKey' in the page language",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The WisKey feature-status reasons carry params and a frontend reason-code catalogue renders them in Hebrew and English; every backend reason code has both."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-STATUS-I18N-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-STATUS-I18N-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-STATUS-I18N-2520, change note docs/changes/WISKEY-STATUS-I18N-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/WISKEY-STATUS-I18N-2520 head 4c0014602 merged 9d42de979 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 31); change note docs/changes/WISKEY-STATUS-I18N-2520.md. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "4c0014602",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-VISITS-ENDED-FILTER-2520",
+    "title": "The visit list's ended status filter, offered only when WisKey supports it",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The ended filter is offered only when discovery lists visits/record_external_v1; the home push reason / message are nullable on the wire."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-VISITS-ENDED-FILTER-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-VISITS-ENDED-FILTER-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-VISITS-ENDED-FILTER-2520, change note docs/changes/WISKEY-VISITS-ENDED-FILTER-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/WISKEY-VISITS-ENDED-FILTER-2520 head 6d744bd41 merged f343f829b into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 32); change note docs/changes/WISKEY-VISITS-ENDED-FILTER-2520.md. Decisions Q1 = a, Q2 = a; GUIDE_ALL_HE.html rebuilt in the merge. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "6d744bd41",
     "actual_cost_usd": null
   }
 ]

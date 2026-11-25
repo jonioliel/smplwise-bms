@@ -21334,5 +21334,230 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-NOTIFY-RECIPIENT-LANG-2520-1",
+    "requirement_ids": [
+      "R-NOTIFY-RECIPIENT-LANG-2520-1"
+    ],
+    "task_ids": [
+      "NOTIFY-RECIPIENT-LANG-2520"
+    ],
+    "title": "Notifications go out in each recipient's language",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Web push, e-mail and the phone app render a notification in the recipient's interface language (e-mail: the language of the users owning the address, Hebrew otherwise); WhatsApp unchanged; a Hebrew recipient gets the same bytes as before.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ADR019-L14-STRICT-F123-2520-1",
+    "requirement_ids": [
+      "R-ADR019-L14-STRICT-F123-2520-1"
+    ],
+    "task_ids": [
+      "ADR019-L14-STRICT-F123-2520"
+    ],
+    "title": "Web-UI request bodies extra=forbid, families 1-3 (ADR-019 L14)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 19 family-3 request models (nvr_write, nvr_privacy, mask_copy, cameras) refuse unknown fields with 422 (details.fields / details.problems); scripts/request_strict_ratchet.py keeps the tolerant-model count from rising.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-STARTING-STYLE-AUDIT-2520-1",
+    "requirement_ids": [
+      "R-STARTING-STYLE-AUDIT-2520-1"
+    ],
+    "task_ids": [
+      "STARTING-STYLE-AUDIT-2520"
+    ],
+    "title": "Every @starting-style entrance audited for the two sw-dialog faults",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Every @starting-style entrance applies (placed after the rule it starts from) and never fades a layer that holds text; the unit-starting-style-audit-2520 checker keeps it so.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MFA-PASSKEY-ADMIN-REMOVE-2520-1",
+    "requirement_ids": [
+      "R-MFA-PASSKEY-ADMIN-REMOVE-2520-1"
+    ],
+    "task_ids": [
+      "MFA-PASSKEY-ADMIN-REMOVE-2520"
+    ],
+    "title": "An administrator's removal of an Arx-only identity's passkey meets the factor reset's rules",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "An administrator's removal of another identity's passkey has a preflight (remove-check) and follows the factor reset's rules (fresh sign-in, last remote administrator, notices).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MFA-RESET-CHANNEL-UI-2520-1",
+    "requirement_ids": [
+      "R-MFA-RESET-CHANNEL-UI-2520-1"
+    ],
+    "task_ids": [
+      "MFA-RESET-CHANNEL-UI-2520"
+    ],
+    "title": "The reset channel on the second-factor tab; step-up dialog wording; a passkey as the enrolment",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The factor-reset channel is set on the second-factor tab (back to 'anywhere' only from the local network); the step-up dialog says when a passkey cannot be used in this browser; the sign-in's enrolment step offers a passkey.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NOTIFY-LANG-SENDERS-2520-1",
+    "requirement_ids": [
+      "R-NOTIFY-LANG-SENDERS-2520-1"
+    ],
+    "task_ids": [
+      "NOTIFY-LANG-SENDERS-2520"
+    ],
+    "title": "The senders around the notification pipeline speak the recipient's language",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Calendar attendee notices and insights delivery render in the recipient's language (the _i18n param overlay); Hebrew unchanged.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-I18N-RUNTIME-ERRORS-2520-1",
+    "requirement_ids": [
+      "R-I18N-RUNTIME-ERRORS-2520-1"
+    ],
+    "task_ids": [
+      "I18N-RUNTIME-ERRORS-2520"
+    ],
+    "title": "Run-time refusal texts in English; the service worker's own words in the user's language",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Every run-time refusal text is a tpl() with an English template (Hebrew byte-identical); the backend refusal ratchet is 0 run-time f-strings; the service worker's offline page follows the user's language.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-STATUS-I18N-2520-1",
+    "requirement_ids": [
+      "R-WISKEY-STATUS-I18N-2520-1"
+    ],
+    "task_ids": [
+      "WISKEY-STATUS-I18N-2520"
+    ],
+    "title": "'מצב WisKey' in the page language",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The WisKey feature-status reasons carry params and a frontend reason-code catalogue renders them in Hebrew and English; every backend reason code has both.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-VISITS-ENDED-FILTER-2520-1",
+    "requirement_ids": [
+      "R-WISKEY-VISITS-ENDED-FILTER-2520-1"
+    ],
+    "task_ids": [
+      "WISKEY-VISITS-ENDED-FILTER-2520"
+    ],
+    "title": "The visit list's ended status filter, offered only when WisKey supports it",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The ended filter is offered only when discovery lists visits/record_external_v1; the home push reason / message are nullable on the wire.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

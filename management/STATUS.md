@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-25T12:09:46.358227+00:00
+Generated: 2026-11-25T15:28:51.358797+00:00
 
-Tasks: 688 | Requirements: 802 | Tests: 819 | Screens: 32
+Tasks: 697 | Requirements: 811 | Tests: 828 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 485
-- IN_PROGRESS: 7
-- REVIEW: 157
+- IN_PROGRESS: 4
+- REVIEW: 169
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 593
+- V1: 602
 - V2: 29
 - V3: 3
 
@@ -735,11 +735,20 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [MFA-HA-PASSKEY-2520](tasks/MFA-HA-PASSKEY-2520.md) | V1 | REVIEW | Passkey sign-in for users who come in through the home-system identity | — |
 | [I18N-REST-2520](tasks/I18N-REST-2520.md) | V1 | REVIEW | The remaining translations: frontend literals, server refusal texts, notification titles | — |
 | [WISKEY-R8-2520](tasks/WISKEY-R8-2520.md) | V1 | REVIEW | Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8) | — |
-| [WISKEY-SCHED-READS-2520](tasks/WISKEY-SCHED-READS-2520.md) | V1 | IN_PROGRESS | WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly | — |
+| [WISKEY-SCHED-READS-2520](tasks/WISKEY-SCHED-READS-2520.md) | V1 | REVIEW | WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly | — |
 | [ADR019-FAMILY45-2520](tasks/ADR019-FAMILY45-2520.md) | V1 | REVIEW | ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey) | — |
-| [ADR019-FAMILY678-2520](tasks/ADR019-FAMILY678-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 6, 7 and 8 | — |
+| [ADR019-FAMILY678-2520](tasks/ADR019-FAMILY678-2520.md) | V1 | REVIEW | ADR-019 Step 1 families 6, 7 and 8 | — |
 | [FLAKY-FIX-2520](tasks/FLAKY-FIX-2520.md) | V1 | REVIEW | Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason | — |
 | [MFA-FACTOR-HARDEN-2520](tasks/MFA-FACTOR-HARDEN-2520.md) | V1 | REVIEW | Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6) | — |
 | [MULTI-BUILDING-FILTER-2520](tasks/MULTI-BUILDING-FILTER-2520.md) | V1 | REVIEW | Multi-building filter follow-up: the filter setting names the home interface lists; phone building control row | — |
-| [GEN-UNITS-FIELD-2520](tasks/GEN-UNITS-FIELD-2520.md) | V1 | IN_PROGRESS | Generator routing: minute fields carry their unit inside the frame | — |
+| [GEN-UNITS-FIELD-2520](tasks/GEN-UNITS-FIELD-2520.md) | V1 | REVIEW | Generator routing: minute fields carry their unit inside the frame | — |
 | [RELEASE-2520-TRAIN](tasks/RELEASE-2520-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2520-TRAIN - the 2.52.0 train | — |
+| [NOTIFY-RECIPIENT-LANG-2520](tasks/NOTIFY-RECIPIENT-LANG-2520.md) | V1 | REVIEW | Notifications go out in each recipient's language | — |
+| [ADR019-L14-STRICT-F123-2520](tasks/ADR019-L14-STRICT-F123-2520.md) | V1 | REVIEW | Web-UI request bodies extra=forbid, families 1-3 (ADR-019 L14) | — |
+| [STARTING-STYLE-AUDIT-2520](tasks/STARTING-STYLE-AUDIT-2520.md) | V1 | REVIEW | Every @starting-style entrance audited for the two sw-dialog faults | — |
+| [MFA-PASSKEY-ADMIN-REMOVE-2520](tasks/MFA-PASSKEY-ADMIN-REMOVE-2520.md) | V1 | REVIEW | An administrator's removal of an Arx-only identity's passkey meets the factor reset's rules | — |
+| [MFA-RESET-CHANNEL-UI-2520](tasks/MFA-RESET-CHANNEL-UI-2520.md) | V1 | REVIEW | The reset channel on the second-factor tab; step-up dialog wording; a passkey as the enrolment | — |
+| [NOTIFY-LANG-SENDERS-2520](tasks/NOTIFY-LANG-SENDERS-2520.md) | V1 | REVIEW | The senders around the notification pipeline speak the recipient's language | — |
+| [I18N-RUNTIME-ERRORS-2520](tasks/I18N-RUNTIME-ERRORS-2520.md) | V1 | REVIEW | Run-time refusal texts in English; the service worker's own words in the user's language | — |
+| [WISKEY-STATUS-I18N-2520](tasks/WISKEY-STATUS-I18N-2520.md) | V1 | REVIEW | 'מצב WisKey' in the page language | — |
+| [WISKEY-VISITS-ENDED-FILTER-2520](tasks/WISKEY-VISITS-ENDED-FILTER-2520.md) | V1 | REVIEW | The visit list's ended status filter, offered only when WisKey supports it | — |

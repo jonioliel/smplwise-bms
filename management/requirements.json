@@ -13863,5 +13863,149 @@
     "test_ids": [
       "AT-RELEASE-2520-TRAIN-1"
     ]
+  },
+  {
+    "id": "R-NOTIFY-RECIPIENT-LANG-2520-1",
+    "title": "Notifications go out in each recipient's language",
+    "statement": "Web push, e-mail and the phone app render a notification in the recipient's interface language (e-mail: the language of the users owning the address, Hebrew otherwise); WhatsApp unchanged; a Hebrew recipient gets the same bytes as before.",
+    "task_ids": [
+      "NOTIFY-RECIPIENT-LANG-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTIFY-RECIPIENT-LANG-2520-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-L14-STRICT-F123-2520-1",
+    "title": "Web-UI request bodies extra=forbid, families 1-3 (ADR-019 L14)",
+    "statement": "The 19 family-3 request models (nvr_write, nvr_privacy, mask_copy, cameras) refuse unknown fields with 422 (details.fields / details.problems); scripts/request_strict_ratchet.py keeps the tolerant-model count from rising.",
+    "task_ids": [
+      "ADR019-L14-STRICT-F123-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-L14-STRICT-F123-2520-1"
+    ]
+  },
+  {
+    "id": "R-STARTING-STYLE-AUDIT-2520-1",
+    "title": "Every @starting-style entrance audited for the two sw-dialog faults",
+    "statement": "Every @starting-style entrance applies (placed after the rule it starts from) and never fades a layer that holds text; the unit-starting-style-audit-2520 checker keeps it so.",
+    "task_ids": [
+      "STARTING-STYLE-AUDIT-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-STARTING-STYLE-AUDIT-2520-1"
+    ]
+  },
+  {
+    "id": "R-MFA-PASSKEY-ADMIN-REMOVE-2520-1",
+    "title": "An administrator's removal of an Arx-only identity's passkey meets the factor reset's rules",
+    "statement": "An administrator's removal of another identity's passkey has a preflight (remove-check) and follows the factor reset's rules (fresh sign-in, last remote administrator, notices).",
+    "task_ids": [
+      "MFA-PASSKEY-ADMIN-REMOVE-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-PASSKEY-ADMIN-REMOVE-2520-1"
+    ]
+  },
+  {
+    "id": "R-MFA-RESET-CHANNEL-UI-2520-1",
+    "title": "The reset channel on the second-factor tab; step-up dialog wording; a passkey as the enrolment",
+    "statement": "The factor-reset channel is set on the second-factor tab (back to 'anywhere' only from the local network); the step-up dialog says when a passkey cannot be used in this browser; the sign-in's enrolment step offers a passkey.",
+    "task_ids": [
+      "MFA-RESET-CHANNEL-UI-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-RESET-CHANNEL-UI-2520-1"
+    ]
+  },
+  {
+    "id": "R-NOTIFY-LANG-SENDERS-2520-1",
+    "title": "The senders around the notification pipeline speak the recipient's language",
+    "statement": "Calendar attendee notices and insights delivery render in the recipient's language (the _i18n param overlay); Hebrew unchanged.",
+    "task_ids": [
+      "NOTIFY-LANG-SENDERS-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTIFY-LANG-SENDERS-2520-1"
+    ]
+  },
+  {
+    "id": "R-I18N-RUNTIME-ERRORS-2520-1",
+    "title": "Run-time refusal texts in English; the service worker's own words in the user's language",
+    "statement": "Every run-time refusal text is a tpl() with an English template (Hebrew byte-identical); the backend refusal ratchet is 0 run-time f-strings; the service worker's offline page follows the user's language.",
+    "task_ids": [
+      "I18N-RUNTIME-ERRORS-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-RUNTIME-ERRORS-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-STATUS-I18N-2520-1",
+    "title": "'מצב WisKey' in the page language",
+    "statement": "The WisKey feature-status reasons carry params and a frontend reason-code catalogue renders them in Hebrew and English; every backend reason code has both.",
+    "task_ids": [
+      "WISKEY-STATUS-I18N-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-STATUS-I18N-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-VISITS-ENDED-FILTER-2520-1",
+    "title": "The visit list's ended status filter, offered only when WisKey supports it",
+    "statement": "The ended filter is offered only when discovery lists visits/record_external_v1; the home push reason / message are nullable on the wire.",
+    "task_ids": [
+      "WISKEY-VISITS-ENDED-FILTER-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-VISITS-ENDED-FILTER-2520-1"
+    ]
   }
 ]
