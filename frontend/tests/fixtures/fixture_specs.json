@@ -102,6 +102,14 @@
         "evidence-wiskey-capture.spec.ts": {"gate": false, "projects": ["desktop"]}
       }
     },
+    "no_ha": {
+      "_comment": "STALE-FIXTURE-SPECS-2530: the real backend with NO Home Assistant at all (part 1 of evidence-wiskey-people: the honest not-available state, the tab and its gating on access.people.read).",
+      "script": "frontend/tests/fixtures/no_ha_backend.py",
+      "pw_env": {"SW_LIVE": "1", "SW_NO_HA": "1"},
+      "specs": {
+        "evidence-wiskey-people.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]}
+      }
+    },
     "shots_devpolish": {
       "script": null,
       "pw_env": {"DP_OUT": "{out}"},

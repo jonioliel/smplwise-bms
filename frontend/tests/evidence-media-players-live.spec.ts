@@ -17,8 +17,11 @@ import path from 'node:path';
  *                           UI is absent. The locators are in SEL below, taken from MEDIA_PLAYERS_API.md section 5 and the mockup
  *                           (docs/design/mockups/media/players-index.html); a locator that no longer matches fails by its name.
  *
- * UNVERIFIED until S1-S3 merge: part B and C have never met a server that implements the contract. The first run will tell which
- * assertion was a guess (envelope names, response keys, locator names); each one says what it checks.
+ * Written UNVERIFIED before S1-S3 merged. STALE-FIXTURE-SPECS-2530 ran it against the merged server in the gate's fixture lane and settled
+ * every guess against the product code: three were the spec's (the "לא משויכים" locator, the library tabs read through innerText, the group
+ * card found by a device name on a phone) and one was the product's (a leave answered `unknown` for a Music Assistant member that lists
+ * nothing while grouped: services/ha_actions.still_grouped_elsewhere). It is in the release gate since (fixture_specs.json, media_ma /
+ * media_sonos).
  *
  * One house per run, one throwaway backend per house (the registry of the previous house would stay in the backend's own tables):
  *   SW_PORT=4481 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni SW_FAKE_HOUSE=ma \
@@ -237,7 +240,11 @@ const SEL = {
   openPlayer: (name: string) => `media-player-card:has-text("${name}") button[aria-label="נגן · ${name}"]`,
   /** The open panel: the host element has no box of its own (the drawer is inside it), so the body of the drawer is what is visible. */
   panel: 'media-player-panel [data-pn]',
-  unplaced: 'sw-app :text("לא משויכים")',
+  /** STALE-FIXTURE-SPECS-2530: the players tab's sections (multimedia-players: `section.fsec[data-group]`, "none" = "לא משויכים") and its pager. */
+  section: 'sw-app multimedia-players section.fsec[data-group]',
+  pagerNext: 'sw-app multimedia-players [data-mm-pager] [data-pager-next]',
+  /** the library tab strip of the panel is an sw-tabs (its labels live in ITS shadow root: innerText of the panel never has them) */
+  libTab: (kind: string) => `media-player-panel [data-pn] [data-pn-libtab="${kind}"]`,
   groupCard: '[data-group-card]',
   settings: 'sw-app',
 };
@@ -965,7 +972,20 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     const p = await open(page, request, info, '/multimedia/players', SEL.card, 'S2 is not merged: no <media-player-card> on #/multimedia/players');
     await expect(page.locator(SEL.card), 'one card per physical speaker / receiver (screens stay on their own tab; static groups are on the groups tab)').toHaveCount(AUDIO.filter(([, pl]) => pl.kind !== 'group').length, { timeout: 30_000 });
     for (const [, pl] of AUDIO.filter(([, x]) => x.kind !== 'group')) await expect(page.locator(SEL.cardName(pl.name)), pl.name).toHaveCount(1);
-    await expect(page.locator(SEL.unplaced).first(), 'unplaced devices are listed last').toBeVisible();
+    // STALE-FIXTURE-SPECS-2530: "לא משויכים" is the LAST section of the tab (resolvePlayerGroups). The first guess (any visible text "לא משויכים")
+    // picked the desktop's closed floor menu, which names the bucket too; a desktop also pages the cards (NOSCROLL-1366-2437), so the bucket may
+    // sit on a later page.
+    const order = await page.locator(SEL.section).evaluateAll((els) => els.map((x) => x.getAttribute('data-group')));
+    expect(order.at(-1), `unplaced devices are listed last (sections: ${order.join(', ')})`).toBe('none');
+    const bucket = page.locator(`${SEL.section}[data-group="none"]`);
+    await expect(bucket).toContainText('לא משויכים');
+    for (const [slug, pl] of AUDIO.filter(([, x]) => !x.area && x.kind !== 'group')) await expect(bucket.locator(`media-player-card[data-player-card="${p.keys[slug]}"]`), `${pl.name} is in the bucket`).toHaveCount(1);
+    const next = page.locator(SEL.pagerNext);
+    for (let i = 0; i < 8 && !(await bucket.isVisible()); i += 1) {
+      if (!(await next.count()) || (await next.isDisabled())) break;
+      await next.click();
+    }
+    await expect(bucket, 'the bucket is drawn (on the last page of a paged desktop)').toBeVisible();
     const text = await productCopy(page);
     expect(text, 'operator screens name no platform (UI_COPY_RULES)').not.toMatch(PLATFORM_WORDS);
     if (HOUSE === 'sonos') expect(text, 'no floors: one list, the floor menu is gone').toContain('כל החדרים');
@@ -992,10 +1012,11 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
     await expect(page.locator(SEL.panel)).toContainText('שיר לדוגמה');
     await expect(page.locator(SEL.panel), 'up next is read from the server').toContainText(/הבא בתור/);
     await shot(page, 'media-player-panel-live', info);
-    const tabs = await page.locator(SEL.panel).innerText();
-    expect(tabs, 'favourites and stations in both houses').toMatch(/מועדפים/);
-    if (HOUSE === 'sonos') expect(tabs, 'no playlists tab with the Sonos provider').not.toMatch(/פלייליסטים/);
-    else expect(tabs).toMatch(/פלייליסטים/);
+    // STALE-FIXTURE-SPECS-2530: the library tabs are an sw-tabs strip whose labels sit in its own shadow root (the first guess read the panel's
+    // innerText, which never has them, and read it before the library had loaded); each tab carries its `data-pn-libtab` hook
+    await expect(page.locator(SEL.libTab('favourites')), 'favourites in both houses').toHaveText(/מועדפים/, { timeout: 15_000 });
+    if (HOUSE === 'sonos') await expect(page.locator(SEL.libTab('playlists')), 'no playlists tab with the Sonos provider').toHaveCount(0);
+    else await expect(page.locator(SEL.libTab('playlists'))).toHaveText(/פלייליסטים/);
     const since = await mark(request);
     await page.locator(`${SEL.panel} button[aria-label*="השהה"], ${SEL.panel} [data-mpp-pause]`).first().click();
     await expect.poll(async () => (await callsSince(request, since, 0)).some((c) => c.service === 'media_pause' || c.service === 'media_play_pause'), { timeout: 15_000 }).toBe(true);
@@ -1004,12 +1025,20 @@ test.describe(`players screens on the ${HOUSE} house (needs S2 + S3)`, () => {
 
   test('the groups page: live groups with their rooms, the conflict, static and saved groups; a join with a refusing member names the room', async ({ page, request }, info) => {
     test.setTimeout(90_000);
-    await open(page, request, info, '/multimedia/groups', SEL.groupCard, 'S2 is not merged: no group card on #/multimedia/groups');
+    const p = await open(page, request, info, '/multimedia/groups', SEL.groupCard, 'S2 is not merged: no group card on #/multimedia/groups');
     await fresh(request);
     await page.reload();
     await page.waitForSelector(SEL.groupCard, { timeout: 30_000 });
     if (HOUSE === 'ma') {
-      await expect(page.locator(SEL.groupCard).filter({ hasText: 'מגבר קולנוע' }), 'the cross-brand group of four rooms').toContainText('רמקול חדר שינה');
+      // STALE-FIXTURE-SPECS-2530: a live group's card is titled by its ROOMS ("סלון + Denon B + משרד + חדר שינה"); the device names are on the
+      // member rows, which a phone folds behind "לפי חדר" (the first guess found the card by a device name, so the phone never matched it)
+      const cross = page.locator(`[data-group-card="${p.keys.denon_a}"]`);
+      await expect(cross, 'the cross-brand group of four rooms, named by its rooms').toContainText('חדר שינה');
+      await expect(cross).toContainText('משרד');
+      const byRoom = cross.locator('[data-by-room]');
+      if (await byRoom.count()) await byRoom.click();
+      await expect(cross.locator('[data-member]'), 'four rooms').toHaveCount(4);
+      await expect(cross, 'the member rows name the devices').toContainText('רמקול חדר שינה');
     } else {
       await expect(page.locator('sw-app'), 'helper groups are shortcuts: "קבוצה וירטואלית"').toContainText('קבוצה וירטואלית');
     }

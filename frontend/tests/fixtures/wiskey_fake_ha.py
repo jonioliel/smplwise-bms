@@ -273,7 +273,10 @@ PEOPLE_STATIONS = ("gate", "lobby", "office", "store")
 def assignment(sid: str, enabled: bool, locks: list[int], sync_state: str, revision: int) -> dict[str, Any]:
     return {
         "config_entry_id": sid, "enabled": enabled, "allowed_locks": locks, "schedule_template": None,
-        "desired_revision": revision, "applied_revision": revision if sync_state == "synced" else revision - 1,
+        # STALE-FIXTURE-SPECS-2530: an assignment never applied carries `applied_revision: null`, as WisKey sends it - the 0 this fixture
+        # used to send is a malformed bookkeeping revision to the strict shape verdict (access_grant_engine.access_shape, R6-A4), which
+        # made every pending / offline person's station set "unknown" and the person not editable
+        "desired_revision": revision, "applied_revision": revision if sync_state == "synced" else ((revision - 1) or None),
         "sync_state": sync_state, "last_sync_at": "2026-09-01T00:00:00+00:00" if sync_state == "synced" else None,
         "last_error": "device_unavailable" if sync_state == "error" else None,
     }
