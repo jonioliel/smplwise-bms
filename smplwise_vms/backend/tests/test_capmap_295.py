@@ -179,6 +179,13 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "gains grant='alarm.bypass' (+ a comment), so the generic device route asks for that grant at the entity (403 grant_required). "
      "Only the authorisation of that one route changed; the row's domain, service, label, expect and risk, every other row, the signing "
      "and verify paths and the capability projection these vectors pin are unchanged (the projection tests below pass)."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "2193b0d7e40f3eb96649abceb20f1352583ef425b1de5091a630c74800344ccb",
+     "dddf12a30b36ced1e9ab2e434b7c6d2e737627bc2642e848af60b704fd4d040a",
+     "WISKEY-BRIDGE-KEYSET-2520 (bridge 0.10.9): only the Persister changed - persist() runs under an asyncio lock (one save at a "
+     "time) and records the saved high-water marks, saved_through(kid, ts) reads them, and control(msg) is the rotation service's "
+     "write-ahead step moved from __init__.rotate unchanged. KeySet, sign(), verify() / _check(), the v1/v2 recipes and "
+     "handle_control() - the path lease_contract.validate takes for these vectors - are byte-for-byte unchanged."),
 )
 
 

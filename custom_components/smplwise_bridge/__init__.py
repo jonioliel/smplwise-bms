@@ -102,7 +102,7 @@ from . import lease_service
 from .lease_contract import LeaseDTO
 from .lease_service import (LeaseCapability, LeaseConsumer, LeaseRegistration, LeaseUnavailable, async_get_capability, async_register_consumer,
                             is_bridge_capability)
-from . import media_policy, runnable, service_identity, wiskey_door_block
+from . import media_policy, native_keyset, runnable, service_identity, wiskey_door_block
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, NoSigningKey, Persister as KeyPersister
@@ -419,6 +419,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          on_error=save_failed)
     # 0.10.7 (CR-BRIDGE-RUNTIME-2436): the unload reaches the saver here and saves a dirty key set (a new high-water mark) before it goes
     entry.runtime_data = saver
+    # 0.10.9 (WISKEY-BRIDGE-KEYSET-2520): WisKey's direct transport v2 verifies its kid-signed frames and signs its replies through this
+    # setup's key set (native_keyset.py); detached at unload, so a reload's old bindings stop checking
+    entry.async_on_unload(native_keyset.attach(hass, entry, keyset, saver))
     saver.clean_entry()  # HA-06: a restart between the key save and the entry update left the retired code in the entry
     if keyset.repaired:  # K-02: a new pairing code arrived in this entry (discovery): the fresh key set replaces the stored one
         _LOGGER.info("bridge re-paired with a new pairing code; the previous key set is discarded")
@@ -661,15 +664,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def rotate(call: ServiceCall) -> ServiceResponse:
         """0.9.5: one signed key-rotation control message from the add-on (begin / probe / commit / retire / abort / status) -> the signed
-        answer. The new state is saved BEFORE the answer leaves (write-ahead); if the save fails the in-memory state goes back to the saved one."""
-        saved = keyset.state()
-        answer = keyset.handle_control(dict(call.data))
-        try:
-            await persist()
-        except Exception:  # noqa: BLE001 - the step did not happen as far as the add-on can tell (it asks `status` and recovers)
-            keyset.reload(saved)
-            raise
-        return answer
+        answer. The new state is saved BEFORE the answer leaves (write-ahead); if the save fails the in-memory state goes back to the saved one
+        (0.10.9: `Persister.control`, the same steps, under the saver's lock that WisKey's v2 admission shares)."""
+        return await saver.control(dict(call.data))
 
     hass.services.async_register(DOMAIN, SERVICE_ROTATE, rotate, schema=ROTATE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
