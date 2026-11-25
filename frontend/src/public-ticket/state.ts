@@ -139,9 +139,30 @@ export interface Draft {
   /** SCR-05: "send" WAS pressed and failed for want of reception - the only draft that goes out by itself when the phone is back
    * online. A chosen chip or a typed note alone is never sent without "send"; any change to the draft makes it a draft again. */
   queued?: true;
+  /** SCR-40: the fingerprint (`linkId`) of the link the draft was written for - a draft is only ever shown or sent on that link */
+  link?: string;
 }
 
 export const EMPTY_DRAFT: Draft = { status: null, note: '', eta: undefined, crids: {} };
+
+/** SCR-40: a fingerprint of the link's token kept with its draft (two 32-bit FNV-style hashes; the token itself stays under its own key). */
+export function linkId(token: string | null | undefined): string | null {
+  if (!token) return null;
+  let a = 0x811c9dc5;
+  let b = 0x9e3779b9;
+  for (let i = 0; i < token.length; i++) {
+    const c = token.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193);
+    b = Math.imul(b ^ c, 0x5bd1e995);
+  }
+  return (a >>> 0).toString(36) + '.' + (b >>> 0).toString(36);
+}
+
+/** SCR-40: the tab keeps one draft; it is this link's draft only when it was written for this link (an older draft without a link
+ * is no link's). Any other draft is ignored - an empty draft of this link - and is never shown, queued or sent here. */
+export function draftFor(draft: Draft, link: string | null): Draft {
+  return link && draft.link === link ? draft : { ...EMPTY_DRAFT, crids: {}, ...(link ? { link } : {}) };
+}
 
 export type Step =
   | { kind: 'status'; status: string; note: string | null; crid: string }
@@ -182,9 +203,10 @@ export function afterSendFailure(draft: Draft, e: Pick<ApiFailure, 'offline'>): 
   return e.offline ? { ...draft, queued: true } : editDraft(draft);
 }
 
-/** SCR-05: the phone is back online - send only what the person already sent (pressed "send") while offline. */
-export function resendOnReconnect(draft: Draft): boolean {
-  return draft.queued === true;
+/** SCR-05: the phone is back online - send only what the person already sent (pressed "send") while offline. SCR-40: and only to the
+ * link it was written for (`link` = linkId of the link open now). */
+export function resendOnReconnect(draft: Draft, link: string | null): boolean {
+  return draft.queued === true && !!link && draft.link === link;
 }
 
 /** The draft after one step was confirmed by the server: that part (and its request id) is done. */
@@ -218,6 +240,7 @@ export function parseDraft(raw: string | null): Draft {
       crids,
       // SCR-05: a queued send always holds the request ids its press created; a bare flag is a draft
       ...(v.queued === true && Object.values(crids).some(Boolean) ? { queued: true as const } : {}),
+      ...(typeof v.link === 'string' && /^[0-9a-z]{1,7}\.[0-9a-z]{1,7}$/.test(v.link) ? { link: v.link } : {}),
     };
   } catch {
     return { ...EMPTY_DRAFT, crids: {} };

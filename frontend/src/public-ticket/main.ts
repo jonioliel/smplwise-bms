@@ -16,7 +16,7 @@ import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, 
 import { h, icon, img } from './dom';
 import { bannerEl, centerScreen, codeCard, langPicker, messageContent, themeToggle } from './page-frame'; // CR-PUBLIC-FRAME-2440: the frame shared with the RFQ page
 import { mapBlock } from './map-block';
-import { afterFailure, afterSendFailure, afterStep, codeMessage, EMPTY_DRAFT, editDraft, resendOnReconnect, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
+import { afterFailure, afterSendFailure, afterStep, codeMessage, draftFor, EMPTY_DRAFT, editDraft, linkId, resendOnReconnect, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { holdForLang } from './lang-packs';
 import { isLang, preferredLang, RTL, text, type Key, type Lang } from './strings';
@@ -107,7 +107,6 @@ class Page {
     }
     this.theme = resolveMode(storedChoice(), storedServerMode());
     applyMode(this.theme);
-    this.draft = parseDraft(stored(STORE.draft));
     if (boot.mode === 'consent' && boot.token) {
       this.render(); // WA-CONSENT-LINK: the lazy consent chunk; the token stays in memory only
       import('./consent/consent-page').then((m) => m.mountConsent({ root: this.root, token: boot.token as string, lang: this.lang,
@@ -136,24 +135,28 @@ class Page {
     });
     window.addEventListener('online', () => {
       // SCR-05: only a send the person pressed while offline goes out by itself; a chosen chip or a half-typed note never does
-      if (this.mode === 'ticket' && this.phase === 'ready' && resendOnReconnect(this.draft)) void this.send();
+      // SCR-40: and only on the link it was written for (the tab keeps one draft; another link's draft is never this link's)
+      if (this.mode === 'ticket' && this.phase === 'ready' && this.queued()) void this.send();
     });
   }
 
   // ---------------------------------------------------------------- state
 
+  /** Every change of the link re-reads the tab's draft: SCR-40 - it is this link's draft only when it was written for this link. */
   private setToken(token: string | null): void {
     this.creds.token = token;
     store(STORE.token, token);
+    this.draft = draftFor(parseDraft(stored(STORE.draft)), linkId(token));
   }
 
   private forget(): void {
+    // SCR-40: the link's own draft goes with it; a draft another link left in this tab is not this link's to drop
+    const mine = linkId(this.creds.token);
+    if (mine && parseDraft(stored(STORE.draft)).link === mine) store(STORE.draft, null);
     this.fromPortal = false;
     this.setToken(null);
     this.creds.session = null;
     store(STORE.session, null);
-    store(STORE.draft, null);
-    this.draft = { ...EMPTY_DRAFT, crids: {} };
     for (const url of this.photos.values()) URL.revokeObjectURL(url);
     this.photos.clear();
     if (this.mapUrl) URL.revokeObjectURL(this.mapUrl);
@@ -217,8 +220,15 @@ class Page {
     void this.load();
   }
 
+  /** SCR-40: the draft is kept with the fingerprint of its link (no link open: nothing is kept). */
   private saveDraft(): void {
-    store(STORE.draft, JSON.stringify(this.draft));
+    const link = linkId(this.creds.token);
+    if (link) store(STORE.draft, JSON.stringify({ ...this.draft, link }));
+  }
+
+  /** SCR-05 + SCR-40: a send pressed offline on THIS link waits for the reception. */
+  private queued(): boolean {
+    return resendOnReconnect(this.draft, linkId(this.creds.token));
   }
 
   private hasDraft(): boolean {
@@ -238,7 +248,7 @@ class Page {
     if (next.forget) this.forget();
     this.phase = next.phase;
     // SCR-05: a queued send has its own "waiting to send" line with a cancel; the offline banner would only repeat it
-    const queuedLine = next.message === 'savedOffline' && resendOnReconnect(this.draft);
+    const queuedLine = next.message === 'savedOffline' && this.queued();
     this.banner = next.message && !queuedLine ? { key: next.message, tone: next.message === 'savedOffline' ? 'info' : 'bad' } : null;
     if (next.reload) void this.load(false);
     else this.render();
@@ -337,8 +347,10 @@ class Page {
 
   private async send(): Promise<void> {
     const v = this.view;
-    if (!v || this.busy) return;
-    const { steps, draft } = planSend(this.draft, v, newRequestId);
+    const link = linkId(this.creds.token);
+    if (!v || this.busy || !link) return;
+    // SCR-40: only this link's draft is ever sent here
+    const { steps, draft } = planSend(draftFor(this.draft, link), v, newRequestId);
     this.draft = draft;
     this.saveDraft(); // the request ids are kept BEFORE anything is sent: a retry is the same request
     if (!steps.length) {
@@ -351,6 +363,10 @@ class Page {
     this.render();
     for (const step of steps) {
       const r = await this.run(step);
+      if (linkId(this.creds.token) !== link) { // SCR-40: another link took the tab meanwhile - nothing more of this draft goes out
+        this.busy = false;
+        return;
+      }
       if (!r.ok) {
         this.busy = false;
         this.draft = afterSendFailure(this.draft, r.error); // SCR-05: queued ("waiting to send") only when reception was missing
@@ -552,7 +568,7 @@ class Page {
 
   /** SCR-05: a send pressed without reception waits here - said on the page, with a cancel (the draft stays, nothing goes out). */
   private queuedEl(): HTMLElement | null {
-    if (!resendOnReconnect(this.draft)) return null;
+    if (!this.queued()) return null;
     return h('div', { class: 'banner info queued', attrs: { role: 'status', 'data-queued': true } },
       h('span', null, this.t('queuedSend')), ' ',
       h('button', { class: 'linkish under', attrs: { type: 'button', 'data-queued-cancel': true }, on: { click: () => this.cancelQueued() } }, this.t('queuedCancel')));
@@ -712,7 +728,7 @@ class Page {
     if (!v || !['ready', 'readonly'].includes(this.phase)) return;
     const line = this.root.querySelector('[data-statusline]');
     if (line) line.replaceWith(this.statusLineEl(v));
-    if (!resendOnReconnect(this.draft)) this.root.querySelector('[data-queued]')?.remove(); // SCR-05: typing un-queues the send
+    if (!this.queued()) this.root.querySelector('[data-queued]')?.remove(); // SCR-05: typing un-queues the send
     const bar = this.root.querySelector<HTMLElement>('[data-bar]');
     const next = this.primaryBar(v, linkKind(v));
     if (bar && next && bar.dataset.bar === next.dataset.bar && !this.busy) return;

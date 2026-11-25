@@ -348,6 +348,7 @@ class CalPending(WireModel):
     start: str
     end: str
     calendar_id: str
+    revision: int
 
 
 class CalMine(WireModel):
