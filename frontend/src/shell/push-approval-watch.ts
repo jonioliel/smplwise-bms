@@ -18,7 +18,7 @@ const shown = new Set<string>();
 async function look(keyId: string): Promise<boolean> {
   if (showing || document.visibilityState !== 'visible') return true;
   const { listPushApprovals } = await import('../api/push-approval');
-  let list;
+  let list: Awaited<ReturnType<typeof listPushApprovals>>;
   try {
     list = await listPushApprovals();
   } catch {
