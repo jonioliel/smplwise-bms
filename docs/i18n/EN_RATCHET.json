@@ -17,9 +17,7 @@
  "placeholderKeys": [
   "tickets/rfq-text: previewNumber"
  ],
- "hardcodedTotal": 34,
- "hardcoded": {
-  "screens/wiskey-*": 34
- },
- "keptTotal": 834
+ "hardcodedTotal": 0,
+ "hardcoded": {},
+ "keptTotal": 868
 }

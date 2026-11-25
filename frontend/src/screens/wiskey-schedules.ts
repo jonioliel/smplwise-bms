@@ -90,6 +90,7 @@ const KIND: Record<Tone, StateKind> = { live: 'live', stale: 'stale', error: 'er
 // ---------------------------------------------------------------- the static demo (no backend: invented data only)
 const ZONE: DisplayZone = { kind: 'iana', name: 'Asia/Jerusalem' };
 const TECH = { loaded: true, model: null, firmware: null, capabilities: null, clock: null, event_status: null, scanned_at: null, scanning: false, reconciled_at: null, last_poll_ms: null };
+// i18n-keep-start: WisKey demo data - the names of the demo installation (shown only in the demo mode, with no server), not interface text
 const DEMO_STATIONS: AccessStation[] = [
   { id: 'd1', name: 'שער ראשי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, locks: [{ physical_index: 1, name: 'שער' }], has_camera: false, camera_entity: null, last_seen: null, zone: ZONE, technical: TECH, errors: null },
   { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: false, camera_entity: null, last_seen: null, zone: ZONE, technical: TECH, errors: null },
@@ -99,6 +100,7 @@ const DEMO_PROGRAMS: Record<string, StationPrograms> = {
   d1: { programs: [], saved: [], timezone: 'Asia/Jerusalem', native_supported: false },
   d2: {
     programs: [{ door: 1, revision: 1, enabled: true, removing: false, policy: { timezone: 'Asia/Jerusalem', name: 'בוקר', weekly: { Sunday: WEEKDAY_HOURS, Monday: WEEKDAY_HOURS, Tuesday: WEEKDAY_HOURS, Wednesday: WEEKDAY_HOURS, Thursday: WEEKDAY_HOURS }, holidays: [] }, execution: { owned: false, attempted: null, status: 'idle' }, error: null, checked_at: null }],
+// i18n-keep-end
     saved: [],
     timezone: 'Asia/Jerusalem',
     native_supported: false,

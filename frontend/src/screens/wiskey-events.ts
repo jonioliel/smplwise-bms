@@ -77,6 +77,7 @@ const VIEW_KEY = 'sw.wiskey.events.view';
 type ViewMode = 'list' | 'table';
 
 const DEMO_ZONE: DisplayZone = { kind: 'iana', name: 'Asia/Jerusalem' };
+// i18n-keep-start: WisKey demo data - the names of the demo installation (shown only in the demo mode, with no server), not interface text
 const DEMO_STATIONS: AccessStationInfo[] = [
   { id: 'd1', name: 'שער ראשי', online: true, zone: DEMO_ZONE },
   { id: 'd2', name: 'לובי', online: true, zone: DEMO_ZONE },
@@ -95,6 +96,7 @@ const DEMO_REPLY: AccessEventsReply = {
       demoRow('e4', 'd1', '2026-09-26T18:03:55+03:00', 'יוסי לוי', { authentication: 'pin', result: 'denied', event_type: 'access_denied' }),
       demoRow('e5', 'd2', '2026-09-26T17:30:00+03:00', null, { authentication: 'unknown', result: 'unknown', event_type: 'ring', door: null }),
     ],
+// i18n-keep-end
     next: null, retention_days: 30, capacity: 5000, membership_basis: null, storage_failed: false, stations: {}, complete: true, incomplete_reason: null,
   },
 };

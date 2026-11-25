@@ -118,6 +118,7 @@ const store = {
 };
 
 const DEMO_ZONE: DisplayZone = { kind: 'iana', name: 'Asia/Jerusalem' };
+// i18n-keep-start: WisKey demo data - the names of the demo installation (shown only in the demo mode, with no server), not interface text
 const DEMO_STATIONS: AcStationLite[] = [{ id: 'd1', name: 'שער ראשי' }, { id: 'd2', name: 'לובי' }, { id: 'd3', name: 'חניון' }];
 const DEMO_GROUPS: AcGroup[] = [{ id: 'staff', label: 'עובדים', enabled: true, station_ids: ['d1', 'd2'] }, { id: 'night', label: 'משמרת לילה', enabled: true, station_ids: ['d3'] }];
 const demoPerson = (id: string, employee_no: string, display_name: string, extra: Partial<AcPerson> = {}): AcPerson => ({
@@ -133,6 +134,7 @@ const DEMO_ROWS: AcPerson[] = [
   demoPerson('p4', '2044', 'אורן ברק', { phone: '050-000-0004', active: false, group_ids: ['night'], stations: [st('d2', 'error', false)], credentials: { pin: false, cards: 0 } }),
   demoPerson('p5', '2051', 'נועה שלו', { phone: '050-000-0005', credentials: { pin: false, cards: 1 } }),
 ];
+// i18n-keep-end
 
 /**
  * The people of the access-control area ("אנשים"), native (CR-036 slice S7): the directory with server-side filters (group,

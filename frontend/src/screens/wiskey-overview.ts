@@ -135,12 +135,14 @@ const DEMO: IntercomOverview = {
   version: 'demo',
   api_version: 1,
   default_zone: { kind: 'iana', name: 'Asia/Jerusalem' },
+  // i18n-keep-start: WisKey demo data - the names of the demo installation (shown only in the demo mode, with no server), not interface text
   stations: [
     { id: 'd1', name: 'שער ראשי', online: true, call_state: 'ringing', sync_state: 'synced', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
     { id: 'd2', name: 'לובי', online: true, call_state: 'idle', sync_state: 'synced', lock_enabled: true, lock_count: 2, locks: [{ physical_index: 1, name: 'כניסה' }, { physical_index: 2, name: 'מחסום' }], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
     { id: 'd3', name: 'חניון', online: true, call_state: 'idle', sync_state: 'pending', lock_enabled: false, lock_count: 0, locks: [], has_camera: true, camera_entity: null, last_error: null, last_seen: '2026-09-27T08:00:00+03:00', zone: { kind: 'iana', name: 'Asia/Jerusalem' } },
     { id: 'd4', name: 'מחסן', online: false, call_state: 'unavailable', sync_state: 'offline', lock_enabled: true, lock_count: 1, locks: [{ physical_index: 1, name: null }], has_camera: false, camera_entity: null, last_error: null, last_seen: '2026-09-26T19:02:00+03:00', zone: null },
   ],
+  // i18n-keep-end
 };
 
 /** The honest message for each feed state the entry center cannot show stations in (the activity log reuses it). */
@@ -625,7 +627,7 @@ export class WiskeyOverview extends LitElement {
         ${attention.length
           ? html`<aside class="side">
               <sw-card heading=${t('access_attention')} data-wiskey-attention>
-                <!-- AUDIT30-H2 (owner/lead: like "מצלצל"): the count is a filled amber field, solid edge, not the dashed stale-data look -->
+                <!-- AUDIT30-H2 (owner/lead: like "מצלצל"): the count is a filled amber field, solid edge, not the dashed stale-data look (i18n-keep: an HTML comment of the template, never shown) -->
                 <sw-badge slot="actions" kind="stale" filled data-wiskey-attention-count label=${String(attention.length)}></sw-badge>
                 ${attention.slice(0, 5).map((s) => html`<div class="attn"><strong>${s.name}</strong><small>${!s.online ? t('offline') : s.last_error || t('pending_sync')}</small></div>`)}
               </sw-card>
