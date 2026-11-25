@@ -216,6 +216,7 @@ owner approves rc19 (Q7) - every new wire then answers `unsupported` (not listed
   PRODUCT: system-status-v1 result.valid `573dda52`, .wrong `fb172e13`, .extra `a2407748`, .missing `e53490c4`;
   checkpoint-jobs-status-v1 result.valid `ce80c871`, .wrong `e0195f49`, .extra `dad85ee9`, .missing `510e06ff`).
 - Rollback: revert the commit; no migration, no setting, no data.
+- Follow-ups on this branch: the rc.10 pin test lists the four rc.19 wires as asked-not-in-rc10 (like `visits/record_external_v1`); the visits `/links` link model has `pushed_revision`, `wiskey_visit_id`, `attempted_at` nullable (found by R6); and since R3 / R4 send on `relay_inventory` / `station_sync_v1`, both are `in_use: True` and `RESERVED_CHANNELS` is empty (the check stays for any future reservation).
 
 ## 9. Tests run (PC, one file at a time; real results)
 

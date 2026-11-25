@@ -4,7 +4,7 @@ Assistant or WisKey: a fake SYNC answers, the router tests replace the read itse
 
 Proven here:
 - the closed `system_status` channel (exactly the two READs, no write, nothing else rides it); the reserved channels of the other 2.52 rows
-  are named by no module but the registry (a guard nobody calls sends nothing);
+  (relay_inventory, station_sync_v1) are in use since R3 / R4 and none is reserved any more;
 - one frame `{type}` per read - no `api_contract`, no other key; nothing is sent when WisKey does not list the command, lists nothing,
   has no served copy or needs a newer client; a WisKey refusal is `forbidden` and is never retried with another command;
 - projection: UNKNOWN stays unknown, null stays null (never a zero / false / success); an unreported job family is `families_absent`;
@@ -90,15 +90,18 @@ def test_the_system_status_channel_holds_exactly_the_two_reads_and_no_write():
     assert ch.describe()["system_status"] == {"commands": ["jobs/status_v1", "system/status_v1"], "in_use": True}
 
 
-def test_the_reserved_channels_are_registered_but_nobody_sends_on_them():
-    assert ch.RESERVED_CHANNELS == {"relay_inventory", "station_sync_v1"}
+def test_no_channel_is_reserved_any_more_and_the_former_reserved_ones_are_in_use():
+    """Slice 1 registered `relay_inventory` and `station_sync_v1` ahead of their rows; R3 / R4 send on them now. The mechanism stays: a
+    channel still in RESERVED_CHANNELS would be named by no module but the registry (none is reserved today)."""
+    assert ch.RESERVED_CHANNELS == frozenset()
     assert ch.RELAY_INVENTORY == {"stations/relay_inventory_v1"} and ch.STATION_SYNC_V1 == {"sync/station_v1"}
-    for name in ch.RESERVED_CHANNELS:
-        assert ch.describe()[name]["in_use"] is False and name in ch.UNPINNED_CHANNELS
-    package = Path(ch.__file__).resolve().parents[1]
-    users = sorted(p.name for p in package.rglob("*.py") if p.name != "wiskey_channels.py"
-                   and re.search(r"""["'](relay_inventory|station_sync_v1)["']""", p.read_text(encoding="utf-8")))
-    assert users == [], users
+    for name in ("relay_inventory", "station_sync_v1"):
+        assert ch.describe()[name]["in_use"] is True and name in ch.UNPINNED_CHANNELS and name in ch.ADAPTER_CHANNELS
+    if ch.RESERVED_CHANNELS:
+        package = Path(ch.__file__).resolve().parents[1]
+        pattern = re.compile(r"""["'](%s)["']""" % "|".join(sorted(map(re.escape, ch.RESERVED_CHANNELS))))
+        users = sorted(p.name for p in package.rglob("*.py") if p.name != "wiskey_channels.py" and pattern.search(p.read_text(encoding="utf-8")))
+        assert users == [], users
     for command in ("stations/relay_inventory_v1", "sync/station_v1"):  # and no other channel can carry them
         assert [n for n, c in ch.ALLOWLISTS.items() if command in c] == (["relay_inventory"] if "relay" in command else ["station_sync_v1"])
 

@@ -214,16 +214,17 @@ VISITS_PUSH = frozenset({"visits/record_external_v1"})
 # - `system_status` (IN USE, services/wiskey_system_status.py): `system/status_v1` (contract wiskey-system-status.v1; WisKey: READ,
 #   `management: view` unrestricted) and `jobs/status_v1` (wiskey-checkpoint-jobs-status.v1; WisKey: READ, its original OWNER check). Both
 #   are READ commands in WisKey's api_contract (no `api_contract` on the frame); neither reads a device, starts a job or writes.
-# - `relay_inventory` (RESERVED for the 2.52 row WISKEY-RELAY-INV-2520, nothing sends on it yet): `stations/relay_inventory_v1`, a READ
+# - `relay_inventory` (IN USE since WISKEY-RELAY-INV-2520, services/wiskey_relay_inventory.py): `stations/relay_inventory_v1`, a READ
 #   (`stations: view`) of observed API outputs, the saved mapping and unknown physical counts / roles. Never a relay test.
-# - `station_sync_v1` (RESERVED for the 2.52 row WISKEY-SYNC-V1-2520, nothing sends on it yet): `sync/station_v1`, the existing station
+# - `station_sync_v1` (IN USE since WISKEY-SYNC-V1-2520, services/wiskey_station_ops.py): `sync/station_v1`, the existing station
 #   sync request (the same queueing as `sync/station` on `maintenance`, which it will replace there) answered with an in-memory request id.
-# Reserved channels are registered here so that the 2.52 rows stay file-disjoint; tests/test_wiskey_system_status_2520.py proves that no
-# module but this one names a reserved channel until its row lands (a guard nobody calls sends nothing).
+# RESERVED_CHANNELS: channels registered here ahead of the row that sends on them (so the 2.52 rows stay file-disjoint); empty now that R3
+# and R4 use theirs. tests/test_wiskey_system_status_2520.py proves that no module but this one names a reserved channel (a guard nobody
+# calls sends nothing).
 SYSTEM_STATUS = frozenset({"system/status_v1", "jobs/status_v1"})
 RELAY_INVENTORY = frozenset({"stations/relay_inventory_v1"})
 STATION_SYNC_V1 = frozenset({"sync/station_v1"})
-RESERVED_CHANNELS = frozenset({"relay_inventory", "station_sync_v1"})
+RESERVED_CHANNELS: frozenset[str] = frozenset()  # both reserved channels are in use since R3 / R4 (WISKEY-RESYNC-2520 plan)
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
                                          "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED, "visits": VISITS, "visits_push": VISITS_PUSH,
@@ -310,6 +311,6 @@ def describe() -> dict[str, Any]:
         "visits": {"commands": sorted(VISITS), "in_use": True},
         "visits_push": {"commands": sorted(VISITS_PUSH), "in_use": True},
         "system_status": {"commands": sorted(SYSTEM_STATUS), "in_use": True},
-        "relay_inventory": {"commands": sorted(RELAY_INVENTORY), "in_use": False},
-        "station_sync_v1": {"commands": sorted(STATION_SYNC_V1), "in_use": False},
+        "relay_inventory": {"commands": sorted(RELAY_INVENTORY), "in_use": True},
+        "station_sync_v1": {"commands": sorted(STATION_SYNC_V1), "in_use": True},
     }
