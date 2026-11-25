@@ -9219,7 +9219,8 @@
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 7fcbb94e9); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.7.2. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT303 NOT_RUN - Every mapped spec skipped by its own gate (evidence-floorstrip.spec.ts); no passing assertion.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT303 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT303 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): evidence-floorstrip.spec.ts is skipped in every released gate (needs its fixture backend); no passing assertion."
     ],
     "owner": null,
     "commit": "be393743",
@@ -12737,7 +12738,8 @@
       "commit df8547fc2 (release 2.24.0, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of GATEAUDIT-297 into the 2.24.0 assembly (implementation commits 27834e8ba, 781cc523d, a06719d44, report 344b9f054); tag v2.24.0. The earlier line recorded the runner results but no commit on origin/main. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.24.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-GATEAUDIT-1 NOT_RUN - Expected needs the visual matrix (0 differences) and the gate selftest; the sweep did not run them.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-GATEAUDIT-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-GATEAUDIT-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): the gate itself runs the listed specs and the visual matrix (72 / 0 at f73c20728), but scripts/gate/selftest_gate.py is not part of a release gate; not run."
     ],
     "owner": null,
     "commit": null,
@@ -12783,7 +12785,8 @@
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.24.0 (commit c19243a87); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.24.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-GATELANES-1 NOT_RUN - Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes; the sweep did not run them.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-GATELANES-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-GATELANES-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): tsc and the pixel lanes pass in the released gates, but the selftest and the timing_lane pytest selection are not part of a release gate; not run."
     ],
     "owner": null,
     "commit": null,
@@ -14938,7 +14941,8 @@
       "commit 7151748b8 (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/DEVICES-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-DEVICES-POLISH-2331-1 NOT_RUN - Every mapped spec skipped by its own gate (devpolish-2331-shoot.spec.ts); no passing assertion.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-DEVICES-POLISH-2331-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-DEVICES-POLISH-2331-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): devpolish-2331-shoot.spec.ts is skipped in every released gate (300 skipped); no passing assertion of the acceptance."
     ],
     "owner": null,
     "commit": "7151748b8",
@@ -15060,7 +15064,8 @@
       "commit b5ab7497f (release 2.34.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. pilot/MEDIA-POLISH-2331 merged into main; verified as an ancestor of origin/main.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.34.0. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-MEDIA-POLISH-2331-1 NOT_RUN - Every mapped spec skipped by its own gate (layout-bubble-screens.spec.ts); no passing assertion.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-MEDIA-POLISH-2331-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-MEDIA-POLISH-2331-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): layout-bubble-screens.spec.ts is skipped in every released gate (bubble skin frozen); no passing assertion of the acceptance."
     ],
     "owner": null,
     "commit": "b5ab7497f",
@@ -20806,7 +20811,7 @@
       "AT-PY-CONSTRAINTS-2407-1",
       "AT-PY-CONSTRAINTS-2407-2"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -20826,10 +20831,11 @@
       "2026-11-09 (TASKS-SYNC-2412): the 2.40.7 train reached main and is tagged: the implementation commit is contained in v2.40.7 (git describe --contains), so the BOARD-HYGIENE-2407 train-only move stands. Acceptance tests keep their recorded NOT_RUN status; status kept REVIEW.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the owner ACCEPTED the card (Q80, owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)); verified on main (HEAD 619f94d04) in 2.40.7. It stays REVIEW because the registry rule lets DONE stand only with PASS acceptance tests and DONE dependencies, and its acceptance tests are not all PASS (none was run as a catalog record); no test was changed or claimed. Acceptance recorded; flips to DONE when that is met.",
       "2026-11-23 (ACC-SWEEP-2211): stays REVIEW after the test sweep at 619f94d04: AT-PY-CONSTRAINTS-2407-1 NOT_RUN - No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change recor; AT-PY-CONSTRAINTS-2407-2 NOT_RUN - Needs a Supervisor-equivalent Docker build of the add-on image on the runner; not run.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class D; AT-PY-CONSTRAINTS-2407-1 NOT_RUN (class E); AT-PY-CONSTRAINTS-2407-2 NOT_RUN (class D)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class D; AT-PY-CONSTRAINTS-2407-1 NOT_RUN (class E); AT-PY-CONSTRAINTS-2407-2 NOT_RUN (class D)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-PY-CONSTRAINTS-2407-1, AT-PY-CONSTRAINTS-2407-2 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit set to 33360d2a8 (chore(build): PY-CONSTRAINTS-LOCK-2407, merged b4b15a1aa into release/2407-train; ancestor of f73c20728)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "33360d2a8",
     "actual_cost_usd": null
   },
   {
@@ -21073,7 +21079,8 @@
     "evidence": [
       "2026-11-09 (TASKS-SYNC-2412): card registered for open work on branch docs/EVIDENCE-CAMERAS-2412 (in progress; not on origin at the time of this sync). Scope from the NOT_RUN sections of docs/changes/CAMERA-STREAM-SOURCES-2410.md and docs/changes/NVRLESS-CAMERAS-2411.md. Acceptance test NOT_RUN.",
       "2026-11-19 (TASKS-SYNC-1911): status IN_PROGRESS -> REVIEW. Commit 748649800 (docs/EVIDENCE-CAMERAS-2412: the 2.41.0 / 2.41.1 camera screenshots and eight small fixes they found) is an ancestor of origin/main and released. Acceptance test NOT_RUN as a catalog record.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-EVIDENCE-CAMERAS-2412-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-EVIDENCE-CAMERAS-2412-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): the evidence spec evidence-nvrless-cameras-2412.spec.ts is skipped in every released gate (fixture-backed); the unit / backend camera tests pass but the screenshot evidence run is the acceptance."
     ],
     "owner": null,
     "commit": null,
@@ -21189,7 +21196,8 @@
     "evidence": [
       "2026-11-09 (TASKS-SYNC-2412): card registered as a later item. Owner decision 08.11 (docs/changes/CAMERA-STREAM-SOURCES-2410.md, decision 6): ONVIF discovery is not in the 2.41.0 scope. No work until the owner schedules it. Acceptance test NOT_RUN.",
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner decisions Q54-Q61 (owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)), all recommended: build phase 1 as described (3-step wizard in the existing card of the NVR page) in the 2.5x series; probe each address of the range directly (no change needed); range = the site network, up to 1,024 addresses; one shared password allowed, one attempt per camera, no automatic retry; a camera already reaching Arx through the recorder is marked and cannot be added; a device that looks like a recorder offers 'add as recorder' in the recorder wizard; weekly new-camera notice: not now; add as a recorder channel (write to the recorder): later, behind the NVR write switch. Status stays BACKLOG until the 2.5x row is cut.",
-      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ONVIF-DISCOVER-2500 head 5a729cbca merged c00430f38; pilot/ONVIF-API-2500 head 004c0b695 merged e9936300e; pilot/ONVIF-CLIENT-2500 head d58353161 merged ec459f49e; pilot/ONVIF-UI-2500 head 5cc014eda merged e86dcb8d0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Phase 1 as the owner decided 22.11 (Q54-Q61): backend scan, HTTP routes and settings, ONVIF client with the add step (migration 0217), the camera-search wizard; change notes docs/changes/ONVIF-{DISCOVER,API,CLIENT,UI}-2500.md. Stays REVIEW, not DONE: AT-ONVIF-DISCOVERY-2412-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ONVIF-DISCOVER-2500 head 5a729cbca merged c00430f38; pilot/ONVIF-API-2500 head 004c0b695 merged e9936300e; pilot/ONVIF-CLIENT-2500 head d58353161 merged ec459f49e; pilot/ONVIF-UI-2500 head 5cc014eda merged e86dcb8d0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Phase 1 as the owner decided 22.11 (Q54-Q61): backend scan, HTTP routes and settings, ONVIF client with the add step (migration 0217), the camera-search wizard; change notes docs/changes/ONVIF-{DISCOVER,API,CLIENT,UI}-2500.md. Stays REVIEW, not DONE: AT-ONVIF-DISCOVERY-2412-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (lab): the ONVIF client / discovery / API tests pass at bdf28fc37 (test_onvif_client_2500 69, test_camera_discovery_2500 41, test_camera_discovery_api_2500 39, unit-camera-discovery-2500 36, camera-discovery-2500 15) on fakes; evidence-onvif-ui-2500.spec.ts is skipped and discovery on the real lab network is not run."
     ],
     "owner": null,
     "commit": "5cc014eda",
@@ -24532,7 +24540,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/CR-MULTIMEDIA-BASE-2440.md (note commit 49ccca888); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-CR-MULTIMEDIA-BASE-2440-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-CR-MULTIMEDIA-BASE-2440-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): evidence-media-players-live.spec.ts (media_fake_ha fixture) is skipped in every released gate (81 skipped); the other named specs pass at f73c20728 - partial."
     ],
     "owner": null,
     "commit": null,
@@ -26560,7 +26569,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. In the 2.43.9 train (release/2439-train, build 670716c08) and release/2440-train; not on main, not tagged. Change note docs/changes/CR-WISKEY-NOTIF-2443.md (note commit f3e813420); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-CR-WISKEY-NOTIF-2443-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-CR-WISKEY-NOTIF-2443-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): evidence-wiskey-people.spec.ts and evidence-wiskey-editor.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate and the late-permission flow in a real browser is not run; the unit specs pass at f73c20728 - partial."
     ],
     "owner": null,
     "commit": null,
@@ -26679,7 +26689,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): card registered for shipped work that the registry did not track. Released in 2.43.8 (on origin/main, tag v2.43.8). Change note docs/changes/DIALOG-DRAWER-ONE-2439.md (note commit 8ec23930f); scope, tests actually run and NOT_RUN items are recorded there. The acceptance test is NOT_RUN as a catalog record; formal acceptance is still to be recorded.",
-      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-DIALOG-DRAWER-ONE-2439-1 NOT_RUN (class A)"
+      "2026-11-23 (LAB-ACCEPT-2311): stays REVIEW - card class A; AT-DIALOG-DRAWER-ONE-2439-1 NOT_RUN (class A)",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): evidence-wiskey-editor.spec.ts / evidence-wiskey-capture.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate; evidence-dialog-drawer-one-2439 and the pixel lanes pass at f73c20728 - partial."
     ],
     "owner": null,
     "commit": null,
@@ -27289,7 +27300,7 @@
     "test_ids": [
       "AT-CR-FEED-BASE-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27303,7 +27314,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-FEED-BASE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-FEED-BASE-2450 head 90e84cef0 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-FEED-BASE-2450.md on main. Merged, but the card's own acceptance test AT-CR-FEED-BASE-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-FEED-BASE-2450 head 90e84cef0 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-FEED-BASE-2450.md on main. Merged, but the card's own acceptance test AT-CR-FEED-BASE-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-CR-FEED-BASE-2450-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "90e84cef0",
@@ -27328,7 +27340,7 @@
     "test_ids": [
       "AT-CR-ROUTER-SQL-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27343,7 +27355,8 @@
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-ROUTER-SQL-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
       "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-ROUTER-SQL-2450 head 0a5d0431e is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-ROUTER-SQL-2450.md on main. Merged, but the card's own acceptance test AT-CR-ROUTER-SQL-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
-      "2026-11-24 (MGMT-SYNC-2411): Code-review master plan audit (24.11): 122 of 123 planned branches are merged; CR-CONFIRM-ADOPT-2441 was verification only (pilot head d84432eec, not merged, no card); CR-ROUTER-SQL-E-2470 (pilot/CR-ROUTER-SQL-E-2470 808a4e826, 2 commits ahead of main) found no router left - documentation only, not merged, no card."
+      "2026-11-24 (MGMT-SYNC-2411): Code-review master plan audit (24.11): 122 of 123 planned branches are merged; CR-CONFIRM-ADOPT-2441 was verification only (pilot head d84432eec, not merged, no card); CR-ROUTER-SQL-E-2470 (pilot/CR-ROUTER-SQL-E-2470 808a4e826, 2 commits ahead of main) found no router left - documentation only, not merged, no card.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-CR-ROUTER-SQL-2450-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "0a5d0431e",
@@ -27449,7 +27462,7 @@
     "test_ids": [
       "AT-CR-CMP2-SELECTS-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27463,7 +27476,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/CR-CMP2-SELECTS-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-CMP2-SELECTS-2450 head 18911c376 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-CMP2-SELECTS-2450.md on main. Merged, but the card's own acceptance test AT-CR-CMP2-SELECTS-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: branch pilot/CR-CMP2-SELECTS-2450 head 18911c376 is an ancestor of origin/main (git merge-base --is-ancestor, 24.11); change note docs/changes/CR-CMP2-SELECTS-2450.md on main. Merged, but the card's own acceptance test AT-CR-CMP2-SELECTS-2450-1 stays NOT_RUN (no per-card run recorded), so not DONE.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-CR-CMP2-SELECTS-2450-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "18911c376",
@@ -27528,7 +27542,7 @@
     "test_ids": [
       "AT-T068-EDGE-2450-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27542,7 +27556,8 @@
     ],
     "evidence": [
       "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/T068-EDGE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/T068-EDGE-2450 head 856b234af merged 54967cb7e (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Stays REVIEW, not DONE: AT-T068-EDGE-2450-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/T068-EDGE-2450 head 856b234af merged 54967cb7e (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Stays REVIEW, not DONE: AT-T068-EDGE-2450-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-T068-EDGE-2450-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "856b234af",
@@ -27567,7 +27582,7 @@
     "test_ids": [
       "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27582,7 +27597,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q29 = yes, own row (split from FLAKY-SWEEP-2480).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5; not merged into origin/main (2.49.0 candidate).",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5 merged 4fb7436d1 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-FLAKY-CAPTURE-SCREENSHOT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5 merged 4fb7436d1 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-FLAKY-CAPTURE-SCREENSHOT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-FLAKY-CAPTURE-SCREENSHOT-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "169570cf5",
@@ -27662,7 +27678,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q16 = yes, separate row (N54).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/GEN-UNITS-FIELD-2490 head bd551962d (settings read the active-language catalogue; spec evidence-gen-units-en-2490); not merged into origin/main (2.49.0 candidate).",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/GEN-UNITS-FIELD-2490 head bd551962d merged 16b38a7c4 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Follow-up for the routing minute fields: pilot/GEN-UNITS-FIELD-2520 (card GEN-UNITS-FIELD-2520). Stays REVIEW, not DONE: AT-GEN-UNITS-FIELD-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/GEN-UNITS-FIELD-2490 head bd551962d merged 16b38a7c4 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Follow-up for the routing minute fields: pilot/GEN-UNITS-FIELD-2520 (card GEN-UNITS-FIELD-2520). Stays REVIEW, not DONE: AT-GEN-UNITS-FIELD-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (owner): evidence-gen-units-en-2490.spec.ts passes at f73c20728 (Hebrew + English, desktop / tablet / mobile), but the acceptance says the text changes exist in all 4 languages and the change note adds unit words in Hebrew and English only; Arabic / Russian not evidenced - a gap to confirm or fix, not PASS."
     ],
     "owner": null,
     "commit": "bd551962d",
@@ -27687,7 +27704,7 @@
     "test_ids": [
       "AT-TICKETS-PAGING-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27702,7 +27719,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q20 = option a: paging for the tickets table as the next SCROLL-AUDIT row, case details stay a scrolling document.",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/TICKETS-PAGING-2490 head 164b1fb7a; not merged into origin/main (2.49.0 candidate).",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/TICKETS-PAGING-2490 head 164b1fb7a merged ac0c5135e (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-TICKETS-PAGING-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/TICKETS-PAGING-2490 head 164b1fb7a merged ac0c5135e (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-TICKETS-PAGING-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-TICKETS-PAGING-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "164b1fb7a",
@@ -27727,7 +27745,7 @@
     "test_ids": [
       "AT-DOOR-TECH-HOLD-FIX-2480-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27743,7 +27761,8 @@
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q11 = fix after a comparison page (the fix is visible, so the comparison page comes first).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> REVIEW: delivered by pilot/FLAKY-SWEEP-2480 (the product fix DOOR-TECH-REREAD-2480 in components/wk-door-tech.ts; head 67efe251c, merged 848f2ec20 on the 2.48.0 train; change note docs/changes/FLAKY-SWEEP-2480.md). Shipped in v2.48.0 (gate run 3 PASS at 09acc2db4). There is no docs/changes/DOOR-TECH-HOLD-FIX-2480.md and no comparison-page record found, and AT-DOOR-TECH-HOLD-FIX-2480-1 is NOT_RUN, so not DONE. Open: the owner's Q11 condition (comparison page first) is not recorded.",
       "2026-11-25 (MGMT-SYNC-2520): stays REVIEW. A local branch pilot/DOOR-TECH-HOLD-FIX-2520 (worktree C:\\cloude\\smplwise-doorhold, at main 3d71fb183, no commits, not pushed) is writing docs/changes/DOOR-TECH-HOLD-FIX-2480.md (untracked at this sync): the owner's Q11 comparison-page condition is being worked on.",
-      "2026-11-25 (RELEASE-2520-TRAIN): the fix 5efb30eb1 shipped in v2.48.0; its change note docs/changes/DOOR-TECH-HOLD-FIX-2480.md came with pilot/DOOR-TECH-HOLD-FIX-2520 (b7c4a474a, docs only) merged 35365a2be into the 2.52 train (row 29). REVIEW with 5efb30eb1 (DONE needs its acceptance test PASS)."
+      "2026-11-25 (RELEASE-2520-TRAIN): the fix 5efb30eb1 shipped in v2.48.0; its change note docs/changes/DOOR-TECH-HOLD-FIX-2480.md came with pilot/DOOR-TECH-HOLD-FIX-2520 (b7c4a474a, docs only) merged 35365a2be into the 2.52 train (row 29). REVIEW with 5efb30eb1 (DONE needs its acceptance test PASS).",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-DOOR-TECH-HOLD-FIX-2480-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "5efb30eb1",
@@ -27768,7 +27787,7 @@
     "test_ids": [
       "AT-HAND-SWITCH-2480-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27782,7 +27801,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q7 = approve as the comparison page; Q30 = the terms checkboxes ALSO become switches (non-recommended choice). Branch pilot/HAND-SWITCH-2480 exists (14 commits ahead of main 619f94d04); nothing released.",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge b51274eb0); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/HAND-SWITCH-2480 head dab624c06 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-HAND-SWITCH-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge b51274eb0); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/HAND-SWITCH-2480 head dab624c06 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-HAND-SWITCH-2480-1 has no per-card PASS record (the gate run is not mapped to it).",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-HAND-SWITCH-2480-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "dab624c06",
@@ -27821,7 +27841,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open (follows the home panel edit). Owner Q32 = yes, after the home panel. Target version not stated by the owner; to be set when the home panel edit is cut.",
-      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-PERSONAL-2500 head ca28a964d merged 0a0a60e69 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered under the row name HAND-SWITCH-HOME-PERSONAL-2500 (change note docs/changes/HAND-SWITCH-HOME-PERSONAL-2500.md), cut on HOME-NEXT-2500 after the home panel edit as the owner asked (Q32). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-PERSONAL-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-PERSONAL-2500 head ca28a964d merged 0a0a60e69 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered under the row name HAND-SWITCH-HOME-PERSONAL-2500 (change note docs/changes/HAND-SWITCH-HOME-PERSONAL-2500.md), cut on HOME-NEXT-2500 after the home panel edit as the owner asked (Q32). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-PERSONAL-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): unit-hand-switch-home-personal-2500.spec.ts (source checks) passes at bdf28fc37, but the behaviour spec evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-personal-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial."
     ],
     "owner": null,
     "commit": "ca28a964d",
@@ -27846,7 +27867,7 @@
     "test_ids": [
       "AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27861,7 +27882,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open. Owner Q21 = yes, file by file (N59). Target version not stated.",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a (the phone project skips 25 desktop-only spec files with an explicit list + guard; the tablet project also ignores the 20 files that already skipped on every non-desktop project); not merged into origin/main.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a merged b1911de23 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a merged b1911de23 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "d8c95810a",
@@ -28206,7 +28228,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target after 2.49.0, one train (about 19 agent days). Owner Q44-Q53. Q44 = after 2.49.0 as one train. Q45/Q46 = step-up before every settings, users and permissions change with a 5 minute grace, PLUS a setting to turn step-up off (owner note). Q47 = keep the authenticator code beside passkeys. Q48 = long-lived token from outside while the rule is active ALLOWED, as today (non-recommended). Q49 = recovery codes (10 per user, single use). Q50 = passkeys for all users. Q51 = in the app, password plus phone key suffices as two-factor. Q52 = phone hardware attestation YES (non-recommended). Q53 = reset of auth methods from anywhere with admin approval (non-recommended; the security recommendation was local network only and the risk was explained).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: slice 1 (STEPUP-CORE, backend core) on pilot/MFA-STEPUP-2490 head fb9a3ac1e, built from v2.47.0 619f94d04; not merged. Tests recorded in the branch note docs/changes/MFA-STEPUP-TRAIN-2490.md: tests/test_mfa_stepup_2490.py 22 passed (workstation); slot-B run of 102 backend files in 5 chunks: 2467 passed; ruff clean; tsc exit 0; full backend suite, Playwright / pixel and lab NOT_RUN. 12-slice plan (section 4 of that note): 1 STEPUP-CORE (done on the branch), 2 STEPUP-UI, 3 STEPUP-GATES, 4 PASSKEYS-ALL, 5 POLICY + PROVENANCE, 6 TOKENS, 7 RECOVERY, 8 DEVICEKEY-SRV + APP, 9 DEVICEKEY-ATTEST, 10 RESET-HARDENING, 11 SCREENS, 12 REVIEW-DOCS. Open questions are in section 7 of the note, each with a recommendation (notably: merge slices 1 + 2 together, never release slice 1 alone, because the step-up switch defaults ON before any UI exists).",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/MFA-TRAIN-2500 head 8d9faa6e3 merged 78e815e96; pilot/MFA-RESET-HARDENING-2510 head 54239de08 merged 6af4e5ace; pilot/MFA-SCREENS-2510 head 88c6c30ac merged 0fce818b4 (docs/changes/RELEASE-2510-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.51.0. Slices 1-9 with the security-review fixes (MFA-TRAIN-2500 incl. MFA-SECFIX-2500; migrations 0219-0223), slice 10 RESET-HARDENING (MFA-RESET-HARDENING-2510, first head aeb9db142 merged 8836f1603; migration 0224) and slice 11 SCREENS (MFA-SCREENS-2510) are released. Slice 12 REVIEW-DOCS = pilot/MFA-REVIEW-DOCS-2520, merged into release/2520-train at 0154ba924, NOT released. Open: the phone key in the step-up dialog was only exercised with a fake app bridge (RELEASE-2510-TRAIN.md section 5 item 6; check at the next lab install). Stays REVIEW, not DONE: AT-MFA-STEPUP-TRAIN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/MFA-TRAIN-2500 head 8d9faa6e3 merged 78e815e96; pilot/MFA-RESET-HARDENING-2510 head 54239de08 merged 6af4e5ace; pilot/MFA-SCREENS-2510 head 88c6c30ac merged 0fce818b4 (docs/changes/RELEASE-2510-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.51.0. Slices 1-9 with the security-review fixes (MFA-TRAIN-2500 incl. MFA-SECFIX-2500; migrations 0219-0223), slice 10 RESET-HARDENING (MFA-RESET-HARDENING-2510, first head aeb9db142 merged 8836f1603; migration 0224) and slice 11 SCREENS (MFA-SCREENS-2510) are released. Slice 12 REVIEW-DOCS = pilot/MFA-REVIEW-DOCS-2520, merged into release/2520-train at 0154ba924, NOT released. Open: the phone key in the step-up dialog was only exercised with a fake app bridge (RELEASE-2510-TRAIN.md section 5 item 6; check at the next lab install). Stays REVIEW, not DONE: AT-MFA-STEPUP-TRAIN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (device): slices 1-9 and the 2.51 rows pass in the 2.51 gate (test_mfa_* 15 files, unit-mfa-passkeys-2490 after the test-only fix at d886d7929), but slice 12 (MFA-REVIEW-DOCS-2520) and the follow-ups are on the unreleased 2.52 train, and a passkey / device-key sign-in on a real phone is not run."
     ],
     "owner": null,
     "commit": "88c6c30ac",
@@ -28233,7 +28256,7 @@
     "test_ids": [
       "AT-MULTI-BUILDING-NEXT-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28247,7 +28270,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q62-Q69, all recommended: Q62 a person managing content in both buildings may move a floor (with a view of who loses access); Q63 check required, a setting can skip it; Q64 \"all buildings\" hidden, a setting can show it; Q65 admin sets the first building per person, else the last chosen on the device; Q66 \"turn off all\" only in the chosen building with its name on the button; Q67 a meter or schedule serving two buildings appears in each with a note; Q68 each lobby board belongs to a building with the building name in the greeting; Q69 order: safety (check before switch-on, floor move), then the home interface, then filtering and lobby.",
-      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/MULTI-BUILDING-SAFETY-2500 head d00aa3ede merged aebb29f94; pilot/MULTI-BUILDING-HOME-2500 head 63e7a7c02 merged f9c01d66a; pilot/MULTI-BUILDING-NEXT-2500 head d3c0dc171 merged 19310c147 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows in the owner's order (safety first): MULTI-BUILDING-SAFETY-2500 (floor move, check before switching on), MULTI-BUILDING-HOME-2500 (home interface and lobby boards; migration 0218), MULTI-BUILDING-NEXT-2500 (filtering, lobby audience, area-move signal). Follow-up in flight: pilot/MULTI-BUILDING-FILTER-2520 (card MULTI-BUILDING-FILTER-2520). Stays REVIEW, not DONE: AT-MULTI-BUILDING-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/MULTI-BUILDING-SAFETY-2500 head d00aa3ede merged aebb29f94; pilot/MULTI-BUILDING-HOME-2500 head 63e7a7c02 merged f9c01d66a; pilot/MULTI-BUILDING-NEXT-2500 head d3c0dc171 merged 19310c147 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows in the owner's order (safety first): MULTI-BUILDING-SAFETY-2500 (floor move, check before switching on), MULTI-BUILDING-HOME-2500 (home interface and lobby boards; migration 0218), MULTI-BUILDING-NEXT-2500 (filtering, lobby audience, area-move signal). Follow-up in flight: pilot/MULTI-BUILDING-FILTER-2520 (card MULTI-BUILDING-FILTER-2520). Stays REVIEW, not DONE: AT-MULTI-BUILDING-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-MULTI-BUILDING-NEXT-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "d3c0dc171",
@@ -28286,7 +28310,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q70-Q79, all recommended: Q70 rest screen on by default after 2 minutes (first touch only wakes); Q71 night mode fixed hours 23:00-06:00, changeable; Q72 no \"read\" on the shared wall screen, notice marked \"new\" for 48 hours; Q73 tablet night = dim the screen only; Q74 takeover for alarm and urgent notice (door call always first); Q75 scenes editable by whoever holds the scene-management permission; Q76 air-conditioner \"hold\" dropped; Q77 favourites by long-press drag on tablet, arrows stay; Q78 missing row keeps my order, gap filled with \"+ add\"; Q79 a suggestion dialog after a scene, confirmed with the usual code.",
-      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HOME-WALL-NIGHT-2500 head c0fb81e2e merged 35e15d450; pilot/HOME-FAVORITES-2500 head 7156c24ef merged 081aa9708; pilot/HOME-NEXT-2500 head 966557e10 merged d72ec0561 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows: HOME-WALL-NIGHT-2500 (rest screen, night mode dim only, screen takeover; Q70, Q71, Q73, Q74), HOME-FAVORITES-2500 (favourites order, holes, drag, scene suggestion, scene editing; Q75-Q79), HOME-NEXT-2500 (no 'read' on a shared wall panel, a notice is new for 48 hours; Q72; first merge 87dbf121a at 2b6711335, baselines 966557e10 at d72ec0561). HOME-NEXT-2500 has no change note of its own (its commits name one; none on main). Stays REVIEW, not DONE: AT-HOME-INTERFACE-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HOME-WALL-NIGHT-2500 head c0fb81e2e merged 35e15d450; pilot/HOME-FAVORITES-2500 head 7156c24ef merged 081aa9708; pilot/HOME-NEXT-2500 head 966557e10 merged d72ec0561 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows: HOME-WALL-NIGHT-2500 (rest screen, night mode dim only, screen takeover; Q70, Q71, Q73, Q74), HOME-FAVORITES-2500 (favourites order, holes, drag, scene suggestion, scene editing; Q75-Q79), HOME-NEXT-2500 (no 'read' on a shared wall panel, a notice is new for 48 hours; Q72; first merge 87dbf121a at 2b6711335, baselines 966557e10 at d72ec0561). HOME-NEXT-2500 has no change note of its own (its commits name one; none on main). Stays REVIEW, not DONE: AT-HOME-INTERFACE-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (device): every home-next / wall-night / favourites test passes at bdf28fc37 (unit-home-wall-night-2500 42, home-wall-night-2500 8, unit-home-next-2500 21, home-next-2500 21, pixel-home-next-2500 10, unit-home-favorites-2500 57, home-favorites-2500 9, test_home_scene_manage_2500 5, test_home_interface 29), but the change notes say the dim layer and the long-press drag were never tried on a real wall tablet; one tablet check closes it."
     ],
     "owner": null,
     "commit": "966557e10",
@@ -28350,7 +28375,7 @@
     "test_ids": [
       "AT-COLOR-LITERAL-A-2480-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28364,7 +28389,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q24 = yes, exclude the device palettes file; Q26 = YES, shared video text-shadow colour variable NOW (non-recommended; the recommendation was later). Branch pilot/COLOR-LITERAL-A-2480 exists (7 commits ahead of main 619f94d04).",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 76e1ad582); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-A-2480 head e4899b75d is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-A-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 76e1ad582); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-A-2480 head e4899b75d is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-A-2480-1 has no per-card PASS record (the gate run is not mapped to it).",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-COLOR-LITERAL-A-2480-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "e4899b75d",
@@ -28389,7 +28415,7 @@
     "test_ids": [
       "AT-COLOR-LITERAL-B-2480-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28403,7 +28429,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q25 = yes, skip them. Branch pilot/COLOR-LITERAL-B-2480 exists (9 commits ahead of main 619f94d04).",
-      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 9815fc5be); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-B-2480 head cc342daa4 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-B-2480-1 has no per-card PASS record (the gate run is not mapped to it)."
+      "2026-11-24 (MGMT-SYNC-2411): IN_PROGRESS -> REVIEW: shipped in v2.48.0 (main = tag v2.48.0 = d6f09395e, released 24.11; RELEASE-2480-TRAIN.md section 1, merge 9815fc5be); release gate run 3 PASS at 09acc2db4; lab install 2.48.0 + read-only probe PASS (private-evidence/lab-1611/lab_check_2480_HE.md). Branch pilot/COLOR-LITERAL-B-2480 head cc342daa4 is an ancestor of origin/main. Stays REVIEW: the card's own acceptance test AT-COLOR-LITERAL-B-2480-1 has no per-card PASS record (the gate run is not mapped to it).",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-COLOR-LITERAL-B-2480-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "cc342daa4",
@@ -28428,7 +28455,7 @@
     "test_ids": [
       "AT-I18N-DEFAULT-NAMES-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28443,7 +28470,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q15 = TRANSLATE at creation (non-recommended choice; the recommendation was to keep Hebrew) (N53). Branch line pilot/I18N-EN-2490 exists.",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 (server default names made in the creator's language); slot-B backend run of 47 files in 6 shards: 1361 passed (branch change note); not merged into origin/main, so not DONE.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 merged 2824cf8ac (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-DEFAULT-NAMES-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 merged 2824cf8ac (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-DEFAULT-NAMES-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-I18N-DEFAULT-NAMES-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "9b6c82cb3",
@@ -28468,7 +28496,7 @@
     "test_ids": [
       "AT-I18N-SETTINGS-KEYWORDS-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28483,7 +28511,8 @@
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q14 = add English keywords (N52).",
       "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 (English search keywords for the settings search); not merged into origin/main.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 merged 1ad146e8c (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-SETTINGS-KEYWORDS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 merged 1ad146e8c (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-SETTINGS-KEYWORDS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-I18N-SETTINGS-KEYWORDS-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "1df34dc24",
@@ -28585,7 +28614,7 @@
     "test_ids": [
       "AT-ADR019-STEP0-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28599,7 +28628,8 @@
     ],
     "evidence": [
       "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019a on branch pilot/ADR019-STEP0-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-STEP0-2500 head 7a4328642 merged 95331be30 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Step 0 plus Step 1 family 1 (change note docs/changes/ADR019-STEP0-2500.md). origin/pilot/ADR019-STEP0-2500 carries one later docs-only commit 4ad1ec7fd (runner verification 24.11) that is not on main. Stays REVIEW, not DONE: AT-ADR019-STEP0-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-STEP0-2500 head 7a4328642 merged 95331be30 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Step 0 plus Step 1 family 1 (change note docs/changes/ADR019-STEP0-2500.md). origin/pilot/ADR019-STEP0-2500 carries one later docs-only commit 4ad1ec7fd (runner verification 24.11) that is not on main. Stays REVIEW, not DONE: AT-ADR019-STEP0-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-ADR019-STEP0-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "7a4328642",
@@ -28624,7 +28654,7 @@
     "test_ids": [
       "AT-ADR019-L14-OBSERVE-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28638,7 +28668,8 @@
     ],
     "evidence": [
       "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019b on branch pilot/ADR019-L14-OBSERVE-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered. L14 steps run after Step 0 (ADR019-STEP0-2500) in parallel with the families.",
-      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-L14-OBSERVE-2500 head 4b2470ed9 merged d17391f37 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Observe mode only (RequestModel extra=ignore); the strict step is the in-flight local branch pilot/ADR019-L14-STRICT-F123-2520 (no commits at this sync). Stays REVIEW, not DONE: AT-ADR019-L14-OBSERVE-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-L14-OBSERVE-2500 head 4b2470ed9 merged d17391f37 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Observe mode only (RequestModel extra=ignore); the strict step is the in-flight local branch pilot/ADR019-L14-STRICT-F123-2520 (no commits at this sync). Stays REVIEW, not DONE: AT-ADR019-L14-OBSERVE-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-ADR019-L14-OBSERVE-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "4b2470ed9",
@@ -28663,7 +28694,7 @@
     "test_ids": [
       "AT-I18N-EN-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28676,7 +28707,8 @@
       "Branch pilot/I18N-EN-2490, change note docs/changes/I18N-EN-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-EN-2490 head d144aa612 merged d3911d6d8 (docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-EN-2490.md). Stays REVIEW, not DONE: AT-I18N-EN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-EN-2490 head d144aa612 merged d3911d6d8 (docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-EN-2490.md). Stays REVIEW, not DONE: AT-I18N-EN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-I18N-EN-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "d144aa612",
@@ -28701,7 +28733,7 @@
     "test_ids": [
       "AT-I18N-BACKEND-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28714,7 +28746,8 @@
       "Branch pilot/I18N-BACKEND-2490, change note docs/changes/I18N-BACKEND-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-BACKEND-2490 head bd8fad7b7 merged aa6361d55 (carries I18N-EN-2490; docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-BACKEND-2490.md). Stays REVIEW, not DONE: AT-I18N-BACKEND-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-BACKEND-2490 head bd8fad7b7 merged aa6361d55 (carries I18N-EN-2490; docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-BACKEND-2490.md). Stays REVIEW, not DONE: AT-I18N-BACKEND-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-I18N-BACKEND-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at f73c20728 (v2.49.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "bd8fad7b7",
@@ -28739,7 +28772,7 @@
     "test_ids": [
       "AT-NOTICE-WIRE-DRIFT-2490-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28752,7 +28785,8 @@
       "Branch pilot/NOTICE-WIRE-DRIFT-2490, change note docs/changes/NOTICE-WIRE-DRIFT-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-WIRE-DRIFT-2490 head fb7acbd8c merged 4e980289c (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-WIRE-DRIFT-2490.md). Stays REVIEW, not DONE: AT-NOTICE-WIRE-DRIFT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-WIRE-DRIFT-2490 head fb7acbd8c merged 4e980289c (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-WIRE-DRIFT-2490.md). Stays REVIEW, not DONE: AT-NOTICE-WIRE-DRIFT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-NOTICE-WIRE-DRIFT-2490-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "fb7acbd8c",
@@ -28777,7 +28811,7 @@
     "test_ids": [
       "AT-REVIEW-2490-FIXES-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28790,7 +28824,8 @@
       "Branch pilot/REVIEW-2490-FIXES-2500, change note docs/changes/REVIEW-2490-FIXES-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/REVIEW-2490-FIXES-2500 head 21e444071 merged 71a71a1c0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/REVIEW-2490-FIXES-2500.md). Stays REVIEW, not DONE: AT-REVIEW-2490-FIXES-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/REVIEW-2490-FIXES-2500 head 21e444071 merged 71a71a1c0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/REVIEW-2490-FIXES-2500.md). Stays REVIEW, not DONE: AT-REVIEW-2490-FIXES-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-REVIEW-2490-FIXES-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "21e444071",
@@ -28815,7 +28850,7 @@
     "test_ids": [
       "AT-ADR019-FAMILY2-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28828,7 +28863,8 @@
       "Branch pilot/ADR019-FAMILY2-2500, change note docs/changes/ADR019-FAMILY2-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-FAMILY2-2500 head 4488de48c merged a1be19272 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/ADR019-FAMILY2-2500.md). Stays REVIEW, not DONE: AT-ADR019-FAMILY2-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-FAMILY2-2500 head 4488de48c merged a1be19272 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/ADR019-FAMILY2-2500.md). Stays REVIEW, not DONE: AT-ADR019-FAMILY2-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-ADR019-FAMILY2-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "4488de48c",
@@ -28866,7 +28902,8 @@
       "Branch pilot/DOCS-GUIDE-REFRESH-2500, change note docs/changes/DOCS-GUIDE-REFRESH-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOCS-GUIDE-REFRESH-2500 head f0c7bcc2e merged 684715ed3 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOCS-GUIDE-REFRESH-2500.md). Stays REVIEW, not DONE: AT-DOCS-GUIDE-REFRESH-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOCS-GUIDE-REFRESH-2500 head f0c7bcc2e merged 684715ed3 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOCS-GUIDE-REFRESH-2500.md). Stays REVIEW, not DONE: AT-DOCS-GUIDE-REFRESH-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (owner): test_docs_config_consistency / test_extid_followups / test_bridge_key_activation_295 pass at bdf28fc37, but \"the guide covers 2.40-2.49\" is a content review and the guide screenshots were NOT_RUN; owner acceptance on evidence needed."
     ],
     "owner": null,
     "commit": "f0c7bcc2e",
@@ -28891,7 +28928,7 @@
     "test_ids": [
       "AT-DOOR-PREVIEW-I18N-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28904,7 +28941,8 @@
       "Branch pilot/DOOR-PREVIEW-I18N-2500, change note docs/changes/DOOR-PREVIEW-I18N-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOOR-PREVIEW-I18N-2500 head 8d512f1fd merged 93b28da97 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOOR-PREVIEW-I18N-2500.md). Stays REVIEW, not DONE: AT-DOOR-PREVIEW-I18N-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOOR-PREVIEW-I18N-2500 head 8d512f1fd merged 93b28da97 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOOR-PREVIEW-I18N-2500.md). Stays REVIEW, not DONE: AT-DOOR-PREVIEW-I18N-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-DOOR-PREVIEW-I18N-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "8d512f1fd",
@@ -28942,7 +28980,8 @@
       "Branch pilot/HAND-SWITCH-HOME-EDIT-2500, change note docs/changes/HAND-SWITCH-HOME-EDIT-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-EDIT-2500 head 2c019f37f merged 444dda163 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/HAND-SWITCH-HOME-EDIT-2500.md). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-EDIT-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-EDIT-2500 head 2c019f37f merged 444dda163 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/HAND-SWITCH-HOME-EDIT-2500.md). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-EDIT-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): stays REVIEW (runner): unit-hand-switch-home-edit-2500.spec.ts (source checks) passes at bdf28fc37, but evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-edit-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial."
     ],
     "owner": null,
     "commit": "2c019f37f",
@@ -28967,7 +29006,7 @@
     "test_ids": [
       "AT-NOTICE-NEWS-EMPTY-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28980,7 +29019,8 @@
       "Branch pilot/NOTICE-NEWS-EMPTY-2500, change note docs/changes/NOTICE-NEWS-EMPTY-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-EMPTY-2500 head 9cad89813 merged 60fc78e3d (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-NEWS-EMPTY-2500.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-EMPTY-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-EMPTY-2500 head 9cad89813 merged 60fc78e3d (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-NEWS-EMPTY-2500.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-EMPTY-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-NOTICE-NEWS-EMPTY-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "9cad89813",
@@ -29005,7 +29045,7 @@
     "test_ids": [
       "AT-NOTICE-NEWS-FEEDS-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29018,7 +29058,8 @@
       "Branch pilot/NOTICE-NEWS-FEEDS-2500, change note docs/changes/NOTICE-NEWS-FEEDS-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-FEEDS-2500 heads 0b08c1fe3 (merged cbc5951b1) and final 2f0dcfd7f (merged db8920a06) (docs/changes/RELEASE-2500-TRAIN.md section 1b, change note docs/changes/NOTICE-NEWS-FEEDS-2500.md). Lab: 4 sources x 6 items on the board after the 2.50.0 install (lab_check_2500_HE.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-FEEDS-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-FEEDS-2500 heads 0b08c1fe3 (merged cbc5951b1) and final 2f0dcfd7f (merged db8920a06) (docs/changes/RELEASE-2500-TRAIN.md section 1b, change note docs/changes/NOTICE-NEWS-FEEDS-2500.md). Lab: 4 sources x 6 items on the board after the 2.50.0 install (lab_check_2500_HE.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-FEEDS-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-NOTICE-NEWS-FEEDS-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at bdf28fc37 (v2.50.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "2f0dcfd7f",
@@ -29081,7 +29122,7 @@
     "test_ids": [
       "AT-DOOR-BLOCKS-I18N-2510-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29094,7 +29135,8 @@
       "Branch pilot/DOOR-BLOCKS-I18N-2510, change note docs/changes/DOOR-BLOCKS-I18N-2510.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-BLOCKS-I18N-2510 head 7b763b1b9 merged d91bd96a2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-BLOCKS-I18N-2510.md). Stays REVIEW, not DONE: AT-DOOR-BLOCKS-I18N-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-BLOCKS-I18N-2510 head 7b763b1b9 merged d91bd96a2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-BLOCKS-I18N-2510.md). Stays REVIEW, not DONE: AT-DOOR-BLOCKS-I18N-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-DOOR-BLOCKS-I18N-2510-1 PASS on released-gate evidence: the named tests passed in the release gate at df3ee6d12 (v2.51.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "7b763b1b9",
@@ -29119,7 +29161,7 @@
     "test_ids": [
       "AT-DOOR-WINDOW-TERM-2510-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29132,7 +29174,8 @@
       "Branch pilot/DOOR-WINDOW-TERM-2510, change note docs/changes/DOOR-WINDOW-TERM-2510.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-WINDOW-TERM-2510 head e813e20af merged 7f0f6e743 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-WINDOW-TERM-2510.md). Stays REVIEW, not DONE: AT-DOOR-WINDOW-TERM-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-WINDOW-TERM-2510 head e813e20af merged 7f0f6e743 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-WINDOW-TERM-2510.md). Stays REVIEW, not DONE: AT-DOOR-WINDOW-TERM-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-DOOR-WINDOW-TERM-2510-1 PASS on released-gate evidence: the named tests passed in the release gate at df3ee6d12 (v2.51.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "e813e20af",
@@ -29157,7 +29200,7 @@
     "test_ids": [
       "AT-ADR019-FAMILY3-2510-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29170,7 +29213,8 @@
       "Branch pilot/ADR019-FAMILY3-2510, change note docs/changes/ADR019-FAMILY3-2510.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/ADR019-FAMILY3-2510 head b9bd801f8 merged d422993d0 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/ADR019-FAMILY3-2510.md). Its own backend shards never ran on the row (the train's full backend covered it, RELEASE-2510-TRAIN.md section 1 row 6). Stays REVIEW, not DONE: AT-ADR019-FAMILY3-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/ADR019-FAMILY3-2510 head b9bd801f8 merged d422993d0 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/ADR019-FAMILY3-2510.md). Its own backend shards never ran on the row (the train's full backend covered it, RELEASE-2510-TRAIN.md section 1 row 6). Stays REVIEW, not DONE: AT-ADR019-FAMILY3-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-ADR019-FAMILY3-2510-1 PASS on released-gate evidence: the named tests passed in the release gate at df3ee6d12 (v2.51.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "b9bd801f8",
@@ -29195,7 +29239,7 @@
     "test_ids": [
       "AT-RESPONSE-MODELS-E-2500-1"
     ],
-    "status": "REVIEW",
+    "status": "DONE",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29208,7 +29252,8 @@
       "Branch pilot/RESPONSE-MODELS-E-2500, change note docs/changes/RESPONSE-MODELS-E-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/RESPONSE-MODELS-E-2500 head 69a33ab0d merged 874f7f0d2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/RESPONSE-MODELS-E-2500.md). Carries pilot/RESPONSE-MODELS-E-2480 (6bf65de99, left off the 2.48.0 and 2.49.0 trains, then 2.50.0) merged onto v2.48.0 at 841cda787. Stays REVIEW, not DONE: AT-RESPONSE-MODELS-E-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/RESPONSE-MODELS-E-2500 head 69a33ab0d merged 874f7f0d2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/RESPONSE-MODELS-E-2500.md). Carries pilot/RESPONSE-MODELS-E-2480 (6bf65de99, left off the 2.48.0 and 2.49.0 trains, then 2.50.0) merged onto v2.48.0 at 841cda787. Stays REVIEW, not DONE: AT-RESPONSE-MODELS-E-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep.",
+      "2026-11-25 (ACCEPT-SWEEP-2530): REVIEW -> DONE. Acceptance test(s) AT-RESPONSE-MODELS-E-2500-1 PASS on released-gate evidence: the named tests passed in the release gate at df3ee6d12 (v2.51.0), whose commit contains the card head; per-test results in the gate JSON / junit on the runner; receipt docs/changes/receipts/ACCEPT-SWEEP-2530.json; change note docs/changes/ACCEPT-SWEEP-2530.md. Card commit unchanged."
     ],
     "owner": null,
     "commit": "69a33ab0d",
