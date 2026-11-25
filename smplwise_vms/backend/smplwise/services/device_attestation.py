@@ -133,6 +133,39 @@ def parse_key_description(der: bytes) -> tuple[int, bytes]:
 _ANDROID_LEVEL = {0: "software", 1: "tee", 2: "strongbox"}
 
 
+def ca_path_problem(path: list[x509.Certificate]) -> str | None:
+    """SEC-FIX-2520 SEC-2 (DEEP-REVIEW-2520-SECURITY): the CA rules of an attestation path that a signature walk alone does not
+    enforce. `path` is leaf first and ends with the certificate the trust anchor stands for (the pinned root itself, or the top of
+    the chain when the root issued it - pass the root as the last element then). Every certificate ABOVE the leaf must be a CA:
+    BasicConstraints present with cA = TRUE, keyCertSign when a KeyUsage extension is present, and its pathLenConstraint not
+    exceeded by the non-self-issued intermediates below it (RFC 5280 4.2.1.9). The Android KeyDescription extension may stand on
+    the leaf only (Google's guidance): a chain that continues below a genuine Keystore key certificate - a software key certified
+    by a phone's end-entity key - is refused. Returns a short reason code, or None when the path keeps every rule."""
+    oid = x509.ObjectIdentifier(_KEY_DESCRIPTION_OID)
+    for i, cert in enumerate(path[1:], start=1):
+        try:
+            bc = cert.extensions.get_extension_for_class(x509.BasicConstraints).value
+        except x509.ExtensionNotFound:
+            return "chain_not_ca"
+        if not bc.ca:
+            return "chain_not_ca"
+        try:
+            if not cert.extensions.get_extension_for_class(x509.KeyUsage).value.key_cert_sign:
+                return "chain_not_ca"
+        except x509.ExtensionNotFound:
+            pass
+        if bc.path_length is not None:
+            below = sum(1 for c in path[1:i] if c.subject != c.issuer)  # self-issued intermediates do not count
+            if below > bc.path_length:
+                return "chain_path_length"
+        try:
+            cert.extensions.get_extension_for_oid(oid)
+            return "key_description_above_leaf"
+        except x509.ExtensionNotFound:
+            pass
+    return None
+
+
 def parse_roots(pem: str) -> list[x509.Certificate]:
     """Every certificate in a PEM bundle. Raises ValueError for text that holds none or an unreadable one."""
     blocks = re.findall(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", pem or "", flags=re.S)
@@ -171,8 +204,16 @@ class AndroidKeyAttestationVerifier:
         except (ValueError, TypeError, InvalidSignature, UnsupportedAlgorithm):
             return Verdict(FAILED, reason="chain_signature")
         top = chain[-1]
-        if not any(top == r for r in roots) and not self._issued_by_any(top, roots):
-            return Verdict(FAILED, reason="untrusted_root")
+        if any(top == r for r in roots):
+            anchor_path = chain
+        else:
+            root = self._issuer_among(top, roots)
+            if root is None:
+                return Verdict(FAILED, reason="untrusted_root")
+            anchor_path = chain + [root]
+        problem = ca_path_problem(anchor_path)  # SEC-FIX-2520 SEC-2: every certificate above the leaf is a CA
+        if problem is not None:
+            return Verdict(FAILED, reason=problem)
         leaf = chain[0]
         spki = leaf.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
         if spki != ctx.key_spki:
@@ -188,15 +229,14 @@ class AndroidKeyAttestationVerifier:
         return Verdict(VERIFIED, level=level) if level else Verdict(FAILED, reason="unknown_security_level")
 
     @staticmethod
-    def _issued_by_any(cert: x509.Certificate, roots: list[x509.Certificate]) -> bool:
+    def _issuer_among(cert: x509.Certificate, roots: list[x509.Certificate]) -> x509.Certificate | None:
         for r in roots:
             try:
                 cert.verify_directly_issued_by(r)
-                return True
+                return r
             except (ValueError, TypeError, InvalidSignature, UnsupportedAlgorithm):
                 continue
-        return False
-
+        return None
 
 class IosAppAttestVerifier:
     """Placeholder: iOS App Attest needs CBOR / attestation-object verification against Apple's App Attest root and the app id, which is a
