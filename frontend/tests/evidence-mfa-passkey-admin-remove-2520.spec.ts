@@ -153,7 +153,7 @@ test.describe('the administrator removes an Arx user\'s passkey through the rese
     await arm.locator('[data-reset-confirm-text]').fill('maria');
     const go = arm.locator('[data-local-passkey-remove-confirm]');
     await expect(go).toHaveAttribute('disabled', ''); // the own code is still missing
-    await arm.locator('[data-local-passkey-code]').fill('12a3456');
+    await arm.locator('[data-local-passkey-code]').fill('123456');
     await expect(go).not.toHaveAttribute('disabled', '');
     await go.click();
     await expect.poll(() => st.deletes.length).toBe(1);
