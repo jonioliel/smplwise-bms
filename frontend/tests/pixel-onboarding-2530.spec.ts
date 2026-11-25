@@ -25,6 +25,9 @@ async function compare(page: Page, name: string) {
     info.annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
     return;
   }
+  // RELEASE-2530-TRAIN: the interface build is the add-on version (vite __ARX_BUILD__ = config.yaml), so its text - and with it the width
+  // of the mask box - changed with every version bump (2.52.0 -> 2.53.0: 283 px). A fixed stand-in keeps the box the same size.
+  await page.locator('[data-version="ui"]').evaluateAll((els) => { for (const e of els) e.textContent = '0.0.0'; });
   await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', mask: [page.locator('[data-version="ui"]')] });
 }
 
