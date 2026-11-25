@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-25T17:25:31.103496+00:00
+Generated: 2026-11-25T18:08:24.452534+00:00
 
-Tasks: 703 | Requirements: 817 | Tests: 834 | Screens: 32
+Tasks: 707 | Requirements: 821 | Tests: 838 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 485
 - IN_PROGRESS: 4
-- REVIEW: 175
+- REVIEW: 179
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 608
+- V1: 612
 - V2: 29
 - V3: 3
 
@@ -758,3 +758,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [SCREENS-FIX-B-2520](tasks/SCREENS-FIX-B-2520.md) | V1 | REVIEW | High findings of the deep screens review (2.52) | — |
 | [OVERLAY-FADE-2520](tasks/OVERLAY-FADE-2520.md) | V1 | REVIEW | The overlays show their texts at full contrast from the first frame | — |
 | [BRIDGE-REPAIR-LEGACY-2520](tasks/BRIDGE-REPAIR-LEGACY-2520.md) | V1 | REVIEW | A bridge re-pair holds on every key-store format; the bridge's own services fenced | — |
+| [VIDEO-SECFIX-2520](tasks/VIDEO-SECFIX-2520.md) | V1 | REVIEW | go2rtc error frames never reach a viewer; NVR change detail and undo keep the camera scope | — |
+| [FE-SAFETY-FIX-2520](tasks/FE-SAFETY-FIX-2520.md) | V1 | REVIEW | Push subscriptions end with the sign-in; Enter confirms only on the confirm button | — |
+| [SCREENS-FIX-A-2520](tasks/SCREENS-FIX-A-2520.md) | V1 | REVIEW | The high findings of the deep screens review (SCR-01, SCR-06, SCR-07) | — |
+| [GATE-HARDEN-2520](tasks/GATE-HARDEN-2520.md) | V1 | REVIEW | Harden the release gate before the 2.52 gate | — |
