@@ -40,6 +40,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .. import __version__
 from ..config import Settings
 from ..db import MIGRATIONS_DIR, Database, get_setting
 from . import backup as svc
@@ -312,7 +313,12 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
         archive_schema = int(manifest.get("schema_version") or 0)
         run.check("archive_schema_supported", archive_schema <= code_schema, {"archive": archive_schema, "code": code_schema})
         carried = sorted({r.get("key") for r in archive_settings if isinstance(r, dict) and svc._kept_setting(r.get("key"))})
-        run.check("archive_without_kept_settings", not carried, {"carried": carried[:20]} if carried else None)
+        # SEC-FIX-2520 SEC-3: an archive written by an OLDER build may carry a key that was put on the keep list since (the restore
+        # ignores it); only an archive of this very build carrying one is an export fault
+        own_build = manifest.get("app_version") == __version__
+        run.check("archive_without_kept_settings", not carried,
+                  ({"carried": carried[:20]} | ({} if own_build else {"older_build": True})) if carried else None,
+                  severity="fail" if own_build else "warn")
         free = shutil.disk_usage(base).free
         run.check("disk_space", free >= needed, {"needed_bytes": needed, "free_bytes": free})
         run.timed("archive_check", t)
@@ -378,6 +384,8 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
                 else:
                     have = int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
                 want = int(n) - skipped
+                if table == "settings" and carried:  # SEC-FIX-2520 SEC-3: a kept key an (older) archive carries is never restored
+                    want -= sum(1 for r in archive_settings if isinstance(r, dict) and svc._kept_setting(r.get("key")))
                 ok = have == want or (table in AUTO_ROW_TABLES and want == 0 and have == AUTO_ROW_TABLES[table])
                 result["tables"][table] = {"archive": int(n), "restored": have, "skipped_unsafe": skipped, "ok": ok, "key": table in KEY_TABLES}
                 if not ok:

@@ -325,10 +325,25 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.owner_contacts", "bridge.watchdog", "
 # WXH4-EMERGENCY-REVOKE-2407: an emergency revocation of the bridge key is THIS box's security state - a restore can neither lift it (the
 # bridge operations stay blocked until the bridge proves the new code) nor invent one
 SETTINGS_KEEP = SETTINGS_KEEP | {"bridge.revocation"}
+# SEC-FIX-2520 SEC-3 (DEEP-REVIEW-2520-SECURITY): the older remote sign-in policy was not on this list, so every restore put the
+# archive's (older, possibly looser) values back: the second-factor policy and its bearer switch, the remote-access policy, the
+# administrators' MFA rule and default, the strict CSP, and the Arx-only identities' session / password / lockout rules.
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.second_factor_policy", "security.second_factor_bearer", "remote.policy", "remote.require_mfa_admin",
+                                 "remote.admins_default", "remote.csp_enforce", "remote.session",
+                                 "remote.idle_lock_minutes", "security.local_session", "security.local_admin_session_days",
+                                 "security.local_password_min", "security.local_lock_mode", "security.local_link_ttl_h",
+                                 "security.building_reach"}  # round 14: how far a building binding reaches (permission reach)
+# SEC-FIX-2520 SEC-3: the security and remote-access families are kept BY DEFAULT (fail closed): a `security.*` / `remote.*` key is
+# never exported and never restored unless it is named in SETTINGS_TRAVEL - presentation and resource preferences that hold no
+# sign-in or access rule. Every key of the families is classified by name in SETTINGS_KEEP or SETTINGS_TRAVEL
+# (tests/test_secfix_restore_settings_2520.py fails for a new key that is in neither).
+POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.")
+SETTINGS_TRAVEL = frozenset({"remote.default_profile", "remote.wall_profile", "remote.max_live_streams", "remote.mse_fallback"})
 
 
 def _kept_setting(key: Any) -> bool:
-    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES))
+    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES)
+                                     or (key.startswith(POLICY_PREFIXES) and key not in SETTINGS_TRAVEL))
 
 
 MAX_UPLOAD = 200 * 1024 * 1024
@@ -760,10 +775,13 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
-                    kept_keys = [*SETTINGS_KEEP, *keep_sensitive]
-                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(kept_keys))})"
-                                 + "".join(" AND substr(key, 1, ?) <> ?" for _ in SETTINGS_KEEP_PREFIXES),
-                                 [*kept_keys, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
+                    # one rule for what stays (_kept_setting: the keep list, its prefixes and the fail-closed policy families) plus the
+                    # sensitive settings the archive does not bring
+                    sensitive_kept = set(keep_sensitive)
+                    gone = [r[0] for r in conn.execute("SELECT key FROM settings").fetchall() if not _kept_setting(r[0]) and r[0] not in sensitive_kept]
+                    for i in range(0, len(gone), 400):
+                        part = gone[i:i + 400]
+                        conn.execute(f"DELETE FROM settings WHERE key IN ({', '.join('?' * len(part))})", part)
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
