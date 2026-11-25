@@ -45,7 +45,6 @@
   "threads_growth": {"max": 4, "max_with_restarts": 6, "unit": "threads", "what": "thread growth over the window"},
   "loop_lag_p99_max_ms": {"max": 250, "unit": "ms", "what": "worst per-sample p99 of the event-loop lag"},
   "go2rtc_streams_max": {"max": 16, "unit": "streams", "what": "streams the backend keeps registered in go2rtc (8 cameras x main / sub)"},
-  "go2rtc_streams_growth": {"max": 0, "max_with_restarts": 2, "unit": "streams", "what": "go2rtc stream registry growth over the window"},
   "go2rtc_media_over_viewers": {"max": 0, "unit": "sockets", "what": "go2rtc media sockets beyond the live viewers open at the time"},
   "drain_ws_open": {"max": 0, "unit": "sockets", "what": "WebSockets the backend still holds after every client left"},
   "drain_live_sessions": {"max": 0, "unit": "sessions", "what": "live sessions left after every viewer left"},

@@ -413,8 +413,9 @@ class LoadBudget(Soak):
                     self.guard(row, prev)
             return True
 
-        # phase 2: idle
+        # phase 2: idle (elapsed_s in samples.csv counts from here; the load phase restarts the clock)
         self.phase = "idle"
+        self.start_clock()
         ok = wait(a.idle_s)
         idle = self.backend_numbers()
         measured["rss_idle_mb"] = idle.get("rss_mb")
@@ -441,6 +442,8 @@ class LoadBudget(Soak):
         t_window = time.monotonic()
         if ok:
             self.phase = "measure"
+            if self.end_wall is not None:  # --until is the end of the measurement window itself
+                self.duration = max(60.0, self.end_wall - time.time())
             with self.metrics.lock:
                 self.metrics.collect = True
             ok = wait(max(0.0, self.duration))
