@@ -93,9 +93,24 @@ test('my account › security: a cancelled step-up keeps the key and says so; no
   await first.locator('[data-revoke-device-key]').click();
   await first.locator('[data-revoke-device-key]').click();
   const dialog = page.locator('sw-step-up-dialog');
+  // FLAKY-FIX-2520: the list is read again after the refused revoke, and that reload used to wipe the reason a moment after it
+  // appeared (the check below then passed only when it happened to look in between). Count the element's finished reloads, wait for
+  // the one after the cancel and its render, THEN the reason must still be shown.
+  const dk = sec.locator('sw-device-keys');
+  await dk.evaluate((el) => {
+    const e = el as HTMLElement & { load: () => Promise<void>; dataset: DOMStringMap };
+    const load = e.load.bind(e);
+    e.dataset.reloads = '0';
+    e.load = async () => {
+      await load();
+      e.dataset.reloads = String(Number(e.dataset.reloads) + 1);
+    };
+  });
   await dialog.locator('[data-step-up-cancel]').click();
-  await expect(sec.locator('[data-device-keys-error]')).toContainText('לאשר שוב את הזהות');
+  await expect(dk).toHaveAttribute('data-reloads', '1');
+  await dk.evaluate((el) => (el as HTMLElement & { updateComplete: Promise<boolean> }).updateComplete);
   await expect(sec.locator('sw-device-keys [data-device-key]')).toHaveCount(2);
+  await expect(sec.locator('[data-device-keys-error]')).toContainText('לאשר שוב את הזהות');
   expect(mock.calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
 });
 
