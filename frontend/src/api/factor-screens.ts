@@ -33,7 +33,7 @@ interface DeviceKeyBridge {
   sign(payload: string, text: string): Promise<{ signature?: string }>;
 }
 
-function deviceKeyBridge(): DeviceKeyBridge | null {
+export function deviceKeyBridge(): DeviceKeyBridge | null {
   if (typeof window === 'undefined' || window.top !== window) return null;
   const d = (window as unknown as { ArxApp?: { deviceKey?: Partial<DeviceKeyBridge> } }).ArxApp?.deviceKey;
   return d && typeof d.status === 'function' && typeof d.sign === 'function' ? (d as DeviceKeyBridge) : null;

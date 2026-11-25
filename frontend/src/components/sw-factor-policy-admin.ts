@@ -20,7 +20,7 @@ import { tr } from '../i18n/msg/mfa';
 
 /** The settings this tab edits (all through PATCH settings: system.configure, step-up gated, audited `settings.update`; the reset
  * channel additionally a system administrator only, with its own audit row `security.factor_reset_channel`). */
-const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.passkey_remote_factor', 'security.factor_reset_channel', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local'] as const;
+const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.passkey_remote_factor', 'security.factor_reset_channel', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local', 'security.push_approval', 'security.step_up_alarm_pin'] as const;
 type Key = (typeof KEYS)[number];
 type Values = Partial<Record<Key, string | number>>;
 
@@ -35,6 +35,8 @@ const FALLBACK: Record<Key, string | number> = {
   'security.step_up': 'off',
   'security.step_up_minutes': 5,
   'security.step_up_local': 'off',
+  'security.push_approval': 'off', // MFA-T095-REST-2530: off = no approval on the phone (the behaviour of before)
+  'security.step_up_alarm_pin': 'off', // MFA-T095-REST-2530: off = the alarm code does not answer a confirmation (the behaviour of before)
 };
 
 const POLICY_LABEL: Record<PolicyValue, () => string> = {
@@ -363,6 +365,8 @@ export class SwFactorPolicyAdmin extends LitElement {
     const on = String(this.value('security.step_up')) === 'on';
     const local = String(this.value('security.step_up_local')) === 'on';
     const minutes = Number(this.value('security.step_up_minutes'));
+    const push = String(this.value('security.push_approval')) === 'on';
+    const pin = String(this.value('security.step_up_alarm_pin')) === 'on';
     return html`<sw-card heading=${tr('אישור לפני שינויים רגישים')} subheading=${tr('כבוי כברירת מחדל: האימות הדו־שלבי נשאל רק בכניסה')} data-fp-step-up-card>
       <div class="row" data-fp-row="step-up"><span class="lbl">${tr('לבקש אישור לפני שינויים')}<span class="muted">${tr('לפני שינוי הגדרות, משתמשים או הרשאות, נטרול אזעקה ופתיחת דלת')}</span></span>
         <sw-toggle data-fp-step-up .checked=${on} ?disabled=${ro} label=${tr('לבקש אישור לפני שינויים')} labelHidden
@@ -373,6 +377,12 @@ export class SwFactorPolicyAdmin extends LitElement {
       <div class="row" data-fp-row="local"><span class="lbl">${tr('גם ברשת המקומית')}<span class="muted">${tr('כבוי: ברשת המקומית לא נשאלים, כדרך חזרה למערכת')}</span></span>
         <sw-toggle data-fp-step-up-local .checked=${local} ?disabled=${ro || !on} label=${tr('גם ברשת המקומית')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_local', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+      <div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted">${tr('ממסך אחר: הקלדת המספר שעל המסך באפליקציה, באישור מפתח הטלפון')}</span></span>
+        <sw-toggle data-fp-push .checked=${push} ?disabled=${ro || !on} label=${tr('אישור בטלפון')} labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.push_approval', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+      <div class="row" data-fp-row="alarm-pin"><span class="lbl">${tr('קוד האזעקה האישי כאישור')}<span class="muted">${tr('לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת')}</span></span>
+        <sw-toggle data-fp-alarm-pin .checked=${pin} ?disabled=${ro || !on} label=${tr('קוד האזעקה האישי כאישור')} labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_alarm_pin', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
       <div class="row" data-fp-row="mine"><span class="lbl">${tr('האישור שלך')}<span class="muted"><sw-step-up-status></sw-step-up-status></span></span></div>
     </sw-card>`;
   }

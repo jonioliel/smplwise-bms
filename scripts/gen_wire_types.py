@@ -102,6 +102,7 @@ FAMILIES_D: dict[str, tuple[str, tuple[str, ...]]] = {
     "CameraSuggest": ("wire-camera-suggest.ts", ("camera_suggest",)),
     "DeviceKeys": ("wire-device-keys.ts", ("device_keys",)),  # MFA-DEVICEKEY-2490
     "DeviceLayouts": ("wire-device-layouts.ts", ("device_layouts",)),
+    "PushApproval": ("wire-push-approval.ts", ("push_approval",)),  # MFA-T095-REST-2530
     "DoorAutomations": ("wire-door-automations.ts", ("door_automations",)),
     "Exports": ("wire-exports.ts", ("exports",)),
     "Fleet": ("wire-fleet.ts", ("fleet",)),

@@ -87,6 +87,15 @@ a door opens **"Confirm identity"**: the app code, a passkey, the phone key (in 
 again for the time the administrator set (5 minutes by default). Some actions ask **every time** ("valid for one change") - a recovery
 code is not accepted there. "Your confirmation" in "Security" shows until when you are confirmed.
 
+When the administrator also turned these on, the window has two more ways, each for **one action only**:
+
+- **"Approve on the phone"** - from a screen with no code or passkey (a computer, for example), when you have a phone key. The screen
+  shows a two-digit number; on the phone the app opens "Approval request": type the number and confirm with a fingerprint, face or the
+  screen lock. A wrong number or **"Not me - deny"** denies the request, and a new one can be sent only after a few minutes. If you did
+  not ask for it - deny it.
+- **Your personal alarm code** - for disarming the alarm and bypassing a zone only. Wrong codes count towards the same lockout as the
+  alarm code on the alarm screen.
+
 ## How do I... (system administrator)
 
 All second-factor settings live in Settings > **Users and permissions** > tab **Two-step verification** ("אימות דו־שלבי"). Visible
@@ -101,8 +110,12 @@ Card **"Confirm before sensitive changes"**:
 | **Ask for confirmation before changes** | on / off | **off** (sign-in only) |
 | **Confirmation lasts (minutes)** | 0 to 30; 0 = every change | 5 |
 | **On the local network too** | on / off | off - the local network stays the way back into the system |
+| **Approve on the phone** | on / off | off - when on, another screen can be approved on the phone with the phone key (typing the on-screen number) |
+| **Personal alarm code as confirmation** | on / off | off - when on, the personal code confirms one alarm disarm or zone bypass |
 
-- It applies only to users with a method (code, passkey or phone key). Users without one are not asked.
+- It applies only to users with a method (code, passkey or phone key). Users without one are not asked. With **Personal alarm code as
+  confirmation** on, a user with a personal alarm code is asked for it before disarming or bypassing a zone (and only there).
+- Phone approval and the alarm code **never** confirm the every-time actions (below) nor adding or removing sign-in methods.
 - A long-lived token from outside is never asked (owner decision; such tokens can be refused on the policy card).
 - **Always, even with the switch off,** confirmed every time: resetting another user's methods, revealing the bridge-key code, and an
   administrator removing another Arx user's passkey. **With the switch on** also: granting the system administrator role, and restoring
