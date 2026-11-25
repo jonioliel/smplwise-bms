@@ -103,7 +103,7 @@ function view(lang: Lang, over: View = {}): View {
   };
 }
 
-interface Served { view: View | null; calls: { method: string; path: string; body: unknown }[] }
+interface Served { view: View | null; calls: { method: string; path: string; body: unknown }[]; /** SCR-05: writes fail as with no reception */ down?: boolean }
 
 async function serve(page: Page, v: View | null): Promise<Served> {
   const s: Served = { view: v, calls: [] };
@@ -119,6 +119,7 @@ async function serve(page: Page, v: View | null): Promise<Served> {
       body = null;
     }
     s.calls.push({ method: req.method(), path: p, body });
+    if (s.down && req.method() === 'POST' && p.startsWith('/t/api/')) return route.abort('internetdisconnected');
     if (p.startsWith('/t/assets/')) {
       const file = path.join(BUNDLE, 'assets', path.basename(p));
       if (!fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
@@ -263,6 +264,57 @@ test.describe('the handler page (slice 4)', () => {
       await expect(page.locator('[data-state-title="unavailableTitle"]')).toBeVisible();
       await shot(page, `public-unavailable-${lang}`);
     }
+  });
+
+  test('SCR-05: back online, an unsent draft stays a draft; only a pressed "send" goes out, shown as waiting with a cancel', async ({ page }) => {
+    const s = await open(page, view('he'));
+    const posts = () => s.calls.filter((c) => c.method === 'POST' && c.path.startsWith('/t/api/'));
+    const online = () => page.evaluate(() => window.dispatchEvent(new Event('online')));
+    // a chip and a half-typed note, then the reception drops and comes back: nothing is posted
+    await page.locator('[data-status-choice="done"]').click();
+    await page.locator('[data-note]').fill('החלפתי את המדח');
+    await online();
+    await page.waitForTimeout(300);
+    expect(posts(), 'a draft is never sent without "send"').toEqual([]);
+    await expect(page.locator('[data-queued]')).toHaveCount(0);
+    // "send" pressed with no reception: waiting to send, with a cancel
+    s.down = true;
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-queued]')).toBeVisible();
+    await expect(page.locator('[data-queued]')).toContainText('ממתין לשליחה');
+    await shot(page, 'public-queued-he');
+    // cancel: nothing goes out when the phone is back online, the draft stays
+    await page.locator('[data-queued-cancel]').click();
+    await expect(page.locator('[data-queued]')).toHaveCount(0);
+    s.down = false;
+    const before = posts().length;
+    await online();
+    await page.waitForTimeout(300);
+    expect(posts().length, 'a cancelled send stays unsent').toBe(before);
+    await expect(page.locator('[data-note]')).toHaveValue('החלפתי את המדח');
+    // pressed again offline, then a letter typed: a draft again (the edited text was never pressed)
+    s.down = true;
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-queued]')).toBeVisible();
+    await page.locator('[data-note]').fill('החלפתי את המדחס');
+    await expect(page.locator('[data-queued]')).toHaveCount(0);
+    s.down = false;
+    const before2 = posts().length;
+    await online();
+    await page.waitForTimeout(300);
+    expect(posts().length, 'an edited draft waits for "send"').toBe(before2);
+    // pressed offline and left alone: back online it goes out by itself, with the request id of the press
+    s.down = true;
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-queued]')).toBeVisible();
+    const pressedId = (posts().at(-1)?.body as { client_request_id?: string })?.client_request_id;
+    s.down = false;
+    await online();
+    await expect(page.locator('[data-banner="sent"]')).toBeVisible();
+    await expect(page.locator('[data-queued]')).toHaveCount(0);
+    const sent = posts().at(-1);
+    expect(sent?.path).toBe('/t/api/status');
+    expect(sent?.body).toMatchObject({ status: 'done', note: 'החלפתי את המדחס', client_request_id: pressedId });
   });
 
   test('"not mine" asks for a reason, then confirms from the answer and forgets the link', async ({ page }) => {

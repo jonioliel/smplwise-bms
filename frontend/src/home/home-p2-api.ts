@@ -30,6 +30,9 @@ export interface Calendar { id: string; name: string; type: 'room' | 'team' | 'm
 export interface Occurrence {
   occurrence_id: string; event_id: string; calendar_id: string; room_calendar_ids: string[]; start: string; end: string; state: string; kind: string;
   title: string | null; organizer: { id: string; name: string } | null; revision: string; all_day: boolean;
+  /** SCR-04: one date of a series (every date is its own row with the SAME event_id) and that date's key, the LOCAL start in the
+   * calendar's zone (`YYYY-MM-DDTHH:MM`) - what the server's occurrence cancel expects (services/calendar/events.py `_scope`) */
+  recurring?: boolean; local_start?: string;
 }
 export interface RoomDay {
   calendar_id: string; name: string; capacity: number | null; open: { from: string; to: string }[]; entries: Occurrence[];
@@ -43,8 +46,20 @@ export const roomsDay = (date: string) => get<{ rooms: RoomDay[]; building_filte
 export const myCalendar = (from: string, to: string) => get<{ occurrences: Occurrence[]; pending: { event_id: string; title: string; start: string; end: string; calendar_id: string }[] }>(`me/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const createEvent = (body: { calendar_id: string; kind: 'event' | 'booking'; title: string; start: string; end: string }) =>
   post<{ event: { id: string }; state: string }>('calendar/events', body);
-export const cancelEvent = (id: string, state: string, revision?: string) =>
-  post<unknown>(`calendar/events/${encodeURIComponent(id)}/${state === 'pending' ? 'withdraw' : 'cancel'}`, revision ? { revision } : {});
+export const cancelEvent = (id: string, state: string, revision?: string, occurrenceStart?: string | null) =>
+  post<unknown>(`calendar/events/${encodeURIComponent(id)}/${state === 'pending' ? 'withdraw' : 'cancel'}`, cancelBody(state, revision, occurrenceStart));
+
+/** SCR-04: the cancel body - one date of a series names its local key (scope "occurrence", as the full interface sends it); without a
+ * key the server's default is the whole series, so only an explicit "the whole series" choice may send none. A withdrawal is the request. */
+export function cancelBody(state: string, revision?: string, occurrenceStart?: string | null): Record<string, unknown> {
+  const body: Record<string, unknown> = revision ? { revision } : {};
+  if (state !== 'pending' && occurrenceStart) Object.assign(body, { scope: 'occurrence', occurrence_start: occurrenceStart });
+  return body;
+}
+
+/** SCR-04: the key of one date of a series this row may cancel alone, or null (a single booking, or no usable key). */
+export const occurrenceKey = (o: Pick<Occurrence, 'recurring' | 'local_start'>): string | null =>
+  o.recurring && o.local_start && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.local_start) ? o.local_start : null;
 
 // ---------------------------------------------------------------- notice board and buses
 export interface Notice {

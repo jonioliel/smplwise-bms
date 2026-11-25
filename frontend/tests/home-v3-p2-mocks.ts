@@ -21,6 +21,15 @@ export interface P2Opts {
   policy?: Record<string, unknown>;
   /** HOME-WALL-NIGHT-2500: permissions added to the family set (e.g. alarm.view for the wall panel's alarm takeover) */
   perms?: string[];
+  /** SCR-04: "my bookings" is three dates of ONE weekly series (the same event_id, each its own occurrence id and local key) */
+  series?: boolean;
+}
+
+/** SCR-04: the server's key of one date - the local wall clock (`YYYY-MM-DDTHH:MM`) in the installation zone the specs run in. */
+export function localKey(isoUtc: string, zone = 'Asia/Jerusalem'): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(isoUtc)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 export const FEATURES = {
@@ -63,7 +72,11 @@ export async function mockP2(page: Page, o: P2Opts = {}): Promise<HomeMock> {
     { calendar_id: 'room-club', name: 'מועדון דיירים', capacity: 20, open: [{ from: '08:00', to: '22:00' }], entries: [] },
     { calendar_id: 'room-roof', name: 'פינת מנגל בגג', capacity: 12, open: [{ from: '08:00', to: '22:00' }], entries: [{ ...ev('b0', 'room-roof', 'תפוס', -30, 120), title: null }] },
   ] }));
-  await page.route('**/api/v1/me/calendar?**', (r) => json(r, { occurrences: o.empty ? [] : [{ ...ev('b1', 'room-club', 'הזמנה', 3 * 24 * 60, 180) }], pending: o.empty ? [] : [{ event_id: 'b2', title: 'הזמנה', start: at(9 * 24 * 60), end: at(9 * 24 * 60 + 180), calendar_id: 'room-roof' }] }));
+  const seriesDates = [1, 8, 15].map((d) => {
+    const e = ev('s1', 'room-club', 'הזמנה', d * 24 * 60, 120);
+    return { ...e, occurrence_id: `s1@${localKey(e.start)}@room-club`, recurring: true, local_start: localKey(e.start) };
+  });
+  await page.route('**/api/v1/me/calendar?**', (r) => o.series ? json(r, { occurrences: seriesDates, pending: [] }) : json(r, { occurrences: o.empty ? [] : [{ ...ev('b1', 'room-club', 'הזמנה', 3 * 24 * 60, 180) }], pending: o.empty ? [] : [{ event_id: 'b2', title: 'הזמנה', start: at(9 * 24 * 60), end: at(9 * 24 * 60 + 180), calendar_id: 'room-roof' }] }));
   await page.route('**/api/v1/calendar/events', (r) => { rec(r); return json(r, { event: { id: 'new1' }, state: (r.request().postDataJSON() as { kind: string }).kind === 'booking' ? 'pending' : 'confirmed' }, 201); });
   await page.route('**/api/v1/calendar/events/*/cancel', (r) => { rec(r); return json(r, {}); });
   await page.route('**/api/v1/calendar/events/*/withdraw', (r) => { rec(r); return json(r, {}); });

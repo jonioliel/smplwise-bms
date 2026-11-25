@@ -971,6 +971,15 @@ body {
   color: var(--sw-text-2);
 }
 
+/* SCR-05: "waiting to send" with its cancel on one line (wraps on a narrow phone) */
+.banner.queued {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 0;
+}
+
 .field-error {
   color: var(--sw-danger);
   font-size: var(--sw-fs-sm);

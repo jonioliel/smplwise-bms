@@ -25,6 +25,12 @@ function at(dayOffset: number, hhmm: string): string {
   d.setHours(h, m, 0, 0);
   return d.toISOString();
 }
+/** SCR-03: the same day / time as the server's occurrence key (`YYYY-MM-DDTHH:MM`, the installation's local wall clock). */
+function localKeyAt(dayOffset: number, hhmm: string): string {
+  const d = new Date(at(dayOffset, hhmm));
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
 const P = (id: string, name: string) => ({ id, name });
 const OPEN = (start: string, end: string) => ({ weekdays: [1, 2, 3, 4, 5, 6, 7], start, end });
 /** CALCONNECT-2330: the credential flags of a demo connection (the server never answers a value either). */
@@ -211,7 +217,7 @@ function addResident(s: Store, mode: string): void {
     row('res1', 'hall', 0, '17:00', '19:00', mode === 'worst' ? 'מסיבת יום הולדת 40 + מפגש מחזור י״ב 2006 של תיכון הדקל (כולל הורים וילדים)' : 'יום הולדת לנועם', 'pending', { contested: true }),
     row('res2', 'kitchen', 1, '10:00', '12:00', 'סדנת בישול', 'displaced'),
     row('res3', 'class2', 0, '19:30', '20:30', 'חוג ציור', 'confirmed'),
-    row('res4', 'brosh', 5, '18:00', '19:00', 'שיעור פרטי', 'confirmed', { recurring: true }),
+    row('res4', 'brosh', 5, '18:00', '19:00', 'שיעור פרטי', 'confirmed', { recurring: true, local_start: localKeyAt(5, '18:00') }),
   );
 }
 
@@ -363,9 +369,13 @@ export const demoCalendars: CalendarsApi = {
     if (!o) throw new ApiError(404, { code: 'not_found', user_message: 'האירוע לא נמצא.', retryable: false, correlation_id: 'demo', details: {} });
     return { event: eventOf(o) };
   }),
-  cancelEvent: async (id) => {
+  cancelEvent: async (id, _revision, occurrenceStart) => {
     const s = st();
-    const o = s.occ.find((x) => x.event_id === id && !x.held_slot);
+    // SCR-03: like the server (services/calendar/events.py `_scope`): one date of a series is named by its LOCAL key, a UTC instant is refused
+    if (occurrenceStart !== undefined && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(occurrenceStart)) {
+      throw demoErr(422, 'validation_failed', 'occurrence_start: local YYYY-MM-DDTHH:MM');
+    }
+    const o = s.occ.find((x) => x.event_id === id && !x.held_slot && (occurrenceStart === undefined || !x.local_start || x.local_start === occurrenceStart));
     if (o) {
       prevState[id] = o.state;
       o.state = 'cancelled';

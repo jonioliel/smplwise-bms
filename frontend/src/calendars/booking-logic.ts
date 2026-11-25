@@ -45,6 +45,11 @@ export function firstFree(rooms: Pick<RoomDay, 'calendar_id' | 'open' | 'entries
 }
 
 export const BEHALF_LABEL: Record<OnBehalfKind, string> = { self: tr('אני'), team: tr('צוות'), class: tr('חוג'), customer: tr('לקוח'), department: tr('מחלקה'), vendor: tr('ספק') };
+/** SCR-03: the server's key of ONE date of a series - the LOCAL start in the calendar's zone (`YYYY-MM-DDTHH:MM`, services/calendar/events.py
+ * `_scope`), never the UTC instant `start`; null for a single entry or a row without a usable key (then only the whole series can be cancelled). */
+export function occurrenceKey(o: Pick<Occurrence, 'recurring' | 'local_start'>): string | null {
+  return o.recurring && o.local_start && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.local_start) ? o.local_start : null;
+}
 export type Repeat = 'none' | 'daily' | 'weekly';
 
 /** The recurrence rule of the drawer's three choices (contract section 4: RFC 5545 RRULE, COUNT-bounded here). */

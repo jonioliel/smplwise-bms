@@ -96,6 +96,32 @@ test.describe('HOME-V3-P2-2431 family and building', () => {
     await expect.poll(() => m.calls.some((c) => /calendar\/events\/[^/]+\/(cancel|withdraw)$/.test(c.path))).toBe(true);
   });
 
+  test('SCR-04: one date of a series cancels only that date and the dialog names it; the whole series only when chosen', async ({ page }) => {
+    const m = await open(page, 'calendar/book', { series: true });
+    const rows = home(page).locator('[data-act="p2BookDel"]');
+    await expect(rows).toHaveCount(3);
+    const third = await rows.nth(2).getAttribute('data-oid');
+    expect(third, 'a row is one date: keyed by its occurrence id').toMatch(/^s1@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}@room-club$/);
+    const thirdWhen = (await home(page).locator('.bkm .at .muted').nth(2).textContent())!.split(' ' + 'עד')[0].trim();
+    await rows.nth(2).click();
+    const sheet = home(page).locator('[data-sheet="bookDel"]');
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('[data-bookdel-when]'), 'the dialog names the date that was tapped').toContainText(thirdWhen);
+    await expect(sheet.locator('[data-act="askYes"]')).toHaveCount(0);
+    await sheet.locator('[data-act="p2BookDelGo"][data-v="one"]').click();
+    await expect.poll(() => m.calls.filter((c) => /calendar\/events\/s1\/cancel$/.test(c.path)).length).toBe(1);
+    const key = third!.split('@')[1];
+    expect(m.calls.find((c) => /calendar\/events\/s1\/cancel$/.test(c.path))!.body).toMatchObject({ scope: 'occurrence', occurrence_start: key });
+    // the whole series: only as its own explicit choice (no occurrence key = the server's series default)
+    await rows.nth(0).click();
+    await home(page).locator('[data-sheet="bookDel"] [data-act="p2BookDelGo"][data-v="series"]').click();
+    await expect.poll(() => m.calls.filter((c) => /calendar\/events\/s1\/cancel$/.test(c.path)).length).toBe(2);
+    const series = m.calls.filter((c) => /calendar\/events\/s1\/cancel$/.test(c.path))[1].body as Record<string, unknown>;
+    expect(series.scope).toBeUndefined();
+    expect(series.occurrence_start).toBeUndefined();
+    expect(await overflow(page)).toEqual([]);
+  });
+
   test('notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet', async ({ page }) => {
     const m = await open(page, 'notices', { worst: true });
     await expect(home(page).locator('.transit')).toContainText('קו 18');
