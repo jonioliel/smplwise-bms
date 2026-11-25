@@ -207,10 +207,11 @@ export class InfraTemperature extends LitElement {
     .toast {
       position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 20px); inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw;
       background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
-      /* POLISH136: the toast rises in instead of popping (token duration: zero under reduced motion) */
-      opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease);
+      /* POLISH136: the toast rises in instead of popping (token duration: zero under reduced motion). STARTING-STYLE-AUDIT-2520 (the
+         FLAKY-FIX-2520 rule of sw-dialog): by transform only - an opacity fade put its text below contrast; full contrast from the first frame */
+      opacity: 1; transform: translateY(0); transition: transform var(--sw-t-med) var(--sw-ease);
     }
-    @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
+    @starting-style { .toast { transform: translateY(8px); } }
     /* POLISH136: the header actions and the add card answer a press like every other control on the page */
     .meta .btn, .hand .btn, .add { transition: border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
     .meta .btn:active, .hand .btn:active { transform: scale(0.97); }

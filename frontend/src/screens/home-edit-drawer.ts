@@ -98,16 +98,15 @@ export const HOME_DRAWER_CSS = css`
     overflow: hidden;
     opacity: 1;
     transform: none;
-    transition:
-      opacity var(--sw-t-sheet) var(--sw-ease-out),
-      transform var(--sw-t-sheet) var(--sw-ease-out);
+    /* STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): the drawer slides in by transform only - it holds the editor's
+       texts, and an opacity fade put them below contrast for the length of the fade; full contrast from the first frame */
+    transition: transform var(--sw-t-sheet) var(--sw-ease-out);
   }
   .he-drawer[hidden] {
     display: none;
   }
   @starting-style {
     .he-drawer {
-      opacity: 0;
       transform: translateX(var(--he-from, 12px));
     }
   }
@@ -301,7 +300,6 @@ export const HOME_DRAWER_CSS = css`
     }
     @starting-style {
       .he-drawer {
-        opacity: 0;
         transform: translateY(16px);
       }
     }
@@ -336,9 +334,10 @@ export const HOME_DRAWER_CSS = css`
       padding-block-end: max(var(--sw-s-3), env(safe-area-inset-bottom, 0px));
     }
   }
+  /* reduced motion: no travel (and, since STARTING-STYLE-AUDIT-2520, no fade either - the drawer is simply there) */
   @media (prefers-reduced-motion: reduce) {
     .he-drawer {
-      transition: opacity var(--sw-t-sheet) var(--sw-ease-out);
+      transition: none;
     }
     @starting-style {
       .he-drawer {

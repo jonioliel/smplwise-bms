@@ -32,14 +32,16 @@ export const mappingAssistantStyles = css`
       grid-template-rows: auto minmax(0, 1fr) auto;
       overflow: hidden;
     }
+    /* STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): the assistant lands by transform only - it is a work surface full
+       of text, and an opacity fade put all of it below contrast for the length of the fade; full contrast from the first frame. The
+       starting style comes AFTER the rules of .sheet (a starting style only wins over the rules before it). */
+    .sheet {
+      transition: transform 220ms var(--sw-ease-out, ease-out);
+    }
     @starting-style {
       .sheet {
-        opacity: 0;
         transform: scale(0.98) translateY(8px);
       }
-    }
-    .sheet {
-      transition: opacity 220ms var(--sw-ease-out, ease-out), transform 220ms var(--sw-ease-out, ease-out);
     }
     header {
       display: flex;
