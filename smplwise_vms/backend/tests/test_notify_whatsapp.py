@@ -351,6 +351,9 @@ def test_opt_out_after_planning_is_honoured_before_the_send(w):
 
 # ---------------------------------------------------------------- quiet hours, de-duplication, the per-user cap
 
+# GATE-HARDEN-2520 (TR-11): the window 00:00-23:59 leaves 23:59 local outside it (`start <= hm < end`), so on the wall clock these
+# tests failed for one minute a day; the notification clock (notify.now_utc) is pinned to daytime (conftest.daytime_clock)
+@pytest.mark.usefixtures("daytime_clock")
 def test_quiet_hours_hold_non_critical_and_pass_critical(w, monkeypatch):
     w.ready()
     w.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}})
@@ -882,6 +885,9 @@ def test_snoozed_while_held_is_not_sent(w):
     assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "snoozed")]
 
 
+# GATE-HARDEN-2520 (TR-11): the window 00:00-23:59 leaves 23:59 local outside it (`start <= hm < end`), so on the wall clock these
+# tests failed for one minute a day; the notification clock (notify.now_utc) is pinned to daytime (conftest.daytime_clock)
+@pytest.mark.usefixtures("daytime_clock")
 def test_quiet_hours_starting_while_held_hold_it(w):
     nid = _held_second(w)
     w.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}})
@@ -889,6 +895,9 @@ def test_quiet_hours_starting_while_held_hold_it(w):
     assert [(r["status"], r["reason"]) for r in w.rows(nid)] == [("skipped", "quiet_hours")]
 
 
+# GATE-HARDEN-2520 (TR-11): the window 00:00-23:59 leaves 23:59 local outside it (`start <= hm < end`), so on the wall clock these
+# tests failed for one minute a day; the notification clock (notify.now_utc) is pinned to daytime (conftest.daytime_clock)
+@pytest.mark.usefixtures("daytime_clock")
 def test_critical_passes_quiet_hours_at_plan_and_at_send(w):
     w.ready()
     w.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}})

@@ -278,9 +278,19 @@ def test_the_machine_mark_reaches_the_wall_and_the_close_rule_is_served(world):
     assert got["announcement"]["texts"] == [{"language": "he", "text": "לקבלה"}, {"language": "ru", "text": "На ресепшн", "machine": True}]
 
 
+def _quiet_around(now: dt.datetime) -> tuple[str, str]:
+    """GATE-HARDEN-2520 (TR-11): a quiet window that surely holds the test clock - two hours either side of it in the installation
+    zone (it may cross midnight). The fixed 00:00-23:59 left 23:59 local outside the window (`start <= hm < end`)."""
+    from zoneinfo import ZoneInfo
+
+    loc = now.astimezone(ZoneInfo("Asia/Jerusalem"))
+    return (loc - dt.timedelta(hours=2)).strftime("%H:%M"), (loc + dt.timedelta(hours=2)).strftime("%H:%M")
+
+
 def test_a_held_announcement_keeps_its_machine_mark_when_released(world):
     w = world
-    enable(w, quiet={"enabled": True, "from": "00:00", "to": "23:59", "mode": "queue"})
+    qf, qt = _quiet_around(w.clock["now"])
+    enable(w, quiet={"enabled": True, "from": qf, "to": qt, "mode": "queue"})
     advance(w)
     r = w.c.post(API, json={"scope": "all", "ref": "*", "texts": [{"language": "he", "text": "לילה"}, {"language": "en", "text": "Night", "machine": True}]})
     assert r.status_code == 200 and r.json()["status"] == "queued"

@@ -15,6 +15,33 @@ Files (keep them together in one directory, the runner convention is `~/`):
 
 ## Install / update
 
+**Since GATE-HARDEN-2520: one installer and a drift check.** Install the engine from a checkout of the commit you mean to gate
+(on the runner; idle runner only - the installer refuses while `gate_status.json` / the nightly's / `entry_status.json` say running
+or a `release_gate` / `nightly_tests` / `branch_check.sh` process exists):
+
+```
+python3 <checkout>/scripts/gate/engine_sync.py install --src <checkout>                       # dry run: what would be copied where
+python3 <checkout>/scripts/gate/engine_sync.py install --src <checkout> --apply --suffix .bak_DDMM
+```
+
+The default set is the engine group: `release_gate.py` to `~/`, `~/gate2/` and `~/nightly-gate/`; `release_gate2.sh` and
+`engine_sync.py` to `~/gate2/` (`engine_sync.py` also to `~/`); `selftest_gate.py` to `~/`. `--files a,b` installs other mapped files
+(the map is `INSTALL_MAP` in the script). Every replaced file is backed up once as `<file><suffix>` (an existing backup is kept), the
+copy is atomic, and `~/gate_install_manifest.json` records the source commit and the sha256 of every installed file.
+
+`release_gate2.sh` runs `engine_sync.py check` right after its fetch, before anything else: the sha256 of `~/release_gate.py` and
+`~/gate2/release_gate.py` must equal `scripts/gate/release_gate.py` of `origin/<branch>`, or the gate is REFUSED (exit 2, nothing run).
+A deliberate pin: `--engine-drift-ok "<reason>"` (or `GATE2_ENGINE_DRIFT_OK`), written into `gate_<b>_<sha>.engine.json`. The other
+gate-2 files (`gate2_select.py`, `gate2_verdict.py`, `gate_entry.py`, ...) are compared too and reported loudly, never refused.
+The nightly writes the same record for `~/nightly-gate/` (warn only: main can be older than an engine installed ahead of its release),
+and every report's JSON carries `engine_sha256`. Self-test: `python3 scripts/gate/selftest_engine_sync.py`.
+
+**`~/known_issues.json` (TR-06):** an entry explains a failure only with a non-empty `ticket` and an `expires` date (YYYY-MM-DD) from
+today to at most `GATE_KNOWN_MAX_DAYS` (7) days ahead - the quarantine rule. Other entries are refused, listed in the report (`known_refused`)
+and their failures count as FAIL.
+
+The manual copies below remain valid for files outside the map.
+
 Never while a gate is running (`~/smplwise-results/gate_status.json` must show a finished state).
 
 ```

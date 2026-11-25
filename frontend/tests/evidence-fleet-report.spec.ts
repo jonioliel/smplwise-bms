@@ -37,6 +37,9 @@ test.describe('fleet report evidence', () => {
   });
 
   test('the four pages, light and dark, with the answer, the switch and the send button on the first screen', async ({ page }) => {
+    // GATE-HARDEN-2520 (TR-03): thirteen page loads and ten full-page captures - about 22 s on desktop when the runner is quiet; the
+    // phone run passed the 60 s default only with room to spare and timed out twice in the loaded 25.11 nightly (a budget, not a defect)
+    test.setTimeout(180_000);
     const scenes = [
       ['on', 'on', 'הדיווח פועל ותקין'], ['off', 'off', 'הדיווח כבוי'], ['nourl', 'nourl', 'הדיווח דולק, אבל עדיין לא נשלח'],
       ['failed', 'failed', 'השליחה האחרונה נכשלה'], ['first', 'on', 'הדיווח פועל, מחכה לדוח הראשון'],

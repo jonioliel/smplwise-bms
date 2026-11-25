@@ -6,6 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const HOME = '/?design=a&home_info=cards#/devices/building'; // POLISH-295: the cards (the product default is the thin header bar)
 const W = 'devices-building home-widgets';
+const DEMO_SENSOR_DATE = 'ג׳ בחשוון התשפ״ז'; // the static demo's Hebrew-date sensor (screens/home-demo.ts): a fixed text
 
 /** Load the page on the fake clock (a cold dev server can take longer than any fixed pause time), then put the wall clock at `startAt` and
  * freeze it there; the widget is told by the same resume event a real tab gets when it is shown again. */
@@ -73,22 +74,29 @@ test.describe('home clock widget', () => {
 
   test('it crosses midnight: the date and the Hebrew date roll over', async ({ page }) => {
     await boot(page, '2026-10-20T20:58:20Z'); // 23:58:20 on 20.10 in Asia/Jerusalem
-    // no date sensor: the widget computes the Hebrew date itself, which is what changes at midnight
-    await page.locator(W).evaluate((el) => {
-      const w = el as unknown as { config: { calendar: Record<string, unknown> } };
-      w.config = { ...w.config, calendar: { ...w.config.calendar, date: '' } } as never;
+    // no date sensor: the widget computes the Hebrew date itself, which is what changes at midnight.
+    // GATE-HARDEN-2520 (TR-03): the sensor is removed at the SOURCE - the screen's home block - and not on the widget: the screen
+    // hands the widget a freshly normalised config on every render of its own (homeViewOf), so a change made on the widget lasted
+    // only until the screen's next render; when that render came inside the two minutes below (the 25.11 nightly, twice) the widget
+    // showed the demo sensor's fixed text again and the "roll-over" compared that text with itself.
+    await page.locator('devices-building').evaluate((el) => {
+      const b = el as unknown as { tree: { home: { config: { calendar: Record<string, unknown> } } } };
+      const home = b.tree.home;
+      b.tree = { ...b.tree, home: { ...home, config: { ...home.config, calendar: { ...home.config.calendar, date: '' } } } } as never;
     });
     const t = page.locator(`${W} [data-home-time]`);
     const d1 = page.locator(`${W} .d1`);
     const heb = page.locator(`${W} [data-home-hebrew-date]`);
     await expect(t).toHaveText('23:58');
     await expect(d1).toContainText('20.10');
+    await expect(heb).not.toHaveText(DEMO_SENSOR_DATE); // the computed date is on screen (not the demo sensor's text) before it is read
     const before = await heb.textContent();
     expect(before).toMatch(/\S/);
     await page.clock.runFor(2 * 60_000);
     await expect(t).toHaveText('00:00');
     await expect(d1).toContainText('21.10');
     await expect(d1).not.toContainText('20.10');
+    await expect(heb).not.toHaveText(DEMO_SENSOR_DATE); // still computed after two minutes of the screen's own renders
     await expect(heb).not.toHaveText(before!);
   });
 

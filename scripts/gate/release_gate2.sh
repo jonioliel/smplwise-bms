@@ -10,9 +10,14 @@
 #     --keep-heavy  do not defer the heavy unchanged sweeps to the nightly (GATE2_DEFER_HEAVY=0)
 #     --depth N     import-closure depth of the mapping (default 2; 0 = unlimited, the select_tests behaviour)
 #     --accept-stale-nightly  select even when the newest full nightly on main is missing, older than 36 h or broken
+#     --engine-drift-ok "<reason>"  GATE-HARDEN-2520 (TR-02): run although the installed engine differs from the tree's (a deliberate
+#                   pin); the reason is written into gate_<b>_<sha>.engine.json. Env: GATE2_ENGINE_DRIFT_OK="<reason>"
 #     --dry-run     print the selection and the estimate; takes NO lock, starts no test, writes only under /tmp; uses a temporary
 #                   detached worktree of origin/<branch> (removed afterwards), or --root <an existing checkout of the head>
 # What a real run does:
+#   0. GATE-HARDEN-2520 (TR-02): engine_sync.py check - the sha256 of the installed engine (~/release_gate.py, ~/gate2/release_gate.py)
+#      against scripts/gate/release_gate.py of origin/<branch>; a difference REFUSES the gate (exit 2) unless --engine-drift-ok;
+#      the rest of the gate-2 tooling is compared and reported loudly; the record is gate_<b>_<sha>.engine.json
 #   1. takes the same two locks as release_gate.sh (one gate at a time; the nightly/manual test lock)
 #   2. refreshes ~/gate2/release_gate.py (+ gate_baselines.json, gate_durations.json, select_tests.py as select_tests_v1.py)
 #      from the v1 install (GATE2_V1_DIR, default ~) - the engine is byte-identical to v1's, only select_tests.py is the gate-2 shim
@@ -26,16 +31,16 @@
 #   7. gate2_verdict.py: gate_<b>_<sha>.gate2.md (quarantine applied, next step); when EVERY failure is quarantined it re-runs
 #      only those tests on the same sha once (the first report is kept as .gate2-first.json); quarantined VISUAL cases are re-checked
 #      by the engine itself in that re-run (GATE2_RERUN_ONLY overrides the --no-visual below, T074)
-# Exit: 0 pass, 1 fail, 2 usage, 3 lock busy.
+# Exit: 0 pass, 1 fail, 2 usage or engine drift refused (TR-02), 3 lock busy.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,31p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,37p "$0"; exit 0;; esac
 G2="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 V1="${GATE2_V1_DIR:-$HOME}"
 REPO="${GATE2_REPO:-$HOME/smplwisebms}"
 RES="${GATE_RESULTS_DIR:-$HOME/smplwise-results}"
 PY3="${GATE2_PYTHON:-python3}"
-BR="" BASE="" AFTER="" FULL=0 DRY=0 ROOT="" STALE_OK=0 DEPTH="" PASS=()
+BR="" BASE="" AFTER="" FULL=0 DRY=0 ROOT="" STALE_OK=0 DEPTH="" PASS=() DRIFT_OK="${GATE2_ENGINE_DRIFT_OK:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) BASE="${2:-}"; shift 2;;
@@ -45,6 +50,7 @@ while [ $# -gt 0 ]; do
     --resume) export GATE_RESUME=1; shift;;       # GATE-FAST-2291: reuse the finished units of an earlier run of the SAME sha (checkpoint file)
     --depth) DEPTH="${2:-}"; shift 2;;
     --accept-stale-nightly) STALE_OK=1; shift;;
+    --engine-drift-ok) DRIFT_OK="${2:-}"; [ -n "$DRIFT_OK" ] || { echo "--engine-drift-ok needs a reason"; exit 2; }; shift 2;;
     --dry-run) DRY=1; shift;;
     --root) ROOT="${2:-}"; shift 2;;
     --) shift; PASS=("$@"); break;;
@@ -80,6 +86,7 @@ if [ "$DRY" = 1 ]; then
     BASE="$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null)" || { echo "no v* tag below the head; pass --base"; exit 2; }
   fi
   echo "gate2 dry-run: branch $BR (head $(git -C "$ROOT" rev-parse --short HEAD)), base $BASE, checkout $ROOT"
+  [ -f "$G2/engine_sync.py" ] && "$PY3" "$G2/engine_sync.py" check --repo "$REPO" --ref "origin/$BR" --warn-only
   "$PY3" "$G2/gate2_select.py" nightly --results "$RES" 2>/dev/null | sed -n 's/^ *"\(ok\|why\)": /  nightly safety net: \1 = /p'
   ARGS=(plan --root "$ROOT" --base "$BASE" --head HEAD --json "${TMPDIR:-/tmp}/gate2_dry_${TAG}.selection.json")
   [ -z "$AFTER" ] || ARGS+=(--after "$AFTER")
@@ -113,6 +120,17 @@ grep -q "gate2_select" "$G2/select_tests.py" || { echo "$G2/select_tests.py is n
 
 git -C "$REPO" fetch -q --all --prune
 git -C "$REPO" rev-parse --verify -q "origin/$BR^{commit}" >/dev/null || { echo "origin/$BR not found (push the branch first)"; exit 2; }
+# GATE-HARDEN-2520 (TR-02): before any test - is the engine we are about to run the engine of the tree under test?
+HSHA="$(git -C "$REPO" rev-parse --short "origin/$BR")"
+if [ -f "$G2/engine_sync.py" ]; then
+  "$PY3" "$G2/engine_sync.py" check --repo "$REPO" --ref "origin/$BR" --home "$HOME" --json "$RES/gate_${TAG}_${HSHA}.engine.json" \
+    ${DRIFT_OK:+--allow-drift "$DRIFT_OK"}
+  src=$?
+  if [ "$src" = 4 ]; then echo "gate2: REFUSED - engine drift (see above); nothing was run"; exit 2; fi
+  [ "$src" = 0 ] || echo "gate2: WARNING - the engine drift check could not run (rc=$src); the engine was NOT verified"
+else
+  echo "gate2: WARNING - $G2/engine_sync.py is not installed: the engine was NOT compared with the tree (GATE-HARDEN-2520 install step)"
+fi
 if [ -z "$BASE" ]; then
   BASE="$(git -C "$REPO" describe --tags --abbrev=0 --match 'v[0-9]*' "origin/$BR" 2>/dev/null)" || { echo "no v* tag below origin/$BR; pass --base"; exit 2; }
 fi
