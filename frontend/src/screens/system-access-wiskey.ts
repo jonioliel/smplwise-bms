@@ -206,7 +206,7 @@ export class SystemAccessWiskey extends LitElement {
         card: 'badge',
         render: (x) => html`<sw-badge kind=${connectionKind(row(x).connection)} label=${this.wordText(wordOf('wkConn_', row(x).connection, CONNECTIONS))}></sw-badge>`,
       },
-      { key: 'auth', label: st('wkColAuth'), card: 'meta', render: (x) => this.when(row(x).last_authenticated_at, now) },
+      { key: 'auth', label: st('wkColAuth'), card: 'show', render: (x) => this.when(row(x).last_authenticated_at, now) },
       {
         key: 'failure',
         label: st('wkColFailure'),

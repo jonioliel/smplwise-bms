@@ -31,7 +31,9 @@ async function boot(page: Page, modes: { system?: WkMode; jobs?: WkMode } = {}, 
 
 const text = (l: Locator) => l.evaluate((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim());
 const cells = (l: Locator) => l.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => (tr as HTMLElement).innerText.replace(/\s+/g, ' ').trim()));
-const badges = (l: Locator) => l.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('sw-badge')).map((b) => b.getAttribute('label'))));
+// the visible badges only: a table with phone card marks also draws the phone's meta line, hidden on the desktop
+const badges = (l: Locator) =>
+  l.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('sw-badge')).filter((b) => (b as HTMLElement).checkVisibility()).map((b) => b.getAttribute('label'))));
 /** The reads of the access mock that are not the shell's own (the segment may read the stations' names only). */
 const accessReads = (m: AccessMock) => m.calls.filter((c) => c.path.startsWith('access-control/')).map((c) => c.path.slice('access-control/'.length));
 
