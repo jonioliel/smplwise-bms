@@ -162,7 +162,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'messaging-accounts', label: tr('ערוץ ההודעות'), href: '#/system/messaging-accounts', keywords: 'וואטסאפ whatsapp חשבון חשבונות מספר שולח קוד אימות שימושים קצב שליחה sms', keywordsEn: 'message channel whatsapp account accounts sender number verification code uses sending rate sms' }, // CR-038 S5a
       { tab: 'fleet-report', label: tr('דיווח בריאות'), href: '#/system/fleet-report', keywords: 'דוח יומי smplwise fleet צי קוד רישום חתימה שקט לא מדווחת מה נשלח', keywordsEn: 'health reporting daily report smplwise fleet code registration signature quiet not reporting what was sent' }, // CR-FLEET215 (readiness and demo mode: the readiness tab, READYFLEET-295)
       { tab: 'general', label: tr('בריאות ועבודות'), href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור', keywordsEn: 'health and jobs diagnostics component status queue' },
-      { tab: 'general', label: tr('גיבוי ושחזור'), href: `${GEN}?tab=backup`, keywords: 'backup restore שחזור קובץ zip', keywordsEn: 'backup restore file zip' },
+      { tab: 'general', label: tr('גיבוי ושחזור'), href: `${GEN}?tab=backup`, keywords: 'backup restore שחזור קובץ zip ייבוא מערכת ישנה legacy', keywordsEn: 'backup restore file zip legacy import migration' },
       { tab: 'storage', label: tr('אחסון'), href: '#/system/storage', keywords: 'דיסק הקלטות נפח', keywordsEn: 'storage disk recordings capacity space' },
       { tab: 'update', label: tr('עדכונים'), href: '#/system/update', keywords: 'גרסה update שדרוג', keywordsEn: 'updates version update upgrade' },
       { tab: 'wizard', label: tr('אשף התקנה'), href: '#/system/wizard', keywords: 'התקנה שלבים', keywordsEn: 'setup wizard installation steps' },

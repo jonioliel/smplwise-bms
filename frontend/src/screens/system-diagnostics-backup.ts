@@ -4,3 +4,4 @@
  * Imports only - the tab's rows and state are still drawn by screens/system-diagnostics.ts.
  */
 import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
+import '../components/sw-legacy-import'; // LEGACY-IMPORT-UI-2550 (T070): the import from the legacy NVR add-on (dry run, apply)

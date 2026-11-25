@@ -2208,6 +2208,7 @@ export class SystemDiagnostics extends LitElement {
                 : html`<sw-state-panel icon="history" compact state="empty" heading=${tr('עדיין אין גיבויים')} hint=${tr('הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.')}></sw-state-panel>`}
       </sw-card>
       ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
+      ${isApi() && can('system.configure') ? html`<sw-legacy-import data-legacy-section @backups-changed=${() => void this.loadBackups()}></sw-legacy-import>` : nothing}
       <sw-card heading=${tr('אוטומטי ו־Rollback')}>
         <div class="row"><span class="lbl">${tr('לפני כל עדכון גרסה')}<span class="muted">${tr('עותק של הנתונים נכתב לפני שהגרסה החדשה נוגעת במסד; נשמרים {v} האחרונים', { v: this.backupPolicy['auto-pre-upgrade'] ?? 5 })}</span></span><sw-badge kind="live" label=${tr('פעיל')}></sw-badge></div>
         <div class="row"><span class="lbl">${tr('יומי')}<span class="muted">${tr('עותק אחד ביום, נשמרים {v} האחרונים', { v: this.backupPolicy['auto-daily'] ?? 7 })}</span></span><sw-badge kind="live" label=${tr('פעיל')}></sw-badge></div>
