@@ -32,8 +32,10 @@ authenticator app on or off, passkeys, phone keys, recovery codes left (amber wh
 
 ### Turn on the authenticator code
 
-1. **Sign in again** if your current sign-in is older than 5 minutes. A FIRST factor can only be added from a fresh sign-in; otherwise you
-   see "this action needs a fresh sign-in". This keeps someone who stole an old session from putting their own factor on your account.
+1. **Sign in again** if your current sign-in is older than 5 minutes. From outside, a factor - the first one **or any further one** (a
+   passkey, a phone key, new recovery codes) - can only be added from a fresh sign-in; otherwise you see "this needs a fresh sign-in".
+   This keeps someone who stole an old session from putting their own factor on your account. On the local network the rule does not
+   apply. While step-up is on, a confirmation of your identity counts instead (as before).
 2. In "Two-step verification", press **Turn on**. A QR code appears with a key to type underneath.
 3. Scan the QR code in the authenticator app (or type the key) and enter the 6-digit code. **Confirm**.
 4. **Ten recovery codes appear - once only.** Print them or store them somewhere safe, away from the phone.
@@ -44,8 +46,9 @@ From now on every **new** remote sign-in asks for the password and then the code
 ### Recovery codes
 
 - Each code works **once**. "Security" shows how many are left; at 3 or fewer you get a warning.
-- **New codes:** "New codes" > **Create** - every old code stops working at once. While step-up is on you confirm with the app code, a
-  passkey or the phone key (**not** with a recovery code).
+- **New codes:** "New codes" > **Create** - every old code stops working at once. You enter the current code from the app (or, from
+  outside, sign in again within 5 minutes; while step-up is on a passkey or the phone key also confirms - **never** a recovery code).
+  Every device of yours is told that new codes were made (never the codes themselves).
 - **Lost the phone:** at sign-in pick "Recovery code" instead of "App", sign in, then in "Security" remove the two-step verification with
   another recovery code and turn it on again with the new phone.
 - A recovery code is **not** accepted for the actions that always demand their own confirmation (resetting another user, revealing the
@@ -55,17 +58,18 @@ From now on every **new** remote sign-in asks for the password and then the code
 
 1. The administrator must first set the site's **public address** (without it passkeys are unavailable).
 2. "Security" > "Passkeys" > **Add**. The browser asks for a fingerprint, face or the device PIN.
-3. If it is the account's first factor, a fresh sign-in (5 minutes) is needed, as for the code.
+3. From outside, a fresh sign-in (5 minutes) is needed, as for the code - also when the account already has a factor (while step-up is
+   on, a confirmation of your identity instead).
 4. A user with administrative permissions needs a passkey that verifies the user (fingerprint / face / device PIN); the browser asks for it.
-5. You can name, rename and remove passkeys. Every device of yours is told when one is added.
+5. You can name, rename and remove passkeys. Every device of yours is told when one is added **or removed**.
 
 **Important:** for a home-system user a passkey is a **step-up method only**. The remote sign-in still asks for the app code (or the
 phone key in the app). For Arx-only accounts (accounts created in Arx itself) a passkey is also a way to sign in.
 
 ### Phone key (Android app)
 
-1. A key is added **from the Android app** (its security screen). The phone asks for a fingerprint or the screen lock. A first factor
-   needs a fresh sign-in here too.
+1. A key is added **from the Android app** (its security screen). The phone asks for a fingerprint or the screen lock. From outside a
+   fresh sign-in is needed here too (also for a further key). Revoking a key tells every device of yours.
 2. From then on, signing in from inside the app, the phone signs instead of you typing a code, and step-up offers "Confirm with the phone key".
 3. "Security" > "Phone keys" lists what unlocks each key, whether it is "hardware-attested" or a "software key", when it was added and
    last used. **Revoke** removes a key (a lost phone). A key marked "does not count" must be registered again.
@@ -135,9 +139,11 @@ on in "My account" from a local sign-in. Make sure such a user has a local way i
 
 1. Settings > Users and permissions > the user > row **Two-step verification**. It lists all the user's methods: code, passkeys, phone
    keys, recovery codes left, and whether the home system's MFA was seen for them.
-2. **Reset**. The dialog shows what will be removed. **Type the user's username** to confirm.
-3. Confirm **your own** identity: app code, passkey or phone key - **on every reset, never a recovery code**.
-4. Afterwards: **every** method of the user is gone (code, recovery codes, passkeys, phone keys), every sign-in and device of theirs is
+2. **From outside, sign in again first** if your own sign-in is older than 5 minutes - otherwise the dialog says "resetting from outside
+   needs a fresh sign-in" and offers no confirm button (from 2.52; on the local network the rule does not apply).
+3. **Reset**. The dialog shows what will be removed. **Type the user's username** to confirm.
+4. Confirm **your own** identity: app code, passkey or phone key - **on every reset, never a recovery code**.
+5. Afterwards: **every** method of the user is gone (code, recovery codes, passkeys, phone keys), every sign-in and device of theirs is
    signed out (phone notifications too), they are told, **and the managers are told**. If the policy requires a factor of them, their
    next remote sign-in asks them to enrol again (the home system's MFA does not count until they do).
 
@@ -147,6 +153,7 @@ Reset limits (every refusal is in the audit log):
 - **at most 3 resets per hour** per administrator;
 - **never the last system administrator who can sign in remotely** if, after the reset, no administrator could. Give another
   administrator a factor first;
+- **from outside only with a fresh sign-in** of yours (5 minutes) - also for removing an Arx user's passkey;
 - **from where:** the setting `security.factor_reset_channel` - `any` (default, from anywhere) or `local` (local network only).
   Narrowing to `local` works from anywhere; **widening back to `any` only from the local network**. From 2.52 it also covers an
   administrator removing an Arx user's passkey. It has no screen yet - change it through the settings API (a screen is proposed in the review).
@@ -169,15 +176,17 @@ Reset limits (every refusal is in the audit log):
 
 ## Limits - honestly
 
-- **While step-up is off (the default)**, whoever obtained an open session of a user who already has a factor can add another one (a
-  phone key, a passkey) or make new recovery codes with no confirmation and no fresh sign-in. The user is told about a phone key or a
-  passkey; not about new recovery codes. If the system is reachable from outside, **turn step-up on.** (Proposed fix:
-  `docs/security/MFA-REVIEW-2520.md` N-1.)
+- **While step-up is off (the default)**, adding a factor from outside needs only a sign-in of the same session within the last 5
+  minutes (from 2.52; before, a factor next to an existing one needed nothing). Whoever steals a session in its first 5 minutes - or
+  knows the password and passes the sign-in - can still add one; every device of the user is then told. For a stronger rule (a code,
+  passkey or phone key before every factor change) **turn step-up on.** On the local network nothing is asked (the break-glass path).
 - In `preferred` mode (the default) a phone key the hardware did not attest is accepted too. For a sensitive site: `required`.
-- The user is not told when a factor of theirs is removed, when new recovery codes are made, or when someone signs in with a recovery
-  code - only the audit log has it.
-- An administrator who has no method of their own resets other users' methods with no extra confirmation (only the typed username and
-  the 3-per-hour limit). **Every administrator should enrol a factor.**
+- The user **is told** (from 2.52, on every device: inbox, browser notifications, the app) when a factor is added or removed, when new
+  recovery codes are made and when someone signs in with a recovery code - only what happened, never a code, a key name or who did it
+  (that is in the audit log). The notices can be tuned like any other in Settings > Notifications ("A change to the account's sign-in
+  methods").
+- An administrator who has no method of their own resets other users' methods with no code of their own - from outside only within 5
+  minutes of signing in (from 2.52), plus the typed username and the 3-per-hour limit. **Every administrator should enrol a factor.**
 - The second factor protects signing in to Arx from outside. It does not protect the home system itself; a home-system token is a full
   credential for it.
 - A long-lived token from outside is never asked to confirm, not even before opening a door or disarming (owner decision).

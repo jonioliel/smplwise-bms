@@ -455,6 +455,7 @@ export const en = {
     recoveryShownOnce: 'Keep these codes somewhere safe. They are shown only now, and each code works once.',
     recoveryCopy: 'Copy',
     recoveryCopied: 'The codes were copied',
+    reauth: 'This needs a fresh sign-in (less than 5 minutes ago). Sign out, sign in again, then retry.',
     recoveryDownload: 'Download',
     recoverySaved: 'I saved the codes',
     recoveryListLabel: 'Recovery codes',

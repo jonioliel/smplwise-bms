@@ -178,8 +178,11 @@ def registration_options(conn: sqlite3.Connection, request: Any, principal: Any)
         raise ApiError(409, "passkey_limit", lpk.LIMIT_HE)
     if has_factor(conn, uid) or step_up.methods_of(conn, uid):
         # strict: never a recovery-code proof (MFA-SECFIX-2500 SR-4); only while step-up is on (owner Q2 = b)
-        if step_up.factor_change_proof_on(conn) and not step_up.fresh_proof(conn, request, principal):
-            raise proof_required(conn, uid, ACTION_REGISTER)
+        if step_up.factor_change_proof_on(conn):
+            if not step_up.fresh_proof(conn, request, principal):
+                raise proof_required(conn, uid, ACTION_REGISTER)
+        else:  # MFA-FACTOR-HARDEN-2520 N-1: with step-up off, the first factor's rule - a recent sign-in on the remote channel
+            step_up.require_recent_sign_in(request, ACTION_REGISTER)
     else:  # MFA-SECFIX-2500 SR-3: a FIRST factor needs a recent sign-in of this session (403 reauth_required)
         step_up.require_first_factor_freshness(conn, request, principal, ACTION_REGISTER)
     admin = _admin(conn, uid)

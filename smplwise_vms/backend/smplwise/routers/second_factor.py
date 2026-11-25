@@ -174,6 +174,7 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
 
         factor_cleared = local_identity.on_factor_removed(conn, principal.user_id)
     _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self", factor_cleared=factor_cleared)
+    notify_sources.second_factor_changed(conn, principal.user_id, "removed:totp")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
     capture_lease.on_authority_change("second_factor_changed", user_ids=[principal.user_id])  # CR-WISKEY-LEASE-REVOCATION-EVENT T6
     return sf.status(conn, principal.user_id)
 
@@ -288,7 +289,8 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     cookie alone cannot strip anyone's factor; the target's sign-ins end (M4).
 
     MFA-RESET-HARDENING-2510 (services/factor_reset.py), checked in this order, each refusal audited, all before the proof is read:
-    the channel setting `security.factor_reset_channel`, the typed username (`{"confirm"}`), the last administrator who can sign in
+    the channel setting `security.factor_reset_channel`, (MFA-FACTOR-HARDEN-2520 N-5) from outside a sign-in of the administrator's
+    session within 5 minutes (403 `reauth_required`, the first factor's rule), the typed username (`{"confirm"}`), the last administrator who can sign in
     remotely, 3 resets per administrator per hour. After the reset: every sign-in and device credential of the target ends (the
     administrator's "sign out everywhere"), the user AND the managers are told, and the user must enrol again (`must_enroll`)."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -302,6 +304,9 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     if factor_reset.channel_refuses(conn, request):
         raise _reset_refused(conn, request, principal, user_id, "local_only", 403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE,
                              channel=factor_reset.CHANNEL_LOCAL)
+    if factor_reset.reauth_refuses(request):  # MFA-FACTOR-HARDEN-2520 N-5: from outside, a sign-in of this session within 5 minutes
+        raise _reset_refused(conn, request, principal, user_id, "reauth", 403, "reauth_required", step_up.REAUTH_HE,
+                             action=factor_reset.ACTION, within_s=int(step_up.RECENT_SIGN_IN_S))
     typed = body.confirm if body else None
     if not (typed or "").strip():
         raise _reset_refused(conn, request, principal, user_id, "confirm_required", 422, "factor_reset_confirm_required",
@@ -468,13 +473,22 @@ def recovery_regenerate(request: Request, body: RecoveryBody | None = None, prin
     Needs a fresh step-up whatever `security.step_up` says (a stolen session alone must not mint codes that outlive it): a proof that
     counts now on this session (`auth/step-up/verify`, a sign-in or enrolment that just showed the factor), or the CURRENT
     authenticator code in the body / X-Arx-Second-Factor - never a recovery code. Audited `auth.recovery_codes.generated`
-    (or denied with the reason); rate-limited like every factor action."""
+    (or denied with the reason); rate-limited like every factor action.
+    With step-up off (owner Q2 = b) no proof is asked; MFA-FACTOR-HARDEN-2520 N-1: a remote caller without the current code then
+    needs a sign-in of this session within 5 minutes (403 `reauth_required`), the first factor's rule."""
     _limit(principal)
     if not sf.is_enrolled(conn, principal.user_id):
         raise ApiError(409, "recovery_codes_unavailable", RECOVERY_UNAVAILABLE_HE)
     code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
     if not code and not step_up.factor_change_proof_on(conn):
-        pass  # MFA-SECFIX-2500 (owner Q2 = b): with step-up off a new batch asks for no proof (as the other factor changes)
+        # MFA-SECFIX-2500 (owner Q2 = b): with step-up off a new batch asks for no proof (as the other factor changes) -
+        # MFA-FACTOR-HARDEN-2520 N-1: but, like every factor added from outside, a sign-in of this session within 5 minutes
+        try:
+            step_up.require_recent_sign_in(request, "auth.recovery_codes.regenerate")
+        except ApiError as exc:
+            audit(conn, actor=principal, action="auth.recovery_codes.generated", decision="denied", resource_type="user", resource_id=principal.user_id,
+                  reason=exc.code, request_id=_rid(request), details={"method": rc.METHOD, "reason": "regenerate"})
+            raise
     elif code:
         try:
             sf.verify(conn, settings_of(request), principal.user_id, code)
@@ -491,4 +505,5 @@ def recovery_regenerate(request: Request, body: RecoveryBody | None = None, prin
                                 "verify_path": "auth/step-up/verify"})
     codes, voided = rc.generate(conn, principal.user_id)
     _audit_batch(conn, request, principal, "regenerate", voided)
+    notify_sources.second_factor_changed(conn, principal.user_id, "recovery_batch")  # MFA-FACTOR-HARDEN-2520 N-6: never a code in it
     return {"codes": codes, **rc.status(conn, principal.user_id)}

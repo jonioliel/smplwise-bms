@@ -520,6 +520,8 @@ export class SystemLocalUsers extends LitElement {
       } catch (err) {
         // the administrator's own TOTP factor is on: the removal needs their current code (CR-011 M1)
         if (err instanceof ApiError && err.body.code === 'second_factor_step_up_required') this.pkStepUp = true;
+        // MFA-FACTOR-HARDEN-2520 N-5: from outside, the administrator's own sign-in must be less than 5 minutes old
+        if (err instanceof ApiError && err.body.code === 'reauth_required') throw new Error(lit('passkeyReauth'));
         throw err;
       }
       this.pkCode = '';

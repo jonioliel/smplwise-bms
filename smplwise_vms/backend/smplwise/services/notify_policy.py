@@ -236,6 +236,13 @@ SOURCES: tuple[Source, ...] = (
     # (inbox, web push, the app); never the secret, the passkey or its label. The phone key has its own notice above.
     _s("security.second_factor_added", "דרך אימות נוספה לחשבון", "security", "alert", "דרך אימות נוספה לחשבון", "נוספה לחשבון שלך דרך אימות: {name}. אם לא אתה הוספת אותה - הסר אותה ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
     _s("security.device_key_added", "מפתח טלפון נוסף לחשבון", "security", "alert", "מפתח טלפון נוסף לחשבון", "נוסף לחשבון שלך מפתח טלפון לאימות. אם לא אתה הוספת אותו - הסר אותו ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
+    # MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-6, owner-approved): a factor of the account was removed, a new batch of recovery
+    # codes was made, or someone signed in with a recovery code - the account's own user is told on every device (inbox, web push, the
+    # app), as for a factor added. Content-free: what happened only (notify_sources.FACTOR_CHANGES_HE) - never a code, a label, a key or
+    # who did it (the audit row says that).
+    _s("security.second_factor_changed", "שינוי בדרכי האימות של החשבון", "security", "alert", "שינוי בדרכי האימות של החשבון",
+       "{change}. אם זה לא היה אתה - בדוק את דרכי האימות ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session",
+       resolves=False, app=True),
     # APPREFRESH3-295 (owner Q297): an administrator approved a reset of the user's phone-app device key - the device's own user is told in
     # the app and on the phone; the title / body are the wording kept in the Settings (security.app_refresh_key_reset_notice_*), rendered
     # by services/app_refresh before the signal (never the administrator, the reason or key material)

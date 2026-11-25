@@ -121,4 +121,5 @@ export const en = {
   'כל הכניסות והמכשירים של המשתמש יתנתקו.': "All of the user's sign-ins and devices will be signed out.",
   'בכניסה הבאה מרחוק יצטרך להגדיר אימות דו־שלבי מחדש.': 'At the next remote sign-in they will have to set up two-step verification again.',
   'אפשר לאפס עוד {n} בשעה הזו': '{n} more resets allowed this hour',
+  'לאיפוס מבחוץ צריך כניסה טרייה (לפני פחות מ־5 דקות). צא והיכנס שוב, ואז נסה שוב.': 'Resetting from outside needs a fresh sign-in (less than 5 minutes ago). Sign out, sign in again, then retry.',
 };

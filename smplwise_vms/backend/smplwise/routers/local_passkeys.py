@@ -56,7 +56,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
-from ..services import factor_reset
+from ..services import factor_reset, notify_sources
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
@@ -241,8 +241,10 @@ def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, pri
     proof = upk.removal_proof(conn, request, principal, code, local_session=s)
     if s is None:
         out = upk.remove(conn, principal, pk_id, proof=proof, request_id=_rid(request))
+        notify_sources.second_factor_changed(conn, principal.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
         return {**out, **upk.summary(conn, principal.user_id)}
     out = lpk.remove(conn, s.user_id, pk_id, actor=principal, by="self", keep_chain=s.chain_id, request_id=_rid(request))
+    notify_sources.second_factor_changed(conn, s.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
     if not upk.has_factor(conn, s.user_id):
         step_up.forget_user(s.user_id)  # MFA-PASSKEYS-2490: no step-up proof outlives the last factor
     if out["sessions_ended"]:
@@ -330,6 +332,7 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A lost / suspected passkey (the CR-011 administrator reset, for one passkey): every local session of the user ends, a pending
     second step ends, the last passkey switches the user's passkey-first mode off. The password is never touched."""
+    from ..services.step_up import reauth_error
     from .second_factor import require_step_up
 
     require(conn, principal, "identity.local.manage", INSTALLATION)
@@ -340,6 +343,10 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
         audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="denied", resource_type="user", resource_id=user_id,
               reason="local_only", request_id=_rid(request), details={"channel": factor_reset.CHANNEL_LOCAL})
         raise ApiError(403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE, details={"channel": factor_reset.CHANNEL_LOCAL})
+    if factor_reset.reauth_refuses(request):  # MFA-FACTOR-HARDEN-2520 N-5: from outside, a sign-in within 5 minutes (as the reset)
+        audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="denied", resource_type="user", resource_id=user_id,
+              reason="reauth_required", request_id=_rid(request))
+        raise reauth_error("auth.local.passkey.removed")
     if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     if store.passkey_row(conn, pk_id[:40], user_id) is None:
@@ -348,6 +355,7 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
     out = lpk.remove(conn, user_id, pk_id, actor=principal, by="admin", keep_chain=None, request_id=_rid(request))
     audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="allowed", resource_type="user", resource_id=user_id,
           request_id=_rid(request), details={"passkey": pk_id, "step_up": step_up, "sessions_ended": out["sessions_ended"]})
+    notify_sources.second_factor_changed(conn, user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
     if out["sessions_ended"]:
         li.close_sockets_from_thread()
     return {"user_id": user_id, **out, **lpk.summary(conn, user_id)}

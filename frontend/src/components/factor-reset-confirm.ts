@@ -28,6 +28,8 @@ const REASON: Record<string, () => string> = {
   self: () => tr('את דרכי האימות שלך מסירים בחשבון שלי ‹ אבטחה.'),
   user_unknown: () => tr('המשתמש לא נמצא.'),
   local_only: () => tr('איפוס דרכי אימות של משתמש אחר מותר רק מהרשת המקומית.'),
+  // MFA-FACTOR-HARDEN-2520 N-5: from outside, the administrator's own sign-in must be less than 5 minutes old
+  reauth: () => tr('לאיפוס מבחוץ צריך כניסה טרייה (לפני פחות מ־5 דקות). צא והיכנס שוב, ואז נסה שוב.'),
   last_admin: () => tr('זה מנהל המערכת האחרון שיכול להיכנס מרחוק, ולכן אי אפשר לאפס את דרכי האימות שלו.'),
   rate_limited: () => tr('אפשר לאפס דרכי אימות לשלושה משתמשים לכל היותר בשעה. אפשר לנסות שוב מאוחר יותר.'),
 };
@@ -37,6 +39,7 @@ const CODE_REASON: Record<string, string> = {
   second_factor_self_reset: 'self',
   user_unknown: 'user_unknown',
   factor_reset_local_only: 'local_only',
+  reauth_required: 'reauth',
   factor_reset_last_admin: 'last_admin',
   factor_reset_rate_limited: 'rate_limited',
 };

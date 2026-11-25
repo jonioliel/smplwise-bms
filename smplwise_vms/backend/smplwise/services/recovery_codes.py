@@ -155,6 +155,9 @@ def verify_factor(conn: sqlite3.Connection, settings: Any, user_id: str, raw: An
 INVALID_HE = "הקוד אינו נכון או שכבר נעשה בו שימוש. כל קוד שחזור עובד פעם אחת בלבד."
 
 
+SIGN_IN_USES = frozenset({"sign_in", "local_sign_in"})  # ha_user_auth._check_second_factor_sync, local_identity (the second step)
+
+
 def audit_use(conn: sqlite3.Connection, actor: Any, used_for: str, request_id: str | None = None, **extra: Any) -> None:
     """`auth.recovery_code.used` (allowed): where it was used and how many codes remain - never the code."""
     from ..audit import audit
@@ -162,3 +165,7 @@ def audit_use(conn: sqlite3.Connection, actor: Any, used_for: str, request_id: s
     left = remaining(conn, actor.user_id)
     audit(conn, actor=actor, action="auth.recovery_code.used", decision="allowed", resource_type="user", resource_id=actor.user_id,
           request_id=request_id, details={"method": METHOD, "used_for": used_for, "remaining": left, "low": left <= LOW_AT, **extra})
+    if used_for in SIGN_IN_USES:  # MFA-FACTOR-HARDEN-2520 N-6: a sign-in answered with a recovery code - the user is told
+        from . import notify_sources
+
+        notify_sources.second_factor_changed(conn, actor.user_id, "recovery_sign_in")

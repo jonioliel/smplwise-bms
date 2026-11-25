@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import qrcode from 'qrcode-generator';
 import './sw-button';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { confirmEnrolment, disableSecondFactor, factorOverrides, factorResetCheck, factorUsers, isRecoveryCode, recoveryStatus, regenerateRecoveryCodes, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type FactorResetCheck, type RecoveryStatus, type SecondFactorStatus } from '../api/second-factor';
 import { refused, renderResetConfirm, resetConfirmStyles, resetErrorText, typedMatches } from './factor-reset-confirm';
 import { t, tf } from '../i18n/he';
@@ -248,7 +248,8 @@ export class SwSecondFactor extends LitElement {
     try {
       await fn();
     } catch (err) {
-      this.error = describeError(err);
+      // MFA-FACTOR-HARDEN-2520: adding a factor from outside needs a sign-in less than 5 minutes old - said in the reader's language
+      this.error = err instanceof ApiError && err.body.code === 'reauth_required' ? t('secondFactor.reauth') : describeError(err);
     } finally {
       this.busy = false;
     }

@@ -53,7 +53,7 @@ interface Mock {
   methods: string[];
   verifies: Record<string, unknown>[];
   /** RELEASE-2510-TRAIN: the reset preflight's refusal (`last_admin`, `rate_limited`, ...); undefined = allowed */
-  resetRefusal?: 'self' | 'user_unknown' | 'local_only' | 'last_admin' | 'rate_limited';
+  resetRefusal?: 'self' | 'user_unknown' | 'local_only' | 'reauth' | 'last_admin' | 'rate_limited'; // reauth: MFA-FACTOR-HARDEN-2520
 }
 
 const USERNAMES: Record<string, string> = { 'u-admin': 'admin', 'u-dana': 'dana', 'u-ron': 'ron', 'u-maya': 'maya' };
