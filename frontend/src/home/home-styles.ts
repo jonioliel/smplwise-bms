@@ -436,10 +436,13 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .more-grid {display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;}
 .mt {display: grid; justify-items: center; align-content: center; gap: 8px; min-block-size: 92px; font-weight: 500; color: var(--hs-heading); text-decoration: none;}
 .ovl .mt {background: var(--hs-surface-3);}
+/* STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): the scrim (an empty sibling layer, no text) fades; every layer that
+   holds text arrives by transform only, at full contrast from the first frame - an opacity fade put its texts below contrast for the
+   length of the fade. The exits (.out, below) fade only the inert, hidden-from-readers copy that sw-home.ts ghostOverlay() leaves behind. */
 @starting-style { .hscrim {opacity: 0;}
-.sheet.dialog, .sheet.umenu {opacity: 0; transform: scale(.96);}
+.sheet.dialog, .sheet.umenu {transform: scale(.96);}
 .sheet.bottom {transform: translateY(100%);}
-.call, .camfull {opacity: 0; transform: scale(1.02);} }
+.call, .camfull {transform: scale(1.02);} }
 .hscrim.out {opacity: 0; transition-duration: 160ms;}
 .sheet.dialog.out, .sheet.umenu.out {opacity: 0; transform: scale(.98); transition-duration: 140ms;}
 .sheet.bottom.out {transform: translateY(100%); transition-duration: 200ms;}
@@ -449,7 +452,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .toast2 {--hit: 56px; pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; min-block-size: 64px; padding-inline: 22px 6px; border-radius: 18px; background: var(--hs-toast-bg); color: var(--hs-toast-text); font-family: var(--hs-font); font-size: 17px; font-weight: 500; box-shadow: var(--hs-shadow-3); max-inline-size: 100%; transition: opacity 200ms ease, transform 240ms var(--hs-ease);}
 .toast2 > span {padding-inline-end: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
 .toasts .toast2 button {min-block-size: var(--hit); padding: 0 18px; border-radius: 14px; color: var(--hs-toast-act); font-weight: 700; font-size: 17px; cursor: pointer;}
-@starting-style { .toast2 {opacity: 0; transform: translateY(14px);} }
+@starting-style { .toast2 {transform: translateY(14px);} }
 .toast2.out {opacity: 0; transform: translateY(8px); transition-duration: 160ms;}
 .welcome {margin: auto; inline-size: min(940px, 100%); display: grid; justify-items: center; text-align: center; gap: 8px;}
 .welcome h1 {margin-block-start: 14px; text-wrap: balance;}
@@ -590,7 +593,7 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .cf-t {font-size: 17px;}
 .cf-t .live {display: none;}
 .sheet.umenu {inset: auto 0 0 0; inline-size: auto; border-radius: 28px 28px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); transform-origin: 50% 100%; transition: transform 320ms var(--hs-ease-drawer);}
-@starting-style { .sheet.umenu {opacity: 1; transform: translateY(100%);} }
+@starting-style { .sheet.umenu {transform: translateY(100%);} }
 .sheet.umenu.out {opacity: 1; transform: translateY(100%); transition-duration: 200ms;}
 .toasts {inset-block-end: calc(80px + env(safe-area-inset-bottom, 0px));}
 .toast2 {min-block-size: 52px; font-size: 15px;}

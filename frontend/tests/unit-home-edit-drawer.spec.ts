@@ -51,8 +51,10 @@ test.describe('home edit drawer', () => {
 
   test('layout: side drawer from 1200 px, bottom sheet below (OWNER-R12-2341), motion on tokens, reduced motion without travel', () => {
     expect(drawer).toMatch(/@media \(max-width: 1199px\) \{\s*\.he-drawer \{[^}]*inset-inline: 8px;/);
-    expect(drawer).toMatch(/transition:\s*opacity var\(--sw-t-sheet\) var\(--sw-ease-out\),\s*transform var\(--sw-t-sheet\) var\(--sw-ease-out\);/);
-    expect(drawer).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*@starting-style \{\s*\.he-drawer \{\s*transform: none;/);
+    // STARTING-STYLE-AUDIT-2520: the drawer slides by transform only (no opacity fade of its texts); reduced motion: no transition at all
+    expect(drawer).toMatch(/transition: transform var\(--sw-t-sheet\) var\(--sw-ease-out\);/);
+    expect(drawer).not.toMatch(/opacity: 0;/);
+    expect(drawer).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.he-drawer \{\s*transition: none;\s*\}\s*@starting-style \{\s*\.he-drawer \{\s*transform: none;/);
   });
 
   test('the phone rule is unchanged: edit mode is refused on a phone when the installation hides the layout editor there', () => {

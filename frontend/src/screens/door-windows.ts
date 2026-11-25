@@ -116,11 +116,13 @@ export class DoorWindowsScreen extends LitElement {
     .footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .preview { display: grid; gap: 8px; }
     .radio { display: grid; gap: 6px; }
-    /* the toast is the product's toast (its own tokens, above the phone's bottom bar) and rises in instead of popping (zero under reduced motion) */
+    /* the toast is the product's toast (its own tokens, above the phone's bottom bar) and rises in instead of popping (zero under reduced motion).
+       STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): by transform only - an opacity fade put its text below contrast
+       for the length of the fade; full contrast from the first frame */
     .toast { position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 18px); inset-inline: 0; margin-inline: auto; inline-size: fit-content; max-inline-size: calc(100% - 32px); padding: 8px 16px; border-radius: var(--sw-r-pill);
       background: var(--sw-toast-bg, var(--sw-text)); color: var(--sw-toast-text, var(--sw-surface)); font-size: var(--sw-fs-sm); z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2);
-      opacity: 1; transform: translateY(0); transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease); }
-    @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
+      opacity: 1; transform: translateY(0); transition: transform var(--sw-t-med) var(--sw-ease); }
+    @starting-style { .toast { transform: translateY(8px); } }
   `];
 
   @property({ attribute: false }) route: RouteState | null = null;

@@ -102,11 +102,12 @@ export class SwRecordedMonth extends LitElement {
       box-shadow: var(--sw-shadow-3);
       overflow: hidden;
       transform-origin: top center;
-      transition: opacity var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      /* STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): the month lands by transform only - it holds text (the day
+         numbers, the legend), and an opacity fade put them below contrast for the length of the fade. Full contrast from the first frame. */
+      transition: transform var(--sw-t-fast) var(--sw-ease);
     }
     @starting-style {
       .pop:popover-open {
-        opacity: 0;
         transform: scale(0.97) translateY(-4px);
       }
     }
@@ -120,7 +121,6 @@ export class SwRecordedMonth extends LitElement {
     }
     @starting-style {
       .pop.sheet:popover-open {
-        opacity: 1;
         transform: translateY(24px);
       }
     }

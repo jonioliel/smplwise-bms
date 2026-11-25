@@ -245,17 +245,18 @@ export class SwDropdown extends LitElement {
       box-shadow: var(--sw-shadow-3);
       outline: none;
       opacity: 1;
-      /* the list grows out of its chip (emil-design-eng: origin-aware, from 97 %, never from nothing) */
-      transition: opacity var(--sw-t-fast) var(--sw-ease);
     }
-    /* the desktop list only (the phone sheet and the centred box have their own travel and a finger-driven drag) */
+    /* the desktop list only (the phone sheet and the centred box have their own travel and a finger-driven drag): the list grows out of
+       its chip (emil-design-eng: origin-aware, from 97 %, never from nothing).
+       STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): by transform only - the list holds text, and an opacity fade
+       of it put every option below contrast for the length of the fade (on a busy machine much longer than --sw-t-fast). The options
+       are at full contrast from the first frame. The starting style stays AFTER this rule. */
     .pop:not(.sheet):not(.centred) {
       transform-origin: top center;
-      transition: opacity var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      transition: transform var(--sw-t-fast) var(--sw-ease);
     }
     @starting-style {
       .pop:not([hidden]):not(.sheet):not(.centred) {
-        opacity: 0;
         transform: scale(0.97) translateY(-4px);
       }
     }

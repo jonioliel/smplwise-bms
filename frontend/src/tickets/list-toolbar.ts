@@ -242,7 +242,9 @@ export const ticketToolbarStyles = css`
     outline: 2px solid var(--dv-focus);
     outline-offset: 2px;
   }
-  /* the panel: opaque, anchored under its button, enters from just above (transform + opacity; zero under reduced motion) */
+  /* the panel: opaque, anchored under its button, enters from just above (zero under reduced motion). STARTING-STYLE-AUDIT-2520 (the
+     FLAKY-FIX-2520 rule of sw-dialog): by transform only - the panel holds the filter texts, and an opacity fade put them below contrast
+     for the length of the fade; they are at full contrast from the first frame */
   .fpop {
     position: absolute;
     inset-block-start: calc(100% + 8px);
@@ -263,11 +265,10 @@ export const ticketToolbarStyles = css`
     box-shadow: var(--dv-shadow-2);
     color: var(--dv-text);
     transform-origin: top;
-    transition: opacity var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+    transition: transform var(--sw-t-fast) var(--sw-ease);
   }
   @starting-style {
     .fpop {
-      opacity: 0;
       transform: translateY(-4px) scale(0.98);
     }
   }
@@ -445,7 +446,6 @@ export const ticketToolbarStyles = css`
     }
     @starting-style {
       .fpop {
-        opacity: 0;
         transform: translateY(8px);
       }
     }

@@ -84,12 +84,13 @@ export const devicesNoticesCss = css`
     flex: none;
     margin-inline-start: 0;
   }
+  /* STARTING-STYLE-AUDIT-2520 (the FLAKY-FIX-2520 rule of sw-dialog): the toast rises 8 px by translate only - it is text, and an
+     opacity fade put it below contrast for the length of the fade; full contrast from the first frame */
   .toast {
-    transition: opacity var(--sw-t-hover) var(--sw-ease-color), translate var(--sw-t-hover) var(--sw-ease);
+    transition: translate var(--sw-t-hover) var(--sw-ease);
   }
   @starting-style {
     .toast {
-      opacity: 0;
       translate: 0 8px;
     }
   }
