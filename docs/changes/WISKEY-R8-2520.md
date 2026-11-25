@@ -28,11 +28,13 @@ Nothing was installed, nothing touched the lab, no grant was created anywhere, n
 | `services/wiskey_service_write.py` | `CONTRACT_V3 = wiskey-native-service-write.v3` in `CONTRACTS` (same 13 metadata keys; WisKey echoes it; an echo of another contract stays UNKNOWN). `FinalServiceWriter.from_manual_v3(join, source)`: grant = what `current_v3` reported, actor = the current connection's `arx-service:<entry>` subject (WisKey checks `actor_id` against it), contract v3. `available()` now checks the client first: an unwired writer reads nothing. Production passes no client (the service-write journal connection is still not wired, as in WISKEY-ADOPT-2272): the v3 writer is never available in production and sends nothing. |
 | `services/access_service_writer.py` | `select_path(action, join)` -> `PathChoice(path, reason, writer)`: decided once, before anything is sent. `cards/add`, `cards/remove`, `users/delete` are never a service write in any contract version (`not_a_service_write_action`, also when an installed writer claims them); `users/create` / `users/update` take the service writer only when one is available, else the service channel (`direct_service_writer_missing`, unchanged). `writer_for` selects the v3 writer exactly when the current v2 connection offered the v3 block, else the v1 writer as before - never another contract in its place. |
 | `services/access_grant_engine.py` | `WiskeyServiceEngine._write` uses `select_path` (selection only); a refusal / UNKNOWN on the chosen path is final (unchanged behaviour, now tested). |
-| `services/wiskey_direct_join.py` | `FALLBACK_REFUSALS` emptied: a VERIFIED WisKey refusal of a native (human-path) people write is final, no classic re-send (rc19 R2 `transports.selection`: "never downgrade or switch transport automatically after refusal or UNKNOWN"). The pre-dispatch cases (`not_sent`, the native writer's own refusal before its intent) keep their classic attempt - nothing left Arx there. |
+| `services/wiskey_direct_join.py` | Lead decision 25.11 (Q3): a VERIFIED WisKey refusal of a native (human-path) people write is final ON A V2 DIRECT CONNECTION only (rc19 R2 `transports.selection`: "never downgrade or switch transport automatically after refusal or UNKNOWN"). On v1 (WisKey rc10, the lab today) the classic fallback for the three "cannot carry" codes (`native_write_action_unsupported`, `native_write_source_not_observed`, `unknown_command`) stays exactly as before. `fallback_permitted(state, code, *, protocol_version=1)`; `people_send` reads the join's connection protocol before and after the write (`_protocol_version`, no I/O) and treats the write as v2 when either side saw v2. The pre-dispatch cases (`not_sent`, the native writer's own refusal before its intent) are unchanged on both. |
 | `routers/bridge_key.py`, `wire/bridge_key.py`, `frontend/src/api/generated/wire-bridge-key.ts` | `GET /api/v1/system/bridge-key/service-grant`: the view above after one `refresh` (same gate as the other bridge-key routes: `system.configure` + system administrator, audited 403; local sessions only by the existing prefix). Model `BridgeKeyServiceGrant`; generated TS regenerated. No grant / preview / commit / revoke route. |
-| `tests/test_wiskey_service_grants_v3_2520.py` (new) | 51 tests (below). |
+| `tests/test_wiskey_service_grants_v3_2520.py` (new) | 58 tests (below), incl. the fallback rule on v1 / v2 (table) and end to end over the fake direct server of `test_wiskey_join_live_2382` (each "cannot carry" code: classic once on v1, final on v2, the native frame sent once). |
+| `frontend/src/components/sw-bridge-key-card.ts`, `frontend/src/api/bridge-key.ts`, `frontend/src/i18n/bridge-key.ts` + `lang/{en,ar,ru}` | Lead decision Q1 a: the Bridge key card (Settings › Connections, system administrator, local only) shows "הרשאת שירות מ־WisKey" read only: a state badge, one plain sentence per state (active / none / refused with WisKey's code / unknown / unsupported / unavailable), the approved actions and "cards are not included" only when active, and the pointer "only the system owner gives or withdraws it, in WisKey's tools screen" with a link to the panel's tools page (`targetHref({tab: 'tools'})` from the deep-link helpers, shown only to a caller who may open the panel). One GET per visit (never polled); 403 / 404 hide the block (an older server); a server error is said as unknown; an answer this client does not know is `unknown`. Existing components (`sw-badge`, the card's rows and notes) and tokens only; no button, no new literal colour or size, no scrolling. Arabic / Russian columns are an initial translation (dev-marked, as the rest of the card). |
+| `frontend/src/screens/wiskey-person-actions.ts`, `frontend/src/i18n/access-writes.ts` (+ en) | Lead decision Q4 a: the "מושבת / Deactivated" card label gets the R2 wording as its hint (`title`): removed from the station only after sync and readback; until then, or while the station is offline, it may still be accepted. No layout change. |
+| `frontend/tests/unit-bridge-key.spec.ts` (+3), `frontend/tests/evidence-wiskey-r8-2520.spec.ts` (new), `frontend/tests/pixel-wiskey-r8-2520.spec.ts` (new, baselines made on the runner) | state mapping, texts in four languages, no grant / revoke call; every state he / en, light / dark, desktop / phone, no button in the block, one GET only, no sideways scroll, 403 / 404 hidden, 500 unknown; pixel baselines of the active and refused block (classic, domus; 1440 and 390). |
 | `tests/test_wiskey_adopt_2272_install.py` | its "unknown contract" example was v3 (now known): v4. |
-| `tests/test_wiskey_join_live_2382.py` | the fallback-rule table: the three "cannot carry" refusal codes are now `False`. |
 | `tests/test_remote_access.py` | the new route in the local-only list (it sits under the existing blocked `/system/bridge-key` prefix). |
 | `tests/fixtures/wiskey_rc19/manual-v3/` | WisKey's synthetic examples copied unchanged (git blobs at PRODUCT: `current_v3` result valid `29463405`, wrong `fa852656`, extra `c0a5c637`, missing `d7766530`; error valid `27b07df3`, extra `bda4fb8a`, missing `2ded3315`, wrong `1eb5eda9`; signed-reply v2 valid `b4c6477c`, extra `e07f5429`, missing `95f72afe`, wrong `a37f9224`; `commit_v3` result valid `309a8b32` - the only published ACTIVE grant, used without `replay_available` as the `current_v3` active answer). No IPs, serials or secrets. |
 
@@ -42,7 +44,8 @@ or `scripts/gen_wire_types.py` change (the route extends the existing `bridge_ke
 ## Invariants kept
 
 - No self-grant: the only grant references Arx ever sends come from WisKey's `current_v3` answer for this pairing on this connection.
-- No owner action over the wire; no revoke; no fallback after a refusal (read or write); UNKNOWN stays unknown (journal unchanged, no
+- No owner action over the wire; no revoke; no fallback after a refusal of the grant read or a service write, and none after a
+  verified refusal of a human people write on a v2 connection (v1 unchanged, lead decision); UNKNOWN stays unknown (journal unchanged, no
   replay); v3 is never card authority; a v3 grant is re-checked by WisKey on every write anyway (`lookup` in `grant`).
 - The screen never receives a grant reference, a connection reference or key material.
 
@@ -50,38 +53,70 @@ or `scripts/gen_wire_types.py` change (the route extends the existing `bridge_ke
 
 | command (in `smplwise_vms/backend`) | exit | result |
 |---|---|---|
-| `python -m pytest -rA tests/test_wiskey_service_grants_v3_2520.py` | 0 | 51 passed |
+| `python -m pytest -rA tests/test_wiskey_service_grants_v3_2520.py` | 0 | 51 passed (first commit); after the lead follow-up: 58 passed |
 | `python -m pytest -q tests/test_externalbuild_297.py` | 0 | 32 passed |
 | `python -m pytest -q tests/test_wiskey_mac_adopt_298.py` | 0 | 45 passed |
 | `python -m pytest -q tests/test_wiskey_mac_adopt_298_review.py` | 0 | 40 passed |
 | `python -m pytest -q tests/test_wiskey_adopt_2272_install.py` | 1, then 0 | first run 1 failed (its "unknown contract" example was v3, now a known contract); the example is now v4; rerun 39 passed, 2 skipped |
-| `python -m pytest -q tests/test_wiskey_join_live_2382.py` | 0 | 40 passed (the fallback table with the three refusal rows now `False`) |
+| `python -m pytest -q tests/test_wiskey_join_live_2382.py` | 0 | after the follow-up (file identical to the base again): 38 passed |
 | `python -m pytest -q tests/test_wiskey_direct_v2_2520.py` | 0 | 39 passed |
 | `python -m pytest -q tests/test_singletons_registered.py` | 0 | 4 passed |
 | `python -m pytest -q tests/test_remote_access.py` | 0 | 66 passed |
 | `python scripts/gen_wire_types.py --check` (repo root) | 0 | generated files match |
 | `python scripts/wire_ratchet.py` | 0 | 897 unmodelled = baseline 897 (the new route is modelled) |
 | `py -3.12 -m ruff check` on the changed Python files | 1 | one pre-existing F401 in `tests/test_wiskey_join_live_2382.py` (unused `ACTOR` import, present on the base too); nothing new |
-| full backend suite, frontend `tsc`, Playwright | - | **NOT_RUN** (PC memory rule; runner slot B not used for this row). The train gate runs them. |
+| runner (slot B, `~/work/wkr8_job.sh`) | - | see "Runner results" below |
+| full backend suite, full Playwright | - | **NOT_RUN** (the train gate runs them) |
 | live WisKey / lab | - | **NOT_RUN** by rule. The lab has rc10 (v1 direct connection, no v3 block): the read answers `unsupported` and sends nothing. |
+
+### Runner results (Linux test server, slot B via `~/work/slotb.sh`, job `~/work/wkr8_job.sh`; real results)
+
+Run A at `70a61e61d` (backend + frontend), run B at `7ba9124f4` (frontend only; the backend files did not change after run A). Between
+them: run A's `tsc` found 3 TS2367 errors in the card (type-only comparisons, fixed in `6deb6b908`) and its R8 evidence spec failed 24
+of 32 because the mocked administrator lacked `access.read` (the link is offered only to a caller who may open the panel - the
+component was right; the specs now grant it, and one more test covers the caller without it). A screenshot review then showed WisKey's
+code reading out of order inside the Hebrew sentence; it is now set apart in `<bdi dir=ltr>` (`7ba9124f4`).
+
+| step | run | exit | result |
+|---|---|---|---|
+| `test_wiskey_service_grants_v3_2520` (`SW_WIRE_STRICT=1`, one process per file, as all below) | A | 0 | 58 passed |
+| `test_wiskey_join_live_2382` | A | 0 | 38 passed |
+| `test_wiskey_direct_v2_2520` | A | 0 | 39 passed |
+| `test_externalbuild_297` | A | 0 | 32 passed |
+| `test_wiskey_mac_adopt_298` | A | 0 | 45 passed |
+| `test_wiskey_mac_adopt_298_review` | A | 0 | 40 passed |
+| `test_wiskey_adopt_2272_install` | A | 0 | 41 passed |
+| `test_remote_access` | A | 0 | 66 passed |
+| `test_singletons_registered` | A | 0 | 4 passed |
+| `test_wire_routers_e_2480` | A | 0 | 95 passed |
+| `gen_wire_types.py --check` | B | 0 | match |
+| `tsc --noEmit` (app) | B | 0 | 0 errors (run A: 3, fixed) |
+| `npm run typecheck` (tests + scripts) | B | 0 | 0 errors |
+| `eslint` on the changed source files | B | 0 | 0 errors (3 "file ignored" warnings for spec files the config ignores) |
+| `vite build` | B | 0 | built |
+| `unit-bridge-key` + `unit-wiskey-deeplinks` + `unit-people-writes-logic` | B | 0 | 47 passed |
+| `pixel-wiskey-r8-2520 --update-snapshots` (desktop + mobile) | B | 0 | 16 passed; 8 baselines made (classic, domus x active, refused x 1440, 390), committed |
+| `pixel-wiskey-r8-2520` again without update | B | 0 | 16 passed |
+| `evidence-wiskey-r8-2520` (desktop + mobile; shots for the compare page) | B | 0 | 34 passed (run A: 24 failed, see above) |
+| "before" shots (`SW_R8_BEFORE=1`: the block hidden = the card as before) | B | 0 | 4 passed |
+| `evidence-bridge-key` + `evidence-breakui-bridgekey` + `evidence-wxh-leftovers-2405` (desktop + mobile) | B | 0 | 50 passed |
+
 
 ## Not done here (by design)
 
-- No UI. The route and its Hebrew / English texts are ready; rendering them (bridge-key card or the R2 status section, with the deep link
-  to WisKey's `tools` tab) is a visible change that needs its compare page - question 1.
 - The production service-write journal is still not wired (as since WISKEY-ADOPT-2272), so no service write - v1, v2 or v3 - can be sent
-  in production; turning it on is a separate, owner-approved step (question 2).
+  in production (lead decision Q2 a: not in 2.52).
 - `contracts/API_INVENTORY.md` is regenerated by the release train (version-bound), not here.
+- Compare page: `private/planning/wiskey_r8_compare_2026-11-25.html` (main checkout, not in git). "Before" = the same build with the block
+  hidden (the 404 path), which is exactly the card as it was.
+
+## Lead decisions (25.11)
+
+1. Showing the grant: a - in the bridge-key card, done here (above).
+2. Service-write journal: a - not in 2.52.
+3. Human-path fallback after a verified refusal: final on v2 only; v1 / rc10 keeps today's fallback exactly (done here, tested both sides).
+4. Inactive-card wording: a - added as the label's hint (done here).
 
 ## Open questions
 
-1. Showing the grant: a) render it in the bridge-key card (Settings › system) next to R7's direct-transport block, with the link to
-   WisKey's tools tab and the compare page, as a small follow-up row (recommended) b) in R2's access-control status section c) leave it
-   API-only for now.
-2. Wiring the service-write journal so a v3 write can actually be sent: a) not in 2.52 - keep every service write off until the owner
-   approves a live V5 window (recommended) b) wire it now behind the existing go-live permit.
-3. The human-path fallback after a verified refusal (`native_write_action_unsupported`, `native_write_source_not_observed`,
-   `unknown_command`) is now final per WisKey's rc19 selection rule. a) keep it final (recommended; contract text) b) restore the
-   classic re-send for these three codes and ask WisKey to confirm they are pre-effect.
-4. The people screen's card label "מושבת / Deactivated" (`cards.disabled`) is a central flag, not a station claim. a) add the
-   `CARD_OFF_TEXT` wording as its hint with R8's UI follow-up (recommended) b) leave the label as is.
+None left from this row.
