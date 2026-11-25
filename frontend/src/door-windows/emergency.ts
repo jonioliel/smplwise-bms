@@ -202,6 +202,9 @@ export class DoorEmergencySheet extends LitElement {
     const sc = this.scope(kind);
     if (!sc) return;
     this.error = '';
+    // SCR-01: a new hold never keeps an older token - only this hold's fresh prepare can reach the confirm step
+    this.prepared = null;
+    clearInterval(this.tick);
     try {
       this.prepared = await prepareStart(kind, { scope_type: sc.scope_type, scope_id: sc.scope_id }, this.drill || !this.data?.enabled);
       this.step = nextStep(this.step, 'held');
@@ -219,6 +222,7 @@ export class DoorEmergencySheet extends LitElement {
         }
       }, 500);
     } catch (err) {
+      this.prepared = null;
       this.error = errorText(err);
       this.step = nextStep(this.step, 'failed');
     }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { alarmWord, callResult, clockOf, dayWord, daySpans, diaryWord, guestState, inSpans, playbackError } from '../src/home/home-v3-words';
+import { alarmFollow, alarmFollowText, alarmWord, callResult, clockOf, dayWord, daySpans, diaryWord, guestState, inSpans, playbackError } from '../src/home/home-v3-words';
 
 // HOME-V3-P1-2430: the phase-1 screens' words and pure rules (src/home/home-v3-words.ts), and source checks over the new files: no platform
 // name or internal term in what they show, the timeline is left to right, the guest code is never rendered, registration is per file.
@@ -33,6 +33,22 @@ test('a guest invitation state: waiting for approval, the number to confirm, liv
   expect(guestState({ ...g, valid_from: '2026-11-11T13:00:00Z' }, now).text).toBe('עוד לא התחיל');
   expect(guestState({ ...g, valid_until: '2026-11-11T11:30:00Z' }, now).live).toBe(false);
   expect(guestState({ ...g, state: 'revoked' }, now).live).toBe(false);
+});
+
+test('SCREENS-FIX-A-2520 (SCR-06): an arm / disarm request is "sent" until the panel confirmed it', () => {
+  expect(alarmFollow('confirmed')).toBe('confirmed');
+  for (const s of ['pending', 'sent', '', null, undefined]) expect(alarmFollow(s)).toBe('pending');
+  expect(alarmFollow('failed')).toBe('failed');
+  expect(alarmFollow('denied')).toBe('failed');
+  expect(alarmFollow('unknown')).toBe('unknown');
+  expect(alarmFollowText('arm_away', 'pending')).toContain('נשלחה');
+  expect(alarmFollowText('arm_away', 'pending')).not.toBe('האזעקה נדרכת');
+  expect(alarmFollowText('disarm', 'pending')).not.toBe('האזעקה מנוטרלת');
+  expect(alarmFollowText('arm_away', 'confirmed')).toBe('האזעקה נדרכת');
+  expect(alarmFollowText('disarm', 'confirmed')).toBe('האזעקה מנוטרלת');
+  expect(alarmFollowText('arm_home', 'failed')).toBe('הלוח לא דרך את האזעקה');
+  expect(alarmFollowText('disarm', 'failed')).toBe('הלוח לא נטרל את האזעקה');
+  expect(alarmFollowText('disarm', 'unknown')).toContain('לא התקבל אישור');
 });
 
 test('alarm words: green only for an armed house, danger for an alarm', () => {

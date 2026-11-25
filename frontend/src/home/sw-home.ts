@@ -28,6 +28,7 @@ import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
 import { stillIntervalMs } from '../api/frigate';
 import { callResult } from './home-v3-words';
+import { followAlarmAction } from './home-alarm-follow';
 import { diffWords, fixedTariffPrice, num1 } from './home-p3-logic';
 import type { EnergyTariffList } from '../api/generated/wire-consumption';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
@@ -176,6 +177,13 @@ export class SwHome extends LitElement implements P3Host {
   @state() private kioskUntil = 0;
   @state() private welcomePick: 'home' | 'full' = 'home';
   @state() panels: AlarmPanel[] = [];
+  /** SCREENS-FIX-A-2520 (SCR-06): whether the panels were read - 'none' (not yet), 'ok', 'error' (the last read failed; `panels` keeps
+   * the last list that was read, the alarm screen says "unavailable" - never "no alarm system"). */
+  @state() panelsRead: 'none' | 'ok' | 'error' = 'none';
+  /** SCR-06: the newest panels read only (a push, the alarm screen's beat and a command's follow-up overlap) */
+  private panelsSeq = 0;
+  /** SCR-06: a pushed alarm-panel change re-reads the panels (debounced), on every home device - phone, tablet and wall panel */
+  private alarmPushT = 0;
   @state() private calls: HomeCallsState = { ringing: 0, waiting: 0 };
   /** The entrance this person may talk to without a call (the station drawer's "dial", the same talk session) - null = not offered. */
   @state() talkTo: { id: string; name: string; talk: StationMediaTalk; video: string } | null = null;
@@ -241,7 +249,7 @@ export class SwHome extends LitElement implements P3Host {
     this.wall.connect();
     this.stopHa = subscribeHa((m) => {
       if (m.type === 'entity_state_changed' || m.type === 'structure_changed') this.scheduleRefresh();
-      if (m.type === 'entity_state_changed') this.wall.haChanged(m.entity.entity_id);
+      if (m.type === 'entity_state_changed') this.alarmPushed(m.entity.entity_id);
     });
   }
 
@@ -249,6 +257,7 @@ export class SwHome extends LitElement implements P3Host {
     super.disconnectedCallback();
     window.removeEventListener('resize', this.onResize);
     window.clearInterval(this.clockT);
+    window.clearTimeout(this.alarmPushT);
     this.stopHa?.();
     this.stopHa = null;
     // FE-LEAK-TEXTKEY-2435: the active v3 screen gives back what it holds (a playing recording closes its server playback session
@@ -341,11 +350,24 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   async loadPanels() {
+    const seq = ++this.panelsSeq;
     try {
-      this.panels = (await alarmPanels()).panels;
+      const panels = (await alarmPanels()).panels;
+      if (seq !== this.panelsSeq) return;
+      this.panels = panels;
+      this.panelsRead = 'ok';
     } catch {
-      this.panels = [];
+      // SCR-06: a failed read keeps the last panels and says so - it is not "no alarm system"
+      if (seq === this.panelsSeq) this.panelsRead = 'error';
     }
+  }
+
+  /** SCR-06: an alarm panel's pushed change re-reads the panels on every home device (before: only a wall panel did, so a phone on the
+   * alarm screen stayed on "arming" and the home chip kept the state from page load). */
+  private alarmPushed(entityId: string | undefined) {
+    if (!entityId?.startsWith('alarm_control_panel.') || !this.data || !this.d.modules.has('security') || !canAnywhere('alarm.view')) return;
+    window.clearTimeout(this.alarmPushT);
+    this.alarmPushT = window.setTimeout(() => void this.loadPanels(), 400);
   }
 
   private async loadOverview() {
@@ -1068,7 +1090,7 @@ export class SwHome extends LitElement implements P3Host {
     const send = (code?: string) => {
       this.ovl = null;
       void panelAction(p.entity_id, action, { confirmed: true, code })
-        .then(() => { this.toast(tr('{name}: {v1} נשלחה', { name: p.name, v1: ARM_LABEL[action] })); window.setTimeout(() => void this.loadPanels(), 1500); })
+        .then((rec) => followAlarmAction(this, rec, action)) // SCREENS-FIX-A-2520 (SCR-06): "sent" until the panel confirms
         .catch((err) => this.toast(describeError(err)));
     };
     if (prompt === 'pin' || prompt === 'panel') this.ovl = { type: 'code', title: `${ARM_LABEL[action]}: ${p.name}`, code: '', error: '', run: (c) => send(c) };

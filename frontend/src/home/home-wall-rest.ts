@@ -59,7 +59,6 @@ export class WallPanel {
   private noticesAt = 0;
   private noticesLoading = false;
   private pollT = 0;
-  private alarmT = 0;
   private callOn = false;
   private shown: TakeoverItem | null = null;
   /** CR-MODAL-STACK-B-2442: a takeover is a layer of the shared modal stack - Tab stays inside it, the room screen behind it is inert,
@@ -96,8 +95,7 @@ export class WallPanel {
     document.removeEventListener('visibilitychange', this.onVisible);
     this.modal.release();
     window.clearInterval(this.pollT);
-    window.clearTimeout(this.alarmT);
-    this.pollT = this.alarmT = 0;
+    this.pollT = 0;
     this.machine?.dispose();
     this.machine = null;
     this.key = '';
@@ -158,12 +156,8 @@ export class WallPanel {
       .finally(() => { this.noticesLoading = false; });
   }
 
-  /** A pushed state change: an alarm panel's re-reads the panels (debounced), so a sounding alarm takes the screen at once. */
-  haChanged(entityId: string | undefined) {
-    if (!this.machine || !entityId?.startsWith('alarm_control_panel.') || this.settings().takeover === 'call_only') return;
-    window.clearTimeout(this.alarmT);
-    this.alarmT = window.setTimeout(() => void this.h.loadPanels(), 400);
-  }
+  // SCREENS-FIX-A-2520 (SCR-06): a pushed alarm-panel change re-reads the panels in sw-home itself (`alarmPushed`) on every home
+  // device, a wall panel included - so a sounding alarm still takes the screen at once.
 
   /** The door call element's state: a visible ringing call holds the panel awake (and keeps any takeover behind it). */
   calls(ringing: number, waiting: number) {

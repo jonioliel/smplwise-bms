@@ -154,6 +154,40 @@ test('emergency: off -> drill forced; hold, the server\'s prepare, one confirm, 
   expect(errors).toEqual([]);
 });
 
+test('SCR-01: a failed prepare, then a failed start - every further hold reaches the confirm step with a fresh token', async ({ page }) => {
+  const { mock, errors } = await boot(page, { emergency: { enabled: false }, emergencyFail: { prepare: 1, start: 1 } });
+  const s = page.locator(SCREEN);
+  await s.locator('[data-dw-emergency]').click();
+  const sheet = s.locator('door-emergency-sheet');
+  const btn = `${SCREEN} door-emergency-sheet door-hold-button[data-em-kind="lock_secure"] button`;
+  const starts = () => mock.posts.filter((p) => p.path === 'doors/emergency/incidents');
+  // 1. the server's prepare fails: the error line, the hold buttons stay live, nothing started
+  await hold(page, btn);
+  await expect(sheet.locator('[data-em-error]')).toBeVisible();
+  await expect(sheet.locator('[data-em-step="choose"]')).toBeVisible();
+  expect(starts()).toHaveLength(0);
+  // 2. the next hold reaches the confirm step (before the fix the sheet stayed on choose and nothing moved)
+  await hold(page, btn);
+  await expect(sheet.locator('[data-em-step="confirm"]')).toBeVisible();
+  await expect(sheet.locator('[data-em-error]')).toHaveCount(0);
+  expect(starts()).toHaveLength(0); // nothing is sent before the confirm
+  // 3. the start fails (the single-use token expired): the error line, back to the hold buttons
+  await sheet.locator('[data-em-confirm]').click();
+  await expect(sheet.locator('[data-em-error]')).toBeVisible();
+  await expect(sheet.locator('[data-em-step="choose"]')).toBeVisible();
+  expect(starts()).toHaveLength(1);
+  // 4. a new hold draws the confirm step again with the fresh token; no door action without that confirm
+  await hold(page, btn);
+  await expect(sheet.locator('[data-em-step="confirm"]')).toBeVisible();
+  expect(starts()).toHaveLength(1);
+  await sheet.locator('[data-em-confirm]').click();
+  await expect(sheet.locator('[data-em-step="result"]')).toBeVisible();
+  expect(starts()).toHaveLength(2);
+  expect(starts()[1].body).toMatchObject({ confirm_token: 'tok_SAMPLE_not_a_secret_3', confirmed: true });
+  expect(starts()[0].body).toMatchObject({ confirm_token: 'tok_SAMPLE_not_a_secret_2' });
+  expect(errors).toEqual([]);
+});
+
 test('emergency: the red strip while in effect, released by hold then confirm', async ({ page }, info) => {
   const { mock } = await boot(page, { emergency: { enabled: true, active: 'lock' } });
   const s = page.locator(SCREEN);

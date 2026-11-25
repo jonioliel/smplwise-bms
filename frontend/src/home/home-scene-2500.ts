@@ -12,6 +12,7 @@ import { hi } from './home-icons';
 import { loadScenes, type HDoor, type HScene } from './home-api';
 import { lockDoor } from './home-actions';
 import { ARM_WORD } from './home-v3-words';
+import { followAlarmAction } from './home-alarm-follow';
 import { sw } from './home-p2-ui';
 import { rid } from './home-p2-api';
 import { armNeedsCode, sceneSuggestions, type Suggestion } from './home-favgrid';
@@ -40,7 +41,7 @@ export async function afterScene(h: HomeHost, s: HScene): Promise<void> {
 function arm(h: HomeHost, p: AlarmPanel, mode: string, code?: string) {
   h.ovl = null;
   void panelAction(p.entity_id, mode as never, { confirmed: true, code })
-    .then(() => { h.toast(tr('האזעקה נדרכת')); window.setTimeout(() => void h.loadPanels(), 1500); })
+    .then((rec) => followAlarmAction(h, rec, mode)) // SCREENS-FIX-A-2520 (SCR-06): "sent" until the panel confirms
     .catch((err) => h.toast(err instanceof ApiError && CODE_ERROR_LABEL[err.code] ? CODE_ERROR_LABEL[err.code] : describeError(err)));
 }
 
