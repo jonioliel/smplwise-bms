@@ -112,7 +112,7 @@ async function setup(page: Page, over: Partial<Mock> = {}): Promise<Mock> {
       if (m[2] === 'approve') {
         st.approvals.push({ challenge_id: body.challenge_id ?? '', key_id: body.key_id ?? '', signature: body.signature ?? '' });
         st.pending = [];
-        if (st.picks[st.picks.length - 1] !== 42) return json(route, err('push_approval_number_mismatch', 'המספר שבחרת לא תואם למספר שעל המסך שביקש. הבקשה נדחתה.'), 409);
+        if (st.picks[st.picks.length - 1] !== 42) return json(route, err('push_approval_number_mismatch', 'המספר שהקלדת לא תואם למספר שעל המסך שביקש. הבקשה נדחתה.'), 409);
         return json(route, { request_id: m[1], status: 'approved', reason: null, expires_in: 0 });
       }
       st.denies.push(m[1]);

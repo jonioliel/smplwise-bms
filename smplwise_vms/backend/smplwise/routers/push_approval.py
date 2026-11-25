@@ -210,7 +210,7 @@ def approve(request_id: str, body: ApproveBody, request: Request, principal: Pri
     if number != a.number:
         if pa.deny(a, "number_mismatch"):
             _audit(conn, request, principal, "denied", a, allowed=False, reason="number_mismatch", key_id=row["id"])
-        raise ApiError(409, "push_approval_number_mismatch", "המספר שבחרת לא תואם למספר שעל המסך שביקש. הבקשה נדחתה.",
+        raise ApiError(409, "push_approval_number_mismatch", "המספר שהקלדת לא תואם למספר שעל המסך שביקש. הבקשה נדחתה.",
                        details=_state(a))
     if not pa.approve(a, row["id"]):
         raise _unknown()
