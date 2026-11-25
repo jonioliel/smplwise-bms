@@ -84,6 +84,9 @@ export class SystemAccessWiskey extends LitElement {
   static styles = [
     statusStyles,
     css`
+      .kv .main .t {
+        white-space: normal;
+      }
       .kv .side {
         flex-wrap: wrap;
         justify-content: flex-end;
@@ -259,9 +262,9 @@ export class SystemAccessWiskey extends LitElement {
         card: 'title',
         render: (x) => html`<span style=${CELL.strong}>${st(`wkFamily_${row(x).family}` as StKey)}</span>${row(x).present ? nothing : html`<span style=${CELL.sub}>${st('wkFamilyMissing')}</span>`}`,
       },
-      { key: 'waiting', label: st('wkColWaiting'), card: 'meta', kind: 'num', render: (x) => count(row(x), 'waiting') },
-      { key: 'running', label: st('wkColRunning'), card: 'meta', kind: 'num', render: (x) => count(row(x), 'running') },
-      { key: 'failed', label: st('wkColFailed'), card: 'meta', kind: 'num', render: (x) => count(row(x), 'failed') },
+      { key: 'waiting', label: st('wkColWaiting'), card: 'show', kind: 'num', render: (x) => count(row(x), 'waiting') },
+      { key: 'running', label: st('wkColRunning'), card: 'show', kind: 'num', render: (x) => count(row(x), 'running') },
+      { key: 'failed', label: st('wkColFailed'), card: 'show', kind: 'num', render: (x) => count(row(x), 'failed') },
     ];
     const rows = familyRows(v).map((f) => ({ ...f, id: f.family })) as unknown as Record<string, unknown>[];
     return html`<sw-card flush data-wk-card="families">
