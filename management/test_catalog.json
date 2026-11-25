@@ -8186,7 +8186,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (evidence-floorstrip.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (evidence-floorstrip.spec.ts); no passing assertion."
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (evidence-floorstrip.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (evidence-floorstrip.spec.ts); no passing assertion. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - evidence-floorstrip.spec.ts is skipped in every released gate (needs its fixture backend); no passing assertion."
   },
   {
     "id": "AT304",
@@ -10418,7 +10418,7 @@
     ],
     "expected": "Every listed test passes or skips by its own documented rule; the visual matrix reports 0 differences; the gate selftest passes.",
     "status": "NOT_RUN",
-    "notes": "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md. | 2026-11-23 (ACC-SWEEP-2211): Expected needs the visual matrix (0 differences) and the gate selftest; the sweep did not run them. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Expected needs the visual matrix (0 differences) besides the gate self-tests; the visual matrix was not run here."
+    "notes": "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md. | 2026-11-23 (ACC-SWEEP-2211): Expected needs the visual matrix (0 differences) and the gate selftest; the sweep did not run them. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Expected needs the visual matrix (0 differences) besides the gate self-tests; the visual matrix was not run here. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - the gate itself runs the listed specs and the visual matrix (72 / 0 at f73c20728), but scripts/gate/selftest_gate.py is not part of a release gate; not run."
   },
   {
     "id": "AT-GATELANES-1",
@@ -10443,7 +10443,7 @@
     ],
     "expected": "tsc ok; SELFTEST PASSED; every pixel case passes against the unchanged classic / domus baselines and every smoke case passes; both pytest selections pass; the lists match.",
     "status": "NOT_RUN",
-    "notes": "2026-10-27 test machine, pilot/GATELANES-297 @ 880cfe659, one targeted run (not a gate; load average 16-28 from other jobs): tsc ok; selftest 2 BROKEN cases = a bug in the new check (it read the -m of `python -m pytest`; the printed command lines show -m 'not timing_lane' / -m timing_lane), fixed in the next commit, selftest NOT re-run; backend -m 'not timing_lane' (door, LAT1, tablet allowlist) 16 passed / 2 deselected; backend -m timing_lane 1 passed, 1 failed (LAT1 latency bounds at load ~25: the lane's reason to exist); playwright --list: archive 0 tests, @timing-lane 15 tests in 4 files; pixel step (12 per-skin pixel specs, desktop + mobile, --grep pixel-stable) 117 passed / 11 skipped / 0 failed against the unchanged classic / domus baselines; structural smoke (tesla, crystal, 3 projects) 39 passed / 29 skipped / 4 failed - all 4 in pixel-access-schedules, a page error 'localStorage access denied' thrown on the about:blank page the spec's open() loads first (harness, not the skin); the smoke now ignores errors of about:blank (next commit), NOT re-run; evidence-uxfix-rtl + evidence-nvr-cameras-batch with --grep-invert @timing-lane 23 passed; timing_lane.sh --now (engine GATE_LANE=timing, own worktree): PASS in 3 min (preview 10, dev 1, backend 2, 0 fail). | 2026-11-23 (ACC-SWEEP-2211): Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes; the sweep did not run them. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes compared; only the self-tests ran here."
+    "notes": "2026-10-27 test machine, pilot/GATELANES-297 @ 880cfe659, one targeted run (not a gate; load average 16-28 from other jobs): tsc ok; selftest 2 BROKEN cases = a bug in the new check (it read the -m of `python -m pytest`; the printed command lines show -m 'not timing_lane' / -m timing_lane), fixed in the next commit, selftest NOT re-run; backend -m 'not timing_lane' (door, LAT1, tablet allowlist) 16 passed / 2 deselected; backend -m timing_lane 1 passed, 1 failed (LAT1 latency bounds at load ~25: the lane's reason to exist); playwright --list: archive 0 tests, @timing-lane 15 tests in 4 files; pixel step (12 per-skin pixel specs, desktop + mobile, --grep pixel-stable) 117 passed / 11 skipped / 0 failed against the unchanged classic / domus baselines; structural smoke (tesla, crystal, 3 projects) 39 passed / 29 skipped / 4 failed - all 4 in pixel-access-schedules, a page error 'localStorage access denied' thrown on the about:blank page the spec's open() loads first (harness, not the skin); the smoke now ignores errors of about:blank (next commit), NOT re-run; evidence-uxfix-rtl + evidence-nvr-cameras-batch with --grep-invert @timing-lane 23 passed; timing_lane.sh --now (engine GATE_LANE=timing, own worktree): PASS in 3 min (preview 10, dev 1, backend 2, 0 fail). | 2026-11-23 (ACC-SWEEP-2211): Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes; the sweep did not run them. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Expected needs tsc, the gate SELFTEST and the pixel baselines of both lanes compared; only the self-tests ran here. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - tsc and the pixel lanes pass in the released gates, but the selftest and the timing_lane pytest selection are not part of a release gate; not run."
   },
   {
     "id": "AT-WISKEYA06-1",
@@ -11579,7 +11579,7 @@
     ],
     "expected": "The layout editor panel is grouped, device controls share one control look, a cover tilt sits apart from its position, and the automations screen loads with the shape of its list.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (devpolish-2331-shoot.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (devpolish-2331-shoot.spec.ts); no passing assertion.",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (devpolish-2331-shoot.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (devpolish-2331-shoot.spec.ts); no passing assertion. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - devpolish-2331-shoot.spec.ts is skipped in every released gate (300 skipped); no passing assertion of the acceptance.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -11654,7 +11654,7 @@
     ],
     "expected": "The players page fits the window with only its cards scrolling, the casting table lines up, door cards name each switch and the remote editor keeps save / cancel on screen.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (layout-bubble-screens.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (layout-bubble-screens.spec.ts); no passing assertion.",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-23 (ACC-SWEEP-2211): Every mapped spec skipped by its own gate (layout-bubble-screens.spec.ts); no passing assertion. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Every mapped spec skipped by its own gate or needs a fixture backend (layout-bubble-screens.spec.ts); no passing assertion. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - layout-bubble-screens.spec.ts is skipped in every released gate (bubble skin frozen); no passing assertion of the acceptance.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -15303,12 +15303,12 @@
       "Run the tests or the build check listed in the change record against the commit recorded here."
     ],
     "expected": "The add-on installs its Python packages with a committed constraints lock file (pip -c) that pins every direct and transitive package, per supported architecture (musllinux wheels, with hashes), generated on the runner; the five range pins of requirements.txt (tzdata, numpy, cryptography, ezdxf, uharfbuzz) resolve to the locked versions, and a test fails when requirements.txt and the lock file disagree.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run. | 2026-11-23 (ACC-SWEEP-2211): No automated test is mapped to this card (document / registry / script / build artefact, or the owner-attested step); nothing runnable found by the change record or the commit history. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class E - No automated test is mapped to this test (change record, commits naming the card, test files naming it); document / process / design acceptance. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the lock-file test (every package pinned per architecture with hashes; requirements.txt and the lock agree) passes).",
+    "commit": "33360d2a8",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 33360d2a8, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_python_constraints_2407.py (34 passed, 0 skipped by project / own rule). Why this covers the acceptance: the lock-file test (every package pinned per architecture with hashes; requirements.txt and the lock agree) passes.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-PY-CONSTRAINTS-2407-2",
@@ -15328,12 +15328,12 @@
       "Run the tests or the build check listed in the change record against the commit recorded here."
     ],
     "expected": "A Supervisor-equivalent build check (the add-on Dockerfile built from the base image the Supervisor uses, on the runner) installs with the lock file and imports the backend, so a lock that breaks the Supervisor build (as the base-image digest pin did in v2.31.0) is caught before a release; the check is part of the release gate or the release checklist.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run. | 2026-11-23 (ACC-SWEEP-2211): Needs a Supervisor-equivalent Docker build of the add-on image on the runner; not run. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class D - owner / device step",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run. | 2026-11-23 (ACC-SWEEP-2211): Needs a Supervisor-equivalent Docker build of the add-on image on the runner; not run. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - class D - owner / device step | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the gate add-on build step (part of the release gate) built smplwise_vms/Dockerfile (pip install -r requirements.txt -c constraints.txt) from ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22 and the image passed import, create_app, /healthz and tools: PASS at f73c20728, bdf28fc37 and df3ee6d12).",
+    "commit": "33360d2a8",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 33360d2a8, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: no file-level test: see the note. Why this covers the acceptance: the gate add-on build step (part of the release gate) built smplwise_vms/Dockerfile (pip install -r requirements.txt -c constraints.txt) from ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22 and the image passed import, create_app, /healthz and tools: PASS at f73c20728, bdf28fc37 and df3ee6d12.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CAMERA-REBOOT-2407-1",
@@ -15479,7 +15479,7 @@
     ],
     "expected": "Evidence (screenshot) runs on the runner for the 2.41.0 / 2.41.1 camera screens: installation with an NVR (unchanged), installation with go2rtc and no NVR plus one camera without a recorder (rail, overview, wall, camera screen, area camera card / picker, floor map), the video source dialog and the NVR page card; Hebrew RTL at desktop and phone widths; findings recorded.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Not run here: evidence-nvrless-cameras-2412.spec.ts (fixture-backed spec needing its own backend, or not in the run).",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Not run here: evidence-nvrless-cameras-2412.spec.ts (fixture-backed spec needing its own backend, or not in the run). | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - the evidence spec evidence-nvrless-cameras-2412.spec.ts is skipped in every released gate (fixture-backed); the unit / backend camera tests pass but the screenshot evidence run is the acceptance.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -15554,7 +15554,7 @@
     ],
     "expected": "Cameras on the local network can be discovered over ONVIF and offered as cameras without a recorder (RTSP addresses filled from the profile), read-only until an administrator saves; scope and timing to be set by the owner.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (lab) - the ONVIF client / discovery / API tests pass at bdf28fc37 (test_onvif_client_2500 69, test_camera_discovery_2500 41, test_camera_discovery_api_2500 39, unit-camera-discovery-2500 36, camera-discovery-2500 15) on fakes; evidence-onvif-ui-2500.spec.ts is skipped and discovery on the real lab network is not run.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -17779,7 +17779,7 @@
     ],
     "expected": "Delivered as recorded in docs/changes/CR-MULTIMEDIA-BASE-2440.md: one base for the three multimedia screens",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Not run here: evidence-media-players-live.spec.ts (fixture-backed spec needing its own backend, or not in the run).",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Not run here: evidence-media-players-live.spec.ts (fixture-backed spec needing its own backend, or not in the run). | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - evidence-media-players-live.spec.ts (media_fake_ha fixture) is skipped in every released gate (81 skipped); the other named specs pass at f73c20728 - partial.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -19079,7 +19079,7 @@
     ],
     "expected": "Delivered as recorded in docs/changes/CR-WISKEY-NOTIF-2443.md: people screen subscription, lookups and poll; notification settings section guard and mail draft",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Fixture-backed spec(s) evidence-wiskey-editor.spec.ts, evidence-wiskey-people.spec.ts did not complete against tests/fixtures/wiskey_fake_ha.py on the runner (setup errors: the fixture control /reset answers no JSON, an element / actor assertion) - a test-harness problem, not a product verdict; the ",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Fixture-backed spec(s) evidence-wiskey-editor.spec.ts, evidence-wiskey-people.spec.ts did not complete against tests/fixtures/wiskey_fake_ha.py on the runner (setup errors: the fixture control /reset answers no JSON, an element / actor assertion) - a test-harness problem, not a product verdict; the  | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - evidence-wiskey-people.spec.ts and evidence-wiskey-editor.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate and the late-permission flow in a real browser is not run; the unit specs pass at f73c20728 - partial.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -19154,7 +19154,7 @@
     ],
     "expected": "Delivered as recorded in docs/changes/DIALOG-DRAWER-ONE-2439.md: one opaque dialog and one opaque drawer for the whole system",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Fixture-backed spec(s) evidence-wiskey-capture.spec.ts, evidence-wiskey-editor.spec.ts did not complete against tests/fixtures/wiskey_fake_ha.py on the runner (setup errors: the fixture control /reset answers no JSON, an element / actor assertion) - a test-harness problem, not a product verdict; the",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-23 (LAB-ACCEPT-2311): NOT_RUN - Fixture-backed spec(s) evidence-wiskey-capture.spec.ts, evidence-wiskey-editor.spec.ts did not complete against tests/fixtures/wiskey_fake_ha.py on the runner (setup errors: the fixture control /reset answers no JSON, an element / actor assertion) - a test-harness problem, not a product verdict; the | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - evidence-wiskey-editor.spec.ts / evidence-wiskey-capture.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate; evidence-dialog-drawer-one-2439 and the pixel lanes pass at f73c20728 - partial.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -19553,12 +19553,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers: delivered on pilot/CR-FEED-BASE-2450 with a change note docs/changes/CR-FEED-BASE-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the pin suite written before the refactor and the projection parity suite pass; the full backend run (0 failures) covers every feed consumer; no pixel change).",
+    "commit": "90e84cef0",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 90e84cef0, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_feed_session_pin_2450.py (60 passed, 0 skipped by project / own rule); tests/test_person_projection_parity_2440.py (179 passed, 0 skipped by project / own rule). Why this covers the acceptance: the pin suite written before the refactor and the projection parity suite pass; the full backend run (0 failures) covers every feed consumer; no pixel change.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-ROUTER-SQL-2450-1",
@@ -19578,12 +19578,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "SQL out of the remaining routers (code-review programme 3.6): delivered on pilot/CR-ROUTER-SQL-2450 with a change note docs/changes/CR-ROUTER-SQL-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (every backend file of the change note test table passes; the read-connection inventory test_get_routes_read_conn.py passes; full backend run 0 failures).",
+    "commit": "0a5d0431e",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 0a5d0431e, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_alarm.py (38 passed, 0 skipped by project / own rule); tests/test_alarm_managed_cache.py (2 passed, 0 skipped by project / own rule); tests/test_anchor_3d.py (6 passed, 0 skipped by project / own rule); tests/test_anchor_coverage.py (1 passed, 0 skipped by project / own rule); tests/test_body_limit.py (12 passed, 0 skipped by project / own rule); tests/test_building_reach_round14.py (8 passed, 0 skipped by project / own rule); tests/test_building_scope_control_2351.py (5 passed, 0 skipped by project / own rule); tests/test_bundle.py (2 passed, 0 skipped by project / own rule); tests/test_bundle_import.py (19 passed, 0 skipped by project / own rule); tests/test_calendar_connect_2330.py (30 passed, 0 skipped by project / own rule); tests/test_calendar_sync_2300.py (38 passed, 0 skipped by project / own rule); tests/test_camera_card.py (33 passed, 0 skipped by project / own rule); tests/test_camera_sources_2410.py (48 passed, 0 skipped by project / own rule); tests/test_cameras.py (8 passed, 0 skipped by project / own rule); tests/test_capabilities.py (3 passed, 0 skipped by project / own rule); tests/test_capture_lease_local_actor.py (43 passed, 0 skipped by project / own rule); tests/test_cases.py (3 passed, 0 skipped by project / own rule); tests/test_catalog.py (4 passed, 0 skipped by project / own rule); tests/test_catalog_images.py (1 passed, 0 skipped by project / own rule); tests/test_correlation.py (2 passed, 0 skipped by project / own rule); tests/test_db_locking.py (21 passed, 0 skipped by project / own rule); tests/test_elevator_alert_recipients_295.py (9 passed, 0 skipped by project / own rule); tests/test_event_detail.py (1 passed, 0 skipped by project / own rule); tests/test_event_windows.py (6 passed, 0 skipped by project / own rule); tests/test_events.py (6 passed, 0 skipped by project / own rule); tests/test_events_cache.py (12 passed, 0 skipped by project / own rule); tests/test_floor_images.py (6 passed, 0 skipped by project / own rule); tests/test_frigate_api.py (40 passed, 0 skipped by project / own rule); tests/test_get_routes_read_conn.py (722 passed, 0 skipped by project / own rule); tests/test_ha_events_list.py (2 passed, 0 skipped by project / own rule); tests/test_ha_users.py (67 passed, 0 skipped by project / own rule); tests/test_home_links.py (4 passed, 0 skipped by project / own rule); tests/test_infra_elevators.py (63 passed, 0 skipped by project / own rule); tests/test_infra_elevators_280.py (34 passed, 0 skipped by project / own rule); tests/test_infra_elevators_travel.py (24 passed, 0 skipped by project / own rule); tests/test_infra_temperature.py (59 passed, 0 skipped by project / own rule); tests/test_infra_temperature_phase3.py (41 passed, 0 skipped by project / own rule); tests/test_infra_temperature_report.py (15 passed, 0 skipped by project / own rule); tests/test_local_identity.py (41 passed, 0 skipped by project / own rule); tests/test_local_identity_units.py (55 passed, 0 skipped by project / own rule); tests/test_local_user_create_2438.py (11 passed, 0 skipped by project / own rule); tests/test_mapping_assist_2330.py (8 passed, 0 skipped by project / own rule); tests/test_multi_nvr.py (18 passed, 0 skipped by project / own rule); tests/test_multibuilding_home_2330.py (5 passed, 0 skipped by project / own rule); tests/test_nvr_cameras_settings.py (18 passed, 0 skipped by project / own rule); tests/test_nvr_less.py (54 passed, 0 skipped by project / own rule); tests/test_nvrless_cameras_2411.py (27 passed, 0 skipped by project / own rule); tests/test_permcam63_shared_spaces.py (36 passed, 0 skipped by project / own rule); tests/test_plan_anchor_scope_plns.py (8 passed, 0 skipped by project / own rule); tests/test_plan_versions.py (2 passed, 0 skipped by project / own rule); tests/test_plans.py (4 passed, 0 skipped by project / own rule); tests/test_rbac_groups.py (14 passed, 0 skipped by project / own rule); tests/test_route.py (3 passed, 0 skipped by project / own rule); tests/test_schedimpact_295_addon.py (17 passed, 0 skipped by project / own rule); tests/test_shared_spaces.py (37 passed, 0 skipped by project / own rule); tests/test_site_location.py (31 passed, 0 skipped by project / own rule); tests/test_soak_dbgrowth_2412.py (7 passed, 0 skipped by project / own rule); tests/test_spatial_search.py (2 passed, 0 skipped by project / own rule); tests/test_switch_protection_reach_guard.py (4 passed, 0 skipped by project / own rule); tests/test_temperature_registry_295.py (2 passed, 0 skipped by project / own rule); tests/test_templink_2320.py (16 passed, 0 skipped by project / own rule); tests/test_tempvendor_295.py (26 passed, 0 skipped by project / own rule); tests/test_thumbnails.py (1 passed, 0 skipped by project / own rule); tests/test_wall.py (15 passed, 0 skipped by project / own rule); tests/test_wall_alerts.py (8 passed, 0 skipped by project / own rule); tests/test_wiskey_door_path.py (18 passed, 0 skipped by project / own rule); tests/test_zonecount107_295.py (23 passed, 0 skipped by project / own rule); tests/test_zones.py (3 passed, 0 skipped by project / own rule); tests/test_zones_nvr.py (2 passed, 0 skipped by project / own rule). Why this covers the acceptance: every backend file of the change note test table passes; the read-connection inventory test_get_routes_read_conn.py passes; full backend run 0 failures.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-RESPONSE-MODELS-CONSUMPTION-2450-1",
@@ -19653,12 +19653,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "CMP-2 step 2, the selects family (O13 a: family by family, new baselines): delivered on pilot/CR-CMP2-SELECTS-2450 with a change note docs/changes/CR-CMP2-SELECTS-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the segmented-control unit / adoption guard and its pixel specimen pass; gate pixel lane 380 passed / 0 failed and visual matrix 72 / 0 differences).",
+    "commit": "18911c376",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 18911c376, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: unit-sw-segmented.spec.ts (66 passed, 0 skipped by project / own rule); pixel-sw-segmented.spec.ts (6 passed, 0 skipped by project / own rule); unit-toast-controller.spec.ts (42 passed, 0 skipped by project / own rule); unit-dark-polish-beds.spec.ts (21 passed, 0 skipped by project / own rule). Why this covers the acceptance: the segmented-control unit / adoption guard and its pixel specimen pass; gate pixel lane 380 passed / 0 failed and visual matrix 72 / 0 differences.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-CR-BE-COMPLEXITY-2450-1",
@@ -19703,12 +19703,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "T068 edge cases of the soak and load work: disconnects and a full disk: delivered on pilot/T068-EDGE-2450 with a change note docs/changes/T068-EDGE-2450.md, focused tests run and NOT_RUN items recorded, UI baselines refreshed on the runner where pixels move.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-19 (TASKS-SYNC-1911); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the disconnect / full-disk edge suites (D1-D3, F1-F8, G1-G4) pass (test_soak_edges2_2450.py is first in the 2.50 gate); the long soak itself is not part of this acceptance).",
+    "commit": "856b234af",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 856b234af, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_soak_edges_2450.py (12 passed, 0 skipped by project / own rule); tests/test_soak_edges2_2450.py (4 passed, 0 skipped by project / own rule); tests/test_outage_run_t035.py (15 passed, 0 skipped by project / own rule); tests/test_singletons_registered.py (4 passed, 0 skipped by project / own rule). Why this covers the acceptance: the disconnect / full-disk edge suites (D1-D3, F1-F8, G1-G4) pass (test_soak_edges2_2450.py is first in the 2.50 gate); the long soak itself is not part of this acceptance.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1",
@@ -19728,12 +19728,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Find and fix the intermittent \"Unable to capture screenshot\" failure in the UI test runs: the cause of the occasional \"Unable to capture screenshot\" error is found and fixed or quarantined with a ticket; evidence from repeated runs is recorded.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the capture guard spec passes; repeated-run evidence: 0 \"Unable to capture screenshot\" in the logs of the four gate runs f73c20728, bdf28fc37, df3ee6d12, d886d7929).",
+    "commit": "169570cf5",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 169570cf5, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: unit-capture-guard.spec.ts (4 passed, 0 skipped by project / own rule). Why this covers the acceptance: the capture guard spec passes; repeated-run evidence: 0 \"Unable to capture screenshot\" in the logs of the four gate runs f73c20728, bdf28fc37, df3ee6d12, d886d7929.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-SHARED-CHECKBOX-2480-1",
@@ -19779,7 +19779,7 @@
     ],
     "expected": "Generator settings: units move from the field label into the field frame: the generator settings show units inside the field frame like electricity and water; text changes exist in all 4 languages.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (owner) - evidence-gen-units-en-2490.spec.ts passes at f73c20728 (Hebrew + English, desktop / tablet / mobile), but the acceptance says the text changes exist in all 4 languages and the change note adds unit words in Hebrew and English only; Arabic / Russian not evidenced - a gap to confirm or fix, not PASS.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -19803,12 +19803,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Tickets table paging; case details stay a scrolling document: the tickets table pages instead of scrolling; the case details window stays a scrolling document (permitted scroll); no urgency while the tickets module is off.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (paging at 1024 / 1280 / 1440 / 1920 / 820 and the phone (fills the room, nothing scrolls, pager, selection across pages, keyboard) passes; skips are project-size skips only).",
+    "commit": "164b1fb7a",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 164b1fb7a, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: layout-tickets-table-paging-2490.spec.ts (10 passed, 20 skipped by project / own rule); unit-tickets-table.spec.ts (48 passed, 0 skipped by project / own rule); evidence-tickets-table.spec.ts (27 passed, 33 skipped by project / own rule); evidence-tickets-delete.spec.ts (4 passed, 0 skipped by project / own rule). Why this covers the acceptance: paging at 1024 / 1280 / 1440 / 1920 / 820 and the phone (fills the room, nothing scrolls, pager, selection across pages, keyboard) passes; skips are project-size skips only.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-DOOR-TECH-HOLD-FIX-2480-1",
@@ -19828,12 +19828,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Door technician screen: hold buttons stay usable while the screen re-reads after a write: after a before/after comparison page is accepted by the owner, the hold buttons are no longer locked after each write during the re-read; delivered on the FLAKY-SWEEP-2480 line.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (both DOOR-TECH-REREAD-2480 tests (hold buttons stay pressable during the re-read; a code slot opens from the fresh presence) pass on desktop and mobile; the owner accepted the before / after page in the 23.11 morning answers (all recommendation)).",
+    "commit": "5efb30eb1",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 5efb30eb1, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: evidence-wiskey-door-tech.spec.ts (18 passed, 9 skipped by project / own rule); unit-wiskey-door-tech.spec.ts (27 passed, 0 skipped by project / own rule); pixel-wiskey-door-tech.spec.ts (4 passed, 0 skipped by project / own rule); layout-audit30wk-components.spec.ts (7 passed, 5 skipped by project / own rule); unit-confirm-words-2442.spec.ts (21 passed, 0 skipped by project / own rule); unit-modal-stack-guard-2442.spec.ts (15 passed, 0 skipped by project / own rule). Why this covers the acceptance: both DOOR-TECH-REREAD-2480 tests (hold buttons stay pressable during the re-read; a code slot opens from the fresh presence) pass on desktop and mobile; the owner accepted the before / after page in the 23.11 morning answers (all recommendation).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-HAND-SWITCH-2480-1",
@@ -19853,12 +19853,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes: checkboxes that act as on/off switches become 32x18 switches as on the comparison page (152 before/after pairs), and the I agree terms checkboxes become switches too; RTL, phone and pixel baselines refreshed on the runner.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the hand-switch ratchet (checkout at or below the baseline, owner-kept switches not counted) and the switched screens pass; gate pixel lane 380 / 0 and visual 72 / 0 against the refreshed baselines; the owner approved the comparison page (22.11 Q7, Q30)).",
+    "commit": "dab624c06",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head dab624c06, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_build_guards_2438.py (11 passed, 0 skipped by project / own rule); evidence-schedules-editor.spec.ts (36 passed, 0 skipped by project / own rule); evidence-sharedid-293.spec.ts (11 passed, 0 skipped by project / own rule); evidence-sharedui-295.spec.ts (28 passed, 0 skipped by project / own rule); layout-update-screens.spec.ts (8 passed, 0 skipped by project / own rule). Why this covers the acceptance: the hand-switch ratchet (checkout at or below the baseline, owner-kept switches not counted) and the switched screens pass; gate pixel lane 380 / 0 and visual 72 / 0 against the refreshed baselines; the owner approved the comparison page (22.11 Q7, Q30).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-HAND-SWITCH-HOME-PERSONAL-2490-1",
@@ -19879,7 +19879,7 @@
     ],
     "expected": "Switches in the home \"personal\" card, after the home panel edit: the personal card of the home interface uses the new switches after the home panel edit lands, so the same file is not edited twice.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - unit-hand-switch-home-personal-2500.spec.ts (source checks) passes at bdf28fc37, but the behaviour spec evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-personal-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -19903,12 +19903,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The phone test run skips desktop-size screenshots, file by file: the phone project skips the screenshots that are desktop-size only, decided per file, so tests are less flaky and faster.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the gate Playwright JSON holds no mobile-project result for any of the 25 files of tests/phone-skip-list.json and no tablet result for its 20 tabletAlso files (same at df3ee6d12), while desktop runs them).",
+    "commit": "d8c95810a",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head d8c95810a, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: no file-level test: see the note. Why this covers the acceptance: the gate Playwright JSON holds no mobile-project result for any of the 25 files of tests/phone-skip-list.json and no tablet result for its 20 tabletAlso files (same at df3ee6d12), while desktop runs them.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-SOAK-14H-2490-1",
@@ -20129,7 +20129,7 @@
     ],
     "expected": "Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation: the 2FA design is built as one train after 2.49.0 with the owner decisions; a SETTING can turn step-up off so 2FA is asked only at the initial login; the long token follows the decision below.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (device) - slices 1-9 and the 2.51 rows pass in the 2.51 gate (test_mfa_* 15 files, unit-mfa-passkeys-2490 after the test-only fix at d886d7929), but slice 12 (MFA-REVIEW-DOCS-2520) and the follow-ups are on the unreleased 2.52 train, and a passkey / device-key sign-in on a real phone is not run.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -20153,12 +20153,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Multi-building next phase (safety first, then the home interface, then filtering and lobby): floor move between buildings, a check before multi-building is switched on, the building selector of the home interface and the lobby screen follow the owner decisions; safety first.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (safety (floor move preview, the check before switching on), the home building selector, filtering and the lobby audience pass; the two multi-building home flakes passed alone; owner decisions Q62-Q69 = recommendation; before / after pages in private/planning (mb_safety / mb_home / mb_next)).",
+    "commit": "d3c0dc171",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head d3c0dc171, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_mb_safety_2500.py (12 passed, 0 skipped by project / own rule); tests/test_mb_home_2500.py (11 passed, 0 skipped by project / own rule); tests/test_mb_next_2500.py (10 passed, 0 skipped by project / own rule); unit-mb-safety-2500.spec.ts (21 passed, 0 skipped by project / own rule); unit-mb-home-2500.spec.ts (12 passed, 0 skipped by project / own rule); unit-mb-next-2500.spec.ts (15 passed, 0 skipped by project / own rule); evidence-mb-safety-2500.spec.ts (10 passed, 2 skipped by project / own rule); evidence-mb-home-2500.spec.ts (5 passed, 1 failed-then-passed-alone, 12 skipped by project / own rule); evidence-mb-next-2500.spec.ts (8 passed, 16 skipped by project / own rule); evidence-multibuilding-home-2330.spec.ts (20 passed, 1 failed-then-passed-alone, 0 skipped by project / own rule). Why this covers the acceptance: safety (floor move preview, the check before switching on), the home building selector, filtering and the lobby audience pass; the two multi-building home flakes passed alone; owner decisions Q62-Q69 = recommendation; before / after pages in private/planning (mb_safety / mb_home / mb_next).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-HOME-INTERFACE-NEXT-2490-1",
@@ -20179,7 +20179,7 @@
     ],
     "expected": "Home interface next phase: rest screen, night mode, takeover, scenes, favourites: the home interface gets a rest screen, night mode, the new-notice rule, tablet dimming, screen takeover, scene editing rights, favourites ordering and the post-scene suggestion as decided.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (device) - every home-next / wall-night / favourites test passes at bdf28fc37 (unit-home-wall-night-2500 42, home-wall-night-2500 8, unit-home-next-2500 21, home-next-2500 21, pixel-home-next-2500 10, unit-home-favorites-2500 57, home-favorites-2500 9, test_home_scene_manage_2500 5, test_home_interface 29), but the change notes say the dim layer and the long-press drag were never tried on a real wall tablet; one tablet check closes it.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -20228,12 +20228,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now: the device palettes file is excluded from the colour-literal count; the video text shadow gets a shared colour variable NOW; no pixel change.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the lowered colour-literal baseline (devices-palettes excluded); tsc / eslint PASS; gate pixel lane 380 / 0 and visual 72 / 0; the branch pixel set (55 files) showed zero screenshot changes (change note)).",
+    "commit": "e4899b75d",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head e4899b75d, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_build_guards_2438.py (11 passed, 0 skipped by project / own rule). Why this covers the acceptance: the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the lowered colour-literal baseline (devices-palettes excluded); tsc / eslint PASS; gate pixel lane 380 / 0 and visual 72 / 0; the branch pixel set (55 files) showed zero screenshot changes (change note).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-COLOR-LITERAL-B-2480-1",
@@ -20253,12 +20253,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Colour-literal ratchet B: skip the module palette tables (about 830 colours): the module palette tables are skipped by the colour-literal count so the number shows the real debt.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the colour-literal baseline that holds only with the module palette tables skipped).",
+    "commit": "cc342daa4",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head cc342daa4, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_build_guards_2438.py (11 passed, 0 skipped by project / own rule). Why this covers the acceptance: the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the colour-literal baseline that holds only with the module palette tables skipped.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-I18N-DEFAULT-NAMES-2490-1",
@@ -20278,12 +20278,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "English: default names saved on the server (such as \"(copy)\") are translated at creation: server-saved default names are translated at creation time; later comparisons that used the Hebrew name still work.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (default names made in the creator language, Hebrew byte-identical, background passes stay Hebrew).",
+    "commit": "9b6c82cb3",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 9b6c82cb3, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_default_names_i18n_2490b.py (13 passed, 0 skipped by project / own rule); tests/test_default_names_i18n_2490.py (10 passed, 0 skipped by project / own rule). Why this covers the acceptance: default names made in the creator language, Hebrew byte-identical, background passes stay Hebrew.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-I18N-SETTINGS-KEYWORDS-2490-1",
@@ -20303,12 +20303,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "English: add English search keywords to the settings search: settings search keywords exist in English so an English search finds settings, not only labels.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (every settings entry has English keywords without Hebrew letters; sample English queries find their settings).",
+    "commit": "1df34dc24",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 1df34dc24, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: unit-settings-search-en-2490.spec.ts (12 passed, 0 skipped by project / own rule). Why this covers the acceptance: every settings entry has English keywords without Hebrew letters; sample English queries find their settings.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-RELEASE-2480-TRAIN-1",
@@ -20378,12 +20378,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "ADR-019 Migration plan Step 0, one row with no envelope change: wire/errors.py models (ErrorEnvelope, FieldProblem, FieldErrorDetails) and generated wire-errors.ts; errors.field_error(); fieldsOf / problemsOf in api/client.ts; the global RequestValidationError handler adds fields and problems additively; backend contract test that every RequestValidationError answer carries fields and problems next to errors.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the Step-0 contract test (every RequestValidationError carries fields and problems) and the family-1 API tests pass).",
+    "commit": "7a4328642",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 7a4328642, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_error_envelope_step0_2500.py (17 passed, 0 skipped by project / own rule); unit-error-fields.spec.ts (27 passed, 0 skipped by project / own rule); tests/test_be_small_unify_2440.py (16 passed, 0 skipped by project / own rule); tests/test_calendar_engine_2300.py (45 passed, 0 skipped by project / own rule); tests/test_notices_106.py (43 passed, 0 skipped by project / own rule); tests/test_notice_slides_295.py (15 passed, 0 skipped by project / own rule); tests/test_bustimes_295.py (49 passed, 0 skipped by project / own rule); tests/test_emergency_readiness_295.py (22 passed, 0 skipped by project / own rule); tests/test_maintenance_215.py (39 passed, 0 skipped by project / own rule). Why this covers the acceptance: the Step-0 contract test (every RequestValidationError carries fields and problems) and the family-1 API tests pass.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-ADR019-L14-OBSERVE-2500-1",
@@ -20403,12 +20403,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "ADR-019 L14 step 1: the observing request-body base model (records unknown keys) and SW_REQUEST_STRICT=1 in the backend test settings, so the tolerant web-UI models can adopt it family by family; no model flips to forbid in this row.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-24 (MGMT-SYNC-2411); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the observing base model tests pass and the whole backend run (0 failures) ran under the conftest SW_REQUEST_STRICT=1).",
+    "commit": "4b2470ed9",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 4b2470ed9, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_request_model_observe_2500.py (8 passed, 0 skipped by project / own rule); tests/test_singletons_registered.py (4 passed, 0 skipped by project / own rule). Why this covers the acceptance: the observing base model tests pass and the whole backend run (0 failures) ran under the conftest SW_REQUEST_STRICT=1.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-I18N-EN-2490-1",
@@ -20428,12 +20428,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "English completeness report and the first module pass: a per-module report of the missing English texts and the EN ratchet, and the first modules translated so the English interface has no Hebrew left in them.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (the EN completeness report / ratchet and the translated modules pass).",
+    "commit": "d144aa612",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head d144aa612, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: unit-i18n-en-ratchet-2490.spec.ts (15 passed, 0 skipped by project / own rule); unit-i18n-core.spec.ts (27 passed, 0 skipped by project / own rule); unit-i18n-api-2442.spec.ts (84 passed, 0 skipped by project / own rule); unit-settings-search-en-2490.spec.ts (12 passed, 0 skipped by project / own rule); tests/test_default_names_i18n_2490.py (10 passed, 0 skipped by project / own rule); unit-uxfix-nav-295.spec.ts (21 passed, 0 skipped by project / own rule); unit-no-ha-branding-2443.spec.ts (12 passed, 0 skipped by project / own rule). Why this covers the acceptance: the EN completeness report / ratchet and the translated modules pass.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-I18N-BACKEND-2490-1",
@@ -20453,12 +20453,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Server texts in the user's interface language: the setup wizard, readiness and the error envelope answer in the reader's language through the smplwise/i18n.py Msg catalogue.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.49.0 gate at f73c20728 (wizard, readiness and error-envelope texts in the reader language; catalogue scan Hebrew + English).",
+    "commit": "bd8fad7b7",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L: tsc, build, eslint, release_check, add-on image build, backend 4 shards, Playwright preview / dev / fixture / pixel / visual) on release/2490-train at f73c20728, verdict PASS (171 min, 0 failures, 10 flaky passed alone); released as v2.49.0 (tag d0c456399)",
+    "evidence": "ACCEPT-SWEEP-2530: card head bd8fad7b7, an ancestor of the gated commit f73c20728; released-gate results, runner ~/smplwise-results/gate_release-2490-train_f73c20728.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_i18n_backend_2490.py (14 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490b.py (13 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490c.py (19 passed, 0 skipped by project / own rule); tests/test_singletons_registered.py (4 passed, 0 skipped by project / own rule); tests/test_automation_text.py (6 passed, 0 skipped by project / own rule). Why this covers the acceptance: wizard, readiness and error-envelope texts in the reader language; catalogue scan Hebrew + English.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-NOTICE-WIRE-DRIFT-2490-1",
@@ -20478,12 +20478,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Union answers of the notice board routes are validated against the right member so no false contract-drift error is logged; payload unchanged.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the two new non-strict tests assert no drift record for either union member).",
+    "commit": "fb7acbd8c",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head fb7acbd8c, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_wire_notices_2470.py (4 passed, 0 skipped by project / own rule). Why this covers the acceptance: the two new non-strict tests assert no drift record for either union member.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-REVIEW-2490-FIXES-2500-1",
@@ -20503,12 +20503,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The three findings of the 2.49.0 code review are fixed with regression tests (docs/changes/REVIEW-2490-FIXES-2500.md).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the regression test of each of the three findings passes).",
+    "commit": "21e444071",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 21e444071, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: layout-tickets-table-autoload-2500.spec.ts (2 passed, 4 skipped by project / own rule); evidence-gen-units-en-2490.spec.ts (9 passed, 0 skipped by project / own rule); tests/test_wxd10_door_jobs.py (16 passed, 0 skipped by project / own rule). Why this covers the acceptance: the regression test of each of the three findings passes.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-ADR019-FAMILY2-2500-1",
@@ -20528,12 +20528,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "ADR-019 decision D1 for family 2 (presence 35, mobile 1): field errors carry the canonical details fields / problems; statuses, codes and user messages unchanged; pixel-neutral.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (family-2 field errors carry fields / problems; statuses and codes unchanged (API tests)).",
+    "commit": "4488de48c",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 4488de48c, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_error_envelope_family2_2500.py (7 passed, 0 skipped by project / own rule); tests/test_error_envelope_step0_2500.py (17 passed, 0 skipped by project / own rule); tests/test_presence.py (21 passed, 0 skipped by project / own rule); tests/test_presence_contract_v22.py (63 passed, 0 skipped by project / own rule); tests/test_whoin034_295.py (9 passed, 0 skipped by project / own rule); tests/test_mobile_push.py (53 passed, 0 skipped by project / own rule). Why this covers the acceptance: family-2 field errors carry fields / problems; statuses and codes unchanged (API tests).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-DOCS-GUIDE-REFRESH-2500-1",
@@ -20554,7 +20554,7 @@
     ],
     "expected": "The user guide (Hebrew and English) covers the changes of 2.40.0 to 2.49.0; GUIDE_ALL_HE.html rebuilt and build_guide.py --check up to date.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (owner) - test_docs_config_consistency / test_extid_followups / test_bridge_key_activation_295 pass at bdf28fc37, but \"the guide covers 2.40-2.49\" is a content review and the guide screenshots were NOT_RUN; owner acceptance on evidence needed.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -20578,12 +20578,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The door hand-over preview answers in the reader's language (Hebrew and English at least), with tests.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (the two new preview-language tests and the catalogue scan pass).",
+    "commit": "8d512f1fd",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 8d512f1fd, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_wxd10_door_jobs.py (16 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490.py (14 passed, 0 skipped by project / own rule). Why this covers the acceptance: the two new preview-language tests and the catalogue scan pass.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-HAND-SWITCH-HOME-EDIT-2500-1",
@@ -20604,7 +20604,7 @@
     ],
     "expected": "The home editor's widget on / off choices use the compact switch of HAND-SWITCH-2480; pixel baselines refreshed on the runner.",
     "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (runner) - unit-hand-switch-home-edit-2500.spec.ts (source checks) passes at bdf28fc37, but evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-edit-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial.",
     "commit": null,
     "environment": null,
     "evidence": [],
@@ -20628,12 +20628,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "A notice board with news switched on but no source shows an explicit alert instead of an empty news block (owner report 24.11).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (news on with no source shows the explicit alert (backend flag + chip / alert, desktop and mobile)).",
+    "commit": "9cad89813",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 9cad89813, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_notice_news_empty_2500.py (6 passed, 0 skipped by project / own rule); evidence-notice-news-empty-2500.spec.ts (22 passed, 2 skipped by project / own rule). Why this covers the acceptance: news on with no source shows the explicit alert (backend flag + chip / alert, desktop and mobile).",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-NOTICE-NEWS-FEEDS-2500-1",
@@ -20653,12 +20653,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Notice board news feeds read compressed bodies, use the current Calcalist address and report per-source health; the SSRF guard keeps refusing private addresses.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.50.0 gate at bdf28fc37 (compressed bodies, the current Calcalist address, per-source health and the SSRF refusal pass on fakes).",
+    "commit": "2f0dcfd7f",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 FULL run (tier L) on release/2500-train at bdf28fc37, verdict PASS (173 min, 0 failures, 5 flaky passed alone); released as v2.50.0 (tag fd600e96d)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 2f0dcfd7f, an ancestor of the gated commit bdf28fc37; released-gate results, runner ~/smplwise-results/gate_release-2500-train_bdf28fc37.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_notice_news_feeds_2500.py (24 passed, 0 skipped by project / own rule); unit-notice-news-feeds-2500.spec.ts (6 passed, 0 skipped by project / own rule); evidence-notice-news-feeds-2500.spec.ts (15 passed, 0 skipped by project / own rule). Why this covers the acceptance: compressed bodies, the current Calcalist address, per-source health and the SSRF refusal pass on fakes.",
+    "executed_at": "2026-11-24"
   },
   {
     "id": "AT-RELEASE-2500-TRAIN-1",
@@ -20703,12 +20703,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The door blocks screen and the door run guard texts are in the reader's language, with tests.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.51.0 gate at df3ee6d12 (the blocks screen and run-guard texts in the reader language (three new tests) and the catalogue scan pass).",
+    "commit": "7b763b1b9",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 on release/2510-train: FULL run 1 (tier L) at df3ee6d12 (only failure unit-mfa-passkeys-2490.spec.ts:182, a test-setup fault fixed test-only in 319f81676) + run 2 --after at d886d7929 PASS (0 failures); released as v2.51.0 (tag 3d71fb183)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 7b763b1b9, an ancestor of the gated commit df3ee6d12; released-gate results, runner ~/smplwise-results/gate_release-2510-train_{df3ee6d12,d886d7929}.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_wiskey_door_overrides.py (24 passed, 0 skipped by project / own rule); tests/test_wxd10_door_jobs.py (16 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490.py (14 passed, 0 skipped by project / own rule). Why this covers the acceptance: the blocks screen and run-guard texts in the reader language (three new tests) and the catalogue scan pass.",
+    "executed_at": "2026-11-25"
   },
   {
     "id": "AT-DOOR-WINDOW-TERM-2510-1",
@@ -20728,12 +20728,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The English role, permission and notification texts use the term 'door window' consistently.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.51.0 gate at df3ee6d12 (the extended term pin and the role / permission / notification catalogues pass).",
+    "commit": "e813e20af",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 on release/2510-train: FULL run 1 (tier L) at df3ee6d12 (only failure unit-mfa-passkeys-2490.spec.ts:182, a test-setup fault fixed test-only in 319f81676) + run 2 --after at d886d7929 PASS (0 failures); released as v2.51.0 (tag 3d71fb183)",
+    "evidence": "ACCEPT-SWEEP-2530: card head e813e20af, an ancestor of the gated commit df3ee6d12; released-gate results, runner ~/smplwise-results/gate_release-2510-train_{df3ee6d12,d886d7929}.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_wiskey_door_overrides.py (24 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490.py (14 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490b.py (13 passed, 0 skipped by project / own rule); tests/test_i18n_backend_2490c.py (19 passed, 0 skipped by project / own rule); tests/test_doorwin2_roles.py (12 passed, 0 skipped by project / own rule). Why this covers the acceptance: the extended term pin and the role / permission / notification catalogues pass.",
+    "executed_at": "2026-11-25"
   },
   {
     "id": "AT-ADR019-FAMILY3-2510-1",
@@ -20753,12 +20753,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "ADR-019 decision D1 for family 3 (NVR, recorders, connection, camera, device layouts and wall): canonical field-error details; statuses, codes and user messages unchanged; pixel-neutral.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.51.0 gate at df3ee6d12 (no family-3 422 left legacy; statuses, codes and messages unchanged (the 1587-case NVR corpus); evidence-nvr-connection-live.spec.ts (live backend, assertion tweak only) is skipped in every gate).",
+    "commit": "b9bd801f8",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 on release/2510-train: FULL run 1 (tier L) at df3ee6d12 (only failure unit-mfa-passkeys-2490.spec.ts:182, a test-setup fault fixed test-only in 319f81676) + run 2 --after at d886d7929 PASS (0 failures); released as v2.51.0 (tag 3d71fb183)",
+    "evidence": "ACCEPT-SWEEP-2530: card head b9bd801f8, an ancestor of the gated commit df3ee6d12; released-gate results, runner ~/smplwise-results/gate_release-2510-train_{df3ee6d12,d886d7929}.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_error_envelope_family3_2510.py (14 passed, 0 skipped by project / own rule); tests/test_error_envelope_step0_2500.py (17 passed, 0 skipped by project / own rule); tests/test_error_envelope_family2_2500.py (7 passed, 0 skipped by project / own rule); tests/test_error_contract_inventory_2490.py (7 passed, 0 skipped by project / own rule); tests/test_nvr_validate_changes_char_2480.py (1587 passed, 0 skipped by project / own rule); tests/test_provision_encoding_write.py (32 passed, 0 skipped by project / own rule); tests/test_device_layouts.py (14 passed, 0 skipped by project / own rule); tests/test_cr022_security_review.py (34 passed, 0 skipped by project / own rule); tests/test_nvr_connection.py (78 passed, 0 skipped by project / own rule); tests/test_multi_nvr.py (18 passed, 0 skipped by project / own rule); tests/test_nvr_stream_write.py (45 passed, 0 skipped by project / own rule); tests/test_frigate_config.py (17 passed, 0 skipped by project / own rule); unit-error-fields.spec.ts (30 passed, 0 skipped by project / own rule). Why this covers the acceptance: no family-3 422 left legacy; statuses, codes and messages unchanged (the 1587-case NVR corpus); evidence-nvr-connection-live.spec.ts (live backend, assertion tweak only) is skipped in every gate.",
+    "executed_at": "2026-11-25"
   },
   {
     "id": "AT-RESPONSE-MODELS-E-2500-1",
@@ -20778,12 +20778,12 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "The response-model ratchet and ExactModel, with response models for the next routers; the real wire gaps found under SW_WIRE_STRICT fixed; full backend run clean before boarding.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-25 (MGMT-SYNC-2520); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): PASS on the released v2.51.0 gate at df3ee6d12 (the response-model ratchet, ExactModel and the router-E models pass; the whole backend run is clean (0 failures)).",
+    "commit": "69a33ab0d",
+    "environment": "Linux runner (Ubuntu 24.04), release gate 2 on release/2510-train: FULL run 1 (tier L) at df3ee6d12 (only failure unit-mfa-passkeys-2490.spec.ts:182, a test-setup fault fixed test-only in 319f81676) + run 2 --after at d886d7929 PASS (0 failures); released as v2.51.0 (tag 3d71fb183)",
+    "evidence": "ACCEPT-SWEEP-2530: card head 69a33ab0d, an ancestor of the gated commit df3ee6d12; released-gate results, runner ~/smplwise-results/gate_release-2510-train_{df3ee6d12,d886d7929}.{gate2.md,json,logs/} (per-test Playwright JSON + backend junit). Tests: tests/test_wire_ratchet_2480.py (7 passed, 0 skipped by project / own rule); tests/test_wire_routers_e_2480.py (95 passed, 0 skipped by project / own rule); tests/test_wire_routers_b_2450.py (66 passed, 0 skipped by project / own rule); tests/test_wire_routers_c_2470.py (58 passed, 0 skipped by project / own rule); tests/test_wire_routers_d_2470.py (166 passed, 0 skipped by project / own rule); tests/test_get_routes_read_conn.py (733 passed, 0 skipped by project / own rule). Why this covers the acceptance: the response-model ratchet, ExactModel and the router-E models pass; the whole backend run is clean (0 failures).",
+    "executed_at": "2026-11-25"
   },
   {
     "id": "AT-RELEASE-2510-TRAIN-1",

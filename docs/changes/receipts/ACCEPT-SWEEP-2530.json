@@ -1,0 +1,1480 @@
+[
+ {
+  "id": "AT303",
+  "card": "FLOORSTRIP",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "evidence-floorstrip.spec.ts is skipped in every released gate (needs its fixture backend); no passing assertion."
+ },
+ {
+  "id": "AT-GATEAUDIT-1",
+  "card": "GATEAUDIT-297",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "the gate itself runs the listed specs and the visual matrix (72 / 0 at f73c20728), but scripts/gate/selftest_gate.py is not part of a release gate; not run."
+ },
+ {
+  "id": "AT-GATELANES-1",
+  "card": "GATELANES-297",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "tsc and the pixel lanes pass in the released gates, but the selftest and the timing_lane pytest selection are not part of a release gate; not run."
+ },
+ {
+  "id": "AT-DEVICES-POLISH-2331-1",
+  "card": "DEVICES-POLISH-2331",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "devpolish-2331-shoot.spec.ts is skipped in every released gate (300 skipped); no passing assertion of the acceptance."
+ },
+ {
+  "id": "AT-MEDIA-POLISH-2331-1",
+  "card": "MEDIA-POLISH-2331",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "layout-bubble-screens.spec.ts is skipped in every released gate (bubble skin frozen); no passing assertion of the acceptance."
+ },
+ {
+  "id": "AT-PY-CONSTRAINTS-2407-1",
+  "card": "PY-CONSTRAINTS-2407",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_python_constraints_2407.py",
+    "passed": 34,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the lock-file test (every package pinned per architecture with hashes; requirements.txt and the lock agree) passes"
+ },
+ {
+  "id": "AT-PY-CONSTRAINTS-2407-2",
+  "card": "PY-CONSTRAINTS-2407",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [],
+  "why": "the gate add-on build step (part of the release gate) built smplwise_vms/Dockerfile (pip install -r requirements.txt -c constraints.txt) from ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22 and the image passed import, create_app, /healthz and tools: PASS at f73c20728, bdf28fc37 and df3ee6d12"
+ },
+ {
+  "id": "AT-EVIDENCE-CAMERAS-2412-1",
+  "card": "EVIDENCE-CAMERAS-2412",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "the evidence spec evidence-nvrless-cameras-2412.spec.ts is skipped in every released gate (fixture-backed); the unit / backend camera tests pass but the screenshot evidence run is the acceptance."
+ },
+ {
+  "id": "AT-ONVIF-DISCOVERY-2412-1",
+  "card": "ONVIF-DISCOVERY-2412",
+  "status": "NOT_RUN",
+  "needs": "lab",
+  "why": "the ONVIF client / discovery / API tests pass at bdf28fc37 (test_onvif_client_2500 69, test_camera_discovery_2500 41, test_camera_discovery_api_2500 39, unit-camera-discovery-2500 36, camera-discovery-2500 15) on fakes; evidence-onvif-ui-2500.spec.ts is skipped and discovery on the real lab network is not run."
+ },
+ {
+  "id": "AT-CR-MULTIMEDIA-BASE-2440-1",
+  "card": "CR-MULTIMEDIA-BASE-2440",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "evidence-media-players-live.spec.ts (media_fake_ha fixture) is skipped in every released gate (81 skipped); the other named specs pass at f73c20728 - partial."
+ },
+ {
+  "id": "AT-CR-WISKEY-NOTIF-2443-1",
+  "card": "CR-WISKEY-NOTIF-2443",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "evidence-wiskey-people.spec.ts and evidence-wiskey-editor.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate and the late-permission flow in a real browser is not run; the unit specs pass at f73c20728 - partial."
+ },
+ {
+  "id": "AT-DIALOG-DRAWER-ONE-2439-1",
+  "card": "DIALOG-DRAWER-ONE-2439",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "evidence-wiskey-editor.spec.ts / evidence-wiskey-capture.spec.ts (wiskey_fake_ha fixture) are skipped in every released gate; evidence-dialog-drawer-one-2439 and the pixel lanes pass at f73c20728 - partial."
+ },
+ {
+  "id": "AT-CR-FEED-BASE-2450-1",
+  "card": "CR-FEED-BASE-2450",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_feed_session_pin_2450.py",
+    "passed": 60,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_person_projection_parity_2440.py",
+    "passed": 179,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the pin suite written before the refactor and the projection parity suite pass; the full backend run (0 failures) covers every feed consumer; no pixel change"
+ },
+ {
+  "id": "AT-CR-ROUTER-SQL-2450-1",
+  "card": "CR-ROUTER-SQL-2450",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_alarm.py",
+    "passed": 38,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_alarm_managed_cache.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_anchor_3d.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_anchor_coverage.py",
+    "passed": 1,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_body_limit.py",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_building_reach_round14.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_building_scope_control_2351.py",
+    "passed": 5,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_bundle.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_bundle_import.py",
+    "passed": 19,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_calendar_connect_2330.py",
+    "passed": 30,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_calendar_sync_2300.py",
+    "passed": 38,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_camera_card.py",
+    "passed": 33,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_camera_sources_2410.py",
+    "passed": 48,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_cameras.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_capabilities.py",
+    "passed": 3,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_capture_lease_local_actor.py",
+    "passed": 43,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_cases.py",
+    "passed": 3,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_catalog.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_catalog_images.py",
+    "passed": 1,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_correlation.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_db_locking.py",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_elevator_alert_recipients_295.py",
+    "passed": 9,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_event_detail.py",
+    "passed": 1,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_event_windows.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_events.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_events_cache.py",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_floor_images.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_frigate_api.py",
+    "passed": 40,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_get_routes_read_conn.py",
+    "passed": 722,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_ha_events_list.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_ha_users.py",
+    "passed": 67,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_home_links.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_elevators.py",
+    "passed": 63,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_elevators_280.py",
+    "passed": 34,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_elevators_travel.py",
+    "passed": 24,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_temperature.py",
+    "passed": 59,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_temperature_phase3.py",
+    "passed": 41,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_infra_temperature_report.py",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_local_identity.py",
+    "passed": 41,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_local_identity_units.py",
+    "passed": 55,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_local_user_create_2438.py",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_mapping_assist_2330.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_multi_nvr.py",
+    "passed": 18,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_multibuilding_home_2330.py",
+    "passed": 5,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvr_cameras_settings.py",
+    "passed": 18,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvr_less.py",
+    "passed": 54,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvrless_cameras_2411.py",
+    "passed": 27,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_permcam63_shared_spaces.py",
+    "passed": 36,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_plan_anchor_scope_plns.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_plan_versions.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_plans.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_rbac_groups.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_route.py",
+    "passed": 3,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_schedimpact_295_addon.py",
+    "passed": 17,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_shared_spaces.py",
+    "passed": 37,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_site_location.py",
+    "passed": 31,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_soak_dbgrowth_2412.py",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_spatial_search.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_switch_protection_reach_guard.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_temperature_registry_295.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_templink_2320.py",
+    "passed": 16,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_tempvendor_295.py",
+    "passed": 26,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_thumbnails.py",
+    "passed": 1,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wall.py",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wall_alerts.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wiskey_door_path.py",
+    "passed": 18,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_zonecount107_295.py",
+    "passed": 23,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_zones.py",
+    "passed": 3,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_zones_nvr.py",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "every backend file of the change note test table passes; the read-connection inventory test_get_routes_read_conn.py passes; full backend run 0 failures"
+ },
+ {
+  "id": "AT-CR-CMP2-SELECTS-2450-1",
+  "card": "CR-CMP2-SELECTS-2450",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "unit-sw-segmented.spec.ts",
+    "passed": 66,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "pixel-sw-segmented.spec.ts",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-toast-controller.spec.ts",
+    "passed": 42,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-dark-polish-beds.spec.ts",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the segmented-control unit / adoption guard and its pixel specimen pass; gate pixel lane 380 passed / 0 failed and visual matrix 72 / 0 differences"
+ },
+ {
+  "id": "AT-T068-EDGE-2450-1",
+  "card": "T068-EDGE-2450",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_soak_edges_2450.py",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_soak_edges2_2450.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_outage_run_t035.py",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_singletons_registered.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the disconnect / full-disk edge suites (D1-D3, F1-F8, G1-G4) pass (test_soak_edges2_2450.py is first in the 2.50 gate); the long soak itself is not part of this acceptance"
+ },
+ {
+  "id": "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1",
+  "card": "FLAKY-CAPTURE-SCREENSHOT-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "unit-capture-guard.spec.ts",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the capture guard spec passes; repeated-run evidence: 0 \"Unable to capture screenshot\" in the logs of the four gate runs f73c20728, bdf28fc37, df3ee6d12, d886d7929"
+ },
+ {
+  "id": "AT-GEN-UNITS-FIELD-2490-1",
+  "card": "GEN-UNITS-FIELD-2490",
+  "status": "NOT_RUN",
+  "needs": "owner",
+  "why": "evidence-gen-units-en-2490.spec.ts passes at f73c20728 (Hebrew + English, desktop / tablet / mobile), but the acceptance says the text changes exist in all 4 languages and the change note adds unit words in Hebrew and English only; Arabic / Russian not evidenced - a gap to confirm or fix, not PASS."
+ },
+ {
+  "id": "AT-TICKETS-PAGING-2490-1",
+  "card": "TICKETS-PAGING-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "layout-tickets-table-paging-2490.spec.ts",
+    "passed": 10,
+    "failed_then_passed_alone": 0,
+    "skipped": 20
+   },
+   {
+    "file": "unit-tickets-table.spec.ts",
+    "passed": 48,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-tickets-table.spec.ts",
+    "passed": 27,
+    "failed_then_passed_alone": 0,
+    "skipped": 33
+   },
+   {
+    "file": "evidence-tickets-delete.spec.ts",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "paging at 1024 / 1280 / 1440 / 1920 / 820 and the phone (fills the room, nothing scrolls, pager, selection across pages, keyboard) passes; skips are project-size skips only"
+ },
+ {
+  "id": "AT-DOOR-TECH-HOLD-FIX-2480-1",
+  "card": "DOOR-TECH-HOLD-FIX-2480",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "evidence-wiskey-door-tech.spec.ts",
+    "passed": 18,
+    "failed_then_passed_alone": 0,
+    "skipped": 9
+   },
+   {
+    "file": "unit-wiskey-door-tech.spec.ts",
+    "passed": 27,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "pixel-wiskey-door-tech.spec.ts",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "layout-audit30wk-components.spec.ts",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 5
+   },
+   {
+    "file": "unit-confirm-words-2442.spec.ts",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-modal-stack-guard-2442.spec.ts",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "both DOOR-TECH-REREAD-2480 tests (hold buttons stay pressable during the re-read; a code slot opens from the fresh presence) pass on desktop and mobile; the owner accepted the before / after page in the 23.11 morning answers (all recommendation)"
+ },
+ {
+  "id": "AT-HAND-SWITCH-2480-1",
+  "card": "HAND-SWITCH-2480",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_build_guards_2438.py",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-schedules-editor.spec.ts",
+    "passed": 36,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-sharedid-293.spec.ts",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-sharedui-295.spec.ts",
+    "passed": 28,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "layout-update-screens.spec.ts",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the hand-switch ratchet (checkout at or below the baseline, owner-kept switches not counted) and the switched screens pass; gate pixel lane 380 / 0 and visual 72 / 0 against the refreshed baselines; the owner approved the comparison page (22.11 Q7, Q30)"
+ },
+ {
+  "id": "AT-HAND-SWITCH-HOME-PERSONAL-2490-1",
+  "card": "HAND-SWITCH-HOME-PERSONAL-2490",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "unit-hand-switch-home-personal-2500.spec.ts (source checks) passes at bdf28fc37, but the behaviour spec evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-personal-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial."
+ },
+ {
+  "id": "AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1",
+  "card": "PHONE-SKIP-DESKTOP-SHOTS-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [],
+  "why": "the gate Playwright JSON holds no mobile-project result for any of the 25 files of tests/phone-skip-list.json and no tablet result for its 20 tabletAlso files (same at df3ee6d12), while desktop runs them"
+ },
+ {
+  "id": "AT-MFA-STEPUP-TRAIN-2490-1",
+  "card": "MFA-STEPUP-TRAIN-2490",
+  "status": "NOT_RUN",
+  "needs": "device",
+  "why": "slices 1-9 and the 2.51 rows pass in the 2.51 gate (test_mfa_* 15 files, unit-mfa-passkeys-2490 after the test-only fix at d886d7929), but slice 12 (MFA-REVIEW-DOCS-2520) and the follow-ups are on the unreleased 2.52 train, and a passkey / device-key sign-in on a real phone is not run."
+ },
+ {
+  "id": "AT-MULTI-BUILDING-NEXT-2490-1",
+  "card": "MULTI-BUILDING-NEXT-2490",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_mb_safety_2500.py",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_mb_home_2500.py",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_mb_next_2500.py",
+    "passed": 10,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-mb-safety-2500.spec.ts",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-mb-home-2500.spec.ts",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-mb-next-2500.spec.ts",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-mb-safety-2500.spec.ts",
+    "passed": 10,
+    "failed_then_passed_alone": 0,
+    "skipped": 2
+   },
+   {
+    "file": "evidence-mb-home-2500.spec.ts",
+    "passed": 5,
+    "failed_then_passed_alone": 1,
+    "skipped": 12
+   },
+   {
+    "file": "evidence-mb-next-2500.spec.ts",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 16
+   },
+   {
+    "file": "evidence-multibuilding-home-2330.spec.ts",
+    "passed": 20,
+    "failed_then_passed_alone": 1,
+    "skipped": 0
+   }
+  ],
+  "why": "safety (floor move preview, the check before switching on), the home building selector, filtering and the lobby audience pass; the two multi-building home flakes passed alone; owner decisions Q62-Q69 = recommendation; before / after pages in private/planning (mb_safety / mb_home / mb_next)"
+ },
+ {
+  "id": "AT-HOME-INTERFACE-NEXT-2490-1",
+  "card": "HOME-INTERFACE-NEXT-2490",
+  "status": "NOT_RUN",
+  "needs": "device",
+  "why": "every home-next / wall-night / favourites test passes at bdf28fc37 (unit-home-wall-night-2500 42, home-wall-night-2500 8, unit-home-next-2500 21, home-next-2500 21, pixel-home-next-2500 10, unit-home-favorites-2500 57, home-favorites-2500 9, test_home_scene_manage_2500 5, test_home_interface 29), but the change notes say the dim layer and the long-press drag were never tried on a real wall tablet; one tablet check closes it."
+ },
+ {
+  "id": "AT-COLOR-LITERAL-A-2480-1",
+  "card": "COLOR-LITERAL-A-2480",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_build_guards_2438.py",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the lowered colour-literal baseline (devices-palettes excluded); tsc / eslint PASS; gate pixel lane 380 / 0 and visual 72 / 0; the branch pixel set (55 files) showed zero screenshot changes (change note)"
+ },
+ {
+  "id": "AT-COLOR-LITERAL-B-2480-1",
+  "card": "COLOR-LITERAL-B-2480",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_build_guards_2438.py",
+    "passed": 11,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the ratchet test test_the_checkout_is_at_or_below_its_baseline passes with the colour-literal baseline that holds only with the module palette tables skipped"
+ },
+ {
+  "id": "AT-I18N-DEFAULT-NAMES-2490-1",
+  "card": "I18N-DEFAULT-NAMES-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_default_names_i18n_2490b.py",
+    "passed": 13,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_default_names_i18n_2490.py",
+    "passed": 10,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "default names made in the creator language, Hebrew byte-identical, background passes stay Hebrew"
+ },
+ {
+  "id": "AT-I18N-SETTINGS-KEYWORDS-2490-1",
+  "card": "I18N-SETTINGS-KEYWORDS-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "unit-settings-search-en-2490.spec.ts",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "every settings entry has English keywords without Hebrew letters; sample English queries find their settings"
+ },
+ {
+  "id": "AT-ADR019-STEP0-2500-1",
+  "card": "ADR019-STEP0-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_error_envelope_step0_2500.py",
+    "passed": 17,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-error-fields.spec.ts",
+    "passed": 27,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_be_small_unify_2440.py",
+    "passed": 16,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_calendar_engine_2300.py",
+    "passed": 45,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_notices_106.py",
+    "passed": 43,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_notice_slides_295.py",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_bustimes_295.py",
+    "passed": 49,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_emergency_readiness_295.py",
+    "passed": 22,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_maintenance_215.py",
+    "passed": 39,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the Step-0 contract test (every RequestValidationError carries fields and problems) and the family-1 API tests pass"
+ },
+ {
+  "id": "AT-ADR019-L14-OBSERVE-2500-1",
+  "card": "ADR019-L14-OBSERVE-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_request_model_observe_2500.py",
+    "passed": 8,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_singletons_registered.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the observing base model tests pass and the whole backend run (0 failures) ran under the conftest SW_REQUEST_STRICT=1"
+ },
+ {
+  "id": "AT-I18N-EN-2490-1",
+  "card": "I18N-EN-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "unit-i18n-en-ratchet-2490.spec.ts",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-i18n-core.spec.ts",
+    "passed": 27,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-i18n-api-2442.spec.ts",
+    "passed": 84,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-settings-search-en-2490.spec.ts",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_default_names_i18n_2490.py",
+    "passed": 10,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-uxfix-nav-295.spec.ts",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-no-ha-branding-2443.spec.ts",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the EN completeness report / ratchet and the translated modules pass"
+ },
+ {
+  "id": "AT-I18N-BACKEND-2490-1",
+  "card": "I18N-BACKEND-2490",
+  "status": "PASS",
+  "gate_commit": "f73c20728",
+  "release": "v2.49.0",
+  "tests": [
+   {
+    "file": "tests/test_i18n_backend_2490.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490b.py",
+    "passed": 13,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490c.py",
+    "passed": 19,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_singletons_registered.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_automation_text.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "wizard, readiness and error-envelope texts in the reader language; catalogue scan Hebrew + English"
+ },
+ {
+  "id": "AT-NOTICE-WIRE-DRIFT-2490-1",
+  "card": "NOTICE-WIRE-DRIFT-2490",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_wire_notices_2470.py",
+    "passed": 4,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the two new non-strict tests assert no drift record for either union member"
+ },
+ {
+  "id": "AT-REVIEW-2490-FIXES-2500-1",
+  "card": "REVIEW-2490-FIXES-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "layout-tickets-table-autoload-2500.spec.ts",
+    "passed": 2,
+    "failed_then_passed_alone": 0,
+    "skipped": 4
+   },
+   {
+    "file": "evidence-gen-units-en-2490.spec.ts",
+    "passed": 9,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wxd10_door_jobs.py",
+    "passed": 16,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the regression test of each of the three findings passes"
+ },
+ {
+  "id": "AT-ADR019-FAMILY2-2500-1",
+  "card": "ADR019-FAMILY2-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_error_envelope_family2_2500.py",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_error_envelope_step0_2500.py",
+    "passed": 17,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_presence.py",
+    "passed": 21,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_presence_contract_v22.py",
+    "passed": 63,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_whoin034_295.py",
+    "passed": 9,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_mobile_push.py",
+    "passed": 53,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "family-2 field errors carry fields / problems; statuses and codes unchanged (API tests)"
+ },
+ {
+  "id": "AT-DOCS-GUIDE-REFRESH-2500-1",
+  "card": "DOCS-GUIDE-REFRESH-2500",
+  "status": "NOT_RUN",
+  "needs": "owner",
+  "why": "test_docs_config_consistency / test_extid_followups / test_bridge_key_activation_295 pass at bdf28fc37, but \"the guide covers 2.40-2.49\" is a content review and the guide screenshots were NOT_RUN; owner acceptance on evidence needed."
+ },
+ {
+  "id": "AT-DOOR-PREVIEW-I18N-2500-1",
+  "card": "DOOR-PREVIEW-I18N-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_wxd10_door_jobs.py",
+    "passed": 16,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the two new preview-language tests and the catalogue scan pass"
+ },
+ {
+  "id": "AT-HAND-SWITCH-HOME-EDIT-2500-1",
+  "card": "HAND-SWITCH-HOME-EDIT-2500",
+  "status": "NOT_RUN",
+  "needs": "runner",
+  "why": "unit-hand-switch-home-edit-2500.spec.ts (source checks) passes at bdf28fc37, but evidence-home-screen.spec.ts (devices fixture backend) and hand-switch-home-edit-2500-shots.spec.ts are skipped in every released gate and the compare page was NOT_RUN - partial."
+ },
+ {
+  "id": "AT-NOTICE-NEWS-EMPTY-2500-1",
+  "card": "NOTICE-NEWS-EMPTY-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_notice_news_empty_2500.py",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-notice-news-empty-2500.spec.ts",
+    "passed": 22,
+    "failed_then_passed_alone": 0,
+    "skipped": 2
+   }
+  ],
+  "why": "news on with no source shows the explicit alert (backend flag + chip / alert, desktop and mobile)"
+ },
+ {
+  "id": "AT-NOTICE-NEWS-FEEDS-2500-1",
+  "card": "NOTICE-NEWS-FEEDS-2500",
+  "status": "PASS",
+  "gate_commit": "bdf28fc37",
+  "release": "v2.50.0",
+  "tests": [
+   {
+    "file": "tests/test_notice_news_feeds_2500.py",
+    "passed": 24,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-notice-news-feeds-2500.spec.ts",
+    "passed": 6,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "evidence-notice-news-feeds-2500.spec.ts",
+    "passed": 15,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "compressed bodies, the current Calcalist address, per-source health and the SSRF refusal pass on fakes"
+ },
+ {
+  "id": "AT-DOOR-BLOCKS-I18N-2510-1",
+  "card": "DOOR-BLOCKS-I18N-2510",
+  "status": "PASS",
+  "gate_commit": "df3ee6d12",
+  "release": "v2.51.0",
+  "tests": [
+   {
+    "file": "tests/test_wiskey_door_overrides.py",
+    "passed": 24,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wxd10_door_jobs.py",
+    "passed": 16,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the blocks screen and run-guard texts in the reader language (three new tests) and the catalogue scan pass"
+ },
+ {
+  "id": "AT-DOOR-WINDOW-TERM-2510-1",
+  "card": "DOOR-WINDOW-TERM-2510",
+  "status": "PASS",
+  "gate_commit": "df3ee6d12",
+  "release": "v2.51.0",
+  "tests": [
+   {
+    "file": "tests/test_wiskey_door_overrides.py",
+    "passed": 24,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490b.py",
+    "passed": 13,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_i18n_backend_2490c.py",
+    "passed": 19,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_doorwin2_roles.py",
+    "passed": 12,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the extended term pin and the role / permission / notification catalogues pass"
+ },
+ {
+  "id": "AT-ADR019-FAMILY3-2510-1",
+  "card": "ADR019-FAMILY3-2510",
+  "status": "PASS",
+  "gate_commit": "df3ee6d12",
+  "release": "v2.51.0",
+  "tests": [
+   {
+    "file": "tests/test_error_envelope_family3_2510.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_error_envelope_step0_2500.py",
+    "passed": 17,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_error_envelope_family2_2500.py",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_error_contract_inventory_2490.py",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvr_validate_changes_char_2480.py",
+    "passed": 1587,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_provision_encoding_write.py",
+    "passed": 32,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_device_layouts.py",
+    "passed": 14,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_cr022_security_review.py",
+    "passed": 34,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvr_connection.py",
+    "passed": 78,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_multi_nvr.py",
+    "passed": 18,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_nvr_stream_write.py",
+    "passed": 45,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_frigate_config.py",
+    "passed": 17,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "unit-error-fields.spec.ts",
+    "passed": 30,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "no family-3 422 left legacy; statuses, codes and messages unchanged (the 1587-case NVR corpus); evidence-nvr-connection-live.spec.ts (live backend, assertion tweak only) is skipped in every gate"
+ },
+ {
+  "id": "AT-RESPONSE-MODELS-E-2500-1",
+  "card": "RESPONSE-MODELS-E-2500",
+  "status": "PASS",
+  "gate_commit": "df3ee6d12",
+  "release": "v2.51.0",
+  "tests": [
+   {
+    "file": "tests/test_wire_ratchet_2480.py",
+    "passed": 7,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wire_routers_e_2480.py",
+    "passed": 95,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wire_routers_b_2450.py",
+    "passed": 66,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wire_routers_c_2470.py",
+    "passed": 58,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_wire_routers_d_2470.py",
+    "passed": 166,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   },
+   {
+    "file": "tests/test_get_routes_read_conn.py",
+    "passed": 733,
+    "failed_then_passed_alone": 0,
+    "skipped": 0
+   }
+  ],
+  "why": "the response-model ratchet, ExactModel and the router-E models pass; the whole backend run is clean (0 failures)"
+ }
+]

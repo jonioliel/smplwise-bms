@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-25T17:25:31.103496+00:00
+Generated: 2026-11-25T18:16:36.142315+00:00
 
 Tasks: 703 | Requirements: 817 | Tests: 834 | Screens: 32
 
@@ -11,9 +11,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Status counts
 - BACKLOG: 12
 - BLOCKED: 27
-- DONE: 485
+- DONE: 514
 - IN_PROGRESS: 4
-- REVIEW: 175
+- REVIEW: 146
 
 ## Release scope counts
 - BETA: 20
@@ -506,7 +506,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | DONE | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | DONE | Task board hygiene after v2.40.2 | — |
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | DONE | Home Assistant 2026.11 entity names and child devices | — |
-| [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | REVIEW | Python constraints lock file for the add-on + Supervisor build check | — |
+| [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | DONE | Python constraints lock file for the add-on + Supervisor build check | — |
 | [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | DONE | Reboot one camera through its NVR (legacy parity P09) | — |
 | [CAMERA-STREAM-SOURCES-2410](tasks/CAMERA-STREAM-SOURCES-2410.md) | V1 | DONE | Video source per camera and cameras without a recorder (2.41.0) | — |
 | [NVRLESS-CAMERAS-2411](tasks/NVRLESS-CAMERAS-2411.md) | V1 | DONE | Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1) | — |
@@ -671,21 +671,21 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RELEASE-2439-TRAIN](tasks/RELEASE-2439-TRAIN.md) | V1 | DONE | RELEASE-2439-TRAIN - the 2.43.9 train | — |
 | [TEST-STABLE-2442](tasks/TEST-STABLE-2442.md) | V1 | DONE | TEST-STABLE-2442 - two test-stability fixes (the home calendar near midnight, the intercom cards' pixel wait) | — |
 | [RELEASE-2440-TRAIN](tasks/RELEASE-2440-TRAIN.md) | V1 | DONE | RELEASE-2440-TRAIN - the 2.44.0 train (nine branches) and its release gate | — |
-| [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | REVIEW | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
-| [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | REVIEW | SQL out of the remaining routers (code-review programme 3.6) | — |
+| [CR-FEED-BASE-2450](tasks/CR-FEED-BASE-2450.md) | V1 | DONE | HA feed base (code-review 02:P2-5): one base for the Home Assistant state feed consumers | — |
+| [CR-ROUTER-SQL-2450](tasks/CR-ROUTER-SQL-2450.md) | V1 | DONE | SQL out of the remaining routers (code-review programme 3.6) | — |
 | [CR-RESPONSE-MODELS-CONSUMPTION-2450](tasks/CR-RESPONSE-MODELS-CONSUMPTION-2450.md) | V1 | DONE | Response models and the generated client consumption (code-review 07:F8 step 2) | — |
 | [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | DONE | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
-| [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | REVIEW | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
+| [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | DONE | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
 | [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | DONE | Backend complexity extractions (code-review programme 3.6) | — |
-| [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | REVIEW | T068 edge cases of the soak and load work: disconnects and a full disk | — |
-| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | REVIEW | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
+| [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | DONE | T068 edge cases of the soak and load work: disconnects and a full disk | — |
+| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | DONE | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
 | [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | DONE | Shared checkbox component for the checkboxes that remain checkboxes | — |
 | [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | REVIEW | Generator settings: units move from the field label into the field frame | — |
-| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | REVIEW | Tickets table paging; case details stay a scrolling document | — |
-| [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | REVIEW | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
-| [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | REVIEW | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
+| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | DONE | Tickets table paging; case details stay a scrolling document | — |
+| [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | DONE | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
+| [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | DONE | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
 | [HAND-SWITCH-HOME-PERSONAL-2490](tasks/HAND-SWITCH-HOME-PERSONAL-2490.md) | V1 | REVIEW | Switches in the home "personal" card, after the home panel edit | — |
-| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | REVIEW | The phone test run skips desktop-size screenshots, file by file | — |
+| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | DONE | The phone test run skips desktop-size screenshots, file by file | — |
 | [SOAK-14H-2490](tasks/SOAK-14H-2490.md) | V1 | BACKLOG | 14 hour soak on the test server after the 2.49.0 release checks | — |
 | [LAB-V0-ROLE-2490](tasks/LAB-V0-ROLE-2490.md) | V1 | BLOCKED | Lab test account gets the lab system-admin role (owner action) | — |
 | [LAB-V2-DRILLS-2490](tasks/LAB-V2-DRILLS-2490.md) | V1 | REVIEW | Disconnect drills a, b and c (V2) closed | — |
@@ -695,32 +695,32 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [LAB-V6-LOG-EXPORT-2490](tasks/LAB-V6-LOG-EXPORT-2490.md) | V1 | BACKLOG | Real log export and redaction check (V6) | — |
 | [LAB-V7-ENGLISH-WALK-2490](tasks/LAB-V7-ENGLISH-WALK-2490.md) | V1 | BACKLOG | English UI walk in the lab (V7) | — |
 | [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | REVIEW | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
-| [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | REVIEW | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
+| [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | DONE | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
 | [HOME-INTERFACE-NEXT-2490](tasks/HOME-INTERFACE-NEXT-2490.md) | V1 | REVIEW | Home interface next phase: rest screen, night mode, takeover, scenes, favourites | — |
 | [NATIVE-SELECT-B-2480](tasks/NATIVE-SELECT-B-2480.md) | V1 | BLOCKED | Remaining 241 selects moved to the shared field in design-stripping mode (dropped) | — |
-| [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | REVIEW | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
-| [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | REVIEW | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
-| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | REVIEW | English: default names saved on the server (such as "(copy)") are translated at creation | — |
-| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | REVIEW | English: add English search keywords to the settings search | — |
+| [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | DONE | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
+| [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | DONE | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
+| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | DONE | English: default names saved on the server (such as "(copy)") are translated at creation | — |
+| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | DONE | English: add English search keywords to the settings search | — |
 | [RELEASE-2480-TRAIN](tasks/RELEASE-2480-TRAIN.md) | V1 | DONE | RELEASE-2480-TRAIN - the 2.48.0 train and its release | — |
 | [RELEASE-2490-TRAIN](tasks/RELEASE-2490-TRAIN.md) | V1 | DONE | RELEASE-2490-TRAIN - the 2.49.0 train | — |
-| [ADR019-STEP0-2500](tasks/ADR019-STEP0-2500.md) | V1 | REVIEW | ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields) | — |
-| [ADR019-L14-OBSERVE-2500](tasks/ADR019-L14-OBSERVE-2500.md) | V1 | REVIEW | ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings | — |
-| [I18N-EN-2490](tasks/I18N-EN-2490.md) | V1 | REVIEW | English completeness report and the first module pass (owner O5) | — |
-| [I18N-BACKEND-2490](tasks/I18N-BACKEND-2490.md) | V1 | REVIEW | Server texts in the user's interface language (setup wizard, readiness, error envelope) | — |
-| [NOTICE-WIRE-DRIFT-2490](tasks/NOTICE-WIRE-DRIFT-2490.md) | V1 | REVIEW | Notice board union answers no longer log a false contract drift | — |
-| [REVIEW-2490-FIXES-2500](tasks/REVIEW-2490-FIXES-2500.md) | V1 | REVIEW | The three findings of the 2.49.0 review, fixed for 2.50 | — |
-| [ADR019-FAMILY2-2500](tasks/ADR019-FAMILY2-2500.md) | V1 | REVIEW | ADR-019 Step 1 family 2: presence and mobile field-error envelope | — |
+| [ADR019-STEP0-2500](tasks/ADR019-STEP0-2500.md) | V1 | DONE | ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields) | — |
+| [ADR019-L14-OBSERVE-2500](tasks/ADR019-L14-OBSERVE-2500.md) | V1 | DONE | ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings | — |
+| [I18N-EN-2490](tasks/I18N-EN-2490.md) | V1 | DONE | English completeness report and the first module pass (owner O5) | — |
+| [I18N-BACKEND-2490](tasks/I18N-BACKEND-2490.md) | V1 | DONE | Server texts in the user's interface language (setup wizard, readiness, error envelope) | — |
+| [NOTICE-WIRE-DRIFT-2490](tasks/NOTICE-WIRE-DRIFT-2490.md) | V1 | DONE | Notice board union answers no longer log a false contract drift | — |
+| [REVIEW-2490-FIXES-2500](tasks/REVIEW-2490-FIXES-2500.md) | V1 | DONE | The three findings of the 2.49.0 review, fixed for 2.50 | — |
+| [ADR019-FAMILY2-2500](tasks/ADR019-FAMILY2-2500.md) | V1 | DONE | ADR-019 Step 1 family 2: presence and mobile field-error envelope | — |
 | [DOCS-GUIDE-REFRESH-2500](tasks/DOCS-GUIDE-REFRESH-2500.md) | V1 | REVIEW | User documentation brought up to 2.40.0 .. 2.48.0 and the 2.49.0 train | — |
-| [DOOR-PREVIEW-I18N-2500](tasks/DOOR-PREVIEW-I18N-2500.md) | V1 | REVIEW | The door hand-over preview in the reader's language | — |
+| [DOOR-PREVIEW-I18N-2500](tasks/DOOR-PREVIEW-I18N-2500.md) | V1 | DONE | The door hand-over preview in the reader's language | — |
 | [HAND-SWITCH-HOME-EDIT-2500](tasks/HAND-SWITCH-HOME-EDIT-2500.md) | V1 | REVIEW | The home editor's widget on / off choices are the compact switch | — |
-| [NOTICE-NEWS-EMPTY-2500](tasks/NOTICE-NEWS-EMPTY-2500.md) | V1 | REVIEW | No silent empty news on a notice board | — |
-| [NOTICE-NEWS-FEEDS-2500](tasks/NOTICE-NEWS-FEEDS-2500.md) | V1 | REVIEW | Notice board news feeds: compressed bodies, the Calcalist address, source health | — |
+| [NOTICE-NEWS-EMPTY-2500](tasks/NOTICE-NEWS-EMPTY-2500.md) | V1 | DONE | No silent empty news on a notice board | — |
+| [NOTICE-NEWS-FEEDS-2500](tasks/NOTICE-NEWS-FEEDS-2500.md) | V1 | DONE | Notice board news feeds: compressed bodies, the Calcalist address, source health | — |
 | [RELEASE-2500-TRAIN](tasks/RELEASE-2500-TRAIN.md) | V1 | DONE | RELEASE-2500-TRAIN - the 2.50.0 train and its release | — |
-| [DOOR-BLOCKS-I18N-2510](tasks/DOOR-BLOCKS-I18N-2510.md) | V1 | REVIEW | The door blocks screen and the run guard in the reader's language | — |
-| [DOOR-WINDOW-TERM-2510](tasks/DOOR-WINDOW-TERM-2510.md) | V1 | REVIEW | 'Door window' in the role, permission and notification English | — |
-| [ADR019-FAMILY3-2510](tasks/ADR019-FAMILY3-2510.md) | V1 | REVIEW | ADR-019 Step 1 family 3: NVR, recorders, connection, camera, device layouts and wall | — |
-| [RESPONSE-MODELS-E-2500](tasks/RESPONSE-MODELS-E-2500.md) | V1 | REVIEW | Response-model ratchet, ExactModel and response models for the next routers (RESPONSE-MODELS-E-2480 on v2.48.0) | — |
+| [DOOR-BLOCKS-I18N-2510](tasks/DOOR-BLOCKS-I18N-2510.md) | V1 | DONE | The door blocks screen and the run guard in the reader's language | — |
+| [DOOR-WINDOW-TERM-2510](tasks/DOOR-WINDOW-TERM-2510.md) | V1 | DONE | 'Door window' in the role, permission and notification English | — |
+| [ADR019-FAMILY3-2510](tasks/ADR019-FAMILY3-2510.md) | V1 | DONE | ADR-019 Step 1 family 3: NVR, recorders, connection, camera, device layouts and wall | — |
+| [RESPONSE-MODELS-E-2500](tasks/RESPONSE-MODELS-E-2500.md) | V1 | DONE | Response-model ratchet, ExactModel and response models for the next routers (RESPONSE-MODELS-E-2480 on v2.48.0) | — |
 | [RELEASE-2510-TRAIN](tasks/RELEASE-2510-TRAIN.md) | V1 | DONE | RELEASE-2510-TRAIN - the 2.51.0 train (the second-factor release) | — |
 | [WISKEY-RESYNC-2520](tasks/WISKEY-RESYNC-2520.md) | V1 | REVIEW | WisKey resync reply (24.11): Arx adoption plan and slice 1 (system/status_v1, jobs/status_v1) | — |
 | [WISKEY-R2-2520](tasks/WISKEY-R2-2520.md) | V1 | REVIEW | WisKey system status page UI ('מערכת האינטרקום'), row R2 | — |
