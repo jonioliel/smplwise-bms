@@ -83,12 +83,15 @@ function demoSteps(placed: boolean): SetupStep[] {
       facts: [f(tr('גרסה'), '1.9.9', 'ok'), f(tr('זרמי smplwise_ ב־go2rtc'), tr('20 · 4 פעילים כרגע'), 'ok'), f(tr('זרמים צפויים (2 לכל מצלמה פעילה)'), tr('20 · חסרים 0'), 'ok'), f(tr('זרמים של מוצרים אחרים'), tr('6 · לא נוגעים בהם'))],
       evidence: {}, settings_link: { href: '#/system/diagnostics?tab=media', label: tr('הגדרות ‹ כללי ‹ וידאו ומדיה') } },
     { ...base, id: 'floor', index: 5, title: tr('קומה ותוכנית'), status: 'done', source: 'local', summary: tr('2 קומות עם תוכנית מפורסמת'),
+      // i18n-keep-start: demo data: invented names, as the api demo stores
       facts: [f(tr('אתרים · מבנים · קומות'), '1 · 1 · 3', 'ok'), f(tr('קומות עם תוכנית מפורסמת'), tr('2 מתוך 3'), 'ok'), f(tr('לדוגמה'), 'מבנה א / קומת קרקע · מבנה א / קומה 1')],
       warnings: [{ code: 'floors_without_plan', message: tr('ל־{n} קומות אין עדיין תוכנית מפורסמת (למשל "{name}").', { n: 1, name: 'מרתף' }), link: { href: '#/explore/floors/f-2/import', label: tr('ייבוא תוכנית') } }],
+      // i18n-keep-end
       evidence: {}, settings_link: { href: '#/explore/sites', label: tr('מפה ‹ אתרים ומבנים') } },
     placed
       ? { ...base, id: 'camera', index: 6, title: tr('מצלמה על המפה'), status: 'done', source: 'local', summary: tr('1 מצלמות מוצבות על המפה'),
           facts: [f(tr('מצלמות רשומות (פעילות)'), '10 (10)', 'ok'), f(tr('מוצבות על מפה'), tr('1 מתוך 10'), 'ok'), f(tr('עם פרופיל זרם ידוע מה־NVR'), tr('10 מתוך 10'), 'ok')],
+          // i18n-keep: demo data: invented names, as the api demo stores
           warnings: [{ code: 'cameras_unplaced', message: tr('{n} מצלמות עוד לא מוצבות (למשל "{name}").', { n: 9, name: 'חניה' }), link: { href: '#/explore/floors/f0/edit', label: tr('עורך התוכנית (הצבת מצלמות)') } }],
           evidence: {}, settings_link: { href: '#/explore/floors/f0/edit', label: tr('עורך התוכנית (הצבת מצלמות)') } }
       : { ...base, id: 'camera', index: 6, title: tr('מצלמה על המפה'), status: 'todo', source: 'local', summary: tr('אף מצלמה עוד לא מוצבת על מפה.'),

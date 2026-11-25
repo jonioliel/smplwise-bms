@@ -84,7 +84,7 @@ const NARROW = '(max-width: 767px)';
 
 const columns: TableColumn[] = [
   { key: 'title', label: tr('תיק'), render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
-  { key: 'status', label: tr('סטטוס'), render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` },
+  { key: 'status', label: tr('סטטוס'), render: (r) => html`<sw-badge filled kind=${r.status === 'פתוח' ? 'stale' : r.status === 'סגור' ? 'offline' : 'recorded'} label=${String(r.status)}></sw-badge>` }, // i18n-keep: compared against the server's Hebrew text
   { key: 'owner', label: tr('בעלים') },
   { key: 'clips', label: tr('קטעים') },
   { key: 'notes', label: tr('הערות') },
@@ -1130,9 +1130,9 @@ export class InvestigateCaseDetail extends LitElement {
                   <sw-field style="margin-block-start:8px"><textarea rows="2" placeholder=${tr('הערה חדשה…')}></textarea></sw-field>
                 </sw-card>`
               : html`<div class="clips">
-                  <sw-camera-tile compact name="כניסה ראשית" state="recorded" scene="entrance"></sw-camera-tile>
-                  <sw-camera-tile compact name="לובי" state="recorded" scene="lobby"></sw-camera-tile>
-                  <sw-camera-tile compact name="מסדרון מזרחי" state="unknown"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('כניסה ראשית')} state="recorded" scene="entrance"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('לובי')} state="recorded" scene="lobby"></sw-camera-tile>
+                  <sw-camera-tile compact name=${tr('מסדרון מזרחי')} state="unknown"></sw-camera-tile>
                 </div>`}
           <div class="foot">
             <sw-button icon="link">${tr('שיתוף')}</sw-button>

@@ -58,7 +58,7 @@ function greeting(hour: number): string {
 }
 
 const EVENT_TONE: Record<string, string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
-const EVENT_SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking' };
+const EVENT_SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking' }; // i18n-keep: camera names matched against the demo events
 
 /**
  * SC01 — overview dashboard (board 1 screen 1 / board 2 screen 15 on phones): greeting, four stat

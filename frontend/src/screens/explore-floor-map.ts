@@ -2457,7 +2457,7 @@ export class ExploreFloorMap extends LitElement {
       const e = a.entity;
       const state = states[a.resource_id] ?? null;
       const ent = { id: a.resource_id, domain: e?.domain ?? a.resource_id.split('.')[0] ?? '', device_class: e?.device_class ?? null, layer_id: a.layer_id };
-      const words = e && state !== null ? stateLabel({ ...e, state }) : 'לא ידוע';
+      const words = e && state !== null ? stateLabel({ ...e, state }) : tr('לא ידוע');
       if (isLightEntity(ent)) {
         const on = state === 'on' ? true : state === 'off' ? false : null;
         const spec = on === null ? null : specOf(e, on ? '.turn_off' : '.turn_on', '.toggle');

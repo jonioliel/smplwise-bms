@@ -118,6 +118,7 @@ const ago = (s: number) => isoZ(DEMO_NOW - s * 1000);
 const DEMO_ID = 'demo-incident';
 let demoSettings: IncidentSettings = { ...DEFAULT_SETTINGS, 'incident.enabled': true };
 const demoIncident = (): IncidentDetail => ({
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   id: DEMO_ID, status: 'open', source: 'alarm', source_ref: 'alarm_control_panel.demo', source_label: tr('אזעקת פריצה'), title: tr('פריצה · {name}', { name: 'דלת חניון -1' }),
   building_id: 'b0', building_name: 'בניין א', floor_id: 'f0', floor_name: 'קומה -1', anchor_id: null, x: 0.3, y: 0.55, zone: 'אזור 3 · חניון',
   opened_at: ago(252), opened_by: 'system', opened_by_name: tr('המערכת'), acked_at: ago(200), acked_by: 'דנה כהן', closed_at: null, closed_by: null, close_note: null,
@@ -153,6 +154,7 @@ const DEMO_DOORS: IncidentDoors = {
 const DEMO_CLOSED: Incident[] = [
   { ...demoIncident(), id: 'd2', status: 'closed', source: 'manual', source_label: tr('פתיחה ידנית'), title: tr('תרגיל · {name}', { name: 'חניון -1' }), opened_at: ago(4 * 86400), closed_at: ago(4 * 86400 - 1320), x: null, y: null },
   { ...demoIncident(), id: 'd3', status: 'closed', source: 'event', source_label: tr('מרכז האירועים'), title: tr('חדירה לאזור · {name}', { name: 'יציאת חירום 2' }), opened_at: ago(6 * 86400), closed_at: ago(6 * 86400 - 1020), x: null, y: null },
+  // i18n-keep-end
 ];
 let demoOpen = true;
 

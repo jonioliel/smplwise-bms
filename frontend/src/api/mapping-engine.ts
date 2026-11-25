@@ -34,6 +34,7 @@ export interface MarkSpec {
   marker: string;
 }
 
+// i18n-keep: text compared / matched: the building marker word and separators
 export const DEFAULT_SPEC: MarkSpec = { position: 'start', seps: ['·', '-', ':'], kind: 'any', marker: 'בניין' };
 
 /** One floor or area of the home system, as the assistant reads it. */
@@ -153,7 +154,7 @@ export function kindOk(token: string, kind: TokenKind): boolean {
     case 'number':
       return /^\p{Nd}{1,4}$/u.test(token);
     case 'word':
-      return /^[\p{L}\p{N}][\p{L}\p{N}'"׳״_.]*$/u.test(token);
+      return /^[\p{L}\p{N}][\p{L}\p{N}'"׳״_.]*$/u.test(token); // i18n-keep: a regex of name characters (the Hebrew geresh / gershayim), not text
     default:
       return (token.match(/\s+/g)?.length ?? 0) <= 1;
   }
@@ -308,6 +309,7 @@ function tableTarget(token: string, state: Pick<MappingState, 'tokens'>, buildin
 }
 
 /** The name a "בניין חדש" for a token gets: "ה" -> "בניין ה"; a token that already reads as a building keeps its words. */
+// i18n-keep: text compared / matched: building words compared with the saved name
 export const newBuildingName = (token: string): string => (/^(בניין|מבנה|מגדל)\s/u.test(token) || token === 'משותף' ? token : `בניין ${token}`);
 
 export interface TableRow {

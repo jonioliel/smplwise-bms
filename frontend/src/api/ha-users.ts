@@ -40,10 +40,12 @@ interface CreateRequest {
 
 const demo: HaUsersView = {
   users: [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     { ha_user_id: 'demo-1', username: 'dana', display_name: 'דנה לוי', role_id: 'viewer', role_name: tr('צופה'), scope_type: 'installation', scope_id: '*', scope_name: tr('כל ההתקנה'),
       state: 'active', repair: null, person: true, created_at: '2026-10-16T08:00:00Z', created_by_name: 'מנהל', is_self: false },
     { ha_user_id: 'demo-2', username: 'yossi', display_name: 'יוסי כהן', role_id: 'operator', role_name: tr('מפעיל'), scope_type: 'installation', scope_id: '*', scope_name: tr('כל ההתקנה'),
       state: 'inactive', repair: null, person: true, created_at: '2026-10-15T08:00:00Z', created_by_name: 'מנהל', is_self: false },
+    // i18n-keep-end
   ],
   can_manage: true,
   actor_ha_admin: true,
@@ -69,6 +71,7 @@ export const haUsersApi = {
     const role = demo.roles.find((r) => r.id === body.role_id);
     const user: ManagedUser = { ha_user_id: `demo-${Date.now()}`, username: body.username, display_name: body.display_name, role_id: body.role_id, role_name: role?.name ?? body.role_id,
       scope_type: body.scope_type, scope_id: body.scope_id, scope_name: tr('כל ההתקנה'), state: 'active', repair: null, person: body.create_person,
+      // i18n-keep: demo data: invented names, as the api demo stores
       created_at: new Date().toISOString(), created_by_name: 'מנהל', is_self: false };
     demo.users.push(user);
     return { user: clone(user), replayed: false };

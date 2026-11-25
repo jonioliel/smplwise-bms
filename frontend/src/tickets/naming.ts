@@ -34,6 +34,7 @@ export interface TicketName {
 
 export const TICKET_LANGS: readonly TicketLang[] = ['he', 'en', 'ar', 'ru'];
 export const DEFAULT_TICKET_NAMES: Readonly<Record<TicketLang, TicketName>> = {
+  // i18n-keep: the Hebrew side of a table whose English is beside it
   he: { one: 'בקשת שירות', many: 'בקשות שירות', gender: 'f', module: 'ניהול השירות' },
   en: { one: 'Ticket', many: 'Tickets', gender: '', module: 'Tickets' },
   ar: { one: 'بلاغ', many: 'بلاغات', gender: 'm', module: 'بلاغات' },
@@ -67,8 +68,10 @@ export function moduleDefault(lang: TicketLang, one: string, many: string): stri
 export function definite(name: string): string {
   if (!/[א-ת]/.test(name)) return name;
   const words = name.split(' ');
+  // i18n-keep-start: text compared / matched: the Hebrew definite article prefix compared and added to a Hebrew name
   if (words.length > 1 && words[words.length - 1].startsWith('ה')) return name;
   words[words.length - 1] = `ה${words[words.length - 1]}`;
+  // i18n-keep-end
   return words.join(' ');
 }
 
@@ -120,7 +123,7 @@ export function nameProblem(value: string): '' | 'required' | 'too_long' | 'char
   const text = value.split(/\s+/).filter(Boolean).join(' ');
   if (!text) return 'required';
   if ([...text].length > NAME_MAX) return 'too_long';
-  if (!/^[\p{L}\p{M}\p{Nd} \-'"׳״.()]+$/u.test(text)) return 'character';
+  if (!/^[\p{L}\p{M}\p{Nd} \-'"׳״.()]+$/u.test(text)) return 'character'; // i18n-keep: a regex of allowed name characters (Hebrew geresh / gershayim), not text
   if (!/\p{L}/u.test(text)) return 'no_letter';
   return '';
 }

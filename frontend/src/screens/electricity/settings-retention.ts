@@ -28,7 +28,7 @@ const ROWS: RowDef[] = [
 ];
 
 /** I18N-EN-SWITCH-2438: the range units (api/electricity-meters.ts writes them in Hebrew) as the interface's language shows them. */
-const UNIT_TEXT: Record<string, string> = { 'ימים': tr('ימים'), 'חודשים': tr('חודשים'), 'שנים': tr('שנים') };
+const UNIT_TEXT: Record<string, string> = { 'ימים': tr('ימים'), 'חודשים': tr('חודשים'), 'שנים': tr('שנים') }; // i18n-keep: keys matched against the units the api writes in Hebrew
 
 /**
  * הגדרות › תשתיות › שמירת נתונים (CR-023 section 15, mockups "שמירת נתונים" and "ערך מחוץ לטווח"): how long raw readings, quarter-hour data and bills with

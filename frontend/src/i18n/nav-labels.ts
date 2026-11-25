@@ -44,6 +44,7 @@ export function ticketsLang(): 'he' | 'en' {
 export type NavTtKey = 'area' | 'settingsTab' | 'tabMine' | 'tabDepartment' | 'tabAll' | 'secRequests' | 'secRequestsShort' | 'secRequestsNamed' | 'secMaintenance' | 'secMaintenanceShort' | 'secVendors' | 'secVendorsShort' | 'secReports' | 'secReportsShort' | 'pageList' | 'hdTitle';
 export const NAV_TT: Record<Lang2, Record<NavTtKey, string>> = {
   he: {
+    // i18n-keep-start: the Hebrew side of a table whose English is beside it
     area: '{module}',
     settingsTab: '{module}',
     tabMine: 'שלי',
@@ -60,6 +61,7 @@ export const NAV_TT: Record<Lang2, Record<NavTtKey, string>> = {
     secReportsShort: 'סקירה',
     pageList: 'רשימה',
     hdTitle: 'מטפלים וספקים',
+    // i18n-keep-end
   },
   en: {
     area: '{module}',
@@ -85,6 +87,7 @@ export const NAV_TT: Record<Lang2, Record<NavTtKey, string>> = {
 type NavBtKey = 'tabBoard';
 export const NAV_BT: Record<Lang2, Record<NavBtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tabBoard: 'לוח מנהל',
   },
   en: {
@@ -96,6 +99,7 @@ export const NAV_BT: Record<Lang2, Record<NavBtKey, string>> = {
 type NavOtKey = 'tab';
 export const NAV_OT: Record<Lang2, Record<NavOtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'סקירה',
   },
   en: {
@@ -107,6 +111,7 @@ export const NAV_OT: Record<Lang2, Record<NavOtKey, string>> = {
 type NavCtKey = 'vaTitle';
 export const NAV_CT: Record<Lang2, Record<NavCtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     vaTitle: 'חשבון ספקים',
   },
   en: {
@@ -118,6 +123,7 @@ export const NAV_CT: Record<Lang2, Record<NavCtKey, string>> = {
 type NavXtKey = 'tab';
 export const NAV_XT: Record<Lang4, Record<NavXtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'גישת חוץ',
   },
   en: {
@@ -135,6 +141,7 @@ export const NAV_XT: Record<Lang4, Record<NavXtKey, string>> = {
 type NavDwtKey = 'tab';
 export const NAV_DWT: Record<Lang4, Record<NavDwtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'חלונות פתיחה',
   },
   en: {
@@ -152,6 +159,7 @@ export const NAV_DWT: Record<Lang4, Record<NavDwtKey, string>> = {
 type NavAnnounceKey = 'title';
 export const NAV_ANNOUNCE: Record<Lang4, Record<NavAnnounceKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     title: 'הכרזות',
   },
   en: {
@@ -169,6 +177,7 @@ export const NAV_ANNOUNCE: Record<Lang4, Record<NavAnnounceKey, string>> = {
 export type NavTstKey = 'areasLabel' | 'areasWhere' | 'devicesLabel' | 'devicesWhere' | 'securityLabel' | 'securityWhere' | 'securityLiveLabel' | 'securityLiveWhere' | 'securityInvestigateLabel' | 'securityInvestigateWhere' | 'exploreLabel' | 'exploreWhere' | 'multimediaLabel' | 'multimediaWhere' | 'wiskeyLabel' | 'wiskeyWhere' | 'infraLabel' | 'infraWhere' | 'infraElectricityLabel' | 'infraElectricityWhere' | 'infraGeneratorLabel' | 'infraGeneratorWhere' | 'infraWaterLabel' | 'infraWaterWhere' | 'ticketsWhere' | 'ticketsSectionLabel' | 'ticketsSectionWhere' | 'ticketsScopesLabel' | 'ticketsScopesWhere' | 'systemLabel' | 'systemWhere' | 'systemSecurityLabel' | 'systemSecurityWhere';
 export const NAV_TST: Record<Lang4, Record<NavTstKey, string>> = {
   he: {
+    // i18n-keep-start: the Hebrew side of a table whose English is beside it
     areasLabel: 'ניווט ראשי',
     areasWhere: 'סרגל הצד ופס הניווט התחתון',
     devicesLabel: 'ראשי',
@@ -202,6 +211,7 @@ export const NAV_TST: Record<Lang4, Record<NavTstKey, string>> = {
     systemWhere: 'לשוניות ההגדרות',
     systemSecurityLabel: 'הגדרות ‹ אבטחה',
     systemSecurityWhere: 'לשוניות אבטחה בהגדרות',
+    // i18n-keep-end
   },
   en: {
     areasLabel: 'Main navigation',
@@ -314,6 +324,7 @@ export const NAV_TST: Record<Lang4, Record<NavTstKey, string>> = {
 type NavMtKey = 'section';
 export const NAV_MT: Record<Lang2, Record<NavMtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     section: 'תחזוקה ובקרה',
   },
   en: {
@@ -325,6 +336,7 @@ export const NAV_MT: Record<Lang2, Record<NavMtKey, string>> = {
 type NavIxKey = 'pageBuilding';
 export const NAV_IX: Record<Lang2, Record<NavIxKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     pageBuilding: 'דוחות בניין',
   },
   en: {
@@ -336,6 +348,7 @@ export const NAV_IX: Record<Lang2, Record<NavIxKey, string>> = {
 type NavTrKey = 'tab';
 export const NAV_TR: Record<Lang2, Record<NavTrKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'תחבורה ציבורית',
   },
   en: {
@@ -347,6 +360,7 @@ export const NAV_TR: Record<Lang2, Record<NavTrKey, string>> = {
 type NavXsKey = 'synTab';
 export const NAV_XS: Record<Lang2, Record<NavXsKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     synTab: 'מפה סינופטית',
   },
   en: {
@@ -358,6 +372,7 @@ export const NAV_XS: Record<Lang2, Record<NavXsKey, string>> = {
 type NavPtKey = 'tab';
 export const NAV_PT: Record<Lang2, Record<NavPtKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'מי במבנה',
   },
   en: {
@@ -369,6 +384,7 @@ export const NAV_PT: Record<Lang2, Record<NavPtKey, string>> = {
 type NavItKey = 'tab';
 export const NAV_IT: Record<Lang2, Record<NavItKey, string>> = {
   he: {
+    // i18n-keep: the Hebrew side of a table whose English is beside it
     tab: 'אירוע חי',
   },
   en: {

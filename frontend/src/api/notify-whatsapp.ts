@@ -70,6 +70,7 @@ function demoWaNotify(): WaNotifyAdapter {
   let v: WaNotifyView = {
     enabled: false, per_user_hour: 4, dedupe_min: 30, budget_pct: 50, budget_critical_pct: 80, detail: 'type_place', detail_levels: ['generic', 'type_place'], normalized: [], warnings: [], revision: 0,
     ranges: { per_user_hour: [1, 30], dedupe_min: [5, 1440], budget_pct: [10, 90], budget_critical_pct: [10, 90] },
+    // i18n-keep: demo data: invented names, as the api demo stores
     account: { mapped: true, label: 'וואטסאפ ····0191', state: 'connected' }, reachable_users: 3, accounts_href: '#/system/messaging-accounts',
     test: { own_number: true, masked: '····0191' },
   };

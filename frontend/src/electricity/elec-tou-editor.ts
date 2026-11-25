@@ -300,6 +300,7 @@ export class ElecTouEditor extends ElecBase {
               ${ro || s.ranges.length < 2 ? nothing : html`<sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('הסרת טווח תאריכים')} @click=${() => this.edit((x) => { x.seasons[i].ranges.splice(j, 1); })}></sw-button>`}</div>`)}
             ${ro ? nothing : html`<div><sw-button variant="ghost" size="sm" @click=${() => this.edit((x) => { x.seasons[i].ranges.push(['01-01', '01-31']); })}>${tr('+ טווח תאריכים')}</sw-button></div>`}
           </div>`)}
+          // i18n-keep: the value of the name_he field (the Hebrew name of a bilingual name pair)
           ${ro ? nothing : html`<div><sw-button size="sm" data-tou-add-season @click=${() => this.edit((x) => { const id = freshId('season', x.seasons.map((s) => s.id)); x.seasons.push({ id, name_he: 'עונה חדשה', ranges: [['01-01', '01-31']] }); x.prices[id] = {}; })}>${tr('+ עונה')}</sw-button></div>`}
           <div class="hint">${tr('העונות חייבות לכסות את כל השנה בלי חפיפה. 29 בפברואר שייך לעונה של 28 בפברואר.')}</div>
         </div>
@@ -313,6 +314,7 @@ export class ElecTouEditor extends ElecBase {
               for (const p of Object.values(x.prices)) delete p[b.id];
             })}></sw-button>`}</div>
             ${this.nameEn('bands', i, b.id, b.name_en)}`)}
+          // i18n-keep: the value of the name_he field (the Hebrew name of a bilingual name pair)
           ${ro || d.bands.length >= 8 ? nothing : html`<div><sw-button size="sm" data-tou-add-band @click=${() => this.edit((x) => { x.bands.push({ id: freshId('band', x.bands.map((b) => b.id)), name_he: 'פס חדש' }); })}>${tr('+ פס')}</sw-button></div>`}
           <div class="fld"><label>${tr('שאר השעות שייכות ל')}</label><select ?disabled=${ro} @change=${(e: Event) => this.edit((x) => { x.default_band = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option value=${b.id} .selected=${b.id === d.default_band}>${touName('bands', b)}</option>`)}</select></div>
           <b>${tr('סוגי ימים')}</b>

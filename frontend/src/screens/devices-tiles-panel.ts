@@ -91,6 +91,7 @@ const LOBBY: [string, string, string, string] = ['lobby', tr('לובי'), 'groun
 const KITCHEN: [string, string, string, string] = ['kitchen', tr('מטבח'), 'ground', tr('קרקע')];
 const OFFICE: [string, string, string, string] = ['office', tr('משרד'), 'first', tr('קומה 1')];
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 /** Demo mode (no server): the same numbers as the building screen's own demo tree. */
 const DEMO_ROWS: Record<TileKind, DeviceItem[]> = {
   lights: [
@@ -121,6 +122,7 @@ const DEMO_ROWS: Record<TileKind, DeviceItem[]> = {
   locks: [demoRow('lock.lobby_door', 'דלת ראשית', LOBBY, 'locked', { kind: 'lock', locked: true })],
   alarm: [demoRow('alarm_control_panel.house', 'אזעקת הבניין', LOBBY, 'armed_home', { kind: 'alarm', armed: true })],
 };
+// i18n-keep-end
 
 function demoItems(kind: TileKind, scope: ItemsScope, id: string, name: string, switches: 'typed' | 'all' = 'typed'): DeviceItems {
   // SWITCH-LIGHT-DIMMER-2331: "כל המפסקים" lists the switch.* rows with the lights (on/off only - no brightness control)

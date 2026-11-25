@@ -7,6 +7,7 @@
  * design/tokens.ts are written here by hand for BOTH schemes (`prefers-color-scheme`), the button is a 48 px target, the
  * type is the shell's body size and the card keeps clear of the notch and the home indicator in standalone mode.
  */
+// i18n-keep: a module that cannot read the language packs (service-worker bundle); a fixed Hebrew offline page
 export const OFFLINE_HTML = `<!doctype html>
 <html lang="he" dir="rtl">
 <head>

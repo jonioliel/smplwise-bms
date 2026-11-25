@@ -175,21 +175,57 @@ function translatorCall(src) {
 }
 
 /** Hebrew-bearing literal segments of a TS source: '...', "...", `...` text parts (comments skipped). */
-function hebrewLiterals(src) {
+/**
+ * I18N-REST-2520: the lines whose Hebrew is kept on purpose, each with its reason in the comment that marks it:
+ *   `// i18n-keep: <reason>` (or `/* i18n-keep: <reason> *\/`) - the literals of that line; a comment alone on its line also covers
+ *   the next line;
+ *   `// i18n-keep-start: <reason>` ... `// i18n-keep-end` - every line between them (a table of matcher words, a four-language table).
+ * What may be kept: text compared or matched (keywords, matcher words, confirmation words), the Hebrew side of a table that has its
+ * own English beside it, stored identifiers, and the language's own name. The report counts the kept literals apart (`kept`).
+ */
+export function keptLines(src) {
+  const lines = src.split('\n');
+  const kept = new Set();
+  let open = false;
+  lines.forEach((line, idx) => {
+    const no = idx + 1;
+    if (/i18n-keep-start\b/.test(line)) open = true;
+    if (open || /i18n-keep\b(?!-)/.test(line)) kept.add(no);
+    if (/i18n-keep\b(?!-)/.test(line) && /^\s*(\/\/|\/\*)/.test(line)) kept.add(no + 1);
+    if (/i18n-keep-end\b/.test(line)) open = false;
+  });
+  return kept;
+}
+
+function hebrewLiterals(src, keptOut = []) {
   const found = [];
   let i = 0;
   const n = src.length;
   const tplStack = []; // brace depth per open template `${`
   let braceDepth = 0;
   const trCall = translatorCall(src);
-  const push = (s, start) => {
+  const kept = keptLines(src);
+  const lineAt = (pos) => {
+    let line = 1;
+    for (let k = src.indexOf('\n'); k >= 0 && k < pos; k = src.indexOf('\n', k + 1)) line++;
+    return line;
+  };
+  const push = (raw, start) => {
+    // I18N-REST-2520: a CSS comment inside a template (css`` blocks) is not text
+    const s = HEB.test(raw) && raw.includes('/*') ? raw.replace(/\/\*[\s\S]*?\*\//g, '') : raw;
     if (!HEB.test(s)) return;
     if (start !== undefined && trCall.test(src.slice(Math.max(0, start - 24), start))) return; // a source-text key: part 1b
+    // kept: the line where the text starts, or the line of its first Hebrew letter, carries an `i18n-keep` mark
+    if (start !== undefined && kept.size && (kept.has(lineAt(start)) || kept.has(lineAt(start + Math.max(0, raw.search(HEB)))))) {
+      keptOut.push(s.trim().slice(0, 80));
+      return;
+    }
     found.push(s.trim().slice(0, 80));
   };
   const readTemplateText = () => {
     // at the char after ` or after the closing } of a ${}: read text until ` or ${
     let s = '';
+    const from = i;
     while (i < n) {
       const c = src[i];
       if (c === '\\') {
@@ -199,12 +235,12 @@ function hebrewLiterals(src) {
       }
       if (c === '`') {
         i++;
-        push(s);
+        push(s, from);
         return;
       }
       if (c === '$' && src[i + 1] === '{') {
         i += 2;
-        push(s);
+        push(s, from);
         tplStack.push(braceDepth);
         braceDepth++;
         return;
@@ -284,6 +320,9 @@ function kindOf(r) {
   // I18N-EN-2490: the api demo stores as the api lint names them (tests/unit-i18n-api-2442.spec.ts DEMO_FILE): whole files of fake data
   // that may not call tr()
   if (/^api\/[\w-]+-demo\.ts$/.test(r) || r === 'api/messaging-fake.ts') return 'demo';
+  // I18N-REST-2520: the other whole demo stores (invented data behind the static demo and the specs; no request is made): the
+  // calendars demo backend, the electricity fixtures, the plan wizard's sample house, the home screen's demo sites
+  if (['calendars/demo.ts', 'electricity/fixtures.ts', 'plan-wizard/wizard-demo.ts', 'screens/home-site-demo.ts', 'screens/home-demo.ts'].includes(r)) return 'demo';
   if (r.startsWith('public-ticket/')) return 'public';
   return 'app';
 }
@@ -295,14 +334,17 @@ function literalRows() {
     const r = rel(p);
     // CR-I18N-LAZY-LANG-2443: i18n/lang/** are the language packs (their Hebrew is the msg tables' keys), read through the catalogues above
     if (registeringSet.has(r) || r === 'i18n/core.ts' || r === 'i18n/en.ts' || r === 'i18n/frigate-en.ts' || r.startsWith('i18n/lang/')) continue;
-    const lits = hebrewLiterals(readFileSync(p, 'utf8'));
-    if (!lits.length) continue;
+    const keptLits = [];
+    const lits = hebrewLiterals(readFileSync(p, 'utf8'), keptLits);
+    if (!lits.length && !keptLits.length) continue;
     const kind = kindOf(r);
     const key = kind === 'app' ? moduleOf(r) : kind === 'demo' ? '(demo data)' : '(public pages, own languages)';
-    const row = byModule.get(key) ?? { module: key, kind, files: 0, literals: 0, fileList: [] };
-    row.files++;
+    const row = byModule.get(key) ?? { module: key, kind, files: 0, literals: 0, kept: 0, fileList: [] };
+    // I18N-REST-2520: `kept` = literals marked `i18n-keep` (Hebrew on purpose, the reason beside them); not counted in `literals`
+    if (lits.length) row.files++;
     row.literals += lits.length;
-    row.fileList.push({ file: r, literals: lits.length });
+    row.kept += keptLits.length;
+    row.fileList.push({ file: r, literals: lits.length, kept: keptLits.length });
     byModule.set(key, row);
   }
   return [...byModule.values()].sort((a, b) => (a.kind === b.kind ? b.literals - a.literals : a.kind === 'app' ? -1 : 1));
@@ -322,9 +364,10 @@ const totals = {
   hebrew: sum(cats, 'hebrew'),
   gap: sum(cats, 'gap'),
   placeholder: sum(cats, 'placeholder'),
-  hardcodedModules: lits.filter((r) => r.kind === 'app').length,
+  hardcodedModules: lits.filter((r) => r.kind === 'app' && r.literals > 0).length,
   hardcodedLiterals: sum(lits.filter((r) => r.kind === 'app'), 'literals'),
   hardcodedFiles: sum(lits.filter((r) => r.kind === 'app'), 'files'),
+  keptLiterals: sum(lits.filter((r) => r.kind === 'app'), 'kept'),
 };
 
 if (JSON_OUT) {
@@ -332,7 +375,7 @@ if (JSON_OUT) {
 } else {
   console.log(`language: ${LANG}`);
   console.log(`catalogues: ${totals.catalogues}, keys: ${totals.keys}, missing: ${totals.missing}, identical: ${totals.identical}, hebrew: ${totals.hebrew}, gap: ${totals.gap}, placeholder: ${totals.placeholder}`);
-  console.log(`hard-coded Hebrew (app): ${totals.hardcodedLiterals} literals in ${totals.hardcodedFiles} files, ${totals.hardcodedModules} modules`);
+  console.log(`hard-coded Hebrew (app): ${totals.hardcodedLiterals} literals in ${totals.hardcodedFiles} files, ${totals.hardcodedModules} modules; kept on purpose (i18n-keep): ${totals.keptLiterals}`);
 }
 
 if (WRITE) {
@@ -356,6 +399,7 @@ if (WRITE) {
   md.push(`| **gap: keys that show Hebrew in the ${LANG} interface** | **${totals.gap}** |`);
   md.push(`| ${LANG} text whose \`{placeholders}\` differ from the Hebrew | ${totals.placeholder} |`);
   md.push(`| hard-coded Hebrew literals outside catalogues (app) | ${totals.hardcodedLiterals} in ${totals.hardcodedFiles} files |`);
+  md.push(`| Hebrew kept on purpose (\`i18n-keep\`, reason in the source) | ${totals.keptLiterals} |`);
   md.push('');
   md.push('## Catalogues (per module)');
   md.push('');
@@ -380,9 +424,9 @@ if (WRITE) {
   md.push('');
   md.push('These texts ignore the interface language. Moving them into a catalogue is the per-module work of Q-SYS-8.');
   md.push('');
-  md.push('| module | files | literals |');
-  md.push('| --- | ---: | ---: |');
-  for (const r of lits) md.push(`| ${r.module} | ${r.files} | ${r.literals} |`);
+  md.push('| module | files | literals | kept on purpose |');
+  md.push('| --- | ---: | ---: | ---: |');
+  for (const r of lits) md.push(`| ${r.module} | ${r.files} | ${r.literals} | ${r.kept ?? 0} |`);
   md.push('');
   writeFileSync(join(outDir, `MISSING_KEYS_${L}.md`), md.join('\n'), 'utf8');
   writeFileSync(join(outDir, `MISSING_KEYS_${L}.json`), JSON.stringify({ totals, catalogues: cats, hardcoded: lits }, null, 1) + '\n', 'utf8');
@@ -400,7 +444,9 @@ function ratchetOf(t, catalogues, hardcoded) {
     gapKeys: catalogues.flatMap((r) => r.gapKeys.map((k) => `${r.name}: ${k}`)).sort(),
     placeholderKeys: catalogues.flatMap((r) => r.placeholderKeys.map((k) => `${r.name}: ${k}`)).sort(),
     hardcodedTotal: t.hardcodedLiterals,
-    hardcoded: Object.fromEntries(app.map((r) => [r.module, r.literals]).sort((a, b) => a[0].localeCompare(b[0]))),
+    hardcoded: Object.fromEntries(app.filter((r) => r.literals > 0).map((r) => [r.module, r.literals]).sort((a, b) => a[0].localeCompare(b[0]))),
+    // I18N-REST-2520: the literals kept Hebrew on purpose (`i18n-keep`, reason in the source) - a new keep is a reviewed raise
+    keptTotal: t.keptLiterals,
   };
 }
 if (RATCHET) {
@@ -418,6 +464,7 @@ if (RATCHET) {
     for (const k of now.gapKeys) if (!old.gapKeys.includes(k)) raised.push(`gap ${k}`);
     for (const k of now.placeholderKeys) if (!old.placeholderKeys.includes(k)) raised.push(`placeholder ${k}`);
     for (const [m, n] of Object.entries(now.hardcoded)) if (n > (old.hardcoded[m] ?? 0)) raised.push(`hard-coded ${m}: ${old.hardcoded[m] ?? 0} -> ${n}`);
+    if (old.keptTotal !== undefined && now.keptTotal > old.keptTotal) raised.push(`kept on purpose: ${old.keptTotal} -> ${now.keptTotal}`);
   }
   if (raised.length && !ALLOW_RAISE) {
     console.error(`refused: the ratchet would go up (fix these, or pass --allow-raise with a reason in the change note):\n  ${raised.join('\n  ')}`);

@@ -68,6 +68,7 @@ function cardHtml(it: TransitItem, d: TransitDigest, c: TransitCtx): string {
 export function stopsTitle(d: TransitDigest, lang: Lang): string {
   const names = (d.stops ?? []).map((s) => s.name);
   if (!names.length) return ts(lang, 'title');
+  // i18n-keep: a module that cannot read the language packs (separate notice-tv bundle) with its own he / en table: the Hebrew branch of a lang ternary
   return names.length === 1 ? names[0] : names[0] + (lang === 'he' ? ' ועוד ' : ' and ') + (names.length - 1) + (lang === 'he' ? '' : ' more');
 }
 

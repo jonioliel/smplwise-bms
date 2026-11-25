@@ -556,7 +556,7 @@ function renderCopy(cands: CopyCandidate[], a: StudioActions, busy: boolean) {
   return html`<div class="copy" data-copy-candidates>
     <div class="ilbl">${tr('להתחיל ממבנה קיים?')}</div>
     ${cands.map((c) => html`<button class="issue" data-copy-from=${c.version_id} ?disabled=${busy} @click=${() => a.copyFrom(c.version_id)}>
-      <span>${tr('העתק {countLabel} ו{v}{countLabel2} מגרסה {v2}', { countLabel: countLabel(c.walls, tr('קיר אחד'), tr('קירות')), v: c.openings === 1 ? '' : '־', countLabel2: countLabel(c.openings, tr('פתח אחד'), tr('פתחים')), v2: c.status === 'published' ? tr('מפורסמת') : c.status === 'draft' ? tr('בטיוטה') : tr('מהארכיון') })}</span>
+      <span>${tr('העתק {countLabel} ו{v}{countLabel2} מגרסה {v2}', { countLabel: countLabel(c.walls, tr('קיר אחד'), tr('קירות')), v: c.openings === 1 ? '' : tr('־'), countLabel2: countLabel(c.openings, tr('פתח אחד'), tr('פתחים')), v2: c.status === 'published' ? tr('מפורסמת') : c.status === 'draft' ? tr('בטיוטה') : tr('מהארכיון') })}</span>
       <span class="muted">${c.same_drawing ? tr('אותו שרטוט') : tr('שרטוט אחר: המיקומים לא מיושרים, בדוק אותם')}</span>
     </button>`)}
   </div>`;
@@ -1256,7 +1256,7 @@ interface GridOptionsView {
   estimated: boolean;
   showEstimates: boolean;
 }
-const GRID_SIZE_WORDS = ['צפוף מאוד', 'צפוף', 'בינוני', 'מרווח', 'רחב', 'רחב מאוד'];
+const GRID_SIZE_WORDS = [tr('צפוף מאוד'), tr('צפוף'), tr('בינוני'), tr('מרווח'), tr('רחב'), tr('רחב מאוד')];
 export function renderGridOptions(v: GridOptionsView, onToggle: (on: boolean) => void, onStep: (m: number) => void): TemplateResult {
   const words = v.estimated && !v.showEstimates;
   const label = (m: number, i: number) => (words ? GRID_SIZE_WORDS[i] ?? fmtMetres(m, false) : fmtMetres(m, v.estimated));

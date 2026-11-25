@@ -70,6 +70,7 @@ export function hebrewFromGregorian(gy: number, gm: number, gd: number): { y: nu
 }
 
 // the month names as Chromium's ICU prints them in Hebrew (the leap year's Adar I / Adar II with a geresh)
+// i18n-keep-start: the Hebrew calendar date (month names, gematria)
 const MONTHS = ['', 'ניסן', 'אייר', 'סיוון', 'תמוז', 'אב', 'אלול', 'תשרי', 'חשוון', 'כסלו', 'טבת', 'שבט'];
 
 export function hebrewMonthName(m: number, y: number): string {
@@ -82,6 +83,7 @@ export function hebrewMonthName(m: number, y: number): string {
 export function hebrewDateText(gy: number, gm: number, gd: number): string {
   const h = hebrewFromGregorian(gy, gm, gd);
   return h.d + ' ב' + hebrewMonthName(h.m, h.y) + ' ' + h.y;
+// i18n-keep-end
 }
 
 /** The calendar day of an instant in a time zone (the Gregorian calendar, which every browser has); null when even that fails. */

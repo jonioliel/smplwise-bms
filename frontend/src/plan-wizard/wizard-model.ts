@@ -191,6 +191,7 @@ interface RoomType {
   words: string[];
 }
 export const ROOM_TYPES: readonly RoomType[] = [
+  // i18n-keep-start: text compared / matched: room-type keywords
   { id: 'entrance', he: tr('כניסה'), kind: 'room', tags: ['entrance'], words: ['כניסה', 'לובי', 'מבואה'] },
   { id: 'corridor', he: tr('מעבר'), kind: 'corridor', tags: ['corridor'], words: ['מסדרון', 'מעבר', 'פרוזדור'] },
   { id: 'living', he: tr('סלון'), kind: 'room', tags: ['living'], words: ['סלון', 'מגורים', 'אירוח'] },
@@ -206,6 +207,7 @@ export const ROOM_TYPES: readonly RoomType[] = [
   { id: 'technical', he: tr('חדר טכני'), kind: 'service', tags: ['technical'], words: ['טכני', 'שרתים', 'חשמל', 'תקשורת'] },
   { id: 'balcony', he: tr('מרפסת'), kind: 'outdoor', tags: ['balcony'], words: ['מרפסת'] },
   { id: 'parking', he: tr('חניה'), kind: 'outdoor', tags: ['parking'], words: ['חניה', 'חנייה', 'חניון'] },
+  // i18n-keep-end
   { id: 'other', he: tr('אחר'), kind: 'zone', tags: [], words: [] },
 ];
 export const roomType = (id: string | null | undefined): RoomType => ROOM_TYPES.find((t) => t.id === id) ?? ROOM_TYPES[ROOM_TYPES.length - 1];
@@ -219,6 +221,7 @@ export function guessRoomType(name: string): string | null {
 }
 
 /** The name a room without one gets (the server does the same: "חדר 7"). */
+// i18n-keep: the server gives the same fallback name; the earlier pass judged it on purpose
 export const fallbackRoomName = (index: number): string => `חדר ${index + 1}`;
 
 /** A polygon's area-weighted centre (normalized points; a degenerate one falls back to the vertex mean). */

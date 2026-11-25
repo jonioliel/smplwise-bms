@@ -1355,10 +1355,10 @@ export class SystemAccess extends LitElement {
       { key: 'user', label: tr('משתמש'), render: (r) => html`<div class="who"><sw-avatar name=${String(r.user)} size=${24}></sw-avatar>${String(r.user)}</div>` },
       { key: 'action', label: tr('פעולה') },
       { key: 'resource', label: tr('משאב') },
-      { key: 'decision', label: tr('החלטה'), render: (r) => html`<sw-badge kind=${String(r.decision).startsWith('נחסם') ? 'forbidden' : 'live'} label=${String(r.decision)}></sw-badge>` },
+      { key: 'decision', label: tr('החלטה'), render: (r) => html`<sw-badge kind=${String(r.decision).startsWith('נחסם') ? 'forbidden' : 'live'} label=${String(r.decision)}></sw-badge>` }, // i18n-keep: compared against the server's Hebrew text
       { key: 'role', label: tr('תפקיד/היקף ששימשו') },
     ];
-    return html`<sw-table dense .columns=${columns} .rows=${demoAudit.filter((a) => a.action.includes('תוכנית') || a.action.includes('סנכרון') || a.action.includes('Ingress'))}></sw-table>`;
+    return html`<sw-table dense .columns=${columns} .rows=${demoAudit.filter((a) => a.action.includes('תוכנית') || a.action.includes('סנכרון') || a.action.includes('Ingress'))}></sw-table>`; // i18n-keep: matched against the Hebrew demo audit actions
   }
 
   render() {

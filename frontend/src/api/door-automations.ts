@@ -140,9 +140,11 @@ export function defaultPolicy(): DoorPolicy {
 export function mockDoorAutomations(opts: { visible?: boolean; available?: boolean; killed?: boolean } = {}): DoorAutomationsAdapter {
   const blocks = new Map<string, DoorBlock>();
   const doors: DoorChoice[] = [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     { station_id: 'demo-entry', relay: 1, name: 'כניסה ראשית', online: true, can_arm: true },
     { station_id: 'demo-dock', relay: 2, name: 'רציף · שער', online: true, can_arm: true },
     { station_id: 'demo-roof', relay: 1, name: 'יציאה לגג', online: false, can_arm: false },
+    // i18n-keep-end
   ];
   let n = 0;
   const now = () => isoZ(new Date());
@@ -169,6 +171,7 @@ export function mockDoorAutomations(opts: { visible?: boolean; available?: boole
     arm: async (block) => {
       const b = find(block.id)!;
       const until = isoZ(Date.now() + (b.policy.arm_days ?? DEFAULT_LIMITS.arm_days) * 86_400_000);
+      // i18n-keep: demo data: invented names, as the api demo stores
       Object.assign(b, { state: 'armed', armed_by: 'demo', armed_by_name: 'מנהל המערכת', armed_at: now(), armed_until: until, disarm_reason: null, disarmed_at: null });
       return structuredClone(b);
     },

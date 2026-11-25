@@ -160,6 +160,7 @@ export class ElecBillPage extends ElecBase {
       return html`<div class="page" data-elec="bill" data-state=${this.st}><div class="row"><a class="btn ghost sm" href=${href.bills()}>${tr('→ חיובים')}</a></div>${stateBox(this.st === 'forbidden' ? 'forbidden' : 'error', this.st === 'forbidden' ? 'lock' : 'warning', this.error || tr('לא ניתן לטעון את החיוב'), this.st === 'error' ? { label: tr('נסה שוב'), run: () => void this.load() } : undefined)}</div>`;
     const b = this.bill;
     const s = b.snapshot;
+    // i18n-keep: the bill document is issued in Hebrew (the watermark text is compared in elec-bill-paper)
     const wm = b.state === 'draft' ? 'טיוטה' : b.state === 'void' ? 'בוטל' : '';
     const actions = html`${b.actions.map((a) => this.btn(a, b))}`;
     const warnings = b.state === 'draft' ? s.notes.filter((x) => x.code === 'meter_not_reporting' || x.code === 'carried_in') : [];

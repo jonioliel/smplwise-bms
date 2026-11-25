@@ -347,7 +347,7 @@ export class ScenariosPanel extends LitElement {
     for (const [p, raw] of Object.entries(this.simValues)) {
       const v = raw.trim();
       if (!v) continue;
-      out[p] = v === 'כן' || v === 'true' ? true : v === 'לא' || v === 'false' ? false : v === '?' ? null : Number(v);
+      out[p] = v === 'כן' || v === 'true' ? true : v === 'לא' || v === 'false' ? false : v === '?' ? null : Number(v); // i18n-keep: confirmation words typed by the user, matched
     }
     return Object.keys(out).length ? out : undefined;
   }

@@ -234,6 +234,7 @@ export class ElecBillPaper extends LitElement {
     const prev = s.history.previous.filter((p) => p.kwh !== null);
     const prevKwh = prev.length ? prev[prev.length - 1].kwh : null;
     const wm = this.watermark;
+    // i18n-keep-start: the bill document is issued in Hebrew (a server-issued Hebrew document; the PDF is the same)
     return html`<div class="wrap" data-elec-paper>
       <div class="box" style="zoom:${this.zoom}">
         <div class="paper" style="--acc:${b.accent_color || '#2767ed'}">
@@ -290,6 +291,7 @@ export class ElecBillPaper extends LitElement {
         </div>
       </div>
     </div>`;
+    // i18n-keep-end
   }
 }
 

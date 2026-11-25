@@ -112,12 +112,14 @@ let demoUi: BoardUi = { ...BOARD_UI_DEFAULTS };
 let demoUrgent = true;
 let demoRevision = 0;
 const DEMO_PLACES: TreeNode[] = [
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   { key: 'building:b-main', kind: 'building', name: 'בניין ראשי', parent: null, count: 0, order: 0 },
   { key: 'floor:f-0', kind: 'floor', name: 'קרקע', parent: 'building:b-main', count: 0, order: 0 },
   { key: 'floor:f-1', kind: 'floor', name: 'קומה 1', parent: 'building:b-main', count: 0, order: 1 },
   { key: 'floor:f-2', kind: 'floor', name: 'קומה 2', parent: 'building:b-main', count: 0, order: 2 },
   { key: 'zone:z-lobby', kind: 'zone', name: 'לובי', parent: 'floor:f-0', count: 0, order: 0 },
   { key: 'zone:z-102', kind: 'zone', name: 'חדר 102', parent: 'floor:f-1', count: 0, order: 0 },
+  // i18n-keep-end
 ];
 
 function demoItem(t: TicketItem, i: number, now: number): BoardItem {

@@ -41,18 +41,22 @@ const DEMO_SOURCES = [
   { key: 'opening.left_open', label: tr('דלת / חלון נשארו פתוחים'), category: 'doors', subject: 'entity' },
 ];
 const DEMO_DEPTS = [
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   { id: 'dept-maintenance', name: 'אחזקה', priorities: [{ id: 'p-normal', name: 'רגיל', is_default: true }, { id: 'p-high', name: 'גבוה', is_default: false }],
     categories: [{ id: 'c-plumbing', name: 'אינסטלציה' }] },
   { id: 'dept-cleaning', name: 'ניקיון', priorities: [{ id: 'p2-normal', name: 'רגיל', is_default: true }], categories: [] },
+  // i18n-keep-end
 ];
 
 const demo: { revision: number; enabled: boolean; daily: number; rules: TicketRuleView[]; seq: number } = {
   revision: 2, enabled: true, daily: 20, seq: 2,
   rules: [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     { id: 'rule-demo-1', name: 'דליפת מים לאחזקה', enabled: true, source: 'sensor.leak', subject_id: '', hold_min: 2, department_id: 'dept-maintenance',
       priority_id: 'p-high', category_id: 'c-plumbing', title: '{alert} - {place}', description: '{details}', on_clear: 'comment', daily_limit: null,
       effective_limit: 20, today_created: 3, limit_reached: false, suppressed_today: 0, last_fired_at: '2026-10-19T07:12:00Z' },
     { id: 'rule-demo-2', name: 'מצלמה לא זמינה', enabled: true, source: 'camera.offline', subject_id: '', hold_min: 15, department_id: 'dept-maintenance',
+    // i18n-keep-end
       priority_id: null, category_id: null, title: '{alert}: {place}', description: '', on_clear: 'comment_close', daily_limit: 2,
       effective_limit: 2, today_created: 2, limit_reached: true, suppressed_today: 1, last_fired_at: '2026-10-19T09:40:00Z' },
   ],
@@ -96,11 +100,13 @@ const mock: RulesBackend = {
     const limit = effectiveLimit(rule.daily_limit, demo.daily);
     const today = saved?.today_created ?? 0;
     const would = !demo.enabled ? 'rules_off' : !rule.enabled ? 'rule_off' : today >= limit ? 'suppressed' : 'create';
+    // i18n-keep: demo data: invented names, as the api demo stores
     const values: Record<string, string> = { alert: tr('דליפת מים'), details: 'חיישן מים מטבח דיווח על מים.', place: 'קומה 1', source: tr('דליפת מים'), since: '19/10/2026 09:30' };
     const fill = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => values[k] ?? m);
     const dept = DEMO_DEPTS.find((d) => d.id === rule.department_id);
     return {
       would, matches: 1, held: 1, effective_limit: limit, today_created: today, sample_values: false,
+      // i18n-keep: demo data: invented names, as the api demo stores
       alerts: [{ title: tr('דליפת מים'), place: 'קומה 1', first_at: '2026-10-19T06:30:00Z', held: true }],
       preview: { title: fill(rule.title), description: fill(rule.description), department: dept?.name ?? '',
         priority: dept?.priorities.find((p) => p.id === rule.priority_id)?.name ?? dept?.priorities.find((p) => p.is_default)?.name ?? '' },

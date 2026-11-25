@@ -386,7 +386,7 @@ export class InvestigateIncidents extends LitElement {
   /** "Who opened": the access log rows of the window for each mapped door the caller may read (access.events.read on that station). */
   private async loadWho(d: IncidentDoors) {
     if (!isApi()) {
-      this.who = { 'lock.demo_parking': 'יוסי לוי · כרטיס', 'binary_sensor.demo_exit': 'ללא זיהוי · נפתחה מבפנים' };
+      this.who = { 'lock.demo_parking': 'יוסי לוי · כרטיס', 'binary_sensor.demo_exit': 'ללא זיהוי · נפתחה מבפנים' }; // i18n-keep: demo data: invented names, as the api demo stores
       return;
     }
     const out: Record<string, string> = {};

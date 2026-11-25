@@ -24,7 +24,7 @@ import { tr } from '../i18n/msg/system-a';
 const columns: TableColumn[] = [
   { key: 'time', label: tr('זמן'), render: (r) => html`14.09.2026 ${String(r.time)}` },
   { key: 'user', label: tr('משתמש'), render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(r.user)} size=${24}></sw-avatar>${String(r.user)}</span>` },
-  { key: 'action', label: tr('פעולה'), render: (r) => html`<span style=${String(r.decision).startsWith('נחסם') ? 'color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)' : ''}>${String(r.action)}</span>` },
+  { key: 'action', label: tr('פעולה'), render: (r) => html`<span style=${String(r.decision).startsWith('נחסם') ? 'color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)' : ''}>${String(r.action)}</span>` }, // i18n-keep: compared against the server's Hebrew text
   { key: 'resource', label: tr('פרטים'), render: (r) => html`${String(r.resource)} <span style="color:var(--sw-text-3)">· ${String(r.decision)}</span>` },
   { key: 'role', label: tr('תפקיד / היקף') },
   { key: 'rev', label: 'rev', ltr: true, render: () => html`7` },

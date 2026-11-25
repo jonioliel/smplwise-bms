@@ -263,6 +263,7 @@ function webrtcVerdict(s: Pick<StreamEncoding, 'codec' | 'svc' | 'b_frames' | 'p
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 const DEMO_RECORDER: Recorder = {
+  // i18n-keep: demo data: invented names, as the api demo stores
   recorder_id: 'nvr-1', name: 'NVR ראשי', vendor: 'hikvision', model: 'DS-7616NI-DEMO', firmware: 'V4.84 demo', enabled: true, online: true,
   checked_at: '2026-10-01T09:00:00Z', error: null,
   capabilities: {
@@ -306,6 +307,7 @@ function demoCameras(): NvrCamera[] {
   });
   const sub = (n: number) => demoStream(`${n}02`, 'sub', { resolution: '640x360', fps: 20, bitrate_kbps: 1024 });
   return [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     cam(1, 'כניסה', [demoStream('101', 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true }), sub(1)]),
     cam(2, 'חניה', [demoStream('201', 'main', { resolution: '2560x1440', fps: null, fps_full: true, bitrate_kbps: 3072, svc: true }), sub(2)]),
     cam(3, 'חצר אחורית', [
@@ -314,6 +316,7 @@ function demoCameras(): NvrCamera[] {
       demoStream('303', 'third', { resolution: '1280x720', fps: 12, bitrate_kbps: 1024 }),
     ]),
     cam(4, 'מחסן', [demoStream('401', 'main', { resolution: '1920x1080', svc: false, profile: 'High' }), sub(4)], { online: false }),
+    // i18n-keep-end
   ];
 }
 

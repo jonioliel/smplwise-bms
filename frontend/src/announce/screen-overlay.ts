@@ -59,6 +59,7 @@ export function overlayKey(a: ScreenAnnouncement | null | undefined): string {
 }
 
 const STRINGS: Record<'he' | 'en' | 'ru' | 'ar', { title: string; critical: string; close: string }> = {
+  // i18n-keep: the Hebrew side of a table whose English is beside it
   he: { title: 'הכרזה', critical: 'הודעת חירום', close: 'סגירה' },
   en: { title: 'Announcement', critical: 'Emergency notice', close: 'Close' },
   ru: { title: 'Объявление', critical: 'Экстренное сообщение', close: 'Закрыть' },
@@ -66,6 +67,7 @@ const STRINGS: Record<'he' | 'en' | 'ru' | 'ar', { title: string; critical: stri
 };
 
 /** ANNOUNCE-297: the mark under a machine-translated block, in that block's own language (the reader of that block reads it). */
+// i18n-keep: the Hebrew side of a table whose English is beside it
 export const MACHINE_MARK: Record<ScreenLang, string> = { he: 'תרגום אוטומטי', en: 'Machine translation', ru: 'Машинный перевод', ar: 'ترجمة آلية' };
 export const machineMark = (l: ScreenLang): string => MACHINE_MARK[l] ?? MACHINE_MARK.en;
 

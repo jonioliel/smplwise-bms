@@ -1439,7 +1439,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row" data-camsuggest-count><span class="lbl">${tr('הצעת מצלמה לאזור: מספר הצעות')}</span>
           ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', tr('אחת')], ['2', tr('שתיים')], ['3', tr('שלוש')]])}</div>
         <!-- PLAN3D-R32-ANSWERS-2438 (owner round 32): the 3D map's rows (room labels, room card, all floors) moved into the one
-             "מפה תלת־ממדית" card below (system-plan-view), with the look dials and the plan wizard's thresholds -->
+             "3D map" card below (system-plan-view), with the look dials and the plan wizard's thresholds -->
         ${this.renderSaveRow({ tab: 'map', hook: 'data-save-map', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
         ${!api ? html`<div class="muted">${tr('נתוני הדגמה: ההגדרות נשמרות רק מול השרת.')}</div>` : nothing}
       </sw-card>
@@ -1905,7 +1905,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">${tr('הקלטה ב־NVR')}<span class="muted">${tr('5/10 ערוצים מקליטים כרגע (לפי תצורה)')}</span></span><sw-badge kind="live"></sw-badge></div>
         <div class="row"><span class="lbl">${tr('זרמים פעילים')}<span class="muted">${tr('4 חיים · 1 ניגון · 0 יתומים')}</span></span><sw-badge kind="live"></sw-badge></div>
       </sw-card>
-      <sw-card heading=${tr('תור עבודות')}>${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
+      <sw-card heading=${tr('תור עבודות')}>${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל' /* i18n-keep: compared against the server's Hebrew status text */) ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
     </div>`;
   }
 

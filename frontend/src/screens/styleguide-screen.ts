@@ -269,10 +269,10 @@ export class StyleguideScreen extends LitElement {
 
       <h3>${tr('אריחי מצלמה')}</h3>
       <div class="grid">
-        <sw-camera-tile name="כניסה ראשית" state="live" scene="entrance"></sw-camera-tile>
-        <sw-camera-tile name="חדר מדרגות" state="stale" scene="corridor"></sw-camera-tile>
-        <sw-camera-tile name="מסדרון מזרחי" state="offline"></sw-camera-tile>
-        <sw-camera-tile name="חניה" state="forbidden"></sw-camera-tile>
+        <sw-camera-tile name=${tr('כניסה ראשית')} state="live" scene="entrance"></sw-camera-tile>
+        <sw-camera-tile name=${tr('חדר מדרגות')} state="stale" scene="corridor"></sw-camera-tile>
+        <sw-camera-tile name=${tr('מסדרון מזרחי')} state="offline"></sw-camera-tile>
+        <sw-camera-tile name=${tr('חניה')} state="forbidden"></sw-camera-tile>
       </div>
 
       <h3>${tr('כפתורים, צ׳יפים, טאבים')}</h3>
@@ -287,7 +287,7 @@ export class StyleguideScreen extends LitElement {
         <sw-chip selected>${tr('הכל')}</sw-chip><sw-chip dot="#ef4444">${tr('תנועה')}</sw-chip><sw-chip dot="#2f6bff">${tr('אדם')}</sw-chip><sw-chip dot="#22c55e">${tr('רכב')}</sw-chip>
         <sw-tabs .items=${[{ id: 'a', label: tr('כל האתרים'), count: 3 }, { id: 'b', label: tr('מבנים') }, { id: 'c', label: tr('מפה') }]} active="a"></sw-tabs>
         <sw-toggle checked label=${tr('מופעל')}></sw-toggle>
-        <sw-avatar name="יוני"></sw-avatar>
+        <sw-avatar name=${tr('יוני')}></sw-avatar>
       </div>
 
       <h3>${tr('תגי מצב (צורה + טקסט, לא צבע בלבד)')}</h3>

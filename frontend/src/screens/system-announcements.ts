@@ -25,8 +25,8 @@ import '../components/sw-field';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** POLISH4-WP8: the load-failure panel's heading and retry key (the error itself is the hint); the tab's four languages */
-const LOAD_FAILED: Record<string, string> = { he: 'לא הצלחנו לקרוא את הגדרות ההכרזות', en: 'The announcement settings could not be read', ru: 'Не удалось загрузить настройки объявлений', ar: 'تعذّر تحميل إعدادات الإعلانات' };
-const RETRY: Record<string, string> = { he: 'נסו שוב', en: 'Try again', ru: 'Повторить', ar: 'حاول مرة أخرى' };
+const LOAD_FAILED: Record<string, string> = { he: 'לא הצלחנו לקרוא את הגדרות ההכרזות', en: 'The announcement settings could not be read', ru: 'Не удалось загрузить настройки объявлений', ar: 'تعذّر تحميل إعدادات الإعلانات' }; // i18n-keep: the Hebrew side of a four-language table
+const RETRY: Record<string, string> = { he: 'נסו שוב', en: 'Try again', ru: 'Повторить', ar: 'حاول مرة أخرى' }; // i18n-keep: the Hebrew side of a four-language table
 
 type HistoryRow = AnnounceConfigAnswer['history'][number];
 /** CR-CMP2-TABLES-REST-2470 (owner N10 / N21): an attempt's outcome in the shared status tones - spoken ok, failed bad, held back warn,

@@ -348,7 +348,7 @@ export class InvestigateSearch extends LitElement {
         <sw-badge slot="actions" kind="unknown" label=${tr('אין ספק AI מוגדר · רמה 0 (מטא־דאטה מקליט)')}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
-            <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label=${tr('חיפוש')} /></sw-field>
+            <sw-field><input type="search" value=${tr('אדם בכניסה הראשית היום')} aria-label=${tr('חיפוש')} /></sw-field>
             <sw-button variant="primary" icon="search">${tr('חפש')}</sw-button>
           </div>
           <sw-tabs .items=${[{ id: 'person', label: tr('אדם') }, { id: 'vehicle', label: tr('רכב') }, { id: 'object', label: tr('עצם') }, { id: 'color', label: tr('צבע') }, { id: 'time', label: tr('זמן') }, { id: 'site', label: tr('אתר') }]} .active=${this.by} @change=${(e: CustomEvent<{ id: string }>) => (this.by = e.detail.id)}></sw-tabs>

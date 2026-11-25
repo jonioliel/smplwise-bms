@@ -196,6 +196,7 @@ export function pillsOf(c: DeviceCounts): CountPill[] {
   return out;
 }
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 const DEMO_CLIMATE = [{ entity_id: 'climate.lobby', name: 'מזגן לובי', area_name: 'לובי', hvac_mode: 'cool', hvac_action: 'cooling', current_temperature: 24.5, target_temperature: 22, unit: '°C', available: true }];
 
 /** The demo-mode building (also the shell's phone area picker in the bubble skin reads it: no backend, fixture only). */
@@ -270,6 +271,7 @@ function demoTreeFor(state: string): DeviceTree {
   building.alarm = alarm ? 'triggered' : 'armed_home';
   return { ...DEMO_DEVICES_TREE, floors, unassigned: { area_id: 'unassigned', name: 'ללא שיוך', counts: { ...ZERO, entities: 3, lights: 1, switches: 1, sensors: 1 } }, building, building_climate: floors.flatMap((f) => f.climate), can_bulk: true };
 }
+// i18n-keep-end
 
 type BuildingLayout = 'cards' | 'tiles' | 'plan';
 export const LAYOUT_KEY = 'sw.devices.layout';
@@ -2288,10 +2290,10 @@ export class DevicesBuilding extends LitElement {
       climate: () => kpi(tr('מיזוג פעיל'), c.climate_active, c.climate, 'snow', 'climate'),
       heating: () => kpi(tr('חימום פעיל'), c.heating_active, c.heating, 'flame', 'heating'),
       media: () => kpi(tr('מסכים דולקים'), c.media_on, c.media, 'play', 'media'),
-      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi="נעולים" data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label=${tr('מנעולים נעולים')} value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? tr('הכול נעול') : tr('יש מנעול פתוח')} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint=${tr('הצג ושלוט')} @click=${open('locks')}></sw-kpi>`,
+      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi=${'נעולים' /* i18n-keep: identifier, selected by tests and styles */} data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label=${tr('מנעולים נעולים')} value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? tr('הכול נעול') : tr('יש מנעול פתוח')} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint=${tr('הצג ושלוט')} @click=${open('locks')}></sw-kpi>`,
       sensors: () => count(tr('חיישנים'), c.sensors, 'sensor', 'sensors'),
       cameras: () => count(tr('מצלמות'), c.cameras, 'camera', 'cameras'),
-      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi="אזעקה" data-tile-kind="alarm" label=${tr('אזעקה')} value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint=${tr('הצג')} @click=${open('alarm')}></sw-kpi>` : nothing),
+      alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi=${'אזעקה' /* i18n-keep: identifier, selected by tests and styles */} data-tile-kind="alarm" label=${tr('אזעקה')} value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint=${tr('הצג')} @click=${open('alarm')}></sw-kpi>` : nothing),
     };
     const kinds = summaryKindsShown(this.screen, c);
     // (one row on a control screen: the chosen tiles share it - the mockup)

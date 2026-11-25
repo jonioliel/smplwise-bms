@@ -107,6 +107,7 @@ export const GHOST_OPACITY = 0.07;
 /** Sign: the prisms of the rotating strips, fewer on a portrait screen. */
 export const slatCount = (portrait: boolean): number => (portrait ? 6 : 8);
 
+// i18n-keep: the Hebrew language own name
 export const LANG_NAME: Record<'he' | 'en' | 'ru' | 'ar', string> = { he: 'עברית', en: 'English', ru: 'Русский', ar: 'العربية' };
 
 // ---------------------------------------------------------------- LOBBY-STYLES-2300: the lobby styles' pure rules

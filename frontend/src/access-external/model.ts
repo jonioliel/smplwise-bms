@@ -264,6 +264,7 @@ export function evidenceRefOk(text: string): boolean {
 export function durationText(minutes: number, lang: string): string {
   const h = Math.floor(minutes / 60);
   const m = Math.max(0, Math.round(minutes % 60));
+  // i18n-keep: the Hebrew side of a table whose English is beside it
   const u = { he: ['ש׳', 'ד׳'], en: ['h', 'min'], ar: ['س', 'د'], ru: ['ч', 'мин'] }[lang as 'he'] ?? ['h', 'min'];
   return h ? `${h} ${u[0]} ${m} ${u[1]}` : `${m} ${u[1]}`;
 }

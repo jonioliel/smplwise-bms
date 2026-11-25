@@ -167,6 +167,7 @@ const rest: MessagesBackend = {
 
 const DEMO_STARTERS: Record<string, Partial<Record<MessageLang, string>>> = {
   assign: {
+    // i18n-keep-start: text sent to people as a message template (written in the sender language on purpose)
     he: 'שלום {name},\n{module_name} {number} ({department}): {title}\n{place}\nלעדכון הטיפול: {link}\nחובה להיכנס לקישור כדי להמשיך בטיפול.',
     en: 'Hello {name},\nNew {module_name} #{number} ({department}): {title}\n{place}\nUpdate the handling: {link}\nYou must open the link to continue the handling.',
   },
@@ -176,6 +177,7 @@ const DEMO_STARTERS: Record<string, Partial<Record<MessageLang, string>>> = {
   reassigned: { he: '{module_name} {number} ({department}) {g:f=הועברה|m=הועבר|n=הועבר} לטיפול אחר. הקישור שקיבלתם אינו פעיל עוד.' },
   reopened: { he: '{module_name} {number} ({department}) {g:f=נפתחה|m=נפתח|n=נפתח} מחדש: {title}\nלעדכון הטיפול: {link}' },
   update: { he: 'עדכון: {module_name} {number} ({department}): {title}\nלעדכון הטיפול: {link}' },
+    // i18n-keep-end
 };
 
 const demo = {
@@ -183,9 +185,11 @@ const demo = {
     revision: 3, whatsapp: { enabled: true, use_buttons: false, reply_window_h: 72 }, email_fallback: true,
     uses: [
       { key: 'tickets.messages', label: tr('הודעות'), value: 'entry:01JDEMOA', resolved: 'entry:01JDEMOA', inherits: null, inherits_label: null, required: true, queued: 1,
+        // i18n-keep: demo data: invented names, as the api demo stores
         departments: [{ id: 'dept-maintenance', name: 'אחזקה', value: null, resolved: 'entry:01JDEMOA' }] },
       { key: 'tickets.codes', label: tr('קודי אימות'), value: null, resolved: 'entry:01JDEMOA', inherits: 'tickets.messages', inherits_label: tr('הודעות'), required: false, queued: 0 },
     ],
+    // i18n-keep: demo data: invented names, as the api demo stores
     accounts: [{ key: 'entry:01JDEMOA', label: 'וואטסאפ שירות ····0191', last4: '0191', state: 'connected', kind: 'discovered', uses: ['tickets.messages'],
       sends_24h: 7, per_day: 150, last_send_at: '2026-10-14T05:12:00Z', last_ok_at: '2026-10-14T05:12:00Z', shared_outside: false, ticket: true }],
     warnings: [], ws_connected: true, email: { configured: true }, inbound: { wanted: true }, test_send: { enabled: false },
@@ -215,6 +219,7 @@ const mock: MessagesBackend = {
     purposes: ['assign', 'reminder', 'code', 'closed', 'reassigned', 'reopened', 'update'], langs: ['he', 'en', 'ar', 'ru'],
     placeholders: ['name', 'number', 'department', 'title', 'place', 'device', 'priority', 'organization', 'link', 'code', 'manager', 'eta', 'module_name', 'module_name_plural', 'location'],
     rules: { link_required: ['assign', 'reminder', 'reopened', 'update'], code_only: ['code'], code_forbidden: ['device', 'link', 'place', 'title'], max_rendered: 1000 },
+    // i18n-keep: demo data: invented names, as the api demo stores
     items: structuredClone(demo.items), starters: DEMO_STARTERS, samples: {}, departments: [{ id: 'dept-maintenance', name: 'אחזקה' }],
   }),
   createTemplate: async (body) => {
@@ -233,6 +238,7 @@ const mock: MessagesBackend = {
     demo.items = demo.items.filter((x) => x.id !== id);
     return { ok: true };
   },
+  // i18n-keep: demo data: invented names, as the api demo stores
   previewTemplate: async (body) => ({ text: body.body.replace(/\{link\}/g, '[קישור]').replace(/\{number\}/g, '1042'), problems: [], length: body.body.length, max: 1000 }),
 };
 

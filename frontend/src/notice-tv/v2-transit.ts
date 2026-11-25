@@ -23,6 +23,7 @@ export interface V2TransitCtx {
 }
 
 const S = {
+  // i18n-keep: a module that cannot read the language packs (separate notice-tv bundle) with its own he / en table: the Hebrew side beside English
   he: { next: 'הבאים', sched: 'לפי לוח זמנים', updated: 'עודכן {t}' },
   en: { next: 'Next', sched: 'Scheduled', updated: 'Updated {t}' },
 };

@@ -134,7 +134,7 @@ export class ScheduleLoweringDialog extends LitElement {
     const times = Array.isArray(s.times) ? s.times.join(', ') : s.times ?? '';
     const kinds = s.kinds ?? [];
     if (s.lowering !== false) {
-      const verb = kinds.length === 1 ? (kinds[0] === 'מנטרל' ? tr('ינטרל') : kinds[0] === 'פותח נעילה' ? tr('יפתח את נעילת') : tr('יפתח')) : tr('יפתח / ינטרל');
+      const verb = kinds.length === 1 ? (kinds[0] === 'מנטרל' ? tr('ינטרל') : kinds[0] === 'פותח נעילה' ? tr('יפתח את נעילת') : tr('יפתח')) : tr('יפתח / ינטרל'); // i18n-keep: compared against the server's Hebrew text
       return tr('התזמון {verb} {who}{when} גם כשאיש אינו נמצא במקום.', { verb, who, when: times ? ` ${tr('ב־{times}', { times })}` : '' });
     }
     return tr('התזמון כולל פעולה רגישה (אזעקה, מנעול, דלת או שער){when} והוא יפעל גם כשאיש אינו נמצא במקום.', { when: times ? ` ${tr('ב־{times}', { times })}` : '' });

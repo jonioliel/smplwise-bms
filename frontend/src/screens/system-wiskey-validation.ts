@@ -41,6 +41,7 @@ const PHYSICAL = tr('פעולה פיזית - דלת תיפתח');
 const RUN_STATE_TEXT: Record<string, string> = { running: tr('בבדיקה'), done: tr('הסתיימה'), cancelled: tr('בוטלה'), interrupted: tr('נקטעה (הפעלה מחדש)') };
 const WITNESS_TEXT: Record<WitnessVerdict, string> = { opened: tr('הדלת נפתחה'), not_opened: tr('הדלת לא נפתחה'), unsure: tr('לא בטוח') };
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 /** Demo data (no backend): one finished run of two stations, every kind of result once. */
 const DEMO_OVERVIEW: ValidationOverview = {
   feed_state: 'ready',
@@ -75,6 +76,7 @@ const DEMO_RUN: ValidationRun = {
       demoCheck('clock', 'סטיית שעון', 'fail', 'נכשל', 'skew_over_tolerance', 'שעון העמדה סוטה מעבר ל-2 שניות.')] },
   ],
 };
+// i18n-keep-end
 
 interface PulseDraft {
   station: ValidationStation;

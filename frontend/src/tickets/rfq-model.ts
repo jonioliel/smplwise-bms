@@ -228,6 +228,7 @@ interface PreviewParts { name: string; number: string; title: string; place: str
  * the starter here). Empty lines (no place, no organization) are dropped like the server's renderer does.
  */
 export function invitePreview(p: PreviewParts, lang: 'he' | 'en' = 'he'): string {
+  // i18n-keep: text sent to people as a message (the Hebrew invitation template; the English one is beside it)
   const he = `שלום ${p.name},\nבקשה להצעת מחיר מס' ${p.number}: ${p.title}\n${p.place}\nמועד אחרון להצעה: ${p.due}\nחלון עבודה רצוי: ${p.window}\n${p.files ?? ''}\nפרטים וטופס ההצעה: ${p.link}\nאפשר גם לסמן בקישור שאינכם מעוניינים.\n${p.organization}`;
   const en = `Hello ${p.name},\nRequest for quotation no. ${p.number}: ${p.title}\n${p.place}\nQuote deadline: ${p.due}\nWanted work window: ${p.window}\n${p.files ?? ''}\nDetails and the quote form: ${p.link}\nYou can also mark in the link that you are not interested.\n${p.organization}`;
   return (lang === 'en' ? en : he).split('\n').filter((l) => l.trim()).join('\n');

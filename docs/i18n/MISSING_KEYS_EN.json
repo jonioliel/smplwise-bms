@@ -1,16 +1,17 @@
 {
  "totals": {
   "lang": "en",
-  "catalogues": 152,
-  "keys": 29634,
+  "catalogues": 156,
+  "keys": 31659,
   "missing": 20,
   "identical": 3,
   "hebrew": 0,
   "gap": 4,
   "placeholder": 1,
-  "hardcodedModules": 46,
-  "hardcodedLiterals": 3160,
-  "hardcodedFiles": 168
+  "hardcodedModules": 1,
+  "hardcodedLiterals": 34,
+  "hardcodedFiles": 5,
+  "keptLiterals": 834
  },
  "catalogues": [
   {
@@ -294,6 +295,20 @@
   {
    "name": "i18n/bulk-people",
    "keys": 141,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": []
+  },
+  {
+   "name": "i18n/camera-discovery",
+   "keys": 146,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -603,7 +618,7 @@
   },
   {
    "name": "i18n/he",
-   "keys": 1310,
+   "keys": 1360,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -729,7 +744,7 @@
   },
   {
    "name": "i18n/local-identity",
-   "keys": 210,
+   "keys": 221,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -827,7 +842,7 @@
   },
   {
    "name": "i18n/notices",
-   "keys": 454,
+   "keys": 479,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1544,7 +1559,7 @@
   },
   {
    "name": "msg/automation",
-   "keys": 982,
+   "keys": 985,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1562,7 +1577,7 @@
   },
   {
    "name": "msg/calendars",
-   "keys": 744,
+   "keys": 750,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1580,7 +1595,7 @@
   },
   {
    "name": "msg/components",
-   "keys": 837,
+   "keys": 957,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1596,7 +1611,7 @@
   },
   {
    "name": "msg/devices",
-   "keys": 849,
+   "keys": 919,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1628,7 +1643,7 @@
   },
   {
    "name": "msg/home",
-   "keys": 1124,
+   "keys": 1257,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1644,7 +1659,7 @@
   },
   {
    "name": "msg/investigate",
-   "keys": 830,
+   "keys": 861,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1660,7 +1675,7 @@
   },
   {
    "name": "msg/live",
-   "keys": 381,
+   "keys": 401,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1692,7 +1707,7 @@
   },
   {
    "name": "msg/media",
-   "keys": 1230,
+   "keys": 1249,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1713,8 +1728,56 @@
    ]
   },
   {
+   "name": "msg/mfa",
+   "keys": 113,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
+  },
+  {
    "name": "msg/misc",
    "keys": 458,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
+  },
+  {
+   "name": "msg/plan-editor",
+   "keys": 694,
+   "missing": 0,
+   "identical": 0,
+   "hebrew": 0,
+   "gap": 0,
+   "placeholder": 0,
+   "hasTable": true,
+   "devMarked": false,
+   "gapKeys": [],
+   "missingKeys": [],
+   "placeholderKeys": [],
+   "unused": 0,
+   "unusedKeys": []
+  },
+  {
+   "name": "msg/plan-studio",
+   "keys": 505,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1762,7 +1825,7 @@
   },
   {
    "name": "msg/screens",
-   "keys": 340,
+   "keys": 380,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -1789,8 +1852,10 @@
    "gapKeys": [],
    "missingKeys": [],
    "placeholderKeys": [],
-   "unused": 0,
-   "unusedKeys": []
+   "unused": 1,
+   "unusedKeys": [
+    "אסימוני גישה"
+   ]
   },
   {
    "name": "msg/system-a",
@@ -1815,7 +1880,7 @@
   },
   {
    "name": "msg/system-b",
-   "keys": 1466,
+   "keys": 1505,
    "missing": 0,
    "identical": 0,
    "hebrew": 0,
@@ -2255,1126 +2320,841 @@
  ],
  "hardcoded": [
   {
-   "module": "screens/explore-*",
-   "kind": "app",
-   "files": 4,
-   "literals": 865,
-   "fileList": [
-    {
-     "file": "screens/explore-entities.ts",
-     "literals": 30
-    },
-    {
-     "file": "screens/explore-floor-map.ts",
-     "literals": 203
-    },
-    {
-     "file": "screens/explore-plan-editor.ts",
-     "literals": 619
-    },
-    {
-     "file": "screens/explore-presence.ts",
-     "literals": 13
-    }
-   ]
-  },
-  {
-   "module": "screens/plan-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 605,
-   "fileList": [
-    {
-     "file": "screens/plan-studio-panel.ts",
-     "literals": 605
-    }
-   ]
-  },
-  {
-   "module": "calendars",
-   "kind": "app",
-   "files": 6,
-   "literals": 223,
-   "fileList": [
-    {
-     "file": "calendars/demo.ts",
-     "literals": 211
-    },
-    {
-     "file": "calendars/event-drawer.ts",
-     "literals": 1
-    },
-    {
-     "file": "calendars/resident.ts",
-     "literals": 2
-    },
-    {
-     "file": "calendars/view-approvals.ts",
-     "literals": 1
-    },
-    {
-     "file": "calendars/view-calendar.ts",
-     "literals": 4
-    },
-    {
-     "file": "calendars/view-manage.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "api",
-   "kind": "app",
-   "files": 20,
-   "literals": 190,
-   "fileList": [
-    {
-     "file": "api/automations.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/calendar-attendees.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/door-automations.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/electricity-readings.ts",
-     "literals": 7
-    },
-    {
-     "file": "api/ha-users.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/home-config.ts",
-     "literals": 34
-    },
-    {
-     "file": "api/incidents.ts",
-     "literals": 29
-    },
-    {
-     "file": "api/mapping-engine.ts",
-     "literals": 4
-    },
-    {
-     "file": "api/mapping.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/media-admin.ts",
-     "literals": 38
-    },
-    {
-     "file": "api/messaging-accounts.ts",
-     "literals": 7
-    },
-    {
-     "file": "api/messaging-policy.ts",
-     "literals": 2
-    },
-    {
-     "file": "api/notify-whatsapp.ts",
-     "literals": 1
-    },
-    {
-     "file": "api/nvr-settings.ts",
-     "literals": 5
-    },
-    {
-     "file": "api/setup.ts",
-     "literals": 3
-    },
-    {
-     "file": "api/tickets-board.ts",
-     "literals": 6
-    },
-    {
-     "file": "api/tickets-locations.ts",
-     "literals": 12
-    },
-    {
-     "file": "api/tickets-messages.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/tickets-rules.ts",
-     "literals": 11
-    },
-    {
-     "file": "api/tts-default.ts",
-     "literals": 2
-    }
-   ]
-  },
-  {
-   "module": "screens/devices-*",
-   "kind": "app",
-   "files": 9,
-   "literals": 182,
-   "fileList": [
-    {
-     "file": "screens/devices-area.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/devices-automations.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/devices-building-css.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/devices-building.ts",
-     "literals": 143
-    },
-    {
-     "file": "screens/devices-camera-card.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/devices-layout-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/devices-schedules-css.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/devices-synoptic-phone-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/devices-tiles-panel.ts",
-     "literals": 28
-    }
-   ]
-  },
-  {
-   "module": "components",
-   "kind": "app",
-   "files": 13,
-   "literals": 144,
-   "fileList": [
-    {
-     "file": "components/architect-request.ts",
-     "literals": 2
-    },
-    {
-     "file": "components/media-player-card.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/media-remote-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-badge.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-camera-tile.ts",
-     "literals": 7
-    },
-    {
-     "file": "components/sw-dropdown.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-kpi.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-live-player.ts",
-     "literals": 65
-    },
-    {
-     "file": "components/sw-page.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-room-card.ts",
-     "literals": 45
-    },
-    {
-     "file": "components/sw-table.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/sw-toggle.ts",
-     "literals": 1
-    },
-    {
-     "file": "components/update-run.ts",
-     "literals": 17
-    }
-   ]
-  },
-  {
-   "module": "screens/system-*",
-   "kind": "app",
-   "files": 17,
-   "literals": 144,
-   "fileList": [
-    {
-     "file": "screens/system-access.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-announce-templates.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-announcements.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-audit.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-calendar-sync.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-cast.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-devices.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-diagnostics.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-index.ts",
-     "literals": 68
-    },
-    {
-     "file": "screens/system-multimedia-players.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-nav-size.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/system-notices.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-notifications.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/system-palette-editor.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/system-storage.ts",
-     "literals": 5
-    },
-    {
-     "file": "screens/system-tickets.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/system-wiskey-validation.ts",
-     "literals": 45
-    }
-   ]
-  },
-  {
-   "module": "electricity",
-   "kind": "app",
-   "files": 6,
-   "literals": 136,
-   "fileList": [
-    {
-     "file": "electricity/elec-bill-page.ts",
-     "literals": 2
-    },
-    {
-     "file": "electricity/elec-bill-paper.ts",
-     "literals": 30
-    },
-    {
-     "file": "electricity/elec-settings.ts",
-     "literals": 9
-    },
-    {
-     "file": "electricity/elec-tou-editor.ts",
-     "literals": 2
-    },
-    {
-     "file": "electricity/elec-tou.ts",
-     "literals": 8
-    },
-    {
-     "file": "electricity/fixtures.ts",
-     "literals": 85
-    }
-   ]
-  },
-  {
-   "module": "screens/home-*",
-   "kind": "app",
-   "files": 5,
-   "literals": 93,
-   "fileList": [
-    {
-     "file": "screens/home-ambient-bar.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/home-demo.ts",
-     "literals": 8
-    },
-    {
-     "file": "screens/home-site-demo.ts",
-     "literals": 36
-    },
-    {
-     "file": "screens/home-widgets-css.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/home-widgets.ts",
-     "literals": 47
-    }
-   ]
-  },
-  {
-   "module": "notice-tv",
-   "kind": "app",
-   "files": 6,
-   "literals": 82,
-   "fileList": [
-    {
-     "file": "notice-tv/heb-date.ts",
-     "literals": 15
-    },
-    {
-     "file": "notice-tv/skin-logic.ts",
-     "literals": 1
-    },
-    {
-     "file": "notice-tv/transit-logic.ts",
-     "literals": 30
-    },
-    {
-     "file": "notice-tv/transit-view.ts",
-     "literals": 1
-    },
-    {
-     "file": "notice-tv/tv-logic.ts",
-     "literals": 32
-    },
-    {
-     "file": "notice-tv/v2-transit.ts",
-     "literals": 3
-    }
-   ]
-  },
-  {
-   "module": "plan-wizard",
-   "kind": "app",
-   "files": 4,
-   "literals": 75,
-   "fileList": [
-    {
-     "file": "plan-wizard/plan-wizard.ts",
-     "literals": 1
-    },
-    {
-     "file": "plan-wizard/wizard-backend.ts",
-     "literals": 1
-    },
-    {
-     "file": "plan-wizard/wizard-demo.ts",
-     "literals": 34
-    },
-    {
-     "file": "plan-wizard/wizard-model.ts",
-     "literals": 39
-    }
-   ]
-  },
-  {
-   "module": "tickets",
-   "kind": "app",
-   "files": 10,
-   "literals": 61,
-   "fileList": [
-    {
-     "file": "tickets/camera-viewfinder.ts",
-     "literals": 18
-    },
-    {
-     "file": "tickets/code-lock-model.ts",
-     "literals": 4
-    },
-    {
-     "file": "tickets/contacts-directory.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/conversation-tab.ts",
-     "literals": 1
-    },
-    {
-     "file": "tickets/costs-demands-model.ts",
-     "literals": 20
-    },
-    {
-     "file": "tickets/list-toolbar.ts",
-     "literals": 2
-    },
-    {
-     "file": "tickets/naming.ts",
-     "literals": 6
-    },
-    {
-     "file": "tickets/nav-text.ts",
-     "literals": 2
-    },
-    {
-     "file": "tickets/rfq-model.ts",
-     "literals": 6
-    },
-    {
-     "file": "tickets/table-styles.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "i18n",
-   "kind": "app",
-   "files": 1,
-   "literals": 56,
-   "fileList": [
-    {
-     "file": "i18n/nav-labels.ts",
-     "literals": 56
-    }
-   ]
-  },
-  {
-   "module": "screens/investigate-*",
-   "kind": "app",
-   "files": 9,
-   "literals": 45,
-   "fileList": [
-    {
-     "file": "screens/investigate-cases.ts",
-     "literals": 6
-    },
-    {
-     "file": "screens/investigate-events.ts",
-     "literals": 9
-    },
-    {
-     "file": "screens/investigate-exports.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/investigate-history-map.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/investigate-incidents.ts",
-     "literals": 8
-    },
-    {
-     "file": "screens/investigate-playback.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/investigate-reviews.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/investigate-rules.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/investigate-search.ts",
-     "literals": 13
-    }
-   ]
-  },
-  {
-   "module": "screens/live-*",
-   "kind": "app",
-   "files": 3,
-   "literals": 36,
-   "fileList": [
-    {
-     "file": "screens/live-overview.ts",
-     "literals": 14
-    },
-    {
-     "file": "screens/live-views.ts",
-     "literals": 17
-    },
-    {
-     "file": "screens/live-wall.ts",
-     "literals": 5
-    }
-   ]
-  },
-  {
    "module": "screens/wiskey-*",
    "kind": "app",
-   "files": 6,
-   "literals": 36,
+   "files": 5,
+   "literals": 34,
+   "kept": 0,
    "fileList": [
     {
-     "file": "screens/wiskey-embed.ts",
-     "literals": 1
-    },
-    {
      "file": "screens/wiskey-events.ts",
-     "literals": 5
+     "literals": 5,
+     "kept": 0
     },
     {
      "file": "screens/wiskey-overview.ts",
-     "literals": 8
+     "literals": 7,
+     "kept": 0
     },
     {
      "file": "screens/wiskey-people.ts",
-     "literals": 10
+     "literals": 10,
+     "kept": 0
     },
     {
      "file": "screens/wiskey-schedules.ts",
-     "literals": 6
+     "literals": 6,
+     "kept": 0
     },
     {
      "file": "screens/wiskey-stations.ts",
-     "literals": 6
-    }
-   ]
-  },
-  {
-   "module": "screens/bubble-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 31,
-   "fileList": [
-    {
-     "file": "screens/bubble-demo.ts",
-     "literals": 31
-    }
-   ]
-  },
-  {
-   "module": "water",
-   "kind": "app",
-   "files": 1,
-   "literals": 31,
-   "fileList": [
-    {
-     "file": "water/billing-format.ts",
-     "literals": 31
+     "literals": 6,
+     "kept": 0
     }
    ]
   },
   {
    "module": "access-control",
    "kind": "app",
-   "files": 1,
-   "literals": 23,
+   "files": 0,
+   "literals": 0,
+   "kept": 23,
    "fileList": [
     {
      "file": "access-control/messaging-logic.ts",
-     "literals": 23
-    }
-   ]
-  },
-  {
-   "module": "map",
-   "kind": "app",
-   "files": 1,
-   "literals": 20,
-   "fileList": [
-    {
-     "file": "map/material-resolve.ts",
-     "literals": 20
-    }
-   ]
-  },
-  {
-   "module": "screens/schedule-*",
-   "kind": "app",
-   "files": 3,
-   "literals": 11,
-   "fileList": [
-    {
-     "file": "screens/schedule-edit-logic.ts",
-     "literals": 3
-    },
-    {
-     "file": "screens/schedule-lowering-dialog.ts",
-     "literals": 2
-    },
-    {
-     "file": "screens/schedule-table-view.ts",
-     "literals": 6
-    }
-   ]
-  },
-  {
-   "module": "xsection",
-   "kind": "app",
-   "files": 1,
-   "literals": 6,
-   "fileList": [
-    {
-     "file": "xsection/xs-data.ts",
-     "literals": 6
-    }
-   ]
-  },
-  {
-   "module": "shell",
-   "kind": "app",
-   "files": 3,
-   "literals": 5,
-   "fileList": [
-    {
-     "file": "shell/sw-app.ts",
-     "literals": 3
-    },
-    {
-     "file": "shell/sw-lang-prefs.ts",
-     "literals": 1
-    },
-    {
-     "file": "shell/sw-nav-order.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "temperature",
-   "kind": "app",
-   "files": 2,
-   "literals": 5,
-   "fileList": [
-    {
-     "file": "temperature/report.ts",
-     "literals": 1
-    },
-    {
-     "file": "temperature/wizard.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "announce",
-   "kind": "app",
-   "files": 1,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "announce/screen-overlay.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "arx",
-   "kind": "app",
-   "files": 2,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "arx/android-download.ts",
-     "literals": 3
-    },
-    {
-     "file": "arx/arx-login.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "home",
-   "kind": "app",
-   "files": 4,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "home/home-calendar.ts",
-     "literals": 1
-    },
-    {
-     "file": "home/home-p3-styles.ts",
-     "literals": 1
-    },
-    {
-     "file": "home/home-styles-extra.ts",
-     "literals": 1
-    },
-    {
-     "file": "home/home-tickets.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "pwa",
-   "kind": "app",
-   "files": 2,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "pwa/offline-page.ts",
-     "literals": 1
-    },
-    {
-     "file": "pwa/push-v2.ts",
-     "literals": 3
-    }
-   ]
-  },
-  {
-   "module": "screens/styleguide-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "screens/styleguide-screen.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "transit",
-   "kind": "app",
-   "files": 1,
-   "literals": 4,
-   "fileList": [
-    {
-     "file": "transit/model.ts",
-     "literals": 4
-    }
-   ]
-  },
-  {
-   "module": "format",
-   "kind": "app",
-   "files": 1,
-   "literals": 3,
-   "fileList": [
-    {
-     "file": "format/bytes.ts",
-     "literals": 3
-    }
-   ]
-  },
-  {
-   "module": "screens/electricity",
-   "kind": "app",
-   "files": 1,
-   "literals": 3,
-   "fileList": [
-    {
-     "file": "screens/electricity/settings-retention.ts",
-     "literals": 3
-    }
-   ]
-  },
-  {
-   "module": "screens/multimedia-*",
-   "kind": "app",
-   "files": 3,
-   "literals": 3,
-   "fileList": [
-    {
-     "file": "screens/multimedia-groups.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/multimedia-remote-editor.ts",
-     "literals": 1
-    },
-    {
-     "file": "screens/multimedia-screens.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "styles",
-   "kind": "app",
-   "files": 3,
-   "literals": 3,
-   "fileList": [
-    {
-     "file": "styles/automations-glass.ts",
-     "literals": 1
-    },
-    {
-     "file": "styles/devices-themes.ts",
-     "literals": 1
-    },
-    {
-     "file": "styles/settings.ts",
-     "literals": 1
+     "literals": 0,
+     "kept": 23
     }
    ]
   },
   {
    "module": "access-external",
    "kind": "app",
-   "files": 1,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 2,
    "fileList": [
     {
      "file": "access-external/model.ts",
-     "literals": 2
+     "literals": 0,
+     "kept": 2
     }
    ]
   },
   {
-   "module": "screens/area-*",
+   "module": "announce",
    "kind": "app",
-   "files": 1,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 4,
    "fileList": [
     {
-     "file": "screens/area-quick-sheet.ts",
-     "literals": 2
+     "file": "announce/screen-overlay.ts",
+     "literals": 0,
+     "kept": 4
+    }
+   ]
+  },
+  {
+   "module": "api",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 190,
+   "fileList": [
+    {
+     "file": "api/automations.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "api/calendar-attendees.ts",
+     "literals": 0,
+     "kept": 5
+    },
+    {
+     "file": "api/door-automations.ts",
+     "literals": 0,
+     "kept": 4
+    },
+    {
+     "file": "api/electricity-readings.ts",
+     "literals": 0,
+     "kept": 7
+    },
+    {
+     "file": "api/ha-users.ts",
+     "literals": 0,
+     "kept": 5
+    },
+    {
+     "file": "api/home-config.ts",
+     "literals": 0,
+     "kept": 34
+    },
+    {
+     "file": "api/incidents.ts",
+     "literals": 0,
+     "kept": 29
+    },
+    {
+     "file": "api/mapping-engine.ts",
+     "literals": 0,
+     "kept": 4
+    },
+    {
+     "file": "api/mapping.ts",
+     "literals": 0,
+     "kept": 3
+    },
+    {
+     "file": "api/media-admin.ts",
+     "literals": 0,
+     "kept": 38
+    },
+    {
+     "file": "api/messaging-accounts.ts",
+     "literals": 0,
+     "kept": 7
+    },
+    {
+     "file": "api/messaging-policy.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "api/notify-whatsapp.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "api/nvr-settings.ts",
+     "literals": 0,
+     "kept": 5
+    },
+    {
+     "file": "api/setup.ts",
+     "literals": 0,
+     "kept": 3
+    },
+    {
+     "file": "api/tickets-board.ts",
+     "literals": 0,
+     "kept": 6
+    },
+    {
+     "file": "api/tickets-locations.ts",
+     "literals": 0,
+     "kept": 12
+    },
+    {
+     "file": "api/tickets-messages.ts",
+     "literals": 0,
+     "kept": 11
+    },
+    {
+     "file": "api/tickets-rules.ts",
+     "literals": 0,
+     "kept": 11
+    },
+    {
+     "file": "api/tts-default.ts",
+     "literals": 0,
+     "kept": 2
+    }
+   ]
+  },
+  {
+   "module": "arx",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 3,
+   "fileList": [
+    {
+     "file": "arx/android-download.ts",
+     "literals": 0,
+     "kept": 3
+    }
+   ]
+  },
+  {
+   "module": "electricity",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 51,
+   "fileList": [
+    {
+     "file": "electricity/elec-bill-page.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "electricity/elec-bill-paper.ts",
+     "literals": 0,
+     "kept": 30
+    },
+    {
+     "file": "electricity/elec-settings.ts",
+     "literals": 0,
+     "kept": 9
+    },
+    {
+     "file": "electricity/elec-tou-editor.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "electricity/elec-tou.ts",
+     "literals": 0,
+     "kept": 8
+    }
+   ]
+  },
+  {
+   "module": "format",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 3,
+   "fileList": [
+    {
+     "file": "format/bytes.ts",
+     "literals": 0,
+     "kept": 3
+    }
+   ]
+  },
+  {
+   "module": "i18n",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 56,
+   "fileList": [
+    {
+     "file": "i18n/nav-labels.ts",
+     "literals": 0,
+     "kept": 56
+    }
+   ]
+  },
+  {
+   "module": "map",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 20,
+   "fileList": [
+    {
+     "file": "map/material-resolve.ts",
+     "literals": 0,
+     "kept": 20
+    }
+   ]
+  },
+  {
+   "module": "notice-tv",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 82,
+   "fileList": [
+    {
+     "file": "notice-tv/heb-date.ts",
+     "literals": 0,
+     "kept": 15
+    },
+    {
+     "file": "notice-tv/skin-logic.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "notice-tv/transit-logic.ts",
+     "literals": 0,
+     "kept": 30
+    },
+    {
+     "file": "notice-tv/transit-view.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "notice-tv/tv-logic.ts",
+     "literals": 0,
+     "kept": 32
+    },
+    {
+     "file": "notice-tv/v2-transit.ts",
+     "literals": 0,
+     "kept": 3
+    }
+   ]
+  },
+  {
+   "module": "plan-wizard",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 41,
+   "fileList": [
+    {
+     "file": "plan-wizard/plan-wizard.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "plan-wizard/wizard-backend.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "plan-wizard/wizard-model.ts",
+     "literals": 0,
+     "kept": 39
+    }
+   ]
+  },
+  {
+   "module": "pwa",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 4,
+   "fileList": [
+    {
+     "file": "pwa/offline-page.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "pwa/push-v2.ts",
+     "literals": 0,
+     "kept": 3
     }
    ]
   },
   {
    "module": "screens/automation-*",
    "kind": "app",
-   "files": 2,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 1,
    "fileList": [
-    {
-     "file": "screens/automation-editor-base.ts",
-     "literals": 1
-    },
     {
      "file": "screens/automation-ext-forms.ts",
-     "literals": 1
+     "literals": 0,
+     "kept": 1
     }
    ]
   },
   {
-   "module": "screens/infra-*",
+   "module": "screens/bubble-*",
    "kind": "app",
-   "files": 2,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 28,
    "fileList": [
     {
-     "file": "screens/infra-elevators.ts",
-     "literals": 1
+     "file": "screens/bubble-demo.ts",
+     "literals": 0,
+     "kept": 28
+    }
+   ]
+  },
+  {
+   "module": "screens/devices-*",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 60,
+   "fileList": [
+    {
+     "file": "screens/devices-building.ts",
+     "literals": 0,
+     "kept": 38
     },
     {
-     "file": "screens/infra-temperature.ts",
-     "literals": 1
+     "file": "screens/devices-tiles-panel.ts",
+     "literals": 0,
+     "kept": 22
     }
    ]
   },
   {
-   "module": "screens/scenarios-*",
+   "module": "screens/electricity",
    "kind": "app",
-   "files": 1,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 3,
    "fileList": [
     {
-     "file": "screens/scenarios-panel.ts",
-     "literals": 2
+     "file": "screens/electricity/settings-retention.ts",
+     "literals": 0,
+     "kept": 3
     }
    ]
   },
   {
-   "module": "screens/tickets-*",
+   "module": "screens/explore-*",
    "kind": "app",
-   "files": 2,
-   "literals": 2,
+   "files": 0,
+   "literals": 0,
+   "kept": 43,
    "fileList": [
     {
-     "file": "screens/tickets-board.ts",
-     "literals": 1
+     "file": "screens/explore-entities.ts",
+     "literals": 0,
+     "kept": 29
     },
     {
-     "file": "screens/tickets-overview.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "screens/water",
-   "kind": "app",
-   "files": 2,
-   "literals": 2,
-   "fileList": [
-    {
-     "file": "screens/water/page-alerts.ts",
-     "literals": 1
+     "file": "screens/explore-plan-editor.ts",
+     "literals": 0,
+     "kept": 1
     },
     {
-     "file": "screens/water/page-bills.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "design",
-   "kind": "app",
-   "files": 1,
-   "literals": 1,
-   "fileList": [
-    {
-     "file": "design/skins/bubble.ts",
-     "literals": 1
-    }
-   ]
-  },
-  {
-   "module": "screens/building-*",
-   "kind": "app",
-   "files": 1,
-   "literals": 1,
-   "fileList": [
-    {
-     "file": "screens/building-presence-widget.ts",
-     "literals": 1
+     "file": "screens/explore-presence.ts",
+     "literals": 0,
+     "kept": 13
     }
    ]
   },
   {
    "module": "screens/insights-*",
    "kind": "app",
-   "files": 1,
-   "literals": 1,
+   "files": 0,
+   "literals": 0,
+   "kept": 1,
    "fileList": [
     {
      "file": "screens/insights-settings.ts",
-     "literals": 1
+     "literals": 0,
+     "kept": 1
     }
    ]
   },
   {
-   "module": "screens/media-*",
+   "module": "screens/investigate-*",
    "kind": "app",
-   "files": 1,
-   "literals": 1,
+   "files": 0,
+   "literals": 0,
+   "kept": 12,
    "fileList": [
     {
-     "file": "screens/media-admin-form-css.ts",
-     "literals": 1
+     "file": "screens/investigate-cases.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "screens/investigate-events.ts",
+     "literals": 0,
+     "kept": 5
+    },
+    {
+     "file": "screens/investigate-exports.ts",
+     "literals": 0,
+     "kept": 3
+    },
+    {
+     "file": "screens/investigate-incidents.ts",
+     "literals": 0,
+     "kept": 2
     }
    ]
   },
   {
-   "module": "screens/nvr-*",
+   "module": "screens/live-*",
    "kind": "app",
-   "files": 1,
-   "literals": 1,
+   "files": 0,
+   "literals": 0,
+   "kept": 3,
    "fileList": [
     {
-     "file": "screens/nvr-encoding-batch.ts",
-     "literals": 1
+     "file": "screens/live-overview.ts",
+     "literals": 0,
+     "kept": 3
+    }
+   ]
+  },
+  {
+   "module": "screens/scenarios-*",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 2,
+   "fileList": [
+    {
+     "file": "screens/scenarios-panel.ts",
+     "literals": 0,
+     "kept": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/schedule-*",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 2,
+   "fileList": [
+    {
+     "file": "screens/schedule-lowering-dialog.ts",
+     "literals": 0,
+     "kept": 2
+    }
+   ]
+  },
+  {
+   "module": "screens/system-*",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 128,
+   "fileList": [
+    {
+     "file": "screens/system-access.ts",
+     "literals": 0,
+     "kept": 3
+    },
+    {
+     "file": "screens/system-announcements.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "screens/system-audit.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "screens/system-diagnostics.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "screens/system-index.ts",
+     "literals": 0,
+     "kept": 68
+    },
+    {
+     "file": "screens/system-notices.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "screens/system-notifications.ts",
+     "literals": 0,
+     "kept": 4
+    },
+    {
+     "file": "screens/system-palette-editor.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "screens/system-tickets.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "screens/system-wiskey-validation.ts",
+     "literals": 0,
+     "kept": 45
+    }
+   ]
+  },
+  {
+   "module": "screens/water",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 1,
+   "fileList": [
+    {
+     "file": "screens/water/page-alerts.ts",
+     "literals": 0,
+     "kept": 1
+    }
+   ]
+  },
+  {
+   "module": "shell",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 3,
+   "fileList": [
+    {
+     "file": "shell/sw-app.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "shell/sw-lang-prefs.ts",
+     "literals": 0,
+     "kept": 1
+    }
+   ]
+  },
+  {
+   "module": "temperature",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 1,
+   "fileList": [
+    {
+     "file": "temperature/report.ts",
+     "literals": 0,
+     "kept": 1
+    }
+   ]
+  },
+  {
+   "module": "tickets",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 57,
+   "fileList": [
+    {
+     "file": "tickets/camera-viewfinder.ts",
+     "literals": 0,
+     "kept": 18
+    },
+    {
+     "file": "tickets/code-lock-model.ts",
+     "literals": 0,
+     "kept": 4
+    },
+    {
+     "file": "tickets/contacts-directory.ts",
+     "literals": 0,
+     "kept": 1
+    },
+    {
+     "file": "tickets/costs-demands-model.ts",
+     "literals": 0,
+     "kept": 20
+    },
+    {
+     "file": "tickets/naming.ts",
+     "literals": 0,
+     "kept": 6
+    },
+    {
+     "file": "tickets/nav-text.ts",
+     "literals": 0,
+     "kept": 2
+    },
+    {
+     "file": "tickets/rfq-model.ts",
+     "literals": 0,
+     "kept": 6
+    }
+   ]
+  },
+  {
+   "module": "transit",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 4,
+   "fileList": [
+    {
+     "file": "transit/model.ts",
+     "literals": 0,
+     "kept": 4
+    }
+   ]
+  },
+  {
+   "module": "xsection",
+   "kind": "app",
+   "files": 0,
+   "literals": 0,
+   "kept": 6,
+   "fileList": [
+    {
+     "file": "xsection/xs-data.ts",
+     "literals": 0,
+     "kept": 6
     }
    ]
   },
   {
    "module": "(demo data)",
    "kind": "demo",
-   "files": 19,
-   "literals": 1627,
+   "files": 25,
+   "literals": 2021,
+   "kept": 0,
    "fileList": [
     {
      "file": "api/automations-demo.ts",
-     "literals": 2
+     "literals": 2,
+     "kept": 0
     },
     {
      "file": "api/automations-mock.ts",
-     "literals": 231
+     "literals": 231,
+     "kept": 0
     },
     {
      "file": "api/device-activity-mock.ts",
-     "literals": 14
+     "literals": 14,
+     "kept": 0
     },
     {
      "file": "api/electricity-billing-mock.ts",
-     "literals": 223
+     "literals": 223,
+     "kept": 0
     },
     {
      "file": "api/mapping-demo.ts",
-     "literals": 98
+     "literals": 98,
+     "kept": 0
+    },
+    {
+     "file": "api/mb-safety-demo.ts",
+     "literals": 20,
+     "kept": 0
     },
     {
      "file": "api/media-players-mock.ts",
-     "literals": 132
+     "literals": 132,
+     "kept": 0
     },
     {
      "file": "api/media-screens-mock.ts",
-     "literals": 45
+     "literals": 45,
+     "kept": 0
     },
     {
      "file": "api/messaging-fake.ts",
-     "literals": 13
+     "literals": 13,
+     "kept": 0
     },
     {
      "file": "api/notifications-mock.ts",
-     "literals": 83
+     "literals": 83,
+     "kept": 0
     },
     {
      "file": "api/schedules-mock.ts",
-     "literals": 186
+     "literals": 186,
+     "kept": 0
     },
     {
      "file": "api/tickets-costs-mock.ts",
-     "literals": 115
+     "literals": 115,
+     "kept": 0
     },
     {
      "file": "api/tickets-mock.ts",
-     "literals": 52
+     "literals": 52,
+     "kept": 0
     },
     {
      "file": "api/tickets-rfq-mock.ts",
-     "literals": 136
+     "literals": 136,
+     "kept": 0
     },
     {
      "file": "api/tickets-s4-mock.ts",
-     "literals": 21
+     "literals": 21,
+     "kept": 0
+    },
+    {
+     "file": "calendars/demo.ts",
+     "literals": 211,
+     "kept": 0
+    },
+    {
+     "file": "electricity/fixtures.ts",
+     "literals": 85,
+     "kept": 0
     },
     {
      "file": "fixtures/alarm-demo.ts",
-     "literals": 16
+     "literals": 16,
+     "kept": 0
     },
     {
      "file": "fixtures/catalog.ts",
-     "literals": 194
+     "literals": 194,
+     "kept": 0
     },
     {
      "file": "fixtures/demo-3d.ts",
-     "literals": 5
+     "literals": 5,
+     "kept": 0
     },
     {
      "file": "fixtures/demo.ts",
-     "literals": 45
+     "literals": 45,
+     "kept": 0
     },
     {
      "file": "fixtures/frigate.ts",
-     "literals": 16
+     "literals": 16,
+     "kept": 0
+    },
+    {
+     "file": "plan-wizard/wizard-demo.ts",
+     "literals": 34,
+     "kept": 0
+    },
+    {
+     "file": "screens/home-demo.ts",
+     "literals": 8,
+     "kept": 0
+    },
+    {
+     "file": "screens/home-site-demo.ts",
+     "literals": 36,
+     "kept": 0
     }
    ]
   },
@@ -3383,62 +3163,77 @@
    "kind": "public",
    "files": 14,
    "literals": 613,
+   "kept": 0,
    "fileList": [
     {
      "file": "public-ticket/arrival/arrival-text.ts",
-     "literals": 39
+     "literals": 39,
+     "kept": 0
     },
     {
      "file": "public-ticket/arrived/arrived-text.ts",
-     "literals": 12
+     "literals": 12,
+     "kept": 0
     },
     {
      "file": "public-ticket/claim/claim-prefill.ts",
-     "literals": 11
+     "literals": 11,
+     "kept": 0
     },
     {
      "file": "public-ticket/claim/claim-text.ts",
-     "literals": 123
+     "literals": 123,
+     "kept": 0
     },
     {
      "file": "public-ticket/claim/quote-text.ts",
-     "literals": 39
+     "literals": 39,
+     "kept": 0
     },
     {
      "file": "public-ticket/consent/consent-text.ts",
-     "literals": 12
+     "literals": 12,
+     "kept": 0
     },
     {
      "file": "public-ticket/doc/doc-text.ts",
-     "literals": 10
+     "literals": 10,
+     "kept": 0
     },
     {
      "file": "public-ticket/portal/portal-more-text.ts",
-     "literals": 34
+     "literals": 34,
+     "kept": 0
     },
     {
      "file": "public-ticket/portal/portal-text.ts",
-     "literals": 50
+     "literals": 50,
+     "kept": 0
     },
     {
      "file": "public-ticket/rfq/rfq-files.ts",
-     "literals": 7
+     "literals": 7,
+     "kept": 0
     },
     {
      "file": "public-ticket/rfq/rfq-page-terms.ts",
-     "literals": 2
+     "literals": 2,
+     "kept": 0
     },
     {
      "file": "public-ticket/rfq/rfq-text.ts",
-     "literals": 106
+     "literals": 106,
+     "kept": 0
     },
     {
      "file": "public-ticket/rfq/rfq-upload.ts",
-     "literals": 19
+     "literals": 19,
+     "kept": 0
     },
     {
      "file": "public-ticket/strings.ts",
-     "literals": 149
+     "literals": 149,
+     "kept": 0
     }
    ]
   }

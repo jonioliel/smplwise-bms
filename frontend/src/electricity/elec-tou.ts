@@ -69,6 +69,7 @@ export interface TouTemplate {
 export function israelTemplate(): TouDefinition {
   return {
     seasons: [
+      // i18n-keep-start: the Hebrew side (name_he) of a name pair whose English (name_en) is beside it
       { id: 'summer', name_he: 'קיץ', name_en: 'Summer', ranges: [['06-01', '09-30']] },
       { id: 'winter', name_he: 'חורף', name_en: 'Winter', ranges: [['12-01', '02-29']] },
       { id: 'transition', name_he: 'מעבר', name_en: 'Transition', ranges: [['03-01', '05-31'], ['10-01', '11-30']] },
@@ -84,6 +85,7 @@ export function israelTemplate(): TouDefinition {
     bands: [
       { id: 'offpeak', name_he: 'שפל', name_en: 'Off-peak' },
       { id: 'peak', name_he: 'פסגה', name_en: 'Peak' },
+      // i18n-keep-end
     ],
     default_band: 'offpeak',
     schedule: {

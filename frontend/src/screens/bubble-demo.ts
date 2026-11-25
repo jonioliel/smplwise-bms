@@ -19,6 +19,7 @@ interface DemoDevice {
   state?: string;
 }
 
+// i18n-keep-start: demo data: invented names, as the api demo stores
 /** Fixture only: invented names, no lab data. */
 const DEVICES: DemoDevice[] = [
   { id: 'l1', kind: 'light', name: 'תאורה מרכזית', icon: 'light', on: true, v: 0.72, hue: 2 },
@@ -40,6 +41,7 @@ const FLOORS = [
   { id: 'f1', name: 'קומה א׳', areas: ['חדר שינה הורים', 'חדר ילדים', 'חדר רחצה'] },
   { id: 'out', name: 'חוץ', areas: ['חצר', 'חניה'] },
 ];
+// i18n-keep-end
 
 /**
  * `#/styleguide/bubble` - the demo page of the Bubble foundation components (phase B, 2026-10-02): sw-pill in every variant, the
@@ -51,7 +53,7 @@ const FLOORS = [
 export class BubbleDemo extends LitElement {
   @state() private devices = DEVICES.map((d) => ({ ...d }));
   @state() private sheet: '' | 'area' | 'confirm' | 'inline' | 'light' = '';
-  @state() private area = 'סלון';
+  @state() private area = 'סלון'; // i18n-keep: demo data: invented names, as the api demo stores
   @state() private collapsed = new Set<string>(['out']);
   private look = new LookController(this);
 
@@ -422,7 +424,7 @@ export class BubbleDemo extends LitElement {
       </div>
 
       <sw-sheet wide heading=${this.area} ?open=${this.sheet === 'area'} data-sheet-area @close=${() => (this.sheet = '')}>
-        <sw-pill slot="head" variant="plain" icon="home" .label=${this.area} state="3 דולקים · 25.5°" .hue=${2}>
+        <sw-pill slot="head" variant="plain" icon="home" .label=${this.area} state=${tr('3 דולקים · 25.5°')} .hue=${2}>
           <button slot="subs" class="chip" aria-label=${tr('בהירות האזור')}>72%</button>
           <button slot="subs" class="sb" aria-label=${tr('כבה הכול')}><sw-icon name="power" size=${18}></sw-icon></button>
         </sw-pill>
@@ -430,7 +432,7 @@ export class BubbleDemo extends LitElement {
         <div class="grid">${lights.map((d) => this.pill(d))}</div>
         <h2>${tr('תריסים')}</h2>
         <div class="grid">${this.devices.filter((d) => d.kind === 'cover').map((d) => this.pill(d))}</div>
-        <div class="kv"><div><span class="k">${tr('טמפרטורה')}</span><div class="v">25.5°</div></div><div><span class="k">${tr('לחות')}</span><div class="v">48%</div></div><div><span class="k">${tr('תנועה')}</span><div class="v">לפני 2 דק׳</div></div></div>
+        <div class="kv"><div><span class="k">${tr('טמפרטורה')}</span><div class="v">25.5°</div></div><div><span class="k">${tr('לחות')}</span><div class="v">48%</div></div><div><span class="k">${tr('תנועה')}</span><div class="v">${tr('לפני 2 דק׳')}</div></div></div>
       </sw-sheet>
 
       <sw-sheet kind="centred" narrow heading=${tr('לכבות את כל התאורה?')} ?open=${this.sheet === 'confirm'} data-sheet-confirm @close=${() => (this.sheet = '')}>
@@ -439,7 +441,7 @@ export class BubbleDemo extends LitElement {
         <button slot="footer" type="button" class="btn danger" data-confirm-off @click=${() => { this.devices = this.devices.map((d) => (d.kind === 'light' ? { ...d, on: false } : d)); this.sheet = ''; }}>${tr('כבה')}</button>
       </sw-sheet>
 
-      <sw-sheet heading="תאורה מרכזית" ?open=${this.sheet === 'light'} data-sheet-light @close=${() => (this.sheet = '')}>
+      <sw-sheet heading=${DEVICES[0].name} ?open=${this.sheet === 'light'} data-sheet-light @close=${() => (this.sheet = '')}>
         <div class="big" role="slider" tabindex="0" aria-label=${tr('בהירות')} aria-valuemin="0" aria-valuemax="100" aria-valuenow="72" style="--v:0.72"><span>${tr('בהירות')}</span><span style="margin-inline-start:auto">72%</span></div>
         <div class="actions"><button type="button" class="chip" aria-pressed="true">${tr('חם')}</button><button type="button" class="chip">${tr('ניטרלי')}</button><button type="button" class="chip">${tr('קר')}</button></div>
         ${nothing}

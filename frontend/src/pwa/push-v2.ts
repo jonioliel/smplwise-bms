@@ -40,6 +40,7 @@ interface ParsedPush {
   alert_id: string | null;
 }
 
+// i18n-keep: a module that cannot read the language packs (service-worker bundle, inlined)
 const LABEL: Record<PushActionId, string> = { ack: 'אישור', snooze: 'השתק לשעה', open_door: 'פתח דלת' };
 const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.slice(0, max) : '');
 const route = (v: unknown): string | null => (typeof v === 'string' && v.length < 300 && HASH_ROUTE.test(v) ? v : null);

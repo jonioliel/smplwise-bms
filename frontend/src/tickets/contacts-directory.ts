@@ -38,6 +38,7 @@ import { hostBlockStyles } from '../styles/fragments';
 /** The languages by their own names (the page and the messages of a contact speak it). */
 /** The tile / avatar letters: the one product rule (components/avatar-initials.ts), CR-INITIALS-2443 (review 08:F09, owner O6=a). */
 const initials = avatarInitials;
+// i18n-keep: the Hebrew language own name
 const LANG_NAMES: Record<ContactLang, string> = { he: 'עברית', en: 'English', ar: 'العربية', ru: 'Русский' };
 type KindFilter = 'all' | ContactKind;
 interface Draft {

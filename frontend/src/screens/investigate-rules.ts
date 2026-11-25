@@ -566,13 +566,13 @@ export class InvestigateRuleEditor extends LitElement {
               </div>
             </sw-card>
             <sw-card heading=${tr('תנאים')}>
-              <sw-field label=${tr('חלון סמיכות')}><input value="90 שניות" /></sw-field>
+              <sw-field label=${tr('חלון סמיכות')}><input value=${tr('90 שניות')} /></sw-field>
               <div class="hint">${tr('״אירועים סמוכים בזמן ובאזור״, לא הוכחה סיבתית. החלון מתחשב באיחור שעון ובזמן קליטה.')}</div>
             </sw-card>
             <sw-card heading=${tr('פעולה')}>
               <div class="two">
                 <sw-field label=${tr('פעולה')}><select><option>${r.action}</option><option>${tr('Push דרך תשתית המערכת')}</option><option>${tr('פתיחת תצוגת מצלמות')}</option></select></sw-field>
-                <sw-field label="Cooldown"><input value="5 דקות" /></sw-field>
+                <sw-field label="Cooldown"><input value=${tr('5 דקות')} /></sw-field>
               </div>
               <div class="hint">${tr('פתיחת נעילה וניטרול אזעקה אינם מופעלים על סמך תוצאת זיהוי. שליטה אוטומטית מופעלת רק בבחירה מפורשת, לפי רשימת התקנים מאושרים.')}</div>
             </sw-card>

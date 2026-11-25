@@ -39,6 +39,7 @@ export interface SettingsGroup {
 
 const GEN = '#/system/diagnostics';
 
+// i18n-keep-start: search keywords, matched against the query
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     id: 'look',
@@ -171,6 +172,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     ],
   },
 ];
+// i18n-keep-end
 
 /** The groups with only the entries whose top-level tab this user is offered (the shell's own rule). */
 export function visibleGroups(api: boolean, can?: (permission: string, installationOnly?: boolean) => boolean): SettingsGroup[] {
@@ -182,7 +184,7 @@ export function visibleGroups(api: boolean, can?: (permission: string, installat
   })).filter((g) => g.entries.length);
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[֑-ׇ"'״׳\-–·]/g, ' ').replace(/\s+/g, ' ').trim();
+const norm = (s: string) => s.toLowerCase().replace(/[֑-ׇ"'״׳\-–·]/g, ' ').replace(/\s+/g, ' ').trim(); // i18n-keep: a regex of Hebrew marks and punctuation stripped before matching, not text
 
 /** The entries matching a query (every word must appear in the label, the keywords or the parent's label), parents first. */
 export function searchSettings(groups: SettingsGroup[], query: string): { group: SettingsGroup; entry: SettingsEntry }[] {

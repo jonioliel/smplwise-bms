@@ -120,10 +120,12 @@ const rest: LocationsBackend = {
 
 const demo: { items: OrgLocationAdmin[]; depts: Record<string, string>; refs: Record<string, number>; seq: number } = {
   items: [
+    // i18n-keep-start: demo data: invented names, as the api demo stores
     { id: 'loc-hq', name: 'מטה ראשי', street: 'הרצל 5', city: 'תל אביב', details: 'בניין B, קומה 3, כניסה מהחניון', is_default: true, sort_order: 0, map_url: 'https://maps.google.com/?q=32.08530,34.78180',
       has_coordinates: true, lat: 32.0853, lng: 34.7818, active: true, nav_url: 'https://maps.google.com/?q=32.08530,34.78180', plan_zone_id: 'zone-demo-1', references: 2, revision: 1,
       updated_at: '2026-10-17T08:00:00Z' },
     { id: 'loc-wh', name: 'מחסן צפון', street: 'האומן 12', city: 'חיפה', details: 'שער 2', is_default: false, sort_order: 1, map_url: '', has_coordinates: false, lat: null,
+    // i18n-keep-end
       lng: null, active: true, nav_url: 'https://www.google.com/maps/search/?api=1&query=%D7%94%D7%90%D7%95%D7%9E%D7%9F%2012%2C%20%D7%97%D7%99%D7%A4%D7%94', plan_zone_id: null, references: 0,
       revision: 1, updated_at: '2026-10-17T08:00:00Z' },
   ],
@@ -133,8 +135,10 @@ const demo: { items: OrgLocationAdmin[]; depts: Record<string, string>; refs: Re
 };
 
 const DEMO_AREAS: PlanAreaOption[] = [
+  // i18n-keep-start: demo data: invented names, as the api demo stores
   { zone_id: 'zone-demo-1', name: 'חדר שרתים', floor_id: 'floor-demo-2', floor_name: 'קומה 2' },
   { zone_id: 'zone-demo-2', name: 'לובי', floor_id: 'floor-demo-1', floor_name: 'קומה 1' },
+  // i18n-keep-end
 ];
 
 function demoErr(status: number, code: string, message: string): ApiError {

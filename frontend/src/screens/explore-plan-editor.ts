@@ -2104,7 +2104,7 @@ export class ExplorePlanEditor extends LitElement {
     if (!doc || !lib || !o) return;
     const item = itemOf(lib, o.item_id);
     this.customDialog = {
-      objectId, nameHe: item ? tr('{he} (מותאם)', { he: item.names.he }) : '', nameEn: item?.names.en ?? '', category: item?.category ?? 'storage', shape: item?.shape ?? 'box', icon: item?.icon ?? 'box',
+      objectId, nameHe: item ? `${item.names.he} (מותאם)` : '' /* i18n-keep: the Hebrew name field: Hebrew in every interface language */, nameEn: item?.names.en ?? '', category: item?.category ?? 'storage', shape: item?.shape ?? 'box', icon: item?.icon ?? 'box',
       color: item?.color_token ?? 'object', size: { ...o.size }, basedOn: item ? (item.custom ? item.based_on : item.id) : null, busy: false, error: '',
       params: JSON.parse(JSON.stringify(o.params)) as Record<string, unknown>, z: item && item.z_ref === 'ceiling' ? item.z_m : o.z_m,
     };

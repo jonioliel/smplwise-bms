@@ -73,6 +73,7 @@ interface ResumedRoom extends CreatedRoom {
   tags: string[];
 }
 /** The note the wizard leaves on its plan versions: how it knows its own drafts (resume, discard). */
+// i18n-keep: an identifier stored and compared later (the note of a wizard draft), not a display name
 export const WIZARD_NOTE = 'אשף תוכנית חדשה';
 
 export interface SceneCatalog {
