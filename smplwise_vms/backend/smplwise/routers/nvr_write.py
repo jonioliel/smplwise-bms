@@ -34,6 +34,13 @@ router = APIRouter()
 NOTIFY_PERMISSION = "nvr.config.events"
 
 
+class _Body(BaseModel):
+    """ADR-019 D2 (ADR019-L14-STRICT-F123-2520): a web-UI body refuses an unknown key (422 `extra_forbidden`, the D1 envelope
+    `details.fields` / `problems`) instead of dropping it silently; every screen that sends it builds the body from named keys."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 def _guard(settings: Any, conn: sqlite3.Connection, principal: Principal, kind: str, request: Request, target: str | None = None) -> None:
     """CR-NVR-GUARD-2438 (owner O2 = b): a settings change is refused while the target recorder's switch is off - after the
     permission checks, before anything (a probe included) is sent. services/nvr_write_guard.py holds the kind table."""
@@ -95,7 +102,7 @@ def notify_status(request: Request, principal: Principal = Depends(current_princ
     }
 
 
-class NotifyIn(BaseModel):
+class NotifyIn(_Body):
     channels: list[int] | None = Field(default=None, max_length=64)  # None = every enabled camera
     smart: bool = False  # also the smart event types (line crossing, intrusion, region entrance / exiting)
     enabled: bool = True
@@ -147,7 +154,7 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
             "skipped": sum(1 for r in results if r["status"] == "skipped"), "failed": sum(1 for r in results if r["status"] == "failed")}
 
 
-class MotionIn(BaseModel):
+class MotionIn(_Body):
     cells: list[list[bool]] | None = Field(default=None, max_length=64)
     sensitivity: int | None = Field(default=None, ge=0, le=100)
     enabled: bool | None = None
@@ -183,7 +190,7 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
     return rec
 
 
-class RecordIn(BaseModel):
+class RecordIn(_Body):
     minutes: int = Field(default=10, ge=1, le=nvr_write.MANUAL_MAX_MIN)
 
 
@@ -272,7 +279,7 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
     return out
 
 
-class TimeIn(BaseModel):
+class TimeIn(_Body):
     sync_now: bool = False
     mode: str | None = Field(default=None, pattern="^(NTP|manual)$")
 
@@ -292,7 +299,7 @@ def set_time(body: TimeIn, request: Request, principal: Principal = Depends(curr
         return nvr_system.set_time_mode(settings, conn, principal, mode=body.mode or "NTP", request_id=_rid(request))
 
 
-class NtpIn(BaseModel):
+class NtpIn(_Body):
     host: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9.\-]+$")
     port: int = Field(default=123, ge=1, le=65535)
     interval_min: int | None = Field(default=None, ge=1, le=10080)
@@ -317,7 +324,7 @@ def pulse_output(output_id: int, request: Request, principal: Principal = Depend
         return nvr_system.pulse_output(settings, conn, principal, output_id, request_id=_rid(request))
 
 
-class SmartIn(BaseModel):
+class SmartIn(_Body):
     kind: str = Field(default="short", pattern="^(short|extended)$")
 
 
@@ -330,7 +337,7 @@ def smart_test(hdd_id: int, body: SmartIn, request: Request, principal: Principa
         return nvr_system.start_smart_test(settings, conn, principal, hdd_id, body.kind, request_id=_rid(request))
 
 
-class RebootIn(BaseModel):
+class RebootIn(_Body):
     confirm: str = Field(max_length=20)
 
 
@@ -397,7 +404,7 @@ def camera_reboot_run(camera_id: str, body: CameraRebootIn, request: Request, pr
 # the 0.1.71 handlers that wrote the add-on options through the Supervisor are gone.
 
 
-class OsdIn(BaseModel):
+class OsdIn(_Body):
     name_enabled: bool | None = None
     datetime_enabled: bool | None = None
     date_style: str | None = Field(default=None, pattern="^(MM-DD-YYYY|DD-MM-YYYY|YYYY-MM-DD|MM/DD/YYYY|DD/MM/YYYY|YYYY/MM/DD)$")
@@ -452,7 +459,7 @@ def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal 
                                       note="OSD: " + " + ".join(parts), request_id=_rid(request))
 
 
-class NameIn(BaseModel):
+class NameIn(_Body):
     name: str | None = Field(default=None, min_length=1, max_length=32)  # absent = the VMS name
 
 
@@ -508,7 +515,7 @@ def get_schedules(camera_id: str, request: Request, principal: Principal = Depen
     return out
 
 
-class WeekIn(BaseModel):
+class WeekIn(_Body):
     days: list[list[dict[str, Any]]] = Field(min_length=7, max_length=7)
 
 
@@ -535,7 +542,7 @@ def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, princi
             client.close()
 
 
-class RecordScheduleIn(BaseModel):
+class RecordScheduleIn(_Body):
     days: list[list[dict[str, Any]]] | None = Field(default=None, min_length=7, max_length=7)
     enabled: bool | None = None
     schedule_enabled: bool | None = None
@@ -574,7 +581,7 @@ def get_smart(camera_id: str, request: Request, principal: Principal = Depends(c
     return {**out, "camera_id": camera_id, "channel": ch, "can_write": writes and authorize(conn, principal, "nvr.config.smart", INSTALLATION).allowed, "writes_enabled": writes}
 
 
-class SmartRulesIn(BaseModel):
+class SmartRulesIn(_Body):
     line: dict[str, Any] | None = None
     field: dict[str, Any] | None = None
 
