@@ -73,6 +73,7 @@ from ..services import local_passwords as lp
 from ..services import local_reset as lr
 from ..services import presence, revocation
 from ..services import second_factor as sf
+from ..services.rbac_admin import keep_an_admin
 from ._common import rid as _rid
 from ..wire import local_identity as W
 from ..wire import wire
@@ -88,6 +89,12 @@ SELF_SERVICE_ADMIN_HE = ("איפוס עצמי אינו זמין למשתמש ע�
                          "איפוס של משתמש כזה הוא קישור שמנהל מפיק מכניסה מקומית.")
 WHATSAPP_ADMIN_HE = "קישור למשתמש עם הרשאות ניהול לא נשלח בוואטסאפ; הוא מוצג רק בכניסה מקומית."
 SELF_ONLY_HE = "הפעולה זמינה רק למשתמשי Arx."
+# SCREENS-FIX-A-2520 (SCR-07): the delete / disable guards (English: smplwise/error_text_en.json; the last-administrator texts are the
+# HA-users routes' own)
+SELF_DELETE_HE = "אי אפשר למחוק את המשתמש שלך."
+SELF_DISABLE_HE = "אי אפשר להשבית את המשתמש שלך."
+LAST_ADMIN_DELETE_HE = "המחיקה משאירה את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם."
+LAST_ADMIN_DISABLE_HE = "השינוי משאיר את ההתקנה בלי מנהל מערכת פעיל; הקצה מנהל אחר קודם."
 PW_LIMITS: list[tuple[float, int]] = [(60.0, 5), (3600.0, 30)]
 
 
@@ -441,6 +448,43 @@ def _admin_target_local_only(request: Request, admin: bool) -> None:
         raise ApiError(404, "not_found", "Not found")
 
 
+def _last_admin(conn: sqlite3.Connection, user_id: str) -> bool:
+    """SCREENS-FIX-A-2520 (SCR-07): would disabling / deleting this administrative Arx-only identity leave the installation with no
+    administrator at all? Never while the installation has an active system administrator (rbac.admin_count - Arx-only identities
+    are not counted there, so removing one never changes it); otherwise only when no other active Arx-only identity holds
+    administrative permissions."""
+    from ..rbac import admin_count
+
+    if admin_count(conn):
+        return False
+    return not any(u["id"] != user_id and u["active"] and li.holds_admin(conn, u["id"]) for u in store.live_local_users(conn))
+
+
+def _guard_removal(conn: sqlite3.Connection, principal: Principal, request: Request, user_id: str, action: str, *, deleting: bool) -> None:
+    """SCREENS-FIX-A-2520 (SCR-07, deep screens review): delete and disable refuse - audited, before any write - (1) the actor's own
+    identity, (2) an administrative identity on the remote channel (owner answer Q3, the shape of a route that does not exist there,
+    as role / link / password do), (3) the last administrator. Fail closed: when the administrator check itself fails, refused."""
+
+    def refuse(status: int, code: str, message: str, reason: str | None = None) -> ApiError:
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="user", resource_id=user_id, reason=reason or code, request_id=_rid(request))
+        return ApiError(status, code, message)
+
+    if user_id == principal.user_id:
+        raise refuse(409, "self_target", SELF_DELETE_HE if deleting else SELF_DISABLE_HE)
+    last_he = LAST_ADMIN_DELETE_HE if deleting else LAST_ADMIN_DISABLE_HE
+    try:
+        admin = li.holds_admin(conn, user_id)
+        last = admin and _last_admin(conn, user_id)
+    except Exception:  # noqa: BLE001 - fail closed: an undecidable administrator check never lets the removal through
+        raise refuse(409, "last_admin", last_he, "admin_check_failed") from None
+    if admin and is_remote(request):
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="user", resource_id=user_id, reason="local_admin_target_remote",
+              request_id=_rid(request))
+        raise ApiError(404, "not_found", "Not found")
+    if last:
+        raise refuse(409, "last_admin", last_he)
+
+
 def _link_answer(request: Request, token: str, expires: float, purpose: str) -> dict[str, Any]:
     settings = settings_of(request)
     path = li.link_path(settings, token)
@@ -713,6 +757,9 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     _manage(conn, principal)
     row = _user_row(conn, user_id)
     fields = body.model_dump(exclude_unset=True)
+    if fields.get("active") is not None and not fields["active"] and bool(row["active"]):
+        # SCR-07: before any write of this request (a refusal commits its audit row - nothing else of the request may be written)
+        _guard_removal(conn, principal, request, user_id, "identity.local.user.disabled", deleting=False)
     changed: dict[str, Any] = {}
     effects: dict[str, int] = {}
     if "display_name" in fields:
@@ -753,9 +800,10 @@ def patch_local_user(user_id: str, body: LocalUserPatch, request: Request, princ
     if fields.get("active") is not None and bool(fields["active"]) != bool(row["active"]):
         if not fields["active"]:
             li.lease_hook("actor_disabled", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
-            store.disable_user(conn, user_id, now_iso(), principal.user_id)
-            effects = _end_access(conn, user_id, "user_disabled")
-            bump_permission_revision(conn)
+            with keep_an_admin(conn):  # SCR-07: an installation that had an active system administrator keeps one
+                store.disable_user(conn, user_id, now_iso(), principal.user_id)
+                effects = _end_access(conn, user_id, "user_disabled")
+                bump_permission_revision(conn)
             action = "identity.local.user.disabled"
         else:
             store.enable_user(conn, user_id)
@@ -782,13 +830,15 @@ def delete_local_user(user_id: str, request: Request, principal: Principal = Dep
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _manage(conn, principal)
     _user_row(conn, user_id)
+    _guard_removal(conn, principal, request, user_id, "identity.local.user.deleted", deleting=True)  # SCR-07
     now = now_iso()
     li.lease_hook("actor_removed", user_ids=[user_id])  # CR-WISKEY-LEASE T2 (then T4 / T3 / strict T1 below)
-    store.mark_user_deleted(conn, user_id, now, principal.user_id)
-    effects = _end_access(conn, user_id, "user_deleted")
-    bindings = store.revoke_user_bindings(conn, user_id, now)
-    store.delete_ha_link(conn, user_id)
-    bump_permission_revision(conn)
+    with keep_an_admin(conn):  # SCR-07: an installation that had an active system administrator keeps one
+        store.mark_user_deleted(conn, user_id, now, principal.user_id)
+        effects = _end_access(conn, user_id, "user_deleted")
+        bindings = store.revoke_user_bindings(conn, user_id, now)
+        store.delete_ha_link(conn, user_id)
+        bump_permission_revision(conn)
     audit(conn, actor=principal, action="identity.local.user.deleted", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
           details={**effects, "bindings_revoked": bindings})
     if effects["sessions_ended"]:

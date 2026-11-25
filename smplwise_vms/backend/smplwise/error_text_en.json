@@ -88,6 +88,7 @@
 "אי אפשר להציב תחזוקה מעל הזמנה קיימת.": "Maintenance can't be placed over an existing booking.",
 "אי אפשר להציע לפי השדה הזה (אין לאדם ערך תקין בו, או שהוא שדה ייחודי).": "Suggestions cannot be made from this field (the person has no valid value in it, or it is a unique field).",
 "אי אפשר להשאיר תזמון בלי שם.": "A schedule cannot be left without a name.",
+"אי אפשר להשבית את המשתמש שלך.": "You cannot disable your own user.",
 "אי אפשר למחוק את המשתמש שלך.": "You cannot delete your own user.",
 "אי אפשר למחוק שדה או קבוצה קיימים - אפשר רק להשבית אותם.": "An existing field or group cannot be deleted - it can only be disabled.",
 "אי אפשר לערוך אירוע במצב הזה.": "An event can't be edited in this state.",

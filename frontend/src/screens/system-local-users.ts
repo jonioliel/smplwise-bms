@@ -21,11 +21,15 @@ import { po } from '../i18n/passkey-only';
 import { confirmDialog } from '../components/confirm-dialog';
 import type * as LocalWire from '../api/generated/wire-local-identity';
 import { tr } from '../i18n/msg/system-b';
+import { session } from '../api/session';
 
 /* USR2: an Arx-only identity and the tab's list are the backend's response models (smplwise_vms/backend/smplwise/wire/local_identity.py,
  * generated into ../api/generated/wire-local-identity.ts; code review 07:F8 step 2) - never a hash, never a link. */
 type LocalUser = LocalWire.LocalUser;
 type LocalUsersReply = LocalWire.LocalUserList;
+
+/** SCREENS-FIX-A-2520 (SCR-07): the signed-in person's own row. */
+const isSelf = (u: LocalUser): boolean => !!u.id && session.me?.user.id === u.id;
 
 /** CR-LOCAL-USER-CREATE-2438: a password the administrator types for a user (never kept after the request). */
 interface PwDraft {
@@ -516,7 +520,9 @@ export class SystemLocalUsers extends LitElement {
     }
   }
 
-  private setActive(u: LocalUser, active: boolean) {
+  private async setActive(u: LocalUser, active: boolean) {
+    // SCREENS-FIX-A-2520 (SCR-07): disabling ends every sign-in and link at once - it asks first, as delete does
+    if (!active && !(await confirmDialog({ body: lit('disableConfirm', { name: u.display_name }), danger: true, confirmLabel: lit('disable') }))) return;
     void this.run(async () => {
       const r = await patch<LocalWire.LocalUserPatched>(`/identity/local-users/${encodeURIComponent(u.id)}`, { active });
       this.suggest = r.suggest_also ? lit('suggestAlso') : '';
@@ -767,6 +773,7 @@ export class SystemLocalUsers extends LitElement {
   private renderSelected(u: LocalUser): TemplateResult {
     const manage = this.data?.can_manage ?? false;
     const adminLocked = u.admin && this.remote;
+    const self = isSelf(u); // SCR-07: one's own row offers neither disable nor delete (the server refuses both)
     const roles = localRoles(this.roles);
     const edit = this.roleEdit;
     return html`<sw-card flush data-local-user=${u.id}>
@@ -794,9 +801,9 @@ export class SystemLocalUsers extends LitElement {
                 ? nothing
                 : html`<sw-button @click=${() => { this.pwEdit = this.pwEdit ? null : { ...PW_EMPTY }; this.pwError = ''; }} ?disabled=${this.busy || !u.active} data-local-pw-set>${lit('pwSet')}</sw-button>`}
               <sw-button @click=${() => this.simple(u, 'sessions/revoke')} ?disabled=${this.busy || !u.sessions}>${lit('endSessions')}</sw-button>
-              <sw-button @click=${() => this.setActive(u, !u.active)} ?disabled=${this.busy}>${u.active ? lit('disable') : lit('enable')}</sw-button>
+              ${self ? nothing : html`<sw-button @click=${() => void this.setActive(u, !u.active)} ?disabled=${this.busy} data-local-active=${u.active ? 'disable' : 'enable'}>${u.active ? lit('disable') : lit('enable')}</sw-button>`}
               <sw-button @click=${() => (this.roleEdit = { role_id: u.role_id ?? 'viewer', scope: `${u.scope_type ?? 'installation'}:${u.scope_id ?? '*'}` })} ?disabled=${this.busy}>${lit('changeRole')}</sw-button>
-              <sw-button class="end" variant="danger" @click=${() => this.removeUser(u)} ?disabled=${this.busy}>${lit('remove')}</sw-button>
+              ${self ? html`<span class="muted end" data-local-self-note>${lit('selfNote')}</span>` : html`<sw-button class="end" variant="danger" @click=${() => this.removeUser(u)} ?disabled=${this.busy} data-local-remove>${lit('remove')}</sw-button>`}
             </div>
             ${this.pwEdit && !adminLocked
               ? html`<form class="full pwform" @submit=${(e: Event) => void this.savePassword(u, e)} novalidate data-local-pw-form>
@@ -867,7 +874,7 @@ export class SystemLocalUsers extends LitElement {
       {
         key: 'name',
         label: lit('colName'),
-        render: (x) => html`<span style=${CELL}><span>${row(x).display_name}</span>${secondaryIdentity(row(x).display_name, row(x).username) ? html`<span style=${MUTED}><bdi>${row(x).username}</bdi></span>` : nothing}</span>`,
+        render: (x) => html`<span style=${CELL}><span>${row(x).display_name}</span>${isSelf(row(x)) ? html`<span style=${BADGES}><sw-badge kind="neutral" label=${lit('youBadge')} data-local-self></sw-badge></span>` : nothing}${secondaryIdentity(row(x).display_name, row(x).username) ? html`<span style=${MUTED}><bdi>${row(x).username}</bdi></span>` : nothing}</span>`,
       },
       {
         key: 'role',

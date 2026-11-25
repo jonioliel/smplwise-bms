@@ -128,6 +128,10 @@ const he = {
   enable: 'הפעלה',
   remove: 'מחיקה',
   removeConfirm: 'למחוק את {name}? הכניסות, הקישורים והתפקיד מסתיימים מיד.',
+  // SCREENS-FIX-A-2520 (SCR-07): disable asks first; one's own row cannot be disabled or deleted (the server refuses it too)
+  disableConfirm: 'להשבית את {name}? כל הכניסות והקישורים שלו מסתיימים מיד.',
+  youBadge: 'המשתמש שלך',
+  selfNote: 'זה המשתמש שלך: אי אפשר להשבית או למחוק אותו מכאן.',
   unlock: 'שחרור השהיה',
   endSessions: 'ניתוק כל הכניסות',
   changeRole: 'שינוי תפקיד',
