@@ -97,15 +97,62 @@ Backend: `services/push_approval.py` (new), `routers/push_approval.py` (new), `w
 Frontend: `src/api/push-approval.ts` (new), `src/components/sw-push-approval-sheet.ts` (new), `src/shell/push-approval-watch.ts` (new),
 `src/components/sw-step-up-dialog.ts`, `src/components/sw-factor-policy-admin.ts`, `src/api/factor-screens.ts` (`deviceKeyBridge`
 exported), `src/main.ts`, `src/i18n/lang/en/i18n/msg/mfa.ts`.
-Tests: `smplwise_vms/backend/tests/test_mfa_t095_rest_2530.py` (new), `frontend/tests/unit-mfa-t095-rest-2530.spec.ts` (new), refreshed
-`frontend/tests/pixel-mfa-screens-2510.spec.ts-snapshots/` (the policy tab).
+Also: `smplwise/error_text_en.json` (the English of the new refusals), `tests/fixtures/bill_ledger_b_sql_golden.json` (the new source's
+seed row), `docs/user-guide/he/82-second-factor_HE.md`, `docs/user-guide/en/82-second-factor_EN.md`, `docs/user-guide/he/GUIDE_ALL_HE.html`.
+Tests: `smplwise_vms/backend/tests/test_mfa_t095_rest_2530.py` (new), `frontend/tests/unit-mfa-t095-rest-2530.spec.ts` (new). Pixel
+baselines: `pixel-mfa-screens-2510` checked on the runner - unchanged (the new rows are below the baseline's view); the compare page
+shows the card itself.
 
 Hot files shared with the 2.52 train: `services/step_up.py`, `routers/second_factor.py`, `routers/alarm.py`, `services/notify_*`,
 `sw-step-up-dialog.ts`, `sw-factor-policy-admin.ts`. No WisKey / bridge / DESIGN-LITERALS file is touched.
 
-## 4. Tests
+## 4. Tests (real runs)
 
-See section 6 (filled from the real runs).
+PC (Windows, the main checkout's venv, ONE pytest file per process, `-o addopts=""`):
+
+| Command | Exit | Result |
+|---|---|---|
+| `pytest tests/test_mfa_t095_rest_2530.py` (at the typed-number commit) | 0 | **24 passed** (268 s) |
+| `pytest tests/test_bill_ledger_lifecycle_b.py` after regenerating its SQL golden (`SW_BILL_LEDGER_GOLDEN_WRITE=1`: one added `INSERT INTO notify_policies` line for the new source) | 0 | 25 passed |
+| `pytest tests/test_i18n_errors_en_2520.py` after adding the English of the new refusals to `smplwise/error_text_en.json` | 0 | 9 passed |
+| `ruff check` on the changed backend files + the new test | 0 | All checks passed |
+| `python scripts/design_ratchet.py` | 0 | no count above the baseline (px-literal 25511, colour 1984 - unchanged) |
+| `python scripts/build_guide.py --check` (after rebuilding the Hebrew guide page) | 0 | up to date |
+
+Linux test server (`~/work/slotb.sh ~/work/p2520_t095rest_run.sh`, head `070004458`; the two red files below were fixed after it, in
+`b370d4231` / `606786bcf`, and re-run green on the PC as listed above):
+
+| Step | Exit | Result |
+|---|---|---|
+| backend shard 0: `test_mfa_t095_rest_2530`, `test_mfa_stepup_2490`, `test_mfa_stepup_gates_2490` (incl. the route-table ratchet) | 0 | 65 passed |
+| shard 1: devicekey, devicekey_attest, secfix, secreview, review_docs, factor_harden | 0 | 87 passed |
+| shard 2: reset_hardening, passkeys, screens, policy, tokens, recovery_codes, ha_passkey | 0 | 181 passed |
+| shard 3: second_factor, second_factor_followups, alarm, alarm_managed_cache, remote_access | 0 | 140 passed |
+| shard 4: notify_sources / core / factor_changed_en / payload_golden / recipient_lang / channels, singletons, bill_ledger_lifecycle_b | 1 | 132 passed, **1 failed**: the bill-ledger SQL golden lacked the new source's seed row - golden regenerated (`b370d4231`), PC re-run 25 passed |
+| shard 5: routers_table, wire_routers_b-e, wire_ratchet, wire_route_coverage, wire_consumption | 0 | 428 passed |
+| shard 6: error_envelope step0 / family2 / family3 / family45, i18n_backend a-c, i18n_errors_en | 1 | 101 passed, **1 failed**: one inline Hebrew refusal had no English - added to `error_text_en.json` (`606786bcf`), PC re-run 9 passed |
+| shard 7: release_check, backup, backup_sensitive, local_privacy, settings_patch_audit_order, security_review_220, gate_hygiene | 1 | 274 passed, 1 failed: `test_release_check` - CHANGELOG head is the train's `2.52.0 (pilot) - DRAFT` vs version 2.52.0; **pre-existing on the train base**, files not touched here |
+| `ruff check smplwise` + the new test | 0 | All checks passed |
+| `scripts/gen_wire_types.py --check` | 0 | up to date |
+| design ratchet | 0 | no count above the baseline |
+| `tsc --noEmit -p .` / `-p tsconfig.tests.json` | 0 / 0 | 0 errors / 0 errors |
+| eslint on the 8 changed source files + the new spec | 0 | 0 errors (1 "file ignored" warning for tests/) |
+| lazy-tags check / api-client check / i18n-split --dry | 0 | OK |
+| `unused-exports --enforce` | 1 | only NEW items in WisKey files of the train (`status-wiskey-logic.ts`, `wiskey-system-status.ts`, `station-ops.ts`, `bridge-key.ts`, `wiskey-relay-map-logic.ts`) - **pre-existing on the base, none from this row** |
+| `npm run build`, bundle budget `--enforce` | 0 / 0 | OK |
+| `unit-mfa-t095-rest-2530.spec.ts` on a `localhost` preview (Chromium virtual authenticator for the passkey case), desktop + mobile | 0 | **16 passed**, 6 skipped (the shot tests without `SW_SHOTS_DIR`) |
+| existing `unit-mfa-train-2500`, `unit-step-up-ui`, `evidence-mfa-screens-2510`, `evidence-mfa-factor-harden-2520`, `evidence-second-factor`, `evidence-arx-second-factor` | 0 | 56 passed, 16 skipped |
+| `pixel-mfa-screens-2510` against the existing baselines | 0 | 6 passed - the changed card is below the fold of the baseline view, so **no baseline changed** (update + re-check: 6 passed, 0 files changed) |
+| compare shots (`SW_SHOTS_DIR`) | 0 | 6 passed |
+
+Negative / replay cases covered by the backend file: wrong number (denies + cooldown), "not me" (denies + cooldown), a spent approval,
+a reused / foreign challenge, another session / action / user, the requesting session approving itself, expiry and the unused window,
+a foreign key's signature (and the phone-key lockout after 5), once-actions and factor changes refused, superseding, cancelling, the rate
+limit, step-up off; the alarm code: off by default, one disarm only (not a bypass, not a settings change), the shared lockout with the
+alarm screen, the alarm-code-only user gated only while the switch is on, no code = no method.
+
+NOT_RUN: the full backend suite and the full Playwright suites (the train gate runs them); anything on a real phone or the lab (the
+Android app's prompt with a real key, the real push wake-up through the relay, a real alarm panel); the Android shell is unchanged.
 
 ## 5. Open questions (recommendation first; unanswered = the recommendation, already built)
 
