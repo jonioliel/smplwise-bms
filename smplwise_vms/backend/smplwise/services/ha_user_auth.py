@@ -1514,9 +1514,13 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         s.factor_checked = False
     elif factor in ("code", "ha_mfa_ok"):
         STORE.mark_factor_verified(s.iss_hash, principal.user_id)
-        from . import step_up
+        if factor == "code":
+            from . import step_up
 
-        step_up.note_sign_in_factor(s, answered if factor == "code" else None)  # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too
+            # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too. MFA-REVIEW-DOCS-2520 N-4: never
+            # for `ha_mfa_ok` - Home Assistant's MFA was shown when the refresh token was made (possibly long ago), not now; the cookie
+            # exchange makes no proof for it either
+            step_up.note_sign_in_factor(s, answered)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None,

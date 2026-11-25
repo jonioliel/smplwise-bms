@@ -56,6 +56,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
+from ..services import factor_reset
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
@@ -333,6 +334,12 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
 
     require(conn, principal, "identity.local.manage", INSTALLATION)
     _user_row(conn, user_id, include_deleted=True)
+    # MFA-REVIEW-DOCS-2520 N-2: removing another user's passkey resets one of their authentication methods, so the owner's
+    # `security.factor_reset_channel = local` (MFA-RESET-HARDENING-2510) applies here too - refused from outside, audited
+    if factor_reset.channel_refuses(conn, request):
+        audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="denied", resource_type="user", resource_id=user_id,
+              reason="local_only", request_id=_rid(request), details={"channel": factor_reset.CHANNEL_LOCAL})
+        raise ApiError(403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE, details={"channel": factor_reset.CHANNEL_LOCAL})
     if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     if store.passkey_row(conn, pk_id[:40], user_id) is None:
