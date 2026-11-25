@@ -1,6 +1,7 @@
 {
   "_comment": "Single source for the Playwright specs that need a live fixture backend. Read by scripts/gate/release_gate.py (only specs with gate=true: FIXTURE_SPECS) and by scripts/fixture_job.py (the `fixture` job of private/runner/run_smart.py). Do not change a gate flag without noting it in docs/operations/RUNNER_FIXTURE_JOB.md.",
-  "_hud_layout": "the layout guard of the HUD over the floor map reads every skin at 390 / 768 / 1440 px (~18 min on the runner): two specs / groups (evidence-hud-layout-live.spec.ts: classic, domus, tesla; -b: bubble, crystal) keep each under the fixture job's 20-minute group limit; SW_HUD_SHOTS=1 also writes the pictures into docs/design/evidence/hud-layout/ (untracked on the runner; copy them back, look at them, commit the ones that are evidence)",
+  "_schema": "GATE-FIXTURE-LANE-2530. A group = one throwaway backend (or none) + one vite preview of frontend/dist. script: the fixture backend (null = no backend: mocked specs that only need their env; the preview proxies to a dead port). seed: run after the backend is up. backend_env: extra env of the backend. pw_env: env of Playwright. extra_ports: free ports right above the API port (default 1). then: follow-up stages on the SAME data dir - the backend restarts on the same port with the stage's backend_env and the group's specs run again with the stage's pw_env merged in. specs: {name: {gate, projects}}; a spec may sit in more than one group (other env). Placeholders in backend_env / pw_env values: {port} (the API port), {port+N}, {out} (a fresh output folder of the group under the run's logs). A spec with gate=true runs in every tier-L release gate (the fixture lane, docs/testing/GATE_LANES.md section 5) and in a GATE_LANE=fixture run (scripts/gate/fixture_lane.sh).",
+  "_hud_layout":"the layout guard of the HUD over the floor map reads every skin at 390 / 768 / 1440 px (~18 min on the runner): two specs / groups (evidence-hud-layout-live.spec.ts: classic, domus, tesla; -b: bubble, crystal) keep each under the fixture job's 20-minute group limit; SW_HUD_SHOTS=1 also writes the pictures into docs/design/evidence/hud-layout/ (untracked on the runner; copy them back, look at them, commit the ones that are evidence)",
   "groups": {
     "devices": {
       "script": "frontend/tests/fixtures/devices_fake_ha.py",
@@ -12,12 +13,12 @@
         "evidence-curve-points.spec.ts": {"gate": true, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
-        "evidence-floorstrip.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-floorstrip.spec.ts": {"gate": true, "projects": ["desktop", "mobile"]},
         "evidence-hud-opaque-live.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-home-polish.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
-        "evidence-home-screen.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-home-screen.spec.ts": {"gate": true, "projects": ["desktop", "mobile"]},
         "evidence-area-nav.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
         "evidence-camsuggest-live.spec.ts": {"gate": false, "projects": ["desktop"]}
@@ -54,6 +55,69 @@
         "evidence-arx-second-factor.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-arx-sessions.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-local-user-create-2438.spec.ts": {"gate": false, "projects": ["desktop"]}
+      }
+    },
+    "nvrless_cameras": {
+      "script": "frontend/tests/fixtures/nvrless_cameras_backend.py",
+      "backend_env": {"SW_WEBRTC": "1"},
+      "pw_env": {"SW_LIVE": "1", "SW_EVID2412": "b"},
+      "then": [{"backend_env": {"SW_WEBRTC": "0"}, "pw_env": {"SW_EVID2412": "a"}}],
+      "specs": {
+        "evidence-nvrless-cameras-2412.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
+      }
+    },
+    "nvrless_recorder": {
+      "script": "frontend/tests/fixtures/multi_nvr_backend.py",
+      "pw_env": {"SW_LIVE": "1", "SW_EVID2412": "d"},
+      "specs": {
+        "evidence-nvrless-cameras-2412.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
+      }
+    },
+    "media_ma": {
+      "script": "frontend/tests/fixtures/media_fake_ha.py",
+      "backend_env": {"SW_FAKE_HOUSE": "ma", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
+      "pw_env": {"SW_LIVE": "1", "SW_MEDIA_FIXTURE": "1", "SW_HOUSE": "ma", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
+      "specs": {
+        "evidence-media-players-live.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
+      }
+    },
+    "media_sonos": {
+      "script": "frontend/tests/fixtures/media_fake_ha.py",
+      "backend_env": {"SW_FAKE_HOUSE": "sonos", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
+      "pw_env": {"SW_LIVE": "1", "SW_MEDIA_FIXTURE": "1", "SW_HOUSE": "sonos", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
+      "specs": {
+        "evidence-media-players-live.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
+      }
+    },
+    "wiskey": {
+      "script": "frontend/tests/fixtures/wiskey_fake_ha.py",
+      "backend_env": {"SW_WISKEY_CONTROL_PORT": "{port+1}"},
+      "pw_env": {"SW_LIVE": "1", "SW_WISKEY_FIXTURE": "1", "SW_WISKEY_CONTROL": "http://127.0.0.1:{port+1}"},
+      "specs": {
+        "evidence-wiskey-people.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-wiskey-editor.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-wiskey-capture.spec.ts": {"gate": true, "projects": ["desktop"]}
+      }
+    },
+    "shots_devpolish": {
+      "script": null,
+      "pw_env": {"DP_OUT": "{out}"},
+      "specs": {
+        "devpolish-2331-shoot.spec.ts": {"gate": true, "projects": ["desktop"]}
+      }
+    },
+    "shots_home_personal": {
+      "script": null,
+      "pw_env": {"SW_SHOTS": "1", "SW_SHOTS_PHASE": "gate", "SW_SHOTS_DIR": "{out}"},
+      "specs": {
+        "hand-switch-home-personal-2500-shots.spec.ts": {"gate": true, "projects": ["desktop"]}
+      }
+    },
+    "shots_home_edit": {
+      "script": null,
+      "pw_env": {"SW_SHOTS": "1", "SW_SHOTS_PHASE": "gate", "SW_SHOTS_DIR": "{out}"},
+      "specs": {
+        "hand-switch-home-edit-2500-shots.spec.ts": {"gate": true, "projects": ["desktop"]}
       }
     }
   }
