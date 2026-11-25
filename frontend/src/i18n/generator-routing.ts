@@ -13,7 +13,11 @@ const he = {
   defaultsSub: 'סוג התראה ללא נמענים משלו מקבל את בחירת החומרה שלו',
   criticalNote: 'התראה קריטית תמיד מסלימה למנהלי המערכת אחרי {n} דקות, גם כשההסלמה כבויה',
   criticalQuiet: 'התראה קריטית אינה נעצרת בשעות שקט',
-  criticalDelay: 'דקות עד הסלמה של התראה קריטית',
+  // GEN-UNITS-FIELD-2520: the minutes sit inside the field's frame (sw-field unit); the label names the value, not its unit
+  criticalDelay: 'זמן עד הסלמה של התראה קריטית',
+  unitMin: 'דקות',
+  escalateAfter: 'זמן עד הסלמה',
+  escalateUntil: 'עד הסלמה',
   editDefault: 'ברירת מחדל: {name}',
   inheritedFrom: 'מהחומרה',
   colEscalate: 'הסלמה',

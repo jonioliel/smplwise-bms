@@ -9,6 +9,7 @@ import '../components/sw-toggle';
 import type { TableColumn } from '../components/sw-table';
 import '../components/sw-icon';
 import '../components/sw-drawer';
+import '../components/sw-field';
 import '../components/sw-state-panel';
 import { getPolicies, previewPolicy, putPolicy, putSettings, putSeverityRouting, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
 import { listUsers, type DirectoryUser } from '../api/access';
@@ -259,7 +260,7 @@ export class GenRouting extends LitElement {
           ${this.users.length > 6 ? html`<input type="search" placeholder=${G.history.search} .value=${this.userQ} @input=${(e: Event) => (this.userQ = (e.target as HTMLInputElement).value)} />` : nothing}
           <div class="chooser users" data-users>${users.map((u) => chk(u.name || u.username, d.recipients.users.includes(u.id), () => (this.sevDraft = { ...d, recipients: { ...d.recipients, users: this.toggle(d.recipients.users, u.id) } })))}</div></div>` : nothing}
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels><label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>${data.severity_channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => (this.sevDraft = { ...d, channels: this.toggle(d.channels, c) })))}</div></div>
-        ${sev === 'critical' ? html`<div class="fld"><label for="crit-min">${grt('criticalDelay')}</label><input id="crit-min" type="number" min="1" max="1440" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => (this.delay = (e.target as HTMLInputElement).value)} data-critical-delay /><div class="mut" data-critical-note>${grt('criticalNote', { n: this.delay })}</div></div>` : nothing}
+        ${sev === 'critical' ? html`<div class="fld"><label for="crit-min">${grt('criticalDelay')}</label><sw-field style="inline-size:132px" unit=${grt('unitMin')}><input id="crit-min" class="ltr" type="number" min="1" max="1440" .value=${this.delay} @input=${(e: Event) => (this.delay = (e.target as HTMLInputElement).value)} data-critical-delay /></sw-field><div class="mut" data-critical-note>${grt('criticalNote', { n: this.delay })}</div></div>` : nothing}
         ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
         <div class="row"><sw-button variant="primary" ?disabled=${this.busy} @click=${() => this.saveSeverity()} data-save-severity>${S.save}</sw-button><sw-button @click=${() => (this.sevEdit = null)}>${S.cancel}</sw-button></div>
       </div>` : nothing}</sw-drawer>`;
@@ -290,7 +291,7 @@ export class GenRouting extends LitElement {
         <div class="fld"><label>${S.quietHours}</label>${critical ? html`<div class="mut" data-quiet-critical>${grt('criticalQuiet')}</div>` : html`<sw-segmented data-quiet value=${d.quiet_mode} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ quiet_mode: e.detail.value as 'pass' | 'matrix' | 'hold' })}
           .options=${(data.quiet_modes as ('pass' | 'matrix' | 'hold')[]).map((m) => ({ value: m, label: S.quietLong[m] }))}></sw-segmented>`}</div>
         <div class="fld"><label>${S.escalate}</label>${critical ? html`<div class="mut" data-escalate-critical>${grt('criticalNote', { n: data.critical_escalate_after_min })}</div>` : html`<div class="row"><sw-toggle size="sm" labelHidden label=${S.escalate} .checked=${d.escalate} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate></sw-toggle>
-          ${d.escalate ? html`<input type="number" min="1" style="inline-size:90px" .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /> <span class="mut">${S.escalateAfter}</span>` : nothing}</div>`}</div>
+          ${d.escalate ? html`<sw-field style="inline-size:132px" unit=${grt('unitMin')}><input class="ltr" type="number" min="1" aria-label=${grt('escalateAfter')} .value=${String(Math.round((d.escalate_after_s || data.critical_escalate_after_min * 60) / 60))} @change=${(e: Event) => this.patch({ escalate_after_s: Math.max(1, Number((e.target as HTMLInputElement).value) || 1) * 60 })} data-escalate-min /></sw-field> <span class="mut">${grt('escalateUntil')}</span>` : nothing}</div>`}</div>
         <div class="fld"><label for="tpl">${S.message}</label>
           <textarea id="tpl" class="note" dir="rtl" .value=${this.text} maxlength=${max} @input=${(e: Event) => this.tplInput((e.target as HTMLTextAreaElement).value)} data-template></textarea>
           <div class="row mut"><span data-counter>${fill(S.tplCounter, { n: this.text.length, max })}</span><span>${S.tplClip}</span></div>
