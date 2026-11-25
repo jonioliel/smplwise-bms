@@ -91,6 +91,36 @@ def state_matches(action_id: str, expected: str, state: str | None) -> bool:
     return state == expected or (state is not None and state in EQUIVALENT_STATES.get(action_id, frozenset()))
 
 
+def still_grouped_elsewhere(conn: sqlite3.Connection, entity_id: str, attrs: dict[str, Any]) -> bool:
+    """STALE-FIXTURE-SPECS-2530: an unjoin is read back the way the membership itself is read (services/media_model.resolve_groups),
+    not only from the player's own `group_members`. In the Music Assistant encoding a member other than the first lists NOTHING
+    while it is grouped (system-V's cross-brand group of four), so its own `[]` - already there before the call - proves nothing,
+    and the record was "confirmed" before the leader dropped it (the group report then said `unknown` for a room that left a moment
+    later). The player is still grouped while another player lists it in a group of two or more, or (Music Assistant) while its
+    `active_queue` is another Music Assistant player's id."""
+    rows = conn.execute(
+        "SELECT attributes_json FROM ha_entities WHERE domain = 'media_player' AND entity_id != ? AND removed_at IS NULL AND attributes_json LIKE ?",
+        (entity_id, f"%{entity_id}%"),
+    ).fetchall()
+    for r in rows:
+        try:
+            gm = json.loads(r["attributes_json"] or "{}").get("group_members")
+        except ValueError:
+            continue
+        if isinstance(gm, list) and len(gm) > 1 and entity_id in gm:
+            return True
+    queue = str(attrs.get("active_queue") or "").strip().lower()
+    if not queue:
+        return False
+    own = conn.execute("SELECT unique_id, platform FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    if own is None or own["platform"] != "music_assistant" or str(own["unique_id"] or "").strip().lower() == queue:
+        return False
+    return conn.execute(
+        "SELECT 1 FROM ha_entities WHERE domain = 'media_player' AND platform = 'music_assistant' AND entity_id != ? AND removed_at IS NULL AND lower(unique_id) = ?",
+        (entity_id, queue),
+    ).fetchone() is not None
+
+
 def action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
     r = conn.execute("SELECT * FROM ha_actions WHERE id = ?", (action_id,)).fetchone()
     if not r:
@@ -151,7 +181,10 @@ def refresh(conn: sqlite3.Connection, a: dict[str, Any]) -> bool:
         except ValueError:
             attrs = {}
         spec_attr = (ha_bridge.ACTIONS.get(a["action_id"]) or {}).get("expect_attr") or {}
-        if since_request(e["last_updated"]) and ha_bridge.attribute_reached(a["action_id"], a["arguments"], e["state"], attrs):
+        reached = since_request(e["last_updated"]) and ha_bridge.attribute_reached(a["action_id"], a["arguments"], e["state"], attrs)
+        if reached and a["action_id"] == "media_player.unjoin" and still_grouped_elsewhere(conn, a["entity_id"], attrs):
+            reached = False  # its own list says "ungrouped", the group it was in does not (yet): read back again on the next poll
+        if reached:
             observed = f"{spec_attr.get('attribute')}={attrs.get(spec_attr.get('attribute'))}"
             conn.execute("UPDATE ha_actions SET status = 'confirmed', confirmed_at = ?, observed_state = ? WHERE id = ?", (now_iso(), observed, action_id))
             return True

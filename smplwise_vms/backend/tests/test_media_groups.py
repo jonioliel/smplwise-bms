@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import threading
 from typing import Any
 
 import media_seed as mseed
@@ -71,11 +72,24 @@ def g(settings, monkeypatch):
                     put(m, active_queue=UIDS.get(leader, leader))
             elif payload["service"] == "unjoin":
                 me = data["entity_id"]
-                for eid in list(UIDS):
-                    ms = attrs_of(eid).get("group_members") or []
-                    if me in ms and eid != me:
-                        put(eid, group_members=[m for m in ms if m != me] if len([m for m in ms if m != me]) > 1 else [])
-                put(me, group_members=[], active_queue=UIDS.get(me, me))
+
+                def drop() -> None:
+                    for eid in list(UIDS):
+                        ms = attrs_of(eid).get("group_members") or []
+                        if me in ms and eid != me:
+                            put(eid, group_members=[m for m in ms if m != me] if len([m for m in ms if m != me]) > 1 else [])
+
+                lag = fx.get("leader_lag")
+                if lag is None:
+                    drop()
+                    put(me, group_members=[], active_queue=UIDS.get(me, me))
+                else:
+                    # the room reports first; the leader's list follows `lag` seconds later (never, when negative)
+                    put(me, group_members=[], active_queue=UIDS.get(me, me))
+                    if lag >= 0:
+                        t = threading.Timer(lag, drop)
+                        fx.setdefault("timers", []).append(t)
+                        t.start()
             elif payload["service"] == "volume_set":
                 put(data["entity_id"], volume_level=data["volume_level"])
             elif payload["service"] == "media_pause":
@@ -86,6 +100,8 @@ def g(settings, monkeypatch):
     keys = {n: aseed.key_with(c, e) for n, e in {"a": "media_player.wiim_a", "b": "media_player.wiim_b", "denon": "media_player.denon_main", "garden": "media_player.cast_garden",
                                                  "console": "media_player.ma_console", "stereo": "media_player.ma_stereo", "x1": "media_player.ma_ex1", "x2": "media_player.ma_ex2"}.items()}
     yield app, c, calls, keys, settings, fx, put
+    for t in fx.get("timers", []):
+        t.join(5)
     device_bulk.RUNNER.clear()
 
 
@@ -251,6 +267,39 @@ def test_leave_sends_one_unjoin_per_device_through_its_own_layer(g):
     assert (r.status_code, r.json()["code"]) == (409, "nothing_to_do")
     assert c.post(f"{GROUPS}/leave", json=req(device_keys=["nope"])).status_code == 404
     assert c.post(f"{GROUPS}/leave", json=req(device_keys=[])).status_code == 422
+
+
+def test_a_leave_is_read_back_from_the_group_not_only_from_the_rooms_own_empty_list(g, monkeypatch):
+    """STALE-FIXTURE-SPECS-2530: in the Music Assistant encoding a member that is not listed first says [] while it IS grouped (system-V's cross-brand
+    group), so its own list proves nothing about a leave. The leave is confirmed once the leader no longer lists the room: a leader that reports a moment
+    after the room gives `left` (it was `unknown`, the record confirmed by the room's stale []); a leader that never drops it is never `confirmed`."""
+    app, c, calls, keys, settings, fx, put = g
+    from smplwise.services import ha_bridge
+
+    monkeypatch.setitem(ha_bridge.ACTIONS["media_player.unjoin"], "window_s", 1.5)
+
+    def own_list(eid: str) -> Any:
+        with app.state.db.connection(mode="read") as conn:
+            return json.loads(conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()["attributes_json"] or "{}").get("group_members")
+
+    def unjoin_status() -> str:
+        with app.state.db.connection(mode="read") as conn:
+            return conn.execute("SELECT status FROM ha_actions WHERE action_id = 'media_player.unjoin' AND entity_id = 'media_player.ma_b' ORDER BY requested_at DESC, rowid DESC").fetchone()["status"]
+
+    done(c, c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=[keys["b"], keys["x1"]])))
+    assert own_list("media_player.ma_b") in ([], None) and live(c, keys["b"])["group"]["role"] == "member", "a member that lists nothing while grouped"
+    fx["leader_lag"] = 0.6
+    res = done(c, c.post(f"{GROUPS}/leave", json=req(device_keys=[keys["b"]])))
+    assert outcomes(res) == {"רמקול מטבח": "left"} and res["counts"]["confirmed"] == 1, res
+    assert unjoin_status() == "confirmed" and live(c, keys["a"])["group"]["member_keys"] == [keys["x1"]]
+    # a leader that never drops the room: the record times out (never "confirmed") and the room is honestly `unknown`
+    fx["leader_lag"] = None
+    done(c, c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=[keys["b"]])))
+    assert live(c, keys["b"])["group"]["role"] == "member"
+    fx["leader_lag"] = -1
+    res = done(c, c.post(f"{GROUPS}/leave", json=req(device_keys=[keys["b"]])))
+    assert outcomes(res) == {"רמקול מטבח": "unknown"} and res["counts"]["confirmed"] == 0, res
+    assert unjoin_status() == "unknown"
 
 
 def test_group_writes_need_the_bridge_at_0_5_0(g, monkeypatch):
