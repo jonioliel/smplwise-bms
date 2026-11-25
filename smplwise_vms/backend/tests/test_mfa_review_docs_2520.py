@@ -38,7 +38,7 @@ def test_n2_an_administrators_passkey_removal_honours_the_local_only_reset_chann
     assert refusal and refusal[-1]["reason"] == "local_only"
     # the default (`any`, owner Q53) is unchanged: once the owner widens it again (local channel only), the remote removal works
     assert px.admin.patch("/api/v1/settings", json={"security.factor_reset_channel": "any"}).status_code == 200
-    r = remote_admin.delete(f"/arx/api/v1/identity/local-users/{uid}/passkeys/{pk}")
+    r = remote_admin.request("DELETE", f"/arx/api/v1/identity/local-users/{uid}/passkeys/{pk}", json={"confirm": "maria"})
     assert r.status_code == 200, r.text
 
 

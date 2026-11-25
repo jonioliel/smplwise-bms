@@ -39,6 +39,29 @@ export interface CredentialParam {
 }
 
 /**
+ * `GET /auth/second-factor/users/{id}/reset-check` (MFA-RESET-HARDENING-2510): the preflight of the reset for the dialog. `allowed`
+ * false names the first refusal the reset would meet (`reason`): `self` (the caller's own account - use `disable`), `user_unknown`,
+ * `local_only` (`security.factor_reset_channel` = local and this request is remote), `reauth` (MFA-FACTOR-HARDEN-2520: a remote
+ * request whose session signed in more than 5 minutes ago - sign in again), `last_admin` (the last system administrator who
+ * can sign in remotely), `rate_limited` (3 resets per administrator per hour). `confirm_text` = what to type into `confirm` (the
+ * username, else the user id). `remote` = this request came from outside. `must_enroll_after` = the user's factor policy requires a
+ * factor, so their next remote sign-in goes to enrolment. `step_up` = the once-action details (the administrator's own proof).
+ */
+export interface FactorResetCheck {
+  user_id: string;
+  allowed: boolean;
+  reason: "last_admin" | "local_only" | "rate_limited" | "reauth" | "self" | "user_unknown" | null;
+  confirm_text: string;
+  channel: "any" | "local";
+  remote: boolean;
+  resets_left: number;
+  rate_max: number;
+  factors: ResetFactors;
+  must_enroll_after: boolean;
+  step_up: OnceStepUp;
+}
+
+/**
  * A signed-in answer (the session cookie is set): the user, whether a second factor must still be enrolled, whether the password
  * must be changed now, and the session's lifetime in seconds.
  */
@@ -54,6 +77,15 @@ export interface LocalSignInUser {
   username: string;
   display_name: string;
   source: "local";
+}
+
+/** The once-action's step-up details (services/step_up.once_details): verify with this action, then send the request once. */
+export interface OnceStepUp {
+  action: string;
+  methods: ("device_key" | "passkey" | "totp")[];
+  minutes: number;
+  once: boolean;
+  verify_path: string;
 }
 
 /**
@@ -158,6 +190,14 @@ export interface RequestOptions {
   allowCredentials: CredentialDescriptor[];
 }
 
+/** What a reset would remove now: the authenticator code (active or pending), passkeys, active phone keys, unused recovery codes. */
+export interface ResetFactors {
+  totp: boolean;
+  passkeys: number;
+  device_keys: number;
+  recovery_codes: number;
+}
+
 /**
  * `POST /auth/step-up/challenge` (MFA-PASSKEYS-2490): a passkey step-up for the caller - the challenge's public id (sent back with the
  * assertion to `POST /auth/step-up/verify {method: "passkey", challenge_id, assertion, action?}`), the action it is bound to, how
@@ -171,13 +211,19 @@ export interface StepUpChallenge {
   webauthn: AssertionOptions;
 }
 
-/** `DELETE /identity/local-users/{id}/passkeys/{pk_id}`: the user id, what the removal did, then the summary. */
+/**
+ * `DELETE /identity/local-users/{id}/passkeys/{pk_id}`: the user id, what the removal did, then the summary. MFA-PASSKEY-ADMIN-
+ * REMOVE-2520 (additive): `must_enroll` = the removal took the user's last sign-in factor, so they enrol again (as after a reset);
+ * `resets_left` = the administrator's resets / removals left this hour (one budget with the factor reset).
+ */
 export interface UserPasskeyRemoved {
   user_id: string;
   removed: string;
   sessions_ended: number;
   passkey_first: boolean;
   factor_cleared: boolean;
+  must_enroll: boolean;
+  resets_left: number;
   available: boolean;
   rp_id: string | null;
   origin: string | null;
@@ -217,5 +263,6 @@ export interface LocalPasskeysRoutes {
   "POST /api/v1/auth/step-up/challenge": StepUpChallenge;
   "PUT /api/v1/identity/local-users/{user_id}/passkey-only": UserPasskeys;
   "GET /api/v1/identity/local-users/{user_id}/passkeys": UserPasskeys;
+  "GET /api/v1/identity/local-users/{user_id}/passkeys/{pk_id}/remove-check": FactorResetCheck;
   "DELETE /api/v1/identity/local-users/{user_id}/passkeys/{pk_id}": UserPasskeyRemoved;
 }

@@ -230,7 +230,7 @@ def test_n5_the_passkey_removal_of_an_arx_only_identity_from_a_stale_administrat
     assert _notices(px.db, uid) == []
     px.client.cookies.clear()
     remote_admin = _remote_admin(px)  # signed in again (a new sign-in, not the old cookie)
-    r = remote_admin.delete(f"/arx/api/v1/identity/local-users/{uid}/passkeys/{pk}")
+    r = remote_admin.request("DELETE", f"/arx/api/v1/identity/local-users/{uid}/passkeys/{pk}", json={"confirm": "maria"})
     assert r.status_code == 200, r.text
     told = _notices(px.db, uid)  # N-6: the identity hears its passkey went
     assert len(told) == 1 and "מפתח גישה הוסר" in told[0]["body"]

@@ -465,7 +465,7 @@ def test_an_administrator_removes_a_users_passkey_and_every_session_ends(px):
     px.admin.get("/api/v1/me", headers={"X-SW-Dev-User": "dana"})
     px.bind("dev-dana", "viewer")
     assert px.admin.delete(f"/api/v1/identity/local-users/{uid}/passkeys/{pk}", headers={"X-SW-Dev-User": "dana"}).status_code == 403
-    r = px.admin.delete(f"/api/v1/identity/local-users/{uid}/passkeys/{pk}")
+    r = px.admin.request("DELETE", f"/api/v1/identity/local-users/{uid}/passkeys/{pk}", json={"confirm": "maria"})  # MFA-PASSKEY-ADMIN-REMOVE-2520
     assert r.status_code == 200 and r.json()["sessions_ended"] == 1
     assert c.get("/arx/api/v1/me").status_code == 401
     assert px.audit("identity.local.user.passkey_removed")

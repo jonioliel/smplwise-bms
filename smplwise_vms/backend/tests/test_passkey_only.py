@@ -98,7 +98,7 @@ def test_the_last_usable_passkey_cannot_be_removed_while_the_mode_is_on(px):
     pk = c.get(OWN).json()["credentials"][0]["id"]
     r = c.delete(f"{OWN}/{pk}")
     assert r.status_code == 409 and r.json()["code"] == "passkey_only_last"
-    r = px.admin.delete(f"/api/v1/identity/local-users/{uid}/passkeys/{pk}")
+    r = px.admin.request("DELETE", f"/api/v1/identity/local-users/{uid}/passkeys/{pk}", json={"confirm": "maria"})  # MFA-PASSKEY-ADMIN-REMOVE-2520
     assert r.status_code == 409 and r.json()["code"] == "passkey_only_last"
     assert len(px.rows("SELECT id FROM auth_webauthn_credentials WHERE user_id = ?", (uid,))) == 1
     # a second passkey: one may go, the other then stays
@@ -129,7 +129,7 @@ def test_the_administrator_switches_it_on_and_off_and_off_is_the_recovery(px):
     assert r.status_code == 200 and r.json()["only_on"] is False
     assert px.sign_in(px.remote(), "maria").status_code == 202  # password + the passkey as the second step
     pk = c.get(OWN).json()["credentials"][0]["id"]
-    assert px.admin.delete(f"/api/v1/identity/local-users/{uid}/passkeys/{pk}").status_code == 200
+    assert px.admin.request("DELETE", f"/api/v1/identity/local-users/{uid}/passkeys/{pk}", json={"confirm": "maria"}).status_code == 200
     assert px.sign_in(px.remote(), "maria").status_code == 200
     # audit of every change, both trails
     assert [a["reason"] for a in px.audit("auth.local.passkey.only_enabled")] == ["admin"]
