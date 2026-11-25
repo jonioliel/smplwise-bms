@@ -10,7 +10,7 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import './messaging-pacing-card';
 import './messaging-policy-card';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, problemsOf } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import { messagingAccountsApi, type PacingKey, type QueuedMove, type WaAccount, type WaUse, type WaWarning, type WhatsappView } from '../api/messaging-accounts';
 import { settingsStyles } from '../styles/settings';
@@ -388,7 +388,7 @@ export class SystemMessagingAccounts extends LitElement {
       if (e instanceof ApiError && e.code === 'queued_messages') {
         this.confirm = ((e.body.details?.moves as QueuedMove[] | undefined) ?? []);
       } else if (e instanceof ApiError && e.code === 'validation') {
-        const fields = (e.body.details?.fields as { code: string; field: string }[] | undefined) ?? [];
+        const fields = problemsOf(e); // ADR-019 (ADR019-FAMILY45-2520): the shared reader (`details.problems`, the legacy `fields` objects)
         this.fieldErrors = Object.fromEntries(fields.map((f) => [f.field, wt(`err_${f.code}` as WaTextKey)]));
         this.error = describeError(e);
       } else {

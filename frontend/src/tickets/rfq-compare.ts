@@ -11,7 +11,7 @@ import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
-import { ApiError } from '../api/client';
+import { ApiError, problemsOf } from '../api/client';
 import type { LineKind } from '../api/tickets-costs';
 import { ticketsRfqApi, type RfqAwardAnswer, type RfqAwardBody, type RfqAwardNoticePreview, type RfqCompareQuote, type RfqComparison, type RfqDetail, type RfqMessageDraft, type RfqMeta, type RfqVendor } from '../api/tickets-rfq';
 import { formatMoney } from './cost-model';
@@ -186,8 +186,8 @@ export class TicketsRfqCompare extends LitElement {
   /** Review F3/F4: a refusal on the schedule (`payment*` field - a proposal that no longer fits the approved total or has a past date)
    * opens that quote's editor prefilled with the proposal, so the manager fixes it instead of guessing. */
   private openEditorOn(e: unknown, q: RfqCompareQuote | undefined): void {
-    const fields = e instanceof ApiError ? (e.body.details?.fields as { field?: string }[] | undefined) : undefined;
-    if (!q || !this.termsOn() || this.pays.has(q.quote_id) || !fields?.some((f) => String(f.field ?? '').startsWith('payment'))) return;
+    const fields = problemsOf(e); // ADR-019 (ADR019-FAMILY45-2520): the shared reader (`details.problems`, the legacy `fields` objects)
+    if (!q || !this.termsOn() || this.pays.has(q.quote_id) || !fields.some((f) => f.field.startsWith('payment'))) return;
     this.setPay(q.quote_id, payFromProposal(q.payment_proposal));
     this.error = rt('pyInvalid');
   }

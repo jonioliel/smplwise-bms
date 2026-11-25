@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from ...audit import audit
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import INSTALLATION, Principal
 from . import access, fields, model, money, org_locations, quotes, rfq_award_notice, rfq_files, rfq_links, rfq_notify, rfq_terms, settings_doc, store, store_links, store_quotes, store_rfq
 from .access import ALL_DEPARTMENTS, CREATE, DELETE, EXTERNAL, VIEW, Viewer, text
@@ -113,7 +113,7 @@ def _err(conn, status: int, code: str, **details: Any) -> ApiError:
 
 
 def invalid(conn, field_name: str, code: str) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field_name, "code": code}]})
+    return field_error(text(conn, "ערך לא תקין."), problems=[{"field": field_name, "code": code}])
 
 
 def refuse(conn, viewer: Viewer, action: str, row: Mapping[str, Any] | None, reason: str, rid: str | None = None, **details: Any) -> ApiError:

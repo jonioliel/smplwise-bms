@@ -53,10 +53,16 @@ def _rel(path: Path, root: Path) -> str:
 
 
 PUBLIC_APP = ("services/tickets/public_",)  # CR-038: the second, public FastAPI app with its own `{code, ...}` answers
+# ADR019-FAMILY45-2520: the refusals the public app answers as they are (`{code, fields: [{field, code}]}`, no message), raised in shared
+# ticket / access services outside `public_*` modules. ADR-019 D1 leaves the public vocabulary as it is, so these count with the public
+# app, not with their module's family. A class name alone where it is unique; `Refused` per module (tickets/attachments has a
+# main-app `Refused`).
+PUBLIC_VOCABULARY = {"PublicError", "VendorRefused", "ActionRefused"}
+PUBLIC_VOCABULARY_AT = {("services/tickets/rfq_vendor_files.py", "Refused"), ("services/access_arrival.py", "Refused")}
 
 
-def _layer(rel: str) -> str:
-    if rel.startswith(PUBLIC_APP):
+def _layer(rel: str, callee: str | None = None) -> str:
+    if rel.startswith(PUBLIC_APP) or callee in PUBLIC_VOCABULARY or (rel, callee) in PUBLIC_VOCABULARY_AT:
         return "public_app"
     if rel.startswith("routers/"):
         return "router"
@@ -255,7 +261,7 @@ def scan_errors(root: Path) -> dict[str, list[dict[str, Any]]]:
             if isinstance(node, ast.Call):
                 s = _error_site(node)
                 if s:
-                    s.update(module=rel, line=node.lineno, layer=_layer(rel))
+                    s.update(module=rel, line=node.lineno, layer=_layer(rel, s["callee"]))
                     sites.append(s)
                 j = _json_response_site(node)
                 if j:

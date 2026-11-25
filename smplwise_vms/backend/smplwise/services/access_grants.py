@@ -62,7 +62,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
 from ..db import Database, get_setting, permission_revision, set_setting
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import confirm_words
 from . import intercom_authority as ia
@@ -416,7 +416,7 @@ def settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
 # ---------------------------------------------------------------- errors
 
 def _invalid(field_name: str, code: str, text: str = "הבקשה אינה תקינה.") -> ApiError:
-    return ApiError(422, "access_grant_invalid", text, details={"field": field_name, "code": code})
+    return field_error(text, problems=[{"field": field_name, "code": code}], code="access_grant_invalid", legacy={"field": field_name, "code": code})
 
 
 def _conflict(code: str, text: str, **details: Any) -> ApiError:
@@ -1208,7 +1208,7 @@ def revoke_all(db: Database, principal: Principal, confirm: str, request_id: str
             raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לבטל את כל הגישות.")
         confirm_word = confirm_words.typed_lang("access_revoke_all", confirm)
         if confirm_word is None:
-            raise ApiError(422, "confirm_required", f"כדי לבטל את כל הגישות יש להקליד \"{REVOKE_ALL_WORD}\".", details={"field": "confirm"})
+            raise field_error(f"כדי לבטל את כל הגישות יש להקליד \"{REVOKE_ALL_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks})", LIVE).fetchall()]
         for g in rows:
@@ -1314,7 +1314,7 @@ def delete_person_now(db: Database, principal: Principal, link_id: str, confirm:
             raise _conflict("access_person_not_ours", "האדם נוצר במערכת הכניסה ולא על ידי Arx; מחיקה רק ממסך האנשים.")
         confirm_word = confirm_words.typed_lang("access_delete_person", confirm)
         if confirm_word is None:
-            raise ApiError(422, "confirm_required", f"כדי למחוק יש להקליד \"{DELETE_WORD}\".", details={"field": "confirm"})
+            raise field_error(f"כדי למחוק יש להקליד \"{DELETE_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"})
         marks = ",".join("?" * len(LIVE))
         for r in conn.execute(f"SELECT * FROM access_grants WHERE link_id = ? AND state IN ({marks})", (link_id, *LIVE)).fetchall():
             mark_revoking(conn, dict(r), "person_deleted", actor=principal, request_id=request_id)

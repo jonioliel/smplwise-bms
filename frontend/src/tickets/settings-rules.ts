@@ -9,7 +9,7 @@ import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, problemsOf } from '../api/client';
 import { ticketsRulesApi } from '../api/tickets-rules';
 import { ticketSettingsCss } from './settings-styles';
 import {
@@ -196,8 +196,8 @@ export class TicketsRulesSettings extends LitElement {
         await this.load();
         this.notice({ error: rlt('stale') });
       } else if (e instanceof ApiError && e.status === 422) {
-        const fields = (e.body.details?.fields ?? []) as { field: string; code: string }[];
-        this.serverErr = serverProblems(fields, opts.index ?? null);
+        // ADR-019 (ADR019-FAMILY45-2520): the shared reader (`details.problems`, the legacy `fields` objects)
+        this.serverErr = serverProblems(problemsOf(e), opts.index ?? null);
         if (!Object.keys(this.serverErr).length) this.notice({ error: describeError(e) });
       } else {
         this.notice({ error: describeError(e) });
@@ -288,7 +288,7 @@ export class TicketsRulesSettings extends LitElement {
     } catch (e) {
       if (e instanceof ApiError && e.status === 422 && this.draft) {
         this.tried = true;
-        this.serverErr = serverProblems((e.body.details?.fields ?? []) as { field: string; code: string }[], null);
+        this.serverErr = serverProblems(problemsOf(e), null);
       } else {
         this.notice({ error: describeError(e) });
       }

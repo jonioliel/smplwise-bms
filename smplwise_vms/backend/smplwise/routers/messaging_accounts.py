@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, require
 from ..services import ha_client
 from ..services import messaging_accounts_store as store
@@ -93,7 +93,8 @@ class WhatsappBody(BaseModel):
 
 
 def _problems(problems: list[dict[str, str]]) -> ApiError:
-    return ApiError(422, "validation", "ערך לא תקין.", details={"fields": problems})
+    """ADR-019 (ADR019-FAMILY45-2520): the `{field, code}` problems ride in `details.problems`; `details.fields` names them."""
+    return field_error("ערך לא תקין.", problems=problems)
 
 
 def _keep_last4(new: ma.MappingDoc, current: ma.MappingDoc) -> ma.MappingDoc:

@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error, named_field_error
 from ..rbac import INSTALLATION, Principal, require
 from ..services import notify_whatsapp as wa
 from ..services.notify_visibility import MANAGE
@@ -33,7 +33,7 @@ _TOKEN = re.compile(r"[0-9a-f]{16}")
 
 
 def _err(exc: wa.ConfigInvalid) -> ApiError:
-    return ApiError(exc.status, exc.code, exc.message, retryable=exc.status == 429, details=exc.details)
+    return named_field_error(exc.status, exc.code, exc.message, exc.details, retryable=exc.status == 429)  # ADR-019: + `fields`
 
 
 @router.get("/notify/whatsapp")
@@ -96,7 +96,7 @@ def set_my_whatsapp(request: Request, body: dict[str, Any] = Body(...), principa
     elif (keys == {"opted_in"} and body["opted_in"] is False) or (keys == {"opted_out"} and body["opted_out"] is True):
         want = False  # withdrawing never needs a token
     else:
-        raise ApiError(422, "validation", "אישור דורש opted_in: true עם confirm מהקריאה האחרונה; ביטול: opted_in: false.", details={"field": "confirm"})
+        raise field_error("אישור דורש opted_in: true עם confirm מהקריאה האחרונה; ביטול: opted_in: false.", ["confirm"], legacy={"field": "confirm"})
     digits = None
     if want:
         found = wa.raw_number(conn, principal.user_id)

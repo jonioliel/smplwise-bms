@@ -53,7 +53,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, read_gate, settings_of
 from ..db import Database
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import INSTALLATION, Principal, authorize, note_grant
 from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
@@ -379,7 +379,10 @@ def _draft(where: str, data: BaseModel, *, act: _Act | None = None) -> dict[str,
     try:
         sw.normalize(raw)
     except sw.DraftError as exc:
-        err = ApiError(422, "schedule_invalid_draft", f"{where}: {sw.reason(exc.code)}.", details={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code), "field": exc.where})
+        # ADR-019 (ADR019-FAMILY45-2520): `fields` / `problems` name the draft path; the legacy `field` and the outcome keys stay
+        err = field_error(f"{where}: {sw.reason(exc.code)}.", problems=[{"field": exc.where, "code": exc.code}] if exc.where else None,
+                          code="schedule_invalid_draft", legacy={"field": exc.where},
+                          extra={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code)})
         raise (act.refuse(err) if act is not None else err) from None
     return raw
 

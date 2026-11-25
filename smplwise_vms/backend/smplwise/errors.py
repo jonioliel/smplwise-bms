@@ -201,6 +201,19 @@ def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[
     return cls(status, code, message, details=details)
 
 
+def named_field_error(status: int, code: str, message: str, details: dict[str, Any] | None = None, *, retryable: bool = False) -> ApiError:
+    """ADR-019 (ADR019-FAMILY45-2520): a service refusal translated by a router (`ApiError(exc.status, exc.code, exc.message,
+    details=exc.details)`) whose details name ONE field the legacy way (`details.field`) also answers the canonical `details.fields`;
+    the legacy key and every other detail stay. Details that already carry `fields` / `problems`, or name no field, pass unchanged."""
+    d = dict(details or {})
+    name = d.get("field")
+    if not isinstance(name, str) or not name or {"fields", "problems"} & set(d):
+        return ApiError(status, code, message, retryable=retryable, details=d)
+    err = field_error(message, [name], code=code, status=status, legacy={"field": d.pop("field")}, extra=d)
+    err.retryable = retryable
+    return err
+
+
 class ServiceInvalid(ValueError):
     """The common base of the services' validation errors - CR-CORE-HELPERS-2438 (code review 2026-11-13, 04:F16 step one).
 

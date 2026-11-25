@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services.tickets import access, org_locations, store_locations
 from ..services.tickets.access import Viewer, text
@@ -48,7 +48,8 @@ class DepartmentLocationBody(BaseModel):
 
 def _loc_invalid(conn: sqlite3.Connection, exc: Any) -> ApiError:
     if exc.code == "duplicate":
-        return ApiError(409, "location_name_taken", text(conn, "כבר קיים מיקום בשם הזה."), details={"fields": [{"field": "name", "code": "duplicate"}]})
+        return field_error(text(conn, "כבר קיים מיקום בשם הזה."), problems=[{"field": "name", "code": "duplicate"}], code="location_name_taken",
+                           status=409)
     return invalid(conn, exc.field, exc.code)
 
 

@@ -393,7 +393,7 @@ def test_only_the_requests_line_kinds(s4):
     d = sent_rfq(s4)
     v = vid(d, s4.vendor["id"])
     r = on_behalf(s4, d["id"], v, lines=QUOTE + [{"kind": "travel", "amount": "50"}])
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "lines.2.kind", "code": "line_kind_not_allowed"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "lines.2.kind", "code": "line_kind_not_allowed"}
 
 
 def test_who_may_be_invited(s4):
@@ -720,7 +720,7 @@ def test_a_ticket_purge_keeps_the_rfq_it_was_opened_from(s4):
 def test_a_source_ticket_the_caller_cannot_see_is_refused(s4):
     t = s4.w.create("cleo", "חלון שבור", dept=s4.w.cleaning)
     r = new_rfq(s4, "mona", vendors=[s4.vendor["id"]], source_ticket_id=t["id"])
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "source_ticket_id"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "source_ticket_id"
 
 
 # ---------------------------------------------------------------- guards

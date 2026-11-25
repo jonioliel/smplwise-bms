@@ -334,8 +334,11 @@ class PartnerApp:
             except reads.Invalid as exc:
                 raise Answer(422, {"code": "invalid", "fields": [{"field": exc.field, "code": exc.code}]}) from None
             except ApiError as exc:
+                # ADR-019 (ADR019-FAMILY45-2520): the tickets refusals carry their `{field, code}` in `details.problems` (`fields` = names);
+                # the partner answer keeps its own `fields: [{field, code}]` vocabulary
+                det = exc.details if isinstance(getattr(exc, "details", None), dict) else {}
                 fields = [{"field": str(p.get("field", "body"))[:64], "code": str(p.get("code", "invalid"))[:40]}
-                          for p in ((exc.details or {}).get("fields") or []) if isinstance(p, dict)] if isinstance(getattr(exc, "details", None), dict) else []
+                          for p in (det.get("problems") or det.get("fields") or []) if isinstance(p, dict)]
                 raise Answer(422, {"code": "invalid", "fields": fields or [{"field": "body", "code": "invalid"}]}) from None
             conn.execute("INSERT INTO partner_idempotency (token_id, key_hash, ticket_id, status, response_json, created_at) VALUES (?,?,?,?,?,?)",
                          (ctx.id, key_hash, answer.get("id"), status, json.dumps({"body_hash": body_hash, "answer": answer}), core.iso(core.utcnow())))

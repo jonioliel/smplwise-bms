@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import access_control_wa_queue_store as store
 from ..services import intercom_authority as ia
@@ -90,7 +90,10 @@ def put_installed_settings(request: Request, principal: Principal = Depends(base
     except Exception:  # noqa: BLE001
         raise ApiError(422, "validation", "גוף הבקשה אינו תקין.", details={"fields": ["body"]}) from None
     if not isinstance(body.send_pacing_v1, bool):
-        raise ApiError(422, "installed_settings_invalid", "ההגדרה אינה תקינה.", details={"errors": [{"path": "send_pacing_v1", "code": "not_a_boolean"}]})
+        issues = [{"path": "send_pacing_v1", "code": "not_a_boolean"}]
+        # ADR-019 (ADR019-FAMILY45-2520): `problems` / `fields` beside the legacy `errors` issue list
+        raise field_error("ההגדרה אינה תקינה.", problems=[{"field": i["path"], "code": i["code"]} for i in issues], code="installed_settings_invalid",
+                          legacy={"errors": issues})
     with request.app.state.db.write_aside() as w:
         before = wq.load_settings(w)["send_pacing_v1"]
         wq.store_settings(w, send_pacing_v1=body.send_pacing_v1)

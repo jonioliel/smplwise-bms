@@ -45,7 +45,7 @@ import logging
 from typing import Any, Mapping
 
 from ...audit import audit
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import INSTALLATION, authorize
 from . import access, codes as codes_mod, handler_links, settings_doc, store_links
 from .access import Viewer, text
@@ -393,7 +393,7 @@ def manager_confirm(conn, viewer: Viewer, contact_id: str, body: Any, rid: str |
     row = _admin_row(conn, viewer, contact_id)
     keys = set(body) if isinstance(body, dict) else set()
     if keys != {"confirm"} or not isinstance(body["confirm"], str) or not 0 < len(body["confirm"]) <= 64 or not body["confirm"].isascii():
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "confirm", "code": "type"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "confirm", "code": "type"}])
     if not row.get("phone_e164"):
         raise ApiError(409, "no_number", text(conn, "לא הוגדר מספר."))
     if row.get("user_id"):
@@ -441,7 +441,7 @@ def _tell_marked(conn, user_id: str) -> None:
 
 def _code_of(conn, body: Any) -> Any:
     if not isinstance(body, dict) or set(body) != {"code"}:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "code", "code": "shape"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "code", "code": "shape"}])
     return body["code"]
 
 

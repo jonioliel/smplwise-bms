@@ -134,7 +134,7 @@ def test_installation_values_of_links_send_hours_and_urgent(w, settings):
         ({"send_hours": {"from": "9", "to": "17:00"}}, "send_hours", "time"),
     ):
         r = w.c.put(f"{API}/tickets/settings", json={"revision": 1, **body})
-        assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": field, "code": code}, (body, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": field, "code": code}, (body, r.text)
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "links": {"sliding_days": "21"}}).status_code == 422, "strict integers"
     assert w.c.put(f"{API}/tickets/settings", json={"revision": 1, "links": {"days": 3}}).status_code == 422
     assert w.c.get(f"{API}/tickets/settings").json()["revision"] == 1, "nothing was written by the refusals"
@@ -184,7 +184,7 @@ def test_department_overrides_flags_and_the_effective_policy(w):
         ({"share_history_external": None}, "share_history_external", "required"),
     ):
         r = w.c.patch(f"{API}/tickets/admin/departments/{MAINT}", json={"revision": d["revision"], **bad})
-        assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": field, "code": code}, (bad, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": field, "code": code}, (bad, r.text)
     assert _dept(w)["revision"] == d["revision"], "nothing written"
     # the sliding override cleared: the installation's 14 days stand, so a 20-day cap is fine now
     r = w.c.patch(f"{API}/tickets/admin/departments/{MAINT}", json={"revision": d["revision"], "link_sliding_days": None, "link_cap_days": 20})
@@ -221,7 +221,7 @@ def test_sla_grid_edits_every_threshold_all_or_nothing(w):
     bad = {"rows": [{"priority_id": after["low"]["priority_id"], "revision": after["low"]["revision"], "ack_within_min": 60},
                     {"priority_id": after["high"]["priority_id"], "revision": after["high"]["revision"], "stuck_after_min": 0}]}
     r = w.c.put(f"{API}/tickets/admin/departments/{MAINT}/sla", json=bad)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "rows.1.stuck_after_min", "code": "range"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "rows.1.stuck_after_min", "code": "range"}]
     stale = {"rows": [{"priority_id": after["low"]["priority_id"], "revision": after["low"]["revision"], "ack_within_min": 60},
                       {"priority_id": urgent["priority_id"], "revision": urgent["revision"], "ack_within_min": 10}]}
     r = w.c.put(f"{API}/tickets/admin/departments/{MAINT}/sla", json=stale)
@@ -231,7 +231,7 @@ def test_sla_grid_edits_every_threshold_all_or_nothing(w):
     for rows_body, code in (([{"priority_id": other["priority_id"], "revision": other["revision"], "ack_within_min": 5}], "unknown"),
                             ([{"priority_id": urgent["priority_id"], "revision": after["urgent"]["revision"], "max_reminders": None}], "required")):
         r = w.c.put(f"{API}/tickets/admin/departments/{MAINT}/sla", json={"rows": rows_body})
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == code
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == code
     assert w.c.put(f"{API}/tickets/admin/departments/{MAINT}/sla", json={"rows": [{"priority_id": urgent["priority_id"], "revision": 1, "ack_within_min": "5"}]}).status_code == 422
 
 
@@ -311,7 +311,7 @@ def test_ticket_templates_with_the_audited_diff(w, settings):
                               ({"name": "x", "category_id": other_cat["id"]}, "category_id", "unknown"), ({"name": "x", "kind": "message"}, "kind", "not_supported"),
                               ({"name": "x", "title": "t" * 121}, "title", "too_long")):
         r = w.c.post(f"{API}/tickets/admin/departments/{MAINT}/templates", json=body)
-        assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": field, "code": code}, (body, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": field, "code": code}, (body, r.text)
     assert w.c.delete(f"{API}/tickets/admin/templates/{tpl['id']}").status_code == 200
     assert _dept(w)["templates"] == [] and _audit(w, "ticket.template.delete")[-1]["diff"].count("-") >= 3
     assert w.c.delete(f"{API}/tickets/admin/templates/{tpl['id']}").status_code == 404

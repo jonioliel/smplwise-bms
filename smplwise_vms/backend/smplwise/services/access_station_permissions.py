@@ -35,7 +35,7 @@ import uuid
 from typing import Any
 
 from ..db import Database, get_setting, now_iso, permission_revision
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin
 from . import access_grants as ag
 from . import intercom_authority as ia
@@ -70,7 +70,7 @@ def _off() -> ApiError:
 
 
 def _invalid(field_name: str, code: str) -> ApiError:
-    return ApiError(422, "station_permission_invalid", "הבקשה אינה תקינה.", details={"field": field_name, "code": code})
+    return field_error("הבקשה אינה תקינה.", problems=[{"field": field_name, "code": code}], code="station_permission_invalid", legacy={"field": field_name, "code": code})
 
 
 def _conflict(code: str, text: str, **details: Any) -> ApiError:

@@ -159,7 +159,7 @@ def test_bad_dates_are_refused_before_anything_is_written(s4, settings):
     from test_tickets_rfq import _at
 
     r = order(s4, d["id"], a["id"], work_from=_at(days=6), work_to=_at(days=5))
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "work_to", "code": "order"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "work_to", "code": "order"}
     with s4.db.connection(mode="read") as conn:
         assert conn.execute("SELECT COUNT(*) FROM tickets").fetchone()[0] == 0
 

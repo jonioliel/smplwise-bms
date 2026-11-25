@@ -549,6 +549,8 @@ def test_a_draft_wiskey_would_refuse_is_refused_first_with_wiskeys_code_and_noth
     bad = {**OFFICE, "weekly": week(Monday=[("08:00", "12:00"), ("11:00", "14:00")])}
     r = read(c, "check", data=bad, date="2026-11-03", time="08:00")
     assert r.status_code == 422 and r.json()["details"]["wiskey_code"] == "schedule_overlap" and r.json()["details"]["field"] == "weekly.Monday"
+    # ADR-019 (ADR019-FAMILY45-2520): the canonical keys beside the legacy `field` and the outcome keys
+    assert (r.json()["details"]["fields"], r.json()["details"]["problems"]) == (["weekly.Monday"], [{"field": "weekly.Monday", "code": "schedule_overlap"}])
     for broken, code in ((week(Monday=[("12:00", "08:00")]), "schedule_invalid_time"), ({**week(), "Funday": []}, "schedule_invalid_week"),
                          (week(Monday=[("08:00", "08:30")] * 9), "schedule_period_limit")):
         r = read(c, "check", data={**OFFICE, "weekly": broken}, date="2026-11-03", time="08:00")

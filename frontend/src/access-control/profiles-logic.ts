@@ -3,7 +3,7 @@
  * before anything is sent (WisKey's own limits: services/wiskey_profiles.normalize_draft), the diff the confirmation shows, the condition
  * graph, and how a reply / error is read. No DOM, no network: tests/unit-wiskey-profiles.spec.ts drives it directly.
  */
-import { ApiError } from '../api/client';
+import { ApiError, problemsOf as fieldProblemsOf } from '../api/client';
 import type { ApplyReply, DiffRow, FieldType, ImpactPerson, PolicyValues, ProfileField, ProfileGroup } from '../api/access-profiles';
 
 export const FIELDS_MAX = 12;
@@ -209,9 +209,8 @@ export function outcomeOf(err: unknown): { outcome: Outcome; code: string } {
 
 /** The server's per-path problems of a 422 `profiles_invalid_draft`. */
 export function problemsOf(err: unknown): Problems {
-  if (!(err instanceof ApiError)) return {};
-  const list = ((err.body?.details ?? {}) as { problems?: { path: string; code: string }[] }).problems ?? [];
-  return Object.fromEntries(list.map((p) => [p.path, p.code]));
+  // ADR-019 (ADR019-FAMILY45-2520): the shared reader - `problems` `{field, code}` (the draft path), the earlier `{path, code}` too
+  return Object.fromEntries(fieldProblemsOf(err).map((p) => [p.field, p.code]));
 }
 
 export type ResultTone = 'ok' | 'warn' | 'err';

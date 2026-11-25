@@ -106,7 +106,7 @@ def test_off_refuses_the_tick_before_anything_is_written_and_never_sends(s4):
     mode(s4, "off")
     d, v1, tok, c = quoted(s4)
     r = award(s4, d["id"], v1, award_notice=True)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "award_notice", "code": "disabled"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "award_notice", "code": "disabled"}], r.text
     assert rows(s4, "SELECT id FROM ticket_rfq_awards WHERE rfq_id = ?", d["id"]) == []  # nothing stored
     r = award(s4, d["id"], v1)
     assert r.status_code == 201 and r.json()["award_notice"] is None, r.text

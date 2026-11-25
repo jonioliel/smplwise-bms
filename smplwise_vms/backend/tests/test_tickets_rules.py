@@ -86,7 +86,7 @@ def audits(w, action: str) -> list[dict]:
 
 
 def fields(r) -> set[tuple[str, str]]:
-    return {(f["field"], f["code"]) for f in r.json()["details"]["fields"]}
+    return {(f["field"], f["code"]) for f in r.json()["details"]["problems"]}
 
 
 # ---------------------------------------------------------------- the document

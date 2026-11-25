@@ -19,7 +19,7 @@
  *   message_service_unavailable | 502 message_not_registered | 504 message_uncertain | 410 message_expired | 409 message_template_changed |
  *   409 message_disabled | 409 message_duplicate | 404 intercom_person_not_found.
  */
-import { ApiError, get, post, put } from './client';
+import { ApiError, get, post, problemsOf, put } from './client';
 import { commandId } from './request-id';
 import type { AcReply } from './access-people';
 import type { Consent, MessageDraft, MessagingConfig, MessagingTransport, PersonMessages, RecipientInfo, SendContext, SendFailure, SendResult } from '../access-control/messaging-logic';
@@ -227,8 +227,8 @@ export const putMessagingSettings = (doc: MessagingSettingsDoc) =>
 /** The per-field problems of a refused save (422 `message_settings_invalid`), or null for any other error. */
 export function settingsProblems(err: unknown): SettingsProblem[] | null {
   if (!(err instanceof ApiError) || err.code !== 'message_settings_invalid') return null;
-  const list = err.body.details?.errors;
-  return Array.isArray(list) ? (list as SettingsProblem[]).filter((p) => p && typeof p.path === 'string' && typeof p.code === 'string') : [];
+  // ADR-019 (ADR019-FAMILY45-2520): the shared reader - `details.problems` `{field, code}`, the legacy `errors` `{path, code}` second
+  return problemsOf(err).map((p) => ({ path: p.field, code: p.code }));
 }
 
 export const isSettingsConflict = (err: unknown): boolean => err instanceof ApiError && err.code === 'message_settings_conflict';

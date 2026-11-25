@@ -241,7 +241,7 @@ def test_allowed_kinds_default_to_labor_and_parts_and_follow_request_department_
     assert s4.c.put(f"{API}/tickets/costs/departments/dept-maintenance", json={"cost_claim": "optional"}).status_code == 200
     assert quotes_of(s4, t["id"])["allowed_line_kinds"]["kinds"] == ["labor", "parts", "travel"]
     r = s4.c.put(f"{API}/tickets/{t['id']}/allowed-line-kinds", json={"kinds": ["parts"]})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "labor_required"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == "labor_required"
     r = s4.c.put(f"{API}/tickets/{t['id']}/allowed-line-kinds", json={"kinds": ["other", "labor"]})
     assert r.status_code == 200 and r.json()["allowed_line_kinds"] == {"kinds": ["labor", "other"], "level": "request"}
     r = vendor_quote(client, token, lines=[{"kind": "other", "amount": "10"}])

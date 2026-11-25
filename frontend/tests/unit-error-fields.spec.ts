@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { ApiError, fieldsOf, problemsOf, type ApiErrorBody, type FieldProblem } from '../src/api/client';
 import { fieldErrors } from '../src/api/insights';
 import { errorLine } from '../src/screens/nvr-cameras-edit';
+import { settingsProblems } from '../src/api/access-messaging';
+import { outcomeOf as scheduleOutcomeOf } from '../src/api/schedule-writes';
+import { problemsOf as draftProblemsOf } from '../src/access-control/profiles-logic';
+import { serverProblems } from '../src/tickets/rules-model';
 
 // ADR019-STEP0-2500 (ADR-019 Step 0, item 3): the one field-error reader. `fieldsOf` / `problemsOf` read the canonical
 // `details.fields` (names) and `details.problems` ({field, code, message?}) first and every legacy form second: `field`, `key`,
@@ -88,4 +92,37 @@ test('family 3 screen reader: the NVR stream editor names the refused field thro
   expect(line({ field: 'gop' })).toBe(want); // an older server: the legacy key alone
   expect(line({ fields: ['not_a_stream_field'] })).toBe('הערך אינו נתמך במצלמה.');
   expect(errorLine({ status: 422, code: 'field_locked', details: { fields: ['gop'] } }).text).toBe('השדה נעול כרגע.');
+});
+
+test('family 4 readers: the tickets / messaging-accounts `{field, code}` lists read through problemsOf (canonical, legacy objects)', () => {
+  const canonical = err({ fields: ['rules[0].title'], problems: [{ field: 'rules[0].title', code: 'placeholder' }] });
+  const legacy = err({ fields: [{ field: 'rules[0].title', code: 'placeholder' }] });
+  for (const e of [canonical, legacy]) {
+    expect(problemsOf(e)).toEqual([{ field: 'rules[0].title', code: 'placeholder' }]);
+    expect(fieldsOf(e)).toEqual(['rules[0].title']);
+    expect(serverProblems(problemsOf(e), 0)).toEqual(serverProblems([{ field: 'rules[0].title', code: 'placeholder' }], 0));
+  }
+  // two problems of one field: `fields` names it once, `problems` keeps both (the message-template body checks)
+  const two = err({ fields: ['body'], problems: [{ field: 'body', code: 'too_long' }, { field: 'body', code: 'link_required' }] });
+  expect(fieldsOf(two)).toEqual(['body']);
+  expect(problemsOf(two).map((p) => p.code)).toEqual(['too_long', 'link_required']);
+  // a 409 that only names a field (module_key_missing): no problem, so the contacts line stays the plain message
+  expect(problemsOf(err({ fields: ['phone'], field: 'phone' }, 409, 'module_key_missing'))).toEqual([]);
+});
+
+test('family 5 readers: access messaging settings, profile drafts and schedule writes (canonical, legacy, both)', () => {
+  const issues = [{ path: 'templates.1.body', code: 'credential' }];
+  const canonical = { fields: ['templates.1.body'], problems: [{ field: 'templates.1.body', code: 'credential' }] };
+  for (const details of [canonical, { ...canonical, errors: issues }, { errors: issues }]) {
+    expect(settingsProblems(err(details, 422, 'message_settings_invalid'))).toEqual(issues);
+  }
+  expect(settingsProblems(err(canonical, 422, 'validation'))).toBeNull();
+  const draft = { fields: ['fields.0.label'], problems: [{ field: 'fields.0.label', code: 'label' }] };
+  expect(draftProblemsOf(err(draft, 422, 'profiles_invalid_draft'))).toEqual({ 'fields.0.label': 'label' });
+  expect(draftProblemsOf(err({ problems: [{ path: 'fields.0.label', code: 'label' }] }, 422, 'profiles_invalid_draft'))).toEqual({ 'fields.0.label': 'label' });
+  const sched = { outcome: 'not_sent', wiskey_code: 'schedule_overlap', reason: 'x' };
+  for (const details of [{ ...sched, field: 'weekly.Monday', fields: ['weekly.Monday'], problems: [{ field: 'weekly.Monday', code: 'schedule_overlap' }] },
+    { ...sched, field: 'weekly.Monday' }]) {
+    expect(scheduleOutcomeOf(err(details, 422, 'schedule_invalid_draft'))).toMatchObject({ status: 'not_sent', code: 'schedule_overlap', field: 'weekly.Monday' });
+  }
 });

@@ -9,7 +9,7 @@ import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, problemsOf } from '../api/client';
 import { ticketsApi } from '../api/tickets';
 import { ticketsLocationsApi, type LocationsAdminAnswer, type OrgLocationAdmin, type PlanAreaOption } from '../api/tickets-locations';
 import { ticketSettingsCss } from './settings-styles';
@@ -184,7 +184,7 @@ export class TicketsLocationsSettings extends LitElement {
       this.serverErr = { name: 'duplicate' };
       return true;
     }
-    const fields = (e.body.details?.fields ?? []) as { field: string; code: string }[];
+    const fields = problemsOf(e); // ADR-019 (ADR019-FAMILY45-2520): the shared reader (`details.problems`, the legacy `fields` objects)
     const out: Partial<Record<LocationField, LocationProblem>> = {};
     for (const f of fields) {
       const p = serverProblem(f.code);
