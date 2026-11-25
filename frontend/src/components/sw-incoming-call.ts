@@ -100,9 +100,9 @@ export class SwIncomingCall extends LitElement {
         animation: pulse 1.6s ease-in-out infinite;
       }
     }
+    /* OVERLAY-FADE-2520: the call card drops in by transform only - the caller's name and the keys are at full contrast from the first frame */
     @keyframes enter {
       from {
-        opacity: 0;
         transform: translateY(-8px) scale(0.98);
       }
     }

@@ -151,15 +151,14 @@ export class SwRoomCard extends LitElement {
     :host([place='sheet'][sheet='full']) {
       block-size: 86%;
     }
+    /* OVERLAY-FADE-2520: the card arrives by translate / scale only - its texts are at full contrast from the first frame */
     @keyframes side-in {
       from {
-        opacity: 0;
         translate: -16px 0;
       }
     }
     @keyframes pop-in {
       from {
-        opacity: 0;
         scale: 0.97;
       }
     }
@@ -168,14 +167,10 @@ export class SwRoomCard extends LitElement {
         translate: 0 100%;
       }
     }
-    @keyframes fade-in {
-      from {
-        opacity: 0;
-      }
-    }
+    /* reduced motion: nothing travels and nothing fades (it used to cross-fade in, below contrast) - the card is simply there */
     @media (prefers-reduced-motion: reduce) {
       :host {
-        animation: fade-in 160ms ease !important;
+        animation: none !important;
         transition: none !important;
       }
     }

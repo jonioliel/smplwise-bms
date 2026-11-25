@@ -44,9 +44,11 @@ const toMin = (v: string) => {
 /** Shared look of the two floating surfaces: the anchored popover (desktop / tablet) and the bottom sheet (phone). */
 const overlayCss = css`
   :host { position: fixed; inset: 0; z-index: var(--sw-z-modal); pointer-events: none; display: block; }
+  /* OVERLAY-FADE-2520: the popover lands by transform only - its texts are at full contrast from the first frame. Mounted only while open:
+     there is no exit (the element is removed). */
   .pop { position: fixed; pointer-events: auto; background: var(--sw-menu-surface); border: 1px solid var(--sw-menu-border); border-radius: var(--sw-r-xl); box-shadow: var(--sw-shadow-3);
-    opacity: 0; transform: scale(0.96); transition: opacity 160ms var(--sw-ease-dialog), transform 160ms var(--sw-ease-dialog); }
-  .pop.in { opacity: 1; transform: none; }
+    transform: scale(0.96); transition: transform 160ms var(--sw-ease-dialog); }
+  .pop.in { transform: none; }
   .pop.instant { transition: none; }
   .scrim { position: fixed; inset: 0; background: var(--sw-overlay); pointer-events: auto; opacity: 0; transition: opacity 220ms ease; }
   .scrim.in { opacity: 1; }
@@ -71,10 +73,11 @@ const overlayCss = css`
   .x { inline-size: 32px; min-block-size: 32px; border: 0; background: transparent; }
   /* ROUND4-LEFTOVERS-2390 (D22 review): the popover also opens on a touch tablet - its close key is a 44 px target there */
   @media (pointer: coarse) { .x { inline-size: 44px; min-block-size: 44px; } }
+  /* reduced motion: nothing travels and nothing fades (OVERLAY-FADE-2520: the sheet's cross-fade put its texts below contrast) - both
+     surfaces are simply there */
   @media (prefers-reduced-motion: reduce) {
     .pop, .pop.in { transform: none; }
-    .sheet, .sheet.in { transform: none; transition: opacity 200ms ease; }
-    .sheet:not(.in) { opacity: 0; }
+    .sheet, .sheet.in { transform: none; transition: none; }
   }
 `;
 

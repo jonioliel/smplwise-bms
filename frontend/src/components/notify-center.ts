@@ -114,9 +114,12 @@ export class NotifyCenter extends LitElement {
         transform: translateX(32px);
         transition: opacity var(--mm-motion) var(--mm-ease), transform 300ms var(--mm-ease);
       }
+      /* OVERLAY-FADE-2520: the entrance moves by transform only (no opacity in the open state's transition: the centre's texts are at full
+         contrast from the first frame); the exit above still fades - the closed panel is inert (render) and the host takes no pointer */
       :host([open]) .panel {
         opacity: 1;
         transform: none;
+        transition: transform 300ms var(--mm-ease);
       }
       /* the full-screen presentation of a wide screen (notify.center_layout = 'page'): the content column beside the rail */
       :host([data-presentation='page']) .panel {
@@ -313,7 +316,12 @@ export class NotifyCenter extends LitElement {
         block-size: 1px;
         background: var(--dv-border);
       }
+      /* OVERLAY-FADE-2520 (question C a): the "requires approval" heading is text - the danger TEXT token (light #b91c1c, dark #ff8a82:
+         >= 4.5:1 on the menu surface); the severity fill colour read 3.76:1. The siren keeps the severity colour (a graphic, 3:1 is enough). */
       .gh.pin {
+        color: var(--sw-danger-text);
+      }
+      .gh.pin .ic {
         color: var(--nt-sev-critical);
       }
       .gh .ic {
@@ -491,7 +499,8 @@ export class NotifyCenter extends LitElement {
       @media (prefers-reduced-motion: reduce) {
         /* the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
         :host,
-        .panel {
+        .panel,
+        :host([open]) .panel {
           transition: none;
         }
         .dlg,

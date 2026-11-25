@@ -485,24 +485,20 @@ export const roomPillStyles = css`
     animation: rp-in 150ms var(--sw-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
     transform-origin: top center;
   }
+  /* OVERLAY-FADE-2520: the room pop-over opens by scale only - its texts are at full contrast from the first frame; under reduced motion
+     it is simply there (it used to cross-fade in, below contrast) */
   @keyframes rp-in {
     from {
-      opacity: 0;
       scale: 0.97;
     }
   }
   @media (prefers-reduced-motion: reduce) {
     .rpop {
-      animation: rp-fade 150ms ease;
+      animation: none;
     }
     .rp,
     .ltag {
       transition: none;
-    }
-  }
-  @keyframes rp-fade {
-    from {
-      opacity: 0;
     }
   }
   .rpop h3 {

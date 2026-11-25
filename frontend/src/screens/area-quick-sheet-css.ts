@@ -52,9 +52,11 @@ export const areaQuickSheetStyles = [
         will-change: transform;
         transition: transform var(--qc-close-ms) var(--sw-ease-out), opacity var(--qc-close-ms) var(--sw-ease-out), inline-size var(--qc-open-ms) var(--qc-spring), visibility 0s linear var(--qc-close-ms);
       }
+      /* OVERLAY-FADE-2520: the entrance moves only (no opacity in the open state's transition: the panel and its texts are at full contrast
+         from the first frame they are visible); the exit above may still fade the pop-up - a closed panel is inert (render) */
       :host([open]) .panel {
         visibility: visible;
-        transition: transform var(--qc-open-ms) var(--qc-spring), opacity 200ms var(--sw-ease-dialog), inline-size var(--qc-open-ms) var(--qc-spring), visibility 0s;
+        transition: transform var(--qc-open-ms) var(--qc-spring), inline-size var(--qc-open-ms) var(--qc-spring), visibility 0s;
       }
       /* ---- drawer: the inline start (right in Hebrew) ---- */
       :host([mode='drawer']) .panel {
@@ -100,8 +102,12 @@ export const areaQuickSheetStyles = [
       :host([mode='popup'][data-expanded]) .panel {
         inline-size: var(--qc-pop-w-wide);
       }
-      :host([mode='popup'][open][data-shown]) .panel {
+      /* OVERLAY-FADE-2520: opaque as soon as it opens - the first painted frame is the pressed element's box (the FLIP start), at full
+         contrast; then it springs to the centre */
+      :host([mode='popup'][open]) .panel {
         opacity: 1;
+      }
+      :host([mode='popup'][open][data-shown]) .panel {
         transform: translateY(-50%);
       }
       /* ---- bottom sheet (phone): three detents, dragged ---- */
@@ -370,7 +376,8 @@ export const areaQuickSheetStyles = [
       :host([data-expanded]) .cols > .note {
         column-span: all;
       }
-      /* the content focuses in as the panel lands */
+      /* the content settles in as the panel lands. OVERLAY-FADE-2520: by transform only - no fade, so no text waits below contrast through
+         its stagger delay */
       :host([open][data-shown]) .cols > * {
         animation: qc-in var(--qc-open-ms) var(--sw-ease-dialog) both;
       }
@@ -385,7 +392,6 @@ export const areaQuickSheetStyles = [
       }
       @keyframes qc-in {
         from {
-          opacity: 0;
           transform: translateY(6px);
         }
       }
@@ -701,7 +707,8 @@ export const areaQuickSheetStyles = [
           border-color: var(--sw-text-2);
         }
       }
-      /* ---- reduced motion: a short cross-fade, no travel, no spring ---- */
+      /* ---- reduced motion: no travel, no spring. OVERLAY-FADE-2520: the panel is there at once, at full contrast (it used to cross-fade
+         in); only the exit keeps its short fade - a closed panel is inert (render) ---- */
       @media (prefers-reduced-motion: reduce) {
         .panel,
         :host([open]) .panel,
@@ -711,11 +718,11 @@ export const areaQuickSheetStyles = [
           transition: opacity 160ms var(--sw-ease), visibility 0s linear 160ms !important;
           opacity: 0;
         }
-        :host([mode='drawer'][open][data-shown]) .panel,
-        :host([mode='popup'][open][data-shown]) .panel,
-        :host([mode='sheet'][open][data-shown]) .panel {
+        :host([mode='drawer'][open]) .panel,
+        :host([mode='popup'][open]) .panel,
+        :host([mode='sheet'][open]) .panel {
           opacity: 1;
-          transition: opacity 160ms var(--sw-ease), visibility 0s !important;
+          transition: none !important;
         }
         :host([mode='drawer']) .panel {
           transform: none;

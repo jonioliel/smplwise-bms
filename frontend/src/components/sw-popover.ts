@@ -98,9 +98,9 @@ export class SwPopover extends LitElement {
     footer:not(:has(*)) {
       display: none;
     }
+    /* OVERLAY-FADE-2520: the popover lands by transform only - its texts are at full contrast from the first frame */
     @keyframes pop {
       from {
-        opacity: 0;
         transform: translateY(4px);
       }
     }

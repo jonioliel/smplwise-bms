@@ -222,15 +222,15 @@ export abstract class AutomationEditorBase extends LitElement {
       dialog.sheet::backdrop {
         background: var(--sw-overlay);
       }
+      /* OVERLAY-FADE-2520: the editor sheet lands (desktop) or rises (phone) by transform only - its texts are at full contrast from the
+         first frame; the ::backdrop holds no text */
       @keyframes rin {
         from {
-          opacity: 0;
           transform: scale(0.96) translateY(6px);
         }
       }
       @keyframes rup {
         from {
-          opacity: 0;
           transform: translateY(40px);
         }
       }
@@ -635,9 +635,9 @@ export abstract class AutomationEditorBase extends LitElement {
         max-block-size: min(560px, calc(100% - 110px));
         animation: pop 180ms var(--ab-ease);
       }
+      /* OVERLAY-FADE-2520: the type and picker pop-overs open by transform only (full contrast from the first frame) */
       @keyframes pop {
         from {
-          opacity: 0;
           transform: translateY(-6px) scale(0.985);
         }
       }

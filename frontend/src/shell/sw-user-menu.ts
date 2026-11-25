@@ -155,9 +155,12 @@ export class SwUserMenu extends LitElement {
         transform-origin: bottom right;
         transition: opacity var(--sw-t-med) var(--sw-ease), transform var(--sw-t-med) var(--sw-ease);
       }
+      /* OVERLAY-FADE-2520: the entrance moves by transform only (no opacity in the open state's transition: the texts are at full contrast
+         from the first frame); the exit above still fades - the closed panel is inert (render) and the host takes no pointer */
       :host([open]) .panel {
         opacity: 1;
         transform: none;
+        transition: transform var(--sw-t-med) var(--sw-ease);
       }
       .panel > .grab,
       .panel > .pills {
