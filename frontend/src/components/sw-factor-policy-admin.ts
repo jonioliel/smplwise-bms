@@ -332,7 +332,7 @@ export class SwFactorPolicyAdmin extends LitElement {
       <div class="row" data-fp-row="local"><span class="lbl">${tr('גם ברשת המקומית')}<span class="muted">${tr('כבוי: ברשת המקומית לא נשאלים, כדרך חזרה למערכת')}</span></span>
         <sw-toggle data-fp-step-up-local .checked=${local} ?disabled=${ro || !on} label=${tr('גם ברשת המקומית')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_local', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
-      <div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted">${tr('ממסך אחר: בחירת המספר שעל המסך באפליקציה, באישור מפתח הטלפון')}</span></span>
+      <div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted">${tr('ממסך אחר: הקלדת המספר שעל המסך באפליקציה, באישור מפתח הטלפון')}</span></span>
         <sw-toggle data-fp-push .checked=${push} ?disabled=${ro || !on} label=${tr('אישור בטלפון')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.push_approval', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
       <div class="row" data-fp-row="alarm-pin"><span class="lbl">${tr('קוד האזעקה האישי כאישור')}<span class="muted">${tr('לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת')}</span></span>

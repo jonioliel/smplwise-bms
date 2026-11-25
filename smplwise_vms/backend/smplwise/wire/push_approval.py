@@ -1,5 +1,5 @@
 """Response models of the phone approval routes (routers/push_approval.py; MFA-T095-REST-2530, CR-011 option D). The number to match
-is returned to the REQUESTER only; the phone gets three choices and never learns which is right before it signs."""
+is returned to the REQUESTER only; the phone never receives it - the person types what the requesting screen shows."""
 from __future__ import annotations
 
 from typing import Literal
@@ -30,10 +30,9 @@ class PushApprovalState(WireModel):
 
 
 class PushApprovalPending(WireModel):
-    """One request waiting on the phone: the action it is for, the three numbers to choose from and how long it waits."""
+    """One request waiting on the phone: the action it is for and how long it waits (never the number)."""
     request_id: str
     action: str
-    choices: list[int]
     expires_in: int
 
 
@@ -44,7 +43,7 @@ class PushApprovalList(WireModel):
 
 
 class PushApprovalChallenge(WireModel):
-    """`POST /auth/push-approvals/{request_id}/challenge`: the phone-key text the app signs for the chosen number (a `step_up` payload of
+    """`POST /auth/push-approvals/{request_id}/challenge`: the phone-key text the app signs for the typed number (a `step_up` payload of
     services/device_keys whose action is `auth.push_approval.n<number>`), its single-use id and how long it lives."""
     challenge_id: str
     payload: str

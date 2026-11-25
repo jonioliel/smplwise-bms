@@ -1,7 +1,7 @@
 /**
  * MFA-T095-REST-2530 (CR-011 option D and 4E / Q6): the two action-bound step-up methods.
  * - `push`: approve on the phone (routers/push_approval.py). The requesting screen opens a request and shows its number; the Android app
- *   of the same user lists it with three numbers, the person picks the one on the requesting screen and the phone key signs the pick; the
+ *   of the same user lists it, the person types the number of the requesting screen and the phone key signs it; the
  *   requester then spends the approval with `auth/step-up/verify {method: "push"}` - a proof for ONE request of exactly that action.
  * - `alarm_pin`: the personal alarm code proves one alarm disarm / zone bypass (`auth/step-up/verify {method: "alarm_pin"}`).
  * Shapes: generated from smplwise/wire/push_approval.py and second_factor.py.
@@ -33,7 +33,7 @@ interface DeviceKeySigner {
   sign(payload: string, text: string): Promise<{ signature?: string }>;
 }
 
-/** The pick: a phone-key challenge for `number`, the app's prompt (shows `text`) signs it, the server approves - or, for a number that is
+/** The typed number: a phone-key challenge for `number`, the app's prompt (shows `text`) signs it, the server approves - or, for a number that is
  * not the requester's, denies the request (409 `push_approval_number_mismatch`). Throws DeviceKeyCancelled when the prompt is cancelled. */
 export async function approvePushApproval(id: string, keyId: string, number: number, text: string, signer: DeviceKeySigner): Promise<PushApprovalState> {
   const ch = await post<PushApprovalChallenge>(`auth/push-approvals/${enc(id)}/challenge`, { key_id: keyId, number });

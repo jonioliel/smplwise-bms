@@ -38,7 +38,7 @@ const PUSH_END_TEXT: Record<string, () => string> = {
  * one-time recovery code (`XXXX-XXXX`). Same proof, same single retry.
  * MFA-T095-REST-2530 (CR-011 option D and 4E / Q6): two ACTION-BOUND methods, each listed by the server only when its switch is on.
  * APPROVE ON THE PHONE (`push`, outside the app that holds the key): the dialog opens a request, shows its two-digit number and waits;
- * the person picks that number among three in the Android app and confirms with the phone key; the dialog then spends the approval
+ * the person types that number in the Android app and confirms with the phone key; the dialog then spends the approval
  * (`auth/step-up/verify {method: "push"}`) and answers true. THE PERSONAL ALARM CODE (`alarm_pin`, an alarm disarm / zone bypass only):
  * the field takes the alarm code instead (the only field when the account has no authenticator code). Both prove ONE request of exactly
  * the refused action - the same single retry. Cancelling the dialog cancels an open phone request.
@@ -129,7 +129,7 @@ export class SwStepUpDialog extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
-    /* MFA-T095-REST-2530: the number the phone must pick, while the dialog waits for the approval */
+    /* MFA-T095-REST-2530: the number the phone must type, while the dialog waits for the approval */
     .push {
       display: flex;
       flex-direction: column;
@@ -343,7 +343,7 @@ export class SwStepUpDialog extends LitElement {
             ${push
               ? this.push
                 ? html`<div class="push" role="status" data-step-up-push-wait>
-                    <span class="hint">${trm('בטלפון, בחר את המספר:')}</span>
+                    <span class="hint">${trm('בטלפון, הקלד את המספר:')}</span>
                     <span class="num" dir="ltr" data-step-up-push-number>${this.push.number}</span>
                     <span class="hint">${trm('ממתין לאישור בטלפון…')}</span>
                   </div>`

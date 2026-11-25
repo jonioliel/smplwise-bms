@@ -5,7 +5,7 @@ The phone is simulated as in tests/test_mfa_devicekey_2490.py (a generated P-256
 on its own signed-in session; the requesting "desktop" is a second session of the same user. Covered:
 
 * defaults: both switches off - nothing listed, every new route refuses, nothing changes for anyone;
-* the whole push flow: request -> content-free notice -> the phone's three choices -> a signed pick -> approved -> the requester spends it
+* the whole push flow: request -> content-free notice -> the phone types the number -> signed -> approved -> the requester spends it
   for ONE request of exactly that action; audit rows carry no number, signature or key material;
 * negatives and replays: a wrong number denies (and cools down), "not me" denies (and cools down), a spent approval / a reused challenge /
   another session / another action / another user / the requesting session itself / an expired or unused approval / a bad or foreign
@@ -164,11 +164,11 @@ def test_the_whole_flow_proves_one_request_of_exactly_that_action(two):
         rows = conn.execute("SELECT n.* FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id "
                             "WHERE n.source = 'security.push_approval_requested' AND r.user_id = 'u-owner'").fetchall()
     assert len(rows) == 1 and json.loads(rows[0]["params_json"]) == {} and "system.configure" not in rows[0]["body"]
-    # the phone sees three numbers, never which one is right; the requesting session does not see its own request
+    # the phone sees what is asked, never the number; the requesting session does not see its own request
     listed = s.app.get(PENDING).json()
     assert listed["enabled"] is True and len(listed["pending"]) == 1
     p = listed["pending"][0]
-    assert set(p) == {"request_id", "action", "choices", "expires_in"} and len(set(p["choices"])) == 3 and started["number"] in p["choices"]
+    assert set(p) == {"request_id", "action", "expires_in"} and p["action"] == "system.configure"
     assert s.desk.get(PENDING).json()["pending"] == []
     assert s.desk.get(f"{PUSH}/{started['request_id']}").json()["status"] == "pending"
     a, ch = pick(s, started["request_id"], started["number"])
@@ -191,7 +191,7 @@ def test_the_whole_flow_proves_one_request_of_exactly_that_action(two):
 def test_a_wrong_number_denies_the_request_and_cools_down(two):
     s = two
     started = start(s).json()
-    wrong = next(n for n in s.app.get(PENDING).json()["pending"][0]["choices"] if n != started["number"])
+    wrong = started["number"] + 1 if started["number"] < pa.NUMBER_MAX else pa.NUMBER_MIN
     a, _ = pick(s, started["request_id"], wrong)
     assert a.status_code == 409 and a.json()["code"] == "push_approval_number_mismatch"
     st = s.desk.get(f"{PUSH}/{started['request_id']}").json()
@@ -214,14 +214,10 @@ def test_not_me_denies_and_cools_down(two, paclock):
     assert start(s).status_code == 200
 
 
-def test_a_number_outside_the_choices_is_refused_before_any_challenge(two):
+def test_a_number_out_of_range_is_refused_before_any_challenge(two):
     s = two
     started = start(s).json()
-    choices = s.app.get(PENDING).json()["pending"][0]["choices"]
-    other = next(n for n in range(pa.NUMBER_MIN, pa.NUMBER_MAX + 1) if n not in choices)
-    r = s.app.post(f"{PENDING}/{started['request_id']}/challenge", json={"key_id": s.phone.key_id, "number": other})
-    assert r.status_code == 422
-    for bad in (9, 100):
+    for bad in (9, 100, -1):
         assert s.app.post(f"{PENDING}/{started['request_id']}/challenge", json={"key_id": s.phone.key_id, "number": bad}).status_code == 422
     assert s.desk.get(f"{PUSH}/{started['request_id']}").json()["status"] == "pending"
 

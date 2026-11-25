@@ -8,9 +8,10 @@ A person on a desktop (or any session without the phone key) is refused a sensit
    (`security.push_approval_requested`) on every device through the existing channels (inbox, web push, the phone app's push) - no new
    provider; the notice carries neither the number nor the action;
 2. the PHONE (the Android app, signed in as the same user, holding the phone key) lists the pending request (`GET auth/push-approvals`)
-   with THREE numbers to choose from (the right one and two others, shuffled) - the person must pick the number the requesting screen
-   shows (number matching: an approval tapped blindly, "push fatigue", fails two times in three and ends the request);
-3. the phone asks a phone-key challenge for its pick (`POST auth/push-approvals/{id}/challenge {key_id, number}`): an ordinary `step_up`
+   - what it is for, never the number - and the person TYPES the two-digit number the requesting screen shows (number matching, typed:
+   an approval given blindly, "push fatigue", hits the right number once in 90 and a miss ends the request; picking among a few shown
+   numbers would be one in three);
+3. the phone asks a phone-key challenge for the typed number (`POST auth/push-approvals/{id}/challenge {key_id, number}`): an ordinary `step_up`
    challenge of services/device_keys bound to the PHONE's session, the key and the action text `auth.push_approval.n<number>` - so the
    app (mobile/android-shell DeviceKey.kt, unchanged) shows the prompt and signs bytes that carry the chosen number; the app's biometric
    / screen-lock prompt is the user-verification step;
@@ -33,7 +34,6 @@ Nothing here logs, audits or returns a signature or key material; the number is 
 from __future__ import annotations
 
 import hashlib
-import random
 import secrets
 import sqlite3
 import threading
@@ -53,7 +53,6 @@ TTL_S = 90.0  # a pending request lives this long (the phone has to be found, un
 USE_WINDOW_S = 60.0  # an approved request must be spent by the requester this soon after the approval
 DENY_COOLDOWN_S = 300.0  # after "not me" or a wrong number: no new request of that user for this long
 NUMBER_MIN, NUMBER_MAX = 10, 99
-CHOICES = 3
 MAX_OPEN = 2000
 
 PENDING, APPROVED, DENIED, EXPIRED, CANCELLED, USED = "pending", "approved", "denied", "expired", "cancelled", "used"
@@ -108,7 +107,6 @@ class Approval:
     session: str  # the requester's step-up session key (services/step_up.session_key)
     action: str
     number: int
-    choices: list[int]
     created: float
     expires: float
     status: str = PENDING
@@ -147,24 +145,13 @@ def cooldown_left(user_id: str) -> int:
     return int(until - now) + 1 if until else 0
 
 
-def _choices(number: int, rng: random.Random) -> list[int]:
-    out = {number}
-    while len(out) < CHOICES:
-        out.add(rng.randint(NUMBER_MIN, NUMBER_MAX))
-    listed = list(out)
-    rng.shuffle(listed)
-    return listed
-
-
 def create(user_id: str, session: str, action: str) -> tuple[Approval, list[Approval]]:
     """A new pending request. At most ONE is open per user: an older pending one is cancelled (`superseded`) and returned for the audit.
     The caller checks the switch, the action, the phone key, the cooldown and the rate limit first."""
-    rng = random.SystemRandom()
-    number = rng.randint(NUMBER_MIN, NUMBER_MAX)
+    number = NUMBER_MIN + secrets.randbelow(NUMBER_MAX - NUMBER_MIN + 1)
     approval_id = ID_PREFIX + secrets.token_urlsafe(24)
     now = _now()
-    a = Approval(id=approval_id, user_id=user_id, session=session, action=action, number=number, choices=_choices(number, rng),
-                 created=now, expires=now + TTL_S)
+    a = Approval(id=approval_id, user_id=user_id, session=session, action=action, number=number, created=now, expires=now + TTL_S)
     superseded: list[Approval] = []
     with _LOCK:
         _expire_locked(now)

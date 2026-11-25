@@ -4,7 +4,7 @@
 /* eslint-disable */
 
 /**
- * `POST /auth/push-approvals/{request_id}/challenge`: the phone-key text the app signs for the chosen number (a `step_up` payload of
+ * `POST /auth/push-approvals/{request_id}/challenge`: the phone-key text the app signs for the typed number (a `step_up` payload of
  * services/device_keys whose action is `auth.push_approval.n<number>`), its single-use id and how long it lives.
  */
 export interface PushApprovalChallenge {
@@ -19,11 +19,10 @@ export interface PushApprovalList {
   pending: PushApprovalPending[];
 }
 
-/** One request waiting on the phone: the action it is for, the three numbers to choose from and how long it waits. */
+/** One request waiting on the phone: the action it is for and how long it waits (never the number). */
 export interface PushApprovalPending {
   request_id: string;
   action: string;
-  choices: number[];
   expires_in: number;
 }
 

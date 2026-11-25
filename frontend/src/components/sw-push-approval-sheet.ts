@@ -24,9 +24,9 @@ function pushActionText(action: string): string {
 /**
  * MFA-T095-REST-2530 (CR-011 option D): the phone's side of "approve on the phone". Shown by shell/push-approval-watch.ts inside the
  * Android app that holds the phone key, when another screen of the same account asked for an approval. The person sees what is asked
- * and three numbers; they pick the number the requesting screen shows, and the app's own prompt (fingerprint / face / screen lock)
- * signs that pick with the phone key. A wrong number DENIES the request on the server (an approval tapped without looking fails two times
- * in three); "not me" denies it too. The system's own sw-dialog (skin, RTL, focus trap, phone layout).
+ * and TYPES the two-digit number the requesting screen shows (the phone is never told it); the app's own prompt (fingerprint / face /
+ * screen lock) signs that number with the phone key. A wrong number DENIES the request on the server (an approval given without looking
+ * hits the number once in 90); "not me" denies it too. The system's own sw-dialog (skin, RTL, focus trap, phone layout).
  */
 @customElement('sw-push-approval-sheet')
 export class SwPushApprovalSheet extends LitElement {
@@ -36,6 +36,7 @@ export class SwPushApprovalSheet extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private done = '';
+  @state() private typed = '';
 
   /** Called once when the sheet closes (the watcher looks again later). */
   onClosed: (() => void) | null = null;
@@ -55,15 +56,14 @@ export class SwPushApprovalSheet extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-    .choices {
+    form {
       display: flex;
       justify-content: center;
-      gap: var(--sw-s-3);
     }
-    .choice {
-      min-inline-size: var(--sw-ctl-h-lg);
+    input {
+      inline-size: 4.5em;
       min-block-size: var(--sw-ctl-h-lg);
-      padding-inline: var(--sw-s-3);
+      padding: 0 var(--sw-s-2);
       border: var(--sw-check-border-w) solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
@@ -71,14 +71,12 @@ export class SwPushApprovalSheet extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-2xl);
       font-weight: 700;
+      letter-spacing: 0.2em;
+      text-align: center;
       font-variant-numeric: tabular-nums;
-      cursor: pointer;
+      direction: ltr;
     }
-    .choice:disabled {
-      opacity: var(--sw-disabled-opacity);
-      cursor: default;
-    }
-    .choice:focus-visible {
+    input:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
@@ -111,10 +109,16 @@ export class SwPushApprovalSheet extends LitElement {
     cb?.();
   }
 
-  private async pick(n: number) {
+  private get number(): number | null {
+    return /^\d{2}$/.test(this.typed.trim()) ? Number(this.typed.trim()) : null;
+  }
+
+  private async approve(e?: Event) {
+    e?.preventDefault();
     const r = this.request;
+    const n = this.number;
     const signer = deviceKeyBridge();
-    if (this.busy || !r || !signer || !this.keyId) return;
+    if (this.busy || !r || n === null || !signer || !this.keyId) return;
     this.busy = true;
     this.error = '';
     try {
@@ -151,10 +155,11 @@ export class SwPushApprovalSheet extends LitElement {
     return html`<sw-dialog ?open=${this.open} heading=${trm('בקשת אישור')} data-push-approval-sheet @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       ${r && live
         ? html`<p class="msg" data-push-approval-what>${trm('מכשיר אחר שמחובר לחשבון שלך מבקש לאשר:')} <span class="what">${pushActionText(r.action)}</span></p>
-            <p class="hint">${trm('בחר את המספר שמופיע במסך שביקש. אם לא אתה ביקשת - דחה.')}</p>
-            <div class="choices" role="group" aria-label=${trm('בחר את המספר')} dir="ltr">
-              ${r.choices.map((n) => html`<button type="button" class="choice" data-push-approval-choice=${n} ?disabled=${this.busy} @click=${() => void this.pick(n)}>${n}</button>`)}
-            </div>`
+            <p class="hint">${trm('הקלד את המספר שמופיע במסך שביקש. אם לא אתה ביקשת - דחה.')}</p>
+            <form @submit=${(e: Event) => void this.approve(e)}>
+              <input name="number" inputmode="numeric" autocomplete="off" maxlength="2" spellcheck="false" placeholder="00" aria-label=${trm('המספר שעל המסך')}
+                data-push-approval-number .value=${this.typed} ?disabled=${this.busy} @input=${(e: Event) => (this.typed = (e.target as HTMLInputElement).value)} />
+            </form>`
         : nothing}
       ${this.done ? html`<p class="ok" role="status" data-push-approval-done>${this.done}</p>` : nothing}
       ${this.error ? html`<div class="err" role="alert" data-push-approval-error>${this.error}</div>` : nothing}
@@ -162,6 +167,9 @@ export class SwPushApprovalSheet extends LitElement {
         ? html`<sw-button slot="footer" variant="danger" data-push-approval-deny ?disabled=${this.busy} @click=${() => void this.deny()}>${trm('לא אני - לדחות')}</sw-button>`
         : nothing}
       <sw-button slot="footer" data-push-approval-close ?disabled=${this.busy} @click=${() => this.close()}>${trm('סגור')}</sw-button>
+      ${live
+        ? html`<sw-button slot="footer" variant="primary" icon="check" data-push-approval-confirm ?disabled=${this.busy || this.number === null} @click=${() => void this.approve()}>${trm('אישור')}</sw-button>`
+        : nothing}
     </sw-dialog>`;
   }
 }

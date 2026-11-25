@@ -9,9 +9,9 @@ then `POST auth/step-up/verify {method: "push", challenge_id: <request_id>, acti
 
 The phone (the Android app of the same user, holding the phone key; never the requesting session itself):
 
-`GET    auth/push-approvals`                          the pending request with three numbers to choose from
-`POST   auth/push-approvals/{request_id}/challenge {key_id, number}`   a phone-key challenge for the chosen number
-`POST   auth/push-approvals/{request_id}/approve {challenge_id, key_id, signature}`   the signed pick: the right number approves, a
+`GET    auth/push-approvals`                          the pending request (what it is for - never the number)
+`POST   auth/push-approvals/{request_id}/challenge {key_id, number}`   a phone-key challenge for the number the person typed
+`POST   auth/push-approvals/{request_id}/approve {challenge_id, key_id, signature}`   the signed number: the right one approves, a
                                                       wrong one denies the request
 `POST   auth/push-approvals/{request_id}/deny`        "this was not me"
 
@@ -138,8 +138,7 @@ def pending(request: Request, principal: Principal = Depends(current_principal_r
         return {"enabled": False, "pending": []}
     mine = step_up.session_key(request, principal)
     rows = [a for a in pa.pending_of(principal.user_id) if a.session != mine]
-    return {"enabled": True, "pending": [{"request_id": a.id, "action": a.action, "choices": list(a.choices), "expires_in": pa.expires_in(a)}
-                                         for a in rows]}
+    return {"enabled": True, "pending": [{"request_id": a.id, "action": a.action, "expires_in": pa.expires_in(a)} for a in rows]}
 
 
 def _phone_request(conn: sqlite3.Connection, request: Request, principal: Principal, request_id: str) -> tuple[pa.Approval, str]:
@@ -168,8 +167,6 @@ class ChallengeBody(BaseModel):
 def challenge(request_id: str, body: ChallengeBody, request: Request, principal: Principal = Depends(current_principal_ro),
               conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     a, session = _phone_request(conn, request, principal, request_id)
-    if body.number not in a.choices:
-        raise ApiError(422, "push_approval_number", pa.UNKNOWN_HE, details={"field": "number"})
     if dk._active_row(conn, principal.user_id, body.key_id) is None:
         raise ApiError(409, "step_up_no_method", dk.NO_KEY_HE)
     origin = dk.origin_of(settings_of(request), request)
@@ -191,7 +188,7 @@ class ApproveBody(BaseModel):
 @router.post("/auth/push-approvals/{request_id}/approve", **wire(W.PushApprovalState))
 def approve(request_id: str, body: ApproveBody, request: Request, principal: Principal = Depends(current_principal),
             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The phone's signed pick. The signature is checked first (single use, bound to this phone's session, the key and the number's
+    """The phone's signed number. The signature is checked first (single use, bound to this phone's session, the key and the number's
     action text; a wrong one counts towards the phone-key lockout); then the number: the right one approves, a wrong one denies."""
     a, session = _phone_request(conn, request, principal, request_id)
     number = pa.take_challenge(a, body.challenge_id)

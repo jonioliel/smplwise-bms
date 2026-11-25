@@ -10,8 +10,8 @@ import path from 'node:path';
 //   request is cancelled on the server. Next to a passkey held by a Chromium VIRTUAL authenticator for `localhost` (WebAuthn on
 //   localhost): both buttons, the passkey path unchanged.
 // * THE PERSONAL ALARM CODE (`alarm_pin`): the only field when the account has no authenticator code; behind a link otherwise.
-// * THE PHONE (a fake Android shell bridge with a phone key): the approval sheet lists three numbers; a pick asks the phone-key challenge
-//   for that number, the bridge signs the server's text, the server approves; "not me" denies.
+// * THE PHONE (a fake Android shell bridge with a phone key): the approval sheet asks for the number of the requesting screen; the typed
+//   number gets a phone-key challenge, the bridge signs the server's text, the server approves; a wrong number is refused; "not me" denies.
 //   SW_BASE_URL=http://localhost:5297/ npx playwright test tests/unit-mfa-t095-rest-2530.spec.ts --project=desktop --project=mobile --workers=2
 
 const REMOTE_TAB = '/?design=a#/system/diagnostics?tab=remote';
@@ -35,7 +35,7 @@ interface Mock {
   /** the statuses the requester's polls answer, in order (the last one repeats) */
   states: string[];
   /** the phone side */
-  pending: { request_id: string; action: string; choices: number[]; expires_in: number }[];
+  pending: { request_id: string; action: string; expires_in: number }[];
   picks: number[];
   approvals: { challenge_id: string; key_id: string; signature: string }[];
   denies: string[];
@@ -277,14 +277,15 @@ test('with the authenticator code too, the alarm code is behind a link and the r
 
 // ---------------------------------------------------------------- the phone's approval sheet
 
-test('the phone: three numbers, the pick is signed by the phone key and approved', async ({ page, baseURL }) => {
-  const st = await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', choices: [17, 42, 88], expires_in: 80 }] });
+test('the phone: the typed number is signed by the phone key and approved', async ({ page, baseURL }) => {
+  const st = await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', expires_in: 80 }] });
   await androidShell(page);
   await openRemote(page, baseURL);
   const sheet = page.locator('sw-push-approval-sheet');
   await expect(sheet.locator('[data-push-approval-what]')).toContainText('נטרול האזעקה', { timeout: 15000 });
-  await expect(sheet.locator('[data-push-approval-choice]')).toHaveCount(3);
-  await sheet.locator('[data-push-approval-choice="42"]').click();
+  await expect(sheet.locator('[data-push-approval-confirm]')).toHaveAttribute('disabled', '');
+  await sheet.locator('[data-push-approval-number]').fill('42');
+  await sheet.locator('[data-push-approval-confirm]').click();
   await expect(sheet.locator('[data-push-approval-done]')).toContainText('אושר');
   expect(st.picks).toEqual([42]);
   expect(st.approvals).toHaveLength(1);
@@ -298,18 +299,19 @@ test('the phone: three numbers, the pick is signed by the phone key and approved
 });
 
 test('the phone: a wrong number is refused by the server; "not me" denies', async ({ page, baseURL }) => {
-  const st = await setup(page, { pending: [{ request_id: REQ, action: 'system.configure', choices: [17, 42, 88], expires_in: 80 }] });
+  const st = await setup(page, { pending: [{ request_id: REQ, action: 'system.configure', expires_in: 80 }] });
   await androidShell(page);
   await openRemote(page, baseURL);
   const sheet = page.locator('sw-push-approval-sheet');
-  await expect(sheet.locator('[data-push-approval-choice]')).toHaveCount(3, { timeout: 15000 });
-  await sheet.locator('[data-push-approval-choice="17"]').click();
+  await expect(sheet.locator('[data-push-approval-number]')).toBeVisible({ timeout: 15000 });
+  await sheet.locator('[data-push-approval-number]').fill('17');
+  await sheet.locator('[data-push-approval-confirm]').click();
   await expect(sheet.locator('[data-push-approval-error]')).toContainText('לא תואם');
-  await expect(sheet.locator('[data-push-approval-choice]')).toHaveCount(0);
+  await expect(sheet.locator('[data-push-approval-number]')).toHaveCount(0);
   await sheet.locator('[data-push-approval-close]').click();
   await expect(sheet).toHaveCount(0);
   // the next request: "not me"
-  st.pending = [{ request_id: REQ, action: 'system.configure', choices: [17, 42, 88], expires_in: 80 }];
+  st.pending = [{ request_id: REQ, action: 'system.configure', expires_in: 80 }];
   await expect(sheet.locator('[data-push-approval-deny]')).toBeVisible({ timeout: 15000 });
   await sheet.locator('[data-push-approval-deny]').click();
   await expect(sheet.locator('[data-push-approval-done]')).toContainText('נדחתה');
@@ -319,7 +321,7 @@ test('the phone: a wrong number is refused by the server; "not me" denies', asyn
 test('outside the app the watcher never asks the server', async ({ page, baseURL }) => {
   const asked: string[] = [];
   page.on('request', (r) => { if (r.url().includes('push-approvals')) asked.push(r.url()); });
-  await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', choices: [17, 42, 88], expires_in: 80 }] });
+  await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', expires_in: 80 }] });
   await openRemote(page, baseURL);
   await page.waitForTimeout(4500);
   expect(asked).toEqual([]);
@@ -365,9 +367,10 @@ test('shots: the dialog with both buttons and the alarm code', async ({ page, ba
 test('shots: the phone approval sheet', async ({ page, baseURL }, info) => {
   test.skip(!SHOTS, 'SW_SHOTS_DIR not set');
   fs.mkdirSync(SHOTS, { recursive: true });
-  await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', choices: [17, 42, 88], expires_in: 80 }] });
+  await setup(page, { pending: [{ request_id: REQ, action: 'alarm.disarm', expires_in: 80 }] });
   await androidShell(page);
   await openRemote(page, baseURL);
-  await expect(page.locator('sw-push-approval-sheet [data-push-approval-choice]')).toHaveCount(3, { timeout: 15000 });
+  await expect(page.locator('sw-push-approval-sheet [data-push-approval-number]')).toBeVisible({ timeout: 15000 });
+  await page.locator('sw-push-approval-sheet [data-push-approval-number]').fill('42');
   await shoot(page, 'phone-sheet', info.project.name);
 });
