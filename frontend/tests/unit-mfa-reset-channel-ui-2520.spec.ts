@@ -136,7 +136,7 @@ test('a cancelled ceremony keeps the enrolment step and says so', async ({ page 
   test.skip(new URL(page.url()).hostname !== 'localhost', 'WebAuthn needs a localhost page');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable'); // no authenticator at all: the ceremony fails on the device side
-  const { login, answers } = await signInMocks(page, (answer, origin) => ({ status: 403, body: { code: 'second_factor_enrollment_required', user_message: ENROL_HE, retryable: false, correlation_id: 'mock',
+  const { login, answers } = await signInMocks(page, (_answer, origin) => ({ status: 403, body: { code: 'second_factor_enrollment_required', user_message: ENROL_HE, retryable: false, correlation_id: 'mock',
     details: { passkey_enrol: { origin, user_verification_required: false, publicKey: { rp: { id: 'localhost', name: 'SmplWise Arx' }, user: { id: 'AAAA', name: 'dana', displayName: 'dana' },
       challenge: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', pubKeyCredParams: [{ type: 'public-key', alg: -7 }], timeout: 3000, attestation: 'none',
       authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' }, excludeCredentials: [] } } } } }));

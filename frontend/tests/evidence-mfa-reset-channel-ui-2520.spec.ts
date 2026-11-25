@@ -21,7 +21,7 @@ const ME = { user: { id: 'u-admin', username: 'admin', display_name: 'מנהל',
   permissions_installation: PERMS, permissions_any: PERMS, has_access: true, permission_revision: 1, permissions_fingerprint: 'fp', permissions_changed: false,
   bootstrap_state: 'done', mode: 'full' };
 
-async function shot(loc: Locator, name: string) {
+async function shot(loc: Locator | Page, name: string) {
   const dir = process.env.SW_SHOT_DIR;
   if (!dir) return;
   fs.mkdirSync(dir, { recursive: true });
@@ -123,8 +123,21 @@ test('English: the row speaks the reader\'s language', async ({ page }) => {
 
 // ---------------------------------------------------------------- the step-up dialog wording
 
+/** The preview runs at an IP address (not a secure context): WebAuthn is absent there. These tests only need the dialog to SEE a browser
+ * with passkeys (`passkeysSupported`); no ceremony reaches the device (the wrong-address check stops before it). */
+async function passkeyBrowser(page: Page) {
+  await page.addInitScript(() => {
+    if (typeof window.PublicKeyCredential !== 'function') Object.defineProperty(window, 'PublicKeyCredential', { value: function PublicKeyCredential() {}, configurable: true });
+    if (!navigator.credentials?.create) {
+      const refuse = () => Promise.reject(new DOMException('not allowed', 'NotAllowedError'));
+      Object.defineProperty(navigator, 'credentials', { value: { create: refuse, get: refuse }, configurable: true });
+    }
+  });
+}
+
 test('step-up dialog: a passkey that counts and passkeys in this browser - "a passkey or the code"', async ({ page }) => {
   skipTablet();
+  await passkeyBrowser(page);
   await installMfaMock(page, { methods: ['totp', 'passkey'], settings: { 'security.step_up': 'on' } });
   await scheme(page);
   const tab = await openPolicyTab(page);
@@ -134,7 +147,7 @@ test('step-up dialog: a passkey that counts and passkeys in this browser - "a pa
   await expect(dlg.locator('[data-step-up-text]')).toContainText('אשר במפתח גישה או הזן את הקוד');
   await expect(dlg.locator('[data-step-up-passkey]')).toBeVisible();
   await expect(dlg.locator('[data-step-up-passkey-elsewhere]')).toHaveCount(0);
-  await shot(dlg.locator('sw-dialog'), 'step-up-both');
+  await shot(page, 'step-up-both'); // the whole page: the dialog lives in the top layer
 });
 
 test('step-up dialog: a passkey that counts but no passkeys in this browser - the code, and why the passkey is not offered', async ({ page }) => {
@@ -151,13 +164,14 @@ test('step-up dialog: a passkey that counts but no passkeys in this browser - th
   const dlg = page.locator('sw-step-up-dialog');
   await expect(dlg.locator('[data-step-up-text]')).toContainText('הזן את הקוד הנוכחי');
   await expect(dlg.locator('[data-step-up-code]')).toBeVisible();
-  await shot(dlg.locator('sw-dialog'), 'step-up-passkey-elsewhere'); // before the row's own checks: the base build makes the "before" picture
+  await shot(page, 'step-up-passkey-elsewhere'); // before the row's own checks: the base build makes the "before" picture
   await expect(dlg.locator('[data-step-up-passkey]')).toHaveCount(0);
   await expect(dlg.locator('[data-step-up-passkey-elsewhere]')).toContainText('למפתח הגישה שלך צריך דפדפן שתומך במפתחות גישה');
 });
 
 test('step-up dialog: at another address than the passkey\'s, the passkey button says where it works', async ({ page }) => {
   skipTablet();
+  await passkeyBrowser(page);
   await installMfaMock(page, { methods: ['totp', 'passkey'], settings: { 'security.step_up': 'on' } });
   await page.route('**/api/v1/auth/step-up/challenge', (route) =>
     json(route, { challenge_id: 'suc_mock', action: 'system.configure', expires_in: 60, methods: ['totp', 'passkey'],
