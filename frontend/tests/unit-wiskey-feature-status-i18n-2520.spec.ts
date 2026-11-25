@@ -43,10 +43,18 @@ function backendReasons(): Map<string, [string, string, string]> {
   return out;
 }
 
-/** Every reason code the backend can emit: R, plus the literal codes built outside `_reason` (`check_failed`). */
+/** Every reason code the backend can emit: R, plus the literal codes built outside `_reason` (`check_failed`). A call with a literal
+ * code names a code of R; a call that builds the code (`_reason("key_" + self.key)`, the states of wiskey_pairing.key_facts other
+ * than ok) names a prefix that R's codes carry. */
 function emittedCodes(r: Map<string, unknown>): string[] {
-  const called = [...SRC.matchAll(/_reason\("([a-z0-9_]+)"/g)].map((m) => m[1]);
-  for (const c of called) expect(r.has(c), `_reason("${c}") is in R`).toBe(true);
+  for (const m of SRC.matchAll(/_reason\("([a-z0-9_]+)"(\s*\+)?/g)) {
+    if (m[2]) {
+      const pairing = fs.readFileSync(path.join(path.dirname(BACKEND), 'wiskey_pairing.py'), 'utf8');
+      const states = (/\{state: ([a-z| ]+),/.exec(pairing)?.[1] ?? '').split('|').map((x) => x.trim()).filter((x) => x && x !== 'ok');
+      expect(states.length, 'the key states of wiskey_pairing.key_facts').toBeGreaterThanOrEqual(3);
+      for (const st of states) expect(r.has(`${m[1]}${st}`), `_reason("${m[1]}" + "${st}") is in R`).toBe(true);
+    } else expect(r.has(m[1]), `_reason("${m[1]}") is in R`).toBe(true);
+  }
   const literal = [...SRC.matchAll(/"code": "([a-z0-9_]+)"/g)].map((m) => m[1]);
   return [...new Set([...r.keys(), ...literal])];
 }
