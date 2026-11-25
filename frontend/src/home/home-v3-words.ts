@@ -46,6 +46,26 @@ export function guestState(g: { state: string | null; confirmed: boolean; valid_
 }
 
 /** The alarm panel's state in words and its tone (green only for an armed, quiet house). */
+/** SCREENS-FIX-A-2520 (SCR-06): where an arm / disarm request stands, from the device-action record's status (api/alarm, api/ha):
+ * success only when the panel confirmed it; a refusal is `failed`; no answer in time is `unknown`; anything else is still `pending`. */
+export type AlarmFollow = 'pending' | 'confirmed' | 'failed' | 'unknown';
+
+export function alarmFollow(status: string | null | undefined): AlarmFollow {
+  if (status === 'confirmed') return 'confirmed';
+  if (status === 'failed' || status === 'denied') return 'failed';
+  if (status === 'unknown') return 'unknown';
+  return 'pending';
+}
+
+/** SCREENS-FIX-A-2520 (SCR-06): the toast of an arm / disarm request - "sent, waiting for the panel" until the panel confirmed it. */
+export function alarmFollowText(action: string, f: AlarmFollow): string {
+  const disarm = action === 'disarm';
+  if (f === 'confirmed') return disarm ? tr('האזעקה מנוטרלת') : tr('האזעקה נדרכת');
+  if (f === 'failed') return disarm ? tr('הלוח לא נטרל את האזעקה') : tr('הלוח לא דרך את האזעקה');
+  if (f === 'unknown') return tr('לא התקבל אישור מהלוח. בדקו את מצב האזעקה.');
+  return disarm ? tr('בקשת הנטרול נשלחה. ממתינים לאישור הלוח…') : tr('בקשת הדריכה נשלחה. ממתינים לאישור הלוח…');
+}
+
 export function alarmWord(state: string | null, available = true): { text: string; tone: 'ok' | 'neutral' | 'danger' | 'warn' } {
   if (!available) return { text: tr('לא זמינה כרגע'), tone: 'warn' };
   switch (state) {

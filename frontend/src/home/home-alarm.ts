@@ -14,9 +14,13 @@ import { CODE_ERROR_LABEL, alarmMe, panelAction, setMyPin, zoneState, type Alarm
 import { canAnywhere } from '../api/session';
 import { ARM_WORD, alarmWord } from './home-v3-words';
 import { tr } from '../i18n/msg/home';
+import { followAlarmAction } from './home-alarm-follow';
 
 type PinMode = 'cur' | 'panel' | 'new1' | 'new2';
-const st = { panel: '', pin: { set: false, known: false } };
+const st = { panel: '', pin: { set: false, known: false }, pollT: 0 };
+/** SCREENS-FIX-A-2520 (SCR-06): while the alarm screen is open the panels are read again on this beat too (a push re-reads them at
+ * once; this covers a push socket that is down). */
+const ALARM_POLL_MS = 15_000;
 
 const alarmOk = (h: HomeHost) => h.d.modules.has('security') && canAnywhere('alarm.view');
 const panelOf = (h: HomeHost): AlarmPanel | undefined => h.panels.find((p) => p.entity_id === st.panel) ?? h.panels[0];
@@ -31,7 +35,7 @@ const PIN_TEXT: Record<PinMode, [string, string]> = {
 function send(h: HomeHost, p: AlarmPanel, action: AlarmAction, code?: string) {
   h.ovl = null;
   void panelAction(p.entity_id, action, { confirmed: true, code })
-    .then(() => { h.toast(action === 'disarm' ? tr('האזעקה מנוטרלת') : tr('האזעקה נדרכת')); window.setTimeout(() => void h.loadPanels(), 1500); })
+    .then((rec) => followAlarmAction(h, rec, action)) // SCR-06: "sent" until the panel confirms; confirmed / failed / unknown honestly
     .catch((err) => h.toast(err instanceof ApiError && CODE_ERROR_LABEL[err.code] ? CODE_ERROR_LABEL[err.code] : describeError(err)));
 }
 
@@ -41,7 +45,7 @@ registerMoreTile({
   href: 'security',
   label: tr('אזעקה'),
   icon: 'shield',
-  visible: (h) => alarmOk(h) && h.panels.length > 0,
+  visible: (h) => alarmOk(h) && (h.panels.length > 0 || h.panelsRead === 'error'), // SCR-06: a failed read shows "unavailable", not nothing
   warm: (h) => { if (alarmOk(h) && !h.panels.length) void h.loadPanels(); },
   line: (h) => {
     const p = panelOf(h);
@@ -57,7 +61,13 @@ registerScreen((h: HomeHost) => {
     names: ['security'],
     enter() {
       if (alarmOk(h)) void h.loadPanels();
+      window.clearInterval(st.pollT);
+      st.pollT = alarmOk(h) ? window.setInterval(() => { if (!document.hidden) void h.loadPanels(); }, ALARM_POLL_MS) : 0;
       if (canAnywhere('alarm.arm') || canAnywhere('alarm.disarm')) void alarmMe().then((m) => { st.pin = { set: m.pin_set, known: true }; h.requestUpdate(); }).catch(() => undefined);
+    },
+    leave() {
+      window.clearInterval(st.pollT);
+      st.pollT = 0;
     },
     acts: {
       almPanel(el) { st.panel = el.dataset.v ?? ''; h.requestUpdate(); },
@@ -119,6 +129,9 @@ registerScreen((h: HomeHost) => {
     },
     render() {
       const p = panelOf(h);
+      // SCR-06: a read that failed is "unavailable" and a read on its way is "loading" - never "no alarm system"
+      if (alarmOk(h) && !p && h.panelsRead === 'error') return html`${h.head(tr('אזעקה'), '')}${h.empty('shield', tr('מצב האזעקה לא זמין כרגע'), tr('לא הצלחנו לקרוא את מצב האזעקה. ננסה שוב בעוד רגע.'))}`;
+      if (alarmOk(h) && !p && h.panelsRead === 'none') return html`${h.head(tr('אזעקה'), '')}${h.empty('shield', tr('קוראים את מצב האזעקה…'), '')}`;
       if (!alarmOk(h) || !p) return html`${h.head(tr('אזעקה'), '')}${h.empty('shield', tr('אין מערכת אזעקה מחוברת'), tr('כשתחובר מערכת אזעקה, אפשר יהיה לדרוך ולנטרל אותה מכאן.'))}`;
       const w = alarmWord(p.state, p.available);
       const armed = !!p.state && p.state !== 'disarmed';
@@ -126,11 +139,11 @@ registerScreen((h: HomeHost) => {
       const zones = p.zones.slice().sort((a, b) => Number(!a.open) - Number(!b.open));
       const pg = paged(zones, h.phone ? 3 : 5, h.pg('alz'));
       const modes = (['arm_away', 'arm_home', 'arm_night'] as const).filter((m) => p.arm_modes.includes(m));
-      const line = !p.available ? tr('המערכת לא זמינה כרגע.') : armed ? (p.code.disarm === 'pin' ? tr('לנטרול צריך את הקוד האישי שלך.') : tr('לנטרול לחצו על נטרול.')) : open.length ? tr('{v1}. כדאי לסגור לפני דריכה.', { v1: open.length === 1 ? tr('פתח אחד פתוח') : open.length + tr(' פתחים פתוחים') }) : tr('כל הפתחים סגורים.');
+      const line = h.panelsRead === 'error' ? tr('אין קשר כרגע. מוצג המצב האחרון שנקרא.') : !p.available ? tr('המערכת לא זמינה כרגע.') : armed ? (p.code.disarm === 'pin' ? tr('לנטרול צריך את הקוד האישי שלך.') : tr('לנטרול לחצו על נטרול.')) : open.length ? tr('{v1}. כדאי לסגור לפני דריכה.', { v1: open.length === 1 ? tr('פתח אחד פתוח') : open.length + tr(' פתחים פתוחים') }) : tr('כל הפתחים סגורים.');
       const pinBtn = st.pin.known && (canAnywhere('alarm.arm') || canAnywhere('alarm.disarm')) ? html`<button class="hbtn" data-act="almPin" data-home-pin-change>${hi('key')}<span class="bt">${tr('הקוד האישי שלי')}</span></button>` : nothing;
       const pick = h.panels.length > 1 ? h.seg('almPanel', h.panels.slice(0, 4).map((x) => [x.entity_id, x.name] as [string, string]), p.entity_id, tr('מערכת')) : nothing;
       return html`${h.head(tr('אזעקה'), p.last_changed ? tr('{name} · השתנתה {v1}', { name: p.name, v1: new Date(p.last_changed).toLocaleString(uiLocale(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }) }) : p.name, html`${pick}${pinBtn}`)}
-        <div class="clim-body alm"><section class="tile pane alm-main" data-tone=${w.tone} aria-label=${p.name} data-home-alarm=${p.state ?? ''}><span class="alm-ic">${hi('shield')}</span><b class="alm-w">${w.text}</b><span class="muted">${line}</span>
+        <div class="clim-body alm"><section class="tile pane alm-main" data-tone=${w.tone} aria-label=${p.name} data-home-alarm=${p.state ?? ''} data-home-alarm-read=${h.panelsRead}><span class="alm-ic">${hi('shield')}</span><b class="alm-w">${w.text}</b><span class="muted">${line}</span>
           <div class="alm-acts">${armed ? html`<button class="hbtn strong xl" data-act="almDisarm" ?disabled=${!p.can.disarm || !p.available}>${hi('unlock')}${tr('נטרול')}</button>` : modes.map((m, i) => html`<button class=${'hbtn xl' + (i === 0 ? ' strong' : '')} data-act="almArm" data-v=${m} ?disabled=${!p.can.arm || !p.available}>${hi(m === 'arm_home' ? 'home' : m === 'arm_night' ? 'night' : 'lock')}${ARM_WORD[m]}</button>`)}</div></section>
           <section class="tile pane" aria-label="${tr('פתחים')}"><div class="bar"><h2>${tr('דלתות, חלונות וגלאים')}</h2>${h.pager('alz', pg.pages)}</div>${pg.items.length ? pg.items.map((z) => { const s = zoneState(z); const tone = s.tone === 'ok' ? 'ok' : s.tone === 'fault' ? 'danger' : s.tone === 'bypassed' ? 'neutral' : 'warn'; return html`<div class="sysr"><b class="clamp1" dir="auto">${z.name}</b><span class="dst" data-tone=${tone}><i class="dot"></i><span class="clamp1">${s.label}</span></span></div>`; }) : h.empty('shield', tr('אין גלאים להצגה'), tr('כשהאזעקה תדווח על דלתות, חלונות או גלאים, הם יופיעו כאן.'))}</section></div>`; // HOME-V3-AUDITFIX-2437 (audit item 26)
     },
