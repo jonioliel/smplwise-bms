@@ -15,6 +15,7 @@ import {
   DAY_LONG, DAY_SHORT, addDays, cancelClosed, colorVar, ddmm, hm, isoDate, nextFree, pageOf, rowsThatFit, slotGrid, slotLook, span, startOfDay, timelineWindow, whenText,
   type Slot,
 } from './model';
+import { occurrenceKey } from './booking-logic';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import './view-calendar';
@@ -512,7 +513,8 @@ export class CalResident extends LitElement {
   }
 
   private openCancel(o: Occurrence): void {
-    this.cancelScope = 'occurrence';
+    // SCR-03: "only this date" needs the date's local key; a series row without one offers the whole series alone
+    this.cancelScope = occurrenceKey(o) ? 'occurrence' : 'series';
     this.actionError = '';
     this.sheet = { kind: 'cancel', o };
   }
@@ -642,7 +644,7 @@ export class CalResident extends LitElement {
       <header><div class="grow"><h2>${tr('לבטל את "{title}"?', { title: o.title ?? tr('ההזמנה') })}</h2><div class="muted ell">${cal?.name ?? ''} · ${whenText(o.start, o.end, this.now)}</div></div></header>
       <div class="body">
         ${o.recurring ? html`<div role="radiogroup" aria-label=${tr('מה לבטל')} style="display:grid;gap:8px">
-          <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'occurrence')} data-res-scope="occurrence" @click=${() => (this.cancelScope = 'occurrence')}><span class="rad"></span><div><b>${tr('רק {date}', { date: `${DAY_SHORT[new Date(o.start).getDay()]} ${ddmm(new Date(o.start))}` })}</b><small>${tr('שאר המועדים נשארים')}</small></div></button>
+          ${occurrenceKey(o) ? html`<button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'occurrence')} data-res-scope="occurrence" @click=${() => (this.cancelScope = 'occurrence')}><span class="rad"></span><div><b>${tr('רק {date}', { date: `${DAY_SHORT[new Date(o.start).getDay()]} ${ddmm(new Date(o.start))}` })}</b><small>${tr('שאר המועדים נשארים')}</small></div></button>` : nothing}
           <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'series')} data-res-scope="series" @click=${() => (this.cancelScope = 'series')}><span class="rad"></span><div><b>${tr('כל הסדרה')}</b><small>${tr('מועדים שעברו נשארים בהיסטוריה')}</small></div></button></div>` : nothing}
         <div class="hint"><sw-icon name="info" size="14"></sw-icon>${tr('החדר יתפנה מיד ומי שביקש אותו יקבל הודעה.')}</div>
         ${this.actionError ? html`<div class="note bad" role="alert" data-res-error>${this.actionError}</div>` : nothing}
@@ -657,7 +659,13 @@ export class CalResident extends LitElement {
     this.actionError = '';
     try {
       const ev = await this.ctx.api.event(o.event_id);
-      await this.ctx.api.cancelEvent(o.event_id, ev.event.revision, o.recurring && this.cancelScope === 'occurrence' ? o.start : undefined);
+      // SCR-03: one date is named by its LOCAL key (as the operator grid sends it), never the UTC instant (the server answered 422)
+      const key = o.recurring && this.cancelScope === 'occurrence' ? occurrenceKey(o) : null;
+      if (o.recurring && this.cancelScope === 'occurrence' && !key) {
+        this.cancelScope = 'series'; // no key: the sheet offers the whole series, chosen by a second press - never sent silently
+        return;
+      }
+      await this.ctx.api.cancelEvent(o.event_id, ev.event.revision, key ?? undefined);
       this.sheet = null;
       emit(this, CAL_EVENTS.toast, tr('ההזמנה בוטלה'));
       await this.loadMine();

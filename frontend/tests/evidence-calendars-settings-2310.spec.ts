@@ -304,6 +304,17 @@ test.describe('resident phone flow', () => {
     await expect(page.locator(`${R} [data-res-booking]`, { hasText: 'שיעור בית' })).toHaveCount(0);
   });
 
+  test('SCR-03: "only this date" of a weekly booking cancels that date (its local key), with no error', async ({ page }) => {
+    await open(page, '/calendars/cal?role=resident');
+    await page.locator(`${R} [data-res-tab="mine"]`).click();
+    await page.locator(`${R} [data-res-booking="res4"] [data-res-cancel]`).click();
+    const sheet = page.locator(`${R} [data-res-sheet="cancel"]`);
+    await expect(sheet.locator('[data-res-scope="occurrence"]')).toHaveAttribute('aria-checked', 'true'); // the default choice
+    await sheet.locator('[data-res-cancel-ok]').click();
+    await expect(page.locator(`${R} [data-res-error]`), 'the server key is the local start; a UTC instant was refused (422)').toHaveCount(0);
+    await expect(page.locator(`${R} [data-res-booking="res4"]`)).toHaveCount(0);
+  });
+
   test('a contested window: "2 מבקשים" (answer 13A) and the request goes to the manager', async ({ page }) => {
     await open(page, '/calendars/cal?role=resident');
     await page.locator(`${R} [data-res-room="hall"]`).click();
