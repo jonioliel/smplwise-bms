@@ -1,0 +1,114 @@
+[
+  {
+    "schema": "record.v1.schema.json",
+    "file": "examples/record.v1.valid.json",
+    "expected_valid": true,
+    "error_path": null,
+    "reason": "valid closed synthetic shape"
+  },
+  {
+    "schema": "record.v1.schema.json",
+    "file": "examples/record.v1.missing.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing"
+  },
+  {
+    "schema": "record.v1.schema.json",
+    "file": "examples/record.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "record.v1.schema.json",
+    "file": "examples/record.v1.extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "extra"
+  },
+  {
+    "schema": "request.v1.schema.json",
+    "file": "examples/request.v1.valid.json",
+    "expected_valid": true,
+    "error_path": null,
+    "reason": "valid closed synthetic shape"
+  },
+  {
+    "schema": "request.v1.schema.json",
+    "file": "examples/request.v1.missing.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing"
+  },
+  {
+    "schema": "request.v1.schema.json",
+    "file": "examples/request.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "request.v1.schema.json",
+    "file": "examples/request.v1.extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "extra"
+  },
+  {
+    "schema": "result.v1.schema.json",
+    "file": "examples/result.v1.valid.json",
+    "expected_valid": true,
+    "error_path": null,
+    "reason": "valid closed synthetic shape"
+  },
+  {
+    "schema": "result.v1.schema.json",
+    "file": "examples/result.v1.missing.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing"
+  },
+  {
+    "schema": "result.v1.schema.json",
+    "file": "examples/result.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "result.v1.schema.json",
+    "file": "examples/result.v1.extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "extra"
+  },
+  {
+    "schema": "error.v1.schema.json",
+    "file": "examples/error.v1.valid.json",
+    "expected_valid": true,
+    "error_path": null,
+    "reason": "valid closed synthetic shape"
+  },
+  {
+    "schema": "error.v1.schema.json",
+    "file": "examples/error.v1.missing.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing"
+  },
+  {
+    "schema": "error.v1.schema.json",
+    "file": "examples/error.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "error.v1.schema.json",
+    "file": "examples/error.v1.extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "extra"
+  }
+]

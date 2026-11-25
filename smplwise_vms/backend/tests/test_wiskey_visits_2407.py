@@ -22,7 +22,7 @@ from dataclasses import replace
 
 import pytest
 from conftest import as_user, bind
-from fake_wiskey_visits import BAIT, RECORD, VisitsFake
+from fake_wiskey_visits import BAIT, RECORD, VisitsFake, visit_uuid
 from test_access_grants import VF, VU, Env
 from tickets_world import API
 
@@ -61,6 +61,7 @@ def vx(settings, monkeypatch):
     intercom_sync.SYNC.reset()
     s = replace(settings, ha_url="http://ha.local:8123", ha_token="t", ha_core_url="http://ha.local:8123")
     env = Env(s, monkeypatch)
+    uuid_people(env.engine)
     monkeypatch.setattr(access_entries, "EVENT_SOURCE", lambda db, since: [])
     env.sql("INSERT OR REPLACE INTO settings(key, value) VALUES ('access.visitors', 'on')")
     env.sql("INSERT OR REPLACE INTO access_station_visitor_entrance(station_id, set_by, set_at) VALUES ('st-a', 'test', '2026-10-20T06:00:00Z')")
@@ -72,6 +73,21 @@ def vx(settings, monkeypatch):
         intercom_sync.SYNC.thread.join(timeout=5)
     intercom_sync.SYNC.reset()
     ag.reset_for_tests()
+
+
+def uuid_people(engine) -> None:
+    """WISKEY-R6-2520: WisKey's person ids are canonical lowercase UUIDs (models.uuid_text) and the record carries one; the shared fake
+    engine names its people `wk-0001`, so the visits tests rename each new person to a UUID right after it is created."""
+    create = engine.create_person
+
+    def create_uuid(**kw):
+        view = create(**kw)
+        raw = engine.people.pop(view.id)
+        raw["id"] = f"00000000-0000-4000-8000-{engine._seq:012d}"
+        engine.people[raw["id"]] = raw
+        return engine._view(raw)
+
+    engine.create_person = create_uuid
 
 
 def invite(env) -> dict:
@@ -253,7 +269,7 @@ def test_a_push_needs_a_confirmation_and_sends_one_frame_of_ids_only(vx):
     r = env.c.post(f"{W}/{v['id']}/push", json={"confirmed": True})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["status"] == "pushed" and body["record"]["visit_id"] == "v-arx-1" and body["link"]["in_sync"] is True and body["link"]["state"] == "pushed"
+    assert body["status"] == "pushed" and body["record"]["visit_id"] == visit_uuid(801) and body["link"]["in_sync"] is True and body["link"]["state"] == "pushed"
     frames = sent(fake, RECORD)
     assert len(frames) == 1
     f = frames[0]
@@ -271,7 +287,7 @@ def test_a_push_needs_a_confirmation_and_sends_one_frame_of_ids_only(vx):
     assert r2.status_code == 409 and r2.json()["code"] == "wiskey_visits_in_sync" and len(sent(fake, RECORD)) == 1
     # the WisKey list now shows the record as Arx's
     items = env.c.get(f"{W}/visits").json()["visits"]["items"]
-    mine = [i for i in items if i["id"] == "v-arx-1"][0]
+    mine = [i for i in items if i["id"] == visit_uuid(801)][0]
     assert mine["origin"] == "arx" and mine["source"] == "arx" and mine["arx_invite_id"] == v["id"]
 
 
@@ -305,7 +321,7 @@ def test_a_pre_effect_refusal_is_refused_and_a_new_push_is_allowed(vx):
 def test_an_older_revision_never_overwrites_a_newer_record_in_wiskey(vx):
     fake, env, _s = offered(vx)
     v = invite(env)
-    fake.records[v["id"]] = {"visit_id": "v-arx-9", "arx_revision": 999, "status": "ended", "record": {}}
+    fake.records[v["id"]] = {"visit_id": visit_uuid(809), "revision": 4, "arx_revision": 999, "status": "ended", "record": {}}
     r = env.c.post(f"{W}/{v['id']}/push", json={"confirmed": True})
     assert r.status_code == 409 and r.json()["code"] == "wiskey_visits_stale", r.text
     assert fake.records[v["id"]]["arx_revision"] == 999

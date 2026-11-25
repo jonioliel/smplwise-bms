@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.local/contracts/external-visits-v1/error.v1.schema.json",
+  "x-contract-version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "type",
+    "success",
+    "error"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "type": {
+      "const": "result"
+    },
+    "success": {
+      "const": false
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "installation_unavailable",
+            "writes_disabled",
+            "visit_record_stale",
+            "revision_conflict",
+            "user_not_found",
+            "visit_user_not_temporary",
+            "storage_stopping",
+            "invalid_fields",
+            "invalid_text",
+            "invalid_id",
+            "invalid_validity",
+            "visit_request_limit",
+            "api_incompatible",
+            "unauthorized",
+            "request_too_large",
+            "rate_limited",
+            "visit_record_outcome_unknown",
+            "bridge_outcome_unknown"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "translation_domain": {
+          "const": "hikvision_intercom"
+        },
+        "translation_key": {
+          "const": "access_action_failed"
+        },
+        "translation_placeholders": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "enum": [
+                "installation_unavailable",
+                "writes_disabled",
+                "visit_record_stale",
+                "revision_conflict",
+                "user_not_found",
+                "visit_user_not_temporary",
+                "storage_stopping",
+                "invalid_fields",
+                "invalid_text",
+                "invalid_id",
+                "invalid_validity",
+                "visit_request_limit",
+                "api_incompatible",
+                "unauthorized",
+                "request_too_large",
+                "rate_limited",
+                "visit_record_outcome_unknown",
+                "bridge_outcome_unknown"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

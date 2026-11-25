@@ -39,6 +39,7 @@ const STATUS_TEXT: Record<VisitStatus, [string, Tone]> = {
   rejected: [tr('נדחה'), 'err'],
   cancelled: [tr('בוטל'), 'off'],
   superseded: [tr('הוחלף'), 'off'],
+  ended: [tr('הסתיים'), 'off'],
   unknown: [tr('לא ידוע'), 'off'],
 };
 

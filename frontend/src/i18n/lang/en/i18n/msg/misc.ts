@@ -309,6 +309,7 @@ export const en = {
   'נדחה': 'Rejected',
   'בוטל': 'Cancelled',
   'הוחלף': 'Replaced',
+  'הסתיים': 'Ended',
   'לא ידוע': 'Unknown',
   'הזמנה של Arx': 'Arx invitation',
   'נוצר במערכת בקרת הכניסה · צפייה בלבד': 'Created in the access-control system · view only',

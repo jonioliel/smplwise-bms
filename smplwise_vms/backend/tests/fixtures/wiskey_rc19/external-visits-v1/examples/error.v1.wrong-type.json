@@ -1,0 +1,14 @@
+{
+  "id": [],
+  "type": "result",
+  "success": false,
+  "error": {
+    "code": "visit_record_stale",
+    "message": "Access action could not be completed",
+    "translation_domain": "hikvision_intercom",
+    "translation_key": "access_action_failed",
+    "translation_placeholders": {
+      "reason": "visit_record_stale"
+    }
+  }
+}

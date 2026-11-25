@@ -31,7 +31,7 @@ test('capability lines show available or the server reason, never a bare code', 
 test('operator texts never name the vendor or the platform', () => {
   const texts = [
     ...Object.values(CAPABILITY_LABEL),
-    ...(['pending', 'approved', 'rejected', 'cancelled', 'superseded', 'unknown'] as const).map((s) => statusText(s).text),
+    ...(['pending', 'approved', 'rejected', 'cancelled', 'superseded', 'ended', 'unknown'] as const).map((s) => statusText(s).text),
     originText({ origin: 'arx' }).text, originText({ origin: 'wiskey' }).text,
     ...(['never', 'sending', 'pushed', 'refused', 'not_sent', 'unknown'] as const).map((s) => linkPlan(link({ state: s }), true).text),
   ];
@@ -43,6 +43,11 @@ test('a visit created in the access-control system is read only; an Arx invitati
   expect(originText({ origin: 'arx' }).tone).toBe('acc');
   expect(statusText('approved')).toEqual({ text: 'מאושר', tone: 'ok' });
   expect(statusText('bogus' as never)).toEqual({ text: 'לא ידוע', tone: 'off' });
+});
+
+test('an Arx record that ended has its own label, not "unknown" (WISKEY-R6-2520)', () => {
+  expect(statusText('ended')).toEqual({ text: 'הסתיים', tone: 'off' });
+  expect(statusText('ended').text).not.toBe(statusText('unknown').text);
 });
 
 test('the record plan: push when allowed, check after an unknown, nothing while sending or in sync', () => {
