@@ -10,6 +10,7 @@ import './system-access-audit';
 import './system-access-groups';
 import './system-access-policy';
 import './system-access-messaging';
+import './system-access-wiskey';
 import type { TabItem } from '../components/sw-tabs';
 import type { SyncMeta } from '../api/access-status';
 import type { DisplayZone } from '../api/intercom';
@@ -24,7 +25,7 @@ import { settingsLadderStyles } from '../styles/settings';
 import { st } from '../i18n/access-status';
 import { mt } from '../i18n/access-messaging';
 
-type AccessSegment = 'status' | 'audit' | 'groups' | 'policy' | 'messaging';
+type AccessSegment = 'status' | 'audit' | 'wiskey' | 'groups' | 'policy' | 'messaging';
 
 /**
  * CR-036 S10: the Settings page "בקרת כניסה" (#/system/access-control[/audit|/groups]) - the technical truth of the access-control
@@ -103,6 +104,8 @@ export class SystemAccessControl extends LitElement {
   private segments(): Array<{ id: AccessSegment; label: string }> {
     const out: Array<{ id: AccessSegment; label: string }> = [{ id: 'status', label: st('segStatus') }];
     if (this.wide) out.push({ id: 'audit', label: st('segAudit') });
+    // WISKEY-STATUS-UI-2520: WisKey's own status reads (system/status_v1, jobs/status_v1) - installation-wide in WisKey, like the log
+    if (this.wide) out.push({ id: 'wiskey', label: st('segWiskey') });
     if (this.people || this.wide) out.push({ id: 'groups', label: st('segGroups') });
     if (this.configure) out.push({ id: 'policy', label: st('segPolicy') });
     if (this.configure) out.push({ id: 'messaging', label: mt('segment') }); // CR-036 WA: the message settings and templates (system.configure)
@@ -140,13 +143,15 @@ export class SystemAccessControl extends LitElement {
       <div class="body" data-access-segment=${active}>
         ${active === 'audit'
           ? html`<system-access-audit .rev=${this.rev} @access-meta=${this.onMeta}></system-access-audit>`
-          : active === 'groups'
-            ? html`<system-access-groups .rev=${this.rev} @access-meta=${this.onMeta}></system-access-groups>`
-            : active === 'policy'
-              ? html`<system-access-policy .rev=${this.rev}></system-access-policy>`
-              : active === 'messaging'
-                ? html`<system-access-messaging .rev=${this.rev}></system-access-messaging>`
-                : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
+          : active === 'wiskey'
+            ? html`<system-access-wiskey .rev=${this.rev}></system-access-wiskey>`
+            : active === 'groups'
+              ? html`<system-access-groups .rev=${this.rev} @access-meta=${this.onMeta}></system-access-groups>`
+              : active === 'policy'
+                ? html`<system-access-policy .rev=${this.rev}></system-access-policy>`
+                : active === 'messaging'
+                  ? html`<system-access-messaging .rev=${this.rev}></system-access-messaging>`
+                  : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
         <wk-deep-links class="deeplinks" place=${`settings-${active}`}></wk-deep-links>
       </div>
     </sw-page>`;
