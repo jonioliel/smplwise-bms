@@ -422,6 +422,9 @@ def test_a_bad_draft_is_refused_before_anything_is_sent(wx, mutate, code):
     r = preview(c, d)
     assert r.status_code == 422 and r.json()["code"] == code, r.text
     assert r.json()["details"]["outcome"] == "not_sent"
+    if code == "profiles_invalid_draft":  # ADR-019 (ADR019-FAMILY45-2520): canonical `problems` {field, code} and their `fields`
+        d = r.json()["details"]
+        assert d["problems"] and all(set(p) == {"field", "code"} for p in d["problems"]) and d["fields"] == list(dict.fromkeys(p["field"] for p in d["problems"]))
     assert not sent(fake, "profiles/settings_preview")
     assert audit_rows(s, "intercom.profiles_preview")[-1]["details"]["phase"] == "refused"
 

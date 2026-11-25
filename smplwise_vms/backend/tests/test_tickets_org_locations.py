@@ -155,7 +155,7 @@ def test_names_are_unique_case_insensitively_including_inactive_ones(s4):
 def test_bad_fields_are_refused_by_name(s4, body, field, code):
     r = add_loc(s4, **body)
     assert r.status_code == 422, r.text
-    assert r.json()["details"]["fields"] == [{"field": field, "code": code}]
+    assert r.json()["details"]["problems"] == [{"field": field, "code": code}]
     assert admin(s4)["locations"] == []
 
 
@@ -182,14 +182,14 @@ def test_one_organisation_default_an_inactive_one_cannot_be_default_and_departme
     data = admin(s4)
     assert data["default_id"] == b and [x["is_default"] for x in data["locations"] if x["id"] == a] == [False]
     r = patch(s4, a, active=False, is_default=True)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "is_default", "code": "inactive"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "is_default", "code": "inactive"}]
     assert patch(s4, b, is_default=False).status_code == 200
     assert admin(s4)["default_id"] is None, "the organisation default is optional"
     # the department default: an active location, or none; an inactive / unknown one is refused
     url = f"{API}/tickets/admin/departments/dept-maintenance/location"
     assert patch(s4, a, active=False).status_code == 200
     r = s4.c.put(url, json={"location_id": a})
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_id", "code": "unknown"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "location_id", "code": "unknown"}]
     assert s4.c.put(url, json={"location_id": "nope00000000"}).status_code == 422
     assert s4.c.put(url, json={"location_id": b}).status_code == 200
     reader = s4.c.get(f"{API}/tickets/locations", headers=s4.h("tom")).json()
@@ -219,7 +219,7 @@ def test_an_inactive_or_unknown_location_is_refused_at_creation_and_free_text_st
     assert patch(s4, lid, active=False).status_code == 200
     for bad in (lid, "unknown00000"):
         r = s4.c.post(f"{API}/tickets", json={"department_id": "dept-maintenance", "title": "נזילה", "client_request_id": crid(), "location_id": bad})
-        assert r.status_code == 422 and {"field": "location_id", "code": "unknown"} in r.json()["details"]["fields"], r.text
+        assert r.status_code == 422 and {"field": "location_id", "code": "unknown"} in r.json()["details"]["problems"], r.text
     t = s4.ticket(place_text="  חדר ישיבות קטן ")  # "other (free text)" - nothing regresses
     assert t["place_text"] == "חדר ישיבות קטן" and t["location"] is None
     r = s4.c.post(f"{API}/tickets", json={"department_id": "dept-maintenance", "title": "נזילה", "client_request_id": crid(), "place_text": "ח" * 201})
@@ -362,9 +362,9 @@ def test_nav_flag_on_a_request_without_coordinates_is_refused_with_422_and_nothi
     no_coords = s4.ticket(location_id=loc_id(s4))
     for t in (no_loc, no_coords):
         r = s4.assign_contact(t["id"], location_nav=True)
-        assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_nav", "code": "no_coordinates"}], r.text
+        assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "location_nav", "code": "no_coordinates"}], r.text
         p = preview(s4, t["id"], location_nav=True)
-        assert p.status_code == 422 and p.json()["details"]["fields"] == [{"field": "location_nav", "code": "no_coordinates"}]
+        assert p.status_code == 422 and p.json()["details"]["problems"] == [{"field": "location_nav", "code": "no_coordinates"}]
         assert s4.w.detail(t["id"])["status"] == "new", "the refused assignment changed nothing"
         assert assign_params(s4, t["id"]) == []
         assert preview(s4, t["id"]).json()["location_nav"] == {"available": False, "on": False}
@@ -377,7 +377,7 @@ def test_nav_flag_for_an_inside_assignee_is_refused_and_a_non_manager_gets_the_p
     rev = s4.w.detail(t["id"])["revision"]
     body = {"assignee": {"kind": "user", "id": "tom"}, "revision": rev, "location_nav": True}
     r = s4.c.post(f"{API}/tickets/{t['id']}/assign", json=body, headers=s4.h("joni"))
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_nav", "code": "not_allowed"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "location_nav", "code": "not_allowed"}], r.text
     r2 = s4.c.post(f"{API}/tickets/{t['id']}/assign", json=body, headers=s4.h("tom"))
     assert r2.status_code in (403, 404), "an unauthorised caller gets the permission refusal, not a validation hint"
 
@@ -492,12 +492,12 @@ def test_a_location_may_link_one_live_room_and_the_link_can_be_cleared(s4):
 
 def test_an_unknown_or_deleted_room_is_refused_and_a_location_without_a_link_is_unchanged(s4):
     r = add_loc(s4, plan_zone_id="nope00000000")
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "plan_zone_id", "code": "unknown"}]
     assert add_loc(s4, plan_zone_id="x" * 80).status_code == 422  # over the id length
     z = room(s4)
     assert s4.c.delete(f"{API}/zones/{z}", headers=s4.h("joni")).status_code == 204
     r = add_loc(s4, plan_zone_id=z)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "plan_zone_id", "code": "unknown"}]
     assert one(s4, loc_id(s4, name="ללא קישור"))["plan_zone_id"] is None
 
 
@@ -509,7 +509,7 @@ def test_the_editor_cannot_link_a_room_of_a_floor_they_may_not_read(s4):
     r = add_loc(s4, "ori", name="שלישית", plan_zone_id=z3)
     assert r.status_code == 201, r.text
     r = add_loc(s4, "ori", name="שנייה", plan_zone_id=z2)  # same answer as an unknown room: the field cannot probe the plan
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "plan_zone_id", "code": "unknown"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "plan_zone_id", "code": "unknown"}]
     areas = s4.c.get(f"{API}/tickets/admin/locations/plan-areas", headers=s4.h("ori")).json()["areas"]
     assert [a["zone_id"] for a in areas] == [z3]
 

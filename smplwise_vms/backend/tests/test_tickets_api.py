@@ -40,7 +40,7 @@ def test_create_validates_and_numbers(w):
         ({"title": "x", "category_id": "cat-nope"}, "category_id"),
     ):
         r = w.c.post(f"{API}/tickets", json={"department_id": MAINT, "client_request_id": rid(), **body}, headers=w.h("tom"))
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == field, (body, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == field, (body, r.text)
     assert w.c.post(f"{API}/tickets", json={"department_id": MAINT, "title": "x", "client_request_id": rid(), "entity_id": "light.x"}, headers=w.h("tom")).status_code == 422
     assert w.c.post(f"{API}/tickets", json={"department_id": MAINT, "title": "x"}, headers=w.h("tom")).status_code == 422, "client_request_id is required"
 
@@ -141,7 +141,7 @@ def test_written_reasons(w, frm_moves, to, reason_needed):
             assert w.status("tom", t["id"], m).status_code == 200
     without = w.status("mona", t["id"], to)
     if reason_needed:
-        assert without.status_code == 422 and without.json()["details"]["fields"][0]["field"] == "note"
+        assert without.status_code == 422 and without.json()["details"]["problems"][0]["field"] == "note"
         assert w.status("mona", t["id"], to, note="אין צורך").status_code == 200
     else:
         assert without.status_code == 200
@@ -229,7 +229,7 @@ def test_the_assignee_returns_with_a_required_reason(w, kind, reason_code):
     w.assign("mona", t["id"], "tom")
     rev = w.detail(t["id"])["revision"]
     no_reason = w.c.post(f"{API}/tickets/{t['id']}/return", json={"kind": kind, "reason": " ​ ", "revision": rev}, headers=w.h("tom"))
-    assert no_reason.status_code == 422 and no_reason.json()["details"]["fields"][0]["field"] == "reason"
+    assert no_reason.status_code == 422 and no_reason.json()["details"]["problems"][0]["field"] == "reason"
     assert w.c.post(f"{API}/tickets/{t['id']}/return", json={"kind": kind, "reason": "x", "revision": rev}, headers=w.h("mona")).status_code == 403
     r = w.c.post(f"{API}/tickets/{t['id']}/return", json={"kind": kind, "reason": "הציוד שייך לבניין השכן", "revision": rev}, headers=w.h("tom"))
     assert r.status_code == 200 and r.json()["status"] == "returned" and r.json()["waiting_reason"] == reason_code and r.json()["assignee"] is None

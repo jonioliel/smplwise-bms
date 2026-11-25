@@ -152,7 +152,7 @@ def test_path_traversal_and_control_characters_in_the_name_never_reach_the_disk(
         row = store_rfq.attachment(conn, d["id"], a["id"])
     assert row["path"].startswith(f"{d['id']}/rfq/") and "passwd" not in row["path"] and ".." not in row["path"]
     r = attach(s4, d["id"], pdf(), "x.pdf", caption="x" * 300)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "caption"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "caption"
     r = attach(s4, d["id"], pdf(), "x.pdf", visible_vendors="maybe")
     assert r.status_code == 422
 

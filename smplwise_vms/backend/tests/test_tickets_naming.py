@@ -109,9 +109,9 @@ def test_saving_the_name_needs_the_module_settings_permission_and_is_audited(c, 
     assert r.json()["he"] == NAME_STORED and r.json()["revision"] == 1 and r.json()["en"] == naming.DEFAULTS["en"]
     assert c.put(f"{API}/tickets/name", json={"revision": 0, "he": MASCULINE}).json()["code"] == "settings_stale"
     bad = c.put(f"{API}/tickets/name", json={"revision": 1, "he": {"one": "<i>x</i>", "many": "y", "gender": "f"}})
-    assert bad.status_code == 422 and bad.json()["details"]["fields"][0] == {"field": "he.one", "code": "character"}
+    assert bad.status_code == 422 and bad.json()["details"]["problems"][0] == {"field": "he.one", "code": "character"}
     bad = c.put(f"{API}/tickets/name", json={"revision": 1, "he": {"one": "תקלה", "many": "תקלות", "gender": "x"}})
-    assert bad.status_code == 422 and bad.json()["details"]["fields"][0]["field"] == "he.gender"
+    assert bad.status_code == 422 and bad.json()["details"]["problems"][0]["field"] == "he.gender"
     # a holder of the single-permission grant role tickets_configure may rename (D25: grantable to one person)
     bind(c, settings, "cora", "tickets_configure", "installation", "*")
     assert c.put(f"{API}/tickets/name", json={"revision": 1, "he": MASCULINE}, headers=as_user("cora")).status_code == 200
@@ -178,7 +178,7 @@ def test_a_saved_module_name_is_kept_and_reaches_the_labels(c):
     assert r.status_code == 200 and r.json()["he"]["module"] == "מוקד אחזקה"
     assert c.get(f"{API}/access/roles").json()["labels"]["tickets.view"] == "מוקד אחזקה: צפייה"
     bad = c.put(f"{API}/tickets/name", json={"revision": 1, "he": {**NAME, "module": "<b>"}})
-    assert bad.status_code == 422 and bad.json()["details"]["fields"][0]["field"] == "he.module"
+    assert bad.status_code == 422 and bad.json()["details"]["problems"][0]["field"] == "he.module"
 
 
 # ---------------------------------------------------------------- the owner rename lint (2026-10-14): the old words are gone

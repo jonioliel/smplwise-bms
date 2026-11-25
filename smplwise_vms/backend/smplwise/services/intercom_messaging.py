@@ -41,7 +41,7 @@ from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
 from ..db import Database, get_setting, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import intercom_authority as ia
 from . import redact
 from .timeutil import DEFAULT_ZONE, iso_utc, site_zone
@@ -478,7 +478,9 @@ def validate_settings(data: dict[str, Any], current: dict[str, Any]) -> dict[str
         errors.extend(template_errors(templates, organization if isinstance(organization, str) else ""))
     consent = _consent_validate(data, current, errors)
     if errors:
-        raise ApiError(422, "message_settings_invalid", "הגדרות ההודעות אינן תקינות.", details={"errors": errors[:60]})
+        # ADR-019 (ADR019-FAMILY45-2520): `problems` / `fields` beside the legacy `errors` issue list (the same first 60)
+        raise field_error("הגדרות ההודעות אינן תקינות.", problems=[{"field": e["path"], "code": e["code"]} for e in errors[:60]],
+                          code="message_settings_invalid", legacy={"errors": errors[:60]})
     return {"revision": current["revision"] + 1, "enabled": enabled, "free_text": free_text, "bulk_max": bulk_max, "rate_per_hour": rate,
             **caps, "send_hours": send_hours, "organization": organization, "account": account, "templates": templates, **consent}
 

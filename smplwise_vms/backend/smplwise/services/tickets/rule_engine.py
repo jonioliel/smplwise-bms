@@ -183,7 +183,8 @@ def fire_one(conn, rule: dict[str, Any], n: dict[str, Any], now: dt.datetime, da
     except ApiError as exc:
         conn.execute("ROLLBACK TO ticket_rule_fire")
         conn.execute("RELEASE ticket_rule_fire")
-        fields = [f.get("field") for f in (exc.details or {}).get("fields", []) if isinstance(f, dict)]
+        # ADR-019 (ADR019-FAMILY45-2520): the refused field names - `details.fields` are names now (objects before)
+        fields = [f if isinstance(f, str) else f.get("field") for f in (exc.details or {}).get("fields", []) if isinstance(f, (str, dict))]
         if store_rules.insert_fire(conn, rule_id=rule["id"], notification_id=n["id"], dedupe_key=key, outcome="refused", ticket_id=None, day=day,
                                    at=stamp, cleared=True):
             audit(conn, actor=None, action="tickets.rule.refused", decision="denied", resource_type="ticket_rule", resource_id=rule["id"],

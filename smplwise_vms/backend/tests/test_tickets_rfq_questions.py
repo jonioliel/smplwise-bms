@@ -107,11 +107,11 @@ def test_limits_and_a_refused_question_stores_no_quote(s4):
     assert ask(c, tok).status_code == 201
     mid = question_id(s4, d["id"])
     r = answer(s4, d["id"], mid, text="ת" * 2001)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "text"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "text"
     r = answer(s4, d["id"], mid, text="   ")
     assert r.status_code == 422
     r = answer(s4, d["id"], mid, scope="all", question_text="ש" * 1001)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "question_text"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "question_text"
     r = answer(s4, d["id"], mid, scope="everyone")
     assert r.status_code == 422
 

@@ -12,7 +12,7 @@ from typing import Any
 
 from ...audit import audit
 from ...db import now_iso
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import Principal
 from . import access, attachments, handler_links, model, notify_bridge, sla, store
 from .access import Seen, Viewer, text
@@ -44,7 +44,7 @@ def _location_view(row: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- shared answers
 
 def invalid(conn, exc: model.Invalid) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]})
+    return field_error(text(conn, "ערך לא תקין."), problems=[{"field": p.field, "code": p.code} for p in exc.problems])
 
 
 def stale(conn, row: dict[str, Any]) -> ApiError:
@@ -308,9 +308,12 @@ COST_MESSAGES = {
 def cost_error(conn, exc) -> ApiError:
     """A services/tickets/costs.CostRefused as the internal API's envelope (Hebrew, with the module's display name - D33)."""
     if exc.status == 422 and exc.code not in COST_MESSAGES:
-        return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field or "body", "code": exc.code}]})
+        return field_error(text(conn, "ערך לא תקין."), problems=[{"field": exc.field or "body", "code": exc.code}])
     msg = COST_MESSAGES.get(exc.code, "הפעולה נדחתה.")
     details = dict(exc.extra)
+    if exc.field and not {"fields", "problems"} & set(details):
+        # ADR-019 (ADR019-FAMILY45-2520): a refusal that names a field also answers `details.fields` (the legacy `field` stays)
+        return field_error(text(conn, msg), [exc.field], code=exc.code, status=exc.status, legacy={"field": exc.field}, extra=details)
     if exc.field:
         details["field"] = exc.field
     return ApiError(exc.status, exc.code, text(conn, msg), details=details)

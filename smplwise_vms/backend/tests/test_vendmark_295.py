@@ -57,7 +57,7 @@ def test_the_list_carries_the_marker_and_filters_on_it(s4):
 
 def test_an_employee_or_an_internal_user_is_never_a_vendor(s4):
     refused = s4.add_contact(kind="employee", display_name="עובד", permanent_vendor=True)
-    assert refused.status_code == 422 and refused.json()["details"]["fields"][0] == {"field": "permanent_vendor", "code": "not_external"}
+    assert refused.status_code == 422 and refused.json()["details"]["problems"][0] == {"field": "permanent_vendor", "code": "not_external"}
     cid = s4.contact["id"]
     patch(s4, cid, permanent_vendor=True)
     to_employee = patch(s4, cid, kind="employee")

@@ -196,8 +196,10 @@ def test_the_shared_422_envelope_is_the_same(w):
     with Database(w.settings.db_path).connection(mode="read") as conn:
         one = tc.invalid(conn, "months", "invalid")
         many = tc.invalid_fields(conn, [{"field": "a", "code": "b"}, {"field": "c", "code": "d"}])
-    assert (one.status, one.code, one.user_message, one.details) == (422, "validation", "ערך לא תקין.", {"fields": [{"field": "months", "code": "invalid"}]})
-    assert many.details == {"fields": [{"field": "a", "code": "b"}, {"field": "c", "code": "d"}]}
+    # ADR019-FAMILY45-2520: the `{field, code}` problems in `details.problems`, `details.fields` their names
+    assert (one.status, one.code, one.user_message, one.details) == (422, "validation", "ערך לא תקין.",
+                                                                     {"fields": ["months"], "problems": [{"field": "months", "code": "invalid"}]})
+    assert many.details == {"fields": ["a", "c"], "problems": [{"field": "a", "code": "b"}, {"field": "c", "code": "d"}]}
 
 
 def test_no_tickets_router_copies_rid_or_builds_the_422_envelope_inline():

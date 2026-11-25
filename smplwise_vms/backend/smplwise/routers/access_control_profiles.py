@@ -45,7 +45,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
@@ -192,7 +192,9 @@ def profiles_preview(request: Request, principal: Principal = Depends(_editor_ro
     try:
         values = wp.normalize_draft(body.values, known)
     except wp.DraftError as exc:
-        raise act.refuse(ApiError(422, "profiles_invalid_draft", "הטיוטה אינה תקינה. תקנו את השדות המסומנים - לא נשלח דבר.", details={"problems": exc.problems})) from None
+        # ADR-019 (ADR019-FAMILY45-2520): the draft's `{path, code}` problems in the one envelope - `problems` `{field, code}` + `fields`
+        raise act.refuse(field_error("הטיוטה אינה תקינה. תקנו את השדות המסומנים - לא נשלח דבר.", code="profiles_invalid_draft",
+                                     problems=[{"field": p["path"], "code": p["code"]} for p in exc.problems])) from None
     if body.revision != current["revision"]:
         act.details.update(base_revision=body.revision, current_revision=current["revision"])
         raise act.refuse(ApiError(409, "profiles_revision_conflict", "ההגדרות השתנו מאז שהטיוטה נפתחה. טענו מחדש את הגרסה הנוכחית - לא נשלח דבר.",

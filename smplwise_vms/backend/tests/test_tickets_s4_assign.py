@@ -140,7 +140,7 @@ def test_an_english_contact_gets_the_english_text(s4):
 def test_share_history_is_refused_without_a_device_snapshot_and_for_security_domains(s4):
     t = s4.ticket()
     r = s4.assign_contact(t["id"], share_history=True)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "share_history", "code": "not_allowed"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "share_history", "code": "not_allowed"}
     with s4.db.connection() as conn:
         conn.execute("UPDATE tickets SET entity_id = 'lock.front_door' WHERE id = ?", (t["id"],))
         conn.execute("INSERT INTO ticket_device_context(ticket_id, entity_id, captured_at, window_from, window_to, source, items_json) "
@@ -229,7 +229,7 @@ def test_settings_validate_the_durations_and_a_lower_cap_pulls_live_links_in(s4)
     t, _token = s4.sent()
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "links": {"cap_days": 7, "sliding_days": 14}})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "links.cap_days"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "links.cap_days"
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "links": {"sliding_days": 7, "cap_days": 20}})
     assert r.status_code == 200 and r.json()["links"] == {"sliding_days": 7, "cap_days": 20, "grace_hours": 24}, r.text
     row = s4.link_row(t["id"])
@@ -292,7 +292,7 @@ def test_mark_sent_keeps_the_first_time_and_an_email_send_stays_email(s4):
 def test_the_public_address_is_validated(s4, url):
     rev = s4.c.get(f"{API}/tickets/settings").json()["revision"]
     r = s4.c.put(f"{API}/tickets/settings", json={"revision": rev, "public": {"base_url": url}})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "public.base_url", r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "public.base_url", r.text
 
 
 def test_trusted_proxy_networks_are_validated_and_reach_the_running_listener(s4):

@@ -462,7 +462,7 @@ def test_the_reply_subscription_follows_the_mapping_changed_on_another_screen(en
 
 def test_message_templates_per_language_validate_preview_and_render(env):
     r = env.c.post(f"{API}/tickets/admin/message-templates", json={"purpose": "assign", "lang": "he", "body": "בדיקה {number}: {title}"})
-    assert r.status_code == 422 and {"code": "link_required", "field": "body"} in r.json()["details"]["fields"]
+    assert r.status_code == 422 and {"code": "link_required", "field": "body"} in r.json()["details"]["problems"]
     r = env.c.post(f"{API}/tickets/admin/message-templates/preview", json={"purpose": "assign", "lang": "he", "body": "{module_name} {number}: {title}\n{link}"})
     assert r.status_code == 200 and "1042" in r.json()["text"] and "[קישור]" in r.json()["text"]
     r = env.c.post(f"{API}/tickets/admin/message-templates", json={"purpose": "assign", "lang": "he", "body": "שלום {name}! מספר {number}\n{link}"})

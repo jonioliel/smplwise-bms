@@ -124,7 +124,7 @@ def test_the_tick_is_refused_while_the_feature_is_off(settings, monkeypatch):
     r = Regular(settings, monkeypatch, enable=False)
     try:
         assert r.assign.status_code == 422, r.assign.text
-        assert r.assign.json()["details"]["fields"][0] == {"field": "access_needed", "code": "not_allowed"}
+        assert r.assign.json()["details"]["problems"][0] == {"field": "access_needed", "code": "not_allowed"}
         with r.db.connection(mode="read") as conn:
             assert conn.execute("SELECT COUNT(*) FROM access_arrival_flags").fetchone()[0] == 0
             assert conn.execute("SELECT COUNT(*) FROM ticket_assignments WHERE ticket_id = ?", (r.ticket_id,)).fetchone()[0] == 0, "nothing was stored"

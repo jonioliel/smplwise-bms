@@ -1,7 +1,8 @@
 """Helpers the tickets routers used to copy (code review 2026-11-13, 01:F-13).
 
     invalid(conn, field, code)        the 422 `validation` envelope for one field ("ערך לא תקין."), as an ApiError to raise
-    invalid_fields(conn, fields)      the same envelope for a list of {"field", "code"} problems
+    invalid_fields(conn, fields)      the same envelope for a list of {"field", "code"} problems (ADR-019: `details.problems`,
+                                      `details.fields` = their names)
     need_any(conn, viewer, *perms)    at least one permission at any scope, else the audited 403 (action = the first permission,
                                       reason `no_binding`, details {"permission": ...}); `request_id=` is recorded when given
 
@@ -13,7 +14,7 @@ import sqlite3
 from typing import Any
 
 from ..audit import audit
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..services.tickets.access import text
 from ._common import rid
 
@@ -21,7 +22,8 @@ __all__ = ["invalid", "invalid_fields", "need_any", "rid"]
 
 
 def invalid_fields(conn: sqlite3.Connection, fields: list[dict[str, Any]]) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": fields})
+    """ADR-019 (ADR019-FAMILY45-2520): the `{field, code}` problems ride in `details.problems`; `details.fields` names them."""
+    return field_error(text(conn, "ערך לא תקין."), problems=fields)
 
 
 def invalid(conn: sqlite3.Connection, field: Any, code: Any) -> ApiError:

@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import intercom_authority as ia
 from ..services import intercom_messaging as M
@@ -38,6 +38,13 @@ AUDIT_SETTINGS = "intercom.messaging.template_send_settings"
 
 
 # ---------------------------------------------------------------- the administrator's switch and references
+
+def _invalid(issues: list[dict[str, str]]) -> ApiError:
+    """422 `template_send_invalid`: every issue as `{path, code}` under the legacy `errors`, and (ADR-019, ADR019-FAMILY45-2520) the
+    same issues as `problems` `{field, code}` with their `fields`."""
+    return field_error("הגדרות שליחת התבנית אינן תקינות.", problems=[{"field": i["path"], "code": i["code"]} for i in issues],
+                       code="template_send_invalid", legacy={"errors": issues})
+
 
 class TemplateSendSettingsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -74,7 +81,7 @@ def put_template_send_settings(request: Request, principal: Principal = Depends(
         refs, tp = wts.admin_registry_input(body.templates)
         problems += tp
     if problems:
-        raise ApiError(422, "template_send_invalid", "הגדרות שליחת התבנית אינן תקינות.", details={"errors": problems})
+        raise _invalid(problems)
     db = request.app.state.db
     changed: list[str] = []
     with db.write_aside() as w:
@@ -85,8 +92,7 @@ def put_template_send_settings(request: Request, principal: Principal = Depends(
             stored = wts.load_registry(w)
             merged, mp = wts.validate_registry([wts.ref_doc(r) for r in refs] + [wts.ref_doc(r) for r in stored if wts.is_native(r)])
             if mp:
-                raise ApiError(422, "template_send_invalid", "הגדרות שליחת התבנית אינן תקינות.",
-                               details={"errors": [{"path": "templates", "code": p["code"]} for p in mp]})
+                raise _invalid([{"path": "templates", "code": p["code"]} for p in mp])
             if merged != stored:
                 wts.store_registry(w, merged)
                 changed.append("templates")

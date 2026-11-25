@@ -45,6 +45,12 @@ export interface MessagingSettingsMock {
 }
 
 const err = (code: string, user_message: string, details: Record<string, unknown> = {}) => ({ code, user_message, retryable: false, correlation_id: 'c0ffee', details });
+// ADR019-FAMILY45-2520: the server's 422 `message_settings_invalid` - the legacy `errors` list plus the canonical `fields` / `problems`
+const invalidDetails = (issues: { path: string; code: string }[]) => ({
+  errors: issues,
+  fields: [...new Set(issues.map((p) => p.path))],
+  problems: issues.map((p) => ({ field: p.path, code: p.code })),
+});
 
 export function newSettings(): MessagingSettingsMock {
   const wire = clone(WIRE.settings);
@@ -80,7 +86,7 @@ export async function installMessagingSettings(page: Page, opts: MockOptions = {
     }
     if (ms.next === 'server_problem') {
       ms.next = 'ok';
-      return json(route, err('message_settings_invalid', 'הגדרות ההודעות אינן תקינות.', { errors: ms.problems }), 422);
+      return json(route, err('message_settings_invalid', 'הגדרות ההודעות אינן תקינות.', invalidDetails(ms.problems)), 422);
     }
     if (body.base_revision !== ms.doc.revision) return json(route, err('message_settings_conflict', 'ההגדרות נשמרו בינתיים על ידי מישהו אחר - טענו מחדש.', { revision: ms.doc.revision }), 409);
     const next = {
@@ -88,7 +94,7 @@ export async function installMessagingSettings(page: Page, opts: MockOptions = {
       account: String(body.account ?? ''), templates: (body.templates ?? []) as { id?: string; label: string; body: string }[],
     };
     const problems = settingsProblems(next, limits);
-    if (problems.length) return json(route, err('message_settings_invalid', 'הגדרות ההודעות אינן תקינות.', { errors: problems }), 422);
+    if (problems.length) return json(route, err('message_settings_invalid', 'הגדרות ההודעות אינן תקינות.', invalidDetails(problems)), 422);
     let n = ms.doc.templates.length;
     ms.doc = {
       revision: ms.doc.revision + 1, enabled: body.enabled === true, free_text: body.free_text === true, bulk_max: next.bulk_max, rate_per_hour: next.rate_per_hour,

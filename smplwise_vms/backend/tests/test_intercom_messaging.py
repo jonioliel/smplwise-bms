@@ -331,6 +331,8 @@ def test_the_template_and_settings_validation_names_every_problem(mc, over, path
     r = save(c, **over)
     assert r.status_code == 422 and r.json()["code"] == "message_settings_invalid", r.text
     assert {"path": path, "code": code} in r.json()["details"]["errors"], r.json()["details"]["errors"]
+    # ADR-019 (ADR019-FAMILY45-2520): the same issue in `problems`, its path in `fields` (the legacy `errors` stays)
+    assert {"field": path, "code": code} in r.json()["details"]["problems"] and path in r.json()["details"]["fields"]
     assert settings_doc(c)["revision"] == 0, "nothing was stored"
 
 

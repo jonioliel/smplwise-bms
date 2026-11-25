@@ -193,15 +193,16 @@ def test_put_refusals(env):
     c, _, _ = env
     assert _put(c, {"revision": 7, "accounts": [], "uses": {}}).json()["code"] == "settings_stale"
     r = _put(c, {"revision": 0, "accounts": [], "uses": {"tickets.messages": "entry:NOPE"}})
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"code": "use_account_unknown", "field": "uses.tickets.messages"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"code": "use_account_unknown", "field": "uses.tickets.messages"}]
+    assert r.json()["details"]["fields"] == ["uses.tickets.messages"]  # ADR-019 (ADR019-FAMILY45-2520): the names, objects in `problems`
     r = _put(c, {"revision": 0, "accounts": [], "uses": {"other.use": KEY_A}})
-    assert r.json()["details"]["fields"][0]["code"] == "use_unknown"
+    assert r.json()["details"]["problems"][0]["code"] == "use_unknown"
     r = _put(c, {"revision": 0, "accounts": [{"key": "manual:abcd1", "kind": "manual", "account": ENTRY_A}], "uses": {}})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "manual_equals_discovered"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == "manual_equals_discovered"
     r = _put(c, {"revision": 0, "accounts": [{"key": "manual:abcd1", "kind": "manual", "account": "bad value!"}], "uses": {}})
-    assert r.json()["details"]["fields"][0]["code"] == "manual_value_invalid"
+    assert r.json()["details"]["problems"][0]["code"] == "manual_value_invalid"
     r = _put(c, {"revision": 0, "accounts": [{"key": KEY_A, "kind": "discovered", "pacing": {"per_hour": 0}}], "uses": {}})
-    assert r.json()["details"]["fields"][0]["code"] == "pacing_out_of_range"
+    assert r.json()["details"]["problems"][0]["code"] == "pacing_out_of_range"
     assert _put(c, {"revision": 0, "accounts": [], "uses": {}, "extra": 1}).status_code == 422
     assert _put(c, {"revision": 0, "accounts": [], "uses": {}}, "otto").status_code == 403
     assert _doc(c)["revision"] == 0, "nothing was stored"

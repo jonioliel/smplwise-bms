@@ -295,6 +295,15 @@
       "path": "templates.0.body",
       "code": "credential"
      }
+    ],
+    "fields": [
+     "templates.0.body"
+    ],
+    "problems": [
+     {
+      "field": "templates.0.body",
+      "code": "credential"
+     }
     ]
    }
   },

@@ -49,7 +49,7 @@ MESSAGES = {
 
 def _err(conn: sqlite3.Connection, exc: visits.VisitRefused) -> ApiError:
     if exc.status == 422:
-        return invalid_fields(conn, exc.extra.get("fields") or [{"field": "body", "code": exc.code}])
+        return invalid_fields(conn, exc.extra.get("problems") or [{"field": "body", "code": exc.code}])
     return ApiError(exc.status, exc.code, text(conn, MESSAGES.get(exc.code, "הפעולה נדחתה.")), details=dict(exc.extra))
 
 

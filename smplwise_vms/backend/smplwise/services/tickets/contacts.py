@@ -23,7 +23,7 @@ import re
 from typing import Any, Iterable
 
 from ...audit import audit
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import INSTALLATION, require
 from .. import redact
 from . import access, handler_links, links, model, notify_bridge, store, store_links
@@ -53,7 +53,7 @@ class ContactInvalid(ValueError):
 
 
 def invalid(conn, field: str, code: str) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field, "code": code}]})
+    return field_error(text(conn, "ערך לא תקין."), problems=[{"field": field, "code": code}])
 
 
 # ---------------------------------------------------------------- values
@@ -521,8 +521,8 @@ def _keyed(conn, fields: dict[str, Any]) -> None:
         try:
             fields["phone_key"], fields["phone_key_id"] = phone_key_for(fields["phone_e164"])
         except ModuleKeyError:
-            raise ApiError(409, "module_key_missing", text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי."),
-                           details={"field": "phone"}) from None
+            raise field_error(text(conn, "מפתח המודול חסר (שחזור ללא secrets/). שחזרו את התיקייה מהגיבוי."), ["phone"],
+                              code="module_key_missing", status=409, legacy={"field": "phone"}) from None
 
 
 def create(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -> dict[str, Any]:

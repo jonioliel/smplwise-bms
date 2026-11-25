@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
 
 from ..db import Database, get_setting, now_iso, set_setting
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import access_grants as ag
 from . import confirm_words
@@ -150,7 +150,7 @@ def _set_digest_channel(conn: sqlite3.Connection, channel: str) -> None:
     from . import notify_policy as np
 
     if channel not in DIGEST_CHANNELS:
-        raise ApiError(422, "validation", "ערוץ לא מוכר.", details={"field": "digest_channel"})
+        raise field_error("ערוץ לא מוכר.", ["digest_channel"], legacy={"field": "digest_channel"})
     np.get_policy(conn, DIGEST_SOURCE)  # creates the row from the catalogue the first time
     row = conn.execute("SELECT channels_json FROM notify_policies WHERE source = ?", (DIGEST_SOURCE,)).fetchone()
     try:
@@ -374,13 +374,13 @@ def confirm_gone(db: Database, principal: Principal, grant_id: str, *, reference
             raise deny("not_missing", ag._conflict("access_grant_not_missing", "אפשר לסגור באישור ידני רק ביטול שהאדם שלו לא נמצא במערכת הכניסה.",
                                                     state=g["state"]))
         if not isinstance(checks, list) or len(checks) != GONE_CHECKS or not all(c is True for c in checks):
-            raise deny("checks", ApiError(422, "validation", "יש לסמן את שלוש הבדיקות.", details={"field": "checks"}))
+            raise deny("checks", field_error("יש לסמן את שלוש הבדיקות.", ["checks"], legacy={"field": "checks"}))
         confirm_word = confirm_words.typed_lang("access_gone", confirm)
         if confirm_word is None:
-            raise deny("confirm", ApiError(422, "confirm_required", f"כדי להמשיך יש להקליד \"{GONE_WORD}\".", details={"field": "confirm"}))
+            raise deny("confirm", field_error(f"כדי להמשיך יש להקליד \"{GONE_WORD}\".", ["confirm"], code="confirm_required", legacy={"field": "confirm"}))
         ref = _reference_ok(reference)
         if ref is None:
-            raise deny("reference", ApiError(422, "validation", "אסמכתא של 8 עד 128 תווים, בלי מספרי טלפון.", details={"field": "reference"}))
+            raise deny("reference", field_error("אסמכתא של 8 עד 128 תווים, בלי מספרי טלפון.", ["reference"], legacy={"field": "reference"}))
         at = ag.iso(ag.now())
         if not ag._touch(conn, grant_id, {"state": "ended", "ended_at": at, "needs_push": 0, "alerted_at": at}, expect_revision=g["revision"]):
             raise ag._conflict("stale_revision", "הגישה השתנתה. טענו מחדש.")

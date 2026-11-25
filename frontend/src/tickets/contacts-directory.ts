@@ -16,7 +16,7 @@ import { applyAutomationsGlass } from '../styles/glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
-import { ApiError, describeError } from '../api/client';
+import { ApiError, describeError, problemsOf } from '../api/client';
 import { ticketsApi } from '../api/tickets';
 import { CONTACT_CHANNELS, CONTACT_LANGS, ticketsS4Api, type Contact, type ContactBody, type ContactChannel, type ContactKind, type ContactLang } from '../api/tickets-s4';
 import { canAnywhere, isApi } from '../api/session';
@@ -406,7 +406,7 @@ export class TicketsContacts extends LitElement {
       await this.load();
       this.open(saved);
     } catch (e) {
-      const fields = e instanceof ApiError ? ((e.body as { details?: { fields?: { field: string; code: string }[] } }).details?.fields ?? []) : [];
+      const fields = problemsOf(e); // ADR-019 (ADR019-FAMILY45-2520): the shared reader (`details.problems`, the legacy `fields` objects)
       this.problem = fields.length ? `${describeError(e)} (${fields.map((f) => f.field).join(', ')})` : describeError(e);
       if (e instanceof ApiError && e.status === 409) await this.load();
     } finally {

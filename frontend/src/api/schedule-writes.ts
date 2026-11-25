@@ -10,7 +10,7 @@
  *
  * The pure helpers (outcome reading) are what the unit spec checks.
  */
-import { ApiError, get, post } from './client';
+import { ApiError, fieldsOf, get, post } from './client';
 import { commandId } from './request-id';
 import { serverNow } from './intercom';
 import type { LibrarySchedule, SchedulePlan, ScheduleJob } from './access-schedules';
@@ -224,7 +224,7 @@ export function outcomeOf(err: unknown): Outcome {
       status,
       code: String(d.wiskey_code ?? err.body?.code ?? '') || null,
       message: err.body?.user_message || err.message,
-      field: typeof d.field === 'string' ? d.field : null,
+      field: fieldsOf(err)[0] ?? null, // ADR-019 (ADR019-FAMILY45-2520): the shared reader (canonical `fields`, legacy `field`)
       retryAfter: Number.isFinite(retry) && retry >= 0 ? retry : null,
     };
   }

@@ -29,7 +29,7 @@ import sqlite3
 from typing import Any
 
 from ..db import Database
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import STATION, Principal
 from . import access_grants as ag
 from .access_grant_engine import EngineError
@@ -58,7 +58,7 @@ def _left_over(g: dict[str, Any]) -> bool:
 
 def _invalid_number() -> ApiError:
     # a fixed text: the refused value is never echoed (a typo is still a credential)
-    return ApiError(422, "access_grant_invalid", "מספר הכרטיס אינו תקין (אותיות לטיניות, ספרות, מקף וקו תחתון, עד 32).", details={"field": "card_no", "code": "format"})
+    return field_error("מספר הכרטיס אינו תקין (אותיות לטיניות, ספרות, מקף וקו תחתון, עד 32).", problems=[{"field": "card_no", "code": "format"}], code="access_grant_invalid", legacy={"field": "card_no", "code": "format"})
 
 
 def _state_error(g: dict[str, Any]) -> ApiError:

@@ -202,7 +202,7 @@ def test_a_duplicate_link_names_only_an_original_the_caller_may_see(w):
     # and a duplicate target the caller cannot see is refused like an unknown one
     third = w.create("tom", "עוד אחד")
     r = w.status("mona", third["id"], "cancelled", note="כפולה", duplicate_of=original["id"])
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "duplicate_of"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "duplicate_of"
 
 
 # ---------------------------------------------------------------- the bypass guard

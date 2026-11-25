@@ -43,9 +43,9 @@ def test_an_employee_is_created_listed_by_its_kind_and_stored_as_a_flagged_perso
 
 def test_an_employee_never_names_a_user_or_a_vendor(s4):
     r = employee(s4, user_id="dev-joni")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "user_id", "code": "employee"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "user_id", "code": "employee"}
     r = employee(s4, vendor_id=s4.vendor["id"])
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "vendor_id"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "vendor_id"
 
 
 def test_a_person_of_a_vendor_turned_employee_leaves_the_vendor(s4):
