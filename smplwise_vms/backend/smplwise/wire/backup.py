@@ -95,7 +95,7 @@ class BackupDrillStatusLastCheck(ExactModel):
     name: str
     ok: bool
     severity: str
-    detail: dict[str, Num] = None
+    detail: Any = None  # SEC-FIX-2520: a check's detail is an object of numbers, lists, strings or objects, or a message (a failed restore)
 
 
 class BackupDrillStatusLastTimingsMs(ExactModel):
@@ -103,6 +103,7 @@ class BackupDrillStatusLastTimingsMs(ExactModel):
     scratch_schema: Num
     restore: Num
     verify: Num
+    live_copy_restore: Num = None  # CORE-01 (SEC-FIX-2520): the restore onto a copy of the live database
     total: Num
 
 

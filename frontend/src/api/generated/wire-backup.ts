@@ -172,7 +172,7 @@ export interface BackupDrillStatusLastCheck {
   name: string;
   ok: boolean;
   severity: string;
-  detail?: Record<string, number>;
+  detail?: unknown;
 }
 
 export interface BackupDrillStatusLastRestore {
@@ -201,6 +201,7 @@ export interface BackupDrillStatusLastTimingsMs {
   scratch_schema: number;
   restore: number;
   verify: number;
+  live_copy_restore?: number;
   total: number;
 }
 
