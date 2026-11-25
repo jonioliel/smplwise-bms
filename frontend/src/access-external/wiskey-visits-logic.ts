@@ -3,7 +3,7 @@
  * invitation's record state lets the operator do, and a guest template turned into an invite-form preset. No DOM, no I/O (unit-tested in
  * tests/unit-wiskey-visits.spec.ts). Operator text never names the vendor or the platform ("מערכת בקרת הכניסה").
  */
-import type { GuestTemplate, LinkState, VisitCapability, VisitCapabilityName, VisitLink, VisitStatus, WiskeyVisit } from '../api/wiskey-visits';
+import type { GuestTemplate, LinkState, VisitCapability, VisitCapabilityName, VisitLink, VisitListStatus, VisitStatus, WiskeyVisit } from '../api/wiskey-visits';
 import { tr } from '../i18n/msg/misc';
 import { isoZ } from '../api/day-format';
 
@@ -46,6 +46,29 @@ const STATUS_TEXT: Record<VisitStatus, [string, Tone]> = {
 export function statusText(status: VisitStatus): { text: string; tone: Tone } {
   const [text, tone] = STATUS_TEXT[status] ?? STATUS_TEXT.unknown;
   return { text, tone };
+}
+
+const FILTER_ORDER: readonly VisitListStatus[] = ['all', 'pending', 'approved', 'rejected', 'cancelled', 'superseded', 'ended'];
+
+interface StatusFilterOption {
+  value: VisitListStatus;
+  label: string;
+}
+
+/**
+ * WISKEY-VISITS-ENDED-FILTER-2520: the visit list's status filter, or null = no filter (today's panel). The filter is offered only when
+ * the server lists `ended` among the statuses the connected system accepts (it does so when that system offers the record of an Arx
+ * invitation; an older system refuses the value). Values the client does not know are dropped; the order is fixed.
+ */
+export function statusFilterOptions(cap: VisitCapability | undefined): StatusFilterOption[] | null {
+  if (!cap?.available || !Array.isArray(cap.statuses) || !cap.statuses.includes('ended')) return null;
+  const offered = new Set(cap.statuses);
+  return FILTER_ORDER.filter((v) => offered.has(v)).map((value) => ({ value, label: value === 'all' ? tr('הכל') : statusText(value).text }));
+}
+
+/** The filter value to keep after a reload: the chosen one while it is still offered, else `all`. */
+export function keptStatusFilter(chosen: VisitListStatus, options: StatusFilterOption[] | null): VisitListStatus {
+  return options?.some((o) => o.value === chosen) ? chosen : 'all';
 }
 
 /** Where the visit is managed: an Arx invitation (its own card in Arx) or the access-control system's own panel (read only here). */

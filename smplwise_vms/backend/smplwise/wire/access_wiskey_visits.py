@@ -18,16 +18,25 @@ class AccessWiskeyVisitsHomeCapabilitiesVisits(ExactModel):
     message: Any
 
 
-class AccessWiskeyVisitsHomeCapabilitiesPush(ExactModel):
+class AccessWiskeyVisitsHomeCapabilitiesList(ExactModel):
+    """The visits capability; `statuses` = the list's status filter values WisKey accepts (WISKEY-VISITS-ENDED-FILTER-2520)."""
     available: bool
-    reason: str
-    message: str
+    reason: Any
+    message: Any
+    statuses: list[str]
+
+
+class AccessWiskeyVisitsHomeCapabilitiesPush(ExactModel):
+    # WISKEY-VISITS-ENDED-FILTER-2520: null while the push is available (offered + switched on), as in the settings answer below
+    available: bool
+    reason: str | None
+    message: str | None
     switch: str
     offered: bool
 
 
 class AccessWiskeyVisitsHomeCapabilities(ExactModel):
-    visits: AccessWiskeyVisitsHomeCapabilitiesVisits
+    visits: AccessWiskeyVisitsHomeCapabilitiesList
     templates: AccessWiskeyVisitsHomeCapabilitiesVisits
     push: AccessWiskeyVisitsHomeCapabilitiesPush
 
@@ -156,7 +165,7 @@ class AccessWiskeyVisitsPutSettingsCapabilitiesPush(ExactModel):
 
 
 class AccessWiskeyVisitsPutSettingsCapabilities(ExactModel):
-    visits: AccessWiskeyVisitsHomeCapabilitiesVisits
+    visits: AccessWiskeyVisitsHomeCapabilitiesList
     templates: AccessWiskeyVisitsHomeCapabilitiesVisits
     push: AccessWiskeyVisitsPutSettingsCapabilitiesPush
 

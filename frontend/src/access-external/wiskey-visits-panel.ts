@@ -1,12 +1,14 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-chip-choice';
+import type { ChipChoiceChange } from '../components/sw-chip-choice';
 import { ApiError, describeError } from '../api/client';
 import {
   getLinks, getTemplates, getVisits, getVisitsHome, pushInvite, putVisitsSettings, reconcileInvite,
-  type GuestTemplate, type VisitLink, type VisitsHome, type WiskeyVisit,
+  type GuestTemplate, type VisitLink, type VisitListStatus, type VisitsHome, type WiskeyVisit,
 } from '../api/wiskey-visits';
-import { capabilityLines, durationText, linkPlan, originText, statusText } from './wiskey-visits-logic';
+import { capabilityLines, durationText, keptStatusFilter, linkPlan, originText, statusFilterOptions, statusText } from './wiskey-visits-logic';
 import { xCss } from './styles';
 import { tr } from '../i18n/msg/misc';
 
@@ -15,6 +17,8 @@ import { tr } from '../i18n/msg/misc';
  * the access-control system's own visits are listed read only; its guest templates are shown as presets; each Arx invitation's record in
  * the access-control system can be sent / checked when the capability is there - otherwise the server's Hebrew reason is shown. The block
  * renders nothing while visitors are off (every route answers 404).
+ * WISKEY-VISITS-ENDED-FILTER-2520: a status filter above the visit list, only when the connected system offers the `ended` filter
+ * (`capabilities.visits.statuses`); otherwise the panel is as before (no filter, the latest 50 visits).
  */
 @customElement('wiskey-visits-panel')
 export class WiskeyVisitsPanel extends LitElement {
@@ -25,6 +29,8 @@ export class WiskeyVisitsPanel extends LitElement {
   @state() private links: VisitLink[] = [];
   @state() private error = '';
   @state() private busy = '';
+  @state() private statusFilter: VisitListStatus = 'all';
+  private visitsSeq = 0;
 
   static styles = [
     xCss,
@@ -59,9 +65,32 @@ export class WiskeyVisitsPanel extends LitElement {
     }
     const caps = this.home.capabilities;
     const tasks: Promise<unknown>[] = [getLinks().then((r) => (this.links = r.links)).catch(() => (this.links = []))];
-    if (caps.visits.available && this.home.can.list) tasks.push(getVisits({ limit: 50 }).then((r) => (this.visits = r.visits?.items ?? [])).catch(() => (this.visits = null)));
+    this.statusFilter = keptStatusFilter(this.statusFilter, statusFilterOptions(caps.visits));
+    if (caps.visits.available && this.home.can.list) tasks.push(this.loadVisits());
     if (caps.templates.available) tasks.push(getTemplates().then((r) => (this.templates = r.templates?.items ?? [])).catch(() => (this.templates = null)));
     await Promise.all(tasks);
+  }
+
+  /** The latest 50 visits (of the chosen status). Only the newest request lands; a filtered read that fails keeps the filter on screen. */
+  private loadVisits(): Promise<unknown> {
+    const seq = ++this.visitsSeq;
+    const status = this.statusFilter === 'all' ? undefined : this.statusFilter;
+    return getVisits({ limit: 50, status }).then((r) => {
+      if (seq === this.visitsSeq) this.visits = r.visits?.items ?? [];
+    }).catch((e: unknown) => {
+      if (seq !== this.visitsSeq) return;
+      if (status) {
+        this.visits = [];
+        this.error = describeError(e);
+      } else this.visits = null;
+    });
+  }
+
+  private pickStatus(value: VisitListStatus): void {
+    if (value === this.statusFilter) return;
+    this.statusFilter = value;
+    this.error = '';
+    void this.loadVisits();
   }
 
   private async run(key: string, fn: () => Promise<unknown>): Promise<void> {
@@ -104,9 +133,17 @@ export class WiskeyVisitsPanel extends LitElement {
     })}</tbody></table>`;
   }
 
+  private statusFilterChips(): TemplateResult | typeof nothing {
+    const options = statusFilterOptions(this.home?.capabilities.visits);
+    if (!options) return nothing;
+    return html`<sw-chip-choice label=${tr('סינון לפי מצב הביקור')} data-visit-status-filter value=${this.statusFilter}
+      @change=${(e: CustomEvent<ChipChoiceChange>) => this.pickStatus(e.detail.value as VisitListStatus)}
+      .options=${options.map((o) => ({ ...o, attrs: { 'data-visit-status': o.value } }))}></sw-chip-choice>`;
+  }
+
   private visitsTable(rows: WiskeyVisit[]): TemplateResult {
-    if (!rows.length) return html`<h5>${tr('ביקורים במערכת בקרת הכניסה')}</h5><p class="note">${tr('אין ביקורים.')}</p>`;
-    return html`<h5>${tr('ביקורים במערכת בקרת הכניסה')}</h5><table data-visits><tbody>${rows.map((v) => {
+    if (!rows.length) return html`<h5>${tr('ביקורים במערכת בקרת הכניסה')}</h5>${this.statusFilterChips()}<p class="note">${tr('אין ביקורים.')}</p>`;
+    return html`<h5>${tr('ביקורים במערכת בקרת הכניסה')}</h5>${this.statusFilterChips()}<table data-visits><tbody>${rows.map((v) => {
       const s = statusText(v.status);
       const o = originText(v);
       return html`<tr data-visit=${v.id}><td>${v.display_name ?? '—'}</td><td><span class="chip" data-tone=${s.tone}>${s.text}</span></td>

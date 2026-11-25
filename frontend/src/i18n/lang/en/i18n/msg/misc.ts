@@ -328,6 +328,9 @@ export const en = {
   'כיבוי הרישום': 'Turn recording off',
   'הפעלת הרישום': 'Turn recording on',
   'הזמנות Arx': 'Arx invitations',
+  // WISKEY-VISITS-ENDED-FILTER-2520: the visit list's status filter (only when the connected system offers `ended`)
+  'הכל': 'All',
+  'סינון לפי מצב הביקור': 'Filter by visit status',
   'רישום': 'Record',
   'בדיקה מול מערכת בקרת הכניסה': 'Check against the access-control system',
   'ביקורים במערכת בקרת הכניסה': 'Visits in the access-control system',

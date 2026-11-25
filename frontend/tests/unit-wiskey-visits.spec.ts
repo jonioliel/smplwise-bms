@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { CAPABILITY_LABEL, capabilityLines, durationText, linkPlan, originText, presetFromTemplate, statusText } from '../src/access-external/wiskey-visits-logic';
+import {
+  CAPABILITY_LABEL, capabilityLines, durationText, keptStatusFilter, linkPlan, originText, presetFromTemplate, statusFilterOptions, statusText,
+} from '../src/access-external/wiskey-visits-logic';
 import type { GuestTemplate, VisitCapability, VisitLink } from '../src/api/wiskey-visits';
 
 // WISKEY-VISITS-2407: the pure part of the visits panel - capability lines with the server's Hebrew reason, status / origin texts, what an
@@ -78,4 +80,32 @@ test('durations read naturally', () => {
   expect(durationText(2880)).toBe('2 ימים');
   expect(durationText(45)).toBe('45 דקות');
   expect(durationText(null)).toBe('—');
+});
+
+// WISKEY-VISITS-ENDED-FILTER-2520: the status filter appears only when the server lists `ended` (the connected system offers it)
+const SIX = ['all', 'pending', 'approved', 'rejected', 'cancelled', 'superseded'];
+
+test('no status filter on a system that does not offer ended (rc.10: the panel stays as it was)', () => {
+  expect(statusFilterOptions(undefined)).toBeNull();
+  expect(statusFilterOptions(cap())).toBeNull(); // an older server: no `statuses`
+  expect(statusFilterOptions(cap({ statuses: SIX }))).toBeNull();
+  expect(statusFilterOptions(cap({ available: false, reason: 'no_copy', statuses: [...SIX, 'ended'] }))).toBeNull();
+  expect(statusFilterOptions(cap({ statuses: 'ended' as never }))).toBeNull();
+});
+
+test('the status filter with ended: fixed order, own labels, unknown values dropped', () => {
+  const opts = statusFilterOptions(cap({ statuses: ['ended', ...SIX, 'expired'] }));
+  expect(opts?.map((o) => o.value)).toEqual([...SIX, 'ended']);
+  expect(opts?.[0].label).toBe('הכל');
+  expect(opts?.find((o) => o.value === 'ended')?.label).toBe('הסתיים');
+  expect(opts?.find((o) => o.value === 'pending')?.label).toBe(statusText('pending').text);
+  for (const o of opts ?? []) expect(o.label).not.toMatch(BANNED);
+});
+
+test('the chosen filter survives a reload only while it is still offered', () => {
+  const opts = statusFilterOptions(cap({ statuses: [...SIX, 'ended'] }));
+  expect(keptStatusFilter('ended', opts)).toBe('ended');
+  expect(keptStatusFilter('ended', null)).toBe('all');
+  expect(keptStatusFilter('pending', null)).toBe('all');
+  expect(keptStatusFilter('all', null)).toBe('all');
 });

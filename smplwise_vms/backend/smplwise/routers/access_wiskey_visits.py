@@ -7,6 +7,8 @@ Every route answers 404 while Arx's visitors are off (`access.visitors`, service
                                                    do. No WisKey call. Anyone holding `access.visitor.invite` or `access.people.read` somewhere.
 - GET  /access/wiskey-visits/visits?status=&query=&offset=&limit=   WisKey's visit list, read only, each row marked `origin` arx | wiskey.
                                                    `access.people.read` UNRESTRICTED (WisKey answers installation-wide; audited 403 otherwise).
+                                                   WISKEY-VISITS-ENDED-FILTER-2520: `status=ended` only when `capabilities.visits.statuses`
+                                                   lists it (WisKey offers the record command); otherwise 409 `wiskey_visits_unsupported`.
 - GET  /access/wiskey-visits/templates             WisKey's guest templates as invite presets (no person data): invite or people-read somewhere.
 - GET  /access/wiskey-visits/links                 the WisKey record state of every invitation the caller sees (no WisKey call).
 - POST /access/wiskey-visits/{invite_id}/push      `{confirmed: true}`: record the invitation's current state in WisKey. The host or a manager of one
@@ -86,15 +88,18 @@ def home(request: Request, principal: Principal = Depends(current_principal_ro),
 
 @router.get(f"{API}/visits", **wire(W.AccessWiskeyVisitsVisits))
 def visits(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
-           status: Literal["all", "pending", "approved", "rejected", "cancelled", "superseded"] = "all", query: str = Query("", max_length=64),
+           status: Literal["all", "pending", "approved", "rejected", "cancelled", "superseded", "ended"] = "all", query: str = Query("", max_length=64),
            offset: int = Query(0, ge=0, le=100_000), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     _on_or_404(conn)
     auth = ia.Authority(conn, principal)
     if not auth.unrestricted(ia.PEOPLE_READ):
         raise _refuse(conn, principal, ia.PEOPLE_READ, request, "station_scoped" if auth.anywhere(ia.PEOPLE_READ) else "no_binding")
-    available, reason = wv.feature_state(_api(request), "visits")
+    api = _api(request)
+    available, reason = wv.feature_state(api, "visits")
     if not available:
         raise _unavailable("visits", reason)
+    if status not in wv.list_statuses(api):  # WISKEY-VISITS-ENDED-FILTER-2520: `ended` only when WisKey offers it; refused before any call
+        raise _unavailable("ended_filter", "ended_filter_not_offered")
     needle = " ".join(query.split())
     reply = intercom_sync.SYNC.command(settings_of(request), "visits", lambda call: wv.list_visits(call, offset=offset, limit=limit, status=status, query=needle),
                                        wv.project_visit_page, who=principal.user_id, channel=wv.READ_CHANNEL)
