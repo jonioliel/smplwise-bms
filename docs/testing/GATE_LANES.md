@@ -10,6 +10,7 @@ September owner-round specs, P3 a separate lane for the timing tests). This page
 | Release gate (`release_gate.sh`, tier L) | everything under `frontend/tests/*.spec.ts` (top level) and `smplwise_vms/backend/tests/test_*.py`, EXCEPT the timing lane | on demand, one per release candidate | yes |
 | Nightly (`nightly_tests.sh`) | the same engine and the same exclusions, on `main` | 02:00 | no (it is the safety net; reds become fixes) |
 | **Timing lane** (`timing_lane.sh`) | ONLY the tests tagged `@timing-lane` (Playwright) / marked `timing_lane` (pytest) | after every gate, in the background, once the runner is quiet | **no** |
+| **Fixture lane** (section 5) | the `"gate": true` specs of `fixture_specs.json`, each group against its own throwaway fixture backend | inside every tier-L gate; alone with `fixture_lane.sh` | inside a gate: yes (category `fixture`); alone: no |
 | Archive (`frontend/tests/archive/`) | retired specs, history only | never | - |
 
 ## 2. Pixel baselines: classic + domus (P1)
@@ -115,3 +116,65 @@ The lead reads the lane report with the gate report; a red lane test is a ticket
 
 `timing_lane.sh` sits next to `release_gate.sh` / `release_gate.py` on the runner (`scripts/gate/INSTALL_ON_RUNNER.md`). Until the new
 engine is installed there, gates run the old engine: the lane tests then still run inside the gate (as before), nothing is lost.
+
+## 5. The fixture lane (GATE-FIXTURE-LANE-2530)
+
+Before this change a tier-L gate started ONE fixture backend (`devices_fake_ha.py`) for three specs; every other spec that needs a
+throwaway backend - or only an env switch such as `DP_OUT` / `SW_SHOTS=1` - self-skipped in every released gate, so its card could
+never be accepted on gate evidence (docs/changes/ACCEPT-SWEEP-2530.md, "runner follow-up").
+
+### What runs
+
+`frontend/tests/fixtures/fixture_specs.json` is the single list (also read by `scripts/fixture_job.py`). Every **group** with a
+`"gate": true` spec is one fixture run: its backend (`script`, or none for `"script": null`) on free ports with its own empty data
+dir, a `vite preview` of the built `dist` proxying to it, its specs with the group's `pw_env`, each failure retried alone (FLAKY rule),
+then each `then` stage on the same data dir (the backend restarted on the same port with the stage's env, the specs run again).
+Placeholders in env values: `{port}`, `{port+N}` (control / fake ports right above the API port, `extra_ports`), `{out}` (the group's
+output folder under the run's logs: `fixture_<group>_out/`).
+
+| Group | Backend | Specs (projects) | Cards it serves |
+|---|---|---|---|
+| `devices` | `devices_fake_ha.py` | camera-card (3), curved-walls / curve-points (desktop, mobile), **floorstrip** (desktop, mobile); home-screen listed, `"gate": false` (see below) | CURVEDGATE-297, FLOORSTRIP |
+| `nvrless_cameras` | `nvrless_cameras_backend.py` `SW_WEBRTC=1`, then `=0` on the same data | evidence-nvrless-cameras-2412 mode b, then mode a (3) | EVIDENCE-CAMERAS-2412 |
+| `nvrless_recorder` | `multi_nvr_backend.py` | evidence-nvrless-cameras-2412 mode d (3) | EVIDENCE-CAMERAS-2412 |
+| `media_ma`, `media_sonos` (listed, **not in the gate yet**) | `media_fake_ha.py` `SW_FAKE_HOUSE=ma` / `sonos` | evidence-media-players-live (3), `"gate": false` (see below) | CR-MULTIMEDIA-BASE-2440 |
+| `wiskey` (listed, **not in the gate yet**) | `wiskey_fake_ha.py` (control API at `{port+1}`) | evidence-wiskey-people / -editor / -capture (desktop), `"gate": false`: they still drive the pre-CR-036 people screen and fail on the native one (see below) | CR-WISKEY-NOTIF-2443, DIALOG-DRAWER-ONE-2439 |
+| `shots_devpolish` | none | devpolish-2331-shoot, `DP_OUT={out}` (desktop) | DEVICES-POLISH-2331 |
+| `shots_home_personal`, `shots_home_edit` | none | hand-switch-home-personal / -edit-2500-shots, `SW_SHOTS=1 SW_SHOTS_DIR={out}` (desktop) | HAND-SWITCH-HOME-PERSONAL-2490 / -EDIT-2500 (captures) |
+
+Not in it, and why: `layout-bubble-screens.spec.ts` (MEDIA-POLISH-2331) skips itself while the bubble skin is frozen (owner decision
+BUBBLE-FREEZE-295) - no backend or env brings it back; it returns by itself when `FROZEN_SKINS` is emptied. Part 1 of
+`evidence-wiskey-people.spec.ts` needs a plain backend WITHOUT any Home Assistant (state `ha_not_configured`); no fixture group is
+that, so it stays skipped. The three WisKey specs run in the `wiskey` group (`fixture_job.py`) but are not `"gate": true`: on the
+first runner run every first test of their serial groups waited 30 s for `wiskey-people sw-table[data-wiskey-people-table] tbody tr`
+- the pre-CR-036 people screen fed by `/intercom/people`; the native screen (CR-036 S7) reads `/api/v1/access-control/people` and
+draws `div.tablewrap[data-wiskey-people-table]`. Rewriting them (and the fixture's access-control answers) is a follow-up; flip the
+flag when `fixture_job.py evidence-wiskey-people evidence-wiskey-editor evidence-wiskey-capture` passes.
+
+Listed with `"gate": false` after the first runner run (2026-11-25), the reason in the JSON (`_why_not_gate`) - real failures,
+each also failing alone; flip the flag when the follow-up lands:
+- `evidence-home-screen.spec.ts` (HAND-SWITCH-HOME behaviour): 21 pass, 2 fail - direction b, cards and tiles at 1440x900: the page's
+  `main` scrolls 918 / 900 px (the no-scroll rule of the control screens). A product layout defect.
+- `evidence-media-players-live.spec.ts`: ma 43 pass / 6 fail, sonos 40 pass / 4 fail - assertions written before the CR-016 server
+  existed ("unplaced devices are listed last", the favourites tab text, the group-leave outcome `left` vs `unknown`, a cross-brand
+  group's room name).
+
+### Where it runs
+
+- **Every tier-L release gate** (v1 fixture phase, groups one after the other; v2: one pool job per group, slot weight 2 for a group
+  with a backend, 1 without). The engine reads the groups from the WORKTREE under test, so the installed `~/release_gate.py` runs
+  whatever groups the branch declares; a worktree without the JSON falls back to the devices group and its three original specs.
+  Blocking like every category (`fixture`). A diff-selected gate (gate 2 `--select-base`) keeps only the selected fixture specs (and
+  their groups), as before.
+- **On its own** (`scripts/gate/fixture_lane.sh <branch> [--groups a,b] [--now]`): the same engine with `GATE_LANE=fixture` -
+  worktree `~/work/fxlane-<branch>`, node modules + vite build, then only the fixture groups, `GATE_FIXTURE_SLOTS` (2) at a time;
+  report `~/smplwise-results/fixture-lane/gate_<branch>_<sha>.{json,md}` (never the gate's `gate_status.json`; without
+  `GATE_RESULTS_DIR` the engine itself defaults there in this mode); no backend suite, tsc, static checks, preview / dev / pixel /
+  visual and no count-baseline check. It waits for the gate lock to be free and takes `~/.smplwise-tests.lock` SHARED.
+- `scripts/fixture_job.py --gate` (the runner's `fixture` job) runs the same set with the same env (no retries; per-process PASS).
+
+### Install
+
+`fixture_lane.sh` next to `~/release_gate.py` (`engine_sync.py install --files fixture_lane.sh --apply`). The engine change itself
+is in `release_gate.py`: after the merge the lead re-installs the engine group with `engine_sync.py` (the drift check refuses a gate
+whose installed engine differs from the branch's).

@@ -27,7 +27,9 @@ Chain: `run_smart.py fixture` -> ssh -> `~/run_remote.sh fixture <branch> ...` -
 to the built-in default when the JSON is not beside the script, as in the `~/` copy on the runner); `test_fixture_job.py` pins that
 both agree.
 
-**What the gate runs:** `evidence-camera-card.spec.ts`, and since CURVEDGATE-297 (2026-10-27) also `evidence-curved-walls.spec.ts`
+**GATE-FIXTURE-LANE-2530 (2026-11-25):** the gate now runs EVERY group with a `"gate": true` spec, each with its own backend (or none: `"script": null`), env (`backend_env`, `pw_env` with `{port}` / `{port+N}` / `{out}`) and `then` stages; the groups come from the worktree under test, and the projects from the JSON (else the header). New gate specs: floorstrip, home-screen (devices), evidence-nvrless-cameras-2412 (nvrless_cameras b then a, nvrless_recorder d), evidence-media-players-live (media_ma, media_sonos), devpolish-2331-shoot and the two hand-switch home shot specs (no backend). `fixture_job.py --gate` runs that set; `scripts/gate/fixture_lane.sh` runs it through the engine (docs/testing/GATE_LANES.md section 5). A spec may sit in more than one group. The `wiskey` group is listed for the job only (`"gate": false`, its specs predate the native people screen).
+
+**What the gate ran before:** `evidence-camera-card.spec.ts`, and since CURVEDGATE-297 (2026-10-27) also `evidence-curved-walls.spec.ts`
 and `evidence-curve-points.spec.ts` (group `devices`, the same `devices_fake_ha.py` backend the gate's fixture phase starts), are
 `"gate": true`. The gate runs fixture specs on every project (header `--project=` flags win); both curved-wall specs skip every
 test outside `desktop` / `mobile`, so the tablet project adds only skips. No gate baseline (pixel) is involved: neither spec calls
