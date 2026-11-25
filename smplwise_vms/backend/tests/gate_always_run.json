@@ -64,7 +64,8 @@
   "test_zones_nvr.py": "app.routes: the zones endpoint has no write route",
   "test_wiskey_system_status_2520.py": "package walk: no module names a WisKey channel the registry still reserves (WISKEY-RESYNC-2520; lead decision 2.52 Q1 = a)",
   "test_i18n_errors_en_2520.py": "package walk: no mojibake Hebrew in any server source (I18N-REST-2520; listed by RELEASE-2520-TRAIN)",
-  "test_wiskey_service_grants_v3_2520.py": "package walk: no module but the refusal table names an owner-only service-grant command (WISKEY-R8-2520; listed by RELEASE-2520-TRAIN)"
+  "test_wiskey_service_grants_v3_2520.py": "package walk: no module but the refusal table names an owner-only service-grant command (WISKEY-R8-2520; listed by RELEASE-2520-TRAIN)",
+  "test_secfix_restore_settings_2520.py": "package walk: every security / remote setting the code reads is classified keep-or-travel for a restore (SEC-FIX-2520 SEC-3; listed by RELEASE-2520-TRAIN)"
  },
  "not_scanners": {
   "test_gate2_select.py": "names 'ls-files' inside a unit-test string; a gate-2 core file anyway",

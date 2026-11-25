@@ -158,6 +158,8 @@ test('vendor-portal-leftovers: an item opened from the portal offers "back to th
   expect(strings.match(/^ {2}backToList: /gm)?.length).toBe(LANGS.length);
   expect(src).toContain('this.fromPortal ? this.backToListButton() : null');
   expect(src).toMatch(/openFromPortal[\s\S]{0,200}this\.forget\(\);\s+this\.fromPortal = true;/);
-  expect(src).toMatch(/private forget\(\): void \{\s+this\.fromPortal = false;/);
+  // RELEASE-2520-TRAIN: SCREENS-FIX-B2-2520 SCR-40 drops the link's own draft first (two lines); forget() still clears fromPortal, before
+  // anything else leaves the method
+  expect(src).toMatch(/private forget\(\): void \{(?:\s*\/\/[^\n]*|\s*const mine = [^\n]*|\s*if \(mine[^\n]*)*\s+this\.fromPortal = false;/);
   expect(src).not.toMatch(/fromPortal = true[\s\S]*fromPortal = true/);
 });

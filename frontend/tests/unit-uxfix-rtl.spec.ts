@@ -16,6 +16,9 @@ const FORWARD = '›';
  *  is never shown - on a Hebrew page the screen shows the server's text itself. The separator there is the server's choice. */
 const MIRRORS_SERVER = new Set([
   'i18n/wiskey-feature-status.ts', // WISKEY-STATUS-I18N-2520: he = services/wiskey_feature_status.py R / links (unit-wiskey-feature-status-i18n-2520)
+  // WISKEY-PAIRING-I18N-2520: its he x_* lines = services/wiskey_pairing.py's texts (tests/test_wiskey_pairing_i18n_2520.py
+  // test_every_server_text_has_the_same_hebrew_and_an_english_sentence)
+  'i18n/wiskey-pairing-status.ts',
 ]);
 
 test.describe('bidi runs (finding 2)', () => {

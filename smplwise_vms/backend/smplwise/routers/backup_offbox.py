@@ -576,14 +576,20 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
         raise _sensitive_error(exc) from None
     except OffboxError as exc:
         raise _err(exc, 409) from None
-    except ValueError as exc:
+    except (ValueError, sqlite3.IntegrityError) as exc:
+        # CORE-01: a refused restore may have written rows already - an ApiError commits, so roll them back first (nothing restored)
+        from ..db import rollback_and_restart
+
+        rollback_and_restart(conn)
         raise ApiError(409, "restore_refused", tpl("השחזור נדחה: {exc}", exc=exc))
     meta, result = out["meta"], out["result"]
     audit(conn, actor=principal, action="backup.offbox.restore", decision="allowed", resource_type="backup_offbox_target", resource_id=meta.get("target_id") or "",
           request_id=_rid(request),
           details={"object": meta["object"], "key_id": meta["key_id"], "safety": out["safety"]["name"], "mode": body.mode, "scope": out["scope"],
                    "tables": result["tables"], "files": result["files"],
-                   "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")}})
+                   "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
+                   **({"settings_invalid": result["settings_invalid"]} if result.get("settings_invalid") else {}),  # CORE-04
+                   **({"dependents_dropped": result["dependents_dropped"]} if result.get("dependents_dropped") else {})})  # CORE-01
     switch = result.get("update_apply_enabled") or {}
     audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
           request_id=_rid(request), reason="kept_on_restore",

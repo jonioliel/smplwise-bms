@@ -1,1 +1,0 @@
-import{bq as n,a7 as a,br as t}from"./index-c_ii2C2N.js";const c="sw.demo.automations";function i(){if(!a())try{const e=window.localStorage.getItem(c);return e?JSON.parse(e).scheme:void 0}catch{return}}function m(e){n(e).then(()=>{const s=i();!a()&&s&&e.isConnected&&t(e,s)});const o=i();!a()&&o&&t(e,o)}export{m as a};

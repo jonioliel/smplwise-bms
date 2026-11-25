@@ -641,6 +641,15 @@ PRIVATE_KEYS = ("site.latitude", "site.longitude",  # SEC247 I3: the manual site
                 "cameras.discovery_allowed_ranges")  # ONVIF-API-2500: the camera-scan ranges describe the site's network
 
 
+def _int_or_default(value: Any, default: str) -> int:
+    """DEEP-REVIEW-2520-BACKEND-CORE CORE-04: an integer setting whose stored text does not parse (a damaged or hand-edited row)
+    reads as its default - never a ValueError that breaks GET /settings and every housekeeping pass."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[str, Any]:
     """Every setting with its stored value read back. `private` keeps PRIVATE_KEYS in the answer - only for a caller that
     holds system.configure (the settings screen); every other listing (GET /settings of a viewer, GET /cameras `media`,
@@ -649,7 +658,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     stored = get_settings_many(conn, DEFAULTS)  # PERF-HOME-DEVICES-2342: one read for every key, not one SELECT per key
     for key, default in DEFAULTS.items():
         value = stored.get(key, default) or default
-        out[key] = int(value) if key in INT_KEYS else value
+        out[key] = _int_or_default(value, default) if key in INT_KEYS else value
     if out.get("access.external.placement") not in ("access", "tickets", "both"):  # SHAREDID-293: a corrupt value never moves the screen
         out["access.external.placement"] = "access"
     if out.get("access.settings_layout") not in ("cards", "accordion", "tabs", "list"):  # SETTINGS-INTERCOM-CARDS-2401 / -ACCORDION-2402: a corrupt value reads as the default
@@ -909,4 +918,4 @@ def setting_value(conn: sqlite3.Connection, key: str) -> Any:
         raise KeyError(key)
     default = DEFAULTS[key]
     value = get_setting(conn, key, default) or default
-    return int(value) if key in INT_KEYS else value
+    return _int_or_default(value, default) if key in INT_KEYS else value

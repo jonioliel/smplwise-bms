@@ -50,7 +50,9 @@
 - גשר 0.10.9: צימוד מחדש ל-WisKey מבטל מיד את הצימוד הקודם. - Bridge 0.10.9: re-pairing with WisKey refuses the old pairing at once.
 
 ### התקנה - Install
-- גשר חדש (0.10.9): דורש הפעלה אחת מחדש של מערכת הבית (באישור הבעלים). אין מיגרציה חדשה. - A new bridge (0.10.9): needs one home system restart (owner-approved). No new migration.
+- גשר חדש (0.10.9): דורש הפעלה אחת מחדש של מערכת הבית (באישור הבעלים). - A new bridge (0.10.9): needs one home system restart (owner-approved).
+- שתי מיגרציות חדשות שמוסיפות בלבד ורצות לבד בהפעלת התוסף: 0225 (קריאות לוחות הזמנים של WisKey) ו-0226 (רישום התראות הדחיפה קשור לכניסה). שתיהן תואמות לאחור: חזרה לגרסה 2.51.0 עובדת עליהן. - Two new additive migrations that run by themselves when the add-on starts: 0225 (WisKey schedule reads) and 0226 (push registrations tied to the sign-in). Both are backward compatible: going back to 2.51.0 works on them.
+- חזרה לגרסה הקודמת: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.51.0 -> 2.52.0", לא את האחרון - הפעלת הגרסה הקודמת יוצרת עותק חדש עם הנתונים של 2.52.0. - Rollback: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.51.0 -> 2.52.0", not the newest one - starting the previous version writes a new copy holding the 2.52.0 data.
 
 ## 2.51.0 (pilot) - two-step verification for everyone: passkeys, recovery codes, the phone key, a sign-in policy, and an optional confirmation before sensitive changes
 

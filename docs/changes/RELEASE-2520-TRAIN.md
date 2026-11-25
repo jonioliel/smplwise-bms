@@ -48,6 +48,12 @@ Every row merged with `--no-ff` in the order the lead set; each merge commit nam
 | 36 | `pilot/SCREENS-FIX-B-2520` | `1226df73d` | `026d1e55f` | none | base `bd20831e6`; frontend only (public ticket with ar / ru packs, home calendar, resident calendars, investigation playback + `playback-day.ts`). The public bundle is rebuilt with the train's UI rebuild (`build:public:addon`; public chunk budget 62 KB) |
 | 37 | `pilot/OVERLAY-FADE-2520` | `f628421cc` | `c5adefc60` | none | cut from row 23; overlay entrances move-only + the `unit-overlay-fade-2520` checker + the "דורש אישור" heading token. Design ratchet lowered 25514 -> 25513 (`997dbe643`). Its phone notification-centre failures (the runner's disk-full window) re-run in section 3.5 |
 | 38 | `pilot/BRIDGE-REPAIR-LEGACY-2520` | `fadca9072` | `764e442c7` | none | base `189ec3f4a`; bridge `keyset.py` + `__init__.py` (WB-02 a legacy untagged store is a re-pair; WB-07 the PairingFence); `sync_integration --check` up to date. sha256 of BOTH copies (`custom_components/` and `smplwise_vms/integration/`), as expected: `keyset.py` `05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4`, `__init__.py` `4b497464e7f27a4edd02a0d3f1338d951d864428644c6908a061164856d86fe1`, `native_keyset.py` `5fda54de2f2caffe78bb32d4bddce2784d607f285be48f3e6eedc500bc97d1df` (unchanged) |
+| 39 | `pilot/VIDEO-SECFIX-2520` | `92fa64855` | `0a9d23c01` | none | base `189ec3f4a`; V-01 the shared go2rtc frame sanitizer, V-04 the camera scope on NVR change undo / detail / list; backend only. Train fix `2b9810f38` (T06 admission: `wiskey_schedule_reads.py` reviewed into the signing-caller pin) |
+| 40 | `pilot/FE-SAFETY-FIX-2520` | `ad07934e0` | `88070190a` | none | base `f343f829b`; FC-02 push registrations tied to the sign-in (migration `0226` - free), FC-04 Enter confirms only on the confirm button; shared files with the MFA rows merged clean |
+| 41 | `pilot/SCREENS-FIX-A-2520` | `55323bed1` | `91de5c377` | none | base `bd20831e6`; SCR-01 / SCR-06 / SCR-07; Q1 = a, Q2 = a; the train's `--sw-danger-text` fix and `error_text_en.json`'s format kept |
+| 42 | `pilot/GATE-HARDEN-2520` | `5aaca2e2c` | `78e1a68d0` | none | base `198db5c3e`; gate engine fixes, `scripts/gate/engine_sync.py` (drift check), bundle-version release check, clock-independent quiet-hours tests. Must be merged before the gate (the installed engine refuses a drifted branch) |
+| 43 | `pilot/SCREENS-FIX-B2-2520` | `9f0626e90` | `bf59244c0` | none | cut from row 36; public-ticket draft bound to its link; `/me/calendar` pending items carry `revision`; `gen_wire_types --check` 0; API inventory unchanged (1948) |
+| 44 | `pilot/SEC-FIX-2520` | `99456c1d5` | `53788848e` | none | base `f343f829b`; SEC-1 / SEC-2 / SEC-3, CORE-01 / CORE-02 / CORE-04; Q1-Q3 = a; `gen_wire_types --check` 0, refusal inventory 0 / 0, error-contract ratchet 0, strict ratchet 144. The last 2.52 row |
 
 Train fixes after rows 16-20:
 - `61a6959ef` (row 16 x rows 12 / 19): MFA-FACTOR-HARDEN-2520's new notice `security.second_factor_changed` came after I18N-REST-2520
@@ -91,6 +97,17 @@ Train fixes after rows 33-38:
 - `628c0e259` (lead Q3 = a): `test_capmap_295` - the reviewed successor of `services/ha_bridge.py` (58cfc913... -> 3a7ee1f8...) after
   I18N-RUNTIME-ERRORS: ten argument-check refusals of the generic device route f-string -> `tpl()` (same Hebrew) + the import, nothing else
   (`git diff a7ba23483 33e121b63`); capmap on the PC 65 passed.
+
+Train fixes after rows 39-44:
+- `2b9810f38` (row 27 x the T06 pin): `test_t06_admission_295` pins the modules that reach the signing seam; `wiskey_schedule_reads.py`
+  reaches it only through the installed direct join's own session and sends only its two pinned reads (`schedules/read_start_v1`,
+  `schedules/read_status_v1`) while discovery declares the contract - added with that reason (PC: 63 passed, 3 xfailed).
+- `cff4e13b6` (rows 1, 4 x `test_wiskeyarx_291` N07): `SYNC_V1_API_CONTRACT` (R4, the station-sync contract's const 1) allowed by name and
+  pinned to 1; `wiskey_system_status.py` (R1) only READS WisKey's reported `api_contract` - skipped by name. PC: 52 passed.
+- `c128c2f86` (rows 35, 36): `i18n/wiskey-pairing-status.ts` uses the shared U+2039 (not a server mirror; no exemption);
+  `unit-modal-stack-guard-2442` count for `home-calendar.ts` 1 -> 2 (SCR-04's alertdialog, the same sw-home sheet).
+- `9fb8109fb`: `gate_always_run.json` + `test_i18n_errors_en_2520.py` and `test_wiskey_service_grants_v3_2520.py` (package walks);
+  `test_error_contract_inventory_2490` no longer expects the legacy `field` shape (ADR-019 Step 1 complete) - it now asserts its absence.
 
 Train fixes after row 12:
 - `f3dfcd158`: the 34 hard-coded Hebrew literals I18N-REST left are the WisKey demo installation (demo rows of `wiskey-events / overview /
@@ -292,3 +309,17 @@ Playwright suites beyond the specs named, tablet, any lab / live WisKey check.
 11. **The RTL guard's mirror exemption** (`e328f3ca2`): `i18n/wiskey-feature-status.ts` keeps the server's U+203A. a) keep the exemption;
     the server's Hebrew separators move to U+2039 in a later row together with the mirror (recommended) b) change the server's 14 texts now.
 12. **Runner disk-full window** (this evening): failures with "database or disk is full" / ENOSPC were re-run, not triaged (section 3.5).
+
+## 5. Gate readiness (the complete 2.52 scope: 44 rows)
+
+Final code head `9d06b64cc` (docs / registry commits after it change no code). Runner, at the final heads:
+- generators and ratchets (`53788848e`): `gen_wire_types --check`, `sync_integration --check` (bridge copies identical), `wire_ratchet`
+  897 = baseline, `request_strict_ratchet` 144, `error_contract_inventory --check` 0 legacy 422 sites, `i18n_backend_errors` 0 without
+  English / 0 run-time, `lint_backend --strict` 0 findings, `design_ratchet` no count above the baseline, `build_guide --check` up to date;
+- `engine_sync check --ref 53788848e`: the engine `release_gate.py` is the tree's (sha256 42294cde08ddc167); one WARNING - `~/gate2/gate_budget.py`
+  differs from `scripts/gate/gate_budget.py` (install with `engine_sync.py install --src <checkout> --apply` before the gate - the lead's step);
+- `release_check.py`: every check ok except (1) the shipped UI bundle (`www/arx-sw.js` still `arx-shell-2.51.0`) and (2) the v2.52.0 tag.
+  (1) is closed by the release commit's UI rebuild (`npm run build:addon` + `build:public:addon`; public chunk 58 KB of 62 KB), which also turns
+  `test_release_check` and `test_release_bundle_version_2520` green; (2) comes after the owner's approval;
+- every row's own test files green (sections 3.2-3.3 and the runs per row above), every pixel spec green twice (514 passed, no baseline
+  changed), the Node unit suite green except the three `unit-mfa-passkeys-2490` page tests that need a server (green under their own config).
