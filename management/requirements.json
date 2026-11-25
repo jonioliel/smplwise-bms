@@ -14023,5 +14023,85 @@
     "test_ids": [
       "AT-GEN-SENSOR-NAMES-EN-2520-1"
     ]
+  },
+  {
+    "id": "R-WISKEY-NOFALLBACK-FIX-2520-1",
+    "title": "No classic people write after a v2 refusal at connect / discovery (WB-01); self-healing discovery (WB-03)",
+    "statement": "After a direct-v2 refusal at connect or discovery no classic people write is sent; the discovery is re-read with backoff.",
+    "task_ids": [
+      "WISKEY-NOFALLBACK-FIX-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-NOFALLBACK-FIX-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-PAIRING-I18N-2520-1",
+    "title": "The pairing lines of 'חיבור Arx ל-WisKey' in the page language",
+    "statement": "The WisKey pairing card's lines carry fix_code / params / step codes and render in Hebrew and English from a frontend catalogue.",
+    "task_ids": [
+      "WISKEY-PAIRING-I18N-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-PAIRING-I18N-2520-1"
+    ]
+  },
+  {
+    "id": "R-SCREENS-FIX-B-2520-1",
+    "title": "High findings of the deep screens review (2.52)",
+    "statement": "The public ticket page (ar / ru packs), the home calendar, the resident calendars and booking logic, and the investigation playback day are fixed as the review found.",
+    "task_ids": [
+      "SCREENS-FIX-B-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SCREENS-FIX-B-2520-1"
+    ]
+  },
+  {
+    "id": "R-OVERLAY-FADE-2520-1",
+    "title": "The overlays show their texts at full contrast from the first frame",
+    "statement": "Overlay entrances (sheet, user menu, notification centre, calendar pop-over / toast, area quick sheet, keyframe entrances) only move; the unit-overlay-fade-2520 checker keeps every text at full contrast from the first frame.",
+    "task_ids": [
+      "OVERLAY-FADE-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-OVERLAY-FADE-2520-1"
+    ]
+  },
+  {
+    "id": "R-BRIDGE-REPAIR-LEGACY-2520-1",
+    "title": "A bridge re-pair holds on every key-store format; the bridge's own services fenced",
+    "statement": "A legacy untagged key store counts as a re-pair (WB-02) and the bridge's own signed services sit behind the PairingFence (WB-07); native_keyset.py unchanged.",
+    "task_ids": [
+      "BRIDGE-REPAIR-LEGACY-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-BRIDGE-REPAIR-LEGACY-2520-1"
+    ]
   }
 ]

@@ -30059,7 +30059,8 @@
       "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-FAMILY45-2520 202e3678f (+ changelog f2c8a3765) and MULTI-BUILDING-FILTER-2520 b24dd9cb1. Still to come per the lead: ADR019-FAMILY678-2520 (then error_contract_inventory --write-ratchet / --check). Gate NOT_RUN; nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): also merged NOTIFY-RECIPIENT-LANG-2520 f3fdb961f (+ fix 61a6959ef) and WISKEY-R8-2520 2b9a3a839 (+ fix 8a91908a3). Still to come per the lead: ADR019-FAMILY678-2520. Gate NOT_RUN; nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-L14-STRICT-F123-2520 6a1b42ef5 (+ changelog 66cca52e8). Gate NOT_RUN; nothing released.",
-      "2026-11-25 (RELEASE-2520-TRAIN): rows 22-32 merged - ADR019-FAMILY678-2520 22ba0e9fb (+ ratchet 53a6b8da8), STARTING-STYLE-AUDIT-2520 a605434f8, MFA-PASSKEY-ADMIN-REMOVE-2520 299dda4d9 (+ 48536a4e4), MFA-RESET-CHANNEL-UI-2520 b6cd0d9aa, NOTIFY-LANG-SENDERS-2520 bb80821ed, WISKEY-SCHED-READS-2520 c3af014da (+ f8fa8c508, 493beba09), GEN-UNITS-FIELD-2520 890a645cf, DOOR-TECH-HOLD-FIX-2520 35365a2be, I18N-RUNTIME-ERRORS-2520 189ec3f4a, WISKEY-STATUS-I18N-2520 9d42de979, WISKEY-VISITS-ENDED-FILTER-2520 f343f829b. Nine cards registered at the merge (NOTIFY-RECIPIENT-LANG-2520 and ADR019-L14-STRICT-F123-2520 per the lead, and the seven other merged rows that had none). Gate NOT_RUN; nothing released."
+      "2026-11-25 (RELEASE-2520-TRAIN): rows 22-32 merged - ADR019-FAMILY678-2520 22ba0e9fb (+ ratchet 53a6b8da8), STARTING-STYLE-AUDIT-2520 a605434f8, MFA-PASSKEY-ADMIN-REMOVE-2520 299dda4d9 (+ 48536a4e4), MFA-RESET-CHANNEL-UI-2520 b6cd0d9aa, NOTIFY-LANG-SENDERS-2520 bb80821ed, WISKEY-SCHED-READS-2520 c3af014da (+ f8fa8c508, 493beba09), GEN-UNITS-FIELD-2520 890a645cf, DOOR-TECH-HOLD-FIX-2520 35365a2be, I18N-RUNTIME-ERRORS-2520 189ec3f4a, WISKEY-STATUS-I18N-2520 9d42de979, WISKEY-VISITS-ENDED-FILTER-2520 f343f829b. Nine cards registered at the merge (NOTIFY-RECIPIENT-LANG-2520 and ADR019-L14-STRICT-F123-2520 per the lead, and the seven other merged rows that had none). Gate NOT_RUN; nothing released.",
+      "2026-11-25 (RELEASE-2520-TRAIN): rows 33-38 merged - GEN-SENSOR-NAMES-EN-2520 78a8ad1f2, WISKEY-NOFALLBACK-FIX-2520 af0021b2c, WISKEY-PAIRING-I18N-2520 7109362dc (+ 9fb9b9cfa), SCREENS-FIX-B-2520 026d1e55f, OVERLAY-FADE-2520 c5adefc60 (+ 997dbe643), BRIDGE-REPAIR-LEGACY-2520 764e442c7 (+ capmap 628c0e259); train fixes bd20831e6 (schedule-reads legacy 422), 928f05e64 (CHANGELOG head), e328f3ca2 (two Node unit guards). Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -30443,6 +30444,196 @@
     ],
     "owner": null,
     "commit": "e0d4a597b",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-NOFALLBACK-FIX-2520",
+    "title": "No classic people write after a v2 refusal at connect / discovery (WB-01); self-healing discovery (WB-03)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "After a direct-v2 refusal at connect or discovery no classic people write is sent; the discovery is re-read with backoff."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-NOFALLBACK-FIX-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-NOFALLBACK-FIX-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-NOFALLBACK-FIX-2520, change note docs/changes/WISKEY-NOFALLBACK-FIX-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/WISKEY-NOFALLBACK-FIX-2520 head 76ee24bcb merged af0021b2c into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 34); change note docs/changes/WISKEY-NOFALLBACK-FIX-2520.md. Decisions Q1-Q4 = a. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "76ee24bcb",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-PAIRING-I18N-2520",
+    "title": "The pairing lines of 'חיבור Arx ל-WisKey' in the page language",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The WisKey pairing card's lines carry fix_code / params / step codes and render in Hebrew and English from a frontend catalogue."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-PAIRING-I18N-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-PAIRING-I18N-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-PAIRING-I18N-2520, change note docs/changes/WISKEY-PAIRING-I18N-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/WISKEY-PAIRING-I18N-2520 head fba8a8062 merged 7109362dc into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 35); change note docs/changes/WISKEY-PAIRING-I18N-2520.md. Q1 = a train fix 9fb9b9cfa (require_system_admin(text=...) refusals: inventory + English). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "fba8a8062",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SCREENS-FIX-B-2520",
+    "title": "High findings of the deep screens review (2.52)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The public ticket page (ar / ru packs), the home calendar, the resident calendars and booking logic, and the investigation playback day are fixed as the review found."
+    ],
+    "requirement_ids": [
+      "R-SCREENS-FIX-B-2520-1"
+    ],
+    "test_ids": [
+      "AT-SCREENS-FIX-B-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/SCREENS-FIX-B-2520, change note docs/changes/SCREENS-FIX-B-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/SCREENS-FIX-B-2520 head 1226df73d merged 026d1e55f into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 36); change note docs/changes/SCREENS-FIX-B-2520.md. Public bundle rebuilt with the train's UI rebuild (budget 62 KB). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "1226df73d",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "OVERLAY-FADE-2520",
+    "title": "The overlays show their texts at full contrast from the first frame",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Overlay entrances (sheet, user menu, notification centre, calendar pop-over / toast, area quick sheet, keyframe entrances) only move; the unit-overlay-fade-2520 checker keeps every text at full contrast from the first frame."
+    ],
+    "requirement_ids": [
+      "R-OVERLAY-FADE-2520-1"
+    ],
+    "test_ids": [
+      "AT-OVERLAY-FADE-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/OVERLAY-FADE-2520, change note docs/changes/OVERLAY-FADE-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/OVERLAY-FADE-2520 head f628421cc merged c5adefc60 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 37); change note docs/changes/OVERLAY-FADE-2520.md. Design ratchet lowered 25514 -> 25513 (997dbe643). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "f628421cc",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "BRIDGE-REPAIR-LEGACY-2520",
+    "title": "A bridge re-pair holds on every key-store format; the bridge's own services fenced",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A legacy untagged key store counts as a re-pair (WB-02) and the bridge's own signed services sit behind the PairingFence (WB-07); native_keyset.py unchanged."
+    ],
+    "requirement_ids": [
+      "R-BRIDGE-REPAIR-LEGACY-2520-1"
+    ],
+    "test_ids": [
+      "AT-BRIDGE-REPAIR-LEGACY-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/BRIDGE-REPAIR-LEGACY-2520, change note docs/changes/BRIDGE-REPAIR-LEGACY-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/BRIDGE-REPAIR-LEGACY-2520 head fadca9072 merged 764e442c7 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 38); change note docs/changes/BRIDGE-REPAIR-LEGACY-2520.md. sha256 both copies: keyset.py 05d6458f..., __init__.py 4b497464..., native_keyset.py 5fda54de...; capmap reviewed successor 628c0e259. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "fadca9072",
     "actual_cost_usd": null
   }
 ]
