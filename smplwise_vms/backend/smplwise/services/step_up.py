@@ -154,6 +154,13 @@ METHOD_TOTP = "totp"
 METHOD_PASSKEY = "passkey"  # MFA-PASSKEYS-2490 (slice 4): a WebAuthn assertion on a step-up challenge (services/user_passkeys)
 METHOD_RECOVERY = "recovery_code"  # MFA-RECOVERY-CODES-2490: a one-time recovery code, accepted by `verify` in place of the code
 METHOD_DEVICE_KEY = "device_key"  # MFA-DEVICEKEY-2490 (slice 8): a phone-key signature on a step-up challenge (services/device_keys)
+# MFA-T095-REST-2530 (CR-011 option D, design 4.2 method `alarm_pin`): two ACTION-BOUND methods. Each proves ONE request of exactly the
+# action it was given for, on this session (`mark_action`) - never a window, never another action, never a once-action or a factor change.
+METHOD_PUSH = "push"  # an approval on the phone (services/push_approval: number matching, signed by the phone key) - `security.push_approval`
+METHOD_ALARM_PIN = "alarm_pin"  # the personal alarm code (CR-010) for an alarm action only - `security.step_up_alarm_pin`
+ACTION_BOUND_METHODS = frozenset({METHOD_PUSH, METHOD_ALARM_PIN})
+ALARM_PIN_KEY = "security.step_up_alarm_pin"
+DEFAULT_ALARM_PIN = "off"  # owner rule: a new behaviour ships off (CR-011 Q6 = a, owner q24 a: the personal alarm code; opt-in here)
 STATE_ATTR = "sw_step_up"  # request.state: "ok" once this request passed the gate (require() may run several times)
 
 # MFA-SECFIX-2500: the texts name every method (the code, a passkey, the phone key; a recovery code where it counts)
@@ -371,8 +378,50 @@ def methods_of(conn: sqlite3.Connection, user_id: str) -> list[str]:
     return out
 
 
-def not_applicable(conn: sqlite3.Connection, request: Any, principal: Any) -> str | None:
-    """Why step-up does not apply to this caller, or None when it does."""
+def alarm_pin_enabled(conn: sqlite3.Connection) -> bool:
+    """MFA-T095-REST-2530: `security.step_up_alarm_pin` - may the personal alarm code prove an alarm action (default off)."""
+    from ..db import get_setting
+
+    try:
+        return (get_setting(conn, ALARM_PIN_KEY, DEFAULT_ALARM_PIN) or DEFAULT_ALARM_PIN) == "on"
+    except Exception:  # noqa: BLE001 - fail closed
+        return False
+
+
+ALARM_PIN_ACTIONS = frozenset({ACTION_DISARM, ACTION_BYPASS})
+
+
+def alarm_pin_available(conn: sqlite3.Connection, user_id: str, action: str | None) -> bool:
+    """CR-011 4E / Q6 (owner q24 a): the browser / PWA fallback for alarm actions - the switch is on, the action is a disarm or a bypass,
+    and the user has a personal alarm code."""
+    if action not in ALARM_PIN_ACTIONS or not alarm_pin_enabled(conn):
+        return False
+    from . import alarm_codes
+
+    try:
+        return bool(alarm_codes.policy(conn, user_id).get("pin_set"))
+    except Exception:  # noqa: BLE001 - fail closed: no code, no method
+        return False
+
+
+def methods_for(conn: sqlite3.Connection, user_id: str, action: str | None) -> list[str]:
+    """MFA-T095-REST-2530: the methods that can prove THIS action: the user's step-up methods (`methods_of`), plus `push` (an approval on
+    the phone, services/push_approval) and `alarm_pin` (an alarm action only) when their switches are on. Only the gate of the action
+    reads it - `methods_of` (the account's factors) is unchanged everywhere else (the factor-change rules, the last-administrator rule)."""
+    out = methods_of(conn, user_id)
+    if action:
+        from . import push_approval
+
+        if push_approval.available(conn, user_id, action):
+            out.append(METHOD_PUSH)
+        if alarm_pin_available(conn, user_id, action):
+            out.append(METHOD_ALARM_PIN)
+    return out
+
+
+def not_applicable(conn: sqlite3.Connection, request: Any, principal: Any, action: str | None = None) -> str | None:
+    """Why step-up does not apply to this caller, or None when it does. `action` (MFA-T095-REST-2530): the gated action - a user whose
+    only method for it is the personal alarm code (`security.step_up_alarm_pin` on) is gated for an alarm action (CR-011 Q6 a)."""
     if not enabled(conn):
         return "off"
     if not _is_remote(request):
@@ -385,7 +434,7 @@ def not_applicable(conn: sqlite3.Connection, request: Any, principal: Any) -> st
         # every bearer caller to the long-lived ones: a short-lived (or unreadable) bearer token is gated like a session
         if access_tokens.exempt(access_tokens.session_kind(request)):
             return "bearer_token"
-    if not methods_of(conn, principal.user_id):
+    if not (methods_for(conn, principal.user_id, action) if action else methods_of(conn, principal.user_id)):
         return "no_method"
     return None
 
@@ -630,8 +679,9 @@ def _write_request(request: Any) -> bool:
 
 
 def required_error(conn: sqlite3.Connection, principal: Any, permission: str) -> ApiError:
+    # MFA-T095-REST-2530: `methods` lists what can prove THIS action (`push` / `alarm_pin` when switched on)
     return ApiError(403, "step_up_required", PHYSICAL_HE if permission in PHYSICAL_ACTIONS else REQUIRED_HE,
-                    details={"action": permission, "methods": methods_of(conn, principal.user_id), "minutes": minutes(conn),
+                    details={"action": permission, "methods": methods_for(conn, principal.user_id, permission), "minutes": minutes(conn),
                              "verify_path": "auth/step-up/verify"})
 
 
@@ -645,9 +695,10 @@ def guard(conn: sqlite3.Connection, request: Any, principal: Any, permission: st
     if declared in STEP_UP_ONCE_ACTIONS:  # MFA-RESET-HARDENING-2510: a once-proof instead of the window (one prompt)
         require_once_when_on(conn, request, principal, declared)
         return
-    if not_applicable(conn, request, principal) is None:
+    if not_applicable(conn, request, principal, permission) is None:
         key = session_key(request, principal)
-        if key is None or not _satisfied(conn, request, principal, key):
+        # MFA-T095-REST-2530: an action-bound proof (a phone approval, the alarm code) counts for one request of exactly this action
+        if key is None or not (_satisfied(conn, request, principal, key) or _take_action(request, principal, permission)):
             _refuse(conn, request, principal, permission)
     if state is not None:
         setattr(state, STATE_ATTR, "ok")
@@ -789,6 +840,32 @@ def once_proof(conn: sqlite3.Connection, request: Any, principal: Any, action: s
         raise OnceProofMissing(action)
     sf.verify(conn, request.app.state.settings, principal.user_id, code)
     return METHOD_TOTP
+
+
+def _action_key(action: str, key: str) -> str:
+    return f"act:{action}|{key}"
+
+
+def mark_action(request: Any, principal: Any, action: str, method: str) -> float | None:
+    """MFA-T095-REST-2530: an action-bound proof (`push`, `alarm_pin`): good for ONE gated request of exactly `action` on this session
+    within ONE_SHOT_S - never the window, never another action. Kept apart from the window mark (a window proof is not replaced)."""
+    if method not in ACTION_BOUND_METHODS or action in ANY_ONCE_ACTIONS or action in FACTOR_CHANGE_ACTIONS:
+        raise ValueError(method)
+    key = session_key(request, principal)
+    if key is None:
+        return None
+    m = Mark(user_id=principal.user_id, at=_now(), method=method, one_shot=True)
+    _put(_action_key(action, key), m)
+    return _to_wall(m.at + ONE_SHOT_S)
+
+
+def _take_action(request: Any, principal: Any, action: str) -> bool:
+    key = session_key(request, principal)
+    if key is None:
+        return False
+    k = _action_key(action, key)
+    m = _get(k)
+    return m is not None and m.user_id == principal.user_id and _fresh(_now() - m.at, ONE_SHOT_S) and _consume(k, m)
 
 
 def once_details(conn: sqlite3.Connection, principal: Any, action: str) -> dict[str, Any]:

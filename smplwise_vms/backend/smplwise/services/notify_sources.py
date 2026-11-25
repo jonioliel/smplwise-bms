@@ -763,6 +763,17 @@ def device_key_added(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "device_key"}))
 
 
+@safe
+def push_approval_requested(conn: sqlite3.Connection, user_id: str) -> None:
+    """MFA-T095-REST-2530 (CR-011 option D): a session of this account asked its phone to approve a sensitive action
+    (routers/push_approval.start, inside its transaction): the ACCOUNT'S OWN user gets `security.push_approval_requested` on every device
+    - the existing channels (inbox, web push, the phone app's push through the SmplWise relay) wake the phone; no new provider.
+    Content-free: never the number to match, the action, the address or the requesting device."""
+    notify.emit_full(conn, notify.Signal("security.push_approval_requested", "session", user_id,
+                                         dedupe_key=f"security.push_approval_requested:session:{user_id}:{notify.new_id()}",
+                                         initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "push_approval"}))
+
+
 # MFA-FACTOR-HARDEN-2520 N-6: what `security.second_factor_changed` says happened - nothing else
 FACTOR_CHANGES_HE = {
     "removed:totp": "אפליקציית האימות הוסרה מהחשבון שלך",

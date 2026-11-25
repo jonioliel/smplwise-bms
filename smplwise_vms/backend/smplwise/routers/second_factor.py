@@ -366,9 +366,12 @@ def step_up_status(request: Request, principal: Principal = Depends(current_prin
 
 
 class StepUpBody(BaseModel):
-    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code|device_key)$")
-    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp / recovery_code
-    challenge_id: str | None = Field(default=None, max_length=80)  # method passkey (MFA-PASSKEYS-2490) / device_key (MFA-DEVICEKEY-2490)
+    # MFA-T095-REST-2530: `push` (an approval on the phone, routers/push_approval.py) and `alarm_pin` (the personal alarm code,
+    # routers/alarm.verify_step_up_pin) - action-bound: each proves ONE request of exactly `action`
+    method: str = Field(default=step_up.METHOD_TOTP, pattern="^(totp|passkey|recovery_code|device_key|push|alarm_pin)$")
+    code: str | None = Field(default=None, min_length=1, max_length=16)  # method totp / recovery_code / alarm_pin (a personal PIN: 4-8 digits)
+    # method passkey (MFA-PASSKEYS-2490) / device_key (MFA-DEVICEKEY-2490) / push (the approval request id, MFA-T095-REST-2530)
+    challenge_id: str | None = Field(default=None, max_length=80)
     assertion: dict[str, Any] | None = None  # method passkey: PublicKeyCredential.toJSON() of the assertion
     key_id: str | None = Field(default=None, max_length=40)  # method device_key
     signature: str | None = Field(default=None, max_length=120)  # method device_key: base64url ECDSA P-256 signature of the payload
@@ -392,6 +395,14 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
 
         return device_keys.verify_step_up(conn, request, principal, challenge_id=body.challenge_id, key_id=body.key_id,
                                           signature=body.signature, action=body.action)
+    if body.method == step_up.METHOD_PUSH:  # MFA-T095-REST-2530: an approved phone approval of this session for exactly this action
+        from . import push_approval
+
+        return push_approval.verify_step_up(conn, request, principal, request_id=body.challenge_id, action=body.action)
+    if body.method == step_up.METHOD_ALARM_PIN:  # MFA-T095-REST-2530: the personal alarm code for one alarm disarm / bypass
+        from . import alarm
+
+        return alarm.verify_step_up_pin(conn, request, principal, code=body.code, action=body.action)
     if not body.code:
         raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
     # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel (MFA-RESET-HARDENING-2510: also the once-actions

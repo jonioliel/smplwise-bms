@@ -144,7 +144,9 @@ class StepUpStatus(WireModel):
 class StepUpProof(WireModel):
     """`POST /auth/step-up/verify`: the proof was accepted; it counts until `valid_until` (one gated request when `minutes` is 0).
     `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490)."""
-    method: Literal["totp", "passkey", "recovery_code", "device_key"]  # MFA-PASSKEYS-2490, MFA-RECOVERY-CODES-2490, MFA-DEVICEKEY-2490
+    # MFA-PASSKEYS-2490, MFA-RECOVERY-CODES-2490, MFA-DEVICEKEY-2490; MFA-T095-REST-2530: `push` (an approval on the phone) and `alarm_pin`
+    # (the personal alarm code) - both prove ONE request of exactly the given action (`minutes` 0)
+    method: Literal["totp", "passkey", "recovery_code", "device_key", "push", "alarm_pin"]
     minutes: int
     valid_until: str | None
 

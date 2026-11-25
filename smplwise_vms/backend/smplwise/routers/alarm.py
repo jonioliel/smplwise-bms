@@ -408,6 +408,58 @@ def _step_up(act: "_Act", plan: dict[str, Any], action: str) -> None:
     step_up.guard_action(act.conn, act.request, act.principal, action)
 
 
+PIN_STEP_UP_REFUSED_HE = "קוד האזעקה האישי מאשר רק נטרול אזעקה או עקיפת חיישן."
+
+
+def verify_step_up_pin(conn: sqlite3.Connection, request: Request, principal: Principal, *, code: Any, action: str | None) -> dict[str, Any]:
+    """MFA-T095-REST-2530 (CR-011 4E / Q6 = a, owner q24 a; design 4.2 method `alarm_pin`): `POST auth/step-up/verify {method:
+    "alarm_pin", code, action}` - the caller's personal alarm code as the step-up proof of ONE alarm disarm / zone bypass on this session
+    (step_up.mark_action), when `security.step_up_alarm_pin` is on. It is the browser / PWA fallback of a session that cannot use the phone
+    key: under `alarm.remote_codeless` (the default) a remote disarm asks no code of its own, so the step-up dialog asks it instead.
+    The SAME lockout as the code gate of the alarm screen (key `user:<id>`, 5 wrong in 5 minutes -> 10 minutes, the administrators told),
+    so two doors never double the guesses. Never for any other action; never a window. Audited `auth.step_up.ok` / `.failed`; never the
+    code."""
+    act = action or ""
+    details = {"method": step_up.METHOD_ALARM_PIN, "action": act}
+
+    def failed(reason: str) -> None:
+        audit(conn, actor=principal, action="auth.step_up.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
+              reason=reason, request_id=_rid(request), details=details)
+
+    if act not in step_up.ALARM_PIN_ACTIONS or not step_up.alarm_pin_enabled(conn):
+        failed("step_up_method_refused")
+        raise ApiError(409, "step_up_method_refused", PIN_STEP_UP_REFUSED_HE, details={"method": step_up.METHOD_ALARM_PIN, "action": act})
+    reason = step_up.not_applicable(conn, request, principal, act)
+    if reason == "no_method":
+        raise ApiError(409, "step_up_no_method", step_up.NO_METHOD_HE)
+    if reason is not None:
+        raise ApiError(409, "step_up_not_applicable", step_up.NOT_APPLICABLE_HE, details={"reason": reason})
+    if step_up.session_key(request, principal) is None:
+        raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
+    pin_hash = codes.pin_hash_of(conn, principal.user_id)
+    if not pin_hash:
+        failed("pin_not_set")
+        raise ApiError(409, "pin_not_set", "עדיין אין לך קוד אישי לאזעקה. פנה למנהל המערכת לקבלת קוד אישי.")
+    keys = [f"user:{principal.user_id}"]
+    locked = codes.LOCKOUT.locked_for(keys, conn)
+    if locked > 0:
+        failed("step_up_locked")
+        raise ApiError(429, "code_locked", "יותר מדי ניסיונות קוד שגויים. נסו שוב מאוחר יותר.", retryable=True, details={"retry_after_s": int(locked) + 1})
+    if not isinstance(code, str) or not code or len(code) > codes.PIN_MAX or not codes.verify_pin(code, pin_hash):
+        locked = codes.LOCKOUT.fail(keys, conn)
+        if locked:
+            from ..services import notify_sources
+
+            notify_sources.code_lockout(conn, principal.user_id)
+        failed("step_up_locked" if locked else "step_up_invalid")
+        raise ApiError(403, "wrong_code", "קוד שגוי.", details={"locked_s": int(locked)} if locked else {})
+    codes.LOCKOUT.succeed(keys[0], conn)
+    until = step_up.mark_action(request, principal, act, step_up.METHOD_ALARM_PIN)
+    audit(conn, actor=principal, action="auth.step_up.ok", decision="allowed", resource_type="user", resource_id=principal.user_id,
+          request_id=_rid(request), details={**details, "minutes": 0, "action_bound": True})
+    return {"method": step_up.METHOD_ALARM_PIN, "minutes": 0, "valid_until": step_up.iso(until)}
+
+
 def _send(act: _Act, request: Request, entity_id: str, action_id: str, args: dict[str, Any], send_code: str | None, client_request_id: str, attributes: dict[str, Any] | None,
           feature: str = "alarm") -> dict[str, Any]:
     """The device-action path: allow-list, ha_actions record (never the code), signed bridge call, honest status."""

@@ -283,6 +283,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days"
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # MFA-STEPUP-TRAIN-2490: the step-up switch, its window and its channel are security policy - a restore must never weaken them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
+# MFA-T095-REST-2530: the phone approval and the alarm-code step-up switches are security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.push_approval", "security.step_up_alarm_pin"}
 # MFA-PASSKEYS-2490: whether passkeys count for every user is security policy too
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.passkeys_all_users"}
 # MFA-HA-PASSKEY-2520: whether a home-system user's passkey is a remote sign-in factor is security policy too

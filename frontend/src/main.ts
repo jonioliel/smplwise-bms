@@ -12,6 +12,9 @@ import './shell/sw-app';
 import { installStepUp } from './shell/step-up';
 
 installStepUp(); // MFA-STEPUP-TRAIN-2490: a 403 step_up_required opens the code dialog and retries the request once (both channels)
+// MFA-T095-REST-2530: inside the Android app holding the phone key, approval requests of another screen open the approval sheet
+// (nothing at all happens outside the app; a short wait lets the sign-in settle first)
+setTimeout(() => void import('./shell/push-approval-watch').then((m) => m.installPushApprovalWatch()), 3000);
 import { syncUiLang } from './i18n/ui-lang';
 // CR-SHELL-LAZY-2436 (review 07:F4 c): the remote start-up (sign-in, welcome, local identity words) is a chunk of its own, fetched only on the remote channel
 if (REMOTE) void import('./arx/boot').then((m) => m.bootRemote());

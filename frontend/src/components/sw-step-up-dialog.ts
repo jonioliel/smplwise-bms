@@ -10,6 +10,16 @@ import { passkeyStepUp } from '../api/step-up-passkey';
 import { PasskeyCancelled, passkeysSupported } from '../arx/webauthn';
 import { t, tf } from '../i18n/he';
 import { STEP_UP_VERIFIED } from '../shell/step-up';
+import { alarmPinStepUp, cancelPushApproval, pushApprovalState, startPushApproval, verifyPushApproval } from '../api/push-approval';
+
+/** MFA-T095-REST-2530: how often the requesting screen asks whether the phone approved (the request lives 90 s). */
+const PUSH_POLL_MS = 2000;
+const PUSH_END_TEXT: Record<string, () => string> = {
+  denied: () => trm('הבקשה נדחתה בטלפון.'),
+  expired: () => trm('הבקשה פגה לפני שאושרה. נסה שוב.'),
+  cancelled: () => trm('הבקשה בוטלה.'),
+  used: () => trm('הבקשה כבר נוצלה. נסה שוב.'),
+};
 
 /**
  * MFA-STEPUP-TRAIN-2490 slice 2: the code dialog the shell opens when the server's step-up gate refuses a change of settings, users or
@@ -26,6 +36,12 @@ import { STEP_UP_VERIFIED } from '../shell/step-up';
  * the app's biometric prompt over the server's challenge (api/factor-screens.ts `deviceKeyStepUp`). A RECOVERY CODE - beside the code,
  * for the normal window only (never a once-action nor adding a factor; the server refuses those too): a link switches the field to a
  * one-time recovery code (`XXXX-XXXX`). Same proof, same single retry.
+ * MFA-T095-REST-2530 (CR-011 option D and 4E / Q6): two ACTION-BOUND methods, each listed by the server only when its switch is on.
+ * APPROVE ON THE PHONE (`push`, outside the app that holds the key): the dialog opens a request, shows its two-digit number and waits;
+ * the person picks that number among three in the Android app and confirms with the phone key; the dialog then spends the approval
+ * (`auth/step-up/verify {method: "push"}`) and answers true. THE PERSONAL ALARM CODE (`alarm_pin`, an alarm disarm / zone bypass only):
+ * the field takes the alarm code instead (the only field when the account has no authenticator code). Both prove ONE request of exactly
+ * the refused action - the same single retry. Cancelling the dialog cancels an open phone request.
  */
 @customElement('sw-step-up-dialog')
 export class SwStepUpDialog extends LitElement {
@@ -40,6 +56,11 @@ export class SwStepUpDialog extends LitElement {
   @state() private keyBusy = false;
   /** MFA-SCREENS-2510: the field takes a one-time recovery code instead of the app's code. */
   @state() private recovery = false;
+  /** MFA-T095-REST-2530: the field takes the personal alarm code (an alarm action, `alarm_pin` listed). */
+  @state() private pin = false;
+  /** MFA-T095-REST-2530: the open phone approval (its id and the number this screen shows), null when none. */
+  @state() private push: { id: string; number: number } | null = null;
+  private pushTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Set by stepUpDialog(): called once with the answer. */
   resolver: ((ok: boolean) => void) | null = null;
@@ -108,6 +129,23 @@ export class SwStepUpDialog extends LitElement {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: var(--sw-focus-offset);
     }
+    /* MFA-T095-REST-2530: the number the phone must pick, while the dialog waits for the approval */
+    .push {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--sw-s-1);
+    }
+    .push .hint {
+      margin: 0;
+    }
+    .num {
+      font-size: var(--sw-fs-3xl);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--sw-text);
+      font-variant-numeric: tabular-nums;
+    }
     .err {
       margin: 8px 0 0;
       font-size: var(--sw-fs-xs);
@@ -131,11 +169,31 @@ export class SwStepUpDialog extends LitElement {
     this.answer(false); // removed without an answer: nothing was confirmed
   }
 
+  private get action(): string {
+    return typeof this.details.action === 'string' ? this.details.action : '';
+  }
+
+  /** MFA-T095-REST-2530: approve on the phone - listed by the server, and this is not the app that holds the key (it signs itself). */
+  private get pushOffered(): boolean {
+    return this.methods.includes('push') && !!this.action && !this.keyId;
+  }
+
+  /** MFA-T095-REST-2530: the personal alarm code - listed by the server for an alarm action only. */
+  private get pinOffered(): boolean {
+    return this.methods.includes('alarm_pin') && !!this.action;
+  }
+
+  /** The field holds the alarm code: chosen by the link, or the only field there is. */
+  private get pinMode(): boolean {
+    return this.pinOffered && (this.pin || !this.methods.includes('totp'));
+  }
+
   private get methods(): string[] {
     return Array.isArray(this.details.methods) ? this.details.methods : [];
   }
 
   private get valid(): boolean {
+    if (this.pinMode) return /^\d{4,8}$/.test(this.code.trim());
     return this.recovery ? isRecoveryCode(this.code) : /^\d{6}$/.test(this.code.replace(/\s+/g, ''));
   }
 
@@ -143,6 +201,7 @@ export class SwStepUpDialog extends LitElement {
     const r = this.resolver;
     if (!r) return;
     this.resolver = null;
+    this.stopPush(!ok);
     this.open = false;
     r(ok);
     void this.updateComplete.then(() => requestAnimationFrame(() => this.remove()));
@@ -184,13 +243,68 @@ export class SwStepUpDialog extends LitElement {
     }
   }
 
+  /** MFA-T095-REST-2530: stop waiting for the phone; `cancel` also cancels the open request on the server (best effort). */
+  private stopPush(cancel: boolean) {
+    if (this.pushTimer) clearTimeout(this.pushTimer);
+    this.pushTimer = null;
+    const open = this.push;
+    this.push = null;
+    if (cancel && open) void cancelPushApproval(open.id).catch(() => undefined);
+  }
+
+  /** MFA-T095-REST-2530: open a phone approval and wait for it; approved -> spend it here and answer true once. */
+  private async byPush() {
+    if (this.busy || this.push) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const started = await startPushApproval(this.action);
+      this.push = { id: started.request_id, number: started.number };
+      this.schedulePushPoll();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private schedulePushPoll() {
+    this.pushTimer = setTimeout(() => void this.pollPush(), PUSH_POLL_MS);
+  }
+
+  private async pollPush() {
+    const open = this.push;
+    if (!open || !this.resolver) return;
+    try {
+      const st = await pushApprovalState(open.id);
+      if (this.push?.id !== open.id) return;
+      if (st.status === 'pending') return this.schedulePushPoll();
+      if (st.status === 'approved') {
+        this.busy = true;
+        await verifyPushApproval(open.id, this.action);
+        this.push = null;
+        window.dispatchEvent(new CustomEvent(STEP_UP_VERIFIED));
+        this.answer(true);
+        return;
+      }
+      this.push = null;
+      this.error = PUSH_END_TEXT[st.status]?.() ?? trm('הבקשה פגה לפני שאושרה. נסה שוב.');
+    } catch (err) {
+      this.push = null;
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private async submit(e?: Event) {
     e?.preventDefault();
     if (this.busy || !this.valid) return;
     this.busy = true;
     this.error = '';
     try {
-      if (this.recovery) await recoveryStepUp(this.code.trim(), this.details.action);
+      if (this.pinMode) await alarmPinStepUp(this.code.trim(), this.action);
+      else if (this.recovery) await recoveryStepUp(this.code.trim(), this.details.action);
       else await verifyStepUp(this.code.replace(/\s+/g, ''), this.details.action);
       window.dispatchEvent(new CustomEvent(STEP_UP_VERIFIED));
       this.answer(true);
@@ -204,12 +318,18 @@ export class SwStepUpDialog extends LitElement {
 
   render() {
     const minutes = typeof this.details.minutes === 'number' ? this.details.minutes : 5;
-    const code = this.methods.includes('totp');
+    const totp = this.methods.includes('totp');
+    const pinField = this.pinOffered; // MFA-T095-REST-2530: the personal alarm code (an alarm action)
+    const pinMode = this.pinMode;
+    const code = totp || pinField;
     const listed = this.methods.includes('passkey');
     const pk = listed && passkeysSupported();
     const dk = !!this.keyId; // MFA-SCREENS-2510: the phone key, in the app that holds one
-    const can = code || pk || dk;
-    const body = pk && code ? t('stepUp.bodyBoth') : pk ? t('stepUp.bodyPasskey') : code ? t('stepUp.body') : trm('כדי לשנות הגדרות, משתמשים או הרשאות, אשר במפתח הטלפון.');
+    const push = this.pushOffered; // MFA-T095-REST-2530: approve on the phone, from another screen
+    const can = code || pk || dk || push;
+    const body = pk && totp ? t('stepUp.bodyBoth') : pk ? t('stepUp.bodyPasskey') : totp ? t('stepUp.body')
+      : pinField ? trm('כדי להמשיך, הזן את קוד האזעקה האישי שלך.') : push ? trm('כדי להמשיך, אשר את הפעולה בטלפון שבו מותקנת האפליקציה.')
+      : trm('כדי לשנות הגדרות, משתמשים או הרשאות, אשר במפתח הטלפון.');
     return html`<sw-dialog ?open=${this.open} heading=${t('stepUp.heading')} data-step-up-dialog @close=${(e: Event) => { e.stopPropagation(); this.answer(false); }}>
       ${can
         ? html`<p class="msg" data-step-up-text>${body}</p>
@@ -220,16 +340,34 @@ export class SwStepUpDialog extends LitElement {
             ${dk
               ? html`<div class="pk"><sw-button variant=${code || pk ? 'secondary' : 'primary'} icon="sensor" data-step-up-device-key ?disabled=${this.busy} @click=${() => void this.byDeviceKey()}>${this.keyBusy ? trm('ממתין לטלפון…') : trm('אישור במפתח הטלפון')}</sw-button></div>`
               : nothing}
-            ${(pk || dk) && code ? html`<div class="or" aria-hidden="true">${t('stepUp.or')}</div>` : nothing}
+            ${push
+              ? this.push
+                ? html`<div class="push" role="status" data-step-up-push-wait>
+                    <span class="hint">${trm('בטלפון, בחר את המספר:')}</span>
+                    <span class="num" dir="ltr" data-step-up-push-number>${this.push.number}</span>
+                    <span class="hint">${trm('ממתין לאישור בטלפון…')}</span>
+                  </div>`
+                : html`<div class="pk"><sw-button variant=${code || pk || dk ? 'secondary' : 'primary'} icon="bell" data-step-up-push ?disabled=${this.busy}
+                    @click=${() => void this.byPush()}>${trm('אישור בטלפון')}</sw-button></div>`
+              : nothing}
+            ${(pk || dk || push) && code ? html`<div class="or" aria-hidden="true">${t('stepUp.or')}</div>` : nothing}
             ${code
               ? html`<form @submit=${(e: Event) => void this.submit(e)}>
-                  <input name="code" inputmode=${this.recovery ? 'text' : 'numeric'} autocomplete="one-time-code" maxlength=${this.recovery ? 11 : 7} autocapitalize=${this.recovery ? 'characters' : 'off'}
-                    spellcheck="false" placeholder=${this.recovery ? 'XXXX-XXXX' : '000000'} aria-label=${this.recovery ? t('secondFactor.recoveryCodeLabel') : t('stepUp.codeLabel')} data-step-up-code
-                    .value=${this.code} ?disabled=${this.busy} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />
+                  ${pinMode
+                    ? html`<input name="code" type="password" inputmode="numeric" autocomplete="off" maxlength="8" spellcheck="false" placeholder="••••"
+                        aria-label=${trm('קוד האזעקה האישי')} data-step-up-code data-step-up-pin-field
+                        .value=${this.code} ?disabled=${this.busy} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />`
+                    : html`<input name="code" inputmode=${this.recovery ? 'text' : 'numeric'} autocomplete="one-time-code" maxlength=${this.recovery ? 11 : 7} autocapitalize=${this.recovery ? 'characters' : 'off'}
+                        spellcheck="false" placeholder=${this.recovery ? 'XXXX-XXXX' : '000000'} aria-label=${this.recovery ? t('secondFactor.recoveryCodeLabel') : t('stepUp.codeLabel')} data-step-up-code
+                        .value=${this.code} ?disabled=${this.busy} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />`}
                 </form>
-                ${this.recoveryAllowed
+                ${this.recoveryAllowed && !pinMode
                   ? html`<div class="alt"><button type="button" class="link" data-step-up-recovery ?disabled=${this.busy}
                       @click=${() => { this.recovery = !this.recovery; this.code = ''; this.error = ''; }}>${this.recovery ? t('secondFactor.recoveryUseApp') : t('secondFactor.recoveryUse')}</button></div>`
+                  : nothing}
+                ${pinField && totp
+                  ? html`<div class="alt"><button type="button" class="link" data-step-up-pin ?disabled=${this.busy}
+                      @click=${() => { this.pin = !this.pin; this.recovery = false; this.code = ''; this.error = ''; }}>${this.pin ? trm('אישור בקוד מאפליקציית האימות') : trm('אישור בקוד האזעקה האישי')}</button></div>`
                   : nothing}`
               : nothing}`
         : html`<p class="msg" data-step-up-no-method>${listed ? t('stepUp.passkeyUnsupported') : this.methods.includes('device_key') && !this.methods.includes('totp') ? trm('את מפתח הטלפון אפשר לאשר רק מתוך אפליקציית Android.') : t('stepUp.noMethod')}</p>`}

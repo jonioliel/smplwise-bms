@@ -159,7 +159,7 @@ export interface ResetFactors {
  * `recovery_code`: a one-time recovery code was spent for it (MFA-RECOVERY-CODES-2490).
  */
 export interface StepUpProof {
-  method: "device_key" | "passkey" | "recovery_code" | "totp";
+  method: "alarm_pin" | "device_key" | "passkey" | "push" | "recovery_code" | "totp";
   minutes: number;
   valid_until: string | null;
 }

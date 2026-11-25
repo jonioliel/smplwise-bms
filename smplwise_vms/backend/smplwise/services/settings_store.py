@@ -419,6 +419,13 @@ DEFAULTS: dict[str, str] = {
     "security.step_up": "off",  # MFA-SECFIX-2500: owner answer Q2 = b (2026-11-24) - off until the owner switches it on
     "security.step_up_minutes": "5",
     "security.step_up_local": "off",
+    # MFA-T095-REST-2530 (CR-011 option D and 4E / Q6; services/push_approval.py, services/step_up.methods_for): two more ways to answer a
+    # step-up, both for ONE request of exactly the refused action. push_approval on = a session without the phone key may ask the account's
+    # phone to approve (number matching, signed by the phone key; the existing notice channels wake the phone); step_up_alarm_pin on = the
+    # personal alarm code answers an alarm disarm / zone bypass (the browser fallback). Both off by default (owner rule: new behaviour is
+    # opt-in; CR-011 Q11 was never answered). Security policy: never restored from a backup.
+    "security.push_approval": "off",
+    "security.step_up_alarm_pin": "off",
     # MFA-PASSKEYS-2490 (owner decision 2026-11-22, Q50 "passkeys for all users"; services/user_passkeys.py): on = every user who signs
     # in to Arx (Home Assistant users too, not only Arx-only identities) may add passkeys in My Account, and they count as a step-up
     # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not

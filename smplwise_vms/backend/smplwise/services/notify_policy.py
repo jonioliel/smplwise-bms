@@ -235,6 +235,12 @@ SOURCES: tuple[Source, ...] = (
     # MFA-SECFIX-2500 SR-3: an authenticator app or a passkey was added to the account - the account's own user is told on every device
     # (inbox, web push, the app); never the secret, the passkey or its label. The phone key has its own notice above.
     _s("security.second_factor_added", "דרך אימות נוספה לחשבון", "security", "alert", "דרך אימות נוספה לחשבון", "נוספה לחשבון שלך דרך אימות: {name}. אם לא אתה הוספת אותה - הסר אותה ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
+    # MFA-T095-REST-2530 (CR-011 option D): a session asked the account's phone to approve a sensitive action - the account's own user
+    # hears of it on every device (inbox, web push, the app's push) so the phone wakes up. Content-free: neither the number to match nor
+    # the action (the app shows both after the person opens it, signed in).
+    _s("security.push_approval_requested", "בקשת אישור בטלפון", "security", "alert", "בקשת אישור בטלפון",
+       "ממתינה לך בקשה לאשר פעולה. פתח את האפליקציה כדי לאשר או לדחות. אם לא אתה ביקשת - דחה אותה.", window_s=120, who="initiator",
+       subject="session", resolves=False, app=True),
     _s("security.device_key_added", "מפתח טלפון נוסף לחשבון", "security", "alert", "מפתח טלפון נוסף לחשבון", "נוסף לחשבון שלך מפתח טלפון לאימות. אם לא אתה הוספת אותו - הסר אותו ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
     # MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-6, owner-approved): a factor of the account was removed, a new batch of recovery
     # codes was made, or someone signed in with a recovery code - the account's own user is told on every device (inbox, web push, the
