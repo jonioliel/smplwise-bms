@@ -88,6 +88,14 @@ test('the emergency sheet: there is no path from choosing straight to sending', 
   expect(nextStep('sending', 'sent')).toBe('result');
   expect(nextStep('sending', 'timeout')).toBe('sending'); // never closed while sending
   for (const s of all) if (s !== 'sending') expect(nextStep(s, 'timeout')).toBe('choose');
+  // SCREENS-FIX-A-2520 (SCR-01): after a failed prepare / start the hold buttons are live again and a new hold reaches confirm,
+  // never sending - the confirm step is the only way to a door action
+  expect(nextStep('choose', 'failed')).toBe('error');
+  expect(nextStep('confirm', 'failed')).toBe('error');
+  expect(nextStep('error', 'held')).toBe('confirm');
+  expect(nextStep('error', 'confirm')).toBe('error');
+  expect(nextStep('error', 'sent')).toBe('error');
+  expect(nextStep(nextStep(nextStep('choose', 'failed'), 'held'), 'confirm')).toBe('sending');
   expect(holdProgress(null, 5000, 1500)).toBe(0);
   expect(holdProgress(1000, 1750, 1500)).toBe(0.5);
   expect(holdProgress(1000, 9000, 1500)).toBe(1);

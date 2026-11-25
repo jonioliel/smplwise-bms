@@ -21,6 +21,9 @@ export interface DoorwinOptions {
   /** the per-door results of a started incident */
   results?: ('acknowledged' | 'refused' | 'unknown')[];
   settings?: Record<string, string>;
+  /** SCREENS-FIX-A-2520 (SCR-01): the first N emergency prepares / starts fail (429 rate_limited / 409 confirmation_expired); every later prepare
+   * issues a fresh single-use token (the first keeps the historic sample token) */
+  emergencyFail?: { prepare?: number; start?: number };
 }
 
 const DOORS = [
@@ -82,6 +85,8 @@ export async function installDoorwinMock(page: Page, o: DoorwinOptions = {}): Pr
   let active: ReturnType<typeof incident> | null = em.active === 'lock' ? incident('lock_secure', false, ['acknowledged', 'acknowledged', 'refused', 'unknown']) : null;
   let drillInc: ReturnType<typeof incident> | null = em.active === 'drill' ? incident('lock_secure', true, []) : null;
   let prepared: { kind: 'lock_secure' | 'open'; drill: boolean } | null = null;
+  let prepares = 0;
+  let starts = 0;
   await page.route('**/api/v1/doors/**', async (route) => {
     const req = route.request();
     const u = new URL(req.url());
@@ -122,12 +127,17 @@ export async function installDoorwinMock(page: Page, o: DoorwinOptions = {}): Pr
         recent: [] });
     }
     if (p === 'doors/emergency/prepare') {
+      prepares += 1;
+      if (prepares <= (o.emergencyFail?.prepare ?? 0)) return json(route, { code: 'rate_limited', user_message: 'rate limited (sample)' }, 429);
       prepared = { kind: (body.kind as 'lock_secure' | 'open') ?? 'lock_secure', drill: !!body.drill };
-      return json(route, { confirm_token: 'tok_SAMPLE_not_a_secret_0123456789', expires_at: new Date(Date.now() + 20_000).toISOString(), doors: body.scope_type === 'site' ? 2 : 4,
+      const token = prepares === 1 ? 'tok_SAMPLE_not_a_secret_0123456789' : `tok_SAMPLE_not_a_secret_${prepares}`;
+      return json(route, { confirm_token: token, expires_at: new Date(Date.now() + 20_000).toISOString(), doors: body.scope_type === 'site' ? 2 : 4,
         kind: prepared.kind, action: body.action ?? 'start', drill: prepared.drill, scope_type: body.scope_type ?? 'installation', scope_id: body.scope_id ?? '*',
         scope_name: body.scope_type === 'site' ? 'מתחם צפון' : 'כל ההתקנה' });
     }
     if (p === 'doors/emergency/incidents') {
+      starts += 1;
+      if (starts <= (o.emergencyFail?.start ?? 0)) return json(route, { code: 'confirmation_expired', user_message: 'expired (sample)' }, 409);
       const inc = incident(prepared?.kind ?? 'lock_secure', prepared?.drill ?? true, o.results ?? ['acknowledged', 'acknowledged', 'refused', 'unknown']);
       if (inc.drill) drillInc = inc;
       else active = inc;

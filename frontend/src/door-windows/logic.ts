@@ -208,10 +208,13 @@ export function holdProgress(startedMs: number | null, nowMs: number, holdMs: nu
 export type SheetStep = 'choose' | 'confirm' | 'sending' | 'result' | 'error';
 
 /** The sheet's next step. Only these moves exist: a hold completes -> confirm (after the server's prepare); confirm -> sending ->
- * result | error; anything -> choose on cancel / auto-close. There is no path from `choose` straight to `sending`. */
+ * result | error; anything -> choose on cancel / auto-close. There is no path from `choose` straight to `sending`.
+ * SCREENS-FIX-A-2520 (SCR-01): `error` draws the choose view with its hold buttons live, so a completed hold from `error` (after the
+ * server's fresh prepare) is `confirm` again - one failed prepare / start never leaves the sheet dead. There is still no path from
+ * `error` (or `choose`) straight to `sending`: every door action passes the confirm step. */
 export function nextStep(step: SheetStep, event: 'held' | 'confirm' | 'sent' | 'failed' | 'cancel' | 'timeout'): SheetStep {
   if (event === 'cancel' || event === 'timeout') return step === 'sending' ? 'sending' : 'choose';
-  if (step === 'choose' && event === 'held') return 'confirm';
+  if ((step === 'choose' || step === 'error') && event === 'held') return 'confirm';
   if (step === 'confirm' && event === 'confirm') return 'sending';
   if (step === 'sending' && event === 'sent') return 'result';
   if ((step === 'sending' || step === 'confirm' || step === 'choose') && event === 'failed') return 'error';
