@@ -86,37 +86,59 @@ request).
 
 ## Tests
 
-Runner (`~/work/slotb.sh ~/work/p2520_fesafety_be.sh`, head `0a4dc6f19`, one pytest process per file):
+All on the runner (`~/work/slotb.sh`), after the runner's disk was freed (a first run had hit a full disk and is void).
+
+Backend - `~/work/p2520_fesafety_be.sh`, head `d82a029fb` (backend code identical at `9a5e51a8d`), one pytest process per file, exit 0
+for every file, **665 passed, 0 failed, 0 skipped** (counted from pytest's progress output):
+
+| File | Passed |
+|---|---|
+| `test_fe_safety_fix_2520` (new) | 15 |
+| `test_push` | 12 |
+| `test_xsecfix_297` | 48 |
+| `test_xsecfollow_297` | 24 |
+| `test_local_identity` | 41 |
+| `test_remote_access` | 66 |
+| `test_ha_users` | 67 |
+| `test_migrations` | 4 |
+| `test_db_template` | 7 |
+| `test_app_refresh_295` | 40 |
+| `test_app_session_295` | 53 |
+| `test_notify_core` | 27 |
+| `test_notify_fanout_2436` | 5 |
+| `test_local_privacy` | 18 |
+| `test_mfa_reset_hardening_2510` | 22 |
+| `test_mfa_factor_harden_2520` | 17 |
+| `test_mfa_passkey_admin_remove_2520` | 15 |
+| `test_mfa_passkeys_2490` | 26 |
+| `test_local_passkeys` | 73 |
+| `test_query_plans` | 16 |
+| `test_authrevoke_2435` | 11 |
+| `test_schema_probes_2440` | 11 |
+| `test_service_identity` | 47 |
+
+Frontend - `~/work/p2520_fesafety_fe.sh`, head `d82a029fb`:
 
 | Command | Exit | Result |
 |---|---|---|
-| `pytest tests/test_fe_safety_fix_2520.py -q -x` | 0 | **15 passed** |
-| `pytest tests/test_push.py -q -x` | 1 | BLOCKED - first test failed with `sqlite3.OperationalError: database or disk is full` (the runner's `/` had 11 MB free) |
-| `pytest tests/test_xsecfix_297.py -q -x` | 1 | 47 passed, then 1 failed with HTTP 507 "the data disk is full" - BLOCKED, not a product failure |
-| `test_xsecfollow_297`, `test_local_identity`, `test_remote_access`, `test_ha_users`, `test_migrations`, and the rest of the list | - | NOT_RUN - job stopped by this row once the disk-full cause was clear |
+| `npx tsc --noEmit` | 0 | 0 errors |
+| `npx tsc --noEmit -p tsconfig.tests.json` | 0 | 0 errors |
+| `npx eslint <the 8 changed src files + 4 specs>` | 0 | 0 errors (4 warnings: the spec files are on eslint's ignore list) |
+| unit specs (first run) | 1 | 13 passed, 2 failed - `unit-fe-safety-fix-2520-signout` ran its mocked page on `http://`, where `crypto.subtle` (the endpoint hash) does not exist; fixed in `9a5e51a8d` (the mocked page is `https://`, as every real Web Push page is) |
+| unit specs again, `~/work/p2520_fesafety_unit.sh`, head `9a5e51a8d`: `unit-fe-safety-fix-2520`, `unit-fe-safety-fix-2520-signout`, `unit-no-native-dialogs`, `unit-arx-pending-tokens`, `unit-second-factor-admin-ui` | 0 | **15 passed** |
+| `npm run build` | 0 | - |
+| evidence, this row: `evidence-confirm-dialog-2438` (incl. the new Enter-on-X / cancel test), `evidence-fe-safety-fix-2520`, desktop | 0 | **3 passed** |
+| evidence, regression: `evidence-mfa-screens-2510`, `evidence-second-factor`, `evidence-mfa-passkey-admin-remove-2520`, `evidence-mfa-factor-harden-2520`, `evidence-calendars-settings-2310`, `evidence-log-export-2440`, desktop + phone | 0 | **117 passed, 13 skipped** (the specs' own viewport skips) |
+| `python3 scripts/design_ratchet.py` | 0 | no count above the baseline |
 
-PC: `py -3.12 -m ruff check` on every changed backend file and the new test file - exit 0, all checks passed.
+PC: `py -3.12 -m ruff check` on every changed backend file and the new test file - exit 0.
 
-Frontend: NOT_RUN. The job `~/work/p2520_fesafety_fe.sh` (tsc app + tests, eslint on the changed files, the unit specs
-`unit-fe-safety-fix-2520`, `unit-fe-safety-fix-2520-signout`, `unit-no-native-dialogs`, `unit-arx-pending-tokens`,
-`unit-second-factor-admin-ui`, build + preview, `evidence-confirm-dialog-2438` + `evidence-fe-safety-fix-2520` desktop, regression
-`evidence-mfa-screens-2510`, `evidence-second-factor`, `evidence-mfa-passkey-admin-remove-2520`, `evidence-mfa-factor-harden-2520`,
-`evidence-calendars-settings-2310`, `evidence-log-export-2440` desktop + phone, `scripts/design_ratchet.py`) was queued, never
-started (all slots busy), and was withdrawn because of the full disk. PC rules forbid tsc / Playwright locally.
+## Decisions (owner / coordinator: Q1-Q4 = a)
 
-To rerun once the runner has disk space: `~/work/slotb.sh ~/work/p2520_fesafety_be.sh` and `~/work/slotb.sh ~/work/p2520_fesafety_fe.sh`
-(both scripts are on the runner; they recreate their worktrees).
-
-## Open questions
-
-1. Idle lock and a refused resume also end this browser's push subscription (it is part of `logout()`); after signing in again the
-   person turns notifications on again in the settings. a) keep it so (recommended: the device is signed out, privacy first);
-   b) keep the subscription on the idle lock only.
-2. "Sign out everywhere" and a local password change remove ALL of the user's push rows, including the browser the user is on; it
-   re-registers on its next start (until then no browser push there). a) accept (recommended: simple, nothing leaks);
-   b) keep the caller's own sign-in row (needs the kept sign-in passed through `presence.end_on_sign_out`).
-3. Migration number 0226: free on `release/2520-train` at `f343f829b`; renumber at the train if another 2.52 row takes it.
-   a) renumber at merge if needed (recommended); b) reserve 0226 now.
-4. Rows whose sign-in ends silently (an HA remote session that expires or is refused on re-validation) are not removed - only the
-   explicit ends listed above, as the finding asks. a) leave it (recommended: a lazy check would stop push for every closed PWA,
-   whose in-memory session lives only ~30 min); b) a later row.
+1. The idle lock and a refused resume also end this browser's push subscription; after signing in again the person turns notifications
+   on again. **Kept.**
+2. "Sign out everywhere" and a local password change remove ALL of the user's push rows, the current browser's too; it re-registers on its
+   next start. **Accepted.**
+3. Migration 0226: renumber at the train merge if another 2.52 row takes it.
+4. Rows whose sign-in ends silently (an HA remote session that expires or fails re-validation) are not removed - only the explicit ends
+   above, as the finding asks. **Left so.**
