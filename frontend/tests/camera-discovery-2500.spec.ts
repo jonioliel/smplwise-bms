@@ -92,17 +92,6 @@ async function axe(page: Page, where: string, info: TestInfo) {
     return;
   }
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: AXE_SRC });
-  // RELEASE-2520-TRAIN: sw-dialog fades in (@starting-style opacity 0 -> 1); axe's colour-contrast run right after the open measured
-  // half-faded text (intermittent "color-contrast" on every muted text of the wizard). Wait for the finite animations / transitions of
-  // the document (shadow trees included) to finish first; the infinite scan spinner is skipped.
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
-        .map((a) => a.finished.catch(() => undefined)),
-    ),
-  );
   const found = await page.evaluate(async () => {
     const w = window as unknown as { axe: { run: (ctx: unknown, opts: unknown) => Promise<{ violations: { id: string; impact: string; nodes: { target: unknown }[] }[] }> } };
     // the whole document (axe walks the open shadow roots); a finding counts when its node is inside the wizard
