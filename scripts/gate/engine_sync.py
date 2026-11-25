@@ -52,6 +52,7 @@ INSTALL_MAP: dict[str, list[str]] = {
     "select_tests.py": ["select_tests.py", "gate2/select_tests_v1.py", "nightly-gate/select_tests.py"],
     "gate2/select_tests.py": ["gate2/select_tests.py"],
     "nightly_tests.sh": ["nightly_tests.sh"],
+    "fixture_lane.sh": ["fixture_lane.sh"],   # GATE-FIXTURE-LANE-2530: next to ~/release_gate.py (it runs that engine)
 }
 ENGINE_GROUP = ["release_gate.py", "release_gate2.sh", "engine_sync.py", "selftest_gate.py"]
 

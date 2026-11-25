@@ -84,7 +84,8 @@ BASELINE_ROWS = {}        # category -> {baseline, actual, ratio, state}, filled
 HERE = Path(__file__).resolve().parent
 HOME = Path(os.environ.get("GATE_HOME") or Path.home())
 BASE = HOME / "smplwisebms"
-RES = Path(os.environ.get("GATE_RESULTS_DIR") or (HOME / "smplwise-results"))
+# a GATE_LANE=fixture run never writes the gate's own gate_status.json (the dashboard and the slot scripts read it)
+RES = Path(os.environ.get("GATE_RESULTS_DIR") or (HOME / "smplwise-results" / ("fixture-lane" if (os.environ.get("GATE_LANE") or "").strip().lower() == "fixture" else "")))
 WORK = HOME / "work"
 PY = str(BASE / ".venv" / "bin" / "python")
 KNOWN_FILE = HOME / "known_issues.json"
@@ -167,6 +168,40 @@ try:
     FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS
 except (OSError, ValueError, KeyError):
     pass
+# GATE-FIXTURE-LANE-2530: the fixture lane. The gate reads the groups of the BRANCH UNDER TEST (its worktree's fixture_specs.json,
+# fixture_groups()), so the ~/ copy of this engine runs whatever groups / backends that branch declares; FIXTURE_SPECS above is only
+# the fallback for a worktree without the JSON (the devices backend, as before). Every group with a "gate": true spec is one
+# throwaway backend (or none: "script": null) + one vite preview, its specs run with the group's env, settled like every category.
+FIXTURE_DEFAULT_GROUP = {"script": "frontend/tests/fixtures/devices_fake_ha.py", "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1"}}
+FIXTURE_PH = re.compile(r"\{port(?:\+(\d+))?\}")
+LANE_NAME = (os.environ.get("GATE_LANE") or "").strip().lower()
+FIXTURE_LANE = LANE_NAME == "fixture"   # GATE_LANE=fixture (scripts/gate/fixture_lane.sh): only build + the fixture groups
+
+
+def fixture_expand(value, port, out):
+    """{port} / {port+N} / {out} in a group's backend_env / pw_env value (the same rule as scripts/fixture_job.py expand)."""
+    return FIXTURE_PH.sub(lambda m: str(port + int(m.group(1) or 0)), str(value)).replace("{out}", str(out))
+
+
+def fixture_stages(g):
+    """[(backend_env, pw_env)] of a group: the group itself, then each `then` stage (same data dir, the backend restarted)."""
+    first = (dict(g.get("backend_env") or {}), dict(g.get("pw_env") or {}))
+    return [first] + [({**first[0], **(st.get("backend_env") or {})}, {**first[1], **(st.get("pw_env") or {})}) for st in (g.get("then") or [])]
+
+
+def fixture_groups(fe):
+    """{group: group dict with only its "gate": true specs} from the worktree's frontend/tests/fixtures/fixture_specs.json, in file
+    order; a worktree without a readable JSON gets the built-in devices group (FIXTURE_SPECS)."""
+    try:
+        groups = json.loads((Path(fe) / "tests" / "fixtures" / "fixture_specs.json").read_text(encoding="utf-8"))["groups"]
+        out = {}
+        for name, g in groups.items():
+            specs = {n: s for n, s in (g.get("specs") or {}).items() if s.get("gate")}
+            if specs:
+                out[name] = dict(g, specs=specs)
+        return out
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
+        return {"devices": dict(FIXTURE_DEFAULT_GROUP, specs={n: {"gate": True} for n in sorted(FIXTURE_SPECS)})}
 SCHEDULE = (os.environ.get("GATE_SCHEDULE") or "v1").strip().lower()   # v1 = the 2.9.2 gate; v2 = GATESPEED-293 (--schedule)
 _LOCK = threading.RLock()     # count()/item() are called from the v2 pool's threads too
 STATUS = RES / "gate_status.json"
@@ -235,6 +270,24 @@ def reap(p):
         GROUPS.remove(p.pid)
 
 
+def reap_wait(p, secs=20):
+    """reap() and wait until the process is gone (SIGKILL to its own group after `secs`): its port is free again (a fixture
+    group's `then` stage restarts the backend on the same port)."""
+    pid = p.pid
+    reap(p)
+    try:
+        p.wait(timeout=secs)
+    except Exception:
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            p.wait(timeout=10)
+        except Exception:
+            pass
+
+
 def run(cmd, cwd, log, env=None, timeout=None):
     """Run to completion (bounded by the global deadline); returns (rc, timed_out)."""
     t = min(timeout or 1e9, left())
@@ -255,6 +308,25 @@ def run(cmd, cwd, log, env=None, timeout=None):
         p.wait()
     reap(p)
     return rc, to
+
+
+def free_port_range(extra):
+    """A port P with P+1 .. P+extra free too (a fixture group's control / fake ports sit right above its API port)."""
+    for _ in range(100):
+        p = free_port()
+        held = []
+        try:
+            for i in range(1, extra + 1):
+                t = socket.socket()
+                t.bind(("127.0.0.1", p + i))
+                held.append(t)
+            return p
+        except OSError:
+            continue
+        finally:
+            for t in held:
+                t.close()
+    raise RuntimeError("no free port range")
 
 
 def free_port(pair=False):
@@ -542,7 +614,7 @@ def setup_worktree():
     rc = subprocess.run(["git", "rev-parse", "--verify", "-q", f"origin/{BR}^{{commit}}"], cwd=BASE, capture_output=True, text=True)
     if rc.returncode != 0:
         raise SystemExit(f"origin/{BR} not found (push the branch first)")
-    wt = WORK / f"{'lane' if LANE else 'gate'}-{TAG}"   # the timing lane never shares (or resets) a gate's worktree
+    wt = WORK / f"{'lane' if LANE else 'fxlane' if FIXTURE_LANE else 'gate'}-{TAG}"   # a lane never shares (or resets) a gate's worktree
     if not (wt / ".git").exists():
         subprocess.run(["git", "worktree", "prune"], cwd=BASE)
         subprocess.run(["git", "worktree", "add", "--detach", "-f", str(wt), f"origin/{BR}", "-q"], cwd=BASE, check=True)
@@ -1005,6 +1077,7 @@ def filter_classification(cls, sel):
         cls[kind] = {n: v for n, v in cls[kind].items() if n in keep}
         if len(cls[kind]) < before:
             REDUCED_CATS[cat] = f"{len(cls[kind])} of {before} spec files"
+    cls["fixture_groups"] = {g: r2 for g, r in cls.get("fixture_groups", {}).items() if (r2 := {n: p for n, p in r.items() if n in cls["fixture"]})}
     before = len(cls["pixel"])
     cls["pixel"] = [n for n in cls["pixel"] if n in keep]
     if len(cls["pixel"]) < before:
@@ -1286,8 +1359,10 @@ def header_comments(header):
 
 
 def classify(fe, tier):
-    out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}, "tablet_dropped": []}
+    out = {"rest": {}, "dev": {}, "fixture": {}, "pixel": [], "fixture_other": {}, "tablet_dropped": [], "fixture_groups": {}}
     no_tablet = tablet_skip_set(fe)
+    fx_groups = fixture_groups(fe) if tier == "L" else {}
+    fx_gate = {n for g in fx_groups.values() for n in g["specs"]}
     # top level only: tests/archive/ (retired specs, GATELANES-297) and tests/helpers/ are never classified
     for f in sorted((fe / "tests").glob("*.spec.ts")):
         if tier == "S" and not f.name.startswith("unit-"):
@@ -1301,7 +1376,7 @@ def classify(fe, tier):
         workers1 = "--workers=1" in header
         fixtures = re.findall(r"fixtures/(\w+)\.py", header)
         dev = bool(DEV_HDR.search(header) and "fresh build" not in header) or bool(SRC_IMPORT.search(text))
-        if f.name in FIXTURE_SPECS and tier == "L":
+        if f.name in fx_gate:
             kind, projs = "fixture", (flags or ALL_PROJECTS)
         elif dev:
             kind, projs = "dev", (flags or ["desktop"])
@@ -1313,11 +1388,17 @@ def classify(fe, tier):
             if f.name in no_tablet and not flags and not one:   # E4: reviewed, desktop + mobile is enough (a header --project= wins)
                 projs = [p for p in ALL_PROJECTS if p != "tablet"]
                 out["tablet_dropped"].append(f.name)
-        if fixtures and f.name not in FIXTURE_SPECS:
+        if fixtures and f.name not in fx_gate:
             out["fixture_other"][f.name] = fixtures[0]
         if "toHaveScreenshot(" in text and not LANE and not (VISUAL and f.name == "visual-matrix.spec.ts"):  # the visual step owns that spec
             out["pixel"].append(f.name)
         out[kind][f.name] = {"projects": projs, "workers1": workers1, "one": one}
+    # the fixture lane: per group, its specs that exist here with the group's projects (the JSON's list wins, else the header's)
+    for gname, g in fx_groups.items():
+        runs = {n: list(s.get("projects") or out["fixture"][n]["projects"]) for n, s in g["specs"].items() if n in out["fixture"]}
+        if runs:
+            out["fixture_groups"][gname] = runs
+    out["fixture_defs"] = fx_groups
     return out
 
 
@@ -1579,31 +1660,62 @@ def start_vite(fe, mode, port, logd, api_port):
     return p, ok
 
 
-def fixture_block(wt, fe, logd, cls):
-    """The fixture specs against the fake backend (own data dir, own preview), settled in place. v1 runs it as its own phase,
-    v2 as one job of the pool."""
-    api = free_port(pair=True)
-    data = Path(tempfile.mkdtemp(prefix="gate_data_", dir=str(logd)))
-    fx = spawn([PY, "frontend/tests/fixtures/devices_fake_ha.py"], wt, logd / "fixture_devices.log",
-               env={"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"})
-    up = wait_http(f"http://127.0.0.1:{api}/healthz", 240)  # 2.40.6 gate: the fake backend took >90 s to start under load 48
-    port = free_port()
-    vp, ok = (None, False)
-    if up:
-        vp, ok = start_vite(fe, "preview", port, logd, api)
-    if not (up and ok):
-        count("fixture", "fail"); item("fixture", "fake backend / preview", "FAIL", f"did not start (fixture backend up={up} preview up={ok}); see fixture_devices.log")
-    else:
-        base_url = f"http://127.0.0.1:{port}/"
-        fenv = {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1", "SW_API_PORT": str(api)}
-        for (projs, w1), names in group_by_run(cls["fixture"]).items():
-            lab = f"fixture_{'-'.join(projs)}"
-            status("running", f"Playwright fixture specs: {', '.join(names)}")
-            rows, rc, to = run_pw(fe, names, projs, base_url, logd, lab, env=fenv, workers=1, timeout=left())
-            settle("fixture", rows, rc, to, fe, logd, base_url, fenv, lab)
-    if vp:
-        reap(vp)
-    reap(fx)
+def fixture_block(wt, fe, logd, cls, gname=None):
+    """One fixture group (GATE-FIXTURE-LANE-2530; gname None = every group, one after the other): its throwaway backend (own data
+    dir, own free ports; none for "script": null), a vite preview proxying to it, its specs with the group's env per project set,
+    settled in place; then each `then` stage on the same data dir (the backend restarted on the same port with the stage's env).
+    v1 runs the groups in its fixture phase, v2 runs each group as one job of the pool."""
+    if gname is None:
+        for g in cls.get("fixture_groups", {}):
+            fixture_block(wt, fe, logd, cls, g)
+        return
+    g = cls["fixture_defs"][gname]
+    runs = cls["fixture_groups"][gname]
+    api = free_port_range(max(1, int(g.get("extra_ports", 1))))
+    data = Path(tempfile.mkdtemp(prefix=f"gate_data_{gname}_", dir=str(logd)))
+    out = logd / f"fixture_{gname}_out"
+    out.mkdir(exist_ok=True)
+    blog = logd / f"fixture_{gname}.log"
+    fx, vp, base_url = None, None, ""
+    by_projs = {}
+    for name, projs in runs.items():
+        by_projs.setdefault(tuple(sorted(projs, key=ALL_PROJECTS.index)), []).append(name)
+    try:
+        for si, (benv, penv) in enumerate(fixture_stages(g)):
+            if g.get("script"):
+                if fx is not None:
+                    reap_wait(fx)
+                env = {"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"}
+                env.update({k: fixture_expand(v, api, out) for k, v in benv.items()})
+                fx = spawn([PY, g["script"]], wt, blog, env=env)
+                up = wait_http(f"http://127.0.0.1:{api}/healthz", 240)  # 2.40.6 gate: the fake backend took >90 s to start under load 48
+                if not up:
+                    count("fixture", "fail"); item("fixture", f"fixture {gname}: fake backend", "FAIL", f"did not start (stage {si}); see {blog.name}")
+                    return
+                if si == 0 and g.get("seed"):
+                    rc, to = run([PY, g["seed"], str(api), str(api + 1)], wt, logd / f"fixture_{gname}_seed.log", timeout=180)
+                    if rc != 0:
+                        count("fixture", "fail"); item("fixture", f"fixture {gname}: seed", "FAIL", f"rc={rc}; see fixture_{gname}_seed.log")
+                        return
+            if vp is None:
+                port = free_port()
+                vp, ok = start_vite(fe, "preview", port, logd, api)
+                if not ok:
+                    count("fixture", "fail"); item("fixture", f"fixture {gname}: preview", "FAIL", "vite preview did not start")
+                    return
+                base_url = f"http://127.0.0.1:{port}/"
+            fenv = {k: fixture_expand(v, api, out) for k, v in penv.items()}
+            fenv["SW_API_PORT"] = str(api)
+            for projs, names in by_projs.items():
+                lab = f"fixture_{gname}{'' if not si else '_s%d' % si}_{'-'.join(projs)}"
+                status("running", f"Playwright fixture group {gname}{'' if not si else ' stage %d' % si}: {', '.join(names)}")
+                rows, rc, to = run_pw(fe, names, list(projs), base_url, logd, lab, env=fenv, workers=1, timeout=left())
+                settle("fixture", rows, rc, to, fe, logd, base_url, fenv, lab)
+    finally:
+        if vp:
+            reap(vp)
+        if fx:
+            reap(fx)
 
 
 def visual_block(wt, fe, logd, dead):
@@ -1758,12 +1870,19 @@ def v2_jobs(cls, costs, tier, skip_dev):
     if tier == "L" and cls["pixel"]:
         jobs.append({"kind": "pixel", "cat": "pixel", "label": "pixel", "names": list(cls["pixel"]), "projects": ["desktop", "mobile"],
                      "workers": 1, "est": pixel_estimate(len(cls["pixel"]))})
-    if cls["fixture"]:
-        jobs.append({"kind": "fixture", "cat": "fixture", "label": "fixture", "names": list(cls["fixture"]), "projects": [], "workers": 1,
-                     "est": sum(costs.get(x, 75.0) for x in cls["fixture"])})
+    for gname, runs in (cls.get("fixture_groups") or {}).items():   # GATE-FIXTURE-LANE-2530: one job per fixture group (own backend)
+        jobs.append({"kind": "fixture", "cat": "fixture", "label": f"fixture_{gname}", "group": gname, "names": list(runs), "projects": [],
+                     "workers": 2 if (cls.get("fixture_defs") or {}).get(gname, {}).get("script") else 1,   # a backend + a browser
+                     "est": fixture_group_estimate(cls, gname, costs)})
     if VISUAL:
         jobs.append({"kind": "visual", "cat": "visual", "label": "visual", "names": [], "projects": [], "workers": 4, "est": 90.0})
     return jobs
+
+
+def fixture_group_estimate(cls, gname, costs):
+    """Seconds of one fixture group: its specs' recorded costs (per stage: a `then` stage runs them again) + ~45 s backend start."""
+    g = (cls.get("fixture_defs") or {}).get(gname, {})
+    return 45.0 + (1 + len(g.get("then") or [])) * sum(costs.get(x, 75.0) for x in cls["fixture_groups"][gname])
 
 
 def pixel_estimate(nspecs):
@@ -1785,7 +1904,7 @@ def v1_estimate(cls, costs, tier, skip_dev, pixel_est):
                 tot = sum(costs.get(x, 60.0) for x in part)
                 js.append(tot if w1 else tot / int(PW_WORKERS))
         return max(js or [0.0])
-    fx = sum(costs.get(x, 75.0) for x in cls["fixture"])
+    fx = sum(fixture_group_estimate(cls, g, costs) for g in (cls.get("fixture_groups") or {}))
     return phase("preview", cls["rest"]) + (pixel_est if tier == "L" else 0) + fx + (90.0 if VISUAL else 0) + (0.0 if skip_dev else phase("dev", cls["dev"]))
 
 
@@ -1835,7 +1954,7 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
                 out.append(("pixel", rows, rc, to, lab))
             return out
         if j["kind"] == "fixture":
-            fixture_block(wt, fe, logd, cls)
+            fixture_block(wt, fe, logd, cls, j.get("group"))
             return []
         visual_block(wt, fe, logd, dead)
         return []
@@ -2148,7 +2267,7 @@ def write_reports(sha, verdict, extra):
            "phases": PHASES, "items": ITEMS, **extra}
     write_json(Path(str(base) + ".json"), doc)
     heb = "עבר" if verdict == "pass" else "נכשל"
-    title = "מסלול התזמון (לא חוסם, GATELANES-297)" if LANE else "שער שחרור"
+    title = "מסלול התזמון (לא חוסם, GATELANES-297)" if LANE else "מסלול הפיקסצ'רים (GATE-FIXTURE-LANE-2530)" if FIXTURE_LANE else "שער שחרור"
     md = [f"# {title}: {BR} @ {sha}", "", f"## פסק דין: **{heb}**", "",
           f"- דרגה: {TIER} | התחלה: {STARTED} | סיום: {fin} | משך: {dur // 60} דקות {dur % 60} שניות", ""]
     if GS:   # item 9: real defects versus run problems, with the likely cause
@@ -2258,6 +2377,49 @@ def write_reports(sha, verdict, extra):
     return fin, base
 
 
+class FixtureLaneDone(Exception):
+    """GATE_LANE=fixture: the lane ran (build + the fixture groups); main() goes straight to the report."""
+
+
+def fixture_lane_run(wt, fe, logd, extra, hard_fail):
+    """GATE-FIXTURE-LANE-2530, GATE_LANE=fixture (scripts/gate/fixture_lane.sh): node modules, vite build, then ONLY the fixture
+    groups with a "gate": true spec - the same fixture_block() a tier-L gate runs - GATE_FIXTURE_SLOTS (default 2) groups at a
+    time, GATE_FIXTURE_GROUPS=a,b to run only some groups. No backend suite, tsc, static checks, preview / dev / pixel / visual."""
+    with Phase("modules", "node modules"):
+        if not need_modules(wt, logd / "npm.log"):
+            hard_fail.append("npm ci failed")
+            return
+    with Phase("build", "vite build"):
+        rc, to = run(["npx", "vite", "build"], fe, logd / "build.log", timeout=900)
+        count("build", "pass" if rc == 0 else "fail")
+        if rc != 0:
+            item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
+            hard_fail.append("build failed: the fixture lane did not run")
+            return
+    cls = classify(fe, "L")
+    only = [x.strip() for x in (os.environ.get("GATE_FIXTURE_GROUPS") or "").split(",") if x.strip()]
+    if only:
+        cls["fixture_groups"] = {g: r for g, r in cls["fixture_groups"].items() if g in only}
+    extra["lane"] = {"name": "fixture", "blocking": False, "groups": {g: {n: p for n, p in r.items()} for g, r in cls["fixture_groups"].items()},
+                     "only": only, "json": "frontend/tests/fixtures/fixture_specs.json"}
+    extra["classification"] = {"fixture": f"{len(cls['fixture'])}: " + ", ".join(cls["fixture"]),
+                               "fixture groups": ", ".join(f"{g}({len(r)})" for g, r in cls["fixture_groups"].items()) or "-"}
+    if not cls["fixture_groups"]:
+        count("fixture", "fail"); item("fixture", "fixture lane", "FAIL", "no fixture group with a \"gate\": true spec (fixture_specs.json)")
+        return
+    slots = max(1, knob("GATE_FIXTURE_SLOTS", 2, 2))
+    costs = prior_costs()
+    jobs = [{"kind": "fixture", "cat": "fixture", "label": f"fixture_{g}", "group": g, "names": list(r), "projects": [], "workers": 1,
+             "est": fixture_group_estimate(cls, g, costs)} for g, r in cls["fixture_groups"].items()]
+    with Phase("playwright-fixture", f"the fixture lane: {len(jobs)} groups, {slots} at a time"):
+        res = run_pool(jobs, slots, lambda j: fixture_block(wt, fe, logd, cls, j["group"]))
+    extra["pool"] = {lab: {"start_s": st, "wall_s": w, "error": f"{type(r).__name__}: {r}"[:200] if isinstance(r, BaseException) else None}
+                     for lab, (r, st, w) in res.items()}
+    for lab, (r, _st, _w) in res.items():
+        if isinstance(r, BaseException):
+            count("fixture", "fail"); item("fixture", lab, "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")
+
+
 def compute_verdict(hard_fail):
     return "pass" if sum(v["fail"] for v in COUNTS.values()) == 0 and not hard_fail else "fail"
 
@@ -2312,11 +2474,14 @@ def main():
         extra["lane"] = {"name": "timing", "backend_files": sorted(only), "tag": LANE_TAG, "mark": LANE_MARK, "blocking": False}
     ckpt_init(subprocess.run(["git", "-C", str(wt), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() or sha)
     bsig = "backend|" + (",".join(sorted(only)) if only else "all")
-    backend_resumed = TIER in ("M", "L") and not SKIP_BACKEND and ckpt_reusable("backend", bsig)
+    backend_resumed = TIER in ("M", "L") and not SKIP_BACKEND and not FIXTURE_LANE and ckpt_reusable("backend", bsig)
     if backend_resumed:
         ckpt_apply("backend")
         extra["backend_resumed"] = True
     try:
+        if FIXTURE_LANE:   # GATE-FIXTURE-LANE-2530: build + the fixture groups only, then straight to the report
+            fixture_lane_run(wt, fe, logd, extra, hard_fail)
+            raise FixtureLaneDone
         if LATE_LINT_ENABLED:
             spec_lint_phase(wt, logd)
         with Phase("modules", "node modules"):
@@ -2410,8 +2575,8 @@ def main():
                     reap(vp)
             # 0.1.162 gate: the fixture spec (about a minute) runs BEFORE the long dev-server sweep, so a slow sweep can no longer
             # starve it of the budget (it used to run last and got 3 s)
-            if cls["fixture"]:
-                with Phase("playwright-fixture", "Playwright with the fake-backend fixture"):
+            if cls.get("fixture_groups"):
+                with Phase("playwright-fixture", "Playwright with the fake-backend fixture groups (the fixture lane)"):
                     fixture_block(wt, fe, logd, cls)
             if VISUAL:
                 with Phase("visual-matrix", "M074 visual matrix (--touched)"):
@@ -2441,6 +2606,8 @@ def main():
                 backend_finish(procs, wt, logd)
                 procs = None
                 extra["backend_files"] = nbackend
+    except FixtureLaneDone:
+        pass
     except SystemExit as e:
         hard_fail.append(str(e))
     except BaseException as e:  # incl. the SIGTERM that `timeout` sends (turned into KeyboardInterrupt)
@@ -2465,10 +2632,12 @@ def main():
         write_json(RES / "quarantine.json", {"updated": now(), "gate": f"{BR}@{sha}", "entries": extra["quarantine"]})
     except Exception as e:  # noqa: BLE001 - a report helper never changes the verdict
         extra["quarantine_error"] = f"{type(e).__name__}: {e}"[:200]
-    baseline, bsrc = (None, "") if LANE else load_baseline(wt)
+    baseline, bsrc = (None, "") if (LANE or FIXTURE_LANE) else load_baseline(wt)
     extra["baseline_file"] = bsrc or "(none found)"
     if LANE:   # a handful of tagged tests: the release counts do not apply (GATELANES-297)
         extra["baseline_warnings"] = ["timing lane: no count-baseline check (non-blocking lane, docs/testing/GATE_LANES.md)"]
+    elif FIXTURE_LANE:
+        extra["baseline_warnings"] = ["fixture lane: no count-baseline check (the fixture groups only, docs/testing/GATE_LANES.md section 5)"]
     else:
         if EARLY.get("stopped"):   # the early stage stopped the gate: the other categories never ran, a count drop would only be noise
             extra["baseline_warnings"] = ["early layout stage failed (fail-fast): the gate stopped early, the count-drop check was NOT applied"]
@@ -2655,7 +2824,7 @@ def main_cli(argv):
         # passed (it always passed --no-visual): exactly those cases, blocking; no visual step when the first run had none
         VISUAL_RERUN_CASES = rerun_visual_cases(os.environ["GATE2_AFTER_REPORT"])
         VISUAL = "block" if VISUAL_RERUN_CASES else ""
-    if LANE:   # GATELANES-297: the timing lane runs only its tagged tests - no visual step, no diff selection
+    if LANE or FIXTURE_LANE:   # GATELANES-297 / GATE-FIXTURE-LANE-2530: a lane runs no visual step and no diff selection
         VISUAL, SELECT_BASE = "", ""
     if SCHEDULE not in ("v1", "v2"):
         print("--schedule must be v1 (the 2.9.2 gate, default) or v2 (GATESPEED: more shards, one Playwright pool)")
