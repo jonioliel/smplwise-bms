@@ -332,7 +332,11 @@ export function jobsView(data: unknown): WkJobs | null {
     const id = str(j.id);
     if (!id) return [];
     const approval = isObj(j.approval) ? { state: word(j.approval.state), action: word(j.approval.action), expires_at: str(j.approval.expires_at) } : null;
-    const errors = (Array.isArray(j.errors) ? j.errors : []).filter(isObj).flatMap((e) => (count(e.row) !== null ? [{ row: e.row as number, code: str(e.code) }] : []));
+    // a row number is 1-based (the server's own bound): anything else is not a row the page can name
+    const errors = (Array.isArray(j.errors) ? j.errors : []).filter(isObj).flatMap((e) => {
+      const row = count(e.row);
+      return row !== null && row >= 1 ? [{ row, code: str(e.code) }] : [];
+    });
     return [
       {
         id,
