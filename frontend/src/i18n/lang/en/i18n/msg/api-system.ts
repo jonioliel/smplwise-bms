@@ -111,7 +111,7 @@ export const en = {
   'תשתית המערכת חזרה, אך הגשר שלה לא נטען.': 'The platform came back, but its bridge did not load.',
   'הפעולה נכשלה.': 'The action failed.',
   'בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.': 'On the backups pages of the platform, choose the "before the update" backup and restore the SmplWise Arx add-on from it. The restore brings back the version and the data together.',
-  'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות ‹ גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".': 'Reinstall the previous version and restore in Arx, under Settings ‹ Backup, the latest file named "auto-pre-upgrade".',
+  'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות ‹ גיבוי, את הקובץ "auto-pre-upgrade" שההערה שלו היא "before upgrade <הגרסה הקודמת> -> <הגרסה שממנה חוזרים>" - הגיבוי שנוצר כשעודכנתם לגרסה הזו. לא את האחרון: הפעלת הגרסה הקודמת יוצרת עותק "auto-pre-upgrade" חדש, ובו הנתונים של הגרסה החדשה.': 'Reinstall the previous version and restore in Arx, under Settings ‹ Backup, the "auto-pre-upgrade" file whose note reads "before upgrade <previous version> -> <the version you are leaving>" - the backup taken when you upgraded to this version. Not the newest one: starting the previous version writes a new "auto-pre-upgrade" copy that holds the newer version\'s data.',
   'אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו.': 'If Arx does not start: start it on the add-ons pages of the platform.',
   'לחלופין: {GUIDE_ARX_COPY}': 'Alternatively: {GUIDE_ARX_COPY}',
   '{GUIDE_NOT_UP} או שחזרו את הגיבוי.': '{GUIDE_NOT_UP} Or restore the backup.',
