@@ -105,7 +105,7 @@ from .lease_service import (LeaseCapability, LeaseConsumer, LeaseRegistration, L
 from . import media_policy, native_keyset, runnable, service_identity, wiskey_door_block
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
-from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, NoSigningKey, Persister as KeyPersister
+from .keyset import CAPABILITY as ROTATION_CAPABILITY, PAIRING_CHANGED, KeySet, NoSigningKey, PairingFence, Persister as KeyPersister
 from .push_health import NO_SIGNING_KEY, Coalescer, PushHealth
 from .stream_source_service import async_handle_stream_source
 
@@ -381,7 +381,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # pairing secret, until the add-on starts a rotation. See keyset.py for the rules.
     store = Store(hass, 1, f"{DOMAIN}_keys_{entry.entry_id}")
     keyset = KeySet(entry.data.get(CONF_PAIRING_CODE) or "", await store.async_load())
-    verifier = keyset
+    # 0.10.9 (BRIDGE-REPAIR-LEGACY-2520, WB-07): the bridge's own signed services verify through the same "same pairing" fence as WisKey's
+    # native path (native_keyset._same_pairing, read live): after a re-pair is written into the entry, the old key set opens nothing even
+    # before the update listener's reload replaces this setup
+    verifier = PairingFence(keyset, lambda: native_keyset._same_pairing(entry, keyset))
     session = async_get_clientsession(hass)
     # 0.10.3 (BRIDGE-STALE-DISCOVERY-2383): a refused push is a warning with the fix, and part of the entry's diagnostics (diagnostics.py)
     push_health = PushHealth(_LOGGER)
@@ -665,16 +668,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def rotate(call: ServiceCall) -> ServiceResponse:
         """0.9.5: one signed key-rotation control message from the add-on (begin / probe / commit / retire / abort / status) -> the signed
         answer. The new state is saved BEFORE the answer leaves (write-ahead); if the save fails the in-memory state goes back to the saved one
-        (0.10.9: `Persister.control`, the same steps, under the saver's lock that WisKey's v2 admission shares)."""
+        (0.10.9: `Persister.control`, the same steps, under the saver's lock that WisKey's v2 admission shares). A re-pair not yet reloaded
+        is refused UNSIGNED before the key set sees the message (BRIDGE-REPAIR-LEGACY-2520, WB-07; HA-01: no signed refusal)."""
+        if not verifier.current():
+            return {"ok": False, "code": PAIRING_CHANGED}
         return await saver.control(dict(call.data))
 
     hass.services.async_register(DOMAIN, SERVICE_ROTATE, rotate, schema=ROTATE_SCHEMA, supports_response=SupportsResponse.ONLY)
 
     async def lease(service_name: str, kind: str, call: ServiceCall) -> ServiceResponse:
         """0.9.6 (LEASEBR-295): one signed message of the capture lease -> the closed answer (see lease_service.py). The signature is judged by the key set
-        (`KeySet.verify`), so a rotation in progress keeps working; a new high-water mark is saved soon, like for the other signed services."""
+        (`KeySet.verify`), so a rotation in progress keeps working; a new high-water mark is saved soon, like for the other signed services.
+        0.10.9 (WB-07): the keyset is handed on behind the pairing fence (`verifier`), so a re-pair not yet reloaded fails the signature stage."""
         try:
-            return await lease_service.async_handle(hass, service_name, kind, dict(call.data), keyset)
+            return await lease_service.async_handle(hass, service_name, kind, dict(call.data), verifier)
         except lease_service.LeaseUnavailable as exc:
             raise HomeAssistantError(f"lease_unavailable: {exc.code}") from None  # a fixed token; Arx reads it as "no answer"
         finally:

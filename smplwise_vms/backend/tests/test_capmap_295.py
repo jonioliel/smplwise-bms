@@ -186,6 +186,14 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "time) and records the saved high-water marks, saved_through(kid, ts) reads them, and control(msg) is the rotation service's "
      "write-ahead step moved from __init__.rotate unchanged. KeySet, sign(), verify() / _check(), the v1/v2 recipes and "
      "handle_control() - the path lease_contract.validate takes for these vectors - are byte-for-byte unchanged."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "dddf12a30b36ced1e9ab2e434b7c6d2e737627bc2642e848af60b704fd4d040a",
+     "05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4",
+     "BRIDGE-REPAIR-LEGACY-2520 (deep review 2.52 WB-02 / WB-07, bridge 0.10.9): KeySet.__init__'s K-02 re-pair rule also takes a "
+     "retired state WITHOUT the pairing tag (the 2.11.0 - 2.14.0 store format) plus a code in the entry as a new pairing; "
+     "Persister.clean_entry blanks only the retired code recognised by its saved tag; a new PairingFence class (the 'same pairing' "
+     "gate of the bridge's own services) in front of KeySet.verify. A fresh KeySet (no stored state, the vectors' case) takes exactly "
+     "the old path; sign(), verify() / _check(), the v1/v2 recipes and handle_control() are byte-for-byte unchanged."),
 )
 
 

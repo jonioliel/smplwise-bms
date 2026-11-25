@@ -318,8 +318,10 @@ def test_binding_rules():
 
 # ---------------------------------------------------------------- stage 6: the key set (rotation, kid)
 
+# the pairing code is retired and its one-way tag kept (K-02): the entry's copy (TEST_SECRET, handed in below) is that retired code, not a
+# new pairing (BRIDGE-REPAIR-LEGACY-2520: without the tag a code in the entry is a re-pair and the rotated key is dropped)
 LEGACY_SIGNING_STATE = {"v": 1, "signing": "g1-0a1b2c3d", "keys": {"g1-0a1b2c3d": "synthetic-rotated-key-material-0001"}, "old": None, "next": None,
-                        "legacy_retired": True, "rotation": None, "hw": {}}
+                        "legacy_retired": True, "legacy_fp": keyset.legacy_fingerprint(TEST_SECRET), "rotation": None, "hw": {}}
 
 
 def _no_kid(text: str) -> str:
@@ -817,7 +819,9 @@ def test_the_two_services_are_registered_with_a_response_only_removed_on_unload_
         assert f"hass.services.async_remove(DOMAIN, {name})" in INIT
     assert "LEASE_SCHEMA = vol.Schema(dict)" in INIT  # no coercion, no defaults: stage 1 of the contract judges the shape
     assert "keyset" in INIT.split("async def lease(")[1].split("async def lease_event")[0]  # the verifier handed on is the key set
-    assert "lease_service.async_handle(hass, service_name, kind, dict(call.data), keyset)" in INIT
+    # BRIDGE-REPAIR-LEGACY-2520 (WB-07): the key set behind the same "same pairing" fence as the other signed services
+    assert "lease_service.async_handle(hass, service_name, kind, dict(call.data), verifier)" in INIT
+    assert "verifier = PairingFence(keyset, lambda: native_keyset._same_pairing(entry, keyset))" in INIT
     for cls in ("HomeAssistantError",):
         assert cls in INIT
     # the signature is never judged by anything but the key set in the lease modules (no hmac / hashlib.compare / signing import)

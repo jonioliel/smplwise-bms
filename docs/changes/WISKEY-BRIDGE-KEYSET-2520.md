@@ -10,6 +10,11 @@ no install and no restart were done here.
 before detach / reload; fixed in this same module (the old pairing is refused at once, `bridge_pairing_changed`). Sections 2-4 are
 updated for it; the original FAILs and the new receipts are in section 8.
 
+**Update 25.11 (row BRIDGE-REPAIR-LEGACY-2520, section 9):** deep review 2.52 WB-02 (high) and WB-07 (low). A re-pair now holds on
+every key-store format the bridge can load (the tag-less 2.11.0 - 2.14.0 format included, and a save between the re-pair's entry write
+and the reload no longer undoes it), and the bridge's own signed services refuse the old pairing at once (`pairing_changed`).
+`keyset.py` and `__init__.py` changed; `native_keyset.py` is byte for byte unchanged. Hashes in 9.5.
+
 ## 1. Inputs (read only)
 
 - WisKey PRODUCT `3e7bfc585d5a30bddd97ceeed1bb0d7032ee021d` (rc19): `trusted_actions/existing_bridge_auth.py` (`verify`, `check`,
@@ -89,6 +94,7 @@ re-pair - and the old setup is not reloaded yet; section 8), `bridge_key_retired
 | `tests/test_capmap_295.py` | `REVIEWED_SUCCESSORS` row for `keyset.py` (`2193b0d7...` -> `dddf12a3...`): only the Persister changed; `_check` / `handle_control` / recipes byte-for-byte unchanged |
 | `tests/test_bridge_native_keyset_2520.py` (new) | 29 tests, below; +3 for the re-pair fix (section 8) = 32 |
 | `native_keyset.py` again (WISKEY-BRIDGE-REPAIR-2520) | `_same_pairing`, checked in `verify`, `_record` (binding `check` / `sign_reply`) and `_attached` (`legacy_allowed`, `source_fingerprint`); new code `bridge_pairing_changed`; docstrings. Nothing else in the bridge changed. |
+| `keyset.py`, `__init__.py` (BRIDGE-REPAIR-LEGACY-2520, section 9) | K-02 re-pair rule for a tag-less retired state; `Persister.clean_entry` blanks only the tag-recognised retired code; `PairingFence` in front of the bridge's own signed services and `rotate`. `native_keyset.py` unchanged. |
 
 Not touched: the add-on code (R7's files), `smplwise_vms/CHANGELOG.md` (the 2.52 release step writes it - text in 6.2), the rotation
 block while WisKey is installed (`bridge_rotation`: `wiskey_present`), `management/`, main, tags, addon.
@@ -316,3 +322,139 @@ Together with the PC table this covers every file of 5.1 (32 files), each in its
 1. Tell WisKey the fix through the owner (new head SHA, both copies' hashes, refusal code `bridge_pairing_changed`) and ask them to
    re-run `FINAL-ARX-REPAIR` and `test_m15_direct_v2` against it. a) yes, via the owner (recommended - only their harness runs the real
    Home Assistant path) b) wait for the 2.52 train first.
+
+## 9. BRIDGE-REPAIR-LEGACY-2520 (25.11): a re-pair holds on every store format; the bridge's own services fenced (WB-02, WB-07)
+
+Branch `pilot/BRIDGE-REPAIR-LEGACY-2520`, cut from `origin/release/2520-train` at `189ec3f4a` (contains 0.10.9 with the re-pair fix
+of section 8). Source: deep review 2.52, area WISKEY-BRIDGE (`origin/review/DEEP-2520-WISKEY-BRIDGE` `1f8045720`,
+`docs/review/DEEP-REVIEW-2520-WISKEY-BRIDGE.md`), findings WB-02 (high) and WB-07 (low). Nothing installed, no lab, no Home Assistant,
+no WisKey contact.
+
+### 9.1 The findings
+
+- **WB-02.** `KeySet.__init__` recognised a new pairing code (K-02) only against the one-way tag of the retired code (`legacy_fp`). That
+  tag exists since 2.15.0 (KEYROT-FIX-295, `1213e264b`). A bridge whose first rotation was saved by Arx 2.11.0 - 2.14.0 holds
+  `legacy_retired: true` without a tag, forever. On it a re-pair went: entry updated -> reload -> `KeySet(new code, state)` not
+  `repaired` -> `Persister.clean_entry()` **blanked the new code** -> `native_keyset._same_pairing` saw a blank entry and a retired
+  key set = "same pairing" -> the old rotated key verified again, for the bridge's own services and for WisKey v2.
+- **Found while fixing, same root (every store format):** `clean_entry()` blanked ANY code while the saved state was retired, and it
+  also runs after every successful save. A save between the re-pair's entry write and the reload (the 2 s delayed high-water save, or
+  the unload's flush of 0.10.7) therefore blanked the new code on a TAGGED store too; the listener then saw "no new pairing" (or the
+  reload saw a blank entry) and the old key set stayed. Shown on the base `keyset.py` by a read-only probe (9.6): tagged retired
+  state, entry blank, a new code written, one pending save -> base: "entry BLANKED, reloaded setup repaired False, old key still in
+  the set"; fixed: "kept, repaired True, old key gone".
+- **WB-07.** The 25.11 fence (`_same_pairing`) covered `native_keyset` only; execute / schedule / stream_source / media_query /
+  cast_stream / config_item (through `service_identity.screen`), the cast origin of the directory answer, the two lease services and
+  `rotate` verified with the bare key set until the reload ran.
+
+### 9.2 The store as 2.11.0 - 2.14.0 wrote it (from git, not from memory)
+
+`git log -S legacy_fp -- custom_components/smplwise_bridge/keyset.py` -> `1213e264b` (first tag: v2.15.0). The released blobs before it:
+
+| `keyset.py` blob | releases | `state()` |
+|---|---|---|
+| `d09a74be5b01e728e5b21a6c2a5df89e7ddae9a9` | v2.11.0, v2.11.1, v2.12.0, v2.12.1 | `{v: 1, signing, keys, old, next, legacy_retired, rotation, hw}` - no `legacy_fp` |
+| `01bc6c381d35d984bae97d59c74e4a412b6f0de0` | v2.12.2, v2.12.3, v2.12.4, v2.14.0 | the same keys (adds the Persister / `clean_entry`, HA-06) |
+
+Both blobs, driven through a real begin / commit (/ retire) with synthetic keys, write the same JSON; the test fixture
+(`LEGACY_STATES`, routine and hard cut) is that output, and `test_the_fixture_is_what_2_11_0_to_2_14_0_wrote` re-runs both blobs from
+git (`git cat-file -p <blob>`) and compares key by key, in order (skipped only when git or the blob is not available).
+
+### 9.3 The fix
+
+| where | change |
+|---|---|
+| `keyset.KeySet.__init__` | The K-02 rule also fires when the retired state has **no valid tag** (the old format, or a damaged / non-hex tag): a non-empty string code in the entry that is not a key of the set is a new pairing -> a fresh key set on it (`repaired`), saved in today's format at setup. A non-string entry value never re-pairs (and no longer reaches `legacy_fingerprint`). |
+| `keyset.Persister.clean_entry` | Blanks the entry's code only when the SAVED state is retired AND the code is that retired code, recognised by the SAVED tag (`_saved_fp`, kept like `_saved_retired`). A new code, a non-string, a stored key's material, or anything without a tag is never blanked. HA-06 itself (the retired code left by a restart between the two writes) is unchanged. |
+| `keyset.PairingFence` (new) + `__init__.async_setup_entry` | `verifier = PairingFence(keyset, lambda: native_keyset._same_pairing(entry, keyset))` - the one definition of "same pairing", read live. `verify()` answers `pairing_changed` BEFORE the key set's check (no nonce cached, no high-water mark, no save) when the entry carries another pairing; `verifiable()` is empty then; a predicate that raises counts as changed. Used by `service_identity.screen` (all screened services), `note_origin` (cast origin) and the lease services; `rotate` refuses `{"ok": false, "code": "pairing_changed"}` UNSIGNED before `Persister.control` (HA-01). Stateless: the same pairing written back is current again. |
+
+What each path answers for an old pairing before the reload: screened services `{"ok": false, "request_id": ..., "error":
+"pairing_changed"}`; `rotate` the unsigned refusal above; the lease services the contract's own `signature / bad_signature` (its code
+set is closed); the cast origin is ignored (stays unknown); WisKey v2 `bridge_pairing_changed` (section 8, unchanged).
+
+Unchanged: `native_keyset.py` (byte for byte - the same hash as at `82a335a93`), the verifier (`KeySet._check`, `verify`, `sign`,
+`handle_control` and the rotation ops), the v1 / v2 / reply recipes, every refusal and its order, the persistence rule, WisKey's
+accepted policy choices (`g0-legacy` refused on v2, fingerprint per pairing, an unattached entry refuses legacy). No stub, no second
+verifier, no rewrite of a stored state: a tag-less store is interpreted as it is until a re-pair replaces it.
+
+### 9.4 Every store format the bridge can load, and what a setup does with it
+
+| stored state | entry's pairing code | before | now |
+|---|---|---|---|
+| none / another `v` | any | fresh key set on the code | same |
+| not retired (no rotation yet, or one open) | the pairing code | the code is `g0-legacy` | same |
+| retired, tag (2.15.0+) | blank (the bridge's own HA-06 wipe) | same pairing, rotated keys | same |
+| retired, tag | the retired code (HA-06 leftover) | blanked, same pairing | same |
+| retired, tag | a new code | re-pair at setup; **undone** when a save ran before the reload | re-pair; a save never blanks the new code |
+| retired, **no tag** (2.11.0 - 2.14.0) | blank | same pairing; `source_fingerprint` -> `bridge_pairing_unknown` | same |
+| retired, **no tag** | a new code | **code blanked, the old key verifies again** (WB-02) | re-pair: fresh key set, old keys dead everywhere |
+| retired, damaged / non-hex tag | a code | as "no tag" (WB-02) | as "no tag": re-pair |
+| retired, any | not a string, or a stored key's own material | blanked -> old keys verified | not blanked; nothing of the old set verifies (fail closed) until a real re-pair |
+
+The one case given up (documented in the code): a tag-less store whose retired code is STILL in the entry - an HA-06 leftover of
+2.11.0 - 2.12.1 that no setup on 2.12.2 or later ever saw (a bridge that jumps from 2.12.1 or older straight to 0.10.9 with it). It is
+read as a re-pair: the old rotated keys are dropped, the add-on (signing with the rotated key) is refused, and the owner pairs again.
+Availability only - never an old key - and no setup since 2.12.2 can leave this state behind.
+
+### 9.5 Hashes (sha256; both copies identical: `py -3.12 scripts/sync_integration.py`, then `--check`: "integration mirror is up to date")
+
+| file | sha256 (`custom_components/smplwise_bridge/` = `smplwise_vms/integration/smplwise_bridge/`) |
+|---|---|
+| `native_keyset.py` | `5fda54de2f2caffe78bb32d4bddce2784d607f285be48f3e6eedc500bc97d1df` (unchanged by this row) |
+| `keyset.py` | `05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4` (was `dddf12a3...`) |
+| `__init__.py` | `4b497464e7f27a4edd02a0d3f1338d951d864428644c6908a061164856d86fe1` |
+
+WisKey's distribution digest of the bridge changes with `keyset.py` / `__init__.py`. The bridge label stays 0.10.9: this ships with the
+first 0.10.9 release; no 0.10.9 was ever installed.
+
+### 9.6 Tests (real results, 25.11)
+
+New file `tests/test_bridge_repair_legacy_2520.py` (13 tests): the fixture's provenance from git (2); a legacy store + a new code at
+setup is a re-pair - old key dead in the key set / fence / rotation service / native verify, new pairing live, saved in today's
+format, survives a restart (routine, hard cut); the review's probe end to end - today's legacy bridge works, the re-pair voids it at
+once, a save before the reload does not blank, the reload is the new pairing (routine, hard cut); the tagged-store save race; damaged
+tags and odd entry values fail closed; the fence is checked before the key set and is stateless (+ the lease contract's verdict); the
+`__init__` wiring on both copies; and on the REAL `async_setup_entry` (key-rotation harness): a legacy store + a re-paired entry
+(routine, hard cut), and WB-07 + the save race (execute / rotate with the old key refused before the reload, the queued save keeps the
+new code, the listener schedules the reload, the reloaded setup is the new pairing).
+
+Existing tests changed (a spec change, not hiding a finding): `test_bridge_key_activation_295::test_ha06_...` - the HA-06 state now
+carries its tag (a tag-less state + a code is a re-pair; asserted in the same test); `test_bridge_lease_event` - `LEGACY_SIGNING_STATE`
+carries the tag of the code the tests hand in (it models the HA-06 leftover), and the wiring pin names `verifier`; `test_capmap_295` -
+the reviewed successor row for `keyset.py` (`dddf12a3...` -> `05d6458f...`).
+
+| command | where | exit | result |
+|---|---|---|---|
+| `C:\cloude\smplwisebms\.venv\Scripts\python.exe -m pytest tests/test_bridge_repair_legacy_2520.py -p no:cacheprovider -q --tb=line --junitxml <scratch>` (`smplwise_vms/backend`) with the BASE `keyset.py` / `__init__.py` (fail first) | PC | 1 | **11 failed / 2 passed** (the provenance tests): the real-setup tests fail exactly on WB-02 ("the setup took the re-pair and did not blank the code") and WB-07 (`service_not_allowed` where `pairing_changed` is due); the fake-level tests fail on the missing fence class |
+| same, fixed sources | PC | 0 | 13 passed (junit: 13 tests, 0 skipped, 101 s) |
+| `py -3.12 -I <scratch>/probe_race.py` (the tagged-store save race, `Persister` + `KeySet` only) against `keyset.py` of `189ec3f4a`, then of this branch | PC | 0 / 0 | base: entry blanked, reloaded setup not repaired, old key kept; fixed: entry kept, repaired, old key gone |
+| same command, `test_bridge_native_keyset_2520.py` | PC | 0 | 32 passed |
+| same command, `test_bridge_key_activation_295.py` | PC | 0 | 30 passed |
+| same command, `test_capmap_295.py` | PC | 1 | **64 passed / 1 FAILED - pre-existing, not this row**: `test_the_receiver_source_is_the_one_the_vectors_were_made_from` fails on `smplwise_vms/backend/smplwise/services/ha_bridge.py` (sha `3a7ee1f8...`, changed by I18N-RUNTIME-ERRORS-2520 `33e121b63` on the train without a reviewed successor row; the same file on the base `189ec3f4a`). The `keyset.py` chain with this row's successor, checked on its own: OK. |
+| `py -3.12 scripts/sync_integration.py`, then `--check` | PC | 0 / 0 | mirrored 35 files; up to date |
+| `py -3.12 -m ruff check` on the new test file | PC | 0 | All checks passed |
+| `py -3.12 -m ruff check` on `keyset.py`, `__init__.py` | PC | 1 | 16 findings, the same 16 as on the base (none in lines this row wrote) |
+| same PC command, one process per file, sequential, at `ec104d249` (junit tests / skipped; 0 failures, 0 errors each): `test_bridge_lease_event` 66, `test_bridge_080` 3, `test_bridge_config_drift` 13, `test_bridge_gaps_2438` 8, `test_bridge_media_players` 17, `test_bridge_media_policy` 49, `test_bridge_runtime_2436` 13 / 1, `test_bridge_stale_discovery_2383` 32, `test_bridge_stream_source` 50, `test_bridge_update_listener_2401` 13, `test_door_bridge_block_2404` 21, `test_extid_followups` 20, `test_lovelace_card` 5, `test_bridge_common_2440` 22, `test_bridge_preverify_2440` 17, `test_bridge_cast_policy` 29, `test_bridge_service_identity` 171, `test_wiskey_adopt_2272_review` 41 / 3, `test_wiskey_s4_core_observer` 31 / 1, `test_wxh4_emergency_revoke_2407` 22, `test_wiskey_native_bundle_2272` 7, `test_wiskey_rc7_adopt_2331` 32 / 5, `test_mac_managed_auto_policy` 8 / 3, `test_wiskey_install_answers_2400` 39 | PC | 0 each | all pass (24 files) |
+| `~/smplwisebms/.venv/bin/python -m pytest tests/<file>.py -p no:cacheprovider -q --tb=short --junitxml ...` (job `~/work/p2520_bridgelegacy_run.sh` via `~/work/slotb.sh`, a detached worktree at `ec104d249`, one process per file, sequential): `test_bridge_repair_legacy_2520` 13 (provenance tests ran, 0 skipped), `test_bridge_native_keyset_2520` 32, `test_bridge_keyrot_harness_295` 34 (240 s), `test_lease_wire_closed_295` 135 / 4, `test_bridge_runnable` 111 / 1, `test_wiskey_managed_install_2382` 73 (140 s), `test_bridge_schedule_service` 83, `test_wiskey_direct_v2_2520` 39 | runner | 0 each | all pass |
+| same job, `test_capmap_295` | runner | 1 | 64 / 1 FAILED - the same pre-existing `ha_bridge.py` drift as on the PC (not this row) |
+| WisKey's `FINAL-ARX-REPAIR` / `test_m15_direct_v2` against this head | - | - | **NOT_RUN** (WisKey's harness; see 8.3) |
+| real Home Assistant / lab / WisKey | - | - | **NOT_RUN** by rule |
+
+### 9.7 Install / lab
+
+No new step: the same bridge 0.10.9 and the same one owner-approved Core restart as 6.1. No data migration: a tag-less store keeps
+working as it is (entry blank) and is replaced by today's format only by the next re-pair. The review's interim advice (check the lab's
+key store for `legacy_retired` without `legacy_fp` before any re-pair, read only) still applies while the lab runs bridge 0.10.8; it is
+not needed once 0.10.9 with this fix is loaded.
+
+### 9.8 Open questions
+
+1. Tell WisKey through the owner: `keyset.py` / `__init__.py` hashes changed (9.5), `native_keyset.py` unchanged, the bridge's own
+   services now refuse `pairing_changed`. a) in the consolidated WisKey hand-off, citing this section (recommended) b) a separate note now.
+2. The tag-less HA-06 leftover of a direct jump from 2.12.1 or older (9.4, last paragraph). a) read it as a re-pair - old keys dropped,
+   the owner pairs again (recommended; fail closed for the keys) b) refuse everything until the owner deletes and re-adds the integration.
+3. `test_capmap_295` is red on the train (`ha_bridge.py` after I18N-RUNTIME-ERRORS-2520). a) the train lead reviews that change into
+   `REVIEWED_SUCCESSORS` (recommended - it is that row's file) b) this row adds it.
+
+Together the PC and runner tables cover every file of 5.1 / 8.4 (32 files) plus `test_bridge_cast_policy` and the new file, each in
+its own process, all at `ec104d249` (the fix commit; the commit after it changes only this note).
