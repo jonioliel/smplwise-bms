@@ -152,3 +152,24 @@ cards' padding).
    investigation row (is it in the phone skip list by mistake, or a real phone layout issue) [recommended]; (b) ignore.
 6. **The phone key in the step-up dialog** was only exercised with a fake app bridge. (a) check in the app at the next lab install
    [recommended].
+
+## 4b. Gate run 1 (lead, at df3ee6d12) and its fix
+
+The 2.51 gate failed after 182 minutes with one test on three projects (0 hard): `unit-mfa-passkeys-2490.spec.ts:182` "add, rename, a
+second passkey after a passkey step-up ..." (desktop, tablet, mobile; again when re-run alone) - no passkey row after "add" (line 196).
+
+Cause: the test environment, not the product. The gate serves the build at the runner's own network address; `http://<address>:<port>`
+is not a secure context, so `navigator.credentials` does not exist there, and an IP address is never a WebAuthn RP id - the Chromium
+virtual authenticator cannot answer and the page correctly adds nothing. The file's other tests use no WebAuthn and passed; on a
+`localhost` base URL (runs 1 and 3 above) the test passed. Fix `319f81676` (test-only): when the base URL is not `localhost`, the spec opens
+the app at `http://localhost:<same port>/` and answers every non-API request of that origin by fetching it from the real base URL
+(`route.fetch` + `fulfill`, service workers blocked for the file); the API stays the spec's mock. No product change.
+
+Reproduction on the runner as the gate does it (`~/work/rel2510_tests_repro.sh`: `vite build`, `vite preview --host <runner address>`,
+`playwright.config.ts`, projects desktop + tablet + mobile, `--workers=2`; results `~/work/rel2510-out5`, 25.11 04:09-04:14 UTC after
+the nightly main run freed the memory): the spec as it was at df3ee6d12 - **3 failed** (the same test on the three projects, as in the
+gate), 6 passed, 3 skipped; the fixed spec at `319f81676` - **9 passed**, 3 skipped (the compare-shots test), twice in a row.
+
+The gate's eight flaky tests (passed alone): none touches a file this train changed in its own commits (tickets table, skin QA, NVR
+encoding batch layout sweep, access schedules, media players, intercom ops pixel, the tickets list statement guard, the insight PDF) -
+no action.
