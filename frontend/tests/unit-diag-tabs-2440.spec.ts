@@ -71,7 +71,7 @@ function definers(): Map<string, string> {
 }
 
 test('there is one imports-only module per tab that has cards of its own, and the loader map names each', () => {
-  expect(TAB_FILES.map((f) => f.replace(/^screens\/system-diagnostics-|\.ts$/g, ''))).toEqual(['access', 'backup', 'buildings', 'devices', 'health', 'map', 'media', 'mobile', 'remote', 'tabs']);
+  expect(TAB_FILES.map((f) => f.replace(/^screens\/system-diagnostics-|\.ts$/g, ''))).toEqual(['access', 'backup', 'buildings', 'devices', 'health', 'map', 'media', 'mobile', 'remote', 'support', 'tabs']);
   const screen = code(SCREEN);
   for (const f of TAB_FILES) {
     const name = f.replace(/^screens\/|\.ts$/g, '');
@@ -89,7 +89,7 @@ test('every tab id of the screen is either in the loader map or needs no chunk',
   expect(ids.length).toBe(13);
   const map = screen.slice(screen.indexOf('export const TAB_CHUNKS'), screen.indexOf('};', screen.indexOf('export const TAB_CHUNKS')));
   const keyed = (id: string): boolean => new RegExp(`(^|\\s)${id === 'access-control' ? '\\[ACCESS_TAB\\]' : `'?${id}'?`}:`).test(map);
-  expect(ids.filter((id) => !keyed(id))).toEqual(['general', 'ha', 'support']);
+  expect(ids.filter((id) => !keyed(id))).toEqual(['general', 'ha']);
 });
 
 test('no custom element drawn by the screen is left without a definition: static import, or its tab\'s chunk', () => {

@@ -69,6 +69,10 @@ DEFAULTS: dict[str, str] = {
     # owner 2026-09-30: the security area's "תמונת מצב" (live overview) sub-screen; "false" hides it from the navigation and
     # redirects its route to the next live page. Per installation; the screen itself stays a normal, permitted route.
     "ui.security_snapshot": "true",
+    # DOCS-ONBOARDING-2530 (T071): the first-run "getting started" checklist (#/system/onboarding) and its row under the tab row, for
+    # whoever configures the system. "false" = today's behaviour, so an existing installation never shows it; a FRESH installation (its
+    # database created by this start, startup_steps.mark_fresh_install_onboarding) stores "true" once. Switched in Settings › Support.
+    "onboarding.enabled": "false",
     # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).

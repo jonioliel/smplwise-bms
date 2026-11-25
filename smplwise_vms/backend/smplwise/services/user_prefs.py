@@ -174,6 +174,19 @@ def _setup_hint(value: Any) -> dict[str, Any]:
 VALIDATORS["setup.hint"] = _setup_hint
 DEFAULTS["setup.hint"] = None
 
+
+# `onboarding.dismissed` (DOCS-ONBOARDING-2530, T071): the user hid the first-run "getting started" checklist (its row under the tab row
+# and the first landing on it). true, or null = not hidden. Presentation only: no permission needed; the installation-wide switch is the
+# setting `onboarding.enabled` (system.configure).
+def _onboarding_dismissed(value: Any) -> bool:
+    if value is not True:
+        raise ValueError("onboarding.dismissed must be true (null shows the checklist again)")
+    return True
+
+
+VALIDATORS["onboarding.dismissed"] = _onboarding_dismissed
+DEFAULTS["onboarding.dismissed"] = None
+
 # `plan.wizard` (PLAN3D-R28-WIZARD-2433, round 28 questions 10-11): the user's own choices for the guided "new plan from a picture"
 # wizard (frontend/src/plan-wizard/) - what goes in without review (auto_accept, percent), the floor under which a detected item never
 # goes in without approval (review_min), what an unreviewed item in between becomes (as_detected | reject), the style kit chosen first,

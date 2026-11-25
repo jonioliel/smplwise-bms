@@ -313,6 +313,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.a
 # restart repeat or let Arx overwrite a tree it did not stage), the WisKey account list of the last signed registry sync, and the event
 # cursor (an older archive cursor would replay events or hide a gap). Never exported, never restored (`wiskey.installation.*` by prefix).
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.auto_install", "wiskey.installation.restart_digest", "wiskey.events.cursor"}
+# DOCS-ONBOARDING-2530: whether the getting-started checklist is on describes THIS installation's first run - an archive of another box
+# (or of this one before its setup) never switches it on or off
+SETTINGS_KEEP = SETTINGS_KEEP | {"onboarding.enabled"}
 SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.installation.",)
 # WISKEY-MANAGED-INSTALL-2382: the owner's managed-installation switches, the adoption record, the last run and the tree Arx installed
 # describe THIS box - an archive must never switch managed installs on, claim an adoption or offer a rollback of another box's tree

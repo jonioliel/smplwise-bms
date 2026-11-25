@@ -25,6 +25,7 @@ const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', tr('אוטומטי
 /** CAM-H264-VERIFY-2361: הגדרות › וידאו ומדיה › "מצלמה שה־NVR מסרב לשנות" (nvr.batch_on_refusal) - owner 2026-11-02: skip is the default. */
 const REFUSAL_OPTIONS: ['skip' | 'stop', string][] = [['skip', tr('לדלג ולהמשיך — ברירת המחדל')], ['stop', tr('לעצור את כל ההמרה')]];
 import { ApiError, describeError, get } from '../api/client';
+import { loadOnboardingDismissal, ONBOARDING_HREF, onboardingDismissed, onboardingLoaded, parseEnabled, restoreOnboarding, setOnboardingEnabled } from '../api/onboarding'; // DOCS-ONBOARDING-2530: the support tab's getting-started card
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
 import { TabsModeController, settingsNavOf } from '../shell/tabs-mode';
@@ -133,7 +134,7 @@ const TAB_SUB: Record<string, string> = {
   mobile: tr('שיתוף הנתונים של אפליקציית הטלפון ומדיניות החיישנים'),
   health: tr('מצב נפרד לכל רכיב, הבדיקות ותור העבודות'),
   backup: tr('גיבויים של הפרויקט, העלאה, שחזור וגיבוי אוטומטי'),
-  support: tr('חבילת תמיכה מצונזרת'),
+  support: tr('תחילת עבודה, גרסאות, יומן מצונזר ודיווח על תקלה'), // DOCS-ONBOARDING-2530
 };
 
 /** UXFIX-NAV-295: the settings' own first page is "מראה ותצוגה" - "כללי" is the label of the settings strip one level up (shell/nav.ts), so the strip, the
@@ -183,7 +184,11 @@ export const TAB_CHUNKS: Readonly<Record<string, TabChunk>> = {
   mobile: () => import('./system-diagnostics-mobile'),
   health: () => import('./system-diagnostics-health'),
   backup: () => import('./system-diagnostics-backup'),
+  support: () => import('./system-diagnostics-support'), // DOCS-ONBOARDING-2530: the log export on the support tab
 };
+
+/** DOCS-ONBOARDING-2530: the support tab's versions in the static demo (no backend to ask). */
+const DEMO_VERSIONS = { server: '2.53.0', bridge: '0.10.9', home: '2026.11.2' } as const;
 
 /** SC28 — system settings (board 3 screen 23): underline tabs, label / control rows; the media tab is live against the backend. */
 @customElement('system-diagnostics')
@@ -788,6 +793,7 @@ export class SystemDiagnostics extends LitElement {
     if (id === 'backup') void this.loadBackups();
     if (id === 'media') void this.loadMedia();
     if (id === 'ha') void this.loadHa();
+    if (id === 'support') void this.loadSupport();
     if (write) replaceRoute('/system/diagnostics', id === 'general' ? undefined : new URLSearchParams({ tab: id }));
   }
 
@@ -2219,13 +2225,75 @@ export class SystemDiagnostics extends LitElement {
     ${this.removeTarget ? this.renderRemoveDialog(this.removeTarget) : nothing}`;
   }
 
+  /** DOCS-ONBOARDING-2530: the support tab reads the versions it shows (the bridge and the home system come with /ha/status) and this
+   * user's own getting-started choice. Read-only: nothing here contacts a device. */
+  private async loadSupport() {
+    if (!onboardingLoaded()) void loadOnboardingDismissal().then(() => this.requestUpdate());
+    if (!isApi() || this.ha) return;
+    try {
+      this.ha = await haStatus();
+    } catch {
+      /* the two rows say "unknown" */
+    }
+  }
+
+  /** DOCS-ONBOARDING-2530: the installation's getting-started switch, saved at once (system.configure; the server checks it too). */
+  private async setOnboarding(on: boolean) {
+    const tab = this.tab;
+    this.busy = true;
+    this.setError(tab, '');
+    try {
+      const r = await patchSettings({ 'onboarding.enabled': on ? 'true' : 'false' });
+      this.settings = r.settings;
+      setOnboardingEnabled(parseEnabled(r.settings['onboarding.enabled']));
+      this.flash(on ? tr('רשימת תחילת העבודה הופעלה') : tr('רשימת תחילת העבודה כובתה'), 3000);
+    } catch (err) {
+      this.setError(tab, describeError(err));
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** DOCS-ONBOARDING-2530 (T071): הגדרות › תמיכה - the getting-started checklist (the installation's switch and this user's own
+   * choice), the versions to quote, the redacted log export and how to report a problem. It replaces the placeholder "support bundle"
+   * card (its button said "later" and its two switches did nothing): the redacted log export IS that bundle (T033). */
   private renderSupport() {
-    return html`<div class="sections"><sw-card heading=${tr('חבילת תמיכה מצונזרת')}>
-      <div class="muted" style="padding-block-end:8px">${tr('כוללת logs עם request/session/job id, מדדים, capability matrix, גרסאות. לא כוללת וידאו, תוכניות, סודות או כתובות מלאות ללא הסכמה.')}</div>
-      <div class="row"><span class="lbl">${tr('כלול תוכניות קומה')}</span><sw-toggle label=${tr('לא')}></sw-toggle></div>
-      <div class="row"><span class="lbl">${tr('כלול תמונות מצלמה')}</span><sw-toggle label=${tr('לא')}></sw-toggle></div>
-      <div class="foot"><sw-button variant="primary" icon="download" disabled>${tr('יצירת חבילה (בהמשך)')}</sw-button></div>
-    </sw-card></div>`;
+    const api = isApi();
+    const on = api ? parseEnabled(this.settings?.['onboarding.enabled']) : true;
+    const hidden = onboardingDismissed();
+    const sync = this.ha?.sync;
+    const bridge = this.ha?.integration?.active_version ?? this.ha?.bridge.integration_version ?? null;
+    const unknown = tr('לא ידוע');
+    const ui = typeof __ARX_BUILD__ === 'string' && __ARX_BUILD__ ? __ARX_BUILD__ : unknown;
+    const err = this.errorOf('support');
+    return html`<div class="sections" data-support>
+      ${err ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${err}</div>` : nothing}
+      <sw-card heading=${tr('תחילת עבודה')} subheading=${tr('רשימה מסודרת של מה מגדירים קודם, עם קישור לכל מסך')} data-support-onboarding>
+        <div class="row"><span class="lbl">${tr('רשימת תחילת העבודה')}<span class="muted">${tr('נפתחת מעצמה למי שמגדיר את המערכת ומוצגת בשורה מתחת ללשוניות. בהתקנה חדשה היא מופעלת מעצמה; בהתקנה קיימת היא כבויה עד שמפעילים אותה כאן.')}</span></span>
+          <sw-toggle data-set-onboarding label=${on ? tr('מופעלת') : tr('כבויה')} ?checked=${on} ?disabled=${!api || !this.canEdit || this.busy} @change=${(e: Event) => void this.setOnboarding(toggled(e))}></sw-toggle></div>
+        <div class="row"><span class="lbl">${tr('אצלך')}<span class="muted">${hidden ? tr('הסתרת את הרשימה: היא לא נפתחת מעצמה ואין לה שורה. אפשר להציג אותה שוב.') : tr('הרשימה מוצגת אצלך כל עוד היא מופעלת בהתקנה.')}</span></span>
+          <span class="end">${hidden ? html`<sw-button size="sm" variant="ghost" icon="info" data-support-onboarding-restore @click=${() => void restoreOnboarding().then(() => this.requestUpdate())}>${tr('הצג שוב')}</sw-button>` : nothing}<sw-button size="sm" data-support-onboarding-open @click=${() => (window.location.hash = ONBOARDING_HREF)}>${tr('לרשימה')}</sw-button></span></div>
+      </sw-card>
+      <sw-card heading=${tr('גרסאות')} subheading=${tr('את הגרסאות האלה מצרפים לכל פנייה לתמיכה')} data-support-versions>
+        <div class="row"><span class="lbl">${tr('Arx (השרת)')}<span class="muted">${tr('גם בהגדרות ‹ עדכונים ובכותרת של בריאות ועבודות')}</span></span><span class="ltr" data-version="server">${api ? this.version || unknown : DEMO_VERSIONS.server}</span></div>
+        <div class="row"><span class="lbl">${tr('ממשק (הדפדפן)')}<span class="muted">${tr('הגרסה שהדפדפן טען; אחרי עדכון היא שונה מהשרת עד שמרעננים את הדף')}</span></span><span class="ltr" data-version="ui">${api ? ui : DEMO_VERSIONS.server}</span></div>
+        <div class="row"><span class="lbl">${tr('גשר Arx')}<span class="muted">${tr('הרכיב שמחבר את Arx למערכת הבית')}</span></span><span class="ltr" data-version="bridge">${api ? bridge ?? unknown : DEMO_VERSIONS.bridge}</span></div>
+        <div class="row"><span class="lbl">${tr('מערכת הבית')}<span class="muted">${tr('כפי שדווחה בחיבור האחרון')}</span></span><span class="ltr" data-version="home">${api ? sync?.ha_version ?? unknown : DEMO_VERSIONS.home}</span></div>
+      </sw-card>
+      ${!api || this.canEdit
+        ? html`<health-log-export></health-log-export>`
+        : html`<sw-card heading=${tr('יומן מצונזר לתמיכה')}><div class="muted">${tr('רק מי שמגדיר את המערכת יכול להוריד את היומן.')}</div></sw-card>`}
+      <sw-card heading=${tr('דיווח על תקלה')} subheading=${tr('מה לשלוח, כדי שאפשר יהיה לבדוק בלי לחזור אליכם עם שאלות')} data-support-report>
+        <ol class="steps">
+          <li>${tr('כתבו מה קרה, באיזה מסך ובאיזו שעה, ומה ציפיתם שיקרה.')}</li>
+          <li>${tr('צלמו את המסך, יחד עם הודעת השגיאה אם הופיעה.')}</li>
+          <li>${tr('הורידו יומן מצונזר של השעה האחרונה (הכרטיס למעלה), או של חלון הזמן שבו זה קרה.')}</li>
+          <li>${tr('צרפו את הגרסאות מהכרטיס "גרסאות".')}</li>
+          <li>${tr('שלחו הכול למי שהתקין את המערכת או לתמיכה של SmplWise.')}</li>
+        </ol>
+        <div class="muted">${tr('היומן לא כולל וידאו, תמונות, תוכניות, סיסמאות, מפתחות או כתובות: הם מוסתרים לפני ההורדה, וכל הורדה נרשמת באודיט.')}</div>
+      </sw-card>
+    </div>`;
   }
 
   /** The open tab's body. CR-DIAG-TABS-2440: a tab with cards of its own waits for their chunk (see TAB_CHUNKS). */

@@ -133,6 +133,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'system-setup': () => import('../screens/system-setup'),
   'system-wizard': () => import('../screens/system-wizard'),
   'system-readiness': () => import('../screens/system-readiness'),
+  'system-onboarding': () => import('../screens/system-onboarding'), // DOCS-ONBOARDING-2530
   'system-devices': () => import('../screens/system-devices'),
   'system-diagnostics': () => import('../screens/system-diagnostics'),
   'system-security': () => import('../screens/system-security'),

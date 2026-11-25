@@ -174,6 +174,8 @@ export interface ProductSettings {
   'ui.hide_map'?: string;
   /** 'false' hides the security area's "תמונת מצב" (the live overview) from the navigation for everyone (2026-09-30); default 'true'. */
   'ui.security_snapshot'?: string;
+  /** DOCS-ONBOARDING-2530: 'true' = the first-run getting-started checklist is on (a fresh installation; Settings › Support); default 'false'. */
+  'onboarding.enabled'?: string;
   /** S2: 'true' lets the Home Assistant recorder fill entity states the local history does not know (marked as secondary). */
   'history.ha_secondary'?: string;
   /** CR-TIMESCRUB101: 'true' turns the historical map's time scrub on (layer legend, playback, per-layer lanes); default 'false'. */

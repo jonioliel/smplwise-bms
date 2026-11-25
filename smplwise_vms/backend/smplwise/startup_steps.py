@@ -163,6 +163,22 @@ def ensure_push_server_id(app: FastAPI, settings: Settings, applied: list[int] |
         log.exception("could not create the installation's push id")
 
 
+def mark_fresh_install_onboarding(app: FastAPI, settings: Settings, applied: list[int] | None) -> None:
+    """DOCS-ONBOARDING-2530 (T071): a FRESH installation - this start created the database, so the very first migration ran now - gets
+    the first-run "getting started" checklist (`onboarding.enabled` = "true", stored once and only when no value is stored yet). An
+    existing installation never runs migration 1 again, so it keeps the default ("false", today's behaviour) until an administrator
+    switches the checklist on in Settings › Support. A developer / test backend (SW_DEV_USER) is left alone, so a fresh test database
+    behaves like an existing installation unless a test switches the checklist on itself."""
+    if 1 not in (applied or []) or settings.dev_user:
+        return
+    try:
+        with app.state.db.connection(label="onboarding.fresh_install") as conn:
+            conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('onboarding.enabled', 'true')")
+        log.info("fresh installation: the getting-started checklist is on (Settings › Support turns it off)")
+    except Exception:  # noqa: BLE001 - never block the start; the checklist then stays off (the default) and can be switched on by hand
+        log.exception("could not switch the getting-started checklist on for a fresh installation")
+
+
 AfterMigrate = Callable[[FastAPI, Settings, "list[int] | None"], None]
 AFTER_MIGRATE: tuple[AfterMigrate, ...] = (
     keep_home_interface_defaults,
@@ -178,6 +194,7 @@ AFTER_MIGRATE: tuple[AfterMigrate, ...] = (
     reconcile_switch_protection,
     backfill_ha_event_cameras,
     ensure_push_server_id,
+    mark_fresh_install_onboarding,
 )
 
 

@@ -266,4 +266,10 @@ export const en = {
   'אזורים חדשים': 'New areas',
   'אשר': 'Confirm',
   'החלט': 'Decide',
+  // shell: the getting-started row and pill (DOCS-ONBOARDING-2530)
+  'ברוכים הבאים': 'Welcome',
+  'רשימת תחילת העבודה מראה מה מגדירים קודם': 'The getting-started list shows what to set up first',
+  'לרשימת תחילת העבודה': 'Open the getting-started list',
+  'הסתר את רשימת תחילת העבודה': 'Hide the getting-started list',
+  'תחילת עבודה': 'Getting started',
 };
