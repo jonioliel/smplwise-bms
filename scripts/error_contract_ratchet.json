@@ -3,10 +3,9 @@
  "legacy_422_by_family": {
   "access": 25,
   "intercom": 1,
-  "media": 9,
   "notifications": 6,
   "notify": 1,
   "tickets": 41
  },
- "total": 83
+ "total": 74
 }

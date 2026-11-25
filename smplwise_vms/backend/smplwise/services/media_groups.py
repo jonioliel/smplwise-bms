@@ -25,7 +25,7 @@ import uuid
 from typing import Any
 
 from ..db import now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..i18n import DEFAULT_LANG
 from ..rbac import Principal
 from . import device_bulk as bulk, media_commands as mc, media_model as mm, media_store as store
@@ -149,11 +149,18 @@ def _plan(kind: str, scope: str, scope_id: str, name: str, targets: list[dict[st
 # ------------------------------------------------------------------------------------------------ join
 
 
-def _not_a_player(conn: sqlite3.Connection, access: store.Access, key: Any) -> None:
+def _not_groupable(key: Any, reason: str, field: str | None) -> ApiError:
+    """422 `not_groupable` (ADR019-FAMILY678-2520, ADR-019 D1): `fields` names the body field that carried the refused device (`leader_key`,
+    `member_keys`, `device_keys`); a saved group applied by its id names none (the refused device is the stored leader, not a request field).
+    `key` is the refused device key - a VALUE, kept as the endpoint's own extra beside `reason`, never a field name."""
+    return field_error(mc.MESSAGES["not_groupable"], [field] if field else [], code="not_groupable", extra={"key": key, "reason": reason})
+
+
+def _not_a_player(conn: sqlite3.Connection, access: store.Access, key: Any, field: str | None) -> None:
     """A key that is no player of the catalogue: a screen the caller may read is `not_groupable` (422); anything else is unknown (404)."""
     row = conn.execute("SELECT kind, approved, anchor_entity_id FROM media_devices WHERE device_key = ? AND removed_at IS NULL", (key,)).fetchone() if isinstance(key, str) else None
     if row is not None and row["approved"] and row["kind"] == "screen" and access.has(store.PERM_READ, row["anchor_entity_id"]):
-        raise mc.err(422, "not_groupable", key=key, reason="kind")
+        raise _not_groupable(key, "kind", field)
     raise mc.err(404, "not_found")
 
 
@@ -161,14 +168,14 @@ def _resolve_join(conn: sqlite3.Connection, cat: store.Catalog, access: store.Ac
     """(leader, new members to join, members already in the leader's group, the leader's other current members) - or the refusal."""
     leader = _visible(cat, access, leader_key)
     if leader is None:
-        _not_a_player(conn, access, leader_key)
+        _not_a_player(conn, access, leader_key, "leader_key")
     if not isinstance(member_keys, list) or not 1 <= len(member_keys) <= MAX_GROUP - 1:
         raise mc.err(422, "validation", fields=["member_keys"])
     members: list[store.Item] = []
     for k in member_keys:
         m = _visible(cat, access, k)
         if m is None:
-            _not_a_player(conn, access, k)
+            _not_a_player(conn, access, k, "member_keys")
         if m.key != leader.key and m not in members:
             members.append(m)
     if not members:
@@ -181,9 +188,9 @@ def _resolve_join(conn: sqlite3.Connection, cat: store.Catalog, access: store.Ac
         if reason is None and cat.group_info(it.key)["layer"] != lg["layer"]:
             reason = "layer"
         if reason is not None:
-            raise mc.err(422, "not_groupable", key=it.key, reason=reason)
+            raise _not_groupable(it.key, reason, "leader_key" if it is leader else "member_keys")
     if lg["role"] == "member":
-        raise mc.err(422, "not_groupable", key=leader.key, reason="leader_is_member")
+        raise _not_groupable(leader.key, "leader_is_member", "leader_key")
     joins, stays = [], []
     for m in members:
         g = cat.group_info(m.key)
@@ -191,7 +198,7 @@ def _resolve_join(conn: sqlite3.Connection, cat: store.Catalog, access: store.Ac
             if g["leader_key"] == leader.key:
                 stays.append(m)
                 continue
-            raise mc.err(422, "not_groupable", key=m.key, reason="in_other_group")
+            raise _not_groupable(m.key, "in_other_group", "member_keys")
         joins.append(m)
     others = [cat.items[k] for k in lg["member_keys"] if k != leader.key and k in cat.items and cat.items[k] not in stays]
     return leader, joins, stays, others
@@ -239,7 +246,7 @@ def plan_leave(conn: sqlite3.Connection, access: store.Access, cat: store.Catalo
         _require(access, it, store.PERM_GROUP, store.PERM_CONTROL, reason="member")
         reason = groupable_reason(cat, it)
         if reason is not None and reason != "unavailable":
-            raise mc.err(422, "not_groupable", key=it.key, reason=reason)
+            raise _not_groupable(it.key, reason, "device_keys")
         g = cat.group_info(it.key)
         if g["role"] == "none":
             members.append({"device_key": it.key, "role": "target", "will": "stay", "reason": "not_grouped", "target": None})
@@ -255,7 +262,7 @@ def plan_leave(conn: sqlite3.Connection, access: store.Access, cat: store.Catalo
 # ------------------------------------------------------------------------------------------------ volume
 
 
-def group_members_of(cat: store.Catalog, leader: store.Item) -> list[str]:
+def group_members_of(cat: store.Catalog, leader: store.Item, field: str | None = "leader_key") -> list[str]:
     """The devices a group volume reaches: a live group's members (leader first), a static group's children, a helper group's shortcuts."""
     g = cat.group_info(leader.key)
     kind = leader.row["kind"]
@@ -263,7 +270,7 @@ def group_members_of(cat: store.Catalog, leader: store.Item) -> list[str]:
         return mm.virtual_members(leader.model, cat.ents, cat.by_entity)
     if kind == "group" or g["role"] == "leader":
         return list(g["member_keys"])
-    raise mc.err(422, "not_groupable", key=leader.key, reason="not_a_leader")
+    raise _not_groupable(leader.key, "not_a_leader", field)  # `leader_key` of the volume route's path
 
 
 def _volume_rows(conn: sqlite3.Connection, access: store.Access, cat: store.Catalog, keys: list[str], wanted: dict[str, int] | None, level: int | None, mode: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -378,7 +385,7 @@ def _clean_preset(cat: store.Catalog, body: dict[str, Any]) -> tuple[str, str, l
         if it is None or not it.row["approved"]:
             raise mc.err(404, "not_found")
         if it.row["kind"] not in JOINABLE_KINDS:
-            raise mc.err(422, "not_groupable", key=k, reason="kind")  # a saved group names speakers, players and receivers; whether each can join NOW is decided when it is applied
+            raise _not_groupable(k, "kind", "leader_key" if k == leader_key else "member_keys")  # a saved group names speakers, players and receivers; whether each can join NOW is decided when it is applied
     volumes = body.get("volumes")
     if volumes is not None:
         ok = isinstance(volumes, dict) and set(volumes) <= {leader_key, *member_keys} and all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100 for v in volumes.values())
@@ -426,14 +433,14 @@ def plan_preset(conn: sqlite3.Connection, access: store.Access, cat: store.Catal
     keys = json.loads(row["members_json"] or "[]")
     leader = _visible(cat, access, row["leader_key"])
     if leader is None:
-        _not_a_player(conn, access, row["leader_key"])
+        _not_a_player(conn, access, row["leader_key"], None)
     _require(access, leader, store.PERM_GROUP, store.PERM_CONTROL, reason="member")
     reason = groupable_reason(cat, leader)
     if reason is not None:
-        raise mc.err(422, "not_groupable", key=leader.key, reason=reason)
+        raise _not_groupable(leader.key, reason, None)
     lg = cat.group_info(leader.key)
     if lg["role"] == "member":
-        raise mc.err(422, "not_groupable", key=leader.key, reason="leader_is_member")
+        raise _not_groupable(leader.key, "leader_is_member", None)
     joins, stays, skips = [], [], []  # skips: (key, name, reason)
     unseen_skips = 0  # rooms the caller may not read: counted, never named (review L1)
     for k in keys:

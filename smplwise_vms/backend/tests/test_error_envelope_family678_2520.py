@@ -8,8 +8,9 @@
 * family 7 - electricity and water billing: the server already answered `fields` as names; the refused tariff definition and
   formula issue lists also answer `fields` / `problems` (`{field, code}`: their text is the envelope's message).
 * family 8 - the rest: every refusal that named `details.field` / `details.key` also answers `fields` (legacy key kept); the two
-  hand-built envelopes (`local_identity._error`, the Digital Asset Links 404) are `ApiError.payload()`.
-  Left for a later row: `services/media_groups.py` (`key` is a device key VALUE, not a field name - see the change note).
+  hand-built envelopes (`local_identity._error`, the Digital Asset Links 404) are `ApiError.payload()`. Media groups
+  (`not_groupable`): `key` is a device key VALUE, so `fields` names the body field that carried it (`leader_key`, `member_keys`,
+  `device_keys`; none for a saved group applied by id) and `key` stays as the endpoint's own extra (lead decision Q1 = a).
 No app is started here: the helpers the routes raise are exercised directly."""
 from __future__ import annotations
 
@@ -24,18 +25,18 @@ from smplwise import errors
 from smplwise.errors import ApiError
 from smplwise.routers import automation_blueprints, local_identity, local_passkeys
 from smplwise.routers import scenarios as scenarios_router
-from smplwise.services import (automation_ops, door_windows, energy_billing, energy_formula, energy_tou, home_family, ma_direct, offline_field,
-                               quiet_windows, readiness, scenario_settings, scenarios, schedule_ops)
+from smplwise.services import (automation_ops, door_windows, energy_billing, energy_formula, energy_tou, home_family, ma_direct, media_groups,
+                               offline_field, quiet_windows, readiness, scenario_settings, scenarios, schedule_ops)
 
 REPO = Path(__file__).resolve().parents[3]
 PKG = REPO / "smplwise_vms" / "backend" / "smplwise"
 FAMILY_6 = {"automation", "scenarios", "scenario", "schedule"}
 FAMILY_7 = {"energy", "water"}
-FAMILY_8 = {"app", "backup", "brand", "building", "capture", "compliance", "docread", "door", "home", "incidents", "intercom", "local",
+FAMILY_8 = {"app", "media", "backup", "brand", "building", "capture", "compliance", "docread", "door", "home", "incidents", "intercom", "local",
             "ma", "offline", "quiet", "readiness", "second", "settings", "user", "white"}
 # see the module docstring; `services/intercom_messaging.py` (the access-messaging settings issue list) is converted by the parallel
 # family-4/5 row (ADR019-FAMILY45-2520), which also moves its screen reader
-LEFT = {"services/media_groups.py", "services/intercom_messaging.py"}
+LEFT = {"services/intercom_messaging.py"}
 
 
 def _inventory():
@@ -188,3 +189,13 @@ def test_hand_built_envelopes_are_api_error_payloads(monkeypatch):
     src = (PKG / "routers" / "local_passkeys.py").read_text(encoding="utf-8")
     assert 'ApiError(404, "not_found", "Not found").payload(' in src and '"user_message": "Not found"' not in src
     assert local_passkeys.assetlinks is not None
+
+
+def test_media_not_groupable_names_the_body_field_and_keeps_the_device_key_as_an_extra():
+    e = media_groups._not_groupable("dev-1", "in_other_group", "member_keys")
+    assert (e.status, e.code) == (422, "not_groupable") and e.user_message
+    assert e.details == {"key": "dev-1", "reason": "in_other_group", "fields": ["member_keys"]}
+    applied = media_groups._not_groupable("dev-2", "leader_is_member", None)  # a saved group applied by its id: no request field
+    assert applied.details == {"key": "dev-2", "reason": "leader_is_member", "fields": []}
+    src = (PKG / "services" / "media_groups.py").read_text(encoding="utf-8")
+    assert '"not_groupable", key=' not in src, "every not_groupable goes through _not_groupable"
