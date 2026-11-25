@@ -222,7 +222,8 @@ function book(h: HomeHost, sg: unknown) {
     ...st.pending.map((p) => ({ id: p.event_id, cal: p.calendar_id, start: p.start, end: p.end, state: 'pending' })),
   ].sort((a, b) => a.start.localeCompare(b.start));
   const pm = paged(mine, h.phone ? 2 : 3, h.pg('bkM'));
-  return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), html`${sg}${bSeg}`)}
+  // on a phone the buildings take their own row under the tabs (two segmented rows side by side would not fit 390 px)
+  return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), html`${sg}${h.phone ? nothing : bSeg}`)}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}
     <div class="doors-body bk"><section class="door-list" aria-label="${tr('חדרים')}">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>${tr('הזמן')}</button></div>`)
       : h.empty('door', st.loading ? tr('טוענים…') : tr('אין חדרים להזמנה'), tr('כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.'))}${h.pager('bkR', pr.pages)}</section>
       <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)

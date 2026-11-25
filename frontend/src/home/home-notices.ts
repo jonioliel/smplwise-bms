@@ -69,9 +69,10 @@ registerScreen((h: HomeHost) => ({
     const b = chosen(h);
     const all = shown(h);
     const list = tab === 'new' ? all.filter((x) => isNew(h, x)) : all;
+    // on a phone the buildings take their own row under the tabs (two segmented rows side by side would not fit 390 px)
     const bSeg = st.bf.drawn(h.kioskLocked()) ? h.seg('p2NtBld', st.bf.keys(tr('כל הבניינים')), b, tr('בניין')) : nothing;
     const pg = paged(list, h.phone ? 3 : 4, h.pg('nt'));
-    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : shared ? tr('אין הודעות חדשות') : tr('קראת את כל ההודעות'), html`${h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון'))}${bSeg}`, h.pager('nt', pg.pages))}${busLine(h)}
+    return html`${h.headT(tr('לוח הודעות'), n ? plural(n, tr('הודעה חדשה אחת'), tr('הודעות חדשות')) : shared ? tr('אין הודעות חדשות') : tr('קראת את כל ההודעות'), html`${h.seg('p2NtTab', [['new', tr('חדשות')], ['all', tr('הכל')]], tab, tr('סינון'))}${h.phone ? nothing : bSeg}`, h.pager('nt', pg.pages))}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}${busLine(h)}
       <div class="card-grid ntg">${pg.items.length ? pg.items.map((x) => { const fresh = isNew(h, x); return html`<button class=${'tile ncard' + (fresh ? ' new' : '')} data-act="p2Notice" data-id=${x.id}><span class="nh">${fresh ? html`<span class="newp">${tr('חדש')}</span>` : nothing}${important(x) ? html`<span class="pinp" data-tone="warn">${hi('bell')}${tr('חשוב')}</span>` : nothing}<span class="muted clamp1">${[whenText(x.published_at ?? x.starts_at, h.now), alsoNote(x.buildings, b, st.bf.meta)].filter(Boolean).join(' · ')}</span></span><b class="nt clamp2">${x.title}</b><span class="nb">${x.body.slice(0, 220)}</span></button>`; })
         : h.empty('board', st.loading ? tr('טוענים…') : tr('אין הודעות בלוח'), tr('הודעות מוועד הבית ומחברת הניהול יופיעו כאן.'))}</div>`;
   },
