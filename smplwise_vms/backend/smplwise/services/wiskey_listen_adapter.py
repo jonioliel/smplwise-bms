@@ -272,7 +272,7 @@ class WiskeyDownlinkChannel:
             from .intercom_media import WiskeyBridgeTalkChannel
             from .wiskey_media_contract import Actor
             self._talk = WiskeyBridgeTalkChannel(provider, settings, descriptor,
-                Actor(actor_id, actor_name), request_id, expires_at)
+                Actor(actor_id, actor_name), request_id, expires_at, listen_only=True)  # WISKEY-LISTEN-GATE-2520: no offer, no talk_open
 
     @property
     def dropped_frames(self):

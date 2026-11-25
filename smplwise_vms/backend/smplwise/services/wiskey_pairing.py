@@ -519,6 +519,8 @@ async def _probe_async(opener: Callable[[], Awaitable[Any]], key_provider: Calla
         if cap is not None:
             out["capabilities"] = {"schema_version": 1, "protocol": bridge.DIRECT_PROTOCOL, "commands": sorted(cap.commands),
                                    "families": list(cap.families), "talk_audio": cap.talk_audio, "stations": cap.stations,
+                                   # WISKEY-LISTEN-GATE-2520: optional blocks present but not read (another shape): their feature stays off
+                                   "rejected_blocks": sorted(cap.rejected_blocks),
                                    "clock": t.admits(bridge.WINDOW_S) if t is not None else None,
                                    "skew_s": round(t.skew_s, 2) if t is not None else None}
         out["discovery_error"] = disc.last_error

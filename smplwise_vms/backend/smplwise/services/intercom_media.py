@@ -868,8 +868,12 @@ class WiskeyBridgeTalkChannel:
     OPEN_TIMEOUT_S = 10.0
     CLOSE_TIMEOUT_S = 5.0
 
-    def __init__(self, provider: "WiskeyBridgeProvider", settings: Settings, descriptor: Descriptor, actor: w10.Actor, request_id: str | None, expires_at: float) -> None:
+    def __init__(self, provider: "WiskeyBridgeProvider", settings: Settings, descriptor: Descriptor, actor: w10.Actor, request_id: str | None, expires_at: float,
+                 *, listen_only: bool = False) -> None:
         self.provider = provider
+        # WISKEY-LISTEN-GATE-2520 (R5): a LISTEN session (services/wiskey_listen_adapter.WiskeyDownlinkChannel) never opens a talk the station's
+        # fresh descriptor does not offer listening for: it is refused BEFORE `talk_open` (fail closed), never opened and closed again.
+        self.listen_only = listen_only is True
         self.settings = settings
         self.descriptor = descriptor
         self.actor = actor
@@ -952,6 +956,8 @@ class WiskeyBridgeTalkChannel:
                 raise Unavailable("talk_not_offered")
             until = min(self.expires_at, fresh.expires_at, time.time() + fresh.max_talk_seconds)
             self._listen = self._offers_listen(raw)
+            if self.listen_only and not self._listen:
+                raise Unavailable("listen_not_offered")  # nothing was opened: no talk_open is sent for a listen WisKey does not offer
             reply = await link.call(w10.TALK_OPEN, w10.talk_open_params(fresh.session, self.actor, self.request_id, _ts(until), listen=self._listen),
                                     timeout=self.OPEN_TIMEOUT_S)
             opened_ref = w10.talk_ref_of(reply)

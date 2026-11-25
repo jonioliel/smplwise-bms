@@ -380,7 +380,7 @@ def test_features_list_the_checklist_with_reasons_and_fixes(world):
     assert codes("managed_install") == ["policy_b", "owner_on_not_permitted"]
     assert "service_grant_manual" in codes("service_writer")
     assert codes("capture_lease") == ["not_built"] and codes("emergency_lock") == ["lock_unsupported"]
-    assert "listen_no_downlink" in codes("listen")
+    assert codes("listen")[-1] == "listen_unknown" and feats["listen"]["state"] != "on"  # WISKEY-LISTEN-GATE-2520: no discovery yet
 
 
 def test_features_follow_the_pairing_and_the_switches(world, monkeypatch):
