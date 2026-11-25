@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { GROUPS, deviceFor, typesFor, valuesFor, type Level, type Scenario } from './generator-fixtures';
+import { GROUPS, TITLE_EN, deviceFor, typesFor, valuesFor, type Level, type Scenario } from './generator-fixtures';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-031 GEN1: the mock layer of the generator specs - the wire contract of routers/generator.py, fake data only. The whole app runs against it through page.route.
@@ -155,7 +155,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
         for (const k of Object.keys(sevDefaults)) sevDefaults[k] = null;
         return json(route, { reset: 3 });
       }
-      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
+      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: TITLE_EN[t.key] ?? t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
       return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], severity_defaults: sevDefaults, severity_channels: ['push', 'app', 'email'], critical_escalate_after_min: 5, note: '', template_max: 500, placeholders: { name: 'שם הגנרטור', detail: 'פירוט האירוע', type: 'סוג ההתראה', severity: 'חומרה' }, roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
     }
     if (m && m[2] === 'roles') {

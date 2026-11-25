@@ -62,3 +62,35 @@ for (const lang of ['he', 'en'] as const) {
     }
   });
 }
+
+// GEN-UNITS-FIELD-2520 (lead Q1 = a): the routing screen follows the page language - its own words from the English catalogue, the alert
+// types by the server's `title_en`, the groups and template placeholders from the routing catalogue. Hebrew left on an English page only where
+// the server (here: the mock) sends Hebrew data: the role labels, a user's name and the sample message.
+const SERVER_HEBREW = ['מפעילים', 'מנהלי אתר', 'מנהלי מערכת', 'יוסי', 'גנרטור ראשי: מתח מצבר 23.1 V.'];
+const hebrewLines = (text: string) => text.split('\n').map((l) => l.trim()).filter((l) => HEB.test(l) && !SERVER_HEBREW.some((w) => l.includes(w)));
+
+test('English session: the routing screen reads English', async ({ page }) => {
+  const phone = (page.viewportSize()?.width ?? 1440) < 900;
+  for (const scheme of ['light', 'dark'] as const) {
+    await open(page, 'en', scheme);
+    const root = page.locator(`${R} [data-gen-routing]`);
+    await expect(root).toContainText(phone ? 'Failed to start' : 'Low battery voltage');
+    await expect(root).toContainText('Engine');
+    await shoot(page, `routing-screen-en-${scheme}`);
+    expect(hebrewLines(await root.innerText()), 'Hebrew on the English routing screen').toEqual([]);
+    if (phone) continue;
+    await page.locator(`${R} [data-type="battery_low"] >> visible=true`).first().click({ force: true });
+    const drawer = page.locator(`${R} [data-drawer="routing"]`);
+    await expect(drawer.locator('[data-vars]')).toContainText('Generator name');
+    await shoot(page, `routing-editor-en-${scheme}`);
+    expect(hebrewLines(await drawer.innerText()), 'Hebrew in the English routing editor').toEqual([]);
+  }
+});
+
+test('Hebrew session: the routing screen keeps its Hebrew words', async ({ page }) => {
+  await open(page, 'he', 'light');
+  const root = page.locator(`${R} [data-gen-routing]`);
+  await expect(root).toContainText('מנוע');
+  await expect(root).toContainText('כשל התנעה');
+  await expect(root).not.toContainText('Failed to start');
+});

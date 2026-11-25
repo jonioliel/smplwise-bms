@@ -39,6 +39,8 @@ const TYPES = [
   ['low_fuel', 'fuel', 'מפלס דלק נמוך', true], ['overload', 'electrical', 'עומס יתר', true], ['battery_low', 'electrical', 'מתח מצבר נמוך', true], ['mains_lost', 'mains', 'אובדן רשת חשמל', true],
   ['service_due', 'maintenance', 'טיפול תקופתי', true], ['controller_offline', 'comm', 'אין תקשורת עם הבקר', true],
 ] as const;
+/** GEN-UNITS-FIELD-2520: the English titles the server sends with each type (`title_en`, services/generator_catalog.py). */
+export const TITLE_EN: Record<string, string> = { fail_to_start: 'Failed to start', low_oil_pressure: 'Low oil pressure', high_coolant_temp: 'High coolant temperature', low_fuel: 'Low fuel level', overload: 'Overload', battery_low: 'Low battery voltage', mains_lost: 'Mains lost', service_due: 'Service due', controller_offline: 'Controller offline' };
 const NEEDS: Record<string, string[]> = { low_oil_pressure: ['oil_pressure'], high_coolant_temp: ['coolant_temp'], low_fuel: ['fuel_pct'], overload: ['gen_kw', 'load_pct'], battery_low: ['battery_v'], mains_lost: ['mains_available'], service_due: ['service_hours_left'] };
 export const GROUPS = [{ key: 'engine', title: 'מנוע' }, { key: 'fuel', title: 'דלק' }, { key: 'electrical', title: 'חשמל הגנרטור' }, { key: 'mains', title: 'רשת ומתג העברה' }, { key: 'maintenance', title: 'תחזוקה ומבחנים' }, { key: 'comm', title: 'תקשורת ומצב בקר' }];
 

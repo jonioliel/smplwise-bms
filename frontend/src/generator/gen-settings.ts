@@ -17,8 +17,8 @@ import {
   type DeviceCandidate, type DevicesResponse, type GenDevice, type GenSettings, type RoleItem,
 } from '../api/generator';
 import { describeError } from '../api/client';
-import { he, t, uiLang } from '../i18n/he';
-import { en } from '../i18n/en';
+import { t } from '../i18n/he';
+import { GEN_SETTINGS } from './gen-text';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -27,30 +27,9 @@ import { generatorAccess } from './access';
 import { glt, type GltKey } from '../i18n/generator-log';
 import { tr } from '../i18n/msg/misc';
 
-type SettingsText = typeof he.generator.settings;
-const mergeText = <T extends object>(base: T, over?: object): T => {
-  const out = { ...base } as Record<string, unknown>;
-  for (const [k, v] of Object.entries(over ?? {})) {
-    const b = out[k];
-    out[k] = typeof v === 'string' ? v : v && typeof v === 'object' && b && typeof b === 'object' ? mergeText(b as object, v as object) : b;
-  }
-  return out as T;
-};
-/** REVIEW-2490-FIXES-2500: the English table is built on an English read, from the English words in at that moment - not once when
- * this module is evaluated (a page that booted in Hebrew has no English pack yet; the in-place switch installs it later). Built again
- * only when the pack's table is another object (a pack installed anew). */
-let englishFrom: object | undefined;
-let english: SettingsText = he.generator.settings;
-const englishText = (): SettingsText => {
-  const over = en.generator?.settings;
-  if (over !== englishFrom) {
-    englishFrom = over;
-    english = mergeText(he.generator.settings, over);
-  }
-  return english;
-};
-/** GEN-UNITS-FIELD-2490: the settings texts of the ACTIVE language (English where it has the key, else Hebrew), read at render time. */
-const S: SettingsText = new Proxy(he.generator.settings, { get: (_t, k) => (uiLang() === 'en' ? englishText() : he.generator.settings)[k as keyof SettingsText] });
+/** GEN-UNITS-FIELD-2490: the settings texts of the ACTIVE language (English where it has the key, else Hebrew), read at render time
+ * (GEN-UNITS-FIELD-2520: the shared reader in gen-text.ts, also used by the alert routing screen). */
+const S = GEN_SETTINGS;
 /** GEN-UNITS-FIELD-2490: the unit of a value sits inside the field's frame (sw-field unit), not in its label - as electricity and water do. */
 const TH_UNIT = (): Record<string, string> => ({ oil_min_bar: S.units.bar, coolant_max_c: S.units.c, fuel_low_pct: S.units.pct, fuel_empty_pct: S.units.pct, overload_pct: S.units.pct, v_min: S.units.v, v_max: S.units.v, hz_min: S.units.hz, hz_max: S.units.hz, battery_min_12v: S.units.v, battery_min_24v: S.units.v, service_warn_h: S.units.hAhead, service_every_h: S.units.h });
 const RET_UNIT = (): Record<string, string> => ({ alert_retention_days: S.units.days, history_retention_days: S.units.days, stale_after_s: S.units.s });
