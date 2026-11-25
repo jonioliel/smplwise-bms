@@ -164,6 +164,25 @@ def validation(message: str, **details: Any) -> ApiError:
     return ApiError(422, "validation", message, details=details)
 
 
+# ADR019-FAMILY678-2520: the field of an issue that is about the submitted item as a whole (an issue list's empty `path`); D1 names a
+# field in every problem, and `body` is the ADR's name for the request as a whole. The web UI maps it back to the empty path
+# (`issuesOf` in frontend/src/api/client.ts).
+WHOLE_BODY = "body"
+
+
+def issue_problems(issues: Iterable[dict[str, Any]], *, key: str = "path", prefix: str = "") -> list[dict[str, Any]]:
+    """ADR-019 D1 (ADR019-FAMILY678-2520): a domain issue list (`[{path, code, message}]` - automations, schedules, scenarios,
+    blueprints (`param`), billing) as `problems`: `field` = `prefix` + the issue's `key` (an empty one is the whole item:
+    `prefix` without its dot, or `body`), `code` and `message` as they were. The list itself is still sent as the legacy
+    `details.errors` until its readers moved (ADR-019 Step 1 (d))."""
+    out: list[dict[str, Any]] = []
+    for i in issues:
+        name = str(i.get(key) or "")
+        field = f"{prefix}{name}" if name else (prefix.rstrip(".") or WHOLE_BODY)
+        out.append({"field": field, "code": str(i.get("code") or "invalid"), "message": i.get("message")})
+    return out
+
+
 def _unique(names: Iterable[Any]) -> list[str]:
     """Each name once, in first-seen order."""
     return list(dict.fromkeys(str(n) for n in names))
@@ -199,25 +218,6 @@ def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[
     if probs:
         details["problems"] = probs
     return cls(status, code, message, details=details)
-
-
-# ADR019-FAMILY678-2520: the field of an issue that is about the submitted item as a whole (an issue list's empty `path`); D1 names a
-# field in every problem, and `body` is the ADR's name for the request as a whole. The web UI maps it back to the empty path
-# (`issuesOf` in frontend/src/api/client.ts).
-WHOLE_BODY = "body"
-
-
-def issue_problems(issues: Iterable[dict[str, Any]], *, key: str = "path", prefix: str = "") -> list[dict[str, Any]]:
-    """ADR-019 D1 (ADR019-FAMILY678-2520): a domain issue list (`[{path, code, message}]` - automations, schedules, scenarios,
-    blueprints (`param`), billing) as `problems`: `field` = `prefix` + the issue's `key` (an empty one is the whole item:
-    `prefix` without its dot, or `body`), `code` and `message` as they were. The list itself is still sent as the legacy
-    `details.errors` until its readers moved (ADR-019 Step 1 (d))."""
-    out: list[dict[str, Any]] = []
-    for i in issues:
-        name = str(i.get(key) or "")
-        field = f"{prefix}{name}" if name else (prefix.rstrip(".") or WHOLE_BODY)
-        out.append({"field": field, "code": str(i.get("code") or "invalid"), "message": i.get("message")})
-    return out
 
 
 class ServiceInvalid(ValueError):

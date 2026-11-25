@@ -33,7 +33,9 @@ FAMILY_6 = {"automation", "scenarios", "scenario", "schedule"}
 FAMILY_7 = {"energy", "water"}
 FAMILY_8 = {"app", "backup", "brand", "building", "capture", "compliance", "docread", "door", "home", "incidents", "intercom", "local",
             "ma", "offline", "quiet", "readiness", "second", "settings", "user", "white"}
-LEFT = {"services/media_groups.py"}  # see the module docstring
+# see the module docstring; `services/intercom_messaging.py` (the access-messaging settings issue list) is converted by the parallel
+# family-4/5 row (ADR019-FAMILY45-2520), which also moves its screen reader
+LEFT = {"services/media_groups.py", "services/intercom_messaging.py"}
 
 
 def _inventory():
@@ -72,7 +74,7 @@ def test_the_ratchet_baseline_holds_and_records_these_families_at_zero():
     base = json.loads((REPO / "scripts" / "error_contract_ratchet.json").read_text(encoding="utf-8"))
     now = inv.build()["summary"]["legacy_422_by_family"]
     assert inv.ratchet_problems(now, base) == []
-    for fam in FAMILY_6 | FAMILY_7 | (FAMILY_8 - {"media"}):
+    for fam in FAMILY_6 | FAMILY_7 | (FAMILY_8 - {"intercom"}):
         assert base["legacy_422_by_family"].get(fam, 0) == 0, fam
     # the check itself: a family that grows, or appears, is refused
     assert inv.ratchet_problems({**now, "home": 1}, base)
