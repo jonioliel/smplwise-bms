@@ -128,7 +128,7 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
           series[r].push({ t: to - span + i * step, v, min: v - 4, max: v + 4 });
         }
       }
-      return json(route, { step_s: step, source: 'rollup_5m', from: to - span, to, series, units: Object.fromEntries(roles.map((r) => [r, r.includes('temp') ? '°C' : r.includes('_v') ? 'V' : '%'])), labels: Object.fromEntries(roles.map((r) => [r, r])), range: rng });
+      return json(route, { step_s: step, source: 'rollup_5m', from: to - span, to, series, units: Object.fromEntries(roles.map((r) => [r, r.includes('temp') ? '°C' : r.includes('_v') ? 'V' : '%'])), labels: Object.fromEntries(roles.map((r) => [r, ROLE_NAMES[r]?.he ?? r])), labels_en: Object.fromEntries(roles.map((r) => [r, ROLE_NAMES[r]?.en ?? r])), range: rng });
     }
     if (m && m[2] === 'runs') return o.log ? json(route, runsFor(Number(url.searchParams.get('page') ?? 1), Number(url.searchParams.get('page_size') ?? 8))) : err(route, 409, 'generator_log_off', 'יומן ההפעלות כבוי בהגדרות.');
     if (m && m[2] === 'policies' && /\/preview$/.test(m[3] ?? '')) {

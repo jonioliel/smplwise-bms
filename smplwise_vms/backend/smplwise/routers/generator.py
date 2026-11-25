@@ -302,6 +302,7 @@ def get_history(device_id: str, roles: str = Query("", max_length=400), range: L
     out = history.query(conn, device_id, wanted, lo, hi, max_points, now_ts)
     out["units"] = {r: cat.ROLES[r][1] for r in wanted}
     out["labels"] = {r: cat.ROLES[r][2] for r in wanted}
+    out["labels_en"] = {r: cat.role_label(r, "en") for r in wanted}  # GEN-SENSOR-NAMES-EN-2520 (additive)
     out["range"] = range
     return out
 

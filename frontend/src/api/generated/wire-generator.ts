@@ -169,6 +169,7 @@ export interface GeneratorHistory {
   series: Record<string, GeneratorHistoryPoint[]>;
   units: Record<string, string>;
   labels: Record<string, string>;
+  labels_en?: Record<string, string>;
   range: string;
 }
 

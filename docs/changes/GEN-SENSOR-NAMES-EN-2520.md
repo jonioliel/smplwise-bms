@@ -82,13 +82,30 @@ NOT_RUN: the full backend and frontend suites and the release gate (the train ga
 `private/planning/gen_sensor_names_en_2520_compare_2026-11-25.html` (local, Hebrew; before = base 8ae3cbaa3, after = this branch; same
 mock data).
 
-## Open questions
+## Part 2 - the history CSV export (lead: Q1 = a, Q2 = a)
 
-1. Other answers still carry Hebrew-only sensor labels (`values[].label`, `roles_detail[].label`, history `labels`). A frontend grep finds
+- `routers/generator.py` history answer: `labels_en` (the English name of each requested role) beside the unchanged `labels`; wire
+  `GeneratorHistory.labels_en: dict[str, str] = {}` (additive, optional in TypeScript); wire types regenerated.
+- `gen-logic.toCsv(h, roles, lang = 'he')`: with `lang` 'en' a column header uses `labels_en[role]`, else (Hebrew, or a role without an
+  English name, or an older server) the server's `labels[role]` as before. The Hebrew file is byte-identical (unit test: same string with
+  and without `labels_en`). `gen-charts-page.ts` passes `uiLang()`. Rows, units, the BOM and the `time` column are unchanged.
+- Test mock: the history answer sends the real Hebrew names in `labels` and the English in `labels_en` (the charts draw their names from
+  the frontend catalogue, not from `labels`).
+- Tests: backend `test_history_sends_labels_en_beside_the_unchanged_hebrew_labels`; unit `csv headers in the page language, the Hebrew
+  file unchanged`.
+- English sensor names (Q2 = a): kept as written; single names are corrected when the owner flags them.
+
+### Part 2 tests
+
+(filled below)
+
+## Open questions (answered by the lead)
+
+1. (a - done in part 2.) Other answers still carry Hebrew-only sensor labels (`values[].label`, `roles_detail[].label`, history `labels`). A frontend grep finds
    only one place that shows them: the history CSV export's column headers (`gen-logic.toCsv`, from history `labels`); the live screen and
    charts name the roles from the frontend catalogue.
    a. A small follow-up: `labels_en` in the history answer and the CSV header in the page language (recommended - the catalogue is ready).
    b. Leave as is (a downloaded file, not a screen).
-2. The English names were written here (generic genset wording, e.g. "Transfer switch", "Hours to next service").
+2. (a - keep.) The English names were written here (generic genset wording, e.g. "Transfer switch", "Hours to next service").
    a. Keep; correct single names when the owner sees them (recommended).
    b. Owner review of the full list first.

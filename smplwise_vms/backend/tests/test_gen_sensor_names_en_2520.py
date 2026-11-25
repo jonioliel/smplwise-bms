@@ -96,3 +96,14 @@ def test_role_mapping_sends_label_en_beside_the_unchanged_hebrew_label(app):
         assert i["label_en"] == cat.ROLE_NAMES_EN[i["role"]]
     fuel = next(i for i in items if i["role"] == "fuel_pct")
     assert (fuel["label"], fuel["label_en"]) == ("מפלס דלק", "Fuel level")
+
+
+def test_history_sends_labels_en_beside_the_unchanged_hebrew_labels(app):
+    c, db, _ = app
+    make_generator(db, "full", model="DSE7320")
+    detect(db)
+    h = c.get(f"{API}/devices/{gid(db)}/history", params={"roles": "fuel_pct,battery_v"}).json()
+    assert h["labels"] == {"fuel_pct": "מפלס דלק", "battery_v": "מתח מצבר"}
+    assert h["labels_en"] == {"fuel_pct": "Fuel level", "battery_v": "Battery voltage"}
+    full = c.get(f"{API}/devices/{gid(db)}/history").json()
+    assert set(full["labels_en"]) == set(full["labels"]) and all(full["labels_en"][r] == cat.ROLE_NAMES_EN[r] for r in full["labels"])

@@ -193,6 +193,8 @@ class GeneratorHistory(WireModel):
     series: dict[str, list[GeneratorHistoryPoint]]
     units: dict[str, str]
     labels: dict[str, str]
+    labels_en: dict[str, str] = {}
+    """GEN-SENSOR-NAMES-EN-2520 (additive): the same roles' English names (the CSV export's column headers on an English page)."""
     range: str
 
 

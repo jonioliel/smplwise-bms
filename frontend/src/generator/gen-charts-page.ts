@@ -7,7 +7,7 @@ import './gen-chart-set';
 import type { GenDevice, GenRange, HistoryResponse, GenSettings } from '../api/generator';
 import { getSettings } from '../api/generator';
 import { navigate } from '../router';
-import { he } from '../i18n/he';
+import { he, uiLang } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -52,7 +52,7 @@ export class GenChartsPage extends LitElement {
   private csv() {
     if (!this.data) return;
     const roles = historyRoles(metricsOf(capsOf(this.device)));
-    const blob = new Blob(['﻿', toCsv(this.data, roles)], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['﻿', toCsv(this.data, roles, uiLang())], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `generator-${this.range}.csv`;

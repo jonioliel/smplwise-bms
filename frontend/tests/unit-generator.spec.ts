@@ -115,6 +115,19 @@ test.describe('generator: charts, ranges, view mode', () => {
     expect(csv.split('\n')).toHaveLength(3);
     expect(csv.split('\n')[0]).toContain('(%)');
   });
+  test('GEN-SENSOR-NAMES-EN-2520: csv headers in the page language, the Hebrew file unchanged', () => {
+    const h = { step_s: 300, source: 'rollup_5m' as const, from: 0, to: 300, series: { fuel_pct: [{ t: 0, v: 90, min: 90, max: 90 }], battery_v: [{ t: 0, v: 27, min: 27, max: 27 }] }, units: { fuel_pct: '%', battery_v: 'V' }, labels: { fuel_pct: 'מפלס דלק', battery_v: 'מתח מצבר' }, range: '24h' };
+    const withEn = { ...h, labels_en: { fuel_pct: 'Fuel level' } };
+    const heOld = toCsv(h, ['fuel_pct', 'battery_v']);
+    expect(heOld.split('\n')[0]).toBe('"time","מפלס דלק (%)","מתח מצבר (V)"');
+    // Hebrew: byte-identical with or without the English names
+    expect(toCsv(withEn, ['fuel_pct', 'battery_v'])).toBe(heOld);
+    expect(toCsv(withEn, ['fuel_pct', 'battery_v'], 'he')).toBe(heOld);
+    // English: the server's English name; a role without one keeps the server's word; the rows are the same
+    const en = toCsv(withEn, ['fuel_pct', 'battery_v'], 'en').split('\n');
+    expect(en[0]).toBe('"time","Fuel level (%)","מתח מצבר (V)"');
+    expect(en.slice(1)).toEqual(heOld.split('\n').slice(1));
+  });
 });
 
 test.describe('generator: alerts and routing', () => {
