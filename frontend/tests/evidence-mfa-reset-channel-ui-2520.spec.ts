@@ -57,6 +57,8 @@ test('the reset channel shows "anywhere" by default and saves "local network onl
   const seg = row.locator('sw-segmented[data-fp-reset-channel]');
   await expect(seg).toHaveAttribute('value', 'any');
   await expect(seg).not.toHaveAttribute('disabled', '');
+  await row.scrollIntoViewIfNeeded();
+  await shot(row, 'reset-channel-row-only'); // the row alone (on a phone the save bar covers the card's end)
   await seg.locator('[data-fp-reset-channel-option="local"]').click();
   await tab.locator('[data-fp-save]').click();
   await expect(tab.locator('[data-fp-message]')).toBeVisible();
@@ -76,7 +78,8 @@ test('from outside, with "local network only" stored, the way back to "anywhere"
   await expect(row.locator('[data-fp-reset-channel-option="any"]')).toBeDisabled();
   await expect(row.locator('[data-fp-reset-channel-option="local"]')).toBeEnabled();
   await expect(row.locator('[data-fp-reset-channel-why]')).toContainText('אפשרית רק מהרשת המקומית');
-  await shot(tab.locator('[data-fp-policy-card]'), 'reset-channel-remote');
+  await row.scrollIntoViewIfNeeded();
+  await shot(row, 'reset-channel-remote'); // the row alone: on a phone the card is taller than the screen and the save bar covers its end
 });
 
 test('on the local network the way back to "anywhere" is open', async ({ page }) => {
