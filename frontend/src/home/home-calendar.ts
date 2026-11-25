@@ -12,7 +12,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { wallEvent } from './home-fb-api';
-import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
+import { cancelEvent, createEvent, listCalendars, myCalendar, occurrenceKey, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
 import { keepBuilding, readChosen } from '../components/building-filter-logic';
@@ -134,6 +134,7 @@ registerScreen((h: HomeHost) => ({
         : h.empty('cal', st.loading ? tr('טוענים…') : tr('אין אירועים ביום הזה'), canNew ? tr('אפשר להוסיף אירוע בכפתור "אירוע חדש".') : '')}</div>`;
   },
   ovl(o: ExtOvl) {
+    if (o.kind === 'bookDel') return bookDelSheet(h, o);
     const dr = st.draft;
     const x = html`<button class="rb" data-act="close" aria-label="${tr('סגור')}">${hi('x')}</button>`;
     const days = weekDays(h.now);
@@ -199,18 +200,47 @@ registerScreen((h: HomeHost) => ({
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },
     p2BookDel: (el) => {
+      // SCR-04: a row of "my bookings" is one DATE (every date of a series has the same event_id): it is found by its occurrence id,
+      // a pending request (no occurrence yet) by its event id
       const id = el.dataset.id ?? '';
-      const m = st.mine.find((x) => x.event_id === id);
-      const p = st.pending.find((x) => x.event_id === id);
+      const oid = el.dataset.oid ?? '';
+      const m = oid ? st.mine.find((x) => x.occurrence_id === oid) : undefined;
+      const p = m ? undefined : st.pending.find((x) => x.event_id === id);
+      if (!m && !p) return;
+      // one date of a confirmed series: "only this date" or, chosen explicitly, "the whole series"
+      if (m && m.state !== 'pending' && m.recurring) return ovlOpen(h, 'bookDel', { oid });
       const name = calName(m?.calendar_id ?? p?.calendar_id ?? '');
       const when = whenText(m?.start ?? p?.start, h.now);
       h.ovl = {
         type: 'ask', title: tr('לבטל את ההזמנה של {name}?', { name }), text: when, yes: tr('כן, בטל'),
-        run: () => void cancelEvent(id, m ? m.state : 'pending', m?.revision).then(() => { h.toast(tr('ההזמנה בוטלה')); load(h, true); }).catch((e) => h.toast(errText(e))),
+        run: () => void cancelEvent(m?.event_id ?? id, m ? m.state : 'pending', m?.revision).then(() => { h.toast(tr('ההזמנה בוטלה')); load(h, true); }).catch((e) => h.toast(errText(e))),
       };
+    },
+    p2BookDelGo: (el) => {
+      const o = h.ovl as ExtOvl | null;
+      const m = o?.kind === 'bookDel' ? st.mine.find((x) => x.occurrence_id === o.oid) : undefined;
+      if (!m) return;
+      const series = el.dataset.v === 'series';
+      const key = series ? null : occurrenceKey(m);
+      if (!series && !key) return; // never the whole series by default
+      h.ovl = null;
+      void cancelEvent(m.event_id, m.state, m.revision, key)
+        .then(() => { h.toast(series ? tr('הסדרה בוטלה') : tr('המועד בוטל')); load(h, true); })
+        .catch((e) => h.toast(errText(e)));
     },
   },
 }));
+
+/** SCR-04: cancelling one date of a series - the dialog names THAT date; "only this date" first, "the whole series" only as its own choice
+ * (a row without a usable date key offers the series alone, never silently). */
+function bookDelSheet(h: HomeHost, o: ExtOvl) {
+  const m = st.mine.find((x) => x.occurrence_id === o.oid);
+  if (!m) return nothing;
+  const key = occurrenceKey(m);
+  const title = tr('לבטל את ההזמנה של {name}?', { name: calName(m.calendar_id) });
+  return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog" role="alertdialog" aria-modal="true" aria-label=${title} data-sheet="bookDel"><span class="dlg-ic">${hi('check')}</span><h2 class="clamp2">${title}</h2><p class="muted" data-bookdel-when>${whenText(m.start, h.now)} · ${tr('הזמנה חוזרת')}</p>
+    <div class="dlg-acts ${key ? 'three' : ''}">${key ? html`<button class="hbtn strong" data-act="p2BookDelGo" data-v="one">${tr('רק המועד הזה')}</button>` : nothing}<button class="hbtn" data-act="p2BookDelGo" data-v="series">${tr('כל הסדרה')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
+}
 
 function book(h: HomeHost, sg: unknown) {
   // MULTI-BUILDING-FILTER-2520: the chosen building's rooms (the book tab is never drawn on a locked wall panel)
@@ -218,15 +248,15 @@ function book(h: HomeHost, sg: unknown) {
   const bSeg = st.bf.drawn(h.kioskLocked()) ? h.seg('p2CalBld', st.bf.keys(tr('כל הבניינים')), b, tr('בניין')) : nothing;
   const pr = paged(keepBuilding(st.rooms, b), h.phone ? 2 : 4, h.pg('bkR'));
   const mine = [
-    ...st.mine.map((m) => ({ id: m.event_id, cal: m.calendar_id, start: m.start, end: m.end, state: m.state })),
-    ...st.pending.map((p) => ({ id: p.event_id, cal: p.calendar_id, start: p.start, end: p.end, state: 'pending' })),
+    ...st.mine.map((m) => ({ id: m.event_id, oid: m.occurrence_id, cal: m.calendar_id, start: m.start, end: m.end, state: m.state })),
+    ...st.pending.map((p) => ({ id: p.event_id, oid: '', cal: p.calendar_id, start: p.start, end: p.end, state: 'pending' })),
   ].sort((a, b) => a.start.localeCompare(b.start));
   const pm = paged(mine, h.phone ? 2 : 3, h.pg('bkM'));
   // on a phone the buildings take their own row under the tabs (two segmented rows side by side would not fit 390 px)
   return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), html`${sg}${h.phone ? nothing : bSeg}`)}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}
     <div class="doors-body bk"><section class="door-list" aria-label="${tr('חדרים')}">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>${tr('הזמן')}</button></div>`)
       : h.empty('door', st.loading ? tr('טוענים…') : tr('אין חדרים להזמנה'), tr('כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.'))}${h.pager('bkR', pr.pages)}</section>
-      <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)
+      <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} data-oid=${m.oid || nothing} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)
         : html`<p class="muted pb-none">${tr('עוד לא הזמנתם חדר.')}</p>`}</section></div>`;
 }
 
