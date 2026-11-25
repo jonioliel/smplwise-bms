@@ -183,9 +183,13 @@ export const HUD_SURFACES: readonly HudSurface[] = [
 export const SKIN_MENU_SELECTORS: readonly string[] = [':host(sw-popover)', ':host(sw-dropdown) .pop', ':host(sw-app) .searchpanel'];
 
 /** The only places a stylesheet may SET the menu tokens, and the values allowed there (all opaque by construction): the glass bridge, the
- * media Bubble hosts that undo it, and the media remote's host. A new value anywhere else is a second source of truth. */
+ * media Bubble hosts that undo it, the media remote's host, and the home interface's "My account" sheet. A new value anywhere else is a
+ * second source of truth. */
 export const MENU_TOKEN_SETTERS: Readonly<Record<string, readonly string[]>> = {
   'styles/devices-themes.ts': ['var(--dv-surface-solid)', 'var(--dv-border)'],
   'styles/media-glass.ts': ['inherit'],
   'components/media-remote-css.ts': ['var(--mr-surface-solid)', 'var(--mr-border-strong)'],
+  // HOME-T120-REST-2530 (RELEASE-2530-TRAIN): the account sheet's token bridge (.acc-body) lends the full interface's account blocks the
+  // home theme's OPAQUE surface and border, so their menus stay opaque in the dark home theme too
+  'home/home-styles-extra.ts': ['var(--hs-surface-solid)', 'var(--hs-border)'],
 };

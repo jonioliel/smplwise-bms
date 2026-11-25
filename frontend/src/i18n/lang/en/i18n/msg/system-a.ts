@@ -1675,7 +1675,7 @@ export const en = {
   'לרשימה': 'Open the list',
   'את הגרסאות האלה מצרפים לכל פנייה לתמיכה': 'Attach these versions to every support request',
   'Arx (השרת)': 'Arx (the server)',
-  'גם בהגדרות ‹ עדכונים ובכותרת של בריאות ועבודות': 'Also in Settings › Updates and in the header of Health and jobs',
+  'גם בהגדרות ‹ עדכונים ובכותרת של בריאות ועבודות': 'Also in Settings ‹ Updates and in the header of Health and jobs',
   'ממשק (הדפדפן)': 'Interface (the browser)',
   'הגרסה שהדפדפן טען; אחרי עדכון היא שונה מהשרת עד שמרעננים את הדף': 'The version the browser loaded; after an update it differs from the server until the page is refreshed',
   'הרכיב שמחבר את Arx למערכת הבית': 'The component that connects Arx to the home system',

@@ -38,6 +38,7 @@ const ON_STACK: Record<string, { n: number; via?: string }> = {
   'home/home-schedules.ts': { n: 1, via: 'home/sw-home.ts' },
   'home/home-tickets.ts': { n: 2, via: 'home/sw-home.ts' },
   'home/sw-home-call.ts': { n: 1 },
+  'home/home-account.ts': { n: 1, via: 'home/sw-home.ts' }, // HOME-T120-REST-2530: the "My account" sheet (an ext overlay of sw-home's stack)
   'home/home-wall-rest.ts': { n: 2 }, // HOME-WALL-NIGHT-2500: the wall panel's takeover (alarm / urgent notice), its own HandModal layer
   // calendars
   'calendars/grid-overlays.ts': { n: 4 },
