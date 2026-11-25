@@ -20,7 +20,8 @@ export interface VisitsHome {
   can: { list: boolean; settings: boolean };
 }
 
-export type VisitStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'superseded' | 'unknown';
+// WISKEY-R6-2520: `ended` - an Arx record that ended (WisKey rc.19 external rows keep `approved` / `ended`)
+export type VisitStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'superseded' | 'ended' | 'unknown';
 
 export interface WiskeyVisit {
   id: string;
