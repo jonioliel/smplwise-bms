@@ -307,7 +307,11 @@ test.describe('resident phone flow', () => {
   test('SCR-03: "only this date" of a weekly booking cancels that date (its local key), with no error', async ({ page }) => {
     await open(page, '/calendars/cal?role=resident');
     await page.locator(`${R} [data-res-tab="mine"]`).click();
-    await page.locator(`${R} [data-res-booking="res4"] [data-res-cancel]`).click();
+    const row = page.locator(`${R} [data-res-booking="res4"]`);
+    await expect(page.locator(`${R} [data-res-booking]`).first()).toBeVisible();
+    // the list pages (no scrolling): the weekly lesson is the last of the resident's bookings
+    for (let i = 0; i < 5 && !(await row.count()); i += 1) await page.locator(`${R} [data-res-next]`).click();
+    await row.locator('[data-res-cancel]').click();
     const sheet = page.locator(`${R} [data-res-sheet="cancel"]`);
     await expect(sheet.locator('[data-res-scope="occurrence"]')).toHaveAttribute('aria-checked', 'true'); // the default choice
     await sheet.locator('[data-res-cancel-ok]').click();
