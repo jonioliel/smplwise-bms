@@ -241,6 +241,8 @@ test('the changed overlays: transform-only entrances, the exits fade only while 
   expect(nc).toMatch(/:host\(\[open\]\) \.panel \{\s*opacity: 1;\s*transform: none;\s*transition: transform 300ms var\(--mm-ease\);/);
   expect(nc).toContain('?inert=${!this.open}');
   expect(nc).toMatch(/prefers-reduced-motion: reduce\) \{[\s\S]*?:host,\s*\.panel,\s*:host\(\[open\]\) \.panel \{\s*transition: none;/);
+  // question C a: the pinned "requires approval" heading reads in the danger TEXT token (it was the severity fill, 3.76:1); its icon keeps the fill
+  expect(nc).toMatch(/\.gh\.pin \{\s*color: var\(--sw-danger-text\);\s*\}\s*\.gh\.pin \.ic \{\s*color: var\(--nt-sev-critical\);/);
   const qs = read('screens/area-quick-sheet-css.ts');
   expect(read('screens/area-quick-sheet.ts')).toContain('?inert=${!this.open}');
   expect(qs).toMatch(/:host\(\[mode='popup'\]\[open\]\) \.panel \{\s*opacity: 1;\s*\}/);

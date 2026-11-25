@@ -316,7 +316,12 @@ export class NotifyCenter extends LitElement {
         block-size: 1px;
         background: var(--dv-border);
       }
+      /* OVERLAY-FADE-2520 (question C a): the "requires approval" heading is text - the danger TEXT token (light #b91c1c, dark #ff8a82:
+         >= 4.5:1 on the menu surface); the severity fill colour read 3.76:1. The siren keeps the severity colour (a graphic, 3:1 is enough). */
       .gh.pin {
+        color: var(--sw-danger-text);
+      }
+      .gh.pin .ic {
         color: var(--nt-sev-critical);
       }
       .gh .ic {
