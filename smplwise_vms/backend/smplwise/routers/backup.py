@@ -244,6 +244,7 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
                    "safety": safety["name"] if safety else None,
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
+                   **({"settings_invalid": result["settings_invalid"]} if result.get("settings_invalid") else {}),  # CORE-04
                    **({"passwords": {k: result["passwords"][k] for k in ("restored", "kept_current", "need_reset_count", "legacy_plaintext")}} if result.get("passwords") else {})})
     switch = result.get("update_apply_enabled") or {}
     # SEC246 L4: the self-update switch is never taken from an archive; its own audit row records what was kept and what the archive held

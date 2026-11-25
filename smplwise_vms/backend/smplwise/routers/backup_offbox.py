@@ -583,7 +583,8 @@ def restore_from_copy(body: RestoreFromIn, request: Request, principal: Principa
           request_id=_rid(request),
           details={"object": meta["object"], "key_id": meta["key_id"], "safety": out["safety"]["name"], "mode": body.mode, "scope": out["scope"],
                    "tables": result["tables"], "files": result["files"],
-                   "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")}})
+                   "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
+                   **({"settings_invalid": result["settings_invalid"]} if result.get("settings_invalid") else {})})  # CORE-04
     switch = result.get("update_apply_enabled") or {}
     audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
           request_id=_rid(request), reason="kept_on_restore",

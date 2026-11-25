@@ -337,13 +337,83 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.second_factor_policy", "security.seco
 # never exported and never restored unless it is named in SETTINGS_TRAVEL - presentation and resource preferences that hold no
 # sign-in or access rule. Every key of the families is classified by name in SETTINGS_KEEP or SETTINGS_TRAVEL
 # (tests/test_secfix_restore_settings_2520.py fails for a new key that is in neither).
-POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.")
+POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.", "access.station_")
+# DEEP-REVIEW-2520-BACKEND-CORE CORE-04: listening and media through the door stations (privacy policy, the `access.station_*` family -
+# fail closed like the families above) and how long the audit is kept (an archive must never shorten it)
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_listen", "access.station_media", "access.station_media_max_talk_s",
+                                 "access.station_media_provider", "audit.retention_days"}
 SETTINGS_TRAVEL = frozenset({"remote.default_profile", "remote.wall_profile", "remote.max_live_streams", "remote.mse_fallback"})
 
 
 def _kept_setting(key: Any) -> bool:
     return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES)
                                      or (key.startswith(POLICY_PREFIXES) and key not in SETTINGS_TRAVEL))
+
+
+def _patch_fields() -> dict[str, Any]:
+    """The PATCH /settings model's fields by their settings key (call time: the router is imported only when a restore runs)."""
+    from ..routers.settings import SettingsPatch
+
+    return {f.alias: f for f in SettingsPatch.model_fields.values() if f.alias}
+
+
+def _valid_setting_value(key: str, value: Any, fields: dict[str, Any]) -> bool:
+    """CORE-04 (DEEP-REVIEW-2520-BACKEND-CORE): an archive's settings row passes the checks a normal settings write runs - the
+    PATCH /settings model's type, pattern, enum and range for a key it knows (the stored text as it is, or its JSON for an object,
+    a list or a number), an integer for INT_KEYS. A key that neither knows (a module's own setting, written through its own route)
+    is taken as before. Stored values are text: anything else is refused."""
+    from pydantic import ValidationError
+
+    from ..routers.settings import SettingsPatch
+    from .settings_store import INT_KEYS
+
+    if value is None or value == "":
+        return True  # an empty row reads as the default (settings_store.read_settings: `stored or default`)
+    if not isinstance(value, str):
+        return False
+    if key in INT_KEYS:
+        try:
+            int(value)
+        except ValueError:
+            return False
+    if key not in fields:
+        return True
+    try:
+        SettingsPatch.model_validate({key: value})
+        return True
+    except ValidationError:
+        pass
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return False
+    if parsed is None:
+        return False
+    try:
+        SettingsPatch.model_validate({key: parsed})
+        return True
+    except ValidationError:
+        return False
+
+
+def _drop_invalid_settings(data: dict[str, list[dict[str, Any]]]) -> list[str]:
+    """CORE-04: remove, in place, the archive's settings rows whose value a settings write would refuse; returns their keys. The
+    installation keeps its current value of such a key (a `replace` restore does not delete it) - never a value that breaks
+    GET /settings or the housekeeping pass."""
+    rows = data.get("settings")
+    if not rows:
+        return []
+    fields = _patch_fields()
+    keep: list[dict[str, Any]] = []
+    bad: list[str] = []
+    for r in rows:
+        key = r.get("key") if isinstance(r, dict) else None
+        if isinstance(key, str) and not _kept_setting(key) and not _valid_setting_value(key, r.get("value"), fields):
+            bad.append(key)
+            continue
+        keep.append(r)
+    rows[:] = keep
+    return sorted(set(bad))
 
 
 MAX_UPLOAD = 200 * 1024 * 1024
@@ -767,6 +837,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         keep_sensitive = sorted(sens.SENSITIVE_SETTINGS - brought)
         keep = _actor_rows(conn, actor_user_id) if scope == "project+access" else {}
         update_switch = _update_switch(conn, data)
+        settings_invalid = _drop_invalid_settings(data)  # CORE-04: before anything is deleted
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
         passkeys_now = _keep_passkeys(conn) if "users" in tables else None  # MFA-SECFIX-2500 SR-6
@@ -777,7 +848,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 if t == "settings":
                     # one rule for what stays (_kept_setting: the keep list, its prefixes and the fail-closed policy families) plus the
                     # sensitive settings the archive does not bring
-                    sensitive_kept = set(keep_sensitive)
+                    sensitive_kept = set(keep_sensitive) | set(settings_invalid)  # CORE-04: an invalid archive value keeps the current one
                     gone = [r[0] for r in conn.execute("SELECT key FROM settings").fetchall() if not _kept_setting(r[0]) and r[0] not in sensitive_kept]
                     for i in range(0, len(gone), 400):
                         part = gone[i:i + 400]
@@ -785,6 +856,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
+        if settings_invalid:  # counted with the unsafe rows (the drill's row count subtracts them) and named in the answer
+            skipped["settings"] = skipped.get("settings", 0) + len(settings_invalid)
+            log.warning("restore skipped %s setting(s) whose archive value a settings write would refuse", len(settings_invalid))
         door_blocks_dropped, door_blocks_sanitised = _sanitise_door_blocks(data)
         counts: dict[str, int] = {}
         for t in tables:
@@ -887,6 +961,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "water": water, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
             "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
+            "settings_invalid": settings_invalid[:100],
             "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
                           "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},
             "passwords": passwords}

@@ -284,6 +284,7 @@ class BackupRestoreBackup(ExactModel):
     update_apply_enabled: BackupRestoreBackupUpdateApplyEnabled
     backgrounds_rejected: list[Any]
     capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings
+    settings_invalid: list[str]  # CORE-04 (SEC-FIX-2520): archive settings a settings write would refuse - skipped, current value kept
     sensitive: BackupRestoreBackupSensitive
     passwords: BackupRestoreBackupPasswords | None
     safety_archive: BackupRestoreBackupSafetyArchive | None

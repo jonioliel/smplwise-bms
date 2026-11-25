@@ -230,6 +230,7 @@ export interface BackupRestoreBackup {
   update_apply_enabled: BackupRestoreBackupUpdateApplyEnabled;
   backgrounds_rejected: unknown[];
   capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings;
+  settings_invalid: string[];
   sensitive: BackupRestoreBackupSensitive;
   passwords: BackupRestoreBackupPasswords | null;
   safety_archive: BackupRestoreBackupSafetyArchive | null;
