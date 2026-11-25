@@ -71,9 +71,18 @@ PC (one file per process, `C:\cloude\smplwisebms\.venv`):
 | new tests | `pytest tests/test_notify_recipient_lang_2520.py` | exit 0, **13 passed** |
 | ruff (changed files) | `ruff check ...` | the new test file has 4 F811 (`fake_push` fixture imported and used as a parameter - the same pattern as `test_notify_channels.py` etc.); product files clean |
 
-Runner (slot B): RESULT_RUNNER
+Runner (slot B, job `p2520_notifylang_run.sh`, HEAD `48c0204a3`, 25.11 11:08-11:26 server time):
 
-NOT_RUN: the release gate; the frontend (nothing changed there); a real SMTP server, a real push service or the real relay (fakes
+| check | command | result |
+| --- | --- | --- |
+| backend lint | `scripts/gate/lint_backend.py --strict` | exit 0 |
+| wire types | `scripts/gen_wire_types.py --check` | exit 0 |
+| refusal-text inventory | `scripts/i18n_backend_errors.py` | exit 0 |
+| shard 1: this row's tests + i18n (`test_notify_recipient_lang_2520`, `test_i18n_errors_en_2520`, `test_i18n_backend_2490` / `b` / `c`, `test_default_names_i18n_2490`; 6 files) | pytest | **78 passed** |
+| shard 2: every `test_notif*` / `test_notify*` file (channels, e-mail, payload golden, core, fan-out, sources, recipients, sensors, WhatsApp, ...; 20 files) | pytest | **312 passed** |
+| shard 3: `test_mobile_push`, `test_push`, generator, other mobile, `test_tickets_notify_matrix`, `test_automations_notify` (7 files) | pytest | **146 passed** |
+
+NOT_RUN: the release gate and the rest of the backend suite (outside the three shards); the frontend (nothing changed there); a real SMTP server, a real push service or the real relay (fakes
 only: the in-process SMTP on 127.0.0.1, the fake push service, an httpx mock of the relay); no lab, no live device.
 
 ## Open questions (recommendation first)
