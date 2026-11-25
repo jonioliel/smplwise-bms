@@ -184,14 +184,29 @@ def _internal(user_id: str) -> Any:
     return Principal(user_id=user_id, username="", display_name="", source="internal")
 
 
+def sign_in_factor(conn: sqlite3.Connection, user_id: str) -> bool:
+    """MFA-REVIEW-DOCS-2520 (finding N-3): does the user hold a factor that answers a NEW remote sign-in - not merely a step-up method?
+    A Home Assistant user: the authenticator code (a recovery code rides on it) or an active phone key (owner Q51; ha_user_auth
+    .second_factor_need). An Arx-only identity: the code or a usable passkey (local_identity.has_factor - its passkey sign-in step).
+    A Home Assistant user's passkey is a step-up method only (step_up.methods_of): it never answers the remote sign-in, so under a
+    policy that requires a factor such a user goes to enrolment and cannot sign in from outside."""
+    from . import device_keys, local_passkeys, user_passkeys
+    from . import second_factor as sf
+
+    if user_passkeys.is_local_user(conn, user_id):
+        return local_passkeys.has_factor(conn, user_id)
+    return sf.is_enrolled(conn, user_id) or device_keys.has_active(conn, user_id)
+
+
 def signs_in_remotely(conn: sqlite3.Connection, user_id: str, *, remote_on: bool, after_reset: bool = False) -> bool:
     """Could this user complete a NEW remote sign-in (as far as Arx decides it, without asking Home Assistant)? The remote channel is on,
     the user is active and not a wall-only user, the remote policy admits them, and the second factor does not stop them: they hold a
-    factor, or their policy does not require one, or (the enforced sign-in policy's `ha_mfa` path) Home Assistant's own MFA was seen
-    for them and no `must_enroll` is pending. `after_reset`: as if every factor of the user were gone and `must_enroll` set."""
+    sign-in factor (`sign_in_factor` - a Home Assistant user's passkey is not one), or their policy does not require one, or (the
+    enforced sign-in policy's `ha_mfa` path) Home Assistant's own MFA was seen for them and no `must_enroll` is pending. `after_reset`:
+    as if every factor of the user were gone and `must_enroll` set."""
     if not remote_on:
         return False
-    from . import active_users, mfa_provenance, step_up
+    from . import active_users, mfa_provenance
     from . import ha_user_auth as hua
     from . import second_factor as sf
     from . import wall
@@ -200,7 +215,7 @@ def signs_in_remotely(conn: sqlite3.Connection, user_id: str, *, remote_on: bool
         return False
     if hua.remote_basis(conn, user_id) is None:
         return False
-    if not after_reset and step_up.methods_of(conn, user_id):
+    if not after_reset and sign_in_factor(conn, user_id):
         return True
     value, source = sf.effective_policy(conn, _internal(user_id), hua.ADMIN_PERMISSIONS)
     if value != "required":
