@@ -179,15 +179,15 @@ export class ArxPwaPrompts extends LitElement {
     .net[data-net='online'] i {
       background: var(--sw-live);
     }
+    /* OVERLAY-FADE-2520: the prompt card and the connection pill arrive by transform only - their texts are at full contrast from the
+       first frame (the fill mode stays: a delayed start keeps the start transform, never an invisible card) */
     @keyframes card-rise {
       from {
-        opacity: 0;
         transform: translateY(12px);
       }
     }
     @keyframes net-drop {
       from {
-        opacity: 0;
         transform: translate(50%, -8px);
       }
     }

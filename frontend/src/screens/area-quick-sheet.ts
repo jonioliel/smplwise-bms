@@ -865,7 +865,7 @@ export class AreaQuickSheet extends LitElement {
     const pres = quickSheetPresence(this.presence, this.areaPres);
     return html`<div class="scrim" data-qc-scrim @click=${() => this.close()}></div>
       <section class="panel" role="dialog" aria-modal="true" aria-label=${a?.name ?? ''} data-qc-panel data-qc-mode=${this.mode} data-qc-detent=${this.mode === 'sheet' ? this.detent : nothing} ?data-qc-expanded=${expandedNow}
-        @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
+        ?inert=${!this.open} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
         <button type="button" class="grab" aria-label=${hs('qcGrab')} data-qc-grab @keydown=${this.onGrabKey} @click=${this.onGrabClick}></button>
         <header>
           <span class="ring" ?data-on=${on}><sw-icon .name=${this.icon} size=${20}></sw-icon></span>

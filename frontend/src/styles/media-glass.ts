@@ -583,11 +583,11 @@ export const mediaGlassControls = css`
   .pilld .ic {
     font-size: var(--sw-fs-sm);
   }
-  /* popover menu (floor menu, source menu) */
+  /* popover menu (floor menu, source menu); also the media / notification toasts and the notification centre's dialogs.
+     OVERLAY-FADE-2520: by transform only - their texts are at full contrast from the first frame */
   @keyframes mm-pop {
     from {
       transform: scale(0.96);
-      opacity: 0;
     }
   }
   .pop {

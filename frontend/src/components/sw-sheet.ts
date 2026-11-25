@@ -29,7 +29,8 @@ const PHONE = '(max-width: 767px)';
  * Translucent: `rgba(--sw-sheet-rgb, --sw-sheet-alpha)` with `--sw-glass-blur-sheet` over the dimmed and blurred page
  * (`--sw-overlay`, `--sw-backdrop-blur`); solid `--sw-surface-solid` when the browser cannot blur or the OS asks for less
  * transparency (the classic skin's resting alpha is 1, so there it is simply a dialog). Opening is a spring (`--sw-t-sheet`,
- * `--sw-ease-thumb`), the content "focuses in"; `prefers-reduced-motion` removes every transition.
+ * `--sw-ease-thumb`), the content settles in; `prefers-reduced-motion` removes every transition. OVERLAY-FADE-2520: the entrance
+ * moves by transform only (the texts are at full contrast from the first frame); a closing sheet is inert, and only then fades.
  * PHONE-SHEET-2480: the look dial writes the alpha on <html> for every skin, so a skin without a sheet blur also sets
  * `--sw-sheet-alpha-min: 1` (tokens.ts) and its sheet stays opaque at any dial value; the glass skins set 0.
  * Accessibility: `role="dialog"` + `aria-modal` (not inline), focus moves to the first focusable (else the close button), Tab and
@@ -107,7 +108,10 @@ export class SwSheet extends LitElement {
       color: var(--sw-text);
       isolation: isolate;
       overflow: hidden;
-      transform: translateY(-50%) scale(0.86);
+      /* OVERLAY-FADE-2520: the exit (closed) state. The sheet is inert as soon as it closes (render), so its exit may fade: nobody can
+         reach a text of a leaving sheet. It lands from 96 % (the sw-dialog box's start), no longer 86 % - at full opacity a smaller start
+         read as a jump. */
+      transform: translateY(-50%) scale(0.96);
       opacity: 0;
       visibility: hidden;
       transition: transform 200ms var(--sw-ease-out), opacity 180ms var(--sw-ease-out), visibility 0s linear 220ms;
@@ -118,11 +122,13 @@ export class SwSheet extends LitElement {
     :host([narrow]) .sheet {
       inline-size: min(440px, calc(100% - 32px));
     }
+    /* OVERLAY-FADE-2520: the entrance moves by transform only - no opacity in this transition, so the sheet and every text in it are at
+       full contrast from the first frame it is visible */
     :host([open]) .sheet {
       transform: translateY(-50%) scale(1);
       opacity: 1;
       visibility: visible;
-      transition: transform var(--sw-t-sheet) var(--sw-ease-thumb), opacity 250ms var(--sw-ease-dialog), visibility 0s;
+      transition: transform var(--sw-t-sheet) var(--sw-ease-thumb), visibility 0s;
     }
     /* the grabber: a 44 px in-flow row of the sheet (never over the content), shown in the bottom-sheet layout only */
     .grab {
@@ -236,19 +242,16 @@ export class SwSheet extends LitElement {
     footer[hidden] {
       display: none;
     }
-    /* the content focuses in as the sheet lands (the Bubble intro video) */
+    /* the content settles in as the sheet lands (the Bubble intro video). OVERLAY-FADE-2520: by transform only - the fade and the blur
+       are gone, so no text of the sheet is below contrast (or blurred) at any frame */
     :host([open]) .body > ::slotted(*) {
       animation: focus-in var(--sw-t-sheet) var(--sw-ease-dialog) both;
     }
     @keyframes focus-in {
       from {
-        opacity: 0;
-        filter: blur(6px);
         transform: translateY(8px);
       }
       to {
-        opacity: 1;
-        filter: none;
         transform: none;
       }
     }
@@ -478,7 +481,7 @@ export class SwSheet extends LitElement {
     const showHeader = !!this.heading || this.hasHead;
     return html`<div class="backdrop" data-sheet-backdrop @click=${(e: Event) => e.target === e.currentTarget && this.close()}></div>
       <section class="sheet" role=${inline ? 'region' : 'dialog'} aria-modal=${inline ? nothing : 'true'} aria-label=${this.heading || nothing} data-sheet
-        @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
+        ?inert=${!this.open} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
         <button type="button" class="grab" tabindex="-1" aria-label=${tr('גרירה לסגירה')} data-sheet-grab></button>
         <header ?hidden=${!showHeader}>
           ${this.hasHead ? nothing : html`<div class="titles"><h3>${this.heading}</h3></div>`}

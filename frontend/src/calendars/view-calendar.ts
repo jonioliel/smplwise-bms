@@ -159,16 +159,18 @@ export class CalViewCalendar extends LitElement {
     .agenda .row { min-block-size: 44px; border: 0; font: inherit; text-align: start; cursor: pointer; inline-size: 100%; flex: none; }
     .agenda .row b { color: var(--sw-heading); }
     .fail { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-    .toasts { position: fixed; inset-inline: 0; inset-block-end: 24px; display: grid; justify-items: center; pointer-events: none; z-index: var(--sw-z-toast); }
+    .toasts { position: fixed; inset-inline: 0; --cal-toast-b: 24px; inset-block-end: var(--cal-toast-b); display: grid; justify-items: center; pointer-events: none; z-index: var(--sw-z-toast); }
     .toast { display: flex; align-items: center; gap: 12px; background: var(--sw-toast-bg); color: var(--sw-toast-text); border-radius: var(--sw-r-lg); padding-block: 9px; padding-inline: 14px 10px;
       font-size: var(--sw-fs-md); box-shadow: var(--sw-shadow-3); pointer-events: auto; max-inline-size: min(92vw, 640px);
-      transform: translateY(calc(100% + 30px)); opacity: 0; transition: transform 240ms var(--sw-ease-dialog), opacity 240ms var(--sw-ease-dialog); }
-    .toast.in { transform: none; opacity: 1; }
+      transform: translateY(calc(100% + var(--cal-toast-b) + 6px)); transition: transform 240ms var(--sw-ease-dialog); }
+    /* OVERLAY-FADE-2520: in and out by transform only - it rises from below the screen's edge and leaves the same way, at full contrast
+       all the while (its undo key stays readable while it can still be pressed) */
+    .toast.in { transform: none; }
     .toast.bad { background: var(--sw-danger); color: var(--sw-text-inverse); }
     .toast .tb { border: 0; background: transparent; color: inherit; font: inherit; font-weight: var(--sw-fw-bold); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 4px 6px; border-radius: var(--sw-r-xs); }
     .toast .tb:focus-visible { outline: 2px solid currentColor; }
     @media (prefers-reduced-motion: reduce) {
-      .toast { transform: none; transition: opacity 200ms ease; }
+      .toast { transform: none; transition: none; }
       .col .ev.fresh { animation: none; }
       .ring { animation: ringfade 450ms linear forwards; }
       @keyframes ringfade { from { opacity: 0.2; } to { opacity: 1; } }
@@ -186,7 +188,7 @@ export class CalViewCalendar extends LitElement {
       .mcell .d { justify-content: center; min-block-size: 20px; }
       .week { grid-template-columns: 40px repeat(var(--cols), minmax(0, 1fr)); }
       .wh b { font-size: var(--sw-fs-xl); }
-      .toasts { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom, 0px)); }
+      .toasts { --cal-toast-b: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom, 0px)); }
     }
   `];
 
