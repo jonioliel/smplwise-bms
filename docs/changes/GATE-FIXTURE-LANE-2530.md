@@ -80,12 +80,17 @@ when retried alone (lane run 1, efda5f63e, full set):
 | `release_gate.py --plan --root <checkout> --tier L` | runner at f8f3ecb6f | classification fixture 8 files; v2 pool shows one `fixture_<group>` job per group |
 | `bash -n scripts/gate/fixture_lane.sh` | runner | rc 0 |
 | ruff on the changed Python files | runner, repo-root config | the engine and `fixture_job.py` carry pre-existing findings (61 in all, `scripts/` is not ruff-gated); the new code's UP031 / BLE001 were tidied; `test_fixture_job.py` clean |
-| FINAL_RUN_PLACEHOLDER |
+| Fixture lane run 3 at the final engine (07d899fca), `GATE_FIXTURE_GROUPS=nvrless_cameras,shots_home_edit` (the `then` restart and a no-backend group) | runner, same command | **PASS in 3 m: fixture 27 passed / 0 failed** |
+| `tests/test_fixture_job.py` with the backend venv and conftest | runner at 07d899fca, `python -m pytest -p no:cacheprovider -o addopts= -rA tests/test_fixture_job.py` | 16 passed, rc 0 |
+| selftests again (`selftest_gate.py`, `selftest_engine_sync.py`, `selftest_gate_fast.py`) | runner at 07d899fca | SELFTEST PASSED x3 |
 
 NOT_RUN: a real release gate with the new engine (needs the engine re-installed with `engine_sync.py` after the merge; the drift check
 refuses otherwise); `fixture_lane.sh` itself (it takes `~/.smplwise-tests.lock` shared, which this row may not; the engine it runs was
 run directly instead); the nightly. The compare pages of HAND-SWITCH-HOME-* (the captures exist in the lane's logs folder; building the
 pages is the cards' own follow-up).
+
+Reports and logs (screenshots of the shot specs included) of the three runs: `~/smplwise-results/fixture-lane/` on the runner
+(`gate_pilot-GATE-FIXTURE-LANE-2530_{efda5f63e,f8f3ecb6f,07d899fca}.{md,json,logs}`, `checks_*.log`).
 
 ## Runtime
 
