@@ -240,10 +240,11 @@ def osd_document(xml: str, *, name_enabled: bool | None, datetime_enabled: bool 
 
 
 def set_channel_name(settings: Settings, conn: sqlite3.Connection, principal: Any, channel: int, name: str, *, request_id: str | None = None,
-                     client: httpx.Client | None = None) -> dict[str, Any]:
-    """The camera's name on the NVR (and so on its OSD) becomes the VMS name; the InputProxy document is written back as read."""
+                     client: httpx.Client | None = None, camera_id: str | None = None) -> dict[str, Any]:
+    """The camera's name on the NVR (and so on its OSD) becomes the VMS name; the InputProxy document is written back as read.
+    `camera_id` (VIDEO-SECFIX-2520): recorded on the change row, so its undo keeps the camera scope."""
     return apply_change(settings, conn, principal, kind="osd", permission="nvr.config.osd", target=f"name-{channel}", path=proxy_channel_path(channel),
-                        mutate=lambda x: set_tag(x, "name", name), note=f"שם ערוץ {channel}: {name}", request_id=request_id, client=client)
+                        mutate=lambda x: set_tag(x, "name", name), note=f"שם ערוץ {channel}: {name}", request_id=request_id, client=client, camera_id=camera_id)
 
 
 # ---------------------------------------------------------------- A3: alarm outputs

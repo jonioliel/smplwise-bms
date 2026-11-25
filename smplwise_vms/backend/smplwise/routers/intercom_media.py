@@ -48,6 +48,7 @@ from ..services import intercom_authority as ia
 from ..services import intercom_media as im
 from ..services import intercom_sync
 from ..services.leases import CameraLease
+from ..services.relay import sanitize_upstream_frame
 from ..services.wiskey_listen_adapter import ReceiveDownlink
 from ._common import raw_body as _raw_body, rid as _rid
 from . import media
@@ -308,24 +309,14 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
             websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="intercom_station", resource_id=station_id,
             make_stream=make_stream, lease=StationLease(db, settings, principal, station_id, profile), chain=chain, remote_cap=remote_cap, cap=cap,
             # go2rtc's error frames can carry a source address: never forwarded (the rule of a Home Assistant camera's stream)
-            on_text=_sanitize_frame,
+            # VIDEO-SECFIX-2520: the shared sanitizer of every relay route (services/relay.sanitize_upstream_frame, `upstream_error`)
+            on_text=sanitize_upstream_frame,
         )
     finally:
         im.MEDIA.drop_viewer(station_id, token)
         # WKLIVE-295: the last viewer of a station takes WisKey's leased stream (and its private source) out of go2rtc's memory again -
         # VIDEO-TRANSPORT-2400: after a short re-open grace (im.REOPEN_GRACE_S), so closing and re-opening the drawer is not a cold start
         await run_in_threadpool(lambda: im.release_leased_streams(settings, station_id, grace_s=im.REOPEN_GRACE_S))
-
-
-def _sanitize_frame(text: str) -> str | None:
-    """go2rtc's signalling passes; its `error` frames are replaced by a fixed code (their text may name the source)."""
-    try:
-        msg = json.loads(text)
-    except ValueError:
-        return None
-    if isinstance(msg, dict) and msg.get("type") == "error":
-        return '{"type":"error","value":"upstream_error"}'
-    return text
 
 
 # ---------------------------------------------------------------- talk
