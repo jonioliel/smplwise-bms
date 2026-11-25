@@ -390,13 +390,17 @@ def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, 
         return _clip(str(params.get("title") or source), 80), _clip(str(params.get("body") or ""), 180)
     title_t, body_t, label = s.title, s.body, s.label
     if lang != "he":
-        from .notify_policy_en import TEMPLATES_EN
+        from .notify_policy_en import PARAM_VALUES_EN, TEMPLATES_EN
 
         en = TEMPLATES_EN.get(base_key(source))  # NOTIFY-RECIPIENT-LANG-2520: a per-generator source reads its alert type's English
         if en is not None:
             title_t, label = en[0], en[0]
             if not params.get("_template"):
                 body_t = en[1]
+            # RELEASE-2520-TRAIN: a fixed Hebrew phrase the source itself put in a placeholder gets its English (names stay as written)
+            for k, values in PARAM_VALUES_EN.get(base_key(source), {}).items():
+                if p.get(k) in values:
+                    p[k] = values[p[k]]
     try:
         body = (str(params.get("_template")) if params.get("_template") else body_t).format_map(p)  # CR-031: a generator alert may carry its own body template
     except (ValueError, IndexError, KeyError):

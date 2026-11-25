@@ -90,6 +90,7 @@ TEMPLATES_EN: dict[str, tuple[str, str, str]] = {
     'security.second_factor_reset_by_admin': ('Sign-in methods reset', "An administrator reset a user's sign-in methods ({channel}). All of the user's sessions were signed out. Details are in the audit log.", 'Ended'),
     'security.second_factor_added': ('A sign-in method was added to your account', 'A sign-in method was added to your account: {name}. If you did not add it, remove it in “My account” and contact the system administrator.', 'Ended'),
     'security.device_key_added': ('A phone key was added to your account', 'A phone verification key was added to your account. If you did not add it, remove it in “My account” and contact the system administrator.', 'Ended'),
+    'security.second_factor_changed': ("A change to the account's sign-in methods", '{change}. If this was not you, check your sign-in methods in “My account” and contact the system administrator.', 'Ended'),  # MFA-FACTOR-HARDEN-2520 N-6 (RELEASE-2520-TRAIN)
     'security.app_device_key_reset': ('{notice_title}', '{notice_body}', 'Ended'),
     'security.app_device_key_released': ('{notice_title}', '{notice_body}', 'Ended'),
     'security.local_storm': ('Many sign-in attempts by Arx users', 'An unusual number of failed sign-ins, or heavy load on password checking. Sign-ins to dormant accounts are temporarily refused. Details are in the audit log.', 'Ended'),
@@ -137,4 +138,20 @@ TEMPLATES_EN: dict[str, tuple[str, str, str]] = {
     'generator.test_failed': ('Test run failed', '{name}: the test run failed.', 'Ended'),
     'generator.controller_offline': ('No communication with the controller', '{name}: no communication with the controller.', 'Ended'),
     'generator.not_auto': ('Controller not in auto mode', '{name}: the controller is not in auto mode.', 'Ended'),
+}
+
+# RELEASE-2520-TRAIN: a few sources fill a placeholder with a FIXED Hebrew phrase of their own (not a name typed by someone): the English
+# phrase for each, keyed by the source and the placeholder, then by the Hebrew value. render(lang="en") swaps a value found here; any
+# other value (a name, a number, an older text) stays as written. The Hebrew rendering never reads this table.
+PARAM_VALUES_EN: dict[str, dict[str, dict[str, str]]] = {
+    # MFA-FACTOR-HARDEN-2520 N-6: services/notify_sources.FACTOR_CHANGES_HE (a test keeps the two in step)
+    'security.second_factor_changed': {
+        'change': {
+            'אפליקציית האימות הוסרה מהחשבון שלך': 'The authenticator app was removed from your account',
+            'מפתח גישה הוסר מהחשבון שלך': 'A passkey was removed from your account',
+            'מפתח טלפון הוסר מהחשבון שלך': 'A phone key was removed from your account',
+            'נוצרו לחשבון שלך קודי שחזור חדשים, והקודים הקודמים כבר לא עובדים': 'New recovery codes were made for your account, and the previous codes no longer work',
+            'בוצעה כניסה לחשבון שלך עם קוד שחזור': 'Someone signed in to your account with a recovery code',
+        },
+    },
 }
