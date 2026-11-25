@@ -129,8 +129,9 @@ watch. The add-on log is the second source; its lines are quoted where they matt
   the unknown descriptor accepted) or `on` (needs the descriptor's listen capability).
 - **Expected outcome today:** "unavailable". Status row "האזנה לעמדה בלי שיחה" follows the last negotiated signed discovery
   (WISKEY-LISTEN-GATE-2520): `listen_unknown` until a signed discovery was read ("בדוק חיבור חתום"), `listen_no_downlink` while it does
-  not carry `station_talk_audio` with the opt-in `media/talk_open.parameters.listen` (the lab's rc.10 today), `listen_offer_rejected`
-  when the block comes in another shape. A version label never turns it on. Only `listen_off` goes away with this step; the step
+  not carry `station_talk_audio` with the opt-in `media/talk_open.parameters.listen`, `listen_offer_rejected`
+  when the block comes in another shape. A version label never turns it on (the rc.10 catalog copy already carries the exact block, so after a signed check the row
+  can read "on" while each station's drawer still decides by its own descriptor). Only `listen_off` goes away with this step; the step
   records the codes, nothing more. A listen session whose station does not offer listening is refused before any talk is opened.
 - **Screen:** the same tab, row "האזנה לעמדה" (shown while the media row is not off) › "ניסיון (סשן משותף)" › save.
 - **Writes:** one Arx setting. A listen session would be a microphone session from the station: AGENTS.md requires a task-specific
