@@ -7,13 +7,15 @@ machine word a screen keys on; the words are chosen when the envelope is answere
   1. a `Msg` user_message (a catalogue key + params; this module's helpers, the setup wizard, the readiness report, capabilities)
      is rendered in the user's language;
   2. otherwise an English user gets `details.message_en` when the raising code put one there (elevators, temperature, insights, ...);
-  3. otherwise the Hebrew message as raised. No requesting user (a refusal before sign-in, a background job) = Hebrew.
+  3. (I18N-REST-2520) otherwise the English of a constant Hebrew text from the table of smplwise/error_text.py (keyed by the Hebrew);
+  4. otherwise the Hebrew message as raised. No requesting user (a refusal before sign-in, a background job) = Hebrew.
 The Hebrew answer is byte for byte what it was before."""
 from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Any
 
+from .error_text import english as _table_english
 from .i18n import DEFAULT_LANG, Msg, register, t
 
 register("error", {
@@ -39,7 +41,8 @@ class ApiError(Exception):
     def translatable(self) -> bool:
         """True when the message has words in another language (a `Msg`, or `details.message_en`): only then is the requester's
         language worth reading."""
-        return isinstance(self.user_message, Msg) or isinstance((self.details or {}).get("message_en"), str)
+        return (isinstance(self.user_message, Msg) or isinstance((self.details or {}).get("message_en"), str)
+                or _table_english(self.user_message) is not None)
 
     def message_in(self, lang: str) -> Any:
         """`user_message` in `lang` (I18N-BACKEND-2490, the order in this module's docstring)."""
@@ -48,6 +51,9 @@ class ApiError(Exception):
         if lang == "en":
             en = (self.details or {}).get("message_en")
             if isinstance(en, str) and en:
+                return en
+            en = _table_english(self.user_message)
+            if en:
                 return en
         return self.user_message
 

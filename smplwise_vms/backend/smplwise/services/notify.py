@@ -464,6 +464,7 @@ def serialize(conn: sqlite3.Connection, row: sqlite3.Row, principal: Principal, 
         "can_ack": n["state"] != "resolved" and reach.can_ack(n), "has_snapshot": _snapshot_ready(conn, n, data_dir), "door": reach.door(n),
         "timeline": _timeline(conn, n["id"]), "my_deliveries": mine,
     }
+    _in_reader_language(conn, principal, n, out)
     if n["source"] == "ticket.digest":  # TKNOTIFMATRIX: the digest's ticket list, rendered for THIS reader now (never stored, never pushed)
         try:
             from ..i18n import localize_for
@@ -474,6 +475,24 @@ def serialize(conn: sqlite3.Connection, row: sqlite3.Row, principal: Principal, 
         except Exception:  # noqa: BLE001 - the row itself still reads
             log.warning("digest detail failed for %s", n["id"], exc_info=True)
     return out
+
+
+def _in_reader_language(conn: sqlite3.Connection, principal: Principal, n: dict[str, Any], out: dict[str, Any]) -> None:
+    """I18N-REST-2520: the title and body for an English reader, rendered again from the row's stored params with the source's English
+    templates (services/notify_policy_en.py) - only when the stored Hebrew is exactly what the source's Hebrew templates give for those
+    params, so a row worded otherwise (an older version, a body from its own template) is shown as stored. Never written back."""
+    try:
+        from .default_names import lang_of
+
+        lang = lang_of(conn, principal)
+        if lang == "he":
+            return
+        params = n.get("params") or {}
+        if (n["title"], n["body"]) != policies.render(n["source"], params):
+            return
+        out["title"], out["body"] = policies.render(n["source"], params, lang)
+    except Exception:  # noqa: BLE001 - the row reads in Hebrew rather than not at all
+        log.warning("notification %s: English rendering failed", n.get("id"), exc_info=True)
 
 
 def get_row(conn: sqlite3.Connection, principal: Principal, nid: str) -> tuple[sqlite3.Row, sqlite3.Row, Reach] | None:
