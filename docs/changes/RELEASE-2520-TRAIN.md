@@ -30,6 +30,7 @@ Every row merged with `--no-ff` in the order the lead set; each merge commit nam
 | 18 | `pilot/MULTI-BUILDING-FILTER-2520` | `66a33d2a6` | `b24dd9cb1` | none | base main; the building filter in the home interface (notice board, shared rooms) and the resident phone calendar; `GET /notices?scope=mine` gains `building`; 10 Linux pixel baselines. `gen_wire_types.py --check` 0 (`wire-notices.ts` as generated); `api_inventory.py` gives the same file (1943 routes); design and i18n ratchets unchanged |
 | 19 | `pilot/NOTIFY-RECIPIENT-LANG-2520` | `7b55e0e76` | `f3fdb961f` | none | cut from row 12 `f493b96a9`; push, e-mail and phone-app notifications in each recipient's language (`services/notify_delivery_lang.py`; WhatsApp unchanged). Backend only. Train fix `61a6959ef` (below). No card in `management/tasks.json` (MGMT-SYNC left it unregistered; open point 9) |
 | 20 | `pilot/WISKEY-R8-2520` | `fee46e05a` | `2b9a3a839` | none | cut from R7 `d4e7d1d3c`; `GET /system/bridge-key/service-grant` (local-only), the v3 service-write contract (journal unwired), the people-write path chosen once, the service approval block + 8 Linux pixel baselines, the "מושבת" hint. `gen_wire_types.py --check` 0; `wire_ratchet.py` 897 = baseline; i18n ratchet unchanged. Train fix `8a91908a3` (below) |
+| 21 | `pilot/ADR019-L14-STRICT-F123-2520` | `0204770f4` | `6a1b42ef5` | none | base main; 19 family-3 request models (nvr_write, nvr_privacy, mask_copy, cameras) to `extra=forbid`; `scripts/request_strict_ratchet.py` + baseline (144). Lead decisions Q1 = a, Q2 = a; CHANGELOG line `66cca52e8`. On the merged tree `request_strict_ratchet.py --check` holds (144), `gen_wire_types.py --check` 0. No card in `management/tasks.json` (open point 9) |
 
 Train fixes after rows 16-20:
 - `61a6959ef` (row 16 x rows 12 / 19): MFA-FACTOR-HARDEN-2520's new notice `security.second_factor_changed` came after I18N-REST-2520
@@ -183,6 +184,6 @@ document's finite animations before axe (`2aaa64f5b`) did not change it and was 
    a) a later row moves `_error()` and `MESSAGES` to `Msg` keys with English and lowers the ratchet (recommended) b) keep.
 8. **Design ratchet raised by 2** (`px-literal` 25509 -> 25511, R8's 1px border and coarse-pointer 44px): a) accept for 2.52, as the
    2.51 train did for new screens (recommended) b) the R8 owner replaces them with tokens once a hairline / touch token exists.
-9. **`NOTIFY-RECIPIENT-LANG-2520` has no card** in `management/tasks.json` (merged as row 19, recorded on RELEASE-2520-TRAIN's card).
+9. **`NOTIFY-RECIPIENT-LANG-2520` (row 19) and `ADR019-L14-STRICT-F123-2520` (row 21) have no card** in `management/tasks.json` (recorded on RELEASE-2520-TRAIN's card).
    a) the next MGMT-SYNC registers it as REVIEW with `7b55e0e76` / `f3fdb961f` (recommended) b) the train adds the card.
 10. **Still to come per the lead:** ADR019-FAMILY678-2520 (not final), then `error_contract_inventory.py --write-ratchet` and `--check` once.
