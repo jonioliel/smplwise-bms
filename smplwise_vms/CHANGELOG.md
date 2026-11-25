@@ -17,6 +17,13 @@
 - האזנה לעמדה: מצב התכונה נקבע לפי הגילוי החתום האחרון של WisKey (החיבור הישיר, אחרת הבדיקה החתומה האחרונה שהתקבלה); כל עוד לא ידוע - "לא ידוע"; האזנה שהעמדה לא מציעה נדחית לפני פתיחת שיחה. - Station listening: the feature state follows WisKey's last negotiated signed discovery (the direct connection, else the last accepted signed check); while not known it says "unknown"; a listen the station does not offer is refused before any talk is opened.
 - רישום ביקורים חיצוניים ב-WisKey לפי החוזה של rc.19; ביקור שהסתיים מוצג כ"הסתיים" לאורך כל המסלול. - External visit records in WisKey follow the rc.19 contract; an ended visit is labelled "ended" end to end.
 - אשף גילוי המצלמות: "אותו דבר לכולן" הוא מתג; צבעים ומידות לפי ערכי העיצוב המשותפים. - Camera discovery wizard: "same for all" is a switch; colours and sizes use the shared design tokens.
+- ממשק באנגלית: שאר הטקסטים הקבועים בעברית תורגמו (עורך התוכניות, מפת הקומה, סטודיו התוכניות ומסכים קטנים), וגם הודעות הסירוב של השרת וכותרות ההתראות מוצגות בשפת הקורא. - English interface: the remaining fixed Hebrew texts are translated (the plan editor, the floor map, plan studio and smaller screens), and the server's refusal messages and notification titles are shown in the reader's language.
+- הוספת דרך אימות מבחוץ, ואיפוס של מנהל מבחוץ, דורשים כניסה טרייה; המשתמש מקבל הודעה (בלי פרטים) כשדרך אימות שלו הוסרה, כשהופקו קודי שחזור חדשים או כשנכנסו בקוד שחזור. - Adding a sign-in method from outside, and an administrator's reset from outside, need a fresh sign-in; the user gets a notice (no details) when one of their methods is removed, new recovery codes are made, or a recovery code is used to sign in.
+
+### תוקן - Fixed
+- חלונות דו־שיח: הטקסטים כבר לא דהויים בזמן הפתיחה. - Dialogs: the texts are no longer faded while the dialog opens.
+- החשבון שלי › אבטחה: ביטול של מפתח טלפון, אסימון או כניסה שנדחה ממשיך להראות את הסיבה גם אחרי הרענון. - My account › Security: a refused revoke of a phone key, token or sign-in keeps showing its reason after the reload.
+- גשר 0.10.9: צימוד מחדש ל-WisKey מבטל מיד את הצימוד הקודם. - Bridge 0.10.9: re-pairing with WisKey refuses the old pairing at once.
 
 ### התקנה - Install
 - גשר חדש (0.10.9): דורש הפעלה אחת מחדש של מערכת הבית (באישור הבעלים). אין מיגרציה חדשה. - A new bridge (0.10.9): needs one home system restart (owner-approved). No new migration.

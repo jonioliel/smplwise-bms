@@ -29701,7 +29701,8 @@
       "Branch pilot/I18N-REST-2520, change note docs/changes/I18N-REST-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/I18N-REST-2520 head f493b96a9 merged 0f690fec1 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/I18N-REST-2520.md on the branch. Train fix f3dfcd158 (WisKey demo data marked i18n-keep; EN ratchet hard-coded 34 -> 0). Local spin-off branches pilot/I18N-RUNTIME-ERRORS-2520 and pilot/NOTIFY-RECIPIENT-LANG-2520 (at f493b96a9, not pushed, uncommitted work) are not registered. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/I18N-REST-2520 head f493b96a9 merged 0f690fec1 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/I18N-REST-2520.md on the branch. Train fix f3dfcd158 (WisKey demo data marked i18n-keep; EN ratchet hard-coded 34 -> 0). Local spin-off branches pilot/I18N-RUNTIME-ERRORS-2520 and pilot/NOTIFY-RECIPIENT-LANG-2520 (at f493b96a9, not pushed, uncommitted work) are not registered. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): train fix 714fe967e - backend refusal ratchet: every constant Hebrew refusal text has English (0 missing); R4's one new run-time text recorded (runtime 257 -> 258, --allow-raise, reason in the train note)."
     ],
     "owner": null,
     "commit": "f493b96a9",
@@ -29878,7 +29879,7 @@
     "test_ids": [
       "AT-FLAKY-FIX-2520-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29891,10 +29892,11 @@
       "Branch pilot/FLAKY-FIX-2520, change note docs/changes/FLAKY-FIX-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/FLAKY-FIX-2520 head 43828d697 (2 commit(s) ahead of origin/main 3d71fb183). No change note on the branch yet. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/FLAKY-FIX-2520 head 43828d697 (2 commit(s) ahead of origin/main 3d71fb183). No change note on the branch yet. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): pilot/FLAKY-FIX-2520 head 606246076 merged 1cc3aedb6 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 15); change note docs/changes/FLAKY-FIX-2520.md. Lead decision: no quarantine for evidence-mfa-screens-2510:88 or camera-discovery-2500 (none was added in the train); the train's repeat runs (x5 desktop + mobile) are in the train note. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "606246076",
     "actual_cost_usd": null
   },
   {
@@ -29916,7 +29918,7 @@
     "test_ids": [
       "AT-MFA-FACTOR-HARDEN-2520-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -29929,10 +29931,11 @@
       "Branch pilot/MFA-FACTOR-HARDEN-2520, change note docs/changes/MFA-FACTOR-HARDEN-2520.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MFA-FACTOR-HARDEN-2520 head d4986953a (7 commit(s) ahead of origin/main 3d71fb183). Cut on pilot/MFA-REVIEW-DOCS-2520 (284ac25ea). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MFA-FACTOR-HARDEN-2520 head d4986953a (7 commit(s) ahead of origin/main 3d71fb183). Cut on pilot/MFA-REVIEW-DOCS-2520 (284ac25ea). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (RELEASE-2520-TRAIN): pilot/MFA-FACTOR-HARDEN-2520 head eeb4bab89 merged 32f758bb1 into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 16; cut from MFA-REVIEW-DOCS-2520 284ac25ea, row 10); change note docs/changes/MFA-FACTOR-HARDEN-2520.md. Owner-approved N-1 / N-5 / N-6. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "eeb4bab89",
     "actual_cost_usd": null
   },
   {
@@ -30043,7 +30046,8 @@
       "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
     ],
     "evidence": [
-      "2026-11-25 (MGMT-SYNC-2520): Assembling on release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train). Merged so far: WISKEY-RESYNC-2520, WISKEY-R2/R3/R4/R6/R7-2520, WISKEY-BRIDGE-KEYSET-2520 (+ re-pair fix), DESIGN-LITERALS-2510, version bump a9dd8243c (2.52.0, draft changelog, API inventory), WISKEY-R5-2520, MFA-REVIEW-DOCS-2520, MFA-HA-PASSKEY-2520, I18N-REST-2520. Not yet merged: WISKEY-R8-2520, WISKEY-SCHED-READS-2520, ADR019-FAMILY45-2520, ADR019-FAMILY678-2520, FLAKY-FIX-2520, MFA-FACTOR-HARDEN-2520, MULTI-BUILDING-FILTER-2520, GEN-UNITS-FIELD-2520. Gate NOT_RUN; nothing released."
+      "2026-11-25 (MGMT-SYNC-2520): Assembling on release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train). Merged so far: WISKEY-RESYNC-2520, WISKEY-R2/R3/R4/R6/R7-2520, WISKEY-BRIDGE-KEYSET-2520 (+ re-pair fix), DESIGN-LITERALS-2510, version bump a9dd8243c (2.52.0, draft changelog, API inventory), WISKEY-R5-2520, MFA-REVIEW-DOCS-2520, MFA-HA-PASSKEY-2520, I18N-REST-2520. Not yet merged: WISKEY-R8-2520, WISKEY-SCHED-READS-2520, ADR019-FAMILY45-2520, ADR019-FAMILY678-2520, FLAKY-FIX-2520, MFA-FACTOR-HARDEN-2520, MULTI-BUILDING-FILTER-2520, GEN-UNITS-FIELD-2520. Gate NOT_RUN; nothing released.",
+      "2026-11-25 (RELEASE-2520-TRAIN): rows merged on release/2520-train in this order - WISKEY-RESYNC-2520 7ba2c445a, WISKEY-R2-2520 f94bbdeea, WISKEY-R3-2520 0e04d43eb, WISKEY-R4-2520 564e98d71, WISKEY-R6-2520 94def9d34, WISKEY-R7-2520 4b4d83847, WISKEY-BRIDGE-KEYSET-2520 4b2bf1ea4 (+ re-pair fix bfe445ee6), DESIGN-LITERALS-2510 10ee1aa8f, version 2.52.0 a9dd8243c, WISKEY-R5-2520 7a3a3154f, MFA-REVIEW-DOCS-2520 0154ba924, MFA-HA-PASSKEY-2520 b5604b743, I18N-REST-2520 0f690fec1 (+ f3dfcd158, 714fe967e), MGMT-SYNC-2520 dd4d70330, FLAKY-FIX-2520 1cc3aedb6, MFA-FACTOR-HARDEN-2520 32f758bb1. Checks per row in docs/changes/RELEASE-2520-TRAIN.md section 3. Release gate NOT_RUN (the lead runs it); nothing released."
     ],
     "owner": null,
     "commit": null,

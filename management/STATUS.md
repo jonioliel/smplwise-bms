@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-25T10:38:53.704712+00:00
+Generated: 2026-11-25T10:50:47.081315+00:00
 
 Tasks: 688 | Requirements: 802 | Tests: 819 | Screens: 32
 
@@ -12,8 +12,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 485
-- IN_PROGRESS: 12
-- REVIEW: 152
+- IN_PROGRESS: 10
+- REVIEW: 154
 
 ## Release scope counts
 - BETA: 20
@@ -738,8 +738,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WISKEY-SCHED-READS-2520](tasks/WISKEY-SCHED-READS-2520.md) | V1 | IN_PROGRESS | WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly | — |
 | [ADR019-FAMILY45-2520](tasks/ADR019-FAMILY45-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey) | — |
 | [ADR019-FAMILY678-2520](tasks/ADR019-FAMILY678-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 6, 7 and 8 | — |
-| [FLAKY-FIX-2520](tasks/FLAKY-FIX-2520.md) | V1 | IN_PROGRESS | Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason | — |
-| [MFA-FACTOR-HARDEN-2520](tasks/MFA-FACTOR-HARDEN-2520.md) | V1 | IN_PROGRESS | Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6) | — |
+| [FLAKY-FIX-2520](tasks/FLAKY-FIX-2520.md) | V1 | REVIEW | Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason | — |
+| [MFA-FACTOR-HARDEN-2520](tasks/MFA-FACTOR-HARDEN-2520.md) | V1 | REVIEW | Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6) | — |
 | [MULTI-BUILDING-FILTER-2520](tasks/MULTI-BUILDING-FILTER-2520.md) | V1 | IN_PROGRESS | Multi-building filter follow-up: the filter setting names the home interface lists; phone building control row | — |
 | [GEN-UNITS-FIELD-2520](tasks/GEN-UNITS-FIELD-2520.md) | V1 | IN_PROGRESS | Generator routing: minute fields carry their unit inside the frame | — |
 | [RELEASE-2520-TRAIN](tasks/RELEASE-2520-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2520-TRAIN - the 2.52.0 train | — |
