@@ -665,25 +665,20 @@ class WiskeyServiceEngine:
         from . import access_service_writer as asw
         from . import intercom_sync, wiskey_direct_join
 
-        join = wiskey_direct_join.installed()
-        if join is not None and join.selected():
-            writer = asw.writer_for(join) if action else None
-            # WISKEY-MAC-ADOPT-298: the final service contract has no users/delete or cards: such a write keeps the service channel
-            if writer is not None and not getattr(writer, "supports", lambda _a: True)(action):
-                writer = None
-            if writer is not None:
-                if person_id is not None and intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
-                    raise EngineError("not_sent", "outcome_pending")  # R3-06 holds on this path too: read the person fresh first
-                asw.record("direct_service_writer", "direct_service_writer")
-                raw = writer.write(asw.ServiceWrite(action=action, data=dict(data or {}), person_id=person_id, revision=revision,  # type: ignore[arg-type]
-                                                    attribution=asw.current_attribution()))
-                try:
-                    return person_from_raw(raw)
-                except ValueError:
-                    raise EngineError("unknown", "invalid_response") from None
-            asw.record("service_channel", "direct_service_writer_missing")
-        else:
-            asw.record("service_channel", "direct_not_selected" if join is not None else "provider_local")
+        # WISKEY-R8-2520: the path is chosen ONCE, explicitly, before anything is sent (asw.select_path): the service writer only for a
+        # service-write action with an available writer (cards / delete never: no contract version grants them), else the service
+        # channel. A refusal or an UNKNOWN on the chosen path is final for this write - never re-routed to the other path or contract.
+        choice = asw.select_path(action, wiskey_direct_join.installed())
+        asw.record(choice.path, choice.reason)
+        if choice.writer is not None:
+            if person_id is not None and intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
+                raise EngineError("not_sent", "outcome_pending")  # R3-06 holds on this path too: read the person fresh first
+            raw = choice.writer.write(asw.ServiceWrite(action=action, data=dict(data or {}), person_id=person_id, revision=revision,  # type: ignore[arg-type]
+                                                       attribution=asw.current_attribution()))
+            try:
+                return person_from_raw(raw)
+            except ValueError:
+                raise EngineError("unknown", "invalid_response") from None
         target = intercom_sync.person_target(person_id) if person_id is not None else None
         try:
             reply = intercom_sync.SYNC.action(self.settings, "person", send, person_from_raw_dict, self.WHO, lane="config", target=target)

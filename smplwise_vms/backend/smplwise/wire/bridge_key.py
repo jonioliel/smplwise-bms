@@ -187,6 +187,26 @@ class BridgeKeyBridgeKeyDirectTransport(ExactModel):
     revoke_in: str
 
 
+class BridgeKeyServiceGrant(ExactModel):
+    """WISKEY-R8-2520: the manual service grant v3 as WisKey reported it (`service_grants/current_v3`), or why nothing was read.
+    `state`: active | absent_or_revoked | refused | unknown | unsupported | unavailable. Never a grant reference, never key material;
+    `cards_granted` is always false; the owner acts only in WisKey's screen (`owner_actions_in`)."""
+    state: str
+    reason: str | None
+    wiskey_code: str | None
+    revision: Num | None
+    fetched_at: str | None
+    contract: str
+    commands: list[str]
+    cards_granted: bool
+    owner_actions_in: str
+    owner_screen_tab: str
+    message_he: str
+    message_en: str
+    card_off_he: str
+    card_off_en: str
+
+
 class BridgeKeyBridgeKey(ExactModel):
     enabled: bool
     go_live_permitted: bool

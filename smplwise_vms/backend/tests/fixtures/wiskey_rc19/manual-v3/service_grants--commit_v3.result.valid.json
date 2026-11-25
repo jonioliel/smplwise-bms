@@ -1,0 +1,40 @@
+{
+  "format": "wiskey-manual-service-grants.v3",
+  "revision": 1,
+  "status": "active",
+  "grant": {
+    "authority_ref": "synthetic",
+    "authority_revision": 1,
+    "scope_ref": "synthetic",
+    "grant_id": "synthetic",
+    "grant_revision": 1,
+    "permission_revision": 1,
+    "role": "access_manager",
+    "commands": [
+      "users/create",
+      "users/pin_generate",
+      "users/temporary_cancel",
+      "users/update"
+    ],
+    "fields": [
+      "access_category",
+      "access_purpose",
+      "access_timing_draft",
+      "access_timing_policy",
+      "active",
+      "assignments",
+      "display_name",
+      "employee_no",
+      "phone",
+      "pin",
+      "responsible_person",
+      "valid_from",
+      "valid_until"
+    ],
+    "stations": [],
+    "user_ids": [],
+    "allow_create": true,
+    "expires_at": null
+  },
+  "replay_available": false
+}

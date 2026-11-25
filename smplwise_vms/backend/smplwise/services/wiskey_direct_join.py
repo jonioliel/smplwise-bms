@@ -822,7 +822,9 @@ def janitor() -> int | None:
 #   - the native outcome `not_sent` (no byte of the mutation frame was written - the WKWRITE contract), whatever its code;
 #   - a refusal of the native writer BEFORE its intent for a transport / availability reason (the codes and prefixes below): the source
 #     read failed or WisKey's source does not offer the action, the lineage is closed / missing / stale, another holder has the scope;
-#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer).
+#   - (until WISKEY-R8-2520) a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write. WISKEY-R8-2520
+#     (WisKey rc19 R2 contract, `transports.selection`: "never downgrade or switch transport automatically after refusal or UNKNOWN"):
+#     a verified WisKey refusal is FINAL for that write - it is shown with its code, never re-sent on the classic channel.
 # Never: an `unknown` outcome (timeout after the write, a lost answer, a refused signature - WisKey's `Unauthorized` may follow a commit,
 # so the writer settles it unknown), a business refusal (invalid_fields, revision_conflict, user_not_found, ...), an Arx authority or
 # actor refusal (rbac_denied, actor_session_inactive, ...), or a lineage answer that names an earlier native write of this person or
@@ -831,7 +833,7 @@ def janitor() -> int | None:
 FALLBACK_NATIVE_ERRORS = frozenset({"action_not_offered", "lineage_unavailable", "lineage_closed", "lineage_missing", "lineage_stale",
                                     "writer_busy", "writer_fenced", STOPPED_CODE})
 FALLBACK_NATIVE_PREFIXES = ("source_unavailable:", "source_invalid:")
-FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})
+FALLBACK_REFUSALS: frozenset[str] = frozenset()  # WISKEY-R8-2520: none - every verified WisKey refusal is final (see above)
 NO_FALLBACK = frozenset({"create_origin_already_used", "person_write_in_flight", "duplicate_operation"})
 # WISKEY-DIRECT-V2-2520: v2 key / pairing refusals (WisKey `fallback_after_key_refusal: false`): never a classic write after them
 V2_NO_FALLBACK = frozenset({"bridge_key_changed", "pairing_ambiguous", "pairing_mismatch", "pairing_unverified", "pairing_stale",

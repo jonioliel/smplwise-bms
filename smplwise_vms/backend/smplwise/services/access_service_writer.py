@@ -230,6 +230,18 @@ def install(writer: ServiceWriter | None) -> None:
         WRITER = writer
 
 
+def _manual_v3_offered(join: Any) -> bool:
+    """WISKEY-R8-2520: the current direct connection is v2 and its `direct/capabilities_v3` offered WisKey's manual v3 block exactly
+    (an observation of WHICH contract applies - it grants nothing). No I/O, never raises."""
+    try:
+        link = join.session._link
+        cap = join.session.discovery.capabilities
+        return (link is not None and not link.closed and getattr(link, "protocol_version", 1) == 2 and cap is not None
+                and cap.connection_ref == link.connection_ref and cap.manual_service_write_v3 is True)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def writer_for(join: Any) -> ServiceWriter | None:
     """The writer the engine may use NOW on the selected direct connection, or None (-> the service channel). Never raises."""
     w = WRITER
@@ -237,15 +249,70 @@ def writer_for(join: Any) -> ServiceWriter | None:
         try:
             # WISKEY-MAC-ADOPT-298 item C: WisKey's FINAL contract (services/wiskey_service_write.py) replaces Arx's proposal above. It is
             # wired here, but it is available only once the OWNER's grant reference is configured (OWNER-CONFIG) - until then None.
+            # WISKEY-R8-2520: on a connection that offers WisKey's manual v3 contract, the ONE contract selected is v3, its grant read
+            # from WisKey (`service_grants/current_v3`, services/wiskey_service_grants_v3.py) - never v1 / v2 in its place, and never
+            # another contract after a refusal. Neither writer has a journal connection in production yet: both stay unavailable.
+            from . import wiskey_service_grants_v3 as v3
             from .wiskey_service_write import FinalServiceWriter
 
-            w = FinalServiceWriter.from_join(join)
+            w = FinalServiceWriter.from_manual_v3(join, v3.SOURCE) if _manual_v3_offered(join) else FinalServiceWriter.from_join(join)
         except Exception:  # noqa: BLE001
             w = None
     try:
         return w if w is not None and w.available() else None
     except Exception:  # noqa: BLE001
         return None
+
+
+# ---------------------------------------------------------------- WISKEY-R8-2520: the explicit path of ONE people write
+
+# The engine actions a service write can carry (WisKey `service_write_actions` that the engine uses). Cards and deletion are NOT service
+# writes in any contract version (v1 / v2 / v3): they always take the classic people CRUD of the service channel, and a v3 grant is never
+# read as card authority (WisKey R2 `service_profiles.cards`).
+SERVICE_WRITE_ACTIONS = frozenset({"users/create", "users/update"})
+CLASSIC_ONLY_ACTIONS = frozenset({"users/delete", "cards/add", "cards/remove"})
+PATH_SERVICE_WRITER = "direct_service_writer"
+PATH_SERVICE_CHANNEL = "service_channel"
+# the closed reasons of a choice (recorded by `record`; the readiness check reads `direct_service_writer_missing`)
+PATH_REASONS = ("provider_local", "direct_not_selected", "not_a_service_write_action", "direct_service_writer",
+                "direct_service_writer_missing")
+
+
+@dataclass(frozen=True)
+class PathChoice:
+    """Which path ONE people write takes, decided BEFORE anything is sent. A refusal or an UNKNOWN on the chosen path is final for
+    that write: the engine never re-routes it to the other path or to another contract (WisKey R2 `transports.selection`)."""
+
+    path: str
+    reason: str
+    writer: Any = None
+
+    @property
+    def contract(self) -> str | None:
+        return getattr(self.writer, "contract", None) if self.writer is not None else None
+
+
+def select_path(action: str | None, join: Any) -> PathChoice:
+    """The explicit choice for `action` (the engine's people write) on the current direct join. Never raises; no write."""
+    if join is None:
+        return PathChoice(PATH_SERVICE_CHANNEL, "provider_local")
+    try:
+        selected = bool(join.selected())
+    except Exception:  # noqa: BLE001
+        selected = False
+    if not selected:
+        return PathChoice(PATH_SERVICE_CHANNEL, "direct_not_selected")
+    if not action or action in CLASSIC_ONLY_ACTIONS or action not in SERVICE_WRITE_ACTIONS:
+        return PathChoice(PATH_SERVICE_CHANNEL, "not_a_service_write_action")
+    writer = writer_for(join)
+    try:
+        if writer is not None and not getattr(writer, "supports", lambda _a: True)(action):
+            writer = None
+    except Exception:  # noqa: BLE001
+        writer = None
+    if writer is None:
+        return PathChoice(PATH_SERVICE_CHANNEL, "direct_service_writer_missing")
+    return PathChoice(PATH_SERVICE_WRITER, "direct_service_writer", writer)
 
 
 # ---------------------------------------------------------------- the last path the engine took (read by the readiness check)
