@@ -156,6 +156,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("access_control_profiles", "access-control"),  # WISKEY-PROFILES-EDIT-2390: the groups and profile fields editor (its own file and its own line)
     Mount("access_control_schedule_writes", "access-control"),  # WISKEY-SCHED-WRITE-2390: the device schedule library's writes (its own file and line)
     Mount("access_control_schedule_reads", "access-control"),  # WISKEY-SCHED-READS-2520: WisKey's signed schedule inspection jobs (its own file and line)
+    Mount("access_control_schedule_execution", "access-control"),  # WISKEY-A2-EXEC-2530: read-only status of WisKey's reviewed schedule execution (its own file and line)
     Mount("access_control_triage", "access-control"),  # WISKEY-CONFLICTS-2400: conflict resolution and fleet alert actions (its own file and its own line)
     Mount("access_control_diag", "access-control"),  # WISKEY-ACCESS-DIAG-2400: the "אבחון הרשאות" views (its own file and its own line)
     Mount("wiskey_lineage", "access-control"),  # WKR5-295: the WisKey people-write lineage administration (its own line)

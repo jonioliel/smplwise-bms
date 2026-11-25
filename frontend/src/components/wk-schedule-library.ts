@@ -10,6 +10,8 @@ import './sw-icon';
 import './wk-action-button';
 import './wk-schedule-draft-form';
 import './wk-schedule-reads';
+import './wk-schedule-exec'; // WISKEY-A2-EXEC-2530
+import type { ExecChange } from './wk-schedule-exec';
 import type { StateKind } from './sw-badge';
 import type { AccessStation } from '../api/access-stations';
 import { dateInputLang } from '../api/day-format'; // DATEFMT60-295: Hebrew lang on date / time inputs
@@ -156,6 +158,15 @@ export class WkScheduleLibrary extends LitElement {
    * operations answer yet (loading, refused): no claim either way. */
   private get writesOff(): boolean {
     return this.ops?.writes_enabled === false;
+  }
+
+  /** WISKEY-A2-EXEC-2530: a status read (switch on) showed a job run and verified in WisKey by the owner's own approval and run. Only
+   * then the deploy warning says what is still true - Arx's deploy creates the job, the owner runs it in WisKey's screen - instead of
+   * "nothing is ever written". Memory only: after a reload the original warning is back until a new status read. */
+  @state() private ownerRan = false;
+
+  private writesOffText(): string {
+    return sed(this.ownerRan ? 'sx_writesOwnerOnly' : 'deployWritesOff');
   }
 
   static styles = css`
@@ -764,13 +775,15 @@ export class WkScheduleLibrary extends LitElement {
             <wk-action-button tone="quiet" icon="download" data-se-export ?busy=${this.busy === 'export'} ?disabled=${!!this.busy || !lib.length} @click=${() => void this.exportFile()}>${sed('exportFile')}</wk-action-button>
           </div>
           ${this.live ? nothing : html`<p class="warn" role="status" data-se-stale>${sed('stale')}</p>`}
-          ${this.writesOff ? html`<p class="warn" role="note" data-se-writes-off>${sed('deployWritesOff')}</p>` : nothing}
+          ${this.writesOff ? html`<p class="warn" role="note" data-se-writes-off data-sx-owner-ran=${this.ownerRan ? 'yes' : 'no'}>${this.writesOffText()}</p>` : nothing}
           ${this.note && !this.editing && !this.deploying ? this.renderNote() : nothing}
           <div class="rows">${lib.map((s) => this.renderScheduleRow(s))}</div>
         </div>
       </sw-card>
       ${this.renderPlans()} ${this.renderJobs()}
       <wk-schedule-reads data-se-reads .stations=${this.stations} ?live=${this.live}></wk-schedule-reads>
+      <wk-schedule-exec data-se-exec .stations=${this.stations} .jobs=${(this.ops?.jobs ?? []) as Job[]}
+        @sx-change=${(e: CustomEvent<ExecChange>) => (this.ownerRan = e.detail.executed)}></wk-schedule-exec>
       ${this.renderEditor()} ${this.renderDeploy()} ${this.editing || this.deploying ? nothing : this.renderAsk()}`;
   }
 
@@ -937,7 +950,7 @@ export class WkScheduleLibrary extends LitElement {
     return html`<sw-drawer modal open heading=${sed('deployTitle', { name: s.name ?? '' })} data-se-deploy-drawer=${s.id} @close=${(ev: Event) => ev.target === ev.currentTarget && this.closeDeploy()}>
       ${this.note ? this.renderNote() : nothing}
       ${this.progress ? this.renderProgress() : html`
-        ${this.writesOff ? html`<p class="warn" role="note" data-se-deploy-warning>${sed('deployWritesOff')}</p>` : nothing}
+        ${this.writesOff ? html`<p class="warn" role="note" data-se-deploy-warning>${this.writesOffText()}</p>` : nothing}
         <div class="panel" data-se-targets>
           <h4><sw-icon name="building" size=${14}></sw-icon>${sed('deployStep1')}</h4>
           ${this.stations.length ? nothing : html`<span class="s">${sed('noStations')}</span>`}

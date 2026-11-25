@@ -216,9 +216,17 @@ WISKEY_OWNER_ONLY: frozenset[str] = frozenset({"service_grants/read_v3", "servic
 DIRECT_READS_V2: frozenset[str] = frozenset({"direct/capabilities_v3", "direct/pairing_status_v2", "service_grants/current_v3"})
 
 
+# WISKEY-A2-EXEC-2530 (owner 25.11, A2 option b: "the owner approves in WisKey's screen, Arx shows status only"): WisKey's reviewed
+# schedule execution writes. `operations_decide_v1` is an approval; `operations_execute_v1` skips WisKey's dual approval for a pairing
+# principal (so from Arx it would run unapproved); `operations_preview_v1` opens a review only Arx's own actor could consume;
+# `operations_cancel_v1` writes the operation. Arx reads the status only (services/wiskey_schedule_execution.py).
+SCHEDULE_EXECUTION_OWNER_ONLY: frozenset[str] = frozenset({"schedules/operations_decide_v1", "schedules/operations_execute_v1",
+                                                           "schedules/operations_preview_v1", "schedules/operations_cancel_v1"})
+
+
 def direct_refusal(command: str) -> str | None:
     """Why `command` must never be written on the direct envelope (refused `not_sent` before any byte), else None."""
-    if command in WISKEY_OWNER_ONLY:
+    if command in WISKEY_OWNER_ONLY or command in SCHEDULE_EXECUTION_OWNER_ONLY:
         return "owner_action_in_wiskey"
     if command in OWNER_EXCLUDED_WRITES and not _installation_on():
         return "owner_excluded"
