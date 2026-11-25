@@ -332,9 +332,13 @@ test.describe('the handler page (slice 4)', () => {
     const pressed = posts().at(-1);
     expect(pressed?.token).toBe(TOKEN);
     // link B opened in the SAME tab (the tab's storage stays): nothing of A's draft is shown, queued or sent
-    await page.goto('about:blank');
-    await page.goto(`${ORIGIN}/t/#${TOKEN_B}`);
-    await page.waitForSelector('[data-ticket]');
+    for (const scheme of ['dark', 'light'] as const) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+      await page.goto('about:blank');
+      await page.goto(`${ORIGIN}/t/#${TOKEN_B}`);
+      await page.waitForSelector('[data-ticket]');
+      await shot(page, 'public-scr40-link-b-he', scheme);
+    }
     expect(await page.evaluate(() => sessionStorage.getItem('arx.t.token'))).toBe(TOKEN_B);
     await expect(page.locator('[data-queued]')).toHaveCount(0);
     await expect(page.locator('[data-note]')).toHaveValue('');
