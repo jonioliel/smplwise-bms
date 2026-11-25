@@ -25,7 +25,7 @@ Software only: nothing was installed, nothing touched the lab, no message went t
 | `end_reason` of an ended record came from the invitation only (null when the grant ended by itself) | low | the invitation's reason, else the grant's (`ended`, `manual` ... - Arx's own words); both null -> `record_invalid`, not sent |
 | The success answer was projected loosely (`_id`, revision may be null, status may be `unknown`) and never compared with what was sent | medium (a mis-shaped or foreign receipt read as "pushed") | `project_record(raw, expect=record)`: result.v1 exactly (closed four keys, lowercase UUID, strict revisions, `approved` / `ended`) and the sent `arx_revision` + `status`; anything else raises -> outcome `unknown` (settled by the reconcile) |
 | The reconcile scanned up to 5 pages x 200 and called **any** found row "recorded", whatever revision WisKey held | medium (an older record read as proof of the newer one) | when WisKey offers the record command (rc.19 B8) the reconcile sends ONE `visits/list` with the exact, case-sensitive `filters.external_ref` (decided before sending; the rc.10 page scan stays only when the command is not offered - rc.10 refuses the filter `invalid_fields`; no fallback after a refusal). The verdict compares WisKey's `arx_revision`: equal -> `recorded`; older -> `absent` (code `older_revision_in_wiskey`; WisKey keeps the highest revision); newer, missing or two rows for one key -> `undecided` (nothing settled) |
-| `ended` was not a known list status (an Arx record that ended showed `unknown`) | low | `ended` added to the projected statuses (the screen's label for it is a frontend follow-up, see Q2) |
+| `ended` was not a known list status (an Arx record that ended showed `unknown`) | low | `ended` added to the projected statuses, and end to end on the screen (follow-up from the coordinator): `VisitStatus` in `frontend/src/api/wiskey-visits.ts`, `STATUS_TEXT` in `frontend/src/access-external/wiskey-visits-logic.ts` = "הסתיים" (tone `off`), English "Ended" in `frontend/src/i18n/lang/en/i18n/msg/misc.ts` |
 | The refusal texts lumped `revision_conflict` with "newer version" and had no text for limit / missing person / not a visitor / stopping | low | `REFUSAL_TEXT`: own API code + Hebrew text per code, English in `details.message_en` (I18N-BACKEND-2490 path 2). `revision_conflict` is now `wiskey_visits_revision_conflict` (was `wiskey_visits_stale`); `visit_record_stale` keeps `wiskey_visits_stale`. The unknown and record-invalid messages carry `message_en` too |
 
 Kept unchanged: the switch (default off), capability discovery (`push_not_offered` with rc.10), the `sending` claim, one frame on the
@@ -62,9 +62,11 @@ The combined `GUIDE_ALL_HE.html` is not rebuilt here (it is rebuilt by the relea
   valid `4d9d2e5a` missing `70e3568f` wrong-type `d44e67ad` extra `7ea143be`; result.v1 valid `9b71ae3b` missing `83632a51` wrong-type
   `d898c2b4` extra `e1f6b269`; error.v1 valid `bfaa3f6f` missing `48b8bc91` wrong-type `f8842d72` extra `8d098ce3`. A test checks the
   schema bytes against SCHEMA_INDEX's sha256.
+- `frontend/src/api/wiskey-visits.ts`, `frontend/src/access-external/wiskey-visits-logic.ts`, `frontend/src/i18n/lang/en/i18n/msg/misc.ts`,
+  `frontend/tests/unit-wiskey-visits.spec.ts` - the `ended` label.
 - `docs/user-guide/he/52-external-access_HE.md`, this note.
 
-No UI file changed (no compare page needed). No wire model changed (no new response key). No migration, no setting. Rollback: revert the commit.
+One status label added in the visits panel (text only, existing tone, no layout change; no compare page made). No wire model changed (no new response key). No migration, no setting. Rollback: revert the commit.
 
 ## 5. Tests (PC, one file at a time, repo venv; real results)
 
@@ -74,7 +76,10 @@ No UI file changed (no compare page needed). No wire model changed (no new respo
 | `pytest -q tests/test_wiskey_visits_2407.py` (after the fake / fixture changes) | 0 | 18 passed |
 | `pytest -q tests/test_wiskey_rc10_pin.py tests/test_wiskey_visits_2407.py` (final tree) | 1 | 112 passed, 1 skipped, **3 failed - not R6**: `test_every_channel_command_is_an_rc10_command_including_the_formerly_unpinned_ones[system_status / relay_inventory / station_sync_v1]` - the three channels R1 registered (unpinned, newer than rc.10) are not exempted in that test's pin check. R6 changes no channel; the fix belongs to the registry owner (R1 / WISKEY-RESYNC-2520) - reported, not edited |
 | `ruff check` on the five changed Python files | 0 | all checks passed |
-| full backend suite, frontend tsc / unit, Playwright, `gen_wire_types --check`, `wire_ratchet` | - | **NOT_RUN** (PC memory rule; runner slot B not used; no wire / frontend file changed). The train gate runs them |
+| `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-visits.spec.ts` (node only) | 0 | 7 passed (incl. the new `ended` label test) |
+| `npx playwright test -c playwright.unit.config.ts tests/unit-i18n-en-ratchet-2490.spec.ts` | 0 | 5 passed (every catalogue key has its English) |
+| frontend `tsc --noEmit` + `-p tsconfig.tests.json` (runner, slot B) | 0 | both 0 (no errors); slot granted at once, commit `3a721f7ce` |
+| full backend suite, other frontend unit specs, Playwright e2e, `gen_wire_types --check`, `wire_ratchet` | - | **NOT_RUN** (PC memory rule; no wire file changed). The train gate runs them |
 | producer rc.19 / live WisKey / lab | - | **NOT_RUN / NOT_MEASURED** by rule (no lab, no install, no contact with WisKey). The lab has rc.10: the push stays `push_not_offered`, nothing is sent |
 
 Finding (not R6's file): the `/access/wiskey-visits/links` wire model (`wire/access_wiskey_visits.py` `AccessWiskeyVisitsLinksLink`)
@@ -86,8 +91,9 @@ the service instead. See Q5.
 
 1. A record Arx cannot make valid (e.g. a grant without an approval instant): a) refuse in Arx with the field names, nothing sent
    (recommended, built) b) fill a default (`approver_ref: "system"`, `approved_at` = now) - rejected: invents an approval fact.
-2. The screen label for a WisKey row with status `ended` (frontend `access-external/wiskey-visits-logic.ts`, not in R6's files): today it
-   falls back to "לא ידוע". a) add "הסתיים" in the R2 / next frontend row (recommended) b) leave it.
+2. The screen label for `ended`: done on this branch at the coordinator's request ("הסתיים" / "Ended"). Still open: the list's status
+   filter (router `status` Literal and the panel) has no `ended` option. a) leave it - rc.10 refuses `ended` as a filter (recommended
+   until rc.19 is installed) b) add it now, gated on the record command being offered.
 3. `revision_conflict` now has its own API code `wiskey_visits_revision_conflict` (was `wiskey_visits_stale`). The screen shows the
    server text, so nothing breaks. a) keep (recommended) b) keep the old code.
 4. First enable on a real WisKey: a) only after rc.19 is installed by the owner (Q7 of the plan), a full HA + Arx backup is taken, and one
