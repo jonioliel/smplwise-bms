@@ -14,6 +14,7 @@ import base64
 import hashlib
 import json
 import re
+import secrets
 import sys
 from enum import Enum
 from pathlib import Path
@@ -515,6 +516,158 @@ def test_source_fingerprint_without_a_pairing_tag_is_unavailable():
     state.update(legacy_retired=True, legacy_fp=None, signing=KID, keys={KID: "synthetic-material"})
     row = w.add(code="", state=state)
     refused("bridge_pairing_unknown", lambda: nks.source_fingerprint(w.hass, row.entry))
+
+
+# ====================================================================== a re-pair before detach / reload (WisKey acceptance, ported)
+#
+# WisKey's acceptance run FINAL-ARX-REPAIR (handoff 57e4615e, PRODUCT rc20 dcebb9f3, `tests/ha/test_arx_pairing_gap.py`) FAILED twice
+# on 8e412b0c0: with the WisKey fixture's key set (a routine rotation begun and committed, not retired) the entry's pairing code is
+# changed by `async_update_entry` and NOTHING is detached or reloaded; then (a) `source_fingerprint` must raise `Unavailable` and (b)
+# the OLD key must not open a NEW v2 socket. Ported here on this file's fakes; the v2 socket is a fake WisKey whose connect calls
+# `native_keyset.verify` (as `existing_bridge_auth.verify` does) and signs its identity reply with `binding.sign_reply`
+# (as `direct_bridge_origin.send_message` does), driven by Arx's own R7 `DirectApiTransport`.
+
+REPAIRED_CODE = "synthetic-repaired-new-code"
+REPO = "00000000-0000-4000-8000-0000000000a7"
+
+
+class NativeV2Socket:
+    """WisKey's v2 direct socket, only as far as it touches the bridge: hello -> connect proof -> `native_keyset.verify` -> on success
+    the identity reply signed by the binding; a refusal closes without a word (WisKey never echoes unauthenticated input)."""
+
+    def __init__(self, hass: Any, entry_id: str = "entry-1") -> None:
+        self.hass, self.subject = hass, "arx-service:" + entry_id
+        self.opened = 0
+        self.bindings: list[Any] = []
+        self.refusals: list[str] = []
+        self.tasks: list[asyncio.Task[Any]] = []
+        self.sockets: list[Any] = []
+
+    async def opener(self) -> Any:
+        from w10_fake_direct import MemorySocket
+
+        self.opened += 1
+        client, server = MemorySocket.pair()
+        self.sockets.append(server)
+        self.tasks.append(asyncio.get_running_loop().create_task(self._serve(server)))
+        return client
+
+    async def _serve(self, sock: Any) -> None:
+        from w10_fake_direct import Closed
+
+        challenge = secrets.token_hex(16)
+        try:
+            await sock.send(json.dumps({"type": "hello", "protocol": "wiskey-direct-ws.v2", "challenge": challenge}))
+            message = json.loads(await sock.recv())
+            try:
+                binding = await nks.verify(self.hass, message["bridge"])
+                _entry, kid = binding.check()
+            except nks.Unavailable as exc:
+                self.refusals.append(exc.code)
+                await sock.close()
+                return
+            self.bindings.append(binding)
+            identity = {"protocol": "wiskey-direct-ws.v2", "query_owner_id": self.subject, "principal_kind": "pairing_service",
+                        "connection_ref": challenge, "repository_id": REPO, "kid": kid}
+            frame = {"id": 1, "type": "result", "success": True, "result": identity}
+            sig = binding.sign_reply(wiskey_reply_bytes(kid, frame, challenge))
+            await sock.send(json.dumps({"kind": "wiskey-direct-reply.v2", "connection_ref": challenge, "frame": frame, "kid": kid, "sig": sig}))
+            while True:
+                await sock.recv()
+        except Closed:
+            return
+
+    async def stop(self) -> None:
+        for s in self.sockets:
+            await s.close()
+        for t in self.tasks:
+            t.cancel()
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+
+
+class NoV1:
+    async def __call__(self) -> Any:
+        raise AssertionError("v1 fallback attempted")
+
+
+def test_wiskey_acceptance_a_a_re_pair_before_reload_voids_the_previous_pairing_fingerprint(rotated):
+    """FINAL-ARX-REPAIR `test_repairing_cannot_keep_previous_pairing_fingerprint` (FAILED on 8e412b0c0: DID NOT RAISE)."""
+    w, row, _material = rotated
+    before = nks.source_fingerprint(w.hass, row.entry)
+    assert nks.legacy_allowed(w.hass, row.entry) is True
+    row.entry.data = {"pairing_code": REPAIRED_CODE}  # WisKey: async_update_entry(entry, data=...) - no detach, no reload
+    refused("bridge_pairing_changed", lambda: nks.source_fingerprint(w.hass, row.entry))
+    assert nks.legacy_allowed(w.hass, row.entry) is False
+    assert w.hass.data[nks.DATA_KEY]["entry-1"] is not None, "still attached: the refusal does not wait for detach or reload"
+    assert ksm.legacy_fingerprint(REPAIRED_CODE) != ksm.legacy_fingerprint(SECRET) and before
+
+
+def test_wiskey_acceptance_b_the_old_key_cannot_open_a_new_v2_socket_during_a_re_pair(rotated):
+    """FINAL-ARX-REPAIR `test_old_key_cannot_open_new_v2_socket_during_repair` (FAILED on 8e412b0c0: DID NOT RAISE MediaBridgeError).
+    A positive control first (the same transport and fake connect before the re-pair), so the refusal is not the fake's."""
+    w, row, material = rotated
+
+    async def scenario() -> tuple[Any, list[str], int]:
+        server = NativeV2Socket(w.hass)
+        transport = wmb.DirectApiTransport(NoV1(), lambda: ha_bridge.BridgeKey(material, KID), clock=w.now, opener_v2=server.opener)
+        try:
+            link = await transport.connect(wmb.PURPOSE_COMMAND)  # before the re-pair: accepted
+            assert (link.protocol_version, link.kid) == (2, KID)
+            await link.close()
+            open_binding = server.bindings[0]
+            saves = len(row.store.saved)
+            row.entry.data = {"pairing_code": REPAIRED_CODE}  # the re-pair, before any detach / reload
+            w.clock[0] += 1
+            link = None
+            try:
+                with pytest.raises(wmb.MediaBridgeError):
+                    link = await transport.connect(wmb.PURPOSE_COMMAND)
+            finally:
+                if link is not None:
+                    await link.close()
+            assert len(row.store.saved) == saves, "refused before the key set's check: no high-water write for a voided pairing"
+            return open_binding, server.refusals, server.opened
+        finally:
+            await server.stop()
+
+    open_binding, refusals, opened = run(scenario())
+    assert opened == 2 and refusals == ["bridge_pairing_changed"]
+    # the socket opened before the re-pair: WisKey's 0.25 s `check()` and its reply signing stop at once
+    refused("bridge_pairing_changed", open_binding.check)
+    refused("bridge_pairing_changed", lambda: open_binding.sign_reply(wiskey_reply_bytes(KID, {"id": 2, "type": "result"})))
+    refused("bridge_pairing_changed", nks.verify(w.hass, arx_connect(material, KID, w.now() + 2)))
+
+
+def test_the_bridges_own_pairing_states_stay_current_and_any_other_code_is_refused():
+    """What counts as the SAME pairing: the entry holds the key set's pairing secret; or, once the secret is retired, the retired code
+    (HA-06: a restart between the key save and the entry update) or the blank the bridge itself writes. Anything else is a re-pair."""
+    w = World()
+    row = w.add()
+    material = rotate(w, row)
+    binding = run(nks.verify(w.hass, arx_connect(material, KID, w.now())))
+    first = nks.source_fingerprint(w.hass, row.entry)
+    retire(w, row, KID, material)
+    assert row.keyset.legacy is None and row.entry.data["pairing_code"] == "", "the bridge blanked its copy (HA-06)"
+    assert binding.check() == (row.entry, KID) and nks.source_fingerprint(w.hass, row.entry) == first
+    row.entry.data = {"pairing_code": SECRET}  # the retired code left in the entry by a restart between the two writes
+    assert binding.check() == (row.entry, KID) and nks.source_fingerprint(w.hass, row.entry) == first
+    for other in (REPAIRED_CODE, SECRET + " ", 12345, b"bytes"):  # a re-pair after the first rotation; anything that is not a code
+        row.entry.data = {"pairing_code": other}
+        refused("bridge_pairing_changed", binding.check)
+        refused("bridge_pairing_changed", lambda: nks.source_fingerprint(w.hass, row.entry))
+        w.clock[0] += 1
+        refused("bridge_pairing_changed", nks.verify(w.hass, arx_connect(material, KID, w.now())))
+    row.entry.data = None  # no readable entry data: closed
+    refused("bridge_pairing_changed", binding.check)
+    row.entry.data = {}  # the bridge reads a missing code as blank, like `__init__` does
+    assert binding.check() == (row.entry, KID)
+    # before the first retirement the secret IS the pairing: a blank the bridge did not write is a change too (fail closed)
+    w2 = World()
+    fresh = w2.add()
+    material2 = rotate(w2, fresh)
+    fresh.entry.data = {"pairing_code": ""}
+    refused("bridge_pairing_changed", nks.verify(w2.hass, arx_connect(material2, KID, w2.now())))
+    assert nks.legacy_allowed(w2.hass, fresh.entry) is False
 
 
 # ====================================================================== nothing secret leaves the module
