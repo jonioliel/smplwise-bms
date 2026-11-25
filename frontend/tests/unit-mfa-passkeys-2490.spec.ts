@@ -153,8 +153,28 @@ async function virtualAuthenticator(page: Page): Promise<CDPSession> {
   return cdp;
 }
 
-async function openSection(page: Page) {
-  await page.goto('/?design=a#/live/cameras');
+// RELEASE-2510-TRAIN (gate run 1 at df3ee6d12): the release gate serves the build at the runner's own address (http://<host address>:<port>/),
+// which is not a secure context - `navigator.credentials` does not exist there and an IP address is never a WebAuthn RP id, so the
+// virtual authenticator could not answer and no passkey was added. When the base URL is not `localhost`, the page is opened at
+// http://localhost:<same port>/ and every non-API request of that origin is fetched from the real base URL and answered from it
+// (the API is this spec's mock, as before), so the app runs in a secure `localhost` origin whatever address serves it. Test-only.
+test.use({ serviceWorkers: 'block' }); // every page request must pass through the routes below
+
+async function appOrigin(page: Page, baseURL: string | undefined): Promise<string> {
+  const base = new URL(baseURL || 'http://localhost:4173/');
+  if (base.hostname === 'localhost') return base.origin;
+  const local = `http://localhost:${base.port || '80'}`;
+  await page.route(`${local}/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/api/')) return route.fallback(); // the mocked wire contract (setup)
+    const response = await route.fetch({ url: `${base.origin}${url.pathname}${url.search}` });
+    return route.fulfill({ response });
+  });
+  return local;
+}
+
+async function openSection(page: Page, baseURL: string | undefined) {
+  await page.goto(`${await appOrigin(page, baseURL)}/?design=a#/live/cameras`);
   await page.waitForSelector('sw-app');
   await page.locator(phone(page) ? 'sw-app [data-nav-me]' : 'sw-app [data-profile-menu]').click();
   const menu = page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
@@ -179,12 +199,12 @@ async function shots(page: Page, name: string) {
 test.describe('passkeys for every user', () => {
   test.skip(BEFORE, 'the server of before answers 403 for this user (compare shots only)');
 
-  test('add, rename, a second passkey after a passkey step-up (sent again once), remove the last with a warning', async ({ page }) => {
+  test('add, rename, a second passkey after a passkey step-up (sent again once), remove the last with a warning', async ({ page, baseURL }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const st = await setup(page);
     await virtualAuthenticator(page);
-    const section = await openSection(page);
+    const section = await openSection(page, baseURL);
     await expect(section.locator('[data-pk-title]')).toBeVisible();
     await expect(section.locator('[data-pk-note]')).toContainText('לפני שינויים רגישים');
     await expect(section.locator('[data-pk-empty]')).toBeVisible();
@@ -236,9 +256,9 @@ test.describe('passkeys for every user', () => {
     expect(errors).toEqual([]);
   });
 
-  test('the authenticator code answers the step-up; a wrong code says so; cancel sends nothing', async ({ page }) => {
+  test('the authenticator code answers the step-up; a wrong code says so; cancel sends nothing', async ({ page, baseURL }) => {
     const st = await setup(page, { totp: true, creds: [{ id: 'pk_1', rawId: b64u('no-such-device'), label: 'מפתח ישן' }] });
-    const section = await openSection(page);
+    const section = await openSection(page, baseURL);
     await expect(section.locator('[data-pk-item]')).toHaveCount(1);
     await section.locator('[data-pk-remove]').click();
     await expect(section.locator('[data-pk-last-factor]')).toHaveCount(0); // the code stays
@@ -262,9 +282,9 @@ test.describe('passkeys for every user', () => {
     expect(st.calls.filter((c) => c.method === 'DELETE').length).toBe(3); // refused, refused (after cancel), sent again once
   });
 
-  test('a refusal after the proof is shown and never retried again', async ({ page }) => {
+  test('a refusal after the proof is shown and never retried again', async ({ page, baseURL }) => {
     const st = await setup(page, { totp: true, alwaysRefuse: true, creds: [{ id: 'pk_1', rawId: b64u('x'), label: 'מפתח' }] });
-    const section = await openSection(page);
+    const section = await openSection(page, baseURL);
     await section.locator('[data-pk-remove]').click();
     await section.locator('[data-pk-remove-confirm]').click();
     await section.locator('[data-pk-step-up-code]').fill(GOOD);
@@ -276,10 +296,10 @@ test.describe('passkeys for every user', () => {
 });
 
 // The compare page: the section of a Home Assistant user before (the server refused: nothing) and after (passkeys). Only with SW_SHOTS.
-test('compare shots: the second-factor section of a Home Assistant user', async ({ page }) => {
+test('compare shots: the second-factor section of a Home Assistant user', async ({ page, baseURL }) => {
   test.skip(!process.env.SW_SHOTS, 'compare-page pictures only (SW_SHOTS=<dir>)');
   await setup(page, { creds: [{ id: 'pk_1', rawId: b64u('a'), label: 'מחשב העבודה' }, { id: 'pk_2', rawId: b64u('b'), label: 'הטלפון של דנה' }] });
-  const section = await openSection(page);
+  const section = await openSection(page, baseURL);
   if (!BEFORE) await expect(section.locator('[data-pk-item]')).toHaveCount(2);
   await page.waitForTimeout(400);
   await shots(page, 'cmp-section');
