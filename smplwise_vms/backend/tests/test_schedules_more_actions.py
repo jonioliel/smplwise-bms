@@ -477,7 +477,7 @@ def test_cw2442_allowing_disarm_takes_the_hebrew_or_the_english_word_only(more, 
     assert c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"}).status_code == 200
     for text in bad("schedules_allow_disarm"):
         r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": text})
-        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "schedules.allow_disarm_confirm"}, text
+        assert r.status_code == 422 and r.json()["code"] == "confirm_required" and r.json()["details"] == {"field": "schedules.allow_disarm_confirm", "fields": ["schedules.allow_disarm_confirm"]}, text  # ADR019-FAMILY678-2520
     assert c.get(f"{API}/settings").json()["settings"]["schedules.allow_disarm"] == "false"
     typed = good("schedules_allow_disarm", lang)
     r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": typed})
