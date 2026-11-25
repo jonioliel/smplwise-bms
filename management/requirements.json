@@ -13207,5 +13207,69 @@
     "test_ids": [
       "AT-I18N-SETTINGS-KEYWORDS-2490-1"
     ]
+  },
+  {
+    "id": "R-RELEASE-2480-TRAIN-1",
+    "title": "RELEASE-2480-TRAIN - the 2.48.0 train and its release",
+    "statement": "The 2.48.0 train on release/2480-train (22 merges, see docs/changes/RELEASE-2480-TRAIN.md section 1) passes the release gate, is tagged v2.48.0, published and installed in the lab with a passing read-only probe.",
+    "task_ids": [
+      "RELEASE-2480-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2480-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2490-TRAIN-1",
+    "title": "RELEASE-2490-TRAIN - the 2.49.0 train",
+    "statement": "The 2.49.0 train on release/2490-train passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab after the owner pre-approval.",
+    "task_ids": [
+      "RELEASE-2490-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2490-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-STEP0-2500-1",
+    "title": "ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields)",
+    "statement": "ADR-019 Migration plan Step 0, one row with no envelope change: wire/errors.py models (ErrorEnvelope, FieldProblem, FieldErrorDetails) and generated wire-errors.ts; errors.field_error(); fieldsOf / problemsOf in api/client.ts; the global RequestValidationError handler adds fields and problems additively; backend contract test that every RequestValidationError answer carries fields and problems next to errors.",
+    "task_ids": [
+      "ADR019-STEP0-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-STEP0-2500-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-L14-OBSERVE-2500-1",
+    "title": "ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings",
+    "statement": "ADR-019 L14 step 1: the observing request-body base model (records unknown keys) and SW_REQUEST_STRICT=1 in the backend test settings, so the tolerant web-UI models can adopt it family by family; no model flips to forbid in this row.",
+    "task_ids": [
+      "ADR019-L14-OBSERVE-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-L14-OBSERVE-2500-1"
+    ]
   }
 ]
