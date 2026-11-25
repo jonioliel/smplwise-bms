@@ -54,7 +54,7 @@ node_modules) is a skipped NOT_RUN item with its reason, never a pass; =require:
 branch without the baseline file (older than this change) and the timing lane run none of them.
 `--plan --root <checkout>` prints the v1 and v2 plans with time estimates from the recorded costs and runs nothing.
 """
-import concurrent.futures as cf, glob, json, math, os, re, shutil, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
+import concurrent.futures as cf, contextlib, glob, json, math, os, re, shutil, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -277,15 +277,11 @@ def reap_wait(p, secs=20):
     reap(p)
     try:
         p.wait(timeout=secs)
-    except Exception:
-        try:
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
-        try:
+        with contextlib.suppress(subprocess.TimeoutExpired):
             p.wait(timeout=10)
-        except Exception:
-            pass
 
 
 def run(cmd, cwd, log, env=None, timeout=None):
@@ -1707,8 +1703,9 @@ def fixture_block(wt, fe, logd, cls, gname=None):
             fenv = {k: fixture_expand(v, api, out) for k, v in penv.items()}
             fenv["SW_API_PORT"] = str(api)
             for projs, names in by_projs.items():
-                lab = f"fixture_{gname}{'' if not si else '_s%d' % si}_{'-'.join(projs)}"
-                status("running", f"Playwright fixture group {gname}{'' if not si else ' stage %d' % si}: {', '.join(names)}")
+                stage = f"_s{si}" if si else ""
+                lab = f"fixture_{gname}{stage}_{'-'.join(projs)}"
+                status("running", f"Playwright fixture group {gname}{f' stage {si}' if si else ''}: {', '.join(names)}")
                 rows, rc, to = run_pw(fe, names, list(projs), base_url, logd, lab, env=fenv, workers=1, timeout=left())
                 settle("fixture", rows, rc, to, fe, logd, base_url, fenv, lab)
     finally:
