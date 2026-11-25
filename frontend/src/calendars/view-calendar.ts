@@ -193,6 +193,8 @@ export class CalViewCalendar extends LitElement {
   @property({ attribute: false }) ctx: CalCtx | null = null;
   /** CAL-GRID-EDIT-2343: the resident's phone day grid - only the rooms he may book, the day view only */
   @property({ type: Boolean }) resident = false;
+  /** MULTI-BUILDING-FILTER-2520: the resident's building filter - the room calendars of other buildings, left out of his day grid */
+  @property({ attribute: false }) hideRooms: ReadonlySet<string> | null = null;
   @state() private mode: CalMode = 'month';
   @state() private anchor: Date = startOfDay(new Date());
   @state() private picked: Date | null = null;
@@ -384,7 +386,7 @@ export class CalViewCalendar extends LitElement {
   private shownCals(): Calendar[] {
     const list = visibleCals(this.ctx as CalCtx).filter((c) => !this.hiddenCals.has(c.id));
     // the resident sees only the rooms he may book (owner answer 4A / prototype: other rooms are not his to see here)
-    return this.resident ? list.filter((c) => c.type === 'room' && c.my_role && c.my_role !== 'view') : list;
+    return this.resident ? list.filter((c) => c.type === 'room' && c.my_role && c.my_role !== 'view' && !this.hideRooms?.has(c.id)) : list;
   }
 
   private shownOcc(): Occurrence[] {

@@ -13,6 +13,8 @@ export const en = {
   'כל הבניינים': 'All buildings',
   'בחירת בניין': 'Choose a building',
   'איזה בניין?': 'Which building?',
+  // MULTI-BUILDING-FILTER-2520: the building filter of the notice board and the shared rooms
+  'בניין': 'Building',
   'ריבוי בניינים': 'Several buildings',
   'בכל אתר עם כמה בניינים, הממשק הביתי מציג בניין אחד בכל פעם.': 'On a site with several buildings, the home interface shows one building at a time.',
   'בניין אחד בכל פעם': 'One building at a time',

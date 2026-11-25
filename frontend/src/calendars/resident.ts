@@ -5,6 +5,8 @@ import '../components/sw-icon';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-state-panel';
+import '../components/sw-building-filter';
+import { keepBuilding, pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import { describeError } from '../api/client';
 import { calErrorText } from './conflict-hint';
 import type { Calendar, Equipment, Occurrence, RoomDay } from '../api/calendars';
@@ -32,6 +34,10 @@ interface Alt { calendar_id: string; start: Date; end: Date; note: string }
  * requested (answer 13: or just "פנוי", or blocked); a bottom sheet confirms (the request goes to the room's manager when it needs approval);
  * "ההזמנות שלי" lists his entries with withdraw / cancel (answer 14: until the start, an hour or a day before - a setting) and, for an entry
  * displaced by maintenance, three alternatives he picks from (Arx never moves a booking by itself). No page scroll: lists page.
+ *
+ * MULTI-BUILDING-FILTER-2520 (2.52): on a multi-building site whose rooms sit in two or more buildings (the rooms answer's `building_filter`)
+ * the room list and the day grid carry the full interface's building filter (sw-building-filter, one row under the tabs): the chosen
+ * building's rooms, a room of the shared building under every building. Display only; "ההזמנות שלי" stays his whole list.
  */
 @customElement('cal-resident')
 export class CalResident extends LitElement {
@@ -114,6 +120,7 @@ export class CalResident extends LitElement {
     .done { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--sw-r-lg); background: var(--sw-success-soft); color: var(--sw-success-text); flex: none; }
     .done b { color: var(--sw-heading); display: block; }
     .center { display: grid; place-items: center; flex: 1; }
+    .bf { flex: none; }
     /* the bottom sheet (mobile-native: safe area, 16 px inputs, 44 px targets, the grab handle) */
     .scrim { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); animation: fade var(--sw-t-sheet) var(--sw-ease); }
     .sheet { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: var(--sw-z-modal); background: var(--sw-surface-solid); border-start-start-radius: var(--sw-r-2xl);
@@ -170,6 +177,12 @@ export class CalResident extends LitElement {
   @state() private alts: Alt[] | null = null;
   @state() private altPick = 0;
   @state() private page = 1;
+  /** MULTI-BUILDING-FILTER-2520: the rooms' building filter (null = none drawn), the chosen building ('' = the whole site) and the buildings
+   * each room serves (kept across the day reloads, for the day grid). */
+  @state() private buildingMeta: BuildingFilterMeta | null = null;
+  @state() private building = '';
+  private roomBuildings = new Map<string, readonly string[]>();
+  private hiddenMemo: { b: string; map: Map<string, readonly string[]>; set: ReadonlySet<string> } | null = null;
   /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
    * inside itself (api/long-lists.ts). */
   private lists = new LongListsController(this, () => (this.page = 1));
@@ -193,7 +206,7 @@ export class CalResident extends LitElement {
   }
 
   protected willUpdate(changed: PropertyValues): void {
-    if (changed.has('dayIdx') || changed.has('roomId') || changed.has('tab') || changed.has('past') || changed.has('duration')) this.page = 1;
+    if (changed.has('dayIdx') || changed.has('roomId') || changed.has('tab') || changed.has('past') || changed.has('duration') || changed.has('building')) this.page = 1;
     if (changed.has('roomId') || changed.has('dayIdx')) this.tlFrom = this.dayIdx === 0 ? timelineWindow(true, this.now).from : 8; // the time bar opens around now today
   }
 
@@ -249,6 +262,9 @@ export class CalResident extends LitElement {
     try {
       const r = await this.ctx.api.roomsDay(isoDate(this.day));
       this.rooms = r.rooms;
+      this.buildingMeta = r.building_filter ?? null;
+      this.building = pickChosen(this.buildingMeta, this.building || readChosen());
+      this.roomBuildings = new Map(r.rooms.map((x) => [x.calendar_id, x.buildings ?? []]));
     } catch (e) {
       this.error = describeError(e);
     } finally {
@@ -276,7 +292,7 @@ export class CalResident extends LitElement {
   /** Owner answer 15 as a setting: only the rooms he may book, or all of them (the others read "תפוס"). */
   private roomList(): { r: RoomDay; cal: Calendar; bookable: boolean }[] {
     const all = this.ui.resident_rooms === 'all_busy';
-    return (this.rooms ?? []).flatMap((r) => {
+    return keepBuilding(this.rooms ?? [], this.building).flatMap((r) => {
       const cal = this.cal(r.calendar_id);
       if (!cal) return [];
       const bookable = BOOKABLE.has(cal.my_role ?? '');
@@ -297,8 +313,26 @@ export class CalResident extends LitElement {
         <button type="button" role="tab" aria-pressed=${String(this.tab === 'book')} aria-selected=${String(this.tab === 'book')} data-res-tab="book" @click=${() => (this.tab = 'book')}>${tr('הזמנת חדר')}</button>
         <button type="button" role="tab" aria-pressed=${String(this.tab === 'mine')} aria-selected=${String(this.tab === 'mine')} data-res-tab="mine" @click=${() => { this.tab = 'mine'; this.done = ''; }}>${tr('ההזמנות שלי')}${!this.past && mineN ? html` <b class="num">${mineN}</b>` : nothing}</button>
       </div>
-      ${this.tab === 'grid' ? html`<cal-view-calendar resident .ctx=${this.ctx} data-res-view="grid"></cal-view-calendar>` : this.tab === 'book' ? this.bookView() : this.mineView()}
+      ${this.buildingRow()}
+      ${this.tab === 'grid' ? html`<cal-view-calendar resident .ctx=${this.ctx} .hideRooms=${this.hiddenRooms()} data-res-view="grid"></cal-view-calendar>` : this.tab === 'book' ? this.bookView() : this.mineView()}
       ${this.sheetView()}`;
+  }
+
+  /** MULTI-BUILDING-FILTER-2520: the building filter row - on the day grid and the room list (not inside one room, not "ההזמנות שלי"). */
+  private buildingRow() {
+    if (!this.buildingMeta || this.tab === 'mine' || (this.tab === 'book' && this.roomId)) return nothing;
+    return html`<sw-building-filter class="bf" data-res-building .filter=${this.buildingMeta} value=${this.building}
+      @building-change=${(e: CustomEvent<{ value: string }>) => { this.building = e.detail.value; this.start = null; }}></sw-building-filter>`;
+  }
+
+  /** The room calendars the day grid leaves out under the chosen building (null = none: the whole site, or no filter). */
+  private hiddenRooms(): ReadonlySet<string> | null {
+    if (!this.buildingMeta || !this.building) return null;
+    const m = this.hiddenMemo;
+    if (m && m.b === this.building && m.map === this.roomBuildings) return m.set; // the same set while nothing changed: the grid keeps its render
+    const set = new Set([...this.roomBuildings].filter(([, b]) => b.length > 0 && !b.includes(this.building)).map(([id]) => id));
+    this.hiddenMemo = { b: this.building, map: this.roomBuildings, set };
+    return set;
   }
 
   private stateView() {

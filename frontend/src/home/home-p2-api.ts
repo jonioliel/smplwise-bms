@@ -3,6 +3,7 @@
 // own routes for the calendar, shared-room booking, the notice board and a new scene (allowlisted for a home-only person).
 import { get, post, put } from '../api/client';
 import { httpAutomations, type SceneMember } from '../api/automations';
+import type { BuildingFilterMeta } from '../components/building-filter-logic';
 
 export interface Features {
   presence: { on: boolean; can: boolean };
@@ -30,11 +31,15 @@ export interface Occurrence {
   occurrence_id: string; event_id: string; calendar_id: string; room_calendar_ids: string[]; start: string; end: string; state: string; kind: string;
   title: string | null; organizer: { id: string; name: string } | null; revision: string; all_day: boolean;
 }
-export interface RoomDay { calendar_id: string; name: string; capacity: number | null; open: { from: string; to: string }[]; entries: Occurrence[] }
+export interface RoomDay {
+  calendar_id: string; name: string; capacity: number | null; open: { from: string; to: string }[]; entries: Occurrence[];
+  /** MULTI-BUILDING-FILTER-2520: the buildings the room serves (only when the answer carries `building_filter`) */
+  buildings?: string[] | null;
+}
 export const listCalendars = () => get<{ calendars: Calendar[] }>('calendar/calendars');
 export const occurrences = (from: string, to: string, cals: string[]) =>
   get<{ occurrences: Occurrence[] }>(`calendar/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cals.length ? '&calendars=' + cals.map(encodeURIComponent).join(',') : ''}`);
-export const roomsDay = (date: string) => get<{ rooms: RoomDay[] }>(`calendar/rooms/day?date=${date}`);
+export const roomsDay = (date: string) => get<{ rooms: RoomDay[]; building_filter?: BuildingFilterMeta }>(`calendar/rooms/day?date=${date}`);
 export const myCalendar = (from: string, to: string) => get<{ occurrences: Occurrence[]; pending: { event_id: string; title: string; start: string; end: string; calendar_id: string }[] }>(`me/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const createEvent = (body: { calendar_id: string; kind: 'event' | 'booking'; title: string; start: string; end: string }) =>
   post<{ event: { id: string }; state: string }>('calendar/events', body);
@@ -45,8 +50,10 @@ export const cancelEvent = (id: string, state: string, revision?: string) =>
 export interface Notice {
   id: string; title: string; body: string; severity: 'info' | 'important' | 'urgent' | string; read: boolean; pinned: boolean;
   starts_at: string | null; ends_at: string | null; published_at: string | null; when_text: string | null;
+  /** MULTI-BUILDING-FILTER-2520: the buildings the notice's audience serves (only when the answer carries `building_filter`) */
+  buildings?: string[] | null;
 }
-export const listNotices = () => get<{ notices: Notice[] }>('notices');
+export const listNotices = () => get<{ notices: Notice[]; building_filter?: BuildingFilterMeta }>('notices');
 export const readNotice = (id: string) => post<{ read: boolean }>(`notices/${encodeURIComponent(id)}/read`);
 interface BusRow { line: string; dest: string; hm: string; mins: number; quality?: string }
 export interface Buses { state: 'off' | 'fresh' | 'cached' | 'expired'; items?: BusRow[]; updated_hm?: string | null }

@@ -1175,7 +1175,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | multimedia | GET | `/api/v1/multimedia/remote-default` |  |
 | multimedia | PUT | `/api/v1/multimedia/remote-default` |  |
 | multimedia | GET | `/api/v1/multimedia/status` |  |
-| notices | GET | `/api/v1/notices` |  |
+| notices | GET | `/api/v1/notices` | MULTI-BUILDING-FILTER-2520: the reader's list (`scope=mine`) on a multi-building site names, per notice, the buildings its audience |
 | notices | POST | `/api/v1/notices` |  |
 | notices | GET | `/api/v1/notices/audience/options` | The floors, groups and built-in roles the compose dialog offers (names only). |
 | notices | POST | `/api/v1/notices/audience/preview` |  |

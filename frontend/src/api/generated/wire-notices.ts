@@ -3,6 +3,19 @@
 // sent as null instead); `unknown` is a value the backend passes through as stored. Code review 07:F8 step 2.
 /* eslint-disable */
 
+/** The filter of one list: the choices and the chosen building (null = the whole site). */
+export interface BuildingFilter {
+  buildings: BuildingFilterChoice[];
+  building: string | null;
+}
+
+/** One building the filter offers (the buildings the caller's items sit in; the full interface's order, the shared building last). */
+export interface BuildingFilterChoice {
+  id: string;
+  name: string;
+  is_shared: boolean;
+}
+
 export interface NoticeAudienceArea {
   id: string;
   name: string;
@@ -255,6 +268,7 @@ export interface NoticeRow {
   pushed_at?: string | null;
   push_generation?: number;
   reads?: number;
+  buildings?: string[] | null;
 }
 
 /** A promo slide (services/notices/slides._slide) with the boards that show it. */
@@ -359,6 +373,7 @@ export interface NoticesList {
   can: NoticesCan;
   now: string;
   defaults: NoticesDefaults;
+  building_filter?: BuildingFilter | null;
 }
 
 /** The answer of every modelled route of this family: `'METHOD path'` -> type. */
