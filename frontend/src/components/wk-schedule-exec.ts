@@ -98,10 +98,11 @@ export class WkScheduleExec extends LitElement {
     }
     .row {
       display: flex;
+      flex-wrap: wrap; /* a narrow screen puts the badge and the check under the text */
       align-items: center;
       gap: var(--sw-s-3);
       padding-block: var(--sw-s-3);
-      border-block-start: 1px solid var(--sw-border);
+      border-block-start: thin solid var(--sw-border);
       min-inline-size: 0;
     }
     .row:first-child {
@@ -110,7 +111,7 @@ export class WkScheduleExec extends LitElement {
     .main {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: var(--sw-s-1);
       flex: 1;
       min-inline-size: 0;
     }
@@ -118,11 +119,6 @@ export class WkScheduleExec extends LitElement {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text);
       overflow-wrap: anywhere;
-    }
-    @media (max-width: 640px) {
-      .row {
-        flex-wrap: wrap;
-      }
     }
   `;
 
