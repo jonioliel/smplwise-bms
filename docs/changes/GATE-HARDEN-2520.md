@@ -96,3 +96,34 @@ The quiet-hours tests were not run at 23:59 local (no faketime on the runner): N
 read the wall clock for the quiet decision (pinned `notify.now_utc`), resp. use a window around their own test clock.
 
 NOT_RUN: no release gate, no nightly, no full backend or Playwright suite (owner rule: the lead starts gates).
+
+## Installed on the runner (25.11, ~17:35 UTC, idle: no gate / nightly / entry check; the push watcher held the tests lock for a
+## branch pytest run that uses none of these files; every copy is an atomic rename)
+
+`python3 scripts/gate/engine_sync.py install --src ~/work/gateharden --files release_gate.py,release_gate2.sh,engine_sync.py,selftest_gate.py,nightly_tests.sh --suffix .bak_2511 --apply`
+from 4b1a424f2, then again from 41426b843 (only `release_gate2.sh` and `nightly_tests.sh` changed: line-continuation tidy). Manifest: `~/gate_install_manifest.json`.
+
+| installed file | sha256 | backup (`.bak_2511`) of the replaced file |
+|---|---|---|
+| `~/release_gate.py`, `~/gate2/release_gate.py`, `~/nightly-gate/release_gate.py` | `42294cde08ddc1675d0ebc16b366feea7bf052df2b9cf74f1bb621e4011fc097` | `~` and `~/gate2`: `fb0ffea60c3f0652...` (the engine without GATE-ONEPROJECT-2480); `~/nightly-gate`: `9d640cf8888a05ad...` (= train before this row) |
+| `~/gate2/release_gate2.sh` | `1b4fd5f411c09b462e6da3d0b6485ca3618abad65af82b2207076aa61bc454c0` | `f5904414ee636dc0...` |
+| `~/gate2/engine_sync.py`, `~/engine_sync.py` (new) | `5d594963b612d63bbd6392472cd9f4d9c9f6955d5c1a006420dca0d37ca72624` | - |
+| `~/selftest_gate.py` | `d5bdd996e41353eeb142b60f76899312f4d570dfc7d76e330581f64f1055d01f` | `b0683e101ec598e8...` |
+| `~/nightly_tests.sh` | `28e7045bd4ed6a3ef7b9f87a0834143b599c44d579d7a9d52bdaaad5396ecb9e` | a `.bak_2511` already existed (07:03 UTC today, the pre-Q11 copy, `23f491f8146b04d7...`) and was kept; the replaced Q11 copy equals the new file minus the engine-record lines |
+| `~/known_issues.json` | `[]` (`37517e5f...`) | `30597ced3b7a3be9...` (the 2 Oct pwa-push entry) |
+
+After the install `engine_sync.py check --ref origin/pilot/GATE-HARDEN-2520`: engine in sync; one warning: `~/gate2/gate_budget.py`
+differs from the repository (the runner carries the unmerged `chore/GATE-SPEED-2320` version, a superset with a `limit` command that
+no installed script calls). `~/nightly_tests.sh --dry-run` OK.
+
+## Consequences and open questions
+
+1. From now on `release_gate2.sh` / `gate_release.sh` REFUSE a branch whose `scripts/gate/release_gate.py` is not the installed one. The
+   2.52 train (`release/2520-train`, head af0021b2c at install time) does not contain this row yet, so its gate is refused until this
+   branch is merged into it. Options: (a) merge `pilot/GATE-HARDEN-2520` into the train before the gate - recommended; (b) gate the train
+   with `--engine-drift-ok "<reason>"` (the old behaviour of TR-01 stays in that tree's file, but the installed engine runs).
+2. `~/gate2/gate_budget.py` drift (above): (a) leave it, the warning is printed each gate - recommended until GATE-SPEED-2320 is decided;
+   (b) install the repository version.
+3. The nightly on main (02:00 UTC) now runs this engine although main does not have it yet: its record says so (warn only). With the
+   TR-01 fix a backend failure can no longer hide as FLAKY, so the next nightly may show reds the old engine hid.
+4. Not in this row: TR-03 (b)-(d) (tagcheck inside `release_check --tag`, NODISK/SKIPPED as red status, disk), TR-05, TR-07, TR-09.
