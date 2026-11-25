@@ -17,7 +17,7 @@ import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/mfa';
 
 /** The settings this tab edits (all through PATCH settings: system.configure, step-up gated, audited `settings.update`). */
-const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local'] as const;
+const KEYS = ['security.factor_policy', 'security.factor_policy_mode', 'security.factor_wall_exempt', 'security.remote_long_lived_tokens', 'security.passkey_remote_factor', 'security.step_up', 'security.step_up_minutes', 'security.step_up_local'] as const;
 type Key = (typeof KEYS)[number];
 type Values = Partial<Record<Key, string | number>>;
 
@@ -27,6 +27,7 @@ const FALLBACK: Record<Key, string | number> = {
   'security.factor_policy_mode': 'report',
   'security.factor_wall_exempt': 'on',
   'security.remote_long_lived_tokens': 'allow',
+  'security.passkey_remote_factor': 'off', // MFA-HA-PASSKEY-2520: off = the passkey is a step-up method only (the behaviour of before)
   'security.step_up': 'off',
   'security.step_up_minutes': 5,
   'security.step_up_local': 'off',
@@ -286,6 +287,7 @@ export class SwFactorPolicyAdmin extends LitElement {
     const mode = String(this.value('security.factor_policy_mode'));
     const wall = String(this.value('security.factor_wall_exempt')) !== 'off';
     const llat = String(this.value('security.remote_long_lived_tokens')) as FactorPolicy['long_lived_tokens'];
+    const passkey = String(this.value('security.passkey_remote_factor')) === 'on';
     return html`<sw-card heading=${tr('מדיניות אימות בכניסה מרחוק')} subheading=${tr('נבדקת בכל כניסה חדשה מרחוק. ברשת המקומית לא נשאלים.')} data-fp-policy-card>
       <div class="row" data-fp-row="policy"><span class="lbl">${tr('מי חייב אימות דו־שלבי')}</span>
         ${ro
@@ -306,6 +308,9 @@ export class SwFactorPolicyAdmin extends LitElement {
           : html`<sw-dropdown tall label=${tr('אסימונים ארוכי טווח מבחוץ')} data-fp-llat .value=${llat}
               .items=${(['allow', 'refuse_under_policy', 'refuse'] as const).map((v) => ({ id: v, label: LLAT_LABEL[v]() }))}
               @change=${(e: CustomEvent<DropdownChange>) => this.set('security.remote_long_lived_tokens', e.detail.id)}></sw-dropdown>`}</div>
+      <div class="row" data-fp-row="passkey"><span class="lbl">${tr('מפתח גישה כאימות בכניסה')}<span class="muted">${tr('מי שיש לו מפתח גישה יאמת בו או בקוד בכל כניסה חדשה מרחוק בדפדפן')}</span></span>
+        <sw-toggle data-fp-passkey .checked=${passkey} ?disabled=${ro} label=${tr('מפתח גישה כאימות בכניסה')} labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.passkey_remote_factor', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
     </sw-card>`;
   }
 

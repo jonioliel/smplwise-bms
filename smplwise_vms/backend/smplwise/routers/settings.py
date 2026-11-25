@@ -285,6 +285,7 @@ class SettingsPatch(BaseModel):
     security_step_up_minutes: int | None = Field(default=None, ge=0, le=30, alias="security.step_up_minutes")
     security_step_up_local: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_local")
     security_passkeys_all_users: str | None = Field(default=None, pattern="^(on|off)$", alias="security.passkeys_all_users")  # MFA-PASSKEYS-2490: system_admin only
+    security_passkey_remote_factor: str | None = Field(default=None, pattern="^(on|off)$", alias="security.passkey_remote_factor")  # MFA-HA-PASSKEY-2520
     security_factor_policy: str | None = Field(default=None, pattern="^(optional|admins|sensitive|all)$", alias="security.factor_policy")  # MFA-POLICY-2490
     security_factor_policy_mode: str | None = Field(default=None, pattern="^(report|enforce)$", alias="security.factor_policy_mode")
     security_factor_wall_exempt: str | None = Field(default=None, pattern="^(on|off)$", alias="security.factor_wall_exempt")

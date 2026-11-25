@@ -33,7 +33,7 @@ interface CreationOptionsJSON {
   excludeCredentials?: Descriptor[];
 }
 
-interface RequestOptionsJSON {
+export interface RequestOptionsJSON {
   challenge: string;
   rpId: string;
   timeout?: number;

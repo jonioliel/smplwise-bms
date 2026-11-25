@@ -100,6 +100,8 @@ export const en = {
   'הכניסה פגה. יש להיכנס מחדש.': 'The sign-in expired. Sign in again.',
   'אין חיבור לשרת.': 'No connection to the server.',
   'השרת דחה את הכניסה.': 'The server refused the sign-in.',
+  // MFA-HA-PASSKEY-2520: the remote sign-in step answered with a passkey (arx/auth.ts)
+  'אימות במפתח גישה אינו זמין כרגע. אמת עם הקוד מאפליקציית האימות.': 'Passkey verification is not available right now. Verify with the code from the authenticator app.',
   'ההתחברות פגה. יש להיכנס מחדש.': 'The sign-in expired. Sign in again.',
 
   // arx/native-device-view.ts: the phone app's "My device" sensors

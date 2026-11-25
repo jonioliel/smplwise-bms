@@ -285,6 +285,12 @@ def _factor_of(conn: sqlite3.Connection, person: dict[str, Any], mfa_seen: dict[
                 return "passkey"
         except sqlite3.OperationalError:
             pass
+    else:
+        from . import passkey_sign_in
+
+        # MFA-HA-PASSKEY-2520: while `security.passkey_remote_factor` is on, a home-system user's passkey that counts is a sign-in factor
+        if passkey_sign_in.counts(conn, uid):
+            return "passkey"
     if uid in mfa_seen:
         return "ha_mfa"
     return None
