@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.local/contracts/station-sync-request-v1/request.schema.json",
+  "version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "type",
+    "api_contract",
+    "station_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "type": {
+      "const": "hikvision_intercom/sync/station_v1"
+    },
+    "api_contract": {
+      "const": 1,
+      "type": "integer"
+    },
+    "station_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

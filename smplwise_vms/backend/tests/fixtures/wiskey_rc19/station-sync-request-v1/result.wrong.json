@@ -1,0 +1,8 @@
+{
+  "contract": "wiskey-station-sync-request.v1",
+  "request_id": "00000000-0000-4000-8000-000000000001",
+  "station_id": "synthetic-station",
+  "accepted": true,
+  "scope": "current_attached_runtime_only",
+  "effect_proven": "wrong"
+}

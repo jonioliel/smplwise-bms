@@ -1,0 +1,6 @@
+{
+  "id": 1,
+  "type": "hikvision_intercom/sync/station_v1",
+  "api_contract": 1,
+  "station_id": "synthetic-station"
+}

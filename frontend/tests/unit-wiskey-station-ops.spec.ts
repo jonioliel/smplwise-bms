@@ -9,13 +9,18 @@ import {
   reasonText,
   runOnStations,
   runOp,
+  shortId,
   statusText,
   statusTone,
   stepText,
+  syncGateText,
+  syncRequestId,
+  syncRequestText,
   tally,
   type MaintenanceView,
   type OpReply,
   type StationOp,
+  type SyncRequestView,
 } from '../src/api/station-ops';
 import { enStationOpsText, heStationOpsText } from '../src/i18n/wiskey-station-ops';
 
@@ -132,4 +137,37 @@ test('the sign-in failure shown is the newer of the memo and the report; "now" l
   expect(authToShow({ ...v, report: null } as MaintenanceView)?.step).toBe('identity');
   expect(authToShow({ ...v, auth_seen: null, report: null } as MaintenanceView)).toBeNull();
   expect(authNow(v, he)).toEqual(['סנכרון', 'זרם האירועים']);
+});
+
+// WISKEY-R4-2520: the numbered sync - the request id is "queued", never "done"; the status read says where it stands; a held sync says why.
+test('the sync request: its id, where it stands, and the hold line', () => {
+  const rid = '0f8e2a1c-1111-4222-8333-944455556666';
+  expect(shortId(rid)).toBe('0f8e2a1c');
+  expect(shortId(null)).toBe('');
+  const acked = { station_id: 's', action: 'sync' as StationOp, status: 'acknowledged' as const, code: null, retry_after_s: null, data: { accepted: true, request_id: rid } };
+  expect(syncRequestId(acked, null)).toBe(rid);
+  const view = { last_runs: { sync: { status: 'acknowledged', at: 'x', code: null, request_id: 'r-old', mode: 'request_id' } } } as unknown as MaintenanceView;
+  expect(syncRequestId(undefined, view)).toBe('r-old');
+  const unknownView = { last_runs: { sync: { status: 'unknown', at: 'x', code: 'timeout', request_id: null } } } as unknown as MaintenanceView;
+  expect(syncRequestId(undefined, unknownView)).toBeNull();
+
+  const obs = (request: Record<string, unknown> | null) => ({ connection: 'connected', loaded: true, sync_state: 'pending', last_reconciled_at: null, request });
+  const base: SyncRequestView = { station_id: 's', state: 'ready', reason: null, wiskey_code: null, fetched_at: null, gate_before: null, gate: null, last_request: null, match: null, observation: null };
+  const req = { scope: 'current_attached_runtime_only', pending_request_id: null, active_request_id: null, last_result: { request_id: rid, state: 'error', observed_at: null, code: null, effect_proven: false } };
+  expect(syncRequestText({ ...base, observation: obs(req) as SyncRequestView['observation'], match: 'finished' }, he)).toBe('הסנכרון של הבקשה הסתיים לפי מערכת האינטרקום: שגיאה');
+  expect(syncRequestText({ ...base, observation: obs({ ...req, last_result: { ...req.last_result, state: 'quantum' } }) as SyncRequestView['observation'], match: 'finished' }, he)).toContain('לא ידוע');
+  expect(syncRequestText({ ...base, observation: obs(req) as SyncRequestView['observation'], match: 'queued' }, he)).toBe('הבקשה ממתינה בתור');
+  expect(syncRequestText({ ...base, observation: obs(req) as SyncRequestView['observation'], match: 'running' }, he)).toBe('הסנכרון של הבקשה רץ עכשיו');
+  expect(syncRequestText({ ...base, observation: obs(req) as SyncRequestView['observation'], match: 'not_observed' }, he)).toContain('התוצאה לא ידועה');
+  expect(syncRequestText({ ...base, observation: obs({ ...req, pending_request_id: 'p' }) as SyncRequestView['observation'] }, he)).toBe('סנכרון ממתין בתור בעמדה');
+  expect(syncRequestText({ ...base, observation: obs({ ...req, last_result: null }) as SyncRequestView['observation'] }, he)).toBe('אין כרגע סנכרון בתור או בריצה');
+  expect(syncRequestText(base, he)).toContain('לא ידוע');
+  expect(syncRequestText({ ...base, state: 'forbidden', reason: 'wiskey_refused' }, he)).toBe('לא ניתן לקרוא את מצב הסנכרון: מערכת האינטרקום סירבה');
+  expect(syncRequestText({ ...base, state: 'unsupported', reason: 'not_listed' }, enStationOpsText)).toBe('The sync status could not be read: the intercom system does not offer this check');
+
+  expect(syncGateText(null, he)).toBe('');
+  expect(syncGateText('readback_required', he)).toContain('אחרי בדיקת מצב הסנכרון');
+  expect(syncGateText('outcome_pending', he)).toContain('עדיין אין תשובה');
+  expect(statusText('not_sent', 'station_sync_unsettled', he)).toBe('לא נשלח: לסנכרון הקודם אין תוצאה ברורה');
+  expect(outcomeOf(err(409, 'station_sync_unsettled', { outcome: 'not_sent', gate: 'readback_required' }), 's', 'sync').status).toBe('not_sent');
 });
