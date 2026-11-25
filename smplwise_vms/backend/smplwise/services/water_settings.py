@@ -12,6 +12,7 @@ from typing import Any
 from ..db import get_setting
 from ..errors import ApiError
 from . import energy_settings as es
+from ..error_text import tpl
 
 VIEW, ACK, MANAGE, CONFIGURE, BACKUP = "water.view", "water.ack", "water.manage", "system.configure", "backup.manage"
 ENABLED = "water.enabled"
@@ -47,7 +48,7 @@ def enabled(conn: sqlite3.Connection) -> bool:
 def validate(key: str, raw: Any) -> str:
     spec = SPECS.get(key)
     if spec is None:
-        raise ApiError(422, "validation", f"הגדרה לא מוכרת: {key}", details={"fields": [key], "message_en": f"Unknown setting: {key}"})
+        raise ApiError(422, "validation", tpl("הגדרה לא מוכרת: {key}", key=key), details={"fields": [key], "message_en": f"Unknown setting: {key}"})
     return es.validate_spec(spec, key, raw)
 
 

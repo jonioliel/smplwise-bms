@@ -24,6 +24,7 @@ from ..services import restore_safety
 from ._common import rid as _rid
 from ..wire import backup as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -63,11 +64,11 @@ def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
     can_skip = exc.code in ("backup_password_required", "backup_password_wrong", "backup_sensitive_damaged")
     if exc.code == "backup_password_weak":  # the minimum in force (setting `backup.password_min`) is named in the message
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
-        return ApiError(422, exc.code, f"סיסמת הגיבוי צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n})
+        return ApiError(422, exc.code, tpl("סיסמת הגיבוי צריכה לפחות {n} תווים.", n=n), details={"can_skip": False, "min_chars": n})
     # OFFBOX-RESTORE-2300: the password of the pre-restore safety archive (refused before anything is written)
     if exc.code == "safety_password_weak":
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
-        return ApiError(422, exc.code, f"הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n, "field": "safety_backup_password"})
+        return ApiError(422, exc.code, tpl("הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", n=n), details={"can_skip": False, "min_chars": n, "field": "safety_backup_password"})
     if exc.code == "safety_password_too_long":
         return ApiError(422, exc.code, "הסיסמה לגיבוי הביטחון ארוכה מדי.", details={"can_skip": False, "field": "safety_backup_password"})
     return ApiError(422 if exc.code == "backup_password_too_long" else 409, exc.code,
@@ -236,7 +237,7 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
     except sens.SensitiveError as exc:
         raise _sensitive_error(exc) from None
     except ValueError as exc:
-        raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
+        raise ApiError(409, "restore_refused", tpl("השחזור נדחה: {exc}", exc=exc))
     if safety:
         svc.prune(st)
     audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": scope, "tables": result["tables"], "files": result["files"],

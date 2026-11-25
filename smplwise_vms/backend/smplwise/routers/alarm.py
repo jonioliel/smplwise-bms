@@ -38,6 +38,7 @@ from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..wire import alarm as W
 from ..wire import wire
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -652,7 +653,7 @@ _alarm_actor_ro = read_gate(_check_actor)  # review L7
 def _check_pin_shape(act: "_Act", pin: Any, conn: sqlite3.Connection) -> None:
     lo = _settings(conn)["pin_min_length"]
     if not codes.valid_pin(pin, lo):
-        raise act.refuse(ApiError(422, "invalid_pin", f"קוד אישי: {lo}–{codes.PIN_MAX} ספרות."))
+        raise act.refuse(ApiError(422, "invalid_pin", tpl("קוד אישי: {lo}–{pin_max} ספרות.", lo=lo, pin_max=codes.PIN_MAX)))
 
 
 def _verify_current_pin(act: "_Act", conn: sqlite3.Connection, user_id: str, current: Any) -> None:

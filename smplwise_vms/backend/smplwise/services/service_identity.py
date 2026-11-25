@@ -59,6 +59,7 @@ from ..audit import audit
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import LOCAL_ID_PREFIX, Principal, is_system_admin
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.service_identity")
 
@@ -541,7 +542,7 @@ def configure_runnable(conn: sqlite3.Connection, principal: Principal, value: An
     if ids is None:
         audit(conn, actor=principal, action="identity.service_identity.runnable", decision="denied", resource_type="installation", resource_id="service_identity",
               reason="validation", request_id=request_id, details={"count": len(value) if isinstance(value, list) else None})
-        raise ApiError(422, "validation", f"רשימת ההרצה מקבלת עד {MAX_RUNNABLE} מזהי ישויות של סקריפטים, סצנות או אוטומציות (script.x, scene.x, automation.x).",
+        raise ApiError(422, "validation", tpl("רשימת ההרצה מקבלת עד {max_runnable} מזהי ישויות של סקריפטים, סצנות או אוטומציות (script.x, scene.x, automation.x).", max_runnable=MAX_RUNNABLE),
                        details={"fields": ["entity_ids"]})
     before = runnable_ids(conn)
     set_setting(conn, RUNNABLE_SETTING, json.dumps(ids))

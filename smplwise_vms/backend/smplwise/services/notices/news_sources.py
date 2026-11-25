@@ -28,6 +28,7 @@ from ..bill_pdf_logo import sanitize_image
 from . import model
 from .model import Invalid
 from .sources import FetchRefused, check_feed_url
+from ...error_text import tpl
 
 KEY = "notices.news_sources"
 LOGO_KEY = "notices.news_logo."
@@ -152,7 +153,7 @@ def replace(conn: sqlite3.Connection, raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise Invalid("sources", "רשימה לא תקינה.")
     if len(raw) > SOURCES_MAX:
-        raise Invalid("sources", f"עד {SOURCES_MAX} מקורות.")
+        raise Invalid("sources", tpl("עד {sources_max} מקורות.", sources_max=SOURCES_MAX))
     current = {s["id"]: s for s in load(conn)}
     out: list[dict[str, Any]] = []
     ids: set[str] = set()

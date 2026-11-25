@@ -34,6 +34,7 @@ from ..db import database_of, get_setting, set_setting
 from ..errors import ApiError
 from . import bridge_keys as bk
 from . import media_profiles
+from ..error_text import tpl
 
 SIGNATURE_WINDOW_S = 60
 _DATA_DIR: Path | None = None  # set by main.create_app for connections that do not know their database (the key set needs the data directory)
@@ -376,7 +377,7 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
     data: dict[str, Any] = {"entity_id": entity_id}
     for name, value in (arguments or {}).items():
         if name not in spec["args"]:
-            raise ApiError(422, "argument_not_allowed", f"ארגומנט לא מאושר: {name}", details={"argument": name})
+            raise ApiError(422, "argument_not_allowed", tpl("ארגומנט לא מאושר: {name}", name=name), details={"argument": name})
         schema = spec["args"][name]
         typ = schema[0]
         if typ in ("int", "float"):
@@ -384,33 +385,33 @@ def validate_action(action_id: str, entity_id: str, arguments: dict[str, Any]) -
             try:
                 num = int(value) if typ == "int" else float(value)
             except (TypeError, ValueError):
-                raise ApiError(422, "validation", f"{name} חייב להיות מספר.")
+                raise ApiError(422, "validation", tpl("{name} חייב להיות מספר.", name=name))
             if isinstance(value, bool) or num != num:  # bools and NaN never pass as numbers
-                raise ApiError(422, "validation", f"{name} חייב להיות מספר.")
+                raise ApiError(422, "validation", tpl("{name} חייב להיות מספר.", name=name))
             if not lo <= num <= hi:
-                raise ApiError(422, "validation", f"{name} מחוץ לטווח {lo}–{hi}.")
+                raise ApiError(422, "validation", tpl("{name} מחוץ לטווח {lo}–{hi}.", name=name, lo=lo, hi=hi))
             data[name] = num
         elif typ == "enum":
             if not isinstance(value, str) or value not in schema[1]:
-                raise ApiError(422, "validation", f"{name}: ערך לא מוכר.", details={"choices": list(schema[1])})
+                raise ApiError(422, "validation", tpl("{name}: ערך לא מוכר.", name=name), details={"choices": list(schema[1])})
             data[name] = value
         elif typ == "str":
             if not isinstance(value, str) or not schema[1] <= len(value.strip()) <= schema[2]:
-                raise ApiError(422, "validation", f"{name}: טקסט באורך {schema[1]}–{schema[2]} תווים.")
+                raise ApiError(422, "validation", tpl("{name}: טקסט באורך {schema}–{schema2} תווים.", name=name, schema=schema[1], schema2=schema[2]))
             data[name] = value.strip()
         elif typ == "bool":
             if not isinstance(value, bool):
-                raise ApiError(422, "validation", f"{name} חייב להיות אמת/שקר.")
+                raise ApiError(422, "validation", tpl("{name} חייב להיות אמת/שקר.", name=name))
             data[name] = value
         elif typ == "entities":
             ok = isinstance(value, list) and schema[1] <= len(value) <= schema[2] and all(isinstance(x, str) and ENTITY_ID_RE.match(x) for x in value) and len(set(value)) == len(value)
             if not ok:
-                raise ApiError(422, "validation", f"{name}: רשימה של {schema[1]}–{schema[2]} ישויות נגן שונות.")
+                raise ApiError(422, "validation", tpl("{name}: רשימה של {schema}–{schema2} ישויות נגן שונות.", name=name, schema=schema[1], schema2=schema[2]))
             data[name] = list(value)
     ea = spec.get("expect_attr")
     missing = [n for n in spec["args"] if n not in data and (spec.get("expect_from") == n or (ea and ea["argument"] == n) or n in spec.get("required", ()))]
     if missing:
-        raise ApiError(422, "validation", f"חסר ארגומנט: {missing[0]}", details={"argument": missing[0]})
+        raise ApiError(422, "validation", tpl("חסר ארגומנט: {missing}", missing=missing[0]), details={"argument": missing[0]})
     if spec.get("route") == "media":
         reason = media_profiles.static_refusal(action_id, data)  # CR-015: a key code outside the profile tables (a power key) never passes
         if reason:
@@ -442,7 +443,7 @@ def check_entity_range(action_id: str, data: dict[str, Any], attributes: dict[st
 
     lo, hi = num("min_temp", TEMPERATURE_DEFAULT_RANGE[0]), num("max_temp", TEMPERATURE_DEFAULT_RANGE[1])
     if lo <= hi and not lo <= float(data["temperature"]) <= hi:
-        raise ApiError(422, "validation", f"temperature מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", details={"min": lo, "max": hi})
+        raise ApiError(422, "validation", tpl("temperature מחוץ לטווח {fmt}–{fmt2}.", fmt=_fmt(lo), fmt2=_fmt(hi)), details={"min": lo, "max": hi})
 
 
 def _fmt(v: Any) -> str:

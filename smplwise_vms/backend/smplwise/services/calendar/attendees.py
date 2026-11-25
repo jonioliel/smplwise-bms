@@ -30,6 +30,7 @@ from .. import connection_store as cs
 from . import guests, model
 from .access import Ctx, Denied, detail_level, get_visible, scope_of
 from .calendars import new_id
+from ...error_text import tpl
 
 KINDS = ("user", "resident", "guest")
 ROLES = ("required", "optional")
@@ -274,7 +275,7 @@ def check_create(conn: sqlite3.Connection, cal: sqlite3.Row, items: list[dict[st
     if any(i["kind"] == "guest" for i in items) and pol["guests_mode"] == "off":
         raise model.Invalid("היומן לא מאפשר להזמין אורחים.", "attendees", "guests_not_allowed")
     if len(items) > pol["max_attendees"]:
-        raise model.Invalid(f"אפשר להזמין עד {pol['max_attendees']} משתתפים ביומן הזה.", "attendees", "too_many_attendees")
+        raise model.Invalid(tpl("אפשר להזמין עד {max_attendees} משתתפים ביומן הזה.", max_attendees=pol['max_attendees']), "attendees", "too_many_attendees")
 
 
 def check_add(st: Seat, items: list[dict[str, Any]], now: dt.datetime, *, existing: int | None = None) -> None:
@@ -302,7 +303,7 @@ def check_add(st: Seat, items: list[dict[str, Any]], now: dt.datetime, *, existi
             raise Denied("calendar.attendees", st.cal["id"], "self_join")
     total = (count(st.ctx.conn, st.root_id) if existing is None else existing) + len(items)
     if total > st.policy["max_attendees"]:
-        raise model.Invalid(f"אפשר להזמין עד {st.policy['max_attendees']} משתתפים ביומן הזה.", "attendees", "too_many_attendees")
+        raise model.Invalid(tpl("אפשר להזמין עד {max_attendees} משתתפים ביומן הזה.", max_attendees=st.policy['max_attendees']), "attendees", "too_many_attendees")
 
 
 def check_open(st: Seat) -> None:

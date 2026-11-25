@@ -36,6 +36,7 @@ from . import nvr, recordings
 from .child_env import minimal_env
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.exports")
 PIPELINE_VERSION = "export-1"
@@ -213,12 +214,12 @@ def require_disk(settings: Settings, min_mb: int, need_bytes: int = 0) -> None:
     if free < min_mb * MB:
         _count("refused_disk")
         raise ApiError(507, "insufficient_storage",
-                       f"אין מספיק מקום פנוי בדיסק של התוסף לייצוא חדש: פנויים {free // MB} MB, והמינימום הוא {min_mb} MB. מחק ייצואים ישנים או פנה מקום ונסה שוב.",
+                       tpl("אין מספיק מקום פנוי בדיסק של התוסף לייצוא חדש: פנויים {free} MB, והמינימום הוא {min_mb} MB. מחק ייצואים ישנים או פנה מקום ונסה שוב.", free=free // MB, min_mb=min_mb),
                        retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb})
     if need_bytes and free - need_bytes < min_mb * MB:
         _count("refused_disk")
         raise ApiError(507, "insufficient_storage",
-                       f"הייצוא דורש כ־{max(1, need_bytes // MB)} MB, ואחריו יישארו פחות מ־{min_mb} MB פנויים בדיסק של התוסף. צמצם את הטווח או פנה מקום.",
+                       tpl("הייצוא דורש כ־{need_bytes} MB, ואחריו יישארו פחות מ־{min_mb} MB פנויים בדיסק של התוסף. צמצם את הטווח או פנה מקום.", need_bytes=max(1, need_bytes // MB), min_mb=min_mb),
                        retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb, "estimate_mb": need_bytes // MB})
 
 
@@ -229,7 +230,7 @@ def check_quota(conn: sqlite3.Connection, principal: Any) -> None:
     waiting = conn.execute("SELECT COUNT(*) FROM export_jobs WHERE state IN ('queued', 'paused_disk_full')").fetchone()[0]
     if waiting >= MAX_QUEUED_TOTAL:
         _count("refused_queue_full")
-        raise ApiError(429, "export_queue_full", f"תור הייצוא מלא ({MAX_QUEUED_TOTAL} עבודות ממתינות במערכת); נסה שוב כשחלק מהן יסתיימו.", retryable=True,
+        raise ApiError(429, "export_queue_full", tpl("תור הייצוא מלא ({max_queued_total} עבודות ממתינות במערכת); נסה שוב כשחלק מהן יסתיימו.", max_queued_total=MAX_QUEUED_TOTAL), retryable=True,
                        details={"waiting": waiting, "max": MAX_QUEUED_TOTAL})
 
 
@@ -273,7 +274,7 @@ def resume_paused(conn: sqlite3.Connection, settings: Settings, *, manual: bool 
     min_mb = min_free_mb(conn)
     free = free_bytes(settings)
     if manual and free is not None and free < min_mb * MB:
-        raise ApiError(507, "insufficient_storage", f"עדיין אין מספיק מקום: פנויים {free // MB} MB, והמינימום הוא {min_mb} MB. פנה מקום ונסה שוב.",
+        raise ApiError(507, "insufficient_storage", tpl("עדיין אין מספיק מקום: פנויים {free} MB, והמינימום הוא {min_mb} MB. פנה מקום ונסה שוב.", free=free // MB, min_mb=min_mb),
                        retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb})
     room = None if free is None else free - min_mb * MB - (0 if manual else RESUME_MARGIN_MB * MB)
     resumed = 0
@@ -313,10 +314,10 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     if not files:
         raise ApiError(409, "no_recording", "אין הקלטה בטווח המבוקש.", details={"coverage": coverage})
     if len(files) > MAX_FILES:
-        raise ApiError(422, "validation", f"הטווח מכסה {len(files)} קבצים; המקסימום {MAX_FILES}. צמצם את הטווח.")
+        raise ApiError(422, "validation", tpl("הטווח מכסה {files} קבצים; המקסימום {max_files}. צמצם את הטווח.", files=len(files), max_files=MAX_FILES))
     total = sum(f.size or 0 for f in files)
     if total > max_bytes:
-        raise ApiError(422, "export_too_large", f"נפח משוער {total // (1024 * 1024)} MB מעל המגבלה ({max_bytes // (1024 * 1024)} MB).", details={"estimate_bytes": total})
+        raise ApiError(422, "export_too_large", tpl("נפח משוער {total} MB מעל המגבלה ({max_bytes} MB).", total=total // (1024 * 1024), max_bytes=max_bytes // (1024 * 1024)), details={"estimate_bytes": total})
     require_disk(settings, min_mb, estimate_with_unknown(files))  # the NVR files land on the data disk first (unknown sizes estimated)
     payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage, recorder_id=_recorder_of(cam))
     job_id = uuid.uuid4().hex[:12]

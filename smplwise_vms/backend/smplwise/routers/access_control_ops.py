@@ -38,6 +38,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
 from ..wire import access_control_ops as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -79,7 +80,7 @@ def _instant(name: str, value: str | None) -> str | None:
     except ValueError:
         parsed = None
     if parsed is None or parsed.tzinfo is None:
-        raise ApiError(422, "validation", f"{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-11-01T00:00:00Z).", details={"fields": [name]})
+        raise ApiError(422, "validation", tpl("{name} חייב להיות זמן ISO עם אזור זמן (למשל 2026-11-01T00:00:00Z).", name=name), details={"fields": [name]})
     return value
 
 
@@ -243,7 +244,7 @@ def cancel_job(
         act.outcome(outcome, code, {"error": exc.code, "wiskey_code": code})
         details = {**exc.details, "operation": "cancel"}
         if outcome == "not_sent":
-            raise ApiError(exc.status, exc.code, f"ביטול המשימה לא נשלח: {exc.user_message}", retryable=exc.retryable, details=details) from None
+            raise ApiError(exc.status, exc.code, tpl("ביטול המשימה לא נשלח: {user_message}", user_message=exc.user_message), retryable=exc.retryable, details=details) from None
         if outcome == "refused":
             message = {
                 "job_finished": "המשימה כבר הסתיימה או בוטלה, ולכן לא בוטלה שוב. לא בוצע שינוי.",
@@ -252,7 +253,7 @@ def cancel_job(
             }.get(code, f"מערכת האינטרקום דחתה את הביטול ({code}). לא בוצע שינוי.")
             status = 409 if code in ("job_finished", "revision_conflict") else 404 if code == "operation_not_found" else 502
             raise ApiError(status, "ops_cancel_refused", message, details=details) from None
-        raise ApiError(504, "ops_cancel_unknown", f"הביטול נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהמשימה בוטלה - טענו מחדש את הרשימה לפני שמנסים שוב.",
+        raise ApiError(504, "ops_cancel_unknown", tpl("הביטול נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהמשימה בוטלה - טענו מחדש את הרשימה לפני שמנסים שוב.", code=code),
                        details=details) from None
     except BaseException as exc:
         act.outcome("unknown", type(exc).__name__, {"error": type(exc).__name__})

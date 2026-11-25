@@ -21,6 +21,7 @@ from ..rbac import Principal
 from ..services import go2rtc as g2, intercom_authority as ia, intercom_sync, wiskey_camera
 from .access_control_base import MAX_STATION_ID, READ, _reader_ro, log
 from ..services.settings_store import setting_value
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -61,7 +62,7 @@ def camera_snapshot(
     if station is None or not ia.Authority(conn, principal).station(READ, station_id):  # CR-036 S3: off the chain = not found
         raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey.")
     if not station.get("camera_entity"):
-        raise ApiError(404, "intercom_no_camera", f"לעמדה {station['name']} אין מצלמה ב־WisKey.")
+        raise ApiError(404, "intercom_no_camera", tpl("לעמדה {name} אין מצלמה ב־WisKey.", name=station['name']))
     from ..services import wiskey_auto_install as wai
 
     if station.get("online") and wai.switch_on(conn):
@@ -85,7 +86,7 @@ def camera_snapshot(
         return Response(cached[0], media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, max_age - age)}", "X-Snapshot-Age": str(age)})
     try:
         if not station["online"]:
-            raise ApiError(503, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת, ולכן אין ממנה תמונה עדכנית.")
+            raise ApiError(503, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת, ולכן אין ממנה תמונה עדכנית.", name=station['name']))
         with unlocked(conn):
             data = client.frame_jpeg(g2.wiskey_stream_name(station_id), source)
     except ApiError as exc:

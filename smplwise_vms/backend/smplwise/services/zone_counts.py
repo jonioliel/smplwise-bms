@@ -22,6 +22,7 @@ from typing import Any
 
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
+from ..error_text import tpl
 
 UTC = dt.timezone.utc
 ENABLED = "occupancy.enabled"
@@ -76,7 +77,7 @@ def apply_settings(conn: sqlite3.Connection, *, enabled_: bool | None, retention
     feature is on); the mapping stays so turning it on again needs no re-entry."""
     if retention is not None:
         if not RETENTION_MIN <= retention <= RETENTION_MAX:
-            raise ApiError(422, "invalid_retention", f"הערך חייב להיות בין {RETENTION_MIN} ל-{RETENTION_MAX} ימים.")
+            raise ApiError(422, "invalid_retention", tpl("הערך חייב להיות בין {retention_min} ל-{retention_max} ימים.", retention_min=RETENTION_MIN, retention_max=RETENTION_MAX))
         set_setting(conn, RETENTION, str(retention))
     if enabled_ is not None:
         was = enabled(conn)

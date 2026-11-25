@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from ...errors import ServiceInvalid
+from ...error_text import tpl
 
 CONFIG_KEY = "transit.config"
 MAX_STOPS = 4
@@ -100,7 +101,7 @@ def normalize_config(raw: Any, *, strict: bool = False) -> dict[str, Any]:
             cleaned.append(c)
         if len(cleaned) > MAX_STOPS:
             if strict:
-                raise Invalid("stops", f"עד {MAX_STOPS} תחנות.")
+                raise Invalid("stops", tpl("עד {max_stops} תחנות.", max_stops=MAX_STOPS))
             cleaned = cleaned[:MAX_STOPS]
         out["stops"] = cleaned
     for key in ("poll_floor_ack", "show_distance"):

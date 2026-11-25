@@ -31,6 +31,7 @@ from ..services import brand_assets as ba
 from ._common import rid as _rid
 from ..wire import brand as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -98,7 +99,7 @@ def brand_put(body: BrandBody, request: Request, principal: Principal = Depends(
         try:
             changes[_FIELD_KEY[field]] = ba.normalise_setting(_FIELD_KEY[field], value)
         except ValueError as exc:
-            raise validation(f"הערך אינו תקין: {_FIELD_TEXT[field]}", field=field, reason=str(exc)) from exc
+            raise validation(tpl("הערך אינו תקין: {field_text}", field_text=_FIELD_TEXT[field]), field=field, reason=str(exc)) from exc
     for key, value in changes.items():
         set_setting(conn, key, value)
     if changes:

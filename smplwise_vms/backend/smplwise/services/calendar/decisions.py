@@ -19,6 +19,7 @@ from .access import Ctx, Denied, get_visible
 from .calendars import new_id, user_label
 from .events import _422, _insert_event, _log, _touch
 from .recurrence import LOCAL_FMT, RuleError, parse_rule, series_end
+from ...error_text import tpl
 
 STRICTNESS = ("block", "ask", "first_holds", "override_notify")  # strictest first
 
@@ -256,7 +257,7 @@ def reopen(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
         raise ApiError(409, "bad_state", "אפשר לפתוח מחדש רק בקשה שנדחתה, פגה או נמשכה.", details={"state": cur})
     days = settings["reopen_days"]
     if model.parse_utc(ev["updated_at"], "u") < now - dt.timedelta(days=days):
-        raise ApiError(409, "reopen_window_closed", f"עברו יותר מ-{days} ימים.")
+        raise ApiError(409, "reopen_window_closed", tpl("עברו יותר מ-{days} ימים.", days=days))
     stamp = model.iso(now)
     _set_half(conn, ev, holder["id"], "pending", p.user_id, stamp)
     _log(conn, eid, "reopen", p.user_id, "", None if holder["id"] == ev["calendar_id"] else holder["id"], stamp)

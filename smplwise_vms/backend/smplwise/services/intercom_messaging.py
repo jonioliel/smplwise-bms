@@ -45,6 +45,7 @@ from ..errors import ApiError
 from . import intercom_authority as ia
 from . import redact
 from .timeutil import DEFAULT_ZONE, iso_utc, site_zone
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -546,7 +547,7 @@ def check_free_text(cfg: dict[str, Any], text: str | None) -> str:
     if not cleaned:
         raise ApiError(422, "message_empty", "ההודעה ריקה.")
     if len(cleaned) > TEXT_MAX:
-        raise ApiError(422, "message_too_long", f"ההודעה ארוכה מדי (עד {TEXT_MAX} תווים).")
+        raise ApiError(422, "message_too_long", tpl("ההודעה ארוכה מדי (עד {text_max} תווים).", text_max=TEXT_MAX))
     if _has_control(cleaned, newline=True):
         raise ApiError(422, "message_forbidden_content", "ההודעה מכילה תווים שאי אפשר לשלוח.")
     if looks_like_credential(cleaned):
@@ -657,7 +658,7 @@ def check_send_hours(conn: sqlite3.Connection, cfg: dict[str, Any]) -> None:
     """409 `message_outside_hours` (nothing sent, `details.next_allowed_at`) outside the send hours."""
     state = send_hours_state(conn, cfg)
     if state is not None and not state["open_now"]:
-        raise ApiError(409, "message_outside_hours", f"אפשר לשלוח הודעות בין {state['from']} ל־{state['to']}. ההודעה לא נשלחה.",
+        raise ApiError(409, "message_outside_hours", tpl("אפשר לשלוח הודעות בין {from_} ל־{to}. ההודעה לא נשלחה.", from_=state['from'], to=state['to']),
                        details={"outcome": "not_sent", "next_allowed_at": state["next_opening"], "send_hours": {"from": state["from"], "to": state["to"]}})
 
 
@@ -726,7 +727,7 @@ def begin_attempt(db: Database, *, principal: Any, person_id: str, kind: str, te
         w.execute("DELETE FROM intercom_messages WHERE at < ?", (iso(now - timedelta(days=KEEP_DAYS)),))
         if w.execute("SELECT 1 FROM intercom_messages WHERE actor_user_id = ? AND client_request_id = ?", (principal.user_id, client_request_id)).fetchone():
             raise ApiError(409, "message_duplicate", "ההודעה הזו כבר נשלחה (אותו מזהה בקשה), ולכן לא נשלחה שוב.", details={"outcome": "not_sent"})
-        too_many = ApiError(422, "message_bulk_too_many", f"אפשר לשלוח לעד {cfg['bulk_max']} אנשים בבת אחת.", details={"outcome": "not_sent", "bulk_max": cfg["bulk_max"]})
+        too_many = ApiError(422, "message_bulk_too_many", tpl("אפשר לשלוח לעד {bulk_max} אנשים בבת אחת.", bulk_max=cfg['bulk_max']), details={"outcome": "not_sent", "bulk_max": cfg["bulk_max"]})
         if bulk_id:
             rows = w.execute("SELECT actor_user_id, kind, template_id FROM intercom_messages WHERE bulk_id = ?", (bulk_id,)).fetchall()
             if any(r[0] != principal.user_id or r[1] != kind or r[2] != template_id for r in rows):

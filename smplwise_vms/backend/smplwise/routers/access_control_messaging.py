@@ -49,6 +49,7 @@ from ..services.intercom_messaging_adapter import MESSAGING, SendResult
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..wire import access_control_messaging as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 log = logging.getLogger("smplwise.intercom")
@@ -353,7 +354,7 @@ def _consent_path(act: _Act, cfg: dict[str, Any], body: "SendBody", template: di
             got = C.hold(w, request=req, principal=act.principal, person_id=act.person_id, template=template, client_request_id=body.client_request_id,
                          request_id=act.rid, now=now)
             if got is None:
-                refusal = ApiError(409, "message_consent_pending", f"כבר ממתינות {C.HELD_PER_PERSON} הודעות לאישור של האדם הזה.", details={"held": False})
+                refusal = ApiError(409, "message_consent_pending", tpl("כבר ממתינות {held_per_person} הודעות לאישור של האדם הזה.", held_per_person=C.HELD_PER_PERSON), details={"held": False})
             else:
                 held_id, collapsed = got
     if refusal is not None:  # (raised after the transaction: the expiry above stays committed, the refusal's audit row has its own)

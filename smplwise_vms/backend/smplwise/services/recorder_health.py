@@ -37,6 +37,7 @@ from ..errors import ApiError, field_error
 from .poller import PeriodicWorker
 from .recorders.base import HealthReading
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.recorder_health")
 
@@ -174,7 +175,7 @@ def validate(body: Any) -> dict[str, Any]:
         if spec is None:
             raise field_error("שדה לא מוכר.", [k], legacy={"field": k})
         if isinstance(v, bool) or not isinstance(v, int) or not spec[1] <= v <= spec[2]:
-            raise field_error(f"הערך מחוץ לטווח ({spec[1]} עד {spec[2]}).", [k], legacy={"field": k}, extra={"min": spec[1], "max": spec[2]})
+            raise field_error(tpl("הערך מחוץ לטווח ({spec} עד {spec2}).", spec=spec[1], spec2=spec[2]), [k], legacy={"field": k}, extra={"min": spec[1], "max": spec[2]})
         out[k] = v
     return out
 

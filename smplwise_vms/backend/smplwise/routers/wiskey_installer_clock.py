@@ -32,6 +32,7 @@ from .wiskey_installer_common import WriteBody, Write, installer_gate, installer
 from ..test_reset import register_reset
 from ..wire import wiskey_installer_clock as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -97,7 +98,7 @@ def clock_check(request: Request, principal: Principal = Depends(installer_reade
                                            who=principal.user_id, channel="read")
         report = reply.get("report")
         if reply.get("state") != "ready" or report is None:
-            raise ApiError(502, "installer_read_failed", f"WisKey לא החזיר את מצב השעון של העמדה ({reply.get('last_error') or reply.get('state')}).",
+            raise ApiError(502, "installer_read_failed", tpl("WisKey לא החזיר את מצב השעון של העמדה ({last_error}).", last_error=reply.get('last_error') or reply.get('state')),
                            details={"state": reply.get("state"), "wiskey_code": reply.get("last_error")})
         cached = {"fetched_at": reply.get("fetched_at"), "clock": report.get("clock"), "online": report.get("online")}
         CHECKS.put(station_id, cached)

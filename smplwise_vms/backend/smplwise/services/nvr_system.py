@@ -19,6 +19,7 @@ from ..config import Settings
 from ..errors import ApiError
 from .nvr import _client, _get
 from .nvr_write import _put, _record, apply_change
+from ..error_text import tpl
 
 TIME_PATH = "/ISAPI/System/time"
 NTP_PATH = "/ISAPI/System/time/ntpServers/1"
@@ -159,7 +160,7 @@ def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, 
                          mutate=lambda x: time_document(x, mode=final, at=None), note=f"מצב שעון: {final}", request_id=request_id, client=c, keep_before=False)
         if drift is not None and abs(drift) > CLOCK_VERIFY_S:
             audit(conn, actor=principal, action="nvr.clock.verify_failed", decision="denied", resource_type="nvr", resource_id="clock", request_id=request_id, details={"drift_s": drift})
-            raise ApiError(502, "clock_verify_failed", f"אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", details={"drift_s": drift})
+            raise ApiError(502, "clock_verify_failed", tpl("אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", drift=drift), details={"drift_s": drift})
     finally:
         if own:
             c.close()

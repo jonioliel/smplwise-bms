@@ -14,10 +14,13 @@
  * Web Push: shows the notification from the minimal payload (title, body, deep link, ids); a click focuses an open
  * Arx window and routes it to the deep link, or opens one (under Ingress: the HA page that hosts the app, with the link
  * kept for the app to pick up on start). The app badge follows the number of open notifications.
+ *
+ * I18N-RUNTIME-ERRORS-2520: the offline page and the notification buttons follow the user's interface language, which the app tells the
+ * worker with its context message (`arx-context`, `lang`); kept in the meta cache for a worker that starts again later. Hebrew until told.
  */
-import { OFFLINE_HTML } from './offline-page';
+import { offlineHtml } from './offline-page';
 import { baseOf, inScope, isIngressScope, resolveDeepLink } from './deeplink';
-import { dataOf, parsePush, planClick, type NotificationData } from './push-v2';
+import { dataOf, parsePush, planClick, swLang, type NotificationData, type SwLang } from './push-v2';
 
 interface ExtendableEvt extends Event {
   waitUntil(p: Promise<unknown>): void;
@@ -91,8 +94,13 @@ sw.addEventListener('activate', ((e: ExtendableEvt) => {
 }) as never);
 
 sw.addEventListener('message', ((e: MessageEvt) => {
-  const data = e.data as { type?: string; openUrl?: string } | null;
+  const data = e.data as { type?: string; openUrl?: string; lang?: string } | null;
   if (data?.type === 'arx-skip-waiting') void sw.skipWaiting();
+  // the user's interface language (the offline page, the notification buttons)
+  if (data?.type === 'arx-context' && (data.lang === 'he' || data.lang === 'en')) {
+    uiLang = data.lang;
+    e.waitUntil(putMeta('lang', { lang: data.lang }));
+  }
   // the app tells the worker which top-level page hosts it (under Ingress: the HA panel), for clicks with no window open
   if (data?.type === 'arx-context' && typeof data.openUrl === 'string' && /^\/(?![/\\])/.test(data.openUrl) && data.openUrl.length < 500) {
     e.waitUntil(putMeta('context', { openUrl: data.openUrl }));
@@ -125,7 +133,7 @@ async function shell(req: Request): Promise<Response> {
     return res;
   } catch {
     const cached = await cache.match(scope());
-    return cached || new Response(OFFLINE_HTML, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+    return cached || new Response(offlineHtml(await workerLang()), { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 }
 
@@ -161,6 +169,18 @@ async function getMeta<T>(name: string): Promise<T | null> {
   return res ? ((await res.json()) as T) : null;
 }
 
+/** The user's interface language as the app last told it (memory, then the meta cache); Hebrew until it did. */
+let uiLang: SwLang | null = null;
+async function workerLang(): Promise<SwLang> {
+  if (uiLang) return uiLang;
+  try {
+    uiLang = swLang((await getMeta<{ lang?: string }>('lang'))?.lang);
+  } catch {
+    return 'he';
+  }
+  return uiLang;
+}
+
 /** The unread count the last v2 push carried (the badge = unread, CR §6.2); null until one arrives (then the number of shown notifications). */
 let lastUnread: number | null = null;
 
@@ -194,26 +214,28 @@ sw.addEventListener('push', ((e: PushEvt) => {
   }
   // the backend's payload v2 (push-v2.ts): per-action tokens, the doorbell's deep link, `resolved`, an optional unread count
   const max = (self as unknown as { Notification?: { maxActions?: number } }).Notification?.maxActions;
-  const p = parsePush(raw, typeof max === 'number' && max > 0 ? max : 2);
   const icon = new URL('icons/arx-192.png', scope()).href;
   const badge = new URL('icons/arx-badge-72.png', scope()).href;
-  if (p.unread !== null) lastUnread = p.unread;
   e.waitUntil(
-    sw.registration
-      .showNotification(p.title || 'SmplWise Arx', {
+    (async () => {
+      const lang = await workerLang(); // the buttons' words; the title and body are the server's
+      const p = parsePush(raw, typeof max === 'number' && max > 0 ? max : 2, lang);
+      if (p.unread !== null) lastUnread = p.unread;
+      await sw.registration.showNotification(p.title || 'SmplWise Arx', {
         body: p.body,
         tag: p.tag || p.id || undefined, // a fold of the same notification replaces the one shown; so does its "ended" message
         renotify: !p.resolved && p.renotify, // only a rise of severity (or an escalation) makes a sound again
         silent: p.resolved,
         icon,
         badge,
-        lang: 'he',
-        dir: 'rtl',
+        lang,
+        dir: lang === 'he' ? 'rtl' : 'auto', // English buttons; the server's Hebrew title / body still read right to left
         requireInteraction: !p.resolved && p.severity === 'critical',
         data: dataOf(p),
         ...(p.actions.length ? { actions: p.actions.map((a) => ({ action: a.action, title: a.title })) } : {}),
-      } as NotificationOptions)
-      .then(updateBadge),
+      } as NotificationOptions);
+      await updateBadge();
+    })(),
   );
 }) as never);
 

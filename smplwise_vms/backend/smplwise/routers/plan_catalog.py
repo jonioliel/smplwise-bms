@@ -21,6 +21,7 @@ from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, req
 from ..services import plan_catalog as cat
 from ..services import plan_catalog_store as store
 from ._common import rid as _rid
+from ..error_text import tpl
 
 router = APIRouter()
 NO_CACHE = {"Cache-Control": "private, no-cache"}
@@ -57,7 +58,7 @@ def _values(body: dict[str, Any], existing: sqlite3.Row | None = None) -> dict[s
     try:
         return cat.custom_values(body, existing=existing)
     except ValueError as exc:
-        raise ApiError(422, "validation", f"פריט לא תקין: {exc}.")
+        raise ApiError(422, "validation", tpl("פריט לא תקין: {exc}.", exc=exc))
 
 
 def _item(conn: sqlite3.Connection, item_id: str) -> dict[str, Any]:
@@ -149,9 +150,9 @@ def import_catalog(body: ImportIn, request: Request, principal: Principal = Depe
     for i, item in enumerate(body.items):
         iid = item.get("id")
         if not isinstance(iid, str) or not cat.ID_RE.match(iid):
-            raise ApiError(422, "validation", f"פריט {i + 1}: מזהה לא תקין.")
+            raise ApiError(422, "validation", tpl("פריט {i}: מזהה לא תקין.", i=i + 1))
         if iid in builtin_ids:
-            raise ApiError(422, "validation", f"פריט {i + 1}: המזהה {iid} שמור לפריט מובנה.")
+            raise ApiError(422, "validation", tpl("פריט {i}: המזהה {iid} שמור לפריט מובנה.", i=i + 1, iid=iid))
         created = item.get("created_at")
         prepared.append((iid, _values(item), created if isinstance(created, str) and len(created) >= 20 else None))
     imported = replaced = 0

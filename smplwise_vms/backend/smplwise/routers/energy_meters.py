@@ -34,6 +34,7 @@ from ..services.energy_provider import EnergyProvider, coverage_of
 from ..services.timeutil import parse_utc
 from ..wire import energy_meters as W, wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from ..error_text import tpl
 
 router = APIRouter()
 VIEW, MANAGE = es.VIEW, es.MANAGE
@@ -83,12 +84,12 @@ def _provider(request: Request, conn: sqlite3.Connection) -> EnergyProvider:
 def _instant(value: str | None, name: str, default: dt.datetime | None = None) -> dt.datetime:
     if value is None:
         if default is None:
-            raise ApiError(422, "validation", f"חסר {name}.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("חסר {name}.", name=name), details={"fields": [name]})
         return default
     try:
         return parse_utc(value)
     except ValueError:
-        raise ApiError(422, "validation", f"{name} חייב להיות זמן UTC (ISO 8601).", details={"fields": [name]}) from None
+        raise ApiError(422, "validation", tpl("{name} חייב להיות זמן UTC (ISO 8601).", name=name), details={"fields": [name]}) from None
 
 
 def _kwh(wh: int | None) -> float | None:

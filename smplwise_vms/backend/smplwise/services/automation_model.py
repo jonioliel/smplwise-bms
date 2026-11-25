@@ -38,6 +38,7 @@ from .automation_text import (  # noqa: F401  (re-exported for the callers)
     ModelContext, action_sentence, automation_sentence, block_sentence, condition_sentence, draft_sentence, duration_text, join_names, locked_label,
     scene_sentence, script_sentence, trigger_sentence,
 )
+from ..error_text import tpl
 
 Raw = dict[str, Any]
 Block = dict[str, Any]
@@ -1557,13 +1558,13 @@ def _check_action_block(b: Block, fresh: bool, need: Callable[..., None], allowe
                 elif p["code"] == "secret_not_allowed":
                     need(True, "secret_not_allowed", "אסור לשמור ערך חסוי")
                 elif p["code"] == "argument_not_allowed":
-                    need(True, "argument_not_allowed", f"ארגומנט לא מאושר: {p['arg']}")
+                    need(True, "argument_not_allowed", tpl("ארגומנט לא מאושר: {arg}", arg=p['arg']))
                 elif p["code"] == "required":
-                    need(True, "argument_required", f"חסר ערך: {p['arg']}")
+                    need(True, "argument_required", tpl("חסר ערך: {arg}", arg=p['arg']))
                 elif p["code"] == "argument_conflict":
-                    need(True, "argument_conflict", f"אי אפשר לשלב את {p['arg']} עם ערך אחר")
+                    need(True, "argument_conflict", tpl("אי אפשר לשלב את {arg} עם ערך אחר", arg=p['arg']))
                 else:
-                    need(True, "argument_invalid", f"ערך לא תקין: {p['arg']}")
+                    need(True, "argument_invalid", tpl("ערך לא תקין: {arg}", arg=p['arg']))
         need(b.get("role") == "device" and not b["entity_ids"], "entity_required", "בחרו מכשיר")
         need(b.get("role") in ("scene", "script", "automation") and len(b["entity_ids"]) != 1, "entity_required", "בחרו פריט")
         cls = pol.classify_action(b["action"], allowed)
@@ -1576,7 +1577,7 @@ def _check_action_block(b: Block, fresh: bool, need: Callable[..., None], allowe
         need(not any(b["delay"].get(k) for k in ("hours", "minutes", "seconds")), "duration_required", "הגדירו משך")
     elif t == "choose":
         need(not b["options"], "option_required", "הוסיפו ענף")
-        need(len(b["options"]) > pol.CAPS["choose_options_max"], "too_many_options", f"עד {pol.CAPS['choose_options_max']} ענפים")
+        need(len(b["options"]) > pol.CAPS["choose_options_max"], "too_many_options", tpl("עד {choose_options_max} ענפים", choose_options_max=pol.CAPS['choose_options_max']))
     elif t == "if":
         need(not b["conditions"], "conditions_required", "הוסיפו תנאי")
         need(not b["then"], "action_required", "הוסיפו לפחות פעולה אחת")

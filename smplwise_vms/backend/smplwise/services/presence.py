@@ -41,6 +41,7 @@ from ..errors import ApiError, field_error
 from ..rbac import Principal, is_system_admin
 from . import presence_values as pv
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.presence")
 
@@ -324,7 +325,7 @@ def _normalize_people(p: Any, *, strict: bool) -> dict[str, Any]:
         v = p.get(key, PEOPLE_DEFAULTS[key])
         if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
             if strict:
-                raise bad(key, f"{key}: בין {lo} ל־{hi}.")
+                raise bad(key, tpl("{key}: בין {lo} ל־{hi}.", key=key, lo=lo, hi=hi))
             v = PEOPLE_DEFAULTS[key]
         out[key] = v
     prox = p.get("min_proximity", PEOPLE_DEFAULTS["min_proximity"])
@@ -463,7 +464,7 @@ def _int_or_none(v: Any, lo: int, hi: int, field: str) -> int | None:
     if v is None or v == "":
         return None
     if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
-        raise field_error(f"{field}: מספר בין {lo} ל־{hi}.", [field], cls=PresenceError, legacy={"field": field})
+        raise field_error(tpl("{field}: מספר בין {lo} ל־{hi}.", field=field, lo=lo, hi=hi), [field], cls=PresenceError, legacy={"field": field})
     return v
 
 
@@ -472,7 +473,7 @@ def _validate_beacons(conn: sqlite3.Connection | None, v: Any, site_ids: set[str
     original keys (the app ranges the UUID and reports the site); the rest is additive: the app may report `beacon_id` (or `uuid` with
     `major` / `minor`) so the server can place the person on a floor and an area."""
     if not isinstance(v, list) or len(v) > BEACONS_MAX:
-        raise field_error(f"עד {BEACONS_MAX} משדרים.", ["beacons"], cls=PresenceError, legacy={"field": "beacons"})
+        raise field_error(tpl("עד {beacons_max} משדרים.", beacons_max=BEACONS_MAX), ["beacons"], cls=PresenceError, legacy={"field": "beacons"})
     out: list[dict[str, Any]] = []
     for b in v:
         if not isinstance(b, dict):
@@ -501,7 +502,7 @@ def _validate_wifi_sites(conn: sqlite3.Connection | None, v: Any, site_ids: set[
     """Wi-Fi sites (WHOIN034-295): `{id, name, site_id, floor_id?, ssid_hash_salt, ssid_hashes, add_ssids?}`. The editor sends new network
     names in `add_ssids` (write-only): the server hashes them with the site's salt (made here when missing) and keeps only the hashes."""
     if not isinstance(v, list) or len(v) > WIFI_SITES_MAX:
-        raise field_error(f"עד {WIFI_SITES_MAX} רשתות אתר.", ["wifi_sites"], cls=PresenceError, legacy={"field": "wifi_sites"})
+        raise field_error(tpl("עד {wifi_sites_max} רשתות אתר.", wifi_sites_max=WIFI_SITES_MAX), ["wifi_sites"], cls=PresenceError, legacy={"field": "wifi_sites"})
     before = {str(w.get("id")): w for w in current if isinstance(w, dict) and w.get("id")}
     out: list[dict[str, Any]] = []
     for w in v:
@@ -528,7 +529,7 @@ def _validate_wifi_sites(conn: sqlite3.Connection | None, v: Any, site_ids: set[
         if not merged:
             raise field_error("יש להזין לפחות שם רשת אחד.", ["wifi_sites.add_ssids"], cls=PresenceError, legacy={"field": "wifi_sites.add_ssids"})
         if len(merged) > SSID_HASHES_MAX:
-            raise field_error(f"עד {SSID_HASHES_MAX} רשתות לאתר.", ["wifi_sites.ssid_hashes"], cls=PresenceError, legacy={"field": "wifi_sites.ssid_hashes"})
+            raise field_error(tpl("עד {ssid_hashes_max} רשתות לאתר.", ssid_hashes_max=SSID_HASHES_MAX), ["wifi_sites.ssid_hashes"], cls=PresenceError, legacy={"field": "wifi_sites.ssid_hashes"})
         fid, _ = _place_floor(conn, w.get("floor_id"), None, "wifi_sites.floor_id")
         out.append({"id": wid, "name": " ".join(str(w.get("name") or "").split())[:80], "site_id": site_id, "floor_id": fid, "ssid_hash_salt": salt, "ssid_hashes": merged})
     if len({w["id"] for w in out}) != len(out):
@@ -547,7 +548,7 @@ def _validate_places(conn: sqlite3.Connection, body: dict[str, Any], current: di
         # a geofence still named by a beacon or a Wi-Fi site cannot go unless those go (or move) in the same save
         for key, label in (("beacons", "משדר"), ("wifi_sites", "רשת")):
             if key not in body and any(str(x.get("site_id")) not in site_ids for x in current[key]):
-                raise field_error(f"{label} עדיין משויך לאתר שהוסר.", [key], cls=PresenceError, legacy={"field": key})
+                raise field_error(tpl("{label} עדיין משויך לאתר שהוסר.", label=label), [key], cls=PresenceError, legacy={"field": key})
     if "beacons" in body:
         out["beacons"] = _validate_beacons(conn, body["beacons"], site_ids)
     if "wifi_sites" in body:
@@ -585,7 +586,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
         if key in body:
             v = body[key]
             if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
-                raise field_error(f"{key}: בין {lo} ל־{hi}.", [key], cls=PresenceError, legacy={"field": key})
+                raise field_error(tpl("{key}: בין {lo} ל־{hi}.", key=key, lo=lo, hi=hi), [key], cls=PresenceError, legacy={"field": key})
             set_setting(conn, f"presence.{key}", str(v))
             changes[key] = v
     if "notice_text" in body:
@@ -700,7 +701,7 @@ def _suggest(conn: sqlite3.Connection, user_id: str, name: str) -> str:
 def clean_name(name: Any) -> str:
     text = " ".join(str(name or "").split())
     if not NAME_MIN <= len(text) <= NAME_MAX:
-        raise field_error(f"השם צריך להכיל בין {NAME_MIN} ל־{NAME_MAX} תווים.", ["name"], code="invalid_name", status=400, cls=PresenceError, legacy={"field": "name"})
+        raise field_error(tpl("השם צריך להכיל בין {name_min} ל־{name_max} תווים.", name_min=NAME_MIN, name_max=NAME_MAX), ["name"], code="invalid_name", status=400, cls=PresenceError, legacy={"field": "name"})
     return text
 
 
@@ -735,7 +736,7 @@ def register(conn: sqlite3.Connection, principal: Principal, body: dict[str, Any
         raise PresenceError(409, "device_name_taken", "השם כבר בשימוש במכשיר אחר שלך.", details={"suggestion": _suggest(conn, principal.user_id, name)})
     live = conn.execute("SELECT COUNT(*) FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL", (principal.user_id,)).fetchone()[0]
     if live >= MAX_DEVICES_PER_USER:
-        raise PresenceError(409, "too_many_devices", f"אפשר לרשום עד {MAX_DEVICES_PER_USER} מכשירים. הסירו מכשיר ישן קודם.")
+        raise PresenceError(409, "too_many_devices", tpl("אפשר לרשום עד {max_devices_per_user} מכשירים. הסירו מכשיר ישן קודם.", max_devices_per_user=MAX_DEVICES_PER_USER))
     did = "dev_" + new_id()
     conn.execute(
         "INSERT INTO mobile_devices(id, user_id, name, platform, install_id, app_version, os_version, model, token_hash, token_rotated_at, channel, created_at, last_seen_at)"
@@ -1054,7 +1055,7 @@ def ingest(conn: sqlite3.Connection, device: sqlite3.Row, events: list[dict[str,
     version (`notice_ack_required`), the batch is too big, or an event is invalid / names a sensor that is not allowed."""
     st = load_settings(conn)
     if not isinstance(events, list) or len(events) > BATCH_MAX:
-        raise PresenceError(400, "batch_too_large", f"עד {BATCH_MAX} אירועים בבקשה.", details={"max": BATCH_MAX})
+        raise PresenceError(400, "batch_too_large", tpl("עד {batch_max} אירועים בבקשה.", batch_max=BATCH_MAX), details={"max": BATCH_MAX})
     if not take("events", device["id"], RATE_EVENTS):
         raise PresenceError(429, "rate_limited", "יותר מדי דיווחים. נסו שוב בעוד דקה.", retryable=True, details={"retry_after_s": 60})
     if status is not None:  # the status is accepted even when nothing else is (it is how "sharing off" and the permission state arrive)

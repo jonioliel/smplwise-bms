@@ -49,6 +49,7 @@ from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, field_error
 from .poller import PeriodicWorker
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.camera_image_health")
 
@@ -159,7 +160,7 @@ def validate(body: Any) -> dict[str, Any]:
         elif k in NUMBERS:
             if not _num_ok(k, v):
                 lo, hi = NUMBERS[k][1], NUMBERS[k][2]
-                raise field_error(f"הערך מחוץ לטווח ({lo:g} עד {hi:g}).", [k], legacy={"field": k}, extra={"min": lo, "max": hi})
+                raise field_error(tpl("הערך מחוץ לטווח ({lo} עד {hi}).", lo=format(lo, "g"), hi=format(hi, "g")), [k], legacy={"field": k}, extra={"min": lo, "max": hi})
             out[k] = float(v) if _is_float(k) else int(v)
         elif k == EXCLUDED_KEY:
             if not _ids_ok(v):

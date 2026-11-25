@@ -27,6 +27,7 @@ from ..services.timeutil import parse_utc
 from ._common import is_json as _is_json, rid as _rid
 from .access_control_base import DOOR_OPEN, MAX_STATION_ID, log
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 
 # ---------------------------------------------------------------- physical actions (access.release)
@@ -292,7 +293,7 @@ def _envelope(act: _Action, body: CommandEnvelope) -> datetime:
     if expires <= now:
         raise act.refuse(ApiError(409, "expired", "הבקשה פגה לפני שהגיעה לשרת, ולכן לא נשלחה. אם השעון במכשיר שלכם אינו מדויק, תקנו אותו."))
     if expires > now + timedelta(seconds=EXPIRY_MAX_S):
-        raise act.refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(EXPIRY_MAX_S)} שניות."))
+        raise act.refuse(ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(EXPIRY_MAX_S))))
     since = (now - timedelta(seconds=DEDUPE_WINDOW_S)).strftime("%Y-%m-%dT%H:%M:%SZ")
     if command_already_sent(act.conn, act.action, act.principal.user_id, since, body.client_request_id):
         raise act.refuse(ApiError(409, "intercom_duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב."))
@@ -308,7 +309,7 @@ def _station(act: _Action, require_online: bool = True) -> dict[str, Any] | None
     if station is not None:
         act.details["station_name"] = station["name"]
         if require_online and not station["online"]:
-            raise act.refuse(ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן הפקודה לא נשלחה."))
+            raise act.refuse(ApiError(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת כרגע, ולכן הפקודה לא נשלחה.", name=station['name'])))
     return station
 
 
@@ -374,7 +375,7 @@ def _relay_of(act: _Action, station: dict[str, Any] | None, lock: int | None) ->
     active integrated lock, more than one relay and none named, a relay it does not have, or is offline."""
     if station is not None:
         if not station["lock_enabled"] or not station["locks"]:
-            raise act.refuse(ApiError(409, "intercom_no_lock", f"לעמדה {station['name']} אין מנעול משולב פעיל ב־WisKey."))
+            raise act.refuse(ApiError(409, "intercom_no_lock", tpl("לעמדה {name} אין מנעול משולב פעיל ב־WisKey.", name=station['name'])))
         indexes = [entry["physical_index"] for entry in station["locks"]]
         if lock is None:
             if len(indexes) != 1:
@@ -383,7 +384,7 @@ def _relay_of(act: _Action, station: dict[str, Any] | None, lock: int | None) ->
         elif lock not in indexes:
             raise act.refuse(ApiError(422, "intercom_lock_unknown", "לעמדה אין מנעול במספר הזה.", details={"locks": indexes}))
         if not station["online"]:
-            raise act.refuse(ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן הפקודה לא נשלחה."))
+            raise act.refuse(ApiError(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת כרגע, ולכן הפקודה לא נשלחה.", name=station['name'])))
     if lock is None:
         lock = 1  # no copy to check against: WisKey's own default relay (panel.ts unlock(station, physical = 1))
     return lock

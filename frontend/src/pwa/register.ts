@@ -9,6 +9,7 @@
 import { inAndroidApp } from '../arx/android-app';
 import { inNativeApp } from '../arx/native-app';
 import { quietScreenLoads } from '../shell/lazy-screens';
+import { currentUiLang } from '../i18n/ui-lang-boot';
 
 /** Chromium's install prompt event (not in the DOM typings). */
 interface InstallPromptEvent extends Event {
@@ -224,7 +225,8 @@ export async function startPwa(): Promise<void> {
     watchUpdates(reg);
     changed();
     const ready = await navigator.serviceWorker.ready;
-    ready.active?.postMessage({ type: 'arx-context', openUrl: hostPage() });
+    // I18N-RUNTIME-ERRORS-2520: the user's interface language too (the worker's offline page and notification buttons)
+    ready.active?.postMessage({ type: 'arx-context', openUrl: hostPage(), lang: currentUiLang() });
     await takePendingLink();
   } catch {
     /* no worker (blocked, private mode): the app works without it, only offline and push are missing */

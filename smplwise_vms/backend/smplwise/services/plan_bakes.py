@@ -42,6 +42,7 @@ from typing import Any, NamedTuple
 from ..config import Settings
 from ..db import ID_RE, has_table, new_id, now_iso
 from . import safe_paths
+from ..error_text import tpl
 
 KINDS = ("still", "mask", "lightmap")
 PRESETS = ("iso", "top", "persp")
@@ -289,9 +290,9 @@ def check_slot(kind: str, level_id: str, preset: str, style: str, band: str, var
     for field, value in got.items():
         allowed = want.get(field)
         if allowed is None and value:
-            raise BakeError("bad_slot", f"השדה {field} אינו שייך לסוג {kind}.", {"field": field})
+            raise BakeError("bad_slot", tpl("השדה {field} אינו שייך לסוג {kind}.", field=field, kind=kind), {"field": field})
         if allowed is not None and value not in allowed:
-            raise BakeError("bad_slot", f"ערך לא מוכר בשדה {field}.", {"field": field, "choices": list(allowed)})
+            raise BakeError("bad_slot", tpl("ערך לא מוכר בשדה {field}.", field=field), {"field": field, "choices": list(allowed)})
     return {"kind": kind, "level_id": level_id, **got}
 
 
@@ -495,7 +496,7 @@ def validate_file(kind: str, preset: str, data: bytes, wait_s: float = DECODE_WA
     call it from the thread pool. A busy decoder answers BakeError('busy') after `wait_s`."""
     cap = MAX_BYTES[kind]
     if len(data) > cap:
-        raise BakeError("payload_too_large", f"הקובץ גדול מדי (עד {cap // 1024} KB).", {"max_bytes": cap})
+        raise BakeError("payload_too_large", tpl("הקובץ גדול מדי (עד {cap} KB).", cap=cap // 1024), {"max_bytes": cap})
     if not data:
         raise BakeError("unsupported_format", "הקובץ ריק.")
     mime = sniff(data[:32])
@@ -1008,7 +1009,7 @@ def normalize_scope(scope: dict[str, Any], levels: list[str], setting: dict[str,
         if scope.get(k) is not None:
             v = scope[k]
             if not isinstance(v, list) or not v or any(x not in allowed for x in v):
-                raise BakeError("validation", f"בקשת האפייה: ערך לא תקין ב־{k}.", {"field": k, "choices": list(allowed)})
+                raise BakeError("validation", tpl("בקשת האפייה: ערך לא תקין ב־{k}.", k=k), {"field": k, "choices": list(allowed)})
             out[k] = [x for x in allowed if x in v]
     if scope.get("lightmap") is not None:
         if not isinstance(scope["lightmap"], bool):

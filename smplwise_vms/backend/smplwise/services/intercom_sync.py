@@ -81,6 +81,7 @@ from ..test_reset import register_reset
 from . import ha_client, intercom_client
 from .intercom_client import IntercomError
 from .wiskey_feed_session import FeedSession
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -774,17 +775,17 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
             return ApiError(409, "intercom_outcome_pending", "לשמירה קודמת של האדם הזה עדיין אין תוצאה ברורה. הפקודה לא נשלחה - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.",
                             details=details)
         reason = NOT_SENT_REASONS.get(str(state), "WisKey אינו זמין")
-        return ApiError(503, "intercom_unavailable", f"הפקודה לא נשלחה: {reason}.", details=details)
+        return ApiError(503, "intercom_unavailable", tpl("הפקודה לא נשלחה: {reason}.", reason=reason), details=details)
     if outcome == "unknown":
         if code in ("timeout", "invalid_response") or state == "ha_unavailable":
             said = "הפקודה נשלחה אך לא התקבלה מ־WisKey תשובה ברורה"
         else:  # WisKey answered with a failure that can come after the command reached the device / the store (release_unconfirmed, storage_write_failed ...)
-            said = f"WisKey לא אישר שהפקודה בוצעה ({code})"
+            said = tpl("WisKey לא אישר שהפקודה בוצעה ({code})", code=code)
         if config:
-            return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שהשינוי נשמר וייתכן שלא - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.", details=details)
+            return ApiError(504, "intercom_outcome_unknown", tpl("{said}. ייתכן שהשינוי נשמר וייתכן שלא - טענו מחדש את הרשומה ובדקו את הגרסה שלה לפני שמנסים שוב.", said=said), details=details)
         if capture:
-            return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שהקורא בעמדה נכנס למצב קריאת כרטיס וממתין לכרטיס עד שתי דקות (עד שהזמן של WisKey יפוג) - שום כרטיס לא יתווסף לאדם בלי אישורכם.", details=details)
-        return ApiError(504, "intercom_outcome_unknown", f"{said}. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", details=details)
+            return ApiError(504, "intercom_outcome_unknown", tpl("{said}. ייתכן שהקורא בעמדה נכנס למצב קריאת כרטיס וממתין לכרטיס עד שתי דקות (עד שהזמן של WisKey יפוג) - שום כרטיס לא יתווסף לאדם בלי אישורכם.", said=said), details=details)
+        return ApiError(504, "intercom_outcome_unknown", tpl("{said}. ייתכן שבוצעה וייתכן שלא - בדקו במצלמה או במקום לפני שמנסים שוב.", said=said), details=details)
     if code == RATE_LIMITED:
         return ApiError(429, "intercom_rate_limited", "WisKey הגביל את קצב הפקודות ודחה את הפקודה. היא לא בוצעה - נסו שוב בעוד כמה שניות.", retryable=True, details=details)
     if code == "invalid_fields":
@@ -798,8 +799,8 @@ def action_error(reply: dict[str, Any], outcome: str, lane: str = "action") -> A
         status, own, message = CAPTURE_REFUSALS[code]
         return ApiError(status, own, message, details=details)
     if config and code and code.startswith(WRITE_INVALID_PREFIXES):
-        return ApiError(422, "intercom_invalid_request", f"WisKey דחה את פרטי האדם ({code}), ולכן השינוי לא נשמר.", details=details)
-    return ApiError(502, "intercom_action_refused", f"WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", details=details)
+        return ApiError(422, "intercom_invalid_request", tpl("WisKey דחה את פרטי האדם ({code}), ולכן השינוי לא נשמר.", code=code), details=details)
+    return ApiError(502, "intercom_action_refused", tpl("WisKey דחה את הפקודה ({code}). לפי WisKey היא לא בוצעה.", code=code), details=details)
 
 
 def person_target(user_id: str) -> str:

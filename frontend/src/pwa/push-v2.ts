@@ -6,6 +6,10 @@
  * The tokens are PER ACTION; the door button carries a deep link and no token. A v1 message (`{title, body, url, event_id, alert_id, tag}`) parses to the same shape
  * without actions. Everything is validated here: a link is an in-app hash route or nothing, a token is a bounded string, an unknown action is dropped.
  * Nothing in this file calls the network: the worker posts a token to the action endpoint, and the door button only ever opens the app.
+ *
+ * I18N-RUNTIME-ERRORS-2520: the buttons' words come from a small Hebrew / English table, chosen by the user's interface language that the
+ * app tells the worker (`swLang`): Hebrew = the server's title (the table only when it sent none), as before; English = the table's English
+ * for the three known buttons (the server words them in Hebrew).
  */
 
 const HASH_ROUTE = /^#\/(?!\/)[A-Za-z0-9/_\-.~%?=&]*$/;
@@ -40,13 +44,23 @@ interface ParsedPush {
   alert_id: string | null;
 }
 
-// i18n-keep: a module that cannot read the language packs (service-worker bundle, inlined)
-const LABEL: Record<PushActionId, string> = { ack: 'אישור', snooze: 'השתק לשעה', open_door: 'פתח דלת' };
+/** The worker's interface languages (the user's `ui.lang`; Hebrew when the app never said). */
+export type SwLang = 'he' | 'en';
+export function swLang(v: unknown): SwLang {
+  return v === 'en' ? 'en' : 'he';
+}
+export const LABELS: Record<SwLang, Record<PushActionId, string>> = {
+  // i18n-keep: the Hebrew side of the worker's own he/en table (service-worker bundle, inlined: no language packs); English beside it
+  he: { ack: 'אישור', snooze: 'השתק לשעה', open_door: 'פתח דלת' },
+  en: { ack: 'Acknowledge', snooze: 'Mute for an hour', open_door: 'Open the door' },
+};
 const str = (v: unknown, max: number): string => (typeof v === 'string' ? v.slice(0, max) : '');
 const route = (v: unknown): string | null => (typeof v === 'string' && v.length < 300 && HASH_ROUTE.test(v) ? v : null);
 
-/** The message of a push event, normalised; `maxActions` is the browser's `Notification.maxActions` (default 2). Never throws. */
-export function parsePush(raw: unknown, maxActions = 2): ParsedPush {
+/** The message of a push event, normalised; `maxActions` is the browser's `Notification.maxActions` (default 2), `lang` the user's interface
+ * language (the buttons' words). Never throws. */
+export function parsePush(raw: unknown, maxActions = 2, lang: SwLang = 'he'): ParsedPush {
+  const label = (id: PushActionId, title: unknown): string => (lang === 'he' ? str(title, 40) || LABELS.he[id] : LABELS[lang][id]);
   const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const resolved = d.resolved === true;
   const seen = new Set<string>();
@@ -60,11 +74,11 @@ export function parsePush(raw: unknown, maxActions = 2): ParsedPush {
         const url = typeof a.url === 'string' && DOOR_ROUTE.test(a.url) ? a.url : null;
         if (!url) continue;
         seen.add(id);
-        actions.push({ action: id, title: str(a.title, 40) || LABEL[id], url });
+        actions.push({ action: id, title: label(id, a.title), url });
       } else {
         if (typeof a.t !== 'string' || !TOKEN.test(a.t)) continue;
         seen.add(id);
-        actions.push({ action: id, title: str(a.title, 40) || LABEL[id], token: a.t });
+        actions.push({ action: id, title: label(id, a.title), token: a.t });
       }
     }
   }

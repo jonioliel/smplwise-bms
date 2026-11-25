@@ -25,6 +25,7 @@ from . import bridge_keys as bk
 from . import ha_scope, ha_sync, media_layout, media_model as mm, media_profiles as profiles
 from .timeutil import zone as _zone
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.media")
 
@@ -1113,24 +1114,24 @@ def _curation_items(items: Any, name: str, *, with_kind: bool) -> list[dict[str,
     if items is None:
         return []
     if not isinstance(items, list) or len(items) > mm.MAX_LIST:
-        raise ApiError(422, "validation", f"{name}: רשימה של עד {mm.MAX_LIST} פריטים.", details={"fields": [name]})
+        raise ApiError(422, "validation", tpl("{name}: רשימה של עד {max_list} פריטים.", name=name, max_list=mm.MAX_LIST), details={"fields": [name]})
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for it in items:
         if not isinstance(it, dict) or set(it) - {"id", "label", "hidden", "kind", "glyph"}:
-            raise ApiError(422, "validation", f"{name}: פריט לא תקין.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("{name}: פריט לא תקין.", name=name), details={"fields": [name]})
         item_id = it.get("id")
         if not isinstance(item_id, str) or not item_id or len(item_id) > 120 or item_id in seen:
-            raise ApiError(422, "validation", f"{name}: מזהה פריט לא תקין.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("{name}: מזהה פריט לא תקין.", name=name), details={"fields": [name]})
         label = it.get("label")
         if label is not None and (not isinstance(label, str) or len(label.strip()) > 40 or any(ord(c) < 32 or ord(c) == 127 for c in label)):
-            raise ApiError(422, "validation", f"{name}: שם עד 40 תווים.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("{name}: שם עד 40 תווים.", name=name), details={"fields": [name]})
         glyph = it.get("glyph")
         if glyph is not None and glyph not in mm.GLYPHS:
-            raise ApiError(422, "validation", f"{name}: אייקון לא מוכר.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("{name}: אייקון לא מוכר.", name=name), details={"fields": [name]})
         kind = it.get("kind")
         if kind is not None and kind not in (("source", "app", "channel") if with_kind else ("app",)):
-            raise ApiError(422, "validation", f"{name}: סוג לא מוכר.", details={"fields": [name]})
+            raise ApiError(422, "validation", tpl("{name}: סוג לא מוכר.", name=name), details={"fields": [name]})
         seen.add(item_id)
         out.append({"id": item_id, "label": (label or "").strip() or None, "hidden": bool(it.get("hidden", False)), "kind": kind, "glyph": glyph})
     return out

@@ -58,6 +58,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 from ..wire import access_control_triage as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -198,9 +199,9 @@ def _error(what: str, exc: ApiError, stale_hint: bool = False) -> ApiError:
         return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=details)
     if outcome == "refused":
         if code in ("review_stale", "revision_conflict") and stale_hint:
-            return ApiError(409, "triage_stale", f"{what} לא בוצע: הרשומה בעמדה או ב־WisKey השתנתה מאז הבדיקה ({code}). בדקו שוב לפני שמחליטים.", details=details)
-        return ApiError(502, "triage_failed", f"{what} נדחה על ידי WisKey ({code}). לפי WisKey דבר לא השתנה.", details=details)
-    return ApiError(504, "triage_outcome_unknown", f"{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - בדקו את הרשימה לפני שמנסים שוב.", details=details)
+            return ApiError(409, "triage_stale", tpl("{what} לא בוצע: הרשומה בעמדה או ב־WisKey השתנתה מאז הבדיקה ({code}). בדקו שוב לפני שמחליטים.", what=what, code=code), details=details)
+        return ApiError(502, "triage_failed", tpl("{what} נדחה על ידי WisKey ({code}). לפי WisKey דבר לא השתנה.", what=what, code=code), details=details)
+    return ApiError(504, "triage_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - בדקו את הרשימה לפני שמנסים שוב.", what=what, code=code), details=details)
 
 
 def _run(act: _Action, cls: str, target: str, key: str, send: Any, project: Any, not_after: datetime | None, stale_hint: bool, what: str) -> dict[str, Any]:
@@ -322,7 +323,7 @@ def resolve(request: Request, review_id: str, principal: Principal = Depends(_ma
         raise act.refuse(ApiError(422, "resolution_kind_mismatch", "הפעולה אינה מתאימה לסוג ההתנגשות.", details={"kind": kind}))
     allowed = (impact.get("actions") or {}).get(body.direction) or {}
     if allowed.get("allowed") is not True:
-        raise act.refuse(ApiError(409, "resolution_not_allowed", f"WisKey לא מאפשר את הפעולה הזו כרגע ({allowed.get('reason') or 'unknown'}).",
+        raise act.refuse(ApiError(409, "resolution_not_allowed", tpl("WisKey לא מאפשר את הפעולה הזו כרגע ({reason}).", reason=allowed.get('reason') or 'unknown'),
                                   details={"wiskey_reason": allowed.get("reason")}))
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פתרון התנגשות דורש אישור מפורש אחרי הצגת ההשפעה.", details={"direction": body.direction}))
@@ -430,7 +431,7 @@ def _fresh_alerts(act: _Action) -> dict[str, Any]:
         reply = intercom_sync.SYNC.command(settings_of(act.request), "alerts", lambda call: tr.ad.fleet_alerts(call, "", True), tr.project_alert_page,
                                            who=act.principal.user_id, channel="read")
     except ApiError as exc:
-        raise act.refuse(ApiError(exc.status, exc.code, f"רשימת ההתראות לא נקראה, ולכן הפעולה לא נשלחה: {exc.user_message}", retryable=exc.retryable)) from None
+        raise act.refuse(ApiError(exc.status, exc.code, tpl("רשימת ההתראות לא נקראה, ולכן הפעולה לא נשלחה: {user_message}", user_message=exc.user_message), retryable=exc.retryable)) from None
     if reply.get("state") != "ready" or reply.get("alerts") is None:
         raise act.refuse(ApiError(503, "intercom_unavailable", "רשימת ההתראות של WisKey אינה זמינה כרגע, ולכן הפעולה לא נשלחה.",
                                   details={"state": reply.get("state"), "wiskey_code": reply.get("last_error")}))

@@ -28,6 +28,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, STATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import access_grants as ag
 from . import intercom_authority as ia
+from ..error_text import tpl
 
 PURPOSE_MAX = 200
 NOTES_MAX = 1000
@@ -51,7 +52,7 @@ def clean_text(value: Any, field_name: str, limit: int, *, multiline: bool = Fal
     if _CONTROL.search(text):
         raise ag._invalid(field_name, "characters", "השדה מכיל תווים שאינם מותרים.")
     if len(text) > limit:
-        raise ag._invalid(field_name, "too_long", f"עד {limit} תווים.")
+        raise ag._invalid(field_name, "too_long", tpl("עד {limit} תווים.", limit=limit))
     return text or None
 
 

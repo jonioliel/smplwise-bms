@@ -26,6 +26,7 @@ from .access_control_door import _NOT_SENT_CODES, _NOT_SENT_ERRORS
 from .access_control_people import _person_summary, gated, people_writer
 from ..wire import access_control_capture as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -417,9 +418,9 @@ def card_capture_start(request: Request, user_id: str, auth: ia.Authority = Depe
     if station is not None:
         act.details["station_name"] = station["name"]
         if not station["lock_enabled"] or not station["locks"]:
-            raise act.refuse(ApiError(409, "intercom_no_lock", f"לעמדה {station['name']} אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס."))
+            raise act.refuse(ApiError(409, "intercom_no_lock", tpl("לעמדה {name} אין מנעול מנוהל ב־WisKey, ולכן אי אפשר לקרוא בה כרטיס.", name=station['name'])))
         if not station["online"]:
-            raise act.refuse(ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן הקורא לא הופעל."))
+            raise act.refuse(ApiError(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת כרגע, ולכן הקורא לא הופעל.", name=station['name'])))
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "הפעלת קורא הכרטיסים בעמדה דורשת אישור מפורש."))
     try:

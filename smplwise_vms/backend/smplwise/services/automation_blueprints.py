@@ -21,6 +21,7 @@ import re
 from typing import Any
 
 from . import default_names
+from ..error_text import tpl as err_tpl
 
 SCHEMA_VERSION = 1
 LIBRARY_VERSION = 1
@@ -436,7 +437,7 @@ def _entity_one(p: dict[str, Any], v: Any, env: Env) -> str:
 
 def _int_in(key: str, v: Any, lo: int, hi: int) -> int:
     if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
-        raise Problem(key, "out_of_range", f"ערך בין {lo} ל־{hi}")
+        raise Problem(key, "out_of_range", err_tpl("ערך בין {lo} ל־{hi}", lo=lo, hi=hi))
     return v
 
 
@@ -449,7 +450,7 @@ def _resolve_one(p: dict[str, Any], v: Any, env: Env) -> Any:
             raise Problem(key, "required", "בחרו לפחות מכשיר אחד")
         mx = min(int(p.get("max", ENTITIES_MAX)), ENTITIES_MAX)
         if len(v) > mx:
-            raise Problem(key, "too_many", f"עד {mx} מכשירים")
+            raise Problem(key, "too_many", err_tpl("עד {mx} מכשירים", mx=mx))
         out: list[str] = []
         for e in v:
             e = _entity_one(p, e, env)
@@ -482,7 +483,7 @@ def _resolve_one(p: dict[str, Any], v: Any, env: Env) -> Any:
         return _int_in(key, v, int(p.get("min", 0)), int(p.get("max", 100)))
     if t == "number":
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not float(p.get("min", -1e6)) <= v <= float(p.get("max", 1e6)):
-            raise Problem(key, "out_of_range", f"ערך בין {p.get('min')} ל־{p.get('max')}")
+            raise Problem(key, "out_of_range", err_tpl("ערך בין {min} ל־{max}", min=p.get('min'), max=p.get('max')))
         return v
     if t == "text":
         if not isinstance(v, str) or not v.strip() or len(v) > int(p.get("max", 200)) or TEXT_BAD.search(v):
