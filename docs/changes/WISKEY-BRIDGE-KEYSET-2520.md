@@ -6,6 +6,10 @@ Status: implemented and unit-tested against fakes and Arx's own v2 signer. **Not
 contact.** Installing 0.10.9 needs **one owner-approved Home Assistant Core restart** (custom integrations load only at Core start);
 no install and no restart were done here.
 
+**Update 25.11 (row WISKEY-BRIDGE-REPAIR-2520, section 8):** WisKey's acceptance on `8e412b0c0` found two real FAILs on a re-pair
+before detach / reload; fixed in this same module (the old pairing is refused at once, `bridge_pairing_changed`). Sections 2-4 are
+updated for it; the original FAILs and the new receipts are in section 8.
+
 ## 1. Inputs (read only)
 
 - WisKey PRODUCT `3e7bfc585d5a30bddd97ceeed1bb0d7032ee021d` (rc19): `trusted_actions/existing_bridge_auth.py` (`verify`, `check`,
@@ -39,7 +43,8 @@ Refusal codes (all mean `Unauthorized` to WisKey): `bridge_protocol_unsupported`
 `bridge_bad_format`, `bridge_key_unversioned` (`g0-legacy` on v2), `bridge_key_unknown` (no current setup verifies the kid: unknown,
 retired, aborted, capped), `bridge_key_ambiguous` (two loaded entries hold the kid - PAIRING-Q2, no silent choice),
 `bridge_bad_signature` / `bridge_stale` / `bridge_replay` (the key set's own `_check`), `bridge_highwater_not_persisted`,
-`bridge_source_changed` (reloaded / unloaded / removed entry), `bridge_key_retired` (binding's kid no longer verifiable),
+`bridge_source_changed` (reloaded / unloaded / removed entry), `bridge_pairing_changed` (the entry's pairing code changed - a
+re-pair - and the old setup is not reloaded yet; section 8), `bridge_key_retired` (binding's kid no longer verifiable),
 `bridge_binding_unknown`, `bridge_reply_invalid`, `bridge_pairing_unknown`.
 
 ## 3. Security rules as implemented
@@ -64,6 +69,12 @@ retired, aborted, capped), `bridge_key_ambiguous` (two loaded entries hold the k
 - **source_fingerprint** = SHA-256(`"smplwise-native-source.v1|" + entry_id + "|" + legacy_fingerprint(pairing code)`); the key set
   keeps the same one-way tag after retiring the code, so the value survives key rotations of the pairing and changes on a re-pair
   (K-02). No material and not the stored tag itself.
+- **Re-pair before reload** (section 8): every call reads the entry's pairing code live and compares it with the attached key set's
+  pairing (`_same_pairing`): the secret while the key set holds it; after retirement the bridge's own blank (HA-06) or the retired
+  code (by the key set's one-way `legacy_fp` tag). Anything else - a new code, a blank the bridge did not write, a non-string,
+  unreadable data - voids the old setup at once: `verify` refuses every kid of the old key set (before the key set's check, so no
+  nonce or high-water write), open bindings refuse `check()` / `sign_reply`, `source_fingerprint` raises and `legacy_allowed` is
+  False. Only the new setup that the update listener's reload attaches serves the new pairing.
 
 ## 4. What changed
 
@@ -76,7 +87,8 @@ retired, aborted, capped), `bridge_key_ambiguous` (two loaded entries hold the k
 | `smplwise_vms/integration/smplwise_bridge/` | regenerated with `py -3.12 scripts/sync_integration.py` (`--check`: up to date) |
 | version pins in 19 backend test files (assertions + one comment) | 0.10.8 -> 0.10.9 (the list of CR-BRIDGE-BUMP-RATCHETS-2460) |
 | `tests/test_capmap_295.py` | `REVIEWED_SUCCESSORS` row for `keyset.py` (`2193b0d7...` -> `dddf12a3...`): only the Persister changed; `_check` / `handle_control` / recipes byte-for-byte unchanged |
-| `tests/test_bridge_native_keyset_2520.py` (new) | 29 tests, below |
+| `tests/test_bridge_native_keyset_2520.py` (new) | 29 tests, below; +3 for the re-pair fix (section 8) = 32 |
+| `native_keyset.py` again (WISKEY-BRIDGE-REPAIR-2520) | `_same_pairing`, checked in `verify`, `_record` (binding `check` / `sign_reply`) and `_attached` (`legacy_allowed`, `source_fingerprint`); new code `bridge_pairing_changed`; docstrings. Nothing else in the bridge changed. |
 
 Not touched: the add-on code (R7's files), `smplwise_vms/CHANGELOG.md` (the 2.52 release step writes it - text in 6.2), the rotation
 block while WisKey is installed (`bridge_rotation`: `wiskey_present`), `management/`, main, tags, addon.
@@ -181,3 +193,126 @@ and the new test: 0 findings. `__init__.py` keeps its base findings (unused leas
    entry is not loaded then anyway) b) None-like "unknown" so WisKey keeps v1 as without the module.
 
 Rollback: revert the commits; no migration, setting or data.
+
+## 8. WISKEY-BRIDGE-REPAIR-2520 (25.11): re-pair before detach / reload
+
+### 8.1 The finding (record kept; WisKey's receipts, read only)
+
+WisKey handoff commit `57e4615e0b943638b7e6cdcd4565c183e559483e`, folder `docs/owner-development-2026-11-25/mac-arx-adoption/`
+(`FORWARD_TO_ARX_HE.txt` 2.1 / 2.3, `TEST_RESULTS_HE.txt`, `evidence/RUN_INDEX.json`). WisKey PRODUCT rc20
+`dcebb9f34c8f95638e498115a2aeb5ce2711981e`; bridge tested = this branch at `8e412b0c09e1f1e456c9ad2110ec8d964d706fe2`
+(`native_keyset.py` 13338 bytes, sha256 `0ec0d2b6458235ae0e2d2f3fc73a502c521a0a263fadfb1562458e065d972478`, both copies - re-checked
+here byte for byte).
+
+| WisKey run | CODE | exit | result |
+|---|---|---|---|
+| `ARX-REPAIR-ACCEPTANCE` | rc19 `3e7bfc58` | 2 | 1 ERROR (recipe namespace; not a finding) |
+| `ARX-REPAIR-ACCEPTANCE-02` | rc19 `3e7bfc58` | 1 | **2 FAIL** |
+| `FINAL-ARX-REPAIR` | rc20 `dcebb9f3` | 1 | **2 FAIL** (`tests/ha/test_arx_pairing_gap.py`, real HA test harness) |
+
+The two FAILs (both runs identical):
+
+1. `test_repairing_cannot_keep_previous_pairing_fingerprint` - `async_update_entry(entry, data={"pairing_code": <new>})`, no detach, no
+   reload; `source_fingerprint` must raise `Unavailable`: **DID NOT RAISE** (it answered the OLD pairing's value - the key set still held
+   the old secret and the function never looked at the entry's code).
+2. `test_old_key_cannot_open_new_v2_socket_during_repair` - same change; R7's `DirectApiTransport.connect` with the OLD rotated key over
+   WisKey's real `PATH_V2` must raise `MediaBridgeError`: **DID NOT RAISE** (`verify` found the kid in the still-attached old key set).
+
+The fixture's key set had a routine rotation begun and committed, not retired (`g0-legacy` still the old key, `g1-01234567` signing).
+WisKey's other results at the same bridge stay as WisKey reported them (FINAL-RC20-NEW-BRIDGE 42 PASS; the 29 original tests of this
+note passed there against fakes); nothing of those is re-claimed here.
+
+### 8.2 The fix (same module, nothing else in the bridge)
+
+`native_keyset._same_pairing(entry, keyset)`, read live on every call (section 3, "Re-pair before reload"), in `verify` (after the kid
+lookup and the ambiguity check, BEFORE `KeySet._check`: no nonce enters the cache and no high-water mark is saved for a voided pairing),
+in `_record` (every binding `check()` - WisKey's 0.25 s socket watcher - and `sign_reply`) and in `_attached` (`source_fingerprint`,
+`legacy_allowed`). Refusal code `bridge_pairing_changed` (WisKey maps it to `Unauthorized` like every other code).
+
+Unchanged: the verifier (`KeySet._check`, untouched; `keyset.py` not edited in this row), the request and reply recipes, every earlier
+refusal and its order, the persistence rule, `__init__.py`. Not done (by the constraints of WisKey and the owner): no replacement
+verifier, no stub, the historical module (`source/HISTORICAL_native_keyset_5610.py`, sha256 `ad9f3221...`) NOT adopted and not copied
+from (it was not read for this fix), no fail-closed rule weakened, no test edited to hide the finding. The three policy choices WisKey
+accepted stay: `g0-legacy` refused on v2; the fingerprint is per pairing and stable across rotation; an unattached entry refuses legacy.
+
+Design notes:
+- The comparison is stateless (not a latch): writing the pairing's own value back before the reload makes the old setup current again -
+  it IS the same pairing. Every pairing-field change also schedules the reload (`entry_updated`, 0.10.4), which replaces the setup.
+- A blank written by anyone while the key set still holds the secret (before the first retirement) is a change - fail closed. The only
+  blank the bridge writes comes after the retirement was saved (HA-06), and that one stays current.
+- Cost of the 0.25 s check: one constant-time compare; one SHA-256 only in the short window after a retirement while the entry still
+  holds the retired code.
+
+**Fingerprint algorithm vs the historical module (WisKey 2.3 (b)).** `source_fingerprint` here is
+SHA-256(`"smplwise-native-source.v1|" + entry_id + "|" + legacy_tag`); the historical Mac-assembled module returned the legacy tag
+itself. The two values therefore differ: a WisKey service grant recorded against a historical fingerprint does not match this bridge
+and is not effective. This row adds **no migration, no grant, no rebind and no revoke** (nothing silent); if a re-approval is ever
+needed it is an explicit, separate action of the Home Assistant owner in WisKey.
+
+### 8.3 Tests (real results, 25.11)
+
+| command | where | exit | result |
+|---|---|---|---|
+| `C:\cloude\smplwisebms\.venv\Scripts\python.exe -m pytest tests/test_bridge_native_keyset_2520.py -p no:cacheprovider --junitxml <scratch>` (`smplwise_vms/backend`) with the 3 new tests, source still `8e412b0c0` | PC | 1 | **3 failed / 29 passed** - the two ported acceptance tests fail exactly as WisKey's did (`DID NOT RAISE Unavailable`; `DID NOT RAISE MediaBridgeError`, after its positive control connected), plus the lifecycle test |
+| same, after the fix (`82a335a93`) | PC | 0 | **32 passed** |
+| `py -3.12 scripts/sync_integration.py`, then `--check` | PC | 0 / 0 | mirrored 35 files; "integration mirror is up to date" |
+| `py -3.12 -m ruff check` on `native_keyset.py` and the test file | PC | 0 | All checks passed |
+| 23 bridge files of 5.1, one pytest process each, sequential | PC | 0 each | 8.4 |
+| 9 heavier bridge files, one pytest process each, via `~/work/slotb.sh` | runner | 0 each | 8.4 |
+| WisKey's own recipe (`FINAL-ARX-REPAIR` overlay `tests/ha/test_arx_pairing_gap.py` + rc20 source) against the fixed bridge | - | - | **NOT_RUN**: it needs Home Assistant Core and `pytest-homeassistant-custom-component` (WisKey's Mac env: Python 3.14.2, Core 2026.10.4, plugin 0.13.375); neither the PC venv nor the runner venv has them (`find_spec` is False for both modules on both), and installing them is outside this row (no installs). The two scenarios are ported instead (rows 1-2). |
+| real Home Assistant / lab / WisKey | - | - | **NOT_RUN** by rule |
+
+Ported tests in `test_bridge_native_keyset_2520.py`:
+- `test_wiskey_acceptance_a_a_re_pair_before_reload_voids_the_previous_pairing_fingerprint` (WisKey FAIL 1) - WisKey's fixture shape
+  (begin + commit, not retired), the entry's code changed with the attachment left in place -> `bridge_pairing_changed`;
+  `legacy_allowed` False.
+- `test_wiskey_acceptance_b_the_old_key_cannot_open_a_new_v2_socket_during_a_re_pair` (WisKey FAIL 2) - Arx's own R7
+  `DirectApiTransport` (its v1 opener asserts it is never used) against a fake WisKey v2 socket whose connect calls
+  `native_keyset.verify` and signs the identity reply with `binding.sign_reply`; a positive control connects first; after the change
+  `connect` raises `MediaBridgeError`, the server saw `bridge_pairing_changed`, no store write happened, and the binding of the earlier
+  socket refuses `check()` and `sign_reply`.
+- `test_the_bridges_own_pairing_states_stay_current_and_any_other_code_is_refused` - retired and blanked by the bridge, and the retired
+  code left in the entry (HA-06), stay current with the same fingerprint; a new code, a padded code, a non-string and unreadable data
+  are refused; a blank before the first retirement is refused.
+
+### 8.4 Bridge test files at the fixed head `82a335a93`
+
+PC - command per file: `C:\cloude\smplwisebms\.venv\Scripts\python.exe -m pytest tests/<file>.py -p no:cacheprovider -q --tb=short
+--junitxml <scratch>` in `smplwise_vms/backend`, one process at a time. Counts from each junit file (tests / skipped; 0 failures and
+0 errors in every file). All exit 0.
+
+| file | tests / skipped | file | tests / skipped |
+|---|---|---|---|
+| `test_bridge_080` | 3 | `test_bridge_config_drift` | 13 |
+| `test_bridge_gaps_2438` | 8 | `test_bridge_key_activation_295` | 30 |
+| `test_bridge_media_players` | 17 | `test_bridge_media_policy` | 49 |
+| `test_bridge_runtime_2436` | 13 / 1 | `test_bridge_stale_discovery_2383` | 32 |
+| `test_bridge_stream_source` | 50 | `test_bridge_update_listener_2401` | 13 |
+| `test_door_bridge_block_2404` | 21 | `test_extid_followups` | 20 |
+| `test_lovelace_card` | 5 | `test_wiskey_adopt_2272_review` | 41 / 3 |
+| `test_wiskey_s4_core_observer` | 31 / 1 | `test_wxh4_emergency_revoke_2407` | 22 |
+| `test_capmap_295` | 65 | `test_bridge_common_2440` | 22 |
+| `test_bridge_preverify_2440` | 17 | `test_wiskey_native_bundle_2272` | 7 |
+| `test_wiskey_rc7_adopt_2331` | 32 / 5 | `test_mac_managed_auto_policy` | 8 / 3 |
+| `test_wiskey_install_answers_2400` | 39 | | |
+
+(Junit `tests` counts include skipped ones, so a few differ from the passed / skipped pairs of 5.1.)
+
+Runner (slot B, `~/smplwisebms/.venv/bin/python -m pytest tests/<file>.py -p no:cacheprovider -q --tb=short --junitxml ...` in a
+worktree at `82a335a93`, one process per file, sequential). All exit 0, 0 failures, 0 errors.
+
+| file | tests / skipped | time | file | tests / skipped | time |
+|---|---|---|---|---|---|
+| `test_bridge_keyrot_harness_295` | 34 | 138 s | `test_lease_wire_closed_295` | 135 / 4 | 28 s |
+| `test_bridge_service_identity` | 171 | 4 s | `test_bridge_runnable` | 111 / 1 | 4 s |
+| `test_wiskey_managed_install_2382` | 73 | 160 s | `test_bridge_schedule_service` | 83 | 5 s |
+| `test_bridge_lease_event` | 66 | 4 s | `test_bridge_native_keyset_2520` | 32 | 4 s |
+| `test_wiskey_direct_v2_2520` (R7) | 39 | 14 s | | | |
+
+Together with the PC table this covers every file of 5.1 (32 files), each in its own process.
+
+### 8.5 Open question
+
+1. Tell WisKey the fix through the owner (new head SHA, both copies' hashes, refusal code `bridge_pairing_changed`) and ask them to
+   re-run `FINAL-ARX-REPAIR` and `test_m15_direct_v2` against it. a) yes, via the owner (recommended - only their harness runs the real
+   Home Assistant path) b) wait for the 2.52 train first.

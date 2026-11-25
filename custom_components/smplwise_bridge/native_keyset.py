@@ -31,6 +31,11 @@ Rules (security):
   the message is admitted (`bridge_highwater_not_persisted` otherwise), so after a Home Assistant restart - when every in-memory nonce
   cache is empty - a captured message of the last 60 s is refused by the saved mark. One save per kid and second at most (a message in a
   second that is already saved needs no write).
+- Re-pair (WISKEY-BRIDGE-REPAIR-2520): an attachment counts only while its entry still carries the pairing its key set belongs to,
+  read live on every call (`_same_pairing`). A new pairing code written into the entry voids the old setup AT ONCE, before the update
+  listener's reload detaches it: `verify` refuses every kid of the old key set (no check, no save), open bindings stop `check()` and
+  `sign_reply`, `source_fingerprint` raises and `legacy_allowed` is False - all `bridge_pairing_changed`. The new pairing is served
+  only by the new setup the reload attaches.
 - A refusal never says why beyond its code, and every code means the same to WisKey: `Unauthorized`.
 
 Dependency-free (no Home Assistant import), like `keyset.py`: the entry's state is read by value (`"loaded"`), so the module runs in
@@ -85,8 +90,9 @@ class KeyBinding:
         return "<native_keyset binding>"
 
     def check(self) -> tuple[Any, str]:
-        """(entry, kid) while the binding is current; Unavailable once the entry was reloaded / unloaded / removed or the kid is no
-        longer one the key set verifies (retired, aborted, past the 180 s cap, a hard cut)."""
+        """(entry, kid) while the binding is current; Unavailable once the entry was reloaded / unloaded / removed, its pairing code
+        changed (a re-pair, even before the reload) or the kid is no longer one the key set verifies (retired, aborted, past the 180 s
+        cap, a hard cut)."""
         att, kid = _record(self)
         return att.entry, kid
 
@@ -143,6 +149,29 @@ def _current(hass: Any, att: _Attachment) -> bool:
     return _registry(hass).get(entry_id) is att and held is entry and _loaded(entry) and att.saver.keyset is att.keyset
 
 
+def _same_pairing(entry: Any, ks: KeySet) -> bool:
+    """The entry still carries the pairing its attached key set belongs to (WISKEY-BRIDGE-REPAIR-2520). Read live from the entry on every
+    call, so a re-pair (Supervisor discovery or the owner writing a new pairing code into the entry) voids this setup's bindings, its
+    kids, its fingerprint and the legacy path AT ONCE - not only after the update listener's reload has detached it.
+
+    The same pairing is: the key set's pairing secret itself while it still holds it; once the secret is retired, the blank the bridge
+    writes (HA-06) or that retired code (a restart between the key save and the entry update) - recognised by the one-way tag the key set
+    keeps (`legacy_fp`). Any other value - a new code, a blank the bridge did not write, a non-string, unreadable data - is a change."""
+    data = getattr(entry, "data", None)
+    if not hasattr(data, "get"):  # a dict or Home Assistant's read-only mapping; anything else cannot be compared: closed
+        return False
+    code = data.get(CONF_PAIRING_CODE)
+    if code is None:
+        code = ""  # the bridge reads a missing code as blank (`__init__`: `entry.data.get(CONF_PAIRING_CODE) or ""`)
+    if not isinstance(code, str):
+        return False
+    if ks.legacy is not None:
+        return bool(code) and hmac.compare_digest(code.encode("utf-8"), ks.legacy.encode("utf-8"))
+    if not code:
+        return True
+    return ks.legacy_fp is not None and hmac.compare_digest(legacy_fingerprint(code), ks.legacy_fp)
+
+
 def _record(binding: Any) -> tuple[_Attachment, str]:
     rec = _BINDINGS.get(binding) if type(binding) is KeyBinding else None
     if rec is None:
@@ -150,14 +179,21 @@ def _record(binding: Any) -> tuple[_Attachment, str]:
     hass, att, kid = rec
     if not _current(hass, att):
         raise Unavailable("bridge_source_changed")
+    if not _same_pairing(att.entry, att.keyset):
+        raise Unavailable("bridge_pairing_changed")
     if kid not in att.keyset.verifiable():
         raise Unavailable("bridge_key_retired")
     return att, kid
 
 
-def _attached(hass: Any, entry: Any) -> _Attachment | None:
+def _attached(hass: Any, entry: Any) -> _Attachment:
+    """The current attachment of `entry` while it still carries its pairing; Unavailable otherwise."""
     att = _registry(hass).get(getattr(entry, "entry_id", None))
-    return att if att is not None and att.entry is entry and _current(hass, att) else None
+    if att is None or att.entry is not entry or not _current(hass, att):
+        raise Unavailable("bridge_source_changed")
+    if not _same_pairing(entry, att.keyset):
+        raise Unavailable("bridge_pairing_changed")
+    return att
 
 
 def attach(hass: Any, entry: Any, keyset: KeySet, saver: Persister) -> Callable[[], None]:
@@ -191,6 +227,8 @@ async def verify(hass: Any, message: Any) -> KeyBinding:
     if len(found) > 1:
         raise Unavailable("bridge_key_ambiguous")
     att = found[0]
+    if not _same_pairing(att.entry, att.keyset):  # a re-pair not yet reloaded: the old pairing's keys open nothing (before any check / save)
+        raise Unavailable("bridge_pairing_changed")
     checked, code = att.keyset._check(message)  # the key set's own verify path (format, MAC first, window, replay)
     if checked != kid:
         raise Unavailable(f"bridge_{code or 'bad_signature'}")
@@ -219,8 +257,6 @@ def legacy_allowed(hass: Any, entry: Any) -> bool:
         att = _attached(hass, entry)
     except Unavailable:
         return False
-    if att is None:
-        return False
     ks = att.keyset
     legacy = ks.legacy
     if legacy is None or LEGACY_KID not in ks.verifiable():
@@ -233,10 +269,10 @@ def legacy_allowed(hass: Any, entry: Any) -> bool:
 def source_fingerprint(hass: Any, entry: Any) -> str:
     """64 hex: SHA-256 over a label, the entry id and the one-way tag of the pairing code (`keyset.legacy_fingerprint`, the same tag the
     key set keeps after it retired the code). Unchanged by key rotations of that pairing; a re-pair (a new code, K-02) gives a new value.
-    Unavailable when the entry is not loaded / attached or the pairing's tag is unknown (a retired code from before the tag existed)."""
+    Unavailable when the entry is not loaded / attached, when it no longer carries that pairing (`bridge_pairing_changed`: a re-pair is
+    refused at once, before the reload - the old value is never answered for a new code) or the pairing's tag is unknown (a retired code
+    from before the tag existed)."""
     att = _attached(hass, entry)
-    if att is None:
-        raise Unavailable("bridge_source_changed")
     ks = att.keyset
     tag = legacy_fingerprint(ks.legacy) if ks.legacy is not None else ks.legacy_fp
     if not tag:
