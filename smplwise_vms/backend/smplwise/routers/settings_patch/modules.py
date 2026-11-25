@@ -99,6 +99,7 @@ def station_media_direct_v2(patch: Patch) -> None:
     the bridge key set is rotated (services/wiskey_media_v2.py). It changes which signed protocol carries video, talk and listening, so only
     a system administrator changes it; turning it on needs the bridge that serves v2 for WisKey (0.10.9+, as Arx last saw it). A repeated
     value is dropped from the change; every attempt that changes it is audited (allowed or denied); a refusal fails the whole request."""
+    from ...error_text import tpl
     from ...errors import ApiError
     from ...services import wiskey_media_v2 as media_v2
 
@@ -121,7 +122,8 @@ def station_media_direct_v2(patch: Patch) -> None:
     if changes[key] == "on" and not media_v2.bridge_ok(conn):
         audit(conn, actor=principal, action=key, decision="denied", resource_type="installation", resource_id="*", reason="bridge_outdated",
               request_id=_rid(request), details=details)
-        raise ApiError(409, "bridge_outdated", f"מדיה בחיבור החתום החדש דורשת רכיב חיבור {media_v2.BRIDGE_REQUIRED} ומעלה (כעת {details['bridge_version'] or '?'}).",
+        raise ApiError(409, "bridge_outdated", tpl("מדיה בחיבור החתום החדש דורשת רכיב חיבור {required} ומעלה (כעת {version}).",
+                                                    required=media_v2.BRIDGE_REQUIRED, version=details["bridge_version"] or "?"),
                        details={"field": key, "required": media_v2.BRIDGE_REQUIRED, "version": details["bridge_version"],
                                 "message_en": f"Media over the new signed connection needs the bridge {media_v2.BRIDGE_REQUIRED} or newer "
                                               f"(now {details['bridge_version'] or '?'})."})

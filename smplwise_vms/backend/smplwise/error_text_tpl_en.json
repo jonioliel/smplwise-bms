@@ -234,7 +234,8 @@
   "{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהבקשה נקלטה - סנכרון נוסף לעמדה לא יישלח עד שבדיקת מצב הסנכרון תענה.": "{what} was sent, but no clear answer came ({code}). The request may have been taken - no further station sync is sent until the sync status check answers.",
   "{what} נכשל לפי WisKey ({code}).": "{what} failed according to WisKey ({code}).",
   "{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - אל תשלחו שוב לפני שבודקים את מצב העמדה.": "{what} was sent, but no clear answer came ({code}). It may have been done - do not send it again before checking the station's state.",
-  "מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.": "The access control system refused the visit record ({code}). Nothing was recorded."
+  "מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.": "The access control system refused the visit record ({code}). Nothing was recorded.",
+  "מדיה בחיבור החתום החדש דורשת רכיב חיבור {required} ומעלה (כעת {version}).": "Media over the new signed connection needs the bridge {required} or newer (now {version})."
  },
  "words": {
   "WisKey אינו זמין": "WisKey is not available",

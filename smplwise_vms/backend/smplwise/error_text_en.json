@@ -2098,6 +2098,7 @@
 "רק מנהל מערכת משנה את ההגדרה של מפתחות גישה לכל המשתמשים.": "Only a system administrator can change the passkey setting for all users.",
 "רק מנהל מערכת משנה את המחיקה האוטומטית של משתמשי Arx.": "Only a system administrator can change the automatic deletion of Arx users.",
 "רק מנהל מערכת משנה את כתובת הקישורים של משתמשי Arx.": "Only a system administrator can change the link address for Arx users.",
+"רק מנהל מערכת משנה את ערוץ המדיה החתום של עמדות WisKey.": "Only a system administrator changes the signed media channel of the WisKey stations.",
 "רק מנהל מערכת משנה מאיפה מותר לאפס דרכי אימות של משתמשים.": "Only a system administrator can change where users' authentication methods may be reset from.",
 "רק מנהל מערכת פעיל יכול לשייך אדם ששוחזר.": "Only an active system administrator can link a restored person.",
 "רק מנהל של מערכת הבית רשאי לנהל את המשתמשים שלה.": "Only an administrator of the home platform may manage its users.",
