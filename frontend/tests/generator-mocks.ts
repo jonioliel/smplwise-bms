@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { GROUPS, TITLE_EN, deviceFor, typesFor, valuesFor, type Level, type Scenario } from './generator-fixtures';
+import { GROUPS, ROLE_NAMES, TITLE_EN, deviceFor, typesFor, valuesFor, type Level, type Scenario } from './generator-fixtures';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 
 // CR-031 GEN1: the mock layer of the generator specs - the wire contract of routers/generator.py, fake data only. The whole app runs against it through page.route.
@@ -155,12 +155,12 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
         for (const k of Object.keys(sevDefaults)) sevDefaults[k] = null;
         return json(route, { reset: 3 });
       }
-      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: TITLE_EN[t.key] ?? t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
+      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: TITLE_EN[t.key] ?? t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, needs_en: t.needs_en, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
       return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], severity_defaults: sevDefaults, severity_channels: ['push', 'app', 'email'], critical_escalate_after_min: 5, note: '', template_max: 500, placeholders: { name: 'שם הגנרטור', detail: 'פירוט האירוע', type: 'סוג ההתראה', severity: 'חומרה' }, roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
     }
     if (m && m[2] === 'roles') {
       const names = ['engine_state', 'gen_v_l1', 'fuel_pct', 'battery_v'];
-      return json(route, { items: names.map((r, i) => ({ role: r, label: r, kind: 'num', unit: '', core: i < 2, mapped: i !== 2, entity_id: i !== 2 ? `x.${r}` : null, entity_name: i !== 2 ? r : null, mapped_by: 'auto', unmapped_by_user: false, disabled_in_source: false, candidates: [{ entity_id: `x.${r}`, name: r, unit: null, score: 2 }] })) });
+      return json(route, { items: names.map((r, i) => ({ role: r, label: ROLE_NAMES[r]?.he ?? r, label_en: ROLE_NAMES[r]?.en ?? r, kind: 'num', unit: '', core: i < 2, mapped: i !== 2, entity_id: i !== 2 ? `x.${r}` : null, entity_name: i !== 2 ? r : null, mapped_by: 'auto', unmapped_by_user: false, disabled_in_source: false, candidates: [{ entity_id: `x.${r}`, name: r, unit: null, score: 2 }] })) });
     }
     if (g.startsWith('device-candidates')) return json(route, { items: [{ ha_device_id: 'd1', name: 'בקר מבחן', entities: 12, mapped_roles: 7, registered: false }] });
     if (g === 'settings') return json(route, { integration_domains: [], known_domains: [], thresholds: {}, threshold_defaults: { fuel_low_pct: 25, oil_min_bar: 1 }, threshold_limits: { fuel_low_pct: [1, 90], oil_min_bar: [0, 10] }, thresholds_set: [], alert_retention_days: 365, history_retention_days: 35, stale_after_s: 300, critical_escalate_after_min: 5, limits: { alert_retention_days: [30, 1825, 365], history_retention_days: [7, 90, 35], stale_after_s: [60, 3600, 300] },

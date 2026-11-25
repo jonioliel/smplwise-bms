@@ -54,6 +54,8 @@ class GeneratorAlertTypeState(WireModel):
     title: str
     available: bool
     needs: str | None
+    needs_en: str | None = None
+    """GEN-SENSOR-NAMES-EN-2520 (additive): the same "requires sensor" names in English; null when the type is available."""
 
 
 class GeneratorDevice(WireModel):
@@ -157,6 +159,8 @@ class GeneratorEntityCandidate(WireModel):
 class GeneratorRoleMapping(WireModel):
     role: str
     label: str
+    label_en: str = ""
+    """GEN-SENSOR-NAMES-EN-2520 (additive): the role's English name (the sensor-mapping tab on an English page)."""
     kind: str
     unit: str
     core: bool
@@ -361,6 +365,8 @@ class GeneratorPolicyItem(WireModel):
     event: bool
     available: bool
     needs: str | None
+    needs_en: str | None = None
+    """GEN-SENSOR-NAMES-EN-2520 (additive): the "requires sensor" names in English; null when the type is available."""
     message: str
     message_sample: str
     policy: GeneratorPolicy | None

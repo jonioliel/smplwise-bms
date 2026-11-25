@@ -14,8 +14,7 @@ import '../components/sw-state-panel';
 import { getPolicies, previewPolicy, putPolicy, putSettings, putSeverityRouting, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
 import { listUsers, type DirectoryUser } from '../api/access';
 import { ApiError, describeError } from '../api/client';
-import { uiLang } from '../i18n/he';
-import { GEN, GEN_SETTINGS } from './gen-text';
+import { GEN, GEN_SETTINGS, genServerWord } from './gen-text';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -29,7 +28,9 @@ import { confirmDialog } from '../components/confirm-dialog';
 const G = GEN;
 const S = GEN_SETTINGS;
 /** an alert type's title in the page language: the server sends the Hebrew and the English (`title_en`) */
-const typeTitle = (i: PolicyItem) => (uiLang() === 'en' && i.title_en ? i.title_en : i.title);
+const typeTitle = (i: PolicyItem) => genServerWord(i.title, i.title_en);
+/** GEN-SENSOR-NAMES-EN-2520: the "requires sensor" names in the page language (the server's `needs_en` beside the Hebrew `needs`) */
+const needsText = (i: PolicyItem) => fill(S.needs, { n: genServerWord(i.needs, i.needs_en) ?? '' });
 const SEVS: Severity[] = ['critical', 'alert', 'info'];
 const DEFAULT_POLICY: PolicyBodyValue = { enabled: true, severity: null, recipients: { roles: [], users: [] }, channels: [], quiet_mode: 'matrix', escalate: false, after_s: 0, escalate_after_s: 0, row_version: 0 };
 const chLabel = (c: string) => (S.ch as Record<string, string>)[c] ?? c;
@@ -345,7 +346,7 @@ export class GenRouting extends LitElement {
       {
         key: 'title',
         label: S.colAlert,
-        render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, html`<span class="t1">${typeTitle(i!)}</span>`) : html`<span class="mut">${typeTitle(i!)}</span><span class="t2" data-needs>${fill(S.needs, { n: i!.needs ?? '' })}</span>`),
+        render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, html`<span class="t1">${typeTitle(i!)}</span>`) : html`<span class="mut">${typeTitle(i!)}</span><span class="t2" data-needs>${needsText(i!)}</span>`),
       },
       { key: 'sev', label: S.colSev, kind: 'status', render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, sevChip(sevOf(i!))) : nothing) },
       { key: 'rec', label: S.colRec, render: ({ item: i }) => (i!.available ? dim(i!.policy?.enabled ?? true, this.recChips(i!)) : nothing) },
@@ -375,7 +376,7 @@ export class GenRouting extends LitElement {
       return { 'data-type': m.item.key, 'data-na': !m.item.available, 'data-off': m.item.available && !(m.item.policy?.enabled ?? true) };
     };
     const phoneRow = (i: PolicyItem) => !i.available
-      ? html`<div class="li dis"><div class="grow"><div class="t1">${typeTitle(i)}</div><div class="t2">${fill(S.needs, { n: i.needs ?? '' })}</div></div></div>`
+      ? html`<div class="li dis"><div class="grow"><div class="t1">${typeTitle(i)}</div><div class="t2" data-needs>${needsText(i)}</div></div></div>`
       : html`<button class="li" data-type=${i.key} @click=${() => this.edit(i)}><div class="grow"><div class="t1">${typeTitle(i)}</div><div class="t2">${this.recChips(i)}</div><div style="margin-block-start:6px">${this.chIcons(i)}</div></div><span class="sev ${i.policy?.severity ?? i.default_severity}">${G.alerts.sev[i.policy?.severity ?? i.default_severity]}</span></button>`;
     return html`<div class="col" data-gen-routing>
       ${routingEmpty(data.items, data.severity_defaults) ? html`<div class="notice warnbox" data-routing-empty role="status"><sw-icon name="info" size="18"></sw-icon><span><b>${grt('emptyTitle')}.</b> ${grt('emptyCritical', { n: data.critical_escalate_after_min })}</span></div>` : nothing}

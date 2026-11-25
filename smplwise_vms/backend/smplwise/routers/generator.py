@@ -107,7 +107,8 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
     if detail:
         out["values"] = _values_out(values)
         out["capabilities"]["roles_detail"] = [{"role": r, "label": cat.ROLES[r][2], "unit": cat.ROLES[r][1], "core": cat.is_core(r)} for r in sorted(roles)]
-        out["alert_types"] = [{"key": t.key, "group": t.group, "title": t.title_he, "available": cat.type_available(t, roles), "needs": None if cat.type_available(t, roles) else cat.needs_label(t)} for t in cat.ALERT_TYPES]
+        out["alert_types"] = [{"key": t.key, "group": t.group, "title": t.title_he, "available": cat.type_available(t, roles), "needs": None if cat.type_available(t, roles) else cat.needs_label(t),
+                               "needs_en": None if cat.type_available(t, roles) else cat.needs_label(t, "en")} for t in cat.ALERT_TYPES]
         out["thresholds"] = core.thresholds(conn, d["id"])
     return out
 
@@ -253,7 +254,7 @@ def get_roles(device_id: str, principal: Principal = Depends(_manage_ro), conn: 
     items = []
     for role, (kind, unit, label) in cat.ROLES.items():
         m = mapped.get(role)
-        items.append({"role": role, "label": label, "kind": kind, "unit": unit, "core": cat.is_core(role), "mapped": m is not None,
+        items.append({"role": role, "label": label, "label_en": cat.role_label(role, "en"), "kind": kind, "unit": unit, "core": cat.is_core(role), "mapped": m is not None,
                       "entity_id": m["entity_ref"] if m else None, "entity_name": names.get(m["entity_ref"]) if m else None, "mapped_by": m["mapped_by"] if m else None,
                       "unmapped_by_user": role in overrides and overrides[role] is None, "disabled_in_source": role in disabled, "candidates": cands.get(role, [])[:10]})
     return {"items": items}

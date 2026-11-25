@@ -555,7 +555,7 @@ def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
     for t in cat.ALERT_TYPES:
         ok = cat.type_available(t, roles)
         items.append({"key": t.key, "group": t.group, "title": t.title_he, "title_en": t.title_en, "default_severity": t.severity, "event": t.event, "available": ok,
-                      "needs": None if ok else cat.needs_label(t), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
+                      "needs": None if ok else cat.needs_label(t), "needs_en": None if ok else cat.needs_label(t, "en"), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
     return {"groups": [{"key": k, "title": v} for k, v in cat.GROUPS], "items": items, "available": sum(1 for i in items if i["available"]), "total": len(items),
             "severity_defaults": severity_defaults(conn, device_id), "severity_channels": list(SEVERITY_CHANNELS), "critical_escalate_after_min": critical_escalate_after_min(conn),
             "channels": list(CHANNELS), "channels_reserved": list(CHANNELS_RESERVED), "quiet_modes": list(QUIET),
