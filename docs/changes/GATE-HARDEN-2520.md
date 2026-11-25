@@ -79,6 +79,8 @@ Verdict: entry REMOVED (file is now `[]`; backup `~/known_issues.json.bak_2511`)
 | what | command | result |
 |------|---------|--------|
 | gate engine selftest (incl. TR-01 real-pytest reproduction, TR-06 cases) | `GATE_SELFTEST_REPO=<wt> ~/smplwisebms/.venv/bin/python scripts/gate/selftest_gate.py` | rc 0, `SELFTEST PASSED` |
+| TR-01 reproduction, old vs new engine (`backend_finish` on a real pytest shard: `test_gated[GET /a]` + an unrelated `assert False`) | `python tr01_repro.py <engine>` | old engine (`~/release_gate.py.bak_2511`): both FLAKY ("`test_gated[GET`" truncated), verdict **pass**; new engine: both FAIL, verdict **fail** |
+| installed engine selftest | `~/smplwisebms/.venv/bin/python ~/selftest_gate.py` (after the install) | rc 0, `SELFTEST PASSED` |
 | engine_sync selftest | `python3 scripts/gate/selftest_engine_sync.py` | rc 0, `SELFTEST PASSED` (also on the workstation) |
 | release bundle check | `pytest tests/test_release_bundle_version_2520.py` | 6 passed |
 | release_check suite | `pytest tests/test_release_check.py` | 2 passed, 1 failed: `test_repository_is_release_consistent` - "one version everywhere" (CHANGELOG head is the 2.52.0 DRAFT on the train head). Pre-existing on the base train head, unrelated (the new bundle row is a WARN there, not a FAIL) |
