@@ -21834,5 +21834,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-SEC-FIX-2520-1",
+    "requirement_ids": [
+      "R-SEC-FIX-2520-1"
+    ],
+    "task_ids": [
+      "SEC-FIX-2520"
+    ],
+    "title": "Step-up lockout, attestation chain, backup key classes and restore safety (2.52 deep review)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The step-up lockout count survives a rollback (SEC-1); the attestation chain is checked by one shared function with CA flags (SEC-2); security / remote keys never travel with a backup (SEC-3); restored settings are validated (CORE-04); a replace restore is FK-safe and the drill restores onto a read-only copy, refusals 409 restore_refused (CORE-01); the daily backup runs from the stored last run (CORE-02).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2520-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

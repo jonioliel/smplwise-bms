@@ -14183,5 +14183,21 @@
     "test_ids": [
       "AT-SCREENS-FIX-B2-2520-1"
     ]
+  },
+  {
+    "id": "R-SEC-FIX-2520-1",
+    "title": "Step-up lockout, attestation chain, backup key classes and restore safety (2.52 deep review)",
+    "statement": "The step-up lockout count survives a rollback (SEC-1); the attestation chain is checked by one shared function with CA flags (SEC-2); security / remote keys never travel with a backup (SEC-3); restored settings are validated (CORE-04); a replace restore is FK-safe and the drill restores onto a read-only copy, refusals 409 restore_refused (CORE-01); the daily backup runs from the stored last run (CORE-02).",
+    "task_ids": [
+      "SEC-FIX-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SEC-FIX-2520-1"
+    ]
   }
 ]

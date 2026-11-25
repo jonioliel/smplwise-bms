@@ -30061,7 +30061,8 @@
       "2026-11-25 (RELEASE-2520-TRAIN): also merged ADR019-L14-STRICT-F123-2520 6a1b42ef5 (+ changelog 66cca52e8). Gate NOT_RUN; nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): rows 22-32 merged - ADR019-FAMILY678-2520 22ba0e9fb (+ ratchet 53a6b8da8), STARTING-STYLE-AUDIT-2520 a605434f8, MFA-PASSKEY-ADMIN-REMOVE-2520 299dda4d9 (+ 48536a4e4), MFA-RESET-CHANNEL-UI-2520 b6cd0d9aa, NOTIFY-LANG-SENDERS-2520 bb80821ed, WISKEY-SCHED-READS-2520 c3af014da (+ f8fa8c508, 493beba09), GEN-UNITS-FIELD-2520 890a645cf, DOOR-TECH-HOLD-FIX-2520 35365a2be, I18N-RUNTIME-ERRORS-2520 189ec3f4a, WISKEY-STATUS-I18N-2520 9d42de979, WISKEY-VISITS-ENDED-FILTER-2520 f343f829b. Nine cards registered at the merge (NOTIFY-RECIPIENT-LANG-2520 and ADR019-L14-STRICT-F123-2520 per the lead, and the seven other merged rows that had none). Gate NOT_RUN; nothing released.",
       "2026-11-25 (RELEASE-2520-TRAIN): rows 33-38 merged - GEN-SENSOR-NAMES-EN-2520 78a8ad1f2, WISKEY-NOFALLBACK-FIX-2520 af0021b2c, WISKEY-PAIRING-I18N-2520 7109362dc (+ 9fb9b9cfa), SCREENS-FIX-B-2520 026d1e55f, OVERLAY-FADE-2520 c5adefc60 (+ 997dbe643), BRIDGE-REPAIR-LEGACY-2520 764e442c7 (+ capmap 628c0e259); train fixes bd20831e6 (schedule-reads legacy 422), 928f05e64 (CHANGELOG head), e328f3ca2 (two Node unit guards). Gate NOT_RUN; nothing released.",
-      "2026-11-25 (RELEASE-2520-TRAIN): rows 39-42 merged - VIDEO-SECFIX-2520 0a9d23c01 (+ T06 2b9810f38), FE-SAFETY-FIX-2520 88070190a, SCREENS-FIX-A-2520 91de5c377, GATE-HARDEN-2520 78e1a68d0; train fix cff4e13b6 (wiskeyarx N07). Before the gate: the UI rebuild commit (build:addon + build:public:addon, www/arx-sw.js arx-shell-2.52.0). Gate NOT_RUN; nothing released."
+      "2026-11-25 (RELEASE-2520-TRAIN): rows 39-42 merged - VIDEO-SECFIX-2520 0a9d23c01 (+ T06 2b9810f38), FE-SAFETY-FIX-2520 88070190a, SCREENS-FIX-A-2520 91de5c377, GATE-HARDEN-2520 78e1a68d0; train fix cff4e13b6 (wiskeyarx N07). Before the gate: the UI rebuild commit (build:addon + build:public:addon, www/arx-sw.js arx-shell-2.52.0). Gate NOT_RUN; nothing released.",
+      "2026-11-25 (RELEASE-2520-TRAIN): rows 43-44 merged - SCREENS-FIX-B2-2520 bf59244c0, SEC-FIX-2520 53788848e (the complete 2.52 scope: 44 rows); train fixes cff4e13b6 (wiskeyarx N07), c128c2f86 (two Node unit guards), 9fb8109fb (gate list + inventory legacy-shape check). Before the gate: the UI rebuild commit (build:addon + build:public:addon, www/arx-sw.js arx-shell-2.52.0). Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -30825,6 +30826,44 @@
     ],
     "owner": null,
     "commit": "9f0626e90",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SEC-FIX-2520",
+    "title": "Step-up lockout, attestation chain, backup key classes and restore safety (2.52 deep review)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The step-up lockout count survives a rollback (SEC-1); the attestation chain is checked by one shared function with CA flags (SEC-2); security / remote keys never travel with a backup (SEC-3); restored settings are validated (CORE-04); a replace restore is FK-safe and the drill restores onto a read-only copy, refusals 409 restore_refused (CORE-01); the daily backup runs from the stored last run (CORE-02)."
+    ],
+    "requirement_ids": [
+      "R-SEC-FIX-2520-1"
+    ],
+    "test_ids": [
+      "AT-SEC-FIX-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/SEC-FIX-2520, change note docs/changes/SEC-FIX-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (RELEASE-2520-TRAIN): Registered at the merge. pilot/SEC-FIX-2520 head 99456c1d5 merged 53788848e into release/2520-train (cut from main = v2.51.0 3d71fb183; docs/changes/RELEASE-2520-TRAIN.md on the train) (train row 44); change note docs/changes/SEC-FIX-2520.md. The last 2.52 row; decisions Q1-Q3 = a. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "99456c1d5",
     "actual_cost_usd": null
   }
 ]
