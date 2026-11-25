@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.53.0 (pilot) - getting started and support, approval on the phone, my account in the home interface, a resource budget
+
+<!-- RELEASE-2530-TRAIN: DRAFT - the train coordinator's working list, not the final release text; the lead writes the final bilingual text at release. The word DRAFT is kept out of the heading (as on the 2.52 train) so scripts/release_check.py reads 2.53.0 as the CHANGELOG head while the version files are 2.53.0. -->
+
+### חדש - New
+- תחילת עבודה: רשימת צעדים להתקנה חדשה (אשף ההתקנה ובדיקות המוכנות לפי הסדר), דלוקה רק בהתקנה חדשה; מנהל יכול להפעיל או לכבות אותה, וכל משתמש יכול להסתיר אותה. - Getting started: a checklist for a new installation (the setup wizard and the readiness checks in order), on only for a fresh installation; an administrator can turn it on or off and every user can hide it.
+- הגדרות › כללי › תמיכה: גרסאות המערכת, ייצוא יומן מצונזר ו"דיווח על תקלה" במקום אחד; מדריך משתמש חדש "תחילת עבודה ותמיכה" בעברית ובאנגלית. - Settings › General › Support: the system versions, the redacted log export and "report a problem" in one place; a new user guide chapter "Getting started and support" in Hebrew and English.
+- אישור בטלפון (כבוי כברירת מחדל): כשנדרש אישור לפני שינוי רגיש וממסך שאין בו דרך אימות, אפשר לאשר באפליקציית הטלפון בהקלדת המספר שמופיע במסך. - Approve on the phone (off by default): when a sensitive change asks for confirmation on a screen without a sign-in method, approve it in the phone app by typing the number the screen shows.
+- קוד האזעקה האישי כאישור (כבוי כברירת מחדל): לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת. - The personal alarm code as confirmation (off by default): alarm disarm and sensor bypass only, one action at a time.
+- הממשק הביתי › התפריט האישי › "החשבון שלי": אבטחה, הכניסות שלי ושפה, גם למי שמשתמש רק בממשק הביתי. - Home interface › personal menu › "My account": security, my sign-ins and language, also for people who use the home interface only.
+
+### שופר - Improved
+- לוחות ההודעות בטלוויזיה: "נראה לאחרונה" נרשם ברקע פעם בדקה לכל הלוחות יחד, כך שקריאת הלוח לא מחכה לכתיבה. - TV notice boards: "last seen" is recorded in the background once a minute for all boards together, so a board's feed read never waits for a write.
+- WisKey: וידאו, דיבור והאזנה בעמדות יכולים לעבור בחיבור הישיר בגרסה 2 (כבוי כברירת מחדל, רק עם גשר 0.10.9 ומעלה). - WisKey: station video, talk and listen can go over the direct transport v2 (off by default, only with bridge 0.10.9 or newer).
+- WisKey: אחרי סירוב של החיבור הישיר בגרסה 2, גם תפיסת העמדה וכתיבת ההרשאות לא עוברות לדרך אחרת. - WisKey: after a refusal of the direct transport v2, the station capture and the access-grant writes no longer switch to another path either.
+- תקציב משאבים כתוב ובדיקת עומס אוטומטית שנכשלת מעליו (לצוות הפיתוח). - A written resource budget and an automated load run that fails above it (for the development team).
+
+### התקנה - Install
+- אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.52.0). - No new migration. The bridge stays 0.10.9 (as in 2.52.0).
+
 ## 2.52.0 (pilot) - WisKey rc.19 adoption: intercom system status, relay inventory, numbered station sync, external visits, direct transport v2 and bridge 0.10.9
 
 <!-- RELEASE-2520-TRAIN: the train coordinator's working list (draft), not the final release text - the lead writes the final bilingual text at release. The DRAFT mark left the heading so scripts/release_check.py reads 2.52.0 as the CHANGELOG head (the version files are already 2.52.0). -->
