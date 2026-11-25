@@ -483,14 +483,13 @@ def _in_reader_language(conn: sqlite3.Connection, principal: Principal, n: dict[
     params, so a row worded otherwise (an older version, a body from its own template) is shown as stored. Never written back."""
     try:
         from .default_names import lang_of
+        from .notify_delivery_lang import note_in
 
         lang = lang_of(conn, principal)
         if lang == "he":
             return
-        params = n.get("params") or {}
-        if (n["title"], n["body"]) != policies.render(n["source"], params):
-            return
-        out["title"], out["body"] = policies.render(n["source"], params, lang)
+        shown = note_in(n, lang)  # NOTIFY-RECIPIENT-LANG-2520: the same rule the delivery channels use for each recipient
+        out["title"], out["body"] = shown["title"], shown["body"]
     except Exception:  # noqa: BLE001 - the row reads in Hebrew rather than not at all
         log.warning("notification %s: English rendering failed", n.get("id"), exc_info=True)
 

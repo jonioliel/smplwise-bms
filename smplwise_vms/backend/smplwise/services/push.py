@@ -603,12 +603,15 @@ def _log_delivery(conn: sqlite3.Connection, job: Job, result: str, outcome: Outc
 def send_test(db: Database, user_id: str) -> list[dict[str, Any]]:
     """The settings tab's test button: one notification to each of the caller's own subscriptions, once, now (the caller
     has already been rate limited). Runs outside any request transaction."""
+    from .notify_delivery_lang import user_langs, word
+
     with db.connection(mode="read") as conn:
         key = signing_key(conn)
         subs = conn.execute("SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY created_at", (user_id,)).fetchall()
+        lang = user_langs(conn, [user_id]).get(user_id, "he")  # NOTIFY-RECIPIENT-LANG-2520: the caller's own language
     if key is None:
         return []
-    payload = encode_payload({"v": 1, "title": "Arx · התראת בדיקה", "body": "ההתראות פועלות במכשיר הזה.", "url": "#/system/notifications", "event_id": None,
+    payload = encode_payload({"v": 1, "title": word("Arx · התראת בדיקה", lang), "body": word("ההתראות פועלות במכשיר הזה.", lang), "url": "#/system/notifications", "event_id": None,
                               "alert_id": None, "tag": "arx-test", "category": "test", "severity": "info", "ts": now_iso()})
     out = []
     for s in subs:

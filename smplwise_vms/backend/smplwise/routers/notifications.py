@@ -417,8 +417,9 @@ def test_email(request: Request, body: dict[str, Any] | None = Body(None), princ
     if to is not None and (not isinstance(to, str) or to.lower() not in [a.lower() for a in cfg.recipients]):
         raise field_error("הבדיקה נשלחת רק לאחת מכתובות הנמענים שהוגדרו.", ["to"], code="email_invalid", legacy={"field": "to"})
     tz_name = _tz(conn)
+    langs = email_svc.address_langs(conn, cfg.recipients)  # NOTIFY-RECIPIENT-LANG-2520: each address in its matching user's language
     with unlocked(conn):  # the SMTP server is called without the request's write lock
-        ok, detail, delivered, total = email_svc.send_test(cfg, tz_name, to)
+        ok, detail, delivered, total = email_svc.send_test(cfg, tz_name, to, langs)
     nsettings.store_last_test(conn, ok, detail)
     audit(conn, actor=principal, action="notify.email.test", decision="allowed", resource_type="installation", resource_id="notify.email", request_id=_rid(request),
           details={"ok": ok, "detail": detail})
