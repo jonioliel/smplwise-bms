@@ -147,7 +147,7 @@ def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple
     import zlib
 
     if len(data) > CONTROL_MAX_BYTES:
-        raise ControlImageError("payload_too_large", tpl("תמונת הבקרה גדולה מ־{control_max_bytes} MB.", control_max_bytes=CONTROL_MAX_BYTES // (1024 * 1024)))
+        raise ControlImageError("payload_too_large", tpl("תמונת הבקרה גדולה מ־{max_mb} MB.", max_mb=CONTROL_MAX_BYTES // (1024 * 1024)))
     if not data.startswith(PNG_SIGNATURE):
         raise ControlImageError("unsupported_format", "תמונת הבקרה חייבת להיות PNG (הזיהוי לפי התוכן).")
     pos, seen = len(PNG_SIGNATURE), []

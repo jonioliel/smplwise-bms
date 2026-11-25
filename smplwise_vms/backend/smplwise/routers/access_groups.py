@@ -77,12 +77,12 @@ async def _capped_body(request: Request) -> bytes:
     """The raw body, read only after the permission dependency, never more than BULK_MAX_BYTES."""
     declared = request.headers.get("content-length") or ""
     if declared.isdigit() and int(declared) > BULK_MAX_BYTES:
-        raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{bulk_max_bytes} KB.", bulk_max_bytes=BULK_MAX_BYTES // 1024))
+        raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{max_kb} KB.", max_kb=BULK_MAX_BYTES // 1024))
     data = bytearray()
     async for chunk in request.stream():
         data += chunk
         if len(data) > BULK_MAX_BYTES:
-            raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{bulk_max_bytes} KB.", bulk_max_bytes=BULK_MAX_BYTES // 1024))
+            raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{max_kb} KB.", max_kb=BULK_MAX_BYTES // 1024))
     return bytes(data)
 
 

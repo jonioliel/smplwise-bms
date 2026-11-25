@@ -219,7 +219,7 @@ def require_disk(settings: Settings, min_mb: int, need_bytes: int = 0) -> None:
     if need_bytes and free - need_bytes < min_mb * MB:
         _count("refused_disk")
         raise ApiError(507, "insufficient_storage",
-                       tpl("הייצוא דורש כ־{need_bytes} MB, ואחריו יישארו פחות מ־{min_mb} MB פנויים בדיסק של התוסף. צמצם את הטווח או פנה מקום.", need_bytes=max(1, need_bytes // MB), min_mb=min_mb),
+                       tpl("הייצוא דורש כ־{need_mb} MB, ואחריו יישארו פחות מ־{min_mb} MB פנויים בדיסק של התוסף. צמצם את הטווח או פנה מקום.", need_mb=max(1, need_bytes // MB), min_mb=min_mb),
                        retryable=True, details={"free_mb": free // MB, "min_free_mb": min_mb, "estimate_mb": need_bytes // MB})
 
 
@@ -317,7 +317,7 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
         raise ApiError(422, "validation", tpl("הטווח מכסה {files} קבצים; המקסימום {max_files}. צמצם את הטווח.", files=len(files), max_files=MAX_FILES))
     total = sum(f.size or 0 for f in files)
     if total > max_bytes:
-        raise ApiError(422, "export_too_large", tpl("נפח משוער {total} MB מעל המגבלה ({max_bytes} MB).", total=total // (1024 * 1024), max_bytes=max_bytes // (1024 * 1024)), details={"estimate_bytes": total})
+        raise ApiError(422, "export_too_large", tpl("נפח משוער {total_mb} MB מעל המגבלה ({max_mb} MB).", total_mb=total // (1024 * 1024), max_mb=max_bytes // (1024 * 1024)), details={"estimate_bytes": total})
     require_disk(settings, min_mb, estimate_with_unknown(files))  # the NVR files land on the data disk first (unknown sizes estimated)
     payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage, recorder_id=_recorder_of(cam))
     job_id = uuid.uuid4().hex[:12]

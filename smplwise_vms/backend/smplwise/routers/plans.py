@@ -216,7 +216,7 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
                         break
                     size += len(chunk)
                     if size > settings.max_upload_bytes:
-                        raise ApiError(413, "payload_too_large", tpl("הקובץ גדול מ־{max_upload_bytes} MB.", max_upload_bytes=settings.max_upload_bytes // (1024 * 1024)))
+                        raise ApiError(413, "payload_too_large", tpl("הקובץ גדול מ־{max_mb} MB.", max_mb=settings.max_upload_bytes // (1024 * 1024)))
                     out.write(chunk)
             page_count = 1
             if mime == "application/pdf":
