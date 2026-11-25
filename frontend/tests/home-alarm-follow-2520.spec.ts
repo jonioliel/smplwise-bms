@@ -66,19 +66,18 @@ test.describe('SCREENS-FIX-A-2520 home alarm (SCR-06)', () => {
 
   test('arm: "sent, waiting for the panel" first; a refusal is said as such, never "armed"', async ({ page }) => {
     const { mock } = await open(page, { actions: ['pending', 'failed'] });
-    const toasts: string[] = [];
-    await page.exposeFunction('__noteToast', (t: string) => { toasts.push(t); });
-    await page.evaluate(() => {
-      const root = document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-home')!.shadowRoot!;
-      new MutationObserver(() => { const t = root.querySelector('.toast2'); if (t?.textContent) (window as unknown as { __noteToast: (s: string) => void }).__noteToast(t.textContent.trim()); })
-        .observe(root, { subtree: true, childList: true, characterData: true });
-    });
     await inHome(page).locator('[data-act="almArm"][data-v="arm_away"]').click();
     await inHome(page).locator('[data-act="askYes"]').click();
     await expect.poll(() => mock.calls.filter((c) => c.path === 'alarm/actions').length).toBe(1);
-    await expect(inHome(page).locator('.toast2')).toContainText('בקשת הדריכה נשלחה');
-    await expect(inHome(page).locator('.toast2')).toContainText('הלוח לא דרך את האזעקה', { timeout: 8000 });
-    expect(toasts.some((t) => t.includes('האזעקה נדרכת'))).toBe(false);
+    // every toast text on the way, read every 100 ms until the refusal is shown
+    const seen = new Set<string>();
+    await expect.poll(async () => {
+      const t = (await inHome(page).locator('.toast2').textContent({ timeout: 200 }).catch(() => null)) ?? '';
+      seen.add(t);
+      return t;
+    }, { timeout: 8000, intervals: [100] }).toContain('הלוח לא דרך את האזעקה');
+    expect([...seen].some((t) => t.includes('בקשת הדריכה נשלחה'))).toBe(true);
+    expect([...seen].some((t) => t.includes('האזעקה נדרכת'))).toBe(false);
   });
 
   test('arm: success only once the panel confirmed it', async ({ page }) => {
