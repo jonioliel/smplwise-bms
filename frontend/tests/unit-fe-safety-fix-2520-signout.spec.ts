@@ -11,7 +11,7 @@ import path from 'node:path';
 //   npx playwright test -c playwright.unit.config.ts tests/unit-fe-safety-fix-2520-signout.spec.ts
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ORIGIN = 'http://arx.test';
+const ORIGIN = 'https://arx.test'; // a secure page: Web Push and crypto.subtle (the endpoint hash) exist only there
 const KEY = 'arx.auth.v1';
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/fake-browser-0001';
 
