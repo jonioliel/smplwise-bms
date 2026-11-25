@@ -5,7 +5,8 @@ An administrator (`notify.manage`) configures ONE SMTP server in the settings se
 notifications are mailed (system faults and backups by default). There are no per-user mail preferences, and a recipient address is not a
 user: it is an installation-level address the administrator typed (users carry no address in this system).
 
-WHAT A MAIL IS: one plain Hebrew message (text + RTL HTML) with the type, the place, the severity, the time, a fold count and a link into
+WHAT A MAIL IS: one plain Hebrew message (text + RTL HTML; NOTIFY-RECIPIENT-LANG-2520: English, left-to-right, for an address whose Arx user
+reads English - services/notify_delivery_lang.address_langs) with the type, the place, the severity, the time, a fold count and a link into
 Arx. No person's name, no snapshot, no camera image, no door action, no token (the link opens the sign-in; the notification itself is
 re-checked against the viewer's own scope). The body line of the notification is added only for `system` subjects (components, never
 people). Every header is single-line: a CR/LF in an address, a subject or a header value is refused (`MailError("invalid")`), and the
@@ -62,7 +63,8 @@ from . import notify_settings as nsettings
 from . import secret_files
 from . import white_label
 from .notify_channels import Channel, Dispatch, Target, record_outcome, register
-from .notify_policy import BY_KEY, SEVERITY_LABEL_HE
+from .notify_delivery_lang import address_langs, note_in, resolve_text_in, severity_label, word
+from .notify_policy import BY_KEY
 from .notify_visibility import Reach, is_manager, principal_of
 from .timeutil import iso_utc, parse_utc, zone
 from ..test_reset import register_reset
@@ -365,9 +367,10 @@ class Rendered:
     html: str
 
 
-def _rtl(line: str) -> str:
-    """A right-to-left mark in front of a line, so punctuation and numbers of a Hebrew line sit right in clients that guess the direction."""
-    return ("‏" + line) if line else line
+def _rtl(line: str, lang: str = "he") -> str:
+    """A right-to-left mark in front of a line, so punctuation and numbers of a Hebrew line sit right in clients that guess the direction.
+    NOTIFY-RECIPIENT-LANG-2520: a mail in another language is left-to-right and gets no mark."""
+    return ("‏" + line) if line and lang == "he" else line
 
 
 def _when(at: dt.datetime, tz_name: str) -> str:
@@ -379,26 +382,30 @@ def _link(link_base: str, nid: str | None) -> str:
 
 
 def _page(title: str, rows: list[tuple[str, str]], severity: str, link: str, footer: str, intro: str = "", cta: bool = True, brand: str = "",
-          installer: tuple[str, str] | None = None) -> str:
+          installer: tuple[str, str] | None = None, lang: str = "he") -> str:
     e = html.escape
     color = SEVERITY_COLOR.get(severity, "#2563eb")
-    cells = "".join(f'<tr><td style="padding:3px 0 3px 14px;color:#6b7280;white-space:nowrap;vertical-align:top;">{e(k)}</td><td style="padding:3px 0;color:#111827;">{e(v)}</td></tr>' for k, v in rows)
+    # NOTIFY-RECIPIENT-LANG-2520: a mail in another language is the same page left-to-right; the Hebrew page is byte for byte as before
+    rtl = lang == "he"
+    d, align, side, gap = ("rtl", "right", "right", "0 3px 14px") if rtl else ("ltr", "left", "left", "14px 3px 0")
+    cells = "".join(f'<tr><td style="padding:3px {gap};color:#6b7280;white-space:nowrap;vertical-align:top;">{e(k)}</td><td style="padding:3px 0;color:#111827;">{e(v)}</td></tr>' for k, v in rows)
     if link:
         button = (f'<p style="margin:16px 0 4px;"><a href="{e(link, quote=True)}" style="display:inline-block;background:{color};color:#ffffff;text-decoration:none;'
-                  f'padding:9px 18px;border-radius:8px;font-weight:600;">פתח ב־Arx</a></p>')
+                  f'padding:9px 18px;border-radius:8px;font-weight:600;">{e(word("פתח ב־Arx", lang))}</a></p>')
     else:
-        button = '<p style="margin:16px 0 4px;color:#374151;">לפרטים ולטיפול - היכנסו ל־Arx.</p>' if cta else ""
+        button = f'<p style="margin:16px 0 4px;color:#374151;">{e(word("לפרטים ולטיפול - היכנסו ל־Arx.", lang))}</p>' if cta else ""
     lead = f'<p style="margin:0 0 8px;color:#374151;">{e(intro)}</p>' if intro else ""
     # WHITELABEL097-295: the installer's name in the header line and its contact line under the footer - text only, the product's name stays
     # CR-LOGOS295 P6: otherwise the company's name as text (e-mail clients block images); release/2160: the installer (white label ON) wins
     head = f"{oneline(installer[0], 60)} · Arx" if installer else (f"{brand} · Arx" if brand else "Arx")
     contact = f'<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">{e(oneline(installer[1], 120))}</p>' if installer and installer[1] else ""
+    html_lang = "he" if rtl else e(lang, quote=True)
     return (
-        '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
-        '<body dir="rtl" style="margin:0;padding:16px;background:#f3f4f6;direction:rtl;text-align:right;font-family:Heebo,Arial,\'Segoe UI\',sans-serif;">'
-        f'<div dir="rtl" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;border-right:6px solid {color};padding:16px 18px;direction:rtl;text-align:right;">'
+        f'<!doctype html><html lang="{html_lang}" dir="{d}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        f'<body dir="{d}" style="margin:0;padding:16px;background:#f3f4f6;direction:{d};text-align:{align};font-family:Heebo,Arial,\'Segoe UI\',sans-serif;">'
+        f'<div dir="{d}" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;border-{side}:6px solid {color};padding:16px 18px;direction:{d};text-align:{align};">'
         f'<div style="font-size:12px;color:#6b7280;margin-bottom:4px;">{e(head)}</div><div style="font-size:20px;font-weight:700;color:#111827;margin:0 0 10px;">{e(title)}</div>'
-        f'{lead}<table role="presentation" dir="rtl" style="border-collapse:collapse;font-size:15px;">{cells}</table>{button}'
+        f'{lead}<table role="presentation" dir="{d}" style="border-collapse:collapse;font-size:15px;">{cells}</table>{button}'
         f'<p style="margin:14px 0 0;font-size:12px;color:#9ca3af;">{e(footer)}</p>{contact}</div></body></html>'
     )
 
@@ -407,39 +414,43 @@ FOOTER = "נשלח אוטומטית מ־Arx. אין להשיב להודעה זו
 
 
 def compose_notification(n: dict[str, Any], *, mode: str, tz_name: str, link_base: str = "", resolve_text: str | None = None, brand: str = "",
-                         installer: tuple[str, str] | None = None) -> Rendered:
+                         installer: tuple[str, str] | None = None, lang: str = "he") -> Rendered:
     """The mail of one notification: type, place, severity, time, fold count, link. Built from the server-side row only - nothing a person
-    typed except a place name, which is sanitised for the header. The body line is added for `system` subjects only."""
-    title = oneline(n.get("title"), 80) or "התראה"
+    typed except a place name, which is sanitised for the header. The body line is added for `system` subjects only.
+    NOTIFY-RECIPIENT-LANG-2520: `lang` is the address's language (address_langs); pass `n` and `resolve_text` already in it (note_in,
+    resolve_text_in). The mail's own words follow it; Hebrew is the default and byte for byte as before."""
+    w = functools.partial(word, lang=lang)
+    title = oneline(n.get("title"), 80) or ("התראה" if lang == "he" else "Notification")
     place = oneline(n.get("place"), 80)
     typed = f"{title} · {place}" if place else title
-    prefix = {"escalate": "לא אושר: ", "resolved": "הסתיים: ", "renotify": "החמרה: "}.get(mode, "")
+    prefix = w({"escalate": "לא אושר: ", "resolved": "הסתיים: ", "renotify": "החמרה: "}.get(mode, ""))
     subject = oneline(f"Arx · {prefix}{typed}", MAX_SUBJECT)
     try:
         at = parse_utc(n.get("last_at") or n.get("first_at") or iso_utc(notify.now_utc()))
     except ValueError:
         at = notify.now_utc()
-    sev = SEVERITY_LABEL_HE.get(n.get("severity") or "", "")
+    sev = severity_label(n.get("severity") or "", lang)
     count = n.get("count") if isinstance(n.get("count"), int) else 1
     link = _link(link_base, n.get("id"))
     body = oneline(n.get("body"), 180) if n.get("subject_kind") == "system" else ""
-    rows = [("חומרה", sev), ("זמן", _when(at, tz_name))]
+    rows = [(w("חומרה"), sev), (w("זמן"), _when(at, tz_name))]
     if place:
-        rows.insert(0, ("מקום", place))
+        rows.insert(0, (w("מקום"), place))
     if count and count > 1:
-        rows.append(("מספר אירועים", str(count)))
+        rows.append((w("מספר אירועים"), str(count)))
     if mode == "resolved":
-        rows.append(("מצב", oneline(resolve_text, 80) or "הסתיים"))
+        rows.append((w("מצב"), oneline(resolve_text, 80) or w("הסתיים")))
     elif mode == "escalate":
-        rows.append(("מצב", "טרם אושר - הועבר לאחראים"))
+        rows.append((w("מצב"), w("טרם אושר - הועבר לאחראים")))
     if body:
-        rows.append(("פרטים", body))
-    lines = [_rtl(prefix + typed), ""] + [_rtl(f"{k}: {v}") for k, v in rows] + [""]
-    lines.append(link if link else _rtl("לפרטים ולטיפול - היכנסו ל־Arx."))
-    lines += ["", _rtl(FOOTER)]
+        rows.append((w("פרטים"), body))
+    lines = [_rtl(prefix + typed, lang), ""] + [_rtl(f"{k}: {v}", lang) for k, v in rows] + [""]
+    lines.append(link if link else _rtl(w("לפרטים ולטיפול - היכנסו ל־Arx."), lang))
+    footer = w(FOOTER)
+    lines += ["", _rtl(footer, lang)]
     if installer:  # WHITELABEL097-295 (white label ON): the installer's name and contact line close the plain-text part too
-        lines += [_rtl(oneline(installer[0], 60))] + ([_rtl(oneline(installer[1], 120))] if installer[1] else [])
-    return Rendered(subject, "\n".join(lines), _page(prefix + typed, rows, n.get("severity") or "info", link, FOOTER, brand=oneline(brand, 60), installer=installer))
+        lines += [_rtl(oneline(installer[0], 60), lang)] + ([_rtl(oneline(installer[1], 120), lang)] if installer[1] else [])
+    return Rendered(subject, "\n".join(lines), _page(prefix + typed, rows, n.get("severity") or "info", link, footer, brand=oneline(brand, 60), installer=installer, lang=lang))
 
 
 @dataclass
@@ -452,10 +463,12 @@ class HeldItem:
     severity: str
     count: int
     held_at: float
+    lang: str = "he"                      # NOTIFY-RECIPIENT-LANG-2520: the address's language; `title` is already in it
 
 
-def compose_digest(items: list[HeldItem], *, tz_name: str, link_base: str = "", now: dt.datetime | None = None) -> Rendered:
+def compose_digest(items: list[HeldItem], *, tz_name: str, link_base: str = "", now: dt.datetime | None = None, lang: str = "he") -> Rendered:
     """ONE mail for many held conditions: a line per distinct (type, place) with the number of occurrences."""
+    w = functools.partial(word, lang=lang)
     rank = {"info": 0, "alert": 1, "critical": 2}
     counts: dict[tuple[str, str], int] = {}
     worst = "info"
@@ -464,25 +477,30 @@ def compose_digest(items: list[HeldItem], *, tz_name: str, link_base: str = "", 
         if rank.get(it.severity, 0) > rank[worst]:
             worst = it.severity
     total = sum(counts.values())
-    subject = oneline(f"Arx · {total} התראות נוספות", MAX_SUBJECT)
+    headline = w("{total} התראות נוספות").format(total=total)
+    subject = oneline(f"Arx · {headline}", MAX_SUBJECT)
     entries = [(f"{t} · {p}" if p else t, f"×{c}") for (t, p), c in counts.items()]
     shown, rest = entries[:MAX_DIGEST_LINES], max(0, len(entries) - MAX_DIGEST_LINES)
     rows = [(a, b) for a, b in shown]
     if rest:
-        rows.append((f"ועוד {rest} סוגי התראות", ""))
+        rows.append((w("ועוד {rest} סוגי התראות").format(rest=rest), ""))
     when = _when(now or notify.now_utc(), tz_name)
-    intro = "בדקה האחרונה נוצרו התראות רבות; הן מקובצות כאן להודעה אחת."
+    intro = w("בדקה האחרונה נוצרו התראות רבות; הן מקובצות כאן להודעה אחת.")
     link = f"{link_base}/#/notifications" if link_base else ""
-    lines = [_rtl(f"{total} התראות נוספות"), "", _rtl(intro), ""] + [_rtl(f"• {a} {b}".rstrip()) for a, b in rows] + ["", _rtl(f"זמן: {when}"), ""]
-    lines.append(link if link else _rtl("לפרטים ולטיפול - היכנסו ל־Arx."))
-    lines += ["", _rtl(FOOTER)]
-    return Rendered(subject, "\n".join(lines), _page(f"{total} התראות נוספות", rows + [("זמן", when)], worst, link, FOOTER, intro))
+    time_word = w("זמן")
+    lines = [_rtl(headline, lang), "", _rtl(intro, lang), ""] + [_rtl(f"• {a} {b}".rstrip(), lang) for a, b in rows] + ["", _rtl(f"{time_word}: {when}", lang), ""]
+    lines.append(link if link else _rtl(w("לפרטים ולטיפול - היכנסו ל־Arx."), lang))
+    footer = w(FOOTER)
+    lines += ["", _rtl(footer, lang)]
+    return Rendered(subject, "\n".join(lines), _page(headline, rows + [(time_word, when)], worst, link, footer, intro, lang=lang))
 
 
-def compose_test(tz_name: str) -> Rendered:
+def compose_test(tz_name: str, lang: str = "he") -> Rendered:
+    w = functools.partial(word, lang=lang)
     when = _when(notify.now_utc(), tz_name)
-    text = "\n".join([_rtl("הודעת בדיקה מ־Arx"), "", _rtl("אם קיבלתם הודעה זו - הדואר היוצא מוגדר נכון."), _rtl(f"זמן: {when}"), "", _rtl(FOOTER)])
-    return Rendered("Arx · הודעת בדיקה", text, _page("הודעת בדיקה", [("זמן", when)], "info", "", FOOTER, "אם קיבלתם הודעה זו - הדואר היוצא מוגדר נכון.", cta=False))
+    footer, ok = w(FOOTER), w("אם קיבלתם הודעה זו - הדואר היוצא מוגדר נכון.")
+    text = "\n".join([_rtl(w("הודעת בדיקה מ־Arx"), lang), "", _rtl(ok, lang), _rtl(f"{w('זמן')}: {when}", lang), "", _rtl(footer, lang)])
+    return Rendered(w("Arx · הודעת בדיקה"), text, _page(w("הודעת בדיקה"), [(w("זמן"), when)], "info", "", footer, ok, cta=False, lang=lang))
 
 
 def build_message(cfg: MailConfig, to: str, r: Rendered) -> EmailMessage:
@@ -810,7 +828,7 @@ class DigestJob:
             cfg, tz_name = None, "Asia/Jerusalem"
         server_down: MailError | None = None
         for address, items in fresh.items():
-            rendered = compose_digest(items, tz_name=tz_name, link_base=cfg.link_base if cfg else "")
+            rendered = compose_digest(items, tz_name=tz_name, link_base=cfg.link_base if cfg else "", lang=items[-1].lang)  # the address's language when it was last held
             job = MailJob(address, [(it.delivery_id, it.nid) for it in items], rendered, "digest", "new", 0)
             err = run_job(notifier, job, cfg=cfg, known=server_down)
             if err is not None and err.kind in SERVER_FAILURES:
@@ -993,9 +1011,17 @@ class EmailChannel(Channel):
         if not audience_ok(conn, n, users, d.reach):
             return [Target(self.name, None, "", "skipped", "no_reach")]
         resolve_text = d.item.get("text") or (BY_KEY[n["source"]].resolve_text if n.get("source") in BY_KEY else None)
-        d.scratch["email_rendered"] = compose_notification(n, mode=d.mode, tz_name=d.tz, link_base=cfg.link_base, resolve_text=resolve_text,
-                                                           brand=brand_assets.company_name(conn), installer=white_label.email_line(conn))
-        d.scratch["email_item"] = HeldItem("", d.nid, oneline(n.get("title"), 80), oneline(n.get("place"), 80), n.get("severity") or "info", int(n.get("count") or 1), _mono())
+        # NOTIFY-RECIPIENT-LANG-2520: one mail per language of the configured addresses (an address speaks its matching user's `ui.lang`)
+        langs = address_langs(conn, cfg.recipients)
+        brand, installer = brand_assets.company_name(conn), white_label.email_line(conn)
+        rendered: dict[str, Rendered] = {}
+        items: dict[str, HeldItem] = {}
+        for lang in dict.fromkeys(langs.values()):
+            shown = note_in(n, lang)
+            rendered[lang] = compose_notification(shown, mode=d.mode, tz_name=d.tz, link_base=cfg.link_base, resolve_text=resolve_text_in(n.get("source"), resolve_text, lang),
+                                                  brand=brand, installer=installer, lang=lang)
+            items[lang] = HeldItem("", d.nid, oneline(shown.get("title"), 80), oneline(n.get("place"), 80), n.get("severity") or "info", int(n.get("count") or 1), _mono(), lang)
+        d.scratch["email_rendered"], d.scratch["email_item"], d.scratch["email_langs"] = rendered, items, langs
         if d.held(self.name):
             return [Target(self.name, None, mask_address(a), "skipped", d.held_reason(self.name)) for a in cfg.recipients]
         fold = False
@@ -1009,7 +1035,8 @@ class EmailChannel(Channel):
 
     def send(self, notifier: Any, d: Dispatch, targets: list[Target]) -> None:
         """Runs on the notifier thread: only hands the dispatch to the e-mail worker (no SMTP, no wait)."""
-        batch = _Batch(d.nid, d.mode, d.n.get("source"), d.scratch["email_rendered"], d.scratch["email_item"], [(t.delivery_id, t.data["address"], bool(t.data["fold"])) for t in targets if t.status == "queued"])
+        batch = _Batch(d.nid, d.mode, d.n.get("source"), d.scratch["email_rendered"], d.scratch["email_item"], [(t.delivery_id, t.data["address"], bool(t.data["fold"])) for t in targets if t.status == "queued"],
+                       d.scratch.get("email_langs") or {})
         if not batch.targets:
             return
         if not worker_for(notifier.db).submit(functools.partial(_run_batch, batch=batch)):  # the worker's queue is full: say so, honestly
@@ -1022,9 +1049,14 @@ class _Batch:
     nid: str
     mode: str
     source: str | None
-    rendered: Rendered
-    item: HeldItem
+    rendered: dict[str, Rendered]           # NOTIFY-RECIPIENT-LANG-2520: the mail per language ("he" always present when an address speaks it)
+    item: dict[str, HeldItem]               # what the digest says, per language
     targets: list[tuple[str, str, bool]]    # (delivery id, address, held for the digest)
+    langs: dict[str, str] = field(default_factory=dict)  # address -> language (absent = Hebrew)
+
+    def lang_of(self, address: str) -> str:
+        lang = self.langs.get(address, "he")
+        return lang if lang in self.rendered else next(iter(self.rendered))
 
 
 def _run_batch(worker: EmailWorker, *, batch: _Batch) -> None:
@@ -1033,13 +1065,14 @@ def _run_batch(worker: EmailWorker, *, batch: _Batch) -> None:
         cfg = load_config(conn, Path(worker.db.path).parent)
     deadline = time.monotonic() + MAX_NOTIFICATION_S
     server_down: MailError | None = None
-    it = batch.item
     for did, address, fold in batch.targets:
+        lang = batch.lang_of(address)
+        it = batch.item[lang]
         if fold:  # over the rate limit: held for the digest, which names it with a count
             _record(worker.db, [did], "retry", "rate_limited", 0)
-            _hold(worker, address, HeldItem(did, batch.nid, it.title, it.place, it.severity, it.count, _mono()))
+            _hold(worker, address, HeldItem(did, batch.nid, it.title, it.place, it.severity, it.count, _mono(), it.lang))
             continue
-        job = MailJob(address, [(did, batch.nid)], batch.rendered, "single", batch.mode, 0, batch.source)
+        job = MailJob(address, [(did, batch.nid)], batch.rendered[lang], "single", batch.mode, 0, batch.source)
         known = server_down or (MailError("timeout", True) if time.monotonic() >= deadline else None)
         err = run_job(worker, job, cfg=cfg, known=known, deadline=deadline)
         if err is not None and err.kind in SERVER_FAILURES:
@@ -1051,18 +1084,22 @@ register(EmailChannel())
 
 # ---------------------------------------------------------------- the test button
 
-def send_test(cfg: MailConfig, tz_name: str, to: str | None = None) -> tuple[bool, str, int, int]:
+def send_test(cfg: MailConfig, tz_name: str, to: str | None = None, langs: dict[str, str] | None = None) -> tuple[bool, str, int, int]:
     """`POST /notify/email/test` through the SAME code path as a real mail (message building, TLS, login, classification): one test mail
     to each configured recipient (or only to `to`, which must be one of them). Returns (ok, detail, delivered, total): `detail` is `ok` or
-    the failure class of the first failure - never a server text."""
+    the failure class of the first failure - never a server text. NOTIFY-RECIPIENT-LANG-2520: `langs` (address_langs) gives each address its
+    language; without it every test mail is Hebrew, as before."""
     targets = [a for a in cfg.recipients if to is None or a.lower() == to.lower()]
     if not targets:
         return False, "unavailable", 0, 0
-    rendered = compose_test(tz_name)
+    rendered: dict[str, Rendered] = {}
     delivered, first = 0, None
     for a in targets:
+        lang = (langs or {}).get(a, "he")
+        if lang not in rendered:
+            rendered[lang] = compose_test(tz_name, lang)
         try:
-            smtp_send(cfg, a, rendered)
+            smtp_send(cfg, a, rendered[lang])
             delivered += 1
         except MailError as e:
             first = first or e.kind

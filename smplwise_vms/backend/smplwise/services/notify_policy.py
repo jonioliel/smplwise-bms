@@ -335,7 +335,8 @@ from .tickets import notify_sources as _ticket_sources  # noqa: E402 - CR-038 sl
 SOURCES = SOURCES + tuple(Source(**kw) for kw in _ticket_sources.source_kwargs())
 # I18N-BACKEND-2490: a source's settings label is a `Msg` (smplwise/i18n.py; services/notify_policy_text.py) - its string value is the
 # Hebrew label declared above, byte for byte, and the policy screens (routers/notifications.py) render it in the reader's interface
-# language. Titles, bodies and resolve texts stay plain Hebrew: they are written into the notification and sent (push, e-mail, app).
+# language. Titles, bodies and resolve texts stay plain Hebrew in the stored row; the centre and the push / e-mail / app deliveries render
+# them in the reader's or recipient's language from the stored params (I18N-REST-2520, NOTIFY-RECIPIENT-LANG-2520).
 SOURCES = tuple(replace(s, label=msg(f"notify.label.{s.key}")) if f"notify.label.{s.key}" in CATALOGUE and CATALOGUE[f"notify.label.{s.key}"]["he"] == s.label else s
                 for s in SOURCES)
 class _ByKey(dict):  # type: ignore[type-arg]
@@ -362,6 +363,11 @@ class _ByKey(dict):  # type: ignore[type-arg]
 BY_KEY: dict[str, Source] = _ByKey({s.key: s for s in SOURCES})
 
 
+def base_key(source: Any) -> Any:
+    """The catalogue key of a source: a per-generator `generator.<type>@<generator id>` is its type's key; any other key is itself."""
+    return _ByKey._base(source)
+
+
 class _Safe(dict):
     def __missing__(self, key: str) -> str:
         return ""
@@ -379,7 +385,7 @@ def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, 
     if lang != "he":
         from .notify_policy_en import TEMPLATES_EN
 
-        en = TEMPLATES_EN.get(source)
+        en = TEMPLATES_EN.get(base_key(source))  # NOTIFY-RECIPIENT-LANG-2520: a per-generator source reads its alert type's English
         if en is not None:
             title_t, label = en[0], en[0]
             if not params.get("_template"):

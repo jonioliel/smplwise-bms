@@ -42,7 +42,8 @@ from ..rbac import Principal
 from . import notify
 from . import notify_settings as nsettings
 from . import push, user_events
-from .notify_policy import SEVERITY_LABEL_HE, get_policy
+from .notify_delivery_lang import note_in, severity_label, user_langs, word
+from .notify_policy import get_policy
 from .notify_visibility import Reach, principal_of, principals_of
 from .timeutil import iso_utc, parse_utc, zone
 
@@ -147,6 +148,26 @@ class Dispatch:
                 for r in self._conn.execute("SELECT user_id, snoozed_until FROM notification_recipients WHERE notification_id = ? AND snoozed_until IS NOT NULL", (self.nid,)).fetchall()
             }
         return snoozes.get(user_id)
+
+    def lang(self, user_id: str | None) -> str:
+        """NOTIFY-RECIPIENT-LANG-2520: the recipient's interface language (`ui.lang`; none = Hebrew), read for every recipient of the
+        dispatch in ONE statement on the planning connection (call it from `plan`) and shared by every channel."""
+        langs = self.scratch.get("_langs")
+        if langs is None:
+            langs = self.scratch["_langs"] = user_langs(self._conn, self.users) if self._conn is not None else {}
+        if user_id is not None and user_id not in langs and self._conn is not None:
+            langs.update(user_langs(self._conn, [user_id]))  # an escalation target outside the recipients
+        return langs.get(user_id, "he") if user_id is not None else "he"
+
+    def note(self, lang: str) -> dict[str, Any]:
+        """The notification in `lang` (services/notify_delivery_lang.note_in; the row itself for Hebrew), made once per language per dispatch.
+        Pure: safe to call from `send`, outside every lock."""
+        if lang == "he":
+            return self.n
+        notes = self.scratch.setdefault("_notes", {})
+        if lang not in notes:
+            notes[lang] = note_in(self.n, lang)
+        return notes[lang]
 
 
 class Channel:
@@ -253,28 +274,33 @@ def local_hhmm(at: dt.datetime, tz_name: str) -> str:
     return at.astimezone(zone(tz_name)).strftime("%H:%M")
 
 
-def payload_v2(n: dict[str, Any], level: str, *, tokens: dict[str, str] | None, door: dict[str, Any] | None, tz_name: str, mode: str, now: dt.datetime) -> dict[str, Any]:
+def payload_v2(n: dict[str, Any], level: str, *, tokens: dict[str, str] | None, door: dict[str, Any] | None, tz_name: str, mode: str, now: dt.datetime,
+               lang: str = "he") -> dict[str, Any]:
     """The whole message a push service carries (encrypted): `{v:2, id, title, body, url, category, severity, tag, ts, actions?}`.
 
     The lock-screen level is the administrator's: `generic` shows only "Arx / התראה חדשה"; `type_place` (default) the type and place
     with the severity and the time; `full` the server template's body. No level ever carries a person's name, a visitor, an image,
     an event or camera id, or any token but the single-use ack / snooze action tokens. The url opens the notification inside Arx
     (the sign-in comes first); a doorbell's "פתח דלת" is a plain deep link to the in-app confirmation - it carries NO token and the
-    service worker never calls an unlock route for it (CR section 9)."""
+    service worker never calls an unlock route for it (CR section 9).
+
+    NOTIFY-RECIPIENT-LANG-2520: `lang` is the recipient's; pass `n` already in that language (Dispatch.note). The words this payload adds
+    itself (severity, "התראה חדשה", "הסתיים", the action buttons' titles) follow it; Hebrew is the default and byte for byte as before."""
     place = n.get("place")
     typed = f"{n['title']} · {place}" if place else n["title"]
     if level == "generic":
-        title, body = "Arx", "התראה חדשה"
+        title, body = "Arx", word("התראה חדשה", lang)
     elif level == "full":
         title = typed
-        body = n.get("body") or SEVERITY_LABEL_HE.get(n["severity"], "")
+        body = n.get("body") or severity_label(n["severity"], lang)
         if place and place not in body:
             body = f"{body} · {place}"
     else:
         title = typed
-        body = f"{SEVERITY_LABEL_HE.get(n['severity'], '')} · {local_hhmm(now, tz_name)}"
+        body = f"{severity_label(n['severity'], lang)} · {local_hhmm(now, tz_name)}"
     if mode == "resolved":
-        body = "הסתיים" if level == "generic" else f"{body} · הסתיים"
+        ended = word("הסתיים", lang)
+        body = ended if level == "generic" else f"{body} · {ended}"
     out: dict[str, Any] = {
         "v": 2, "id": n["id"], "title": push._clip(title, 80), "body": push._clip(body, 180), "url": f"#/notifications/{n['id']}", "category": n["category"],
         "severity": n["severity"], "tag": f"arx-n-{n['id']}", "ts": iso_utc(now),
@@ -288,11 +314,11 @@ def payload_v2(n: dict[str, Any], level: str, *, tokens: dict[str, str] | None, 
         tokens, door = None, None  # the most private level carries NO action at all - not the buttons, not the doorbell link
     if tokens:
         if "ack" in tokens:
-            actions.append({"a": "ack", "title": "אישור", "t": tokens["ack"]})
+            actions.append({"a": "ack", "title": word("אישור", lang), "t": tokens["ack"]})
         if "snooze" in tokens:
-            actions.append({"a": "snooze", "title": "השתק לשעה", "t": tokens["snooze"]})
+            actions.append({"a": "snooze", "title": word("השתק לשעה", lang), "t": tokens["snooze"]})
     if door and door.get("can_open") and mode != "resolved":
-        actions.append({"a": "open_door", "title": "פתח דלת", "url": f"#/doors/{door['id']}?confirm={n['id']}"})  # a deep link: no token, no call
+        actions.append({"a": "open_door", "title": word("פתח דלת", lang), "url": f"#/doors/{door['id']}?confirm={n['id']}"})  # a deep link: no token, no call
     if actions:
         out["actions"] = actions
     return out
@@ -335,8 +361,9 @@ class WebPushChannel(Channel):
             generic = d.settings["lockscreen"] == "generic"  # nothing to tap on a generic push: no tokens are minted either
             actions = [] if (d.mode == "resolved" or generic) else (["ack", "snooze"] if reach.can_ack(d.n) else ["snooze"])
             door = reach.door(d.n) if (d.mode != "resolved" and not generic) else None
+            lang = d.lang(uid)  # NOTIFY-RECIPIENT-LANG-2520: the push speaks this recipient's language
             for s in subs:
-                out.append(Target(self.name, uid, push.endpoint_host(s["endpoint"]), "queued", None, {"sub": s, "actions": actions, "door": door}))
+                out.append(Target(self.name, uid, push.endpoint_host(s["endpoint"]), "queued", None, {"sub": s, "actions": actions, "door": door, "lang": lang}))
         return out
 
     def prepare(self, d: Dispatch, targets: list[Target], conn: Any) -> None:
@@ -350,7 +377,8 @@ class WebPushChannel(Channel):
             if t.status != "queued" or key is None:
                 continue
             s = t.data["sub"]
-            payload = payload_v2(d.n, d.settings["lockscreen"], tokens=t.data.get("tokens"), door=t.data["door"], tz_name=d.tz, mode=d.mode, now=d.now)
+            lang = t.data.get("lang") or "he"
+            payload = payload_v2(d.note(lang), d.settings["lockscreen"], tokens=t.data.get("tokens"), door=t.data["door"], tz_name=d.tz, mode=d.mode, now=d.now, lang=lang)
             job = push.Job(s["id"], t.user_id, s["endpoint"], s["p256dh"], s["auth"], push.encode_payload(payload), "high" if (d.severity == "critical" or d.mode == "escalate") else "normal",
                            notification_id=d.nid, delivery_id=t.delivery_id, mode=d.mode)  # type: ignore[arg-type]
             notifier.attempt(job, key)
@@ -466,9 +494,10 @@ def send_test(db: Any, user_id: str) -> list[dict[str, Any]]:
     with db.connection(mode="read", label="notify.test") as conn:
         key = push.signing_key(conn)
         subs = conn.execute("SELECT * FROM push_subscriptions WHERE user_id = ? AND kind = 'webpush' ORDER BY created_at", (user_id,)).fetchall()
+        lang = user_langs(conn, [user_id]).get(user_id, "he")  # NOTIFY-RECIPIENT-LANG-2520: the caller's own language
     if key is None:
         return []
-    payload = push.encode_payload({"v": 2, "id": "test", "title": "Arx · התראת בדיקה", "body": "ההתראות פועלות במכשיר הזה.", "url": "#/system/notifications", "category": "test",
+    payload = push.encode_payload({"v": 2, "id": "test", "title": word("Arx · התראת בדיקה", lang), "body": word("ההתראות פועלות במכשיר הזה.", lang), "url": "#/system/notifications", "category": "test",
                                    "severity": "info", "tag": "arx-test", "ts": now_iso()})
     out = []
     for s in subs:

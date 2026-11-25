@@ -4,8 +4,9 @@ for a reader whose interface language is English.
 The notification row keeps what it always kept - the Hebrew title and body rendered when the signal came in, and the signal's params
 (`params_json`: names of places and devices, numbers). The notification centre (services/notify.serialize) renders the row again from
 those params for an English reader with the templates below, and only when the stored Hebrew equals the Hebrew the source's templates
-give for the same params (a row written by an older version, or a body built from its own template, stays as stored). Push, e-mail,
-the phone app and WhatsApp send the stored Hebrew as before. The generator's alert types (generator_core.ALERT_TYPES) carry their own
+give for the same params (a row written by an older version, or a body built from its own template, stays as stored). Push, e-mail
+and the phone app render the same way for each recipient (NOTIFY-RECIPIENT-LANG-2520, services/notify_delivery_lang.py); WhatsApp sends
+its own approved texts, unchanged. The generator's alert types (generator_core.ALERT_TYPES) carry their own
 English title; the ticket sources render their texts in the tickets module. Placeholders are the Hebrew templates' (a test checks).
 """
 from __future__ import annotations
