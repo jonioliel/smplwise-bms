@@ -58,6 +58,8 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Protocol
 
+from ..test_reset import register_reset
+
 log = logging.getLogger("smplwise.wiskey.schedule_execution")
 
 CONTRACT = "wiskey-schedule-execution.v1"
@@ -408,6 +410,9 @@ def reset() -> None:
     with _LOCK:
         _SEEN.clear()
         _BUSY.clear()
+
+
+register_reset(__name__, ("_SEEN", "_BUSY"), reset)  # the reads kept in memory (tests/test_singletons_registered.py)
 
 
 def _iso(t: datetime) -> str:

@@ -111,7 +111,8 @@ export class WkScheduleExec extends LitElement {
       display: flex;
       flex-direction: column;
       gap: var(--sw-s-1);
-      flex: 1;
+      /* the text keeps a readable width: on a phone the badge and the check go to the next line instead of squeezing it */
+      flex: 1 1 20em;
       min-inline-size: 0;
     }
     .t {
