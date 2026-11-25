@@ -1294,4 +1294,6 @@ export const en = {
   'כדי שאיש לא יישאר בלי גישה, תנו להם קודם הרשאה לבניין {name}.': 'So that nobody is left without access, give them a permission for {name} first.',
   'ל־{n} אנשים ישתנו ההרשאות בקומה': 'The permissions of {n} people on the floor will change',
   'עובר יחד עם הקומה': 'Moves with the floor',
+  // I18N-REST-2520: leftover texts
+  'קומה 0': 'Floor 0',
 };

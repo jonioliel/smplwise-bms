@@ -1536,4 +1536,10 @@ export const en = {
   'כשריבוי בניינים פועל, מוני החשמל, התזמונים, החדרים המשותפים, חיפוש ההתקנים בעורך התוכנית והחיפוש הכללי מציעים בחירת בניין. רק תצוגה: זה לא משנה מי רואה מה.': 'While multi-building is on, the electricity meters, the schedules, the shared rooms, the plan editor\'s device search and the global search offer a building choice. Display only: it does not change who sees what.',
   'הרשימות מוצגות לכל האתר, בלי בחירת בניין.': 'The lists show the whole site, without a building choice.',
   'הגדרת הסינון לפי בניין עודכנה.': 'The building filter setting was updated.',
+  // I18N-REST-2520: texts wrapped in tr() by this row
+  'כניסה ראשית': 'Main entrance',
+  'אולם': 'Hall',
+  'חצר אחורית': 'Back yard',
+  'לובי': 'Lobby',
+  'מחסן': 'Storage room',
 };

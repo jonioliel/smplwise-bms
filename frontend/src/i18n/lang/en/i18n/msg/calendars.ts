@@ -748,4 +748,11 @@ export const en = {
   'הזמנה אחרת': 'another booking',
   'מתנגש עם {what} · {when}': 'Clashes with {what} · {when}',
   'מתנגש עם המועד {when}': 'Clashes with the booking at {when}',
+  // I18N-REST-2520: texts wrapped in tr() by this row
+  'בדיקה': 'Test',
+  'החלון נשאר להזמנה שאושרה קודם': 'The window stays for a booking confirmed earlier',
+  'אירוע': 'Event',
+  'מפעיל': 'Operator',
+  'צופה': 'Viewer',
+  'מנהל אתר': 'Site administrator',
 };
