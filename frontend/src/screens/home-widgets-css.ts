@@ -1160,6 +1160,22 @@ export const homeWidgetsStyles = [css`
     :host([layout='side'][data-fit='2']) .q-x {
       display: none;
     }
+    /* HOME-SCROLL-FIX-2530: at the tightest packing the column's own spacing packs too - the small cards (the alarm, the quick actions)
+       lose their resting floor and take their content's height, the gap narrows (owner's site at 1440x900: the column ended 18 px under
+       the viewport); with data-fold (devices-building: still scrolling at fit 2, a shorter screen) the headings fold as in the row of c
+       and the clock reads at the display size */
+    :host([layout='side'][data-fit='2']) .wrap {
+      gap: var(--sw-s-2);
+    }
+    :host([layout='side'][data-fit='2']) .wg[data-size='s'] {
+      min-block-size: auto;
+    }
+    :host([layout='side'][data-fit='2'][data-fold]) .wg-h {
+      display: none;
+    }
+    :host([layout='side'][data-fit='2'][data-fold]) .wg {
+      --hm: var(--sw-fs-4xl);
+    }
     :host([layout='side']) .wg-clock[data-size='s'] .wg-b {
       flex-direction: row;
       align-items: center;

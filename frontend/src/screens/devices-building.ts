@@ -445,6 +445,9 @@ export class DevicesBuilding extends LitElement {
   @state() private candidatesError = '';
   /** How tight the tiles / rows are packed so the whole screen fits the viewport (FitLevel). */
   @state() private fit: FitLevel = 0;
+  /** HOME-SCROLL-FIX-2530: one step past fit 2, for direction b only - its widget column still reaches below a short screen (1280x800,
+   * 1366x768, a landscape tablet), so its cards fold their headings and the clock reads at the display size (home-widgets `data-fold`). */
+  @state() private fitFold = false;
   /** `?edit=1` was seen and acted on (entered, or refused): not again until the parameter goes and comes back. */
   private editHandled = false;
   private wasEditing = false;
@@ -1083,7 +1086,7 @@ export class DevicesBuilding extends LitElement {
     const areas = this.scopeAreas;
     const elevators = areas ? (this.elevators ?? []).filter((e) => e.area_id !== null && areas.has(e.area_id)) : this.elevators ?? [];
     const data = areas && t.building.alarm && h.data.alarm ? { ...h.data, alarm: { ...h.data.alarm, state: t.building.alarm } } : h.data;
-    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
+    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?data-fold=${this.fitFold && layout === 'side'} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
       .elevators=${elevators} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
       .xsMini=${items.some((i) => i.id === 'xsection' && i.avail === 'ok') ? this.xsMiniModel(items.find((i) => i.id === 'xsection')!.size) : null} .xsLightsOk=${this.xsLightsOk}
       @home-xs-floor=${(e: CustomEvent<{ id: string }>) => navigate(`/explore/floors/${encodeURIComponent(e.detail.id)}`)} @home-xs-all=${this.onXsAll} @home-xs-lights=${this.onXsLights}
@@ -1344,17 +1347,24 @@ export class DevicesBuilding extends LitElement {
     const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.lay.editing;
     if (!eligible) {
       if (this.fit !== 0) this.fit = 0;
+      if (this.fitFold) this.fitFold = false;
       return;
     }
     const h = this.homeOf(t);
     const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, this.level, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
-    // CR-G1-HOME-AREA-2440 (06:DUP-10): the step itself is shared with the area screen (a changed key restarts from 0, measured after that render)
-    const step = fitStep(this.fit, key, this.fitKey, () => {
+    const overflowing = () => {
       const sc = scrollParentOf(this);
       return !!sc && sc.scrollHeight - sc.clientHeight > 1;
-    });
+    };
+    // HOME-SCROLL-FIX-2530: the fold restarts with the packing (a changed key)
+    if (key !== this.fitKey && this.fitFold) this.fitFold = false;
+    // CR-G1-HOME-AREA-2440 (06:DUP-10): the step itself is shared with the area screen (a changed key restarts from 0, measured after that render)
+    const step = fitStep(this.fit, key, this.fitKey, overflowing);
     this.fitKey = step.lastKey;
     if (step.fit !== this.fit) this.fit = step.fit;
+    // HOME-SCROLL-FIX-2530: the tightest packing still scrolls and direction b's widget column is drawn - fold its cards (the column is
+    // the part that reaches lowest there: five cards stacked beside floors that end much higher)
+    else if (step.settled && step.fit === 2 && !this.fitFold && this.renderRoot.querySelector('[data-bgrid]') && overflowing()) this.fitFold = true;
   };
 
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
