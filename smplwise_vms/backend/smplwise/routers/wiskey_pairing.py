@@ -100,15 +100,8 @@ def pairing_repair(body: RepairBody, request: Request, principal: Principal = De
           details={"reason": reason, "announced": announced, "rotation_paused": paused})
     after = wp.status(conn, settings)
     url = bridge_install.addon_url()
-    if announced:
-        steps = ["הקוד החדש נשלח לגשר הקיים: הגשר בודק אותו מול Arx ומחליף אותו בעצמו, בלי אישור. אם הגשר עוד לא הוגדר - בתשתית המערכת תופיע בקשה להוסיף את SMPLWISE Bridge; אשרו אותה.",
-                 "המתינו דקה עד שהגשר ישלח עדכון חתום (השורה \"גשר Arx\" תהפוך לתקינה).",
-                 "לחצו \"בדיקה מול WisKey\"."]
-    else:
-        steps = ["בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge › שלוש הנקודות › מחיקה. "
-                 "לפני כן רשמו את האפשרויות שהוגדרו בה (משתמש שירות, האצלת שמירה, הרשאות להפעלה): הן נמחקות עם הרשומה.",
-                 "הוספת אינטגרציה › SMPLWISE Bridge.",
-                 f"כתובת: {url} · קוד הצימוד: הקוד שמוצג כאן.",
-                 "חזרו לכאן ולחצו \"בדיקה מול WisKey\"."]
+    # WISKEY-PAIRING-I18N-2520: the steps by code (wp.STEP); `step_codes` (additive) lets another language say them, `{url}` = `addon_url`
+    step_codes = list(wp.ANNOUNCED_STEPS if announced else wp.MANUAL_STEPS)
     return {"announced": announced, "rotation_paused": paused, "pairing_code": None if announced else secret, "addon_url": url,
-            "paired_at": get_setting(conn, "bridge.paired_at") or None, "steps": steps, "status": after}
+            "paired_at": get_setting(conn, "bridge.paired_at") or None, "steps": wp.step_texts(step_codes, url=url), "step_codes": step_codes,
+            "status": after}

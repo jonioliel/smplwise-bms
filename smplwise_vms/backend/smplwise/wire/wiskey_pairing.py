@@ -69,6 +69,8 @@ class WiskeyPairingPairingStatusLine(ExactModel):
     reason: str
     text: str
     fix: str | None
+    fix_code: str | None = None  # WISKEY-PAIRING-I18N-2520 (additive)
+    params: dict[str, Any] = None  # WISKEY-PAIRING-I18N-2520 (additive)
     facts: WiskeyPairingPairingStatusLineFacts
 
 
@@ -104,6 +106,7 @@ class WiskeyPairingPairingStatus(ExactModel):
     probe: Any
     repair: WiskeyPairingPairingStatusRepair
     owner_steps: list[str]
+    owner_step_codes: list[str] = None  # WISKEY-PAIRING-I18N-2520 (additive)
     features: list[WiskeyPairingPairingStatusFeature]
 
 
@@ -114,6 +117,8 @@ class WiskeyPairingPairingRepairStatusLine(ExactModel):
     reason: str
     text: str
     fix: str | None
+    fix_code: str | None = None  # WISKEY-PAIRING-I18N-2520 (additive)
+    params: dict[str, Any] = None  # WISKEY-PAIRING-I18N-2520 (additive)
     facts: dict[str, Any]
 
 
@@ -143,6 +148,7 @@ class WiskeyPairingPairingRepairStatus(ExactModel):
     probe: Any
     repair: WiskeyPairingPairingRepairStatusRepair
     owner_steps: list[str]
+    owner_step_codes: list[str] = None  # WISKEY-PAIRING-I18N-2520 (additive)
     features: list[WiskeyPairingPairingRepairStatusFeature]
 
 
@@ -154,4 +160,5 @@ class WiskeyPairingPairingRepair(ExactModel):
     addon_url: str
     paired_at: Any
     steps: list[str]
+    step_codes: list[str] = None  # WISKEY-PAIRING-I18N-2520 (additive)
     status: WiskeyPairingPairingRepairStatus

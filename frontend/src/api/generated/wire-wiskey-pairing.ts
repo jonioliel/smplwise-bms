@@ -11,6 +11,7 @@ export interface WiskeyPairingPairingRepair {
   addon_url: string;
   paired_at: unknown;
   steps: string[];
+  step_codes?: string[];
   status: WiskeyPairingPairingRepairStatus;
 }
 
@@ -23,6 +24,7 @@ export interface WiskeyPairingPairingRepairStatus {
   probe: unknown;
   repair: WiskeyPairingPairingRepairStatusRepair;
   owner_steps: string[];
+  owner_step_codes?: string[];
   features: WiskeyPairingPairingRepairStatusFeature[];
 }
 
@@ -43,6 +45,8 @@ export interface WiskeyPairingPairingRepairStatusLine {
   reason: string;
   text: string;
   fix: string | null;
+  fix_code?: string | null;
+  params?: Record<string, unknown>;
   facts: Record<string, unknown>;
 }
 
@@ -63,6 +67,7 @@ export interface WiskeyPairingPairingStatus {
   probe: unknown;
   repair: WiskeyPairingPairingStatusRepair;
   owner_steps: string[];
+  owner_step_codes?: string[];
   features: WiskeyPairingPairingStatusFeature[];
 }
 
@@ -88,6 +93,8 @@ export interface WiskeyPairingPairingStatusLine {
   reason: string;
   text: string;
   fix: string | null;
+  fix_code?: string | null;
+  params?: Record<string, unknown>;
   facts: WiskeyPairingPairingStatusLineFacts;
 }
 
