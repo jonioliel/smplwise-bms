@@ -333,6 +333,13 @@
    "reason": "pick list (capped 300 px)"
   },
   {
+   "file": "home/home-styles-extra.ts",
+   "selector": ".acc-body",
+   "kind": "dialog",
+   "screen": "home - my account sheet",
+   "reason": "HOME-T120-REST-2530: the account blocks (security, sign-ins, language) scroll inside the sheet, never the screen"
+  },
+  {
    "file": "home/home-styles-v3.ts",
    "selector": ".n-body",
    "kind": "viewer",
