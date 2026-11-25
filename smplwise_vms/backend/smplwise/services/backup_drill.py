@@ -193,8 +193,7 @@ def _new_fk(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
     return {t: n - before.get(t, 0) for t, n in after.items() if n > before.get(t, 0)}
 
 
-def live_copy_restore(run: "_Run", settings: Settings, archive: Path, base: Path, started_at: dt.datetime, *, keep_scratch: bool,
-                      result: dict[str, Any]) -> None:
+def live_copy_restore(run: "_Run", settings: Settings, archive: Path, base: Path, started_at: dt.datetime) -> None:
     """CORE-01 (DEEP-REVIEW-2520-BACKEND-CORE): the fresh scratch database above holds no row outside the archive's tables, so a
     restore that a REAL installation refuses (a maintenance file pointing at a task) passed there. The same `replace` restore runs
     again onto a read-only snapshot copy of the live database (sqlite backup API; the live file is never written) and must succeed
@@ -245,10 +244,7 @@ def live_copy_restore(run: "_Run", settings: Settings, archive: Path, base: Path
         from . import energy_store
 
         energy_store.forget_store(scratch / energy_store.FILE_NAME)
-        if keep_scratch:
-            result["scratch_live_dir"] = str(scratch)
-        else:
-            shutil.rmtree(scratch, ignore_errors=True)
+        shutil.rmtree(scratch, ignore_errors=True)  # a full copy of the live database: never kept, also not with --keep-scratch
 
 
 def _kept_values(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -464,7 +460,7 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
         run.timed("verify", t)
         # ---- CORE-01: the same restore onto a copy of the live database (rows outside the archive that point into it)
         t = time.monotonic()
-        live_copy_restore(run, settings, path, base, started_at, keep_scratch=keep_scratch, result=result)
+        live_copy_restore(run, settings, path, base, started_at)
         run.timed("live_copy_restore", t)
         if all(c["ok"] for c in run.checks if c["severity"] == "fail"):
             result["result"] = "PASS"
