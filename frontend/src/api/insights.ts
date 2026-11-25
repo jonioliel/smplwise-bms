@@ -258,7 +258,8 @@ interface DeliveryConfig {
   enabled_at: string | null;
   dom: number;
   at: string;
-  lang: 'he' | 'en';
+  /** NOTIFY-LANG-SENDERS-2520: `recipient` = each recipient's own language (a user's interface language; an address's owner's). */
+  lang: 'he' | 'en' | 'recipient';
   email: boolean;
   whatsapp: boolean;
   users: string[];

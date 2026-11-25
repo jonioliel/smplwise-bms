@@ -373,10 +373,24 @@ class _Safe(dict):
         return ""
 
 
+# NOTIFY-LANG-SENDERS-2520: a reserved param holding, per language, the values of other params that are wording rather than names (a
+# calendar entry's day and time: "יום ב׳ 03.12" / "Mon 03.12"), e.g. {"_i18n": {"en": {"when": "Mon 03.12 10:00–11:00"}}}. Used only when
+# rendering in that language and only for a param the signal also has; the Hebrew render never reads it (the stored row is as before).
+I18N_PARAM = "_i18n"
+
+
+def _overlay(p: _Safe, params: dict[str, Any], lang: str) -> None:
+    over = params.get(I18N_PARAM)
+    over = over.get(lang) if isinstance(over, dict) else None
+    if isinstance(over, dict):
+        p.update({k: str(v) for k, v in over.items() if k in params and k != I18N_PARAM and isinstance(v, (str, int, float))})
+
+
 def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, str]:
     """(title, body) of a source from its template and the signal's params; each clipped to the contract's lengths.
     I18N-REST-2520: `lang="en"` renders with the English templates of services/notify_policy_en.py (a source without them, or a body
-    built from the signal's own `_template`, stays Hebrew); the default is the Hebrew the row stores and every channel sends."""
+    built from the signal's own `_template`, stays Hebrew); the default is the Hebrew the row stores and every channel sends.
+    NOTIFY-LANG-SENDERS-2520: in another language a param's own value in that language (`I18N_PARAM`) replaces the Hebrew one."""
     s = BY_KEY.get(source)
     p = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
     if s is None:
@@ -387,6 +401,7 @@ def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, 
 
         en = TEMPLATES_EN.get(base_key(source))  # NOTIFY-RECIPIENT-LANG-2520: a per-generator source reads its alert type's English
         if en is not None:
+            _overlay(p, params, lang)  # only with the language's own template: never an English value inside a Hebrew sentence
             title_t, label = en[0], en[0]
             if not params.get("_template"):
                 body_t = en[1]

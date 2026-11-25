@@ -270,8 +270,9 @@ export class InsightsSettings extends LitElement {
         <label>${ix('deliveryDom')}<select class="inp" data-delivery-dom @change=${(e: Event) => this.setDel({ dom: Number((e.target as HTMLSelectElement).value) })}>
           ${Array.from({ length: 28 }, (_, i) => i + 1).map((n) => html`<option value=${n} ?selected=${n === this.dv('dom')}>${n}</option>`)}</select></label>
         <label>${ix('deliveryAt')}<input class="inp" type="time" lang=${dateInputLang()} data-delivery-at .value=${this.dv('at')} @input=${(e: Event) => this.setDel({ at: (e.target as HTMLInputElement).value })} /></label>
-        <label>${ix('deliveryLang')}<select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' })}>
-          <option value="he" ?selected=${this.dv('lang') === 'he'}>${'עברית' /* i18n-keep: the Hebrew language's own name */}</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option></select></label>
+        <label>${ix('deliveryLang')}<select class="inp" data-delivery-lang @change=${(e: Event) => this.setDel({ lang: (e.target as HTMLSelectElement).value as 'he' | 'en' | 'recipient' })}>
+          <option value="he" ?selected=${this.dv('lang') === 'he'}>${'עברית' /* i18n-keep: the Hebrew language's own name */}</option><option value="en" ?selected=${this.dv('lang') === 'en'}>English</option>
+          <option value="recipient" ?selected=${this.dv('lang') === 'recipient'}>${ix('deliveryLangRecipient')}</option></select></label>
         <label>${ix('deliveryChannels')}<span class="checks">
           <label><input type="checkbox" data-delivery-email .checked=${this.dv('email')} @change=${(e: Event) => this.setDel({ email: (e.target as HTMLInputElement).checked })} />${ix('chEmail')}</label>
           <label><input type="checkbox" data-delivery-whatsapp .checked=${wa} @change=${(e: Event) => this.setDel({ whatsapp: (e.target as HTMLInputElement).checked })} />${ix('chWhatsapp')}</label></span>
