@@ -97,7 +97,25 @@ mock data).
 
 ### Part 2 tests
 
-(filled below)
+PC: `pytest tests/test_gen_sensor_names_en_2520.py` - exit 0, 6 passed.
+
+Runner, slot B. Job `~/work/p2520_gensensoren_run3.sh` at c429733b7 (the CSV commit):
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| Wire types / ruff | `gen_wire_types.py --check` / `ruff check ...` | 0 / 0 | up to date / all checks passed |
+| Backend, one process per file (`SW_WIRE_STRICT=1`) | `pytest tests/<file>.py` | 0 each | test_gen_sensor_names_en_2520 6, test_generator 49, test_genalert_295 11, test_generator_home_widget 3, test_genlog_092 21, test_wire_routers_b_2450 66, test_wire_routers_c_2470 58, test_wire_routers_d_2470 166, test_wire_route_coverage_2460 5 - all passed |
+| Types (app) | `npx tsc --noEmit -p tsconfig.json` | 0 | clean |
+| Types (tests) | `npx tsc --noEmit -p tsconfig.tests.json` | 2 | 4 errors: the new CSV unit fixture's `range` was typed `string`, not `GenRange` - fixed in cd1c5a34a (see job 4) |
+| Lint / design ratchet / unused exports | as in part 1 (+ `gen-logic.ts`, `gen-charts-page.ts`) | 0 / 0 / 0 | clean / no count above the baseline / report-only |
+| Unit | `npx playwright test -c playwright.unit.config.ts tests/unit-generator.spec.ts` | 0 | 26 passed |
+| Build | `npm run build` | 0 | ok |
+| Evidence + generator layout baselines (desktop / tablet / mobile) | the six specs of part 1 | 0 | 94 passed, 44 skipped (Hebrew pixel baselines unchanged) |
+
+Job `~/work/p2520_gensensoren_run4.sh` at cd1c5a34a (the fixture type fix): `tsc -p tsconfig.json` exit 0; `tsc -p tsconfig.tests.json`
+exit 0 (0 errors); eslint `gen-logic.ts gen-charts-page.ts` exit 0; `unit-generator.spec.ts` exit 0, 26 passed.
+
+NOT_RUN: the full suites and the release gate (the train gate covers them).
 
 ## Open questions (answered by the lead)
 
