@@ -14,7 +14,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fastapi.responses import Response
 
@@ -246,7 +246,14 @@ def sync_cameras(request: Request, principal: Principal = Depends(current_princi
             "updated": sum(r.get("updated", 0) for r in results.values()), "recorders": results}
 
 
-class CameraPatch(BaseModel):
+class _Body(BaseModel):
+    """ADR-019 D2 (ADR019-L14-STRICT-F123-2520): a web-UI body refuses an unknown key (422 `extra_forbidden`, the D1 envelope
+    `details.fields` / `problems`) instead of dropping it silently; every screen that sends it builds the body from named keys."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CameraPatch(_Body):
     alias: str | None = Field(default=None, max_length=120)
     sort_order: int | None = None
     enabled: bool | None = None
@@ -270,7 +277,7 @@ def update_camera(camera_id: str, body: CameraPatch, request: Request, principal
     return camera_row(store.camera(conn, camera_id))
 
 
-class CameraIn(BaseModel):
+class CameraIn(_Body):
     """Manual registration (no NVR reachable yet): channel number and a local alias. CR-024: `recorder_id` (default the first)."""
     channel: int = Field(ge=1, le=256)
     alias: str = Field(min_length=1, max_length=120)
