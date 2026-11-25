@@ -178,8 +178,8 @@ needed nothing (`keyset.py` untouched).
 | check | result |
 |---|---|
 | `gen_wire_types --check` / `sync_integration --check` / `wire_ratchet` | 0 / 0 (up to date) / 0 (897 = baseline) |
-| backend i18n / default names / ui.lang / notify / calendar / error-contract files + `test_bill_ledger_lifecycle_b` (31 files, 4 groups) | 2491 passed, **1 failed**: `test_i18n_errors_en_2520::test_every_english_template_belongs_to_a_source...` = the missing English of `security.second_factor_changed`, fixed by `61a6959ef` (green in the rows 19-20 run below) |
-| the MFA files one process each (16 files incl. `test_mfa_factor_harden_2520` 17, `test_mfa_ha_passkey_2520` 15, `test_wire_consumption_2450` 13) | all exit 0, 379 passed |
+| backend i18n / default names / ui.lang / notify / calendar / error-contract files + `test_bill_ledger_lifecycle_b` (30 files, 4 groups) | 2491 passed, **1 failed**: `test_i18n_errors_en_2520::test_every_english_template_belongs_to_a_source...` = the missing English of `security.second_factor_changed`, fixed by `61a6959ef` (green in the rows 19-20 run below) |
+| the MFA files one process each (16 files incl. `test_mfa_factor_harden_2520` 17, `test_mfa_ha_passkey_2520` 15, `test_wire_consumption_2450` 13) | all exit 0, 363 passed |
 | `tsc` app / tests + scripts; `npm run lint`; `npm run build` | 0 errors / 0 errors; clean; built |
 | Node unit suite | 5251 passed, 13 skipped, 3 failed = the `unit-mfa-passkeys-2490` page tests with no server (harness) |
 | `unit-dialog-toplayer-2381` | 6 passed |
