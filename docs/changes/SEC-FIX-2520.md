@@ -95,16 +95,34 @@ PC (Windows, `C:\cloude\smplwisebms\.venv` Python, one pytest file per process):
 |---|---|---|
 | `pytest -q tests/test_secfix_stepup_lockout_2520.py` | 0 | 3 passed (before the fix: 3 failed) |
 | `pytest -q tests/test_secfix_attest_chain_2520.py` | 0 | 6 passed (before: 5 failed, 1 passed - the valid chain) |
-| `pytest -q tests/test_app_refresh_attestation_232.py` | 0 | passed (count: see the runner results) |
+| `pytest -q tests/test_app_refresh_attestation_232.py` | 0 | 16 passed |
 | `pytest -q tests/test_mfa_devicekey_attest_2490.py` | 0 | 23 passed |
 | `pytest -q tests/test_secfix_restore_settings_2520.py` | 0 | 21 passed (before: 14 failed) |
 | `pytest -q tests/test_secfix_restore_validate_2520.py` | 0 | 9 passed (before: 9 failed) |
 | `pytest -q tests/test_secfix_restore_fk_2520.py` | 0 | 8 passed (before: 8 failed) |
 | `pytest -q tests/test_secfix_daily_backup_2520.py` | 0 | 6 passed (before: 6 failed) |
+| `pytest -q tests/test_backup_drill.py` | 0 | 13 passed (after the drill-status wire fix; before it: 1 failed, strict wire check) |
+| `pytest -q tests/test_backup.py` | 0 | 8 passed |
+| `pytest -q tests/test_mfa_reset_hardening_2510.py` | 0 | 22 passed |
+| `pytest -q tests/test_notify_sources.py` | 0 | 37 passed (call updated: `start_delay_s=0`) |
+| `pytest -q tests/test_offbox_api.py` | 0 | 9 passed (call updated: `start_delay_s=0`) |
 | `python scripts/gen_wire_types.py` | 0 | `wire-backup.ts` regenerated |
 
-Runner (`~/work/p2520_secfix_run.sh` through `~/work/slotb.sh`, one pytest process per file, two lanes): the 168 test files that
-touch backup / restore / step-up / second factor / attestation / settings / wire - see the results section below.
+Runner (`~/work/p2520_secfix_run.sh` through `~/work/slotb.sh`, worktree at 631c062a3, one pytest process per file with `-x`, two
+lanes): the 168 test files that touch backup / restore / step-up / second factor / attestation / settings / wire. 164 files exit 0
+(4429 tests passed, 1 skipped, counted from the progress lines). The other four:
+
+- `tests/test_notify_sources.py`, `tests/test_offbox_api.py` - each called `daily_loop(interval_s=0)` and expected an immediate run;
+  CORE-02 adds the start-up delay, so both calls now pass `start_delay_s=0` (re-run on the PC: both pass, table above).
+- `tests/test_offbox_sftp.py` - exit 5 (pytest collected no runnable test on the runner); not related to this row. NOT_RUN in effect.
+- `tests/test_t06_admission_295.py::test_the_only_modules_that_reach_a_signing_call_are_the_known_ones` - fails on
+  `wiskey_schedule_reads.py` (added to the train by WISKEY-SCHED-READS-2520, 56d0d3290); not touched by this row - for the train lead.
+
+Not run: the full backend suite, Playwright, lint of the whole tree (ruff on the changed files: only pre-existing F811 fixture
+warnings in `test_app_refresh_attestation_232.py`).
+
+Process note: during the before/after checks this row used `git stash push -- <paths>` / `pop` in its own worktree (the stash list is
+shared between worktrees); the final tree and every commit were re-verified to hold only this row's files.
 
 ## Open questions
 
