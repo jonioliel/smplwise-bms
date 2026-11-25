@@ -1,0 +1,180 @@
+{
+  "lines": [
+    {
+      "key": "bridge",
+      "label": "גשר Arx בתשתית המערכת",
+      "state": "warn",
+      "reason": "bridge_silent",
+      "text": "הגשר צומד, אבל לא שלח עדכון חתום מאז הצימוד. כנראה שהוא לא טעון או שהקוד שלו שונה מזה של Arx.",
+      "fix": "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge - ודאו שהיא טעונה (בלי שגיאה) והפעילו מחדש את תשתית המערכת. אם זה לא עוזר - צימוד מחדש (למטה).",
+      "fix_code": "bridge_silent",
+      "params": {
+        "since": "הצימוד",
+        "since_code": "pairing"
+      },
+      "facts": {
+        "paired": true
+      }
+    },
+    {
+      "key": "component",
+      "label": "רכיב WisKey",
+      "state": "ok",
+      "reason": "component_manual",
+      "text": "WisKey 2.0.1-rc.19 · התקנה ידנית (בעל המערכת מעדכן את WisKey בעצמו).",
+      "fix": null,
+      "fix_code": null,
+      "params": {
+        "version": "2.0.1-rc.19"
+      },
+      "facts": {
+        "version": "2.0.1-rc.19",
+        "mode": "manual"
+      }
+    },
+    {
+      "key": "key",
+      "label": "מפתח הצימוד",
+      "state": "ok",
+      "reason": "key_ok",
+      "text": "יש מפתח צימוד והוא יכול לחתום. טביעה: 3fa1-09bc.",
+      "fix": null,
+      "fix_code": null,
+      "params": {
+        "fingerprint": "3fa1-09bc"
+      },
+      "facts": {
+        "fingerprint": "3fa1-09bc",
+        "can_sign": true
+      }
+    },
+    {
+      "key": "acceptance",
+      "label": "WisKey מקבל את המפתח",
+      "state": "blocked",
+      "reason": "refused",
+      "text": "WisKey דחה את החתימה של Arx (direct_connect_refused): הקוד שאצלו לא תואם את המפתח של Arx, או שהגשר לא טעון אצלו.",
+      "fix": "אם הגשר שולח עדכונים (השורה הראשונה תקינה): הפעילו מחדש את תשתית המערכת וודאו שיש רק אינטגרציית SMPLWISE Bridge אחת. אם הגשר שקט - צימוד מחדש (למטה).",
+      "fix_code": "refused",
+      "params": {
+        "code": "direct_connect_refused"
+      },
+      "facts": {
+        "code": "direct_connect_refused"
+      }
+    },
+    {
+      "key": "discovery",
+      "label": "חוזה הגילוי (פקודות מדיה ודיבור)",
+      "state": "warn",
+      "reason": "discovery_feed",
+      "text": "לפי ערוץ השירות: וידאו כן, דיבור לא (לא נבדק בחיבור הישיר).",
+      "fix": "עדכנו את WisKey לגרסה שמפרסמת את פקודות הדיבור (בהתקנה ידנית - בעל המערכת).",
+      "fix_code": "discovery_talk_missing",
+      "params": {
+        "video": "כן",
+        "talk": "לא",
+        "video_code": "yes",
+        "talk_code": "no"
+      },
+      "facts": {
+        "source": "feed",
+        "listed": {}
+      }
+    },
+    {
+      "key": "provider",
+      "label": "מקור הווידאו והדיבור",
+      "state": "blocked",
+      "reason": "provider_local",
+      "text": "מקור הווידאו והדיבור מוגדר \"Arx (וידאו בלבד)\": Arx לא מדבר עם העמדות דרך WisKey, גם כשהצימוד תקין.",
+      "fix": "בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: בחרו \"WisKey (וידאו ודיבור)\".",
+      "fix_code": "provider_local",
+      "params": {},
+      "facts": {
+        "choice": "local",
+        "feed_reason": null,
+        "readiness": [
+          "talk_not_listed"
+        ],
+        "row": {
+          "href": "#/system/diagnostics?tab=access-control",
+          "label": "מקור הווידאו והדיבור"
+        }
+      }
+    },
+    {
+      "key": "rotation",
+      "label": "החלפת מפתח הגשר",
+      "state": "warn",
+      "reason": "rotation_risk",
+      "text": "החלפת מפתח הגשר מופעלת. החלפה תמחק את קוד הצימוד המקורי מהגשר, ו־WisKey יפסיק לקבל את Arx.",
+      "fix": "אל תלחצו \"החלפת מפתח\" בכרטיס מפתח הגשר כל עוד WisKey בשימוש. אפשר לכבות את ההחלפה שם, או בצימוד מחדש למטה.",
+      "fix_code": "rotation_risk",
+      "params": {},
+      "facts": {
+        "enabled": true
+      }
+    },
+    {
+      "key": "events",
+      "label": "אירועי דלת אחרי הפעלה מחדש",
+      "state": "warn",
+      "reason": "events_gap",
+      "text": "פער באירועי הדלת: לא ידוע עד 2026-11-24T10:00:00+00:00 (נקודת ההמשך ישנה מדי: WisKey כבר מחק את האירועים שאחריה). האירועים בטווח הזה לא הגיעו ל־Arx - ההיסטוריה שם לא שלמה.",
+      "fix": "אין מה לתקן ב־Arx: את האירועים שבטווח אפשר לראות ביומן הכניסות (כל עוד WisKey שומר אותם). השורה חוזרת לתקינה 7 ימים אחרי הפער.",
+      "fix_code": "events_gap",
+      "params": {
+        "start": "לא ידוע",
+        "end": "2026-11-24T10:00:00+00:00",
+        "why": "נקודת ההמשך ישנה מדי: WisKey כבר מחק את האירועים שאחריה",
+        "start_code": "unknown",
+        "why_code": "retention_gap"
+      },
+      "facts": {
+        "enabled": true
+      }
+    },
+    {
+      "key": "last_error",
+      "label": "שגיאה אחרונה",
+      "state": "warn",
+      "reason": "error",
+      "text": "WisKey סגר את החיבור בלי תשובה - החתימה לא אומתה אצלו.",
+      "fix": "ראו את השורה שמסומנת באדום למעלה.",
+      "fix_code": "error",
+      "params": {
+        "code": "WisKey סגר את החיבור בלי תשובה - החתימה לא אומתה אצלו.",
+        "code_code": "direct_connect_refused"
+      },
+      "facts": {
+        "code": "direct_connect_refused"
+      }
+    }
+  ],
+  "owner_step_codes": [
+    "entry_single",
+    "restart_infra",
+    "check_again",
+    "provider_choose"
+  ],
+  "owner_steps": [
+    "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge - ודאו שיש רשומה אחת בלבד ושהיא טעונה.",
+    "הפעילו מחדש את תשתית המערכת (WisKey קורא את קוד הצימוד מהגשר כשהוא נטען).",
+    "חזרו לכאן ולחצו \"בדיקה מול WisKey\".",
+    "בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: \"WisKey (וידאו ודיבור)\"."
+  ],
+  "repair_step_codes": [
+    "manual_delete",
+    "manual_add",
+    "manual_url",
+    "check_again"
+  ],
+  "repair_steps": [
+    "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge › שלוש הנקודות › מחיקה. לפני כן רשמו את האפשרויות שהוגדרו בה (משתמש שירות, האצלת שמירה, הרשאות להפעלה): הן נמחקות עם הרשומה.",
+    "הוספת אינטגרציה › SMPLWISE Bridge.",
+    "כתובת: http://arx-addon.test:8099 · קוד הצימוד: הקוד שמוצג כאן.",
+    "חזרו לכאן ולחצו \"בדיקה מול WisKey\"."
+  ],
+  "addon_url": "http://arx-addon.test:8099"
+}

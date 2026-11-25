@@ -29,9 +29,11 @@ const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1
 function dictKeys(name: string): string[] {
   const start = SRC.indexOf(`\n${name} = {`);
   expect(start, `${name} is in the backend module`).toBeGreaterThan(0);
-  const end = SRC.indexOf('\n}\n', start);
+  // a dict written inline (`LABEL = {"bridge": ..., "last_error": "..."}`) ends at its first `}` + newline, a block dict at `\n}\n`
+  const isInline = SRC.startsWith(`\n${name} = {"`, start);
+  const end = isInline ? SRC.indexOf('}\n', start) : SRC.indexOf('\n}\n', start);
   const block = SRC.slice(start, end);
-  const inline = /^\n\w+ = \{"/.test(block) ? [...block.matchAll(/(?:\{|, |\n\s+)"(\w+)": "/g)].map((m) => m[1]) : [];
+  const inline = isInline ? [...block.matchAll(/(?:\{|, |\n\s+)"(\w+)": "/g)].map((m) => m[1]) : [];
   const lines = [...block.matchAll(/^ {4}"(\w+)": /gm)].map((m) => m[1]);
   return [...new Set([...inline, ...lines])];
 }

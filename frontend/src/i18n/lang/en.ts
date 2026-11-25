@@ -121,42 +121,43 @@ import * as t116 from './en/i18n/wiskey-embed';
 import * as t117 from './en/i18n/wiskey-feature-status';
 import * as t118 from './en/i18n/wiskey-installer';
 import * as t119 from './en/i18n/wiskey-managed';
-import * as t120 from './en/i18n/wiskey-profiles';
-import * as t121 from './en/i18n/wiskey-station-listen';
-import * as t122 from './en/i18n/wiskey-station-media';
-import * as t123 from './en/i18n/wiskey-station-ops';
-import * as t124 from './en/i18n/wiskey-stations';
-import * as t125 from './en/i18n/wiskey-switches';
-import * as t126 from './en/i18n/wiskey-triage';
-import * as t127 from './en/i18n/xsection';
-import * as t128 from './en/tickets/board-text';
-import * as t129 from './en/tickets/calendar-text';
-import * as t130 from './en/tickets/camera-viewfinder';
-import * as t131 from './en/tickets/conversation-text';
-import * as t132 from './en/tickets/cost-text';
-import * as t133 from './en/tickets/delete-text';
-import * as t134 from './en/tickets/device-text';
-import * as t135 from './en/tickets/drawer-text';
-import * as t136 from './en/tickets/list-text';
-import * as t137 from './en/tickets/map-text';
-import * as t138 from './en/tickets/messages-text';
-import * as t139 from './en/tickets/nav-text';
-import * as t140 from './en/tickets/org-locations-text';
-import * as t141 from './en/tickets/overview-text';
-import * as t142 from './en/tickets/quote-text';
-import * as t143 from './en/tickets/rfq-settings-text';
-import * as t144 from './en/tickets/rfq-text';
-import * as t145 from './en/tickets/rules-text';
-import * as t146 from './en/tickets/table-text';
-import * as t147 from './en/tickets/text';
-import * as t148 from './en/tickets/text-deptmgr';
-import * as t149 from './en/tickets/text-needsreview';
-import * as t150 from './en/tickets/text-otp';
-import * as t151 from './en/tickets/text-s4';
-import * as t152 from './en/tickets/text-ui6';
-import * as t153 from './en/tickets/visits-settings-text';
-import * as t154 from './en/tickets/work-calendar-text';
-import * as t155 from './en/water/i18n';
+import * as t120 from './en/i18n/wiskey-pairing-status';
+import * as t121 from './en/i18n/wiskey-profiles';
+import * as t122 from './en/i18n/wiskey-station-listen';
+import * as t123 from './en/i18n/wiskey-station-media';
+import * as t124 from './en/i18n/wiskey-station-ops';
+import * as t125 from './en/i18n/wiskey-stations';
+import * as t126 from './en/i18n/wiskey-switches';
+import * as t127 from './en/i18n/wiskey-triage';
+import * as t128 from './en/i18n/xsection';
+import * as t129 from './en/tickets/board-text';
+import * as t130 from './en/tickets/calendar-text';
+import * as t131 from './en/tickets/camera-viewfinder';
+import * as t132 from './en/tickets/conversation-text';
+import * as t133 from './en/tickets/cost-text';
+import * as t134 from './en/tickets/delete-text';
+import * as t135 from './en/tickets/device-text';
+import * as t136 from './en/tickets/drawer-text';
+import * as t137 from './en/tickets/list-text';
+import * as t138 from './en/tickets/map-text';
+import * as t139 from './en/tickets/messages-text';
+import * as t140 from './en/tickets/nav-text';
+import * as t141 from './en/tickets/org-locations-text';
+import * as t142 from './en/tickets/overview-text';
+import * as t143 from './en/tickets/quote-text';
+import * as t144 from './en/tickets/rfq-settings-text';
+import * as t145 from './en/tickets/rfq-text';
+import * as t146 from './en/tickets/rules-text';
+import * as t147 from './en/tickets/table-text';
+import * as t148 from './en/tickets/text';
+import * as t149 from './en/tickets/text-deptmgr';
+import * as t150 from './en/tickets/text-needsreview';
+import * as t151 from './en/tickets/text-otp';
+import * as t152 from './en/tickets/text-s4';
+import * as t153 from './en/tickets/text-ui6';
+import * as t154 from './en/tickets/visits-settings-text';
+import * as t155 from './en/tickets/work-calendar-text';
+import * as t156 from './en/water/i18n';
 
 export const PACK: LangPack = {
   'api/closed-errors': t0,
@@ -279,40 +280,41 @@ export const PACK: LangPack = {
   'i18n/wiskey-feature-status': t117,
   'i18n/wiskey-installer': t118,
   'i18n/wiskey-managed': t119,
-  'i18n/wiskey-profiles': t120,
-  'i18n/wiskey-station-listen': t121,
-  'i18n/wiskey-station-media': t122,
-  'i18n/wiskey-station-ops': t123,
-  'i18n/wiskey-stations': t124,
-  'i18n/wiskey-switches': t125,
-  'i18n/wiskey-triage': t126,
-  'i18n/xsection': t127,
-  'tickets/board-text': t128,
-  'tickets/calendar-text': t129,
-  'tickets/camera-viewfinder': t130,
-  'tickets/conversation-text': t131,
-  'tickets/cost-text': t132,
-  'tickets/delete-text': t133,
-  'tickets/device-text': t134,
-  'tickets/drawer-text': t135,
-  'tickets/list-text': t136,
-  'tickets/map-text': t137,
-  'tickets/messages-text': t138,
-  'tickets/nav-text': t139,
-  'tickets/org-locations-text': t140,
-  'tickets/overview-text': t141,
-  'tickets/quote-text': t142,
-  'tickets/rfq-settings-text': t143,
-  'tickets/rfq-text': t144,
-  'tickets/rules-text': t145,
-  'tickets/table-text': t146,
-  'tickets/text': t147,
-  'tickets/text-deptmgr': t148,
-  'tickets/text-needsreview': t149,
-  'tickets/text-otp': t150,
-  'tickets/text-s4': t151,
-  'tickets/text-ui6': t152,
-  'tickets/visits-settings-text': t153,
-  'tickets/work-calendar-text': t154,
-  'water/i18n': t155,
+  'i18n/wiskey-pairing-status': t120,
+  'i18n/wiskey-profiles': t121,
+  'i18n/wiskey-station-listen': t122,
+  'i18n/wiskey-station-media': t123,
+  'i18n/wiskey-station-ops': t124,
+  'i18n/wiskey-stations': t125,
+  'i18n/wiskey-switches': t126,
+  'i18n/wiskey-triage': t127,
+  'i18n/xsection': t128,
+  'tickets/board-text': t129,
+  'tickets/calendar-text': t130,
+  'tickets/camera-viewfinder': t131,
+  'tickets/conversation-text': t132,
+  'tickets/cost-text': t133,
+  'tickets/delete-text': t134,
+  'tickets/device-text': t135,
+  'tickets/drawer-text': t136,
+  'tickets/list-text': t137,
+  'tickets/map-text': t138,
+  'tickets/messages-text': t139,
+  'tickets/nav-text': t140,
+  'tickets/org-locations-text': t141,
+  'tickets/overview-text': t142,
+  'tickets/quote-text': t143,
+  'tickets/rfq-settings-text': t144,
+  'tickets/rfq-text': t145,
+  'tickets/rules-text': t146,
+  'tickets/table-text': t147,
+  'tickets/text': t148,
+  'tickets/text-deptmgr': t149,
+  'tickets/text-needsreview': t150,
+  'tickets/text-otp': t151,
+  'tickets/text-s4': t152,
+  'tickets/text-ui6': t153,
+  'tickets/visits-settings-text': t154,
+  'tickets/work-calendar-text': t155,
+  'water/i18n': t156,
 };
