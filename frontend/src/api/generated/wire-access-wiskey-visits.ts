@@ -14,15 +14,23 @@ export interface AccessWiskeyVisitsHomeCan {
 }
 
 export interface AccessWiskeyVisitsHomeCapabilities {
-  visits: AccessWiskeyVisitsHomeCapabilitiesVisits;
+  visits: AccessWiskeyVisitsHomeCapabilitiesList;
   templates: AccessWiskeyVisitsHomeCapabilitiesVisits;
   push: AccessWiskeyVisitsHomeCapabilitiesPush;
 }
 
+/** The visits capability; `statuses` = the list's status filter values WisKey accepts (WISKEY-VISITS-ENDED-FILTER-2520). */
+export interface AccessWiskeyVisitsHomeCapabilitiesList {
+  available: boolean;
+  reason: unknown;
+  message: unknown;
+  statuses: string[];
+}
+
 export interface AccessWiskeyVisitsHomeCapabilitiesPush {
   available: boolean;
-  reason: string;
-  message: string;
+  reason: string | null;
+  message: string | null;
   switch: string;
   offered: boolean;
 }
@@ -67,7 +75,7 @@ export interface AccessWiskeyVisitsPutSettings {
 }
 
 export interface AccessWiskeyVisitsPutSettingsCapabilities {
-  visits: AccessWiskeyVisitsHomeCapabilitiesVisits;
+  visits: AccessWiskeyVisitsHomeCapabilitiesList;
   templates: AccessWiskeyVisitsHomeCapabilitiesVisits;
   push: AccessWiskeyVisitsPutSettingsCapabilitiesPush;
 }

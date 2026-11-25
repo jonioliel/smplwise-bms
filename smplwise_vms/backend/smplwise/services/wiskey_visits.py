@@ -48,6 +48,10 @@ WISKEY-R6-2520 (WisKey rc.19 contract `external-visits-v1`, docs/changes/WISKEY-
   `visit_record_outcome_unknown`, `bridge_outcome_unknown` and every code the table does not know are `unknown`, settled only by a read
   (never by sending again). A success whose result is not exactly the sent `external_ref`'s revision and status is `unknown` too.
 - The reconcile reads the one row by the exact `filters.external_ref` (rc.19 B8) and compares WisKey's `arx_revision` with the sent one.
+- WISKEY-VISITS-ENDED-FILTER-2520: the list's `filters.status=ended` (an Arx record that ended) is offered only when WisKey lists the
+  record command - WisKey added the `ended` list filter in the same change as the command (its access/visit_requests.py `list_requests`
+  at rc.19 / rc.20; rc.10 refuses `ended` with `invalid_fields`). `list_statuses` is that decision; the router refuses `ended` before
+  any call when it is not offered (409 `wiskey_visits_unsupported`, feature `ended_filter`), and the panel shows the option only then.
 - Rollback boundary (WisKey's, documented for the operator): WisKey's first stored record migrates its visits store to schema 2, which the
   older WisKey code refuses - there is no code-only downgrade to rc.17 after it; WisKey's users / visits backup taken at that moment is
   not a full Home Assistant / Arx backup.
@@ -92,6 +96,10 @@ RECONCILE_PAGES = 5
 # `ended` is an Arx record's status in the rc.19 list (external rows keep `approved` / `ended`)
 STATUSES = frozenset({"pending", "approved", "rejected", "cancelled", "superseded", "ended"})
 ARX_STATUSES = ("approved", "ended")
+# the list's status filter values every WisKey version accepts (rc.10 access/visit_requests.py `STATUSES | {"all"}`); `ended` only with
+# the record command (WISKEY-VISITS-ENDED-FILTER-2520, `list_statuses`)
+LIST_STATUSES = ("all", "pending", "approved", "rejected", "cancelled", "superseded")
+ENDED_FILTER = "ended"
 
 # ---- external-visits-v1 (WisKey rc.19 docs/contracts/external-visits-v1, record.v1 / result.v1 / error.v1)
 RECORD_FIELDS = ("external_ref", "arx_revision", "user_id", "status", "valid_from", "valid_until", "doors", "approval", "end_reason")
@@ -122,6 +130,7 @@ REASON_HE: dict[str, str] = {
     "api_incompatible": "הגרסה המותקנת של מערכת בקרת הכניסה אינה תואמת לגרסה הזו של Arx.",
     "no_copy": "עדיין אין חיבור פעיל למערכת בקרת הכניסה.",
     "push_off": "רישום הביקורים במערכת בקרת הכניסה כבוי בהגדרות (מנהל מערכת).",
+    "ended_filter_not_offered": "מערכת בקרת הכניסה המותקנת אינה מציעה סינון של ביקורים שהסתיימו. לא נשלח דבר.",
     "installation_unavailable": "ההתקנה המנוהלת של מערכת בקרת הכניסה אינה זמינה, ולכן שום דבר לא נשלח.",
     "writes_disabled": "הכתיבה כבויה בצד מערכת בקרת הכניסה, ולכן שום דבר לא נשלח.",
     "unauthorized": "מערכת בקרת הכניסה אינה מרשה לזהות של Arx לבצע את הפעולה.",
@@ -177,7 +186,15 @@ def capabilities(conn: sqlite3.Connection, api: dict[str, Any] | None) -> dict[s
         out[name] = {"available": available, "reason": reason, "message": reason_text(reason)}
     out["push"]["switch"] = "on" if switch_on(conn) else "off"
     out["push"]["offered"] = feature_state(api, "push")[0]
+    out["visits"]["statuses"] = list_statuses(api)
     return out
+
+
+def list_statuses(api: dict[str, Any] | None) -> list[str]:
+    """WISKEY-VISITS-ENDED-FILTER-2520: the `filters.status` values the connected WisKey accepts on `visits/list`. `ended` only when WisKey
+    lists the record command for the add-on's identity (`overview.api.commands`) - the list filter came with that command in WisKey's
+    source; no version label is read. No copy, unknown commands or rc.10: the six statuses every version takes (fail closed)."""
+    return [*LIST_STATUSES, ENDED_FILTER] if feature_state(api, "push")[0] else list(LIST_STATUSES)
 
 
 # ---------------------------------------------------------------- the frames

@@ -12,6 +12,8 @@
 - `visits/list` (WISKEY-R6-2520): an Arx record is listed with rc.19's external row shape (`source: "arx"`, `external_ref`, `arx_revision`,
   status `approved` / `ended`); `filters.external_ref` is exact and case sensitive and excludes native rows - and refused `invalid_fields`
   while the record command is not offered (rc.10 knows no such filter);
+- `filters.status` (WISKEY-VISITS-ENDED-FILTER-2520): rc.10's statuses or `all`; `ended` only while the record command is offered (rc.19
+  added it with the command); any other value is refused `invalid_fields`;
 - `record_answer`: `ok` | an error code (answered as a refusal) | `drop` (no answer: the caller's timeout makes it unknown) - and with
   `record_then_drop` the fake STORES the record before dropping the answer (the "written but not answered" case)."""
 from __future__ import annotations
@@ -26,6 +28,7 @@ from fake_wiskey import FakeWiskey, fail, ok
 
 RECORD = "visits/record_external_v1"
 HA_ID = "ha-user-0000000000000000000000000001"
+LIST_STATUSES = {"all", "pending", "approved", "rejected", "cancelled", "superseded"}
 RECORD_FIELDS = {"external_ref", "arx_revision", "user_id", "status", "valid_from", "valid_until", "doors", "approval", "end_reason"}
 _INSTANT = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})"
 
@@ -166,8 +169,11 @@ class VisitsFake(FakeWiskey):
             allowed = {"status", "scope", "query"} | ({"external_ref"} if self.offer_record else set())
             if set(filters) - allowed:
                 return [fail(msg, "invalid_fields")]
-            rows = sorted(self.visits, key=lambda r: r["sequence"], reverse=True)
             status = filters.get("status", "all")
+            # rc.10 access/visit_requests.py: `STATUSES | {"all"}`; rc.19 adds `ended` with the record command (WISKEY-VISITS-ENDED-FILTER-2520)
+            if status not in LIST_STATUSES | ({"ended"} if self.offer_record else set()):
+                return [fail(msg, "invalid_fields")]
+            rows = sorted(self.visits, key=lambda r: r["sequence"], reverse=True)
             rows = [r for r in rows if status == "all" or r["status"] == status]
             if "external_ref" in filters:  # exact, case sensitive; native rows (external_ref None) never match
                 rows = [r for r in rows if r.get("source") == "arx" and r.get("external_ref") == filters["external_ref"]]

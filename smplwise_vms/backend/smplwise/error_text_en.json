@@ -1688,6 +1688,7 @@
 "מערכת בקרת הכניסה אינה מציעה את הפעולה הזו בגרסה המותקנת. לא נשלח דבר.": "The access control system does not offer this action in the installed version. Nothing was sent.",
 "מערכת בקרת הכניסה אינה מציעה את הקריאה הזו.": "The access control system does not offer this request.",
 "מערכת בקרת הכניסה אינה מציעה רישום החלטת סקירה לזהות של המערכת. אפשר לרשום אותה בחלון האינטרקום.": "The access control system does not offer recording a review decision for the system identity. You can record it in the intercom window.",
+"מערכת בקרת הכניסה המותקנת אינה מציעה סינון של ביקורים שהסתיימו. לא נשלח דבר.": "The installed access control system does not offer filtering by ended visits. Nothing was sent.",
 "מערכת האינטרקום דחתה את הבקשה של Arx (אין הרשאה בצד שלה).": "The intercom system rejected the request from Arx (no permission on its side).",
 "מערכת האינטרקום עסוקה או שנשלחו יותר מדי בקשות. נסו שוב בעוד כמה שניות.": "The intercom system is busy or too many requests were sent. Try again in a few seconds.",
 "מערכת הכניסה אינה זמינה כעת.": "The access system is unavailable right now.",

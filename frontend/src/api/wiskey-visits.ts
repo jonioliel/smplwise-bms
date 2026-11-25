@@ -7,12 +7,17 @@ import { get, post, put } from './client';
 
 export type VisitCapabilityName = 'visits' | 'templates' | 'push';
 
+// WISKEY-VISITS-ENDED-FILTER-2520: the list's status filter values; `ended` only when the connected system offers it (the server decides)
+export type VisitListStatus = 'all' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'superseded' | 'ended';
+
 export interface VisitCapability {
   available: boolean;
   reason: string | null;
   message: string | null;
   switch?: 'on' | 'off';
   offered?: boolean;
+  /** `visits` only: the status filter values the connected system accepts (absent from an older server = no filter). */
+  statuses?: string[];
 }
 
 export interface VisitsHome {
@@ -85,7 +90,7 @@ export interface VisitLink {
 const BASE = '/access/wiskey-visits';
 
 export const getVisitsHome = () => get<VisitsHome>(BASE);
-export const getVisits = (params: { status?: string; query?: string; offset?: number; limit?: number } = {}) => {
+export const getVisits = (params: { status?: VisitListStatus; query?: string; offset?: number; limit?: number } = {}) => {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
   const s = q.toString();
