@@ -29,7 +29,7 @@ import './devices-bulk';
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from '../api/session';
 import { pl } from '../i18n/polish';
-import { tr } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time words of agoHe
+import { tr as trTime } from '../i18n/msg/time'; // CR-I18N-DATES-2442: the relative-time words of agoHe
 import { ApiError, describeError, patch } from '../api/client';
 import { getSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -152,13 +152,13 @@ function agoHe(what: string, iso: string | null | undefined, now: number = Date.
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return '';
   const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 10) return tr('{what} עכשיו', { what });
-  if (s < 60) return tr('{what} לפני {n} שניות', { what, n: s });
+  if (s < 10) return trTime('{what} עכשיו', { what });
+  if (s < 60) return trTime('{what} לפני {n} שניות', { what, n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return m === 1 ? tr('{what} לפני דקה', { what }) : tr('{what} לפני {n} דקות', { what, n: m });
+  if (m < 60) return m === 1 ? trTime('{what} לפני דקה', { what }) : trTime('{what} לפני {n} דקות', { what, n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return h === 1 ? tr('{what} לפני שעה', { what }) : tr('{what} לפני {n} שעות', { what, n: h });
-  return tr('{what} ב־{at}', { what, at: dayTimeText(new Date(t)) });
+  if (h < 24) return h === 1 ? trTime('{what} לפני שעה', { what }) : trTime('{what} לפני {n} שעות', { what, n: h });
+  return trTime('{what} ב־{at}', { what, at: dayTimeText(new Date(t)) });
 }
 
 /** The two timing lines next to the refresh button: when the structure last CHANGED (last_structure_at) and when it
