@@ -511,6 +511,8 @@ def test_a_source_without_the_email_flag_sends_no_mail(world, smtp):
     assert smtp.messages == [] and world.rows() == []
 
 
+# GATE-HARDEN-2520 (TR-11): 00:00-23:59 leaves 23:59 local outside the window; the notification clock is pinned to daytime
+@pytest.mark.usefixtures("daytime_clock")
 def test_quiet_hours_hold_non_critical_mail_and_the_matrix_passes_critical(world, smtp, monkeypatch):
     world.configure(smtp)
     assert world.c.put(f"{API}/notify/settings", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]}}).status_code == 200

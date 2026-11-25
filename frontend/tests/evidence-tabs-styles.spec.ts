@@ -118,6 +118,9 @@ test.describe('tab bar styles (mocked backend)', () => {
   });
 
   test('defaults: the first level of every area is the narrow pill, the security sub-tabs the compact underline row', async ({ page }, info) => {
+    // GATE-HARDEN-2520 (TR-03): seven cold page loads (each with a fixed 0.9 s settle) and six captures - about 24 s on desktop when the
+    // runner is quiet; the phone and tablet runs timed out at the 60 s default in the loaded 25.11 nightly (a budget, not a defect)
+    test.setTimeout(180_000);
     // level 1: home, map, WisKey, settings - the tab row itself is a pill
     for (const [name, hash] of [['home', '/devices/building'], ['map', '/explore/sites'], ['wiskey', '/wiskey/overview'], ['settings', '/system/diagnostics']] as const) {
       await open(page, hash);
@@ -151,6 +154,7 @@ test.describe('tab bar styles (mocked backend)', () => {
   });
 
   test('a default per level, and an override per section that wins over it', async ({ page }, info) => {
+    test.setTimeout(180_000); // six cold page loads, like the defaults sweep above (FLAKY by timeout on tablet in the 25.11 nightly)
     st.uiTabs = { styles: { level1: 'underline', level2: 'pill' }, explore: { order: [], hidden: [], style: 'underline-compact' }, 'security.investigate': { order: [], hidden: [], style: 'underline' } };
     await open(page, '/devices/building');
     expect(await variantOf(page)).toBe('underline'); // level 1 default

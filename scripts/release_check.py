@@ -6,7 +6,9 @@ label, backend __version__, CHANGELOG head, API inventory), the bridge integrati
 their version consistent (manifest + const), a contiguous migration sequence, the built UI present in the add-on,
 the release package document and the known-limits sources present, the Supervisor build inputs (base image by tag,
 the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), no debug source map in the shipped UI
-(CR-BUILD-GUARDS-2438, 07:F7), the design-debt ratchet (scripts/design_ratchet.py: no count above its baseline), and whether a git
+(CR-BUILD-GUARDS-2438, 07:F7), the shipped UI bundle built for THIS version (GATE-HARDEN-2520 TR-04: www/arx-sw.js carries the
+service-worker shell cache name `arx-shell-<config.yaml version>`; a mismatch FAILS once the CHANGELOG head is the release - a
+warning while the head is still a DRAFT, i.e. on a train branch before the release rebuild commit), the design-debt ratchet (scripts/design_ratchet.py: no count above its baseline), and whether a git
 tag already exists for the version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
@@ -359,6 +361,28 @@ def shipped_source_maps(addon: Path) -> list[str]:
 _RATCHET_CACHE: dict[str, dict[str, Any]] = {}
 
 
+SHELL_RE = r"""["'`]arx-shell-(\d+\.\d+\.\d+[0-9A-Za-z.+-]*)["'`]"""
+
+
+def shipped_bundle_version(addon: Path, cfg_v: str | None, released: bool) -> dict[str, Any]:
+    """GATE-HARDEN-2520 (TR-04): is the committed add-on bundle (smplwise_vms/www, made by `npm run build:addon` in the
+    "release: X - rebuilt UI" commit) the build of THIS version? vite.config.ts names the service worker's shell cache after
+    config.yaml's version (`arx-shell-<version>`, CR-008 P3), so www/arx-sw.js carries it. `released` = the CHANGELOG head is
+    this version (the DRAFT mark removed at release prep): then a mismatch fails; before that (a train branch ahead of its release
+    rebuild) it is a warning. Returns {ok, warn, detail, shell}."""
+    sw = addon / "www" / "arx-sw.js"
+    shell = find(SHELL_RE, read(sw))
+    if cfg_v and shell == cfg_v:
+        return {"ok": True, "warn": False, "detail": f"www/arx-sw.js arx-shell-{shell} = config.yaml {cfg_v}", "shell": shell}
+    what = (f"www/arx-sw.js carries arx-shell-{shell}" if shell else
+            ("www/arx-sw.js is missing" if not sw.exists() else "www/arx-sw.js has no arx-shell-<version> cache name"))
+    fix = "rebuild the shipped UI (cd frontend && npm run build:addon) in the release commit"
+    if not released:
+        return {"ok": True, "warn": True, "shell": shell,
+                "detail": f"WARNING (not the release yet: the CHANGELOG head is still a DRAFT): {what}, config.yaml says {cfg_v}; {fix}"}
+    return {"ok": False, "warn": False, "shell": shell, "detail": f"{what}, config.yaml says {cfg_v}: the add-on would ship an old UI; {fix}"}
+
+
 def design_ratchet(root: Path) -> dict[str, Any]:
     """CR-BUILD-GUARDS-2438 (owner Q-CODE-4 a): scripts/design_ratchet.py of the checkout under test; blocking only when a count
     went up. Cached per root (run_checks + main in one process scan once)."""
@@ -379,8 +403,8 @@ def run_checks(root: Path) -> dict[str, Any]:
     addon = root / "smplwise_vms"
     checks: list[dict[str, Any]] = []
 
-    def check(name: str, ok: bool, detail: str) -> None:
-        checks.append({"name": name, "ok": bool(ok), "detail": detail})
+    def check(name: str, ok: bool, detail: str, warn: bool = False) -> None:
+        checks.append({"name": name, "ok": bool(ok), "detail": detail, **({"warn": True} if warn else {})})
 
     cfg_v = find(r'^version:\s*"([^"]+)"', read(addon / "config.yaml"))
     docker_v = find(r'io\.hass\.version="([^"]+)"', read(addon / "Dockerfile"))
@@ -420,6 +444,8 @@ def run_checks(root: Path) -> dict[str, Any]:
     pub = addon / "www-public"
     pub_built = (pub / "index.html").exists() and any((pub / "assets").glob("public-ticket-*.js")) if (pub / "assets").exists() else False
     check("handler page bundle present in the add-on (www-public)", pub_built, str(pub))
+    bundle = shipped_bundle_version(addon, cfg_v, released=ch_v is not None and ch_v == cfg_v)
+    check("shipped UI bundle built for this version (www/arx-sw.js shell cache)", bundle["ok"], bundle["detail"], warn=bundle["warn"])
     maps = shipped_source_maps(addon)
     check("no debug source map shipped in the add-on (www, www-public)", not maps,
           "none" if not maps else f"{len(maps)}: " + ", ".join(maps[:4]) + (" ..." if len(maps) > 4 else "") + " (run npm run build:addon: it moves them out)")
@@ -483,7 +509,7 @@ def main(argv: list[str] | None = None) -> int:
         pass
     print(f"Release check — SmplWise Arx {res['version']}")
     for c in res["checks"]:
-        print(f"  [{'ok' if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
+        print(f"  [{('WARN' if c.get('warn') else 'ok') if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
     print("RESULT:", "ready for the owner's approval" if res["ok"] else "NOT ready")
     if args.tag and res["tag"]:
         print(f"\nAfter approval:\n  git tag -a {res['tag']} -m \"SmplWise Arx {res['version']} — approved release\"\n  git push origin {res['tag']}")
