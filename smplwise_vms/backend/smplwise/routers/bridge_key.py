@@ -25,6 +25,11 @@ token or group grants anything here.
   re-authentication, owner decision 2). Any system administrator; answers the new pairing code for the manual entry in the bridge, only
   while the revocation waits for the re-pair. Every reveal and every refused attempt is audited (`bridge.key.code_revealed`).
 
+WISKEY-DIRECT-V2-2520 (row R7): `GET /system/bridge-key` also carries `direct_transport` - which direct protocol the current key
+signs (v1 / v2 with its kid), whether the direct join is installed / connected, and on a v2 connection the last
+`direct/pairing_status_v2` observation (or `unknown`). Status only: no I/O, no new route, no new permission, never key material. Revoking
+a pairing is not offered here: it is the owner's action in WisKey's own screen (`revoke_in`).
+
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
 
@@ -113,11 +118,24 @@ def get_bridge_key(request: Request, principal: Principal = Depends(current_prin
 
 
 def _with_step_up(conn: sqlite3.Connection, principal: Principal, view: dict[str, Any]) -> dict[str, Any]:
-    """WXH4: whether THIS administrator can pass the reveal's step-up (an active authenticator of their own) - a hint for the card only."""
+    """WXH4: whether THIS administrator can pass the reveal's step-up (an active authenticator of their own) - a hint for the card only.
+    WISKEY-DIRECT-V2-2520: plus the no-I/O direct transport status (`direct_transport`)."""
     rev = view.get("revocation")
     if isinstance(rev, dict):
         view["revocation"] = {**rev, "step_up_ready": sf.is_enrolled(conn, principal.user_id)}
+    view["direct_transport"] = _direct_transport(conn)
     return view
+
+
+def _direct_transport(conn: sqlite3.Connection) -> dict[str, Any]:
+    from ..services import ha_bridge
+    from ..services import wiskey_direct_join
+
+    try:
+        key = ha_bridge.signing_key(conn)
+    except Exception:  # noqa: BLE001 - an unreadable key set is "not paired" here too
+        key = None
+    return wiskey_direct_join.direct_status(key)
 
 
 class SettingsBody(BaseModel):

@@ -20,7 +20,17 @@ What Arx takes from them (and what it does NOT):
   admitted: the measured skew plus a margin must fit `max_issued_future_seconds` (Arx ahead) or Arx's own signing window (WisKey
   ahead), never beyond `max_ts_skew_seconds`, and Arx's signing window must not exceed `max_command_ttl_seconds`. It never extends a request, a lease, a source's currentness or an execution permission, and Arx never
   shifts its signing clock to the server's.
-Status: implemented and tested against the in-memory fake direct server only (tests/test_wkr5_295.py)."""
+Status: implemented and tested against the in-memory fake direct server only (tests/test_wkr5_295.py).
+
+WISKEY-DIRECT-V2-2520 (row R7): on a v2 connection (DirectLink.protocol_version == 2) discovery reads `direct/capabilities_v3`, `direct/time`
+and `direct/pairing_status_v2` instead (WisKey rc19 `direct_bridge_discovery.capabilities(version=3)`, contract
+`direct--pairing_status_v2`). The v3 document must name the v2 protocol on every command and carry `transport_authentication` exactly
+`{version: 2, kid: <this connection's kid>, rotation_source: "smplwise_bridge.KeySet", fallback_after_key_refusal: false}`
+(`transport_auth_mismatch` otherwise). The pairing status must be the ONE current pairing Arx signed with - verified, arx_to_native,
+protocol 2, the same kid, source the loaded bridge KeySet (`pairing_mismatch` otherwise; PAIRING-Q2 = a: nothing is selected silently).
+Its `freshness_s` (60) bounds how long the observation is used before it is read again; it renews nothing. The v3 blocks
+`native_installation` and `manual_service_write` are observations only (they grant nothing in Arx). Without all three reads, the direct
+path is not selected on that connection."""
 from __future__ import annotations
 
 import logging
@@ -36,6 +46,9 @@ log = logging.getLogger("smplwise.wiskey_direct_discovery")
 
 CAPABILITIES = "direct/capabilities"
 TIME = "direct/time"
+# WISKEY-DIRECT-V2-2520: the v2 connection's discovery reads (direct-only READs of WisKey `DIRECT_READ_COMMANDS`)
+CAPABILITIES_V3 = "direct/capabilities_v3"
+PAIRING_STATUS_V2 = "direct/pairing_status_v2"
 SCHEMA_VERSION = 1
 # WisKey admits a signed request while |ts - now| <= max_ts_skew, issued_at <= now + max_issued_future and now < expires_at
 # (issued_at + Arx's window). Arx signs with its OWN clock, so it keeps these margins in hand on each side:
@@ -71,6 +84,20 @@ _CMD_KEYS = {"name", "envelope", "api_contract", "explicit_parameter_version"}
 _TIME_KEYS = {"schema_version", "server_utc", "max_ts_skew_seconds", "max_issued_future_seconds", "max_command_ttl_seconds"}
 _LIFECYCLE_V1 = {"kid_in_v1": False, "event_cursor_resume": False, "reconnect_adopts_old_resources": False}
 _NAME_RE = re.compile(r"^[a-z0-9_]+(?:/[a-z0-9_]+)*$")  # `overview` and `subscribe` are single-segment names
+# WISKEY-DIRECT-V2-2520: the v3 document (on a v2 connection)
+SCHEMA_VERSION_V3 = 3
+_CAP_REQUIRED_V3 = _CAP_KEYS | {"transport_authentication"}
+_CAP_OPTIONAL_V3 = _CAP_OPTIONAL | {"native_installation", "manual_service_write"}
+ROTATION_SOURCE = "smplwise_bridge.KeySet"
+_LIFECYCLE_V2 = {"pairing_rotation": "old_connection_invalidated_reconnect_required", "kid_in_v1": False,
+                 "reconnect_adopts_old_resources": False}  # `event_cursor_resume` is an observation (true on rc19 v2/v3)
+MANUAL_SERVICE_WRITE_V3 = {"contract": "wiskey-native-service-write.v3", "read": "service_grants/current_v3",
+                           "writer": "genuine_HA_owner_service_grants_preview_commit_v3", "created_on_startup": False}
+PAIRING_FORMAT = "wiskey-pairing-status.v2"
+PAIRING_FRESHNESS_S = 60
+_PAIRING_KEYS = {"format", "verified", "direction", "protocol_version", "kid", "verified_at", "freshness_s", "principal_kind", "source"}
+PAIRING_SOURCES = {1: "loaded_smplwise_bridge_legacy_entry", 2: "loaded_smplwise_bridge_keyset"}
+_KID_RE = re.compile(r"^g[0-9]{1,9}-(?:legacy|[0-9a-f]{8})$")
 
 
 class DiscoveryError(Exception):
@@ -99,9 +126,59 @@ class Capabilities:
     # WISKEY-RC10-PIN-2382: the rc.10 block's `installation_contract` (None for the historical v1 block) - an observation, never authority
     service_write_installation_contract: str | None = None
     rejected_blocks: tuple[str, ...] = ()  # optional blocks present but not read (malformed / another contract): their feature is off
+    # WISKEY-DIRECT-V2-2520: the transport the document was read for (2: a v3 document on a v2 connection, bound to `kid`)
+    protocol_version: int = 1
+    kid: str | None = None
+    manual_service_write_v3: bool = False  # `manual_service_write` offered exactly as WisKey rc19's v3 block (observation only)
+    native_installation_offered: bool = False  # rc19 `native_installation` present (observation only: it grants nothing in Arx)
 
     def lists(self, command: str) -> bool:
         return command in self.commands
+
+
+@dataclass(frozen=True)
+class PairingStatus:
+    """WISKEY-DIRECT-V2-2520: one `direct/pairing_status_v2` answer (closed `PairingStatus` schema). An observation of which pairing
+    WisKey verified THIS request against; it grants and renews nothing."""
+
+    connection_ref: str
+    protocol_version: int
+    kid: str | None
+    source: str
+    verified_at: str
+    freshness_s: int
+    observed_at: float  # local monotonic
+
+    def binding_refusal(self, protocol_version: int, kid: str | None) -> str | None:
+        """None when this is exactly the one current pairing Arx signed with on a connection of `protocol_version` / `kid`, else
+        `pairing_mismatch` (PAIRING-Q2 = a: never another pairing, never a silent choice)."""
+        if (self.protocol_version != protocol_version or self.kid != (kid if protocol_version == 2 else None)
+                or self.source != PAIRING_SOURCES.get(protocol_version)):
+            return "pairing_mismatch"
+        return None
+
+    def view(self) -> dict[str, Any]:
+        return {"protocol_version": self.protocol_version, "kid": self.kid, "source": self.source, "verified_at": self.verified_at,
+                "freshness_s": self.freshness_s}
+
+
+def read_pairing_status(raw: Any, connection_ref: str, *, observed_at: float) -> PairingStatus:
+    """The closed `wiskey-pairing-status.v2` document, or DiscoveryError(`pairing_status_invalid`). Schema only; the binding to the
+    connection's own key is `PairingStatus.binding_refusal`."""
+    if not isinstance(raw, Mapping) or set(raw) != _PAIRING_KEYS:
+        raise DiscoveryError("pairing_status_invalid")
+    version, kid, at = raw["protocol_version"], raw["kid"], raw["verified_at"]
+    if (raw["format"] != PAIRING_FORMAT or raw["verified"] is not True or raw["direction"] != "arx_to_native"
+            or raw["principal_kind"] != bridge.DIRECT_PRINCIPAL_KIND or not _int(raw["freshness_s"]) or raw["freshness_s"] != PAIRING_FRESHNESS_S
+            or not _int(version) or version not in (1, 2) or raw["source"] not in PAIRING_SOURCES.values()
+            or not (kid is None or (isinstance(kid, str) and _KID_RE.fullmatch(kid)))
+            or not isinstance(at, str) or not 1 <= len(at) <= 64):
+        raise DiscoveryError("pairing_status_invalid")
+    try:
+        _utc(at)
+    except DiscoveryError:
+        raise DiscoveryError("pairing_status_invalid") from None
+    return PairingStatus(connection_ref, version, kid, raw["source"], at, raw["freshness_s"], observed_at)
 
 
 @dataclass(frozen=True)
@@ -126,12 +203,26 @@ class TimeObservation:
         return None
 
 
-def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
-    """The closed schema_version-1 document, or DiscoveryError. Every command entry's `envelope` must be the transport protocol."""
-    if not isinstance(raw, Mapping) or not _CAP_KEYS <= set(raw) <= _CAP_KEYS | _CAP_OPTIONAL:
-        raise DiscoveryError("capabilities_invalid")
-    if not _int(raw["schema_version"]) or raw["schema_version"] != SCHEMA_VERSION or raw["protocol"] != bridge.DIRECT_PROTOCOL:
+def read_capabilities(raw: Any, connection_ref: str, *, protocol_version: int = 1, kid: str | None = None) -> Capabilities:
+    """The closed schema_version-1 document, or DiscoveryError. Every command entry's `envelope` must be the transport protocol.
+    WISKEY-DIRECT-V2-2520: `protocol_version=2` reads the schema_version-3 document of a v2 connection instead (see the module note);
+    its `transport_authentication` must name exactly this connection's `kid`."""
+    v2 = protocol_version == 2
+    if protocol_version not in (1, 2):
         raise DiscoveryError("capabilities_unsupported")
+    required, optional = (_CAP_REQUIRED_V3, _CAP_OPTIONAL_V3) if v2 else (_CAP_KEYS, _CAP_OPTIONAL)
+    protocol = bridge.DIRECT_PROTOCOL_V2 if v2 else bridge.DIRECT_PROTOCOL
+    if not isinstance(raw, Mapping) or not required <= set(raw) <= required | optional:
+        raise DiscoveryError("capabilities_invalid")
+    if (not _int(raw["schema_version"]) or raw["schema_version"] != (SCHEMA_VERSION_V3 if v2 else SCHEMA_VERSION)
+            or raw["protocol"] != protocol):
+        raise DiscoveryError("capabilities_unsupported")
+    if v2:
+        auth = raw["transport_authentication"]
+        if (not isinstance(kid, str) or not isinstance(auth, Mapping)
+                or dict(auth) != {"version": 2, "kid": kid, "rotation_source": ROTATION_SOURCE, "fallback_after_key_refusal": False}
+                or type(auth["version"]) is not int or auth["fallback_after_key_refusal"] is not False):
+            raise DiscoveryError("transport_auth_mismatch")
     commands = raw["commands"]
     if not isinstance(commands, list):
         raise DiscoveryError("capabilities_invalid")
@@ -140,7 +231,7 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
     for c in commands:
         if not isinstance(c, Mapping) or set(c) != _CMD_KEYS or not isinstance(c["name"], str) or not _NAME_RE.fullmatch(c["name"]):
             raise DiscoveryError("capabilities_invalid")
-        if c["envelope"] != bridge.DIRECT_PROTOCOL:  # W5-API-01: a transport protocol, never a bridge.kind
+        if c["envelope"] != protocol:  # W5-API-01: a transport protocol, never a bridge.kind
             raise DiscoveryError("capabilities_invalid")
         v = c["explicit_parameter_version"]
         if not (v is None or (_int(v) and v >= 1)) or not (c["api_contract"] is None or _int(c["api_contract"])):
@@ -153,7 +244,9 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
     if not isinstance(families, list) or families != sorted({n.split("/")[0] for n in names}):
         raise DiscoveryError("capabilities_invalid")
     lifecycle = raw["lifecycle"]
-    if not isinstance(lifecycle, Mapping) or any(lifecycle.get(k) is not v for k, v in _LIFECYCLE_V1.items()):
+    if not isinstance(lifecycle, Mapping) or any(lifecycle.get(k) is not v for k, v in _LIFECYCLE_V1.items() if not (v2 and k == "event_cursor_resume")):
+        raise DiscoveryError("lifecycle_unsupported")
+    if v2 and (any(lifecycle.get(k) != v for k, v in _LIFECYCLE_V2.items()) or type(lifecycle.get("event_cursor_resume")) is not bool):
         raise DiscoveryError("lifecycle_unsupported")
     limits, resources, stations = raw["limits"], raw["resources"], raw["stations"]
     if not isinstance(limits, Mapping) or not isinstance(resources, Mapping) or not isinstance(stations, list):
@@ -175,12 +268,23 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
     if talk_audio is not None and (not isinstance(talk_audio, Mapping) or dict(talk_audio) != TALK_AUDIO_CAP):
         rejected.append("station_talk_audio")
         talk_audio = None
+    manual_v3 = raw.get("manual_service_write")
+    if manual_v3 is not None and (not isinstance(manual_v3, Mapping) or dict(manual_v3) != MANUAL_SERVICE_WRITE_V3
+                                  or manual_v3.get("created_on_startup") is not False):
+        rejected.append("manual_service_write")
+        manual_v3 = None
+    installation = raw.get("native_installation")
+    if installation is not None and not isinstance(installation, Mapping):
+        rejected.append("native_installation")
+        installation = None
     if rejected:
         log.warning("wiskey discovery: optional capabilities blocks not offered as read: %s", ",".join(rejected))
     return Capabilities(connection_ref, frozenset(names), tuple(families), versions, dict(limits), dict(resources), len(stations),
                         business_contracts={k: dict(v) for k, v in contracts.items()}, service_write=service is not None,
                         talk_audio=talk_audio is not None, rejected_blocks=tuple(rejected),
-                        service_write_installation_contract=None if service is None else service.get("installation_contract"))
+                        service_write_installation_contract=None if service is None else service.get("installation_contract"),
+                        protocol_version=protocol_version, kid=kid if v2 else None, manual_service_write_v3=manual_v3 is not None,
+                        native_installation_offered=installation is not None)
 
 
 def _utc(value: Any) -> datetime:
@@ -222,31 +326,50 @@ class DirectDiscovery:
         self.time: TimeObservation | None = None
         self.failed_ref: str | None = None  # a connection whose discovery failed is not asked again (a new connection is)
         self.last_error: str | None = None
+        self.pairing: PairingStatus | None = None  # WISKEY-DIRECT-V2-2520: the v2 connection's pairing observation (None on v1)
 
     def __repr__(self) -> str:
         return f"DirectDiscovery(ready={self.capabilities is not None}, error={self.last_error!r})"
 
     def stale(self) -> bool:
         t = self.time
-        return t is None or self._mono() - t.observed_at >= TIME_RECHECK_S
+        if t is None or self._mono() - t.observed_at >= TIME_RECHECK_S:
+            return True
+        cap, p = self.capabilities, self.pairing
+        if cap is not None and cap.protocol_version == 2:
+            return p is None or self._mono() - p.observed_at >= p.freshness_s
+        return False
 
     def forget(self) -> None:
-        self.capabilities = self.time = None
+        self.capabilities = self.time = self.pairing = None
         self.failed_ref = None
 
-    async def refresh(self, connection_ref: str, call: Call) -> None:
-        if self.capabilities is not None and self.capabilities.connection_ref != connection_ref:
-            self.capabilities = self.time = None  # reconnect = new owner: nothing of the old document is kept
+    async def refresh(self, connection_ref: str, call: Call, *, protocol_version: int = 1, kid: str | None = None) -> None:
+        """Read what this connection lacks (never raises). `protocol_version` / `kid` are the CONNECTION's (DirectLink), never taken
+        from a document: on v2 the v3 document and the pairing status must match them."""
+        cap = self.capabilities
+        if cap is not None and (cap.connection_ref != connection_ref or cap.protocol_version != protocol_version or cap.kid != kid):
+            self.capabilities = self.time = self.pairing = None  # reconnect = new owner: nothing of the old document is kept
         if self.failed_ref == connection_ref:
             return
+        v2 = protocol_version == 2
         try:
             if self.capabilities is None:
-                self.capabilities = read_capabilities(await call(CAPABILITIES, {}), connection_ref)
+                self.capabilities = read_capabilities(await call(CAPABILITIES_V3 if v2 else CAPABILITIES, {}), connection_ref,
+                                                      protocol_version=protocol_version, kid=kid)
             t = self.time
             if t is None or t.connection_ref != connection_ref or self._mono() - t.observed_at >= TIME_RECHECK_S:
                 sent = self._wall()
                 raw = await call(TIME, {})
                 self.time = read_time(raw, connection_ref, sent_wall=sent, received_wall=self._wall(), observed_at=self._mono())
+            p = self.pairing
+            if v2 and (p is None or p.connection_ref != connection_ref or self._mono() - p.observed_at >= p.freshness_s):
+                self.pairing = None
+                status = read_pairing_status(await call(PAIRING_STATUS_V2, {}), connection_ref, observed_at=self._mono())
+                refusal = status.binding_refusal(protocol_version, kid)
+                if refusal is not None:
+                    raise DiscoveryError(refusal)
+                self.pairing = status
             self.last_error = None
         except DiscoveryError as exc:
             self._fail(connection_ref, exc.code)
@@ -256,7 +379,7 @@ class DirectDiscovery:
             self._fail(connection_ref, f"discovery_error:{type(exc).__name__}"[:64])
 
     def _fail(self, connection_ref: str, code: str) -> None:
-        self.capabilities = self.time = None
+        self.capabilities = self.time = self.pairing = None
         self.failed_ref = connection_ref
         self.last_error = code
 
@@ -265,6 +388,12 @@ class DirectDiscovery:
         cap, t = self.capabilities, self.time
         if cap is None or t is None or cap.connection_ref != connection_ref or t.connection_ref != connection_ref:
             return self.last_error or "discovery_missing"
+        if cap.protocol_version == 2:
+            p = self.pairing
+            if p is None or p.connection_ref != connection_ref:
+                return self.last_error or "pairing_unverified"
+            if self._mono() - p.observed_at >= p.freshness_s:
+                return "pairing_stale"
         reason = t.admits(self.window_s)
         if reason is not None:
             return reason

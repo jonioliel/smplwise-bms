@@ -204,8 +204,22 @@ def envelope_for(command: str) -> str | None:
     return bridge.PEER_QUERY_KIND if command in PEER_QUERY_COMMANDS else bridge.KIND
 
 
+# WISKEY-DIRECT-V2-2520 (row R7, PAIRING-Q2 = a): what only the HOME-SYSTEM OWNER does, in WisKey's own screen - never Arx, never on the
+# direct envelope, whatever the installation switch, the catalog or discovery says (no self-grant, no revoke or deletion over the wire).
+# WisKey rc19 serves the v3 grant writes only on the classic Home Assistant socket to a genuine owner (`owner_action_required`
+# otherwise); Arx reads the result with the direct READ `service_grants/current_v3` (row R8). There is no pairing revoke / delete /
+# history command on the wire at all: revoking a pairing is the owner's action in WisKey's UI.
+WISKEY_OWNER_ONLY: frozenset[str] = frozenset({"service_grants/read_v3", "service_grants/preview_v3", "service_grants/commit_v3",
+                                               "service_grants/revoke_v3"})
+# The direct-only v2-era READs (WisKey rc19 `DIRECT_READ_COMMANDS`, empty parameters). Not added to the catalog file (its counts are
+# pinned by the rc.10 checks); they ride the default bridge-command envelope, signed as the connection's version.
+DIRECT_READS_V2: frozenset[str] = frozenset({"direct/capabilities_v3", "direct/pairing_status_v2", "service_grants/current_v3"})
+
+
 def direct_refusal(command: str) -> str | None:
     """Why `command` must never be written on the direct envelope (refused `not_sent` before any byte), else None."""
+    if command in WISKEY_OWNER_ONLY:
+        return "owner_action_in_wiskey"
     if command in OWNER_EXCLUDED_WRITES and not _installation_on():
         return "owner_excluded"
     entry = load().get(command)

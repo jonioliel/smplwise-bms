@@ -24,6 +24,29 @@ export interface BridgeKeyBridgeKey {
   watchdog: BridgeKeyBridgeKeyWatchdogItem[];
   hand_over: BridgeKeyBridgeKeyHandOver;
   revocation: BridgeKeyBridgeKeyRevocation;
+  direct_transport?: BridgeKeyBridgeKeyDirectTransport | null;
+}
+
+/** WISKEY-DIRECT-V2-2520: the direct transport status (no I/O). `pairing_state`: verified | mismatch | unknown. */
+export interface BridgeKeyBridgeKeyDirectTransport {
+  protocol_version: number | null;
+  kid: string | null;
+  selection: string;
+  installed: boolean;
+  connected: boolean;
+  pairing: BridgeKeyBridgeKeyDirectTransportPairing | null;
+  pairing_state: string;
+  refusal: string | null;
+  revoke_in: string;
+}
+
+/** WISKEY-DIRECT-V2-2520: the last `direct/pairing_status_v2` observation of the current v2 connection (never material). */
+export interface BridgeKeyBridgeKeyDirectTransportPairing {
+  protocol_version: number;
+  kid: string | null;
+  source: string;
+  verified_at: string;
+  freshness_s: number;
 }
 
 export interface BridgeKeyBridgeKeyHandOver {
