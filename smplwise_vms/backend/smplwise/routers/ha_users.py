@@ -29,6 +29,7 @@ from ..i18n import lang_of, localize, localize_for
 from ..rbac import INSTALLATION, Principal, all_roles, require, role_name, scope_name
 from ..services import ha_user_admin as hua
 from ..services import ha_users_store as store, revocation, secrets_store
+from ..services import push as push_svc
 from ..services.tickets import out_documents
 from ._common import rid as _rid
 from . import access as acc
@@ -323,6 +324,8 @@ def _set_active(ha_user_id: str, active: bool, body: ConfirmBody, request: Reque
     else:
         acc._terminate(conn, settings_of(request), {ha_user_id})  # noqa: SLF001 - the access API's own "access taken away" path
         out_documents.revoke_for_inactive_users_safe(conn)  # TEMPLINK-2320 (owner 4A): his report links die at once
+        # FE-SAFETY-FIX-2520 (review FC-02): a deactivated user's browsers stop being push targets (re-registered on a later sign-in)
+        push_svc.end_for_user(conn, ha_user_id, "user_deactivated", actor=principal, request_id=_rid(request))
     return {"user": _row(conn, store.managed_row(conn, row["id"]), principal)}
 
 
@@ -398,4 +401,5 @@ def delete(ha_user_id: str, body: DeleteBody, request: Request, principal: Princ
           details={"row_id": row["id"], "bindings_revoked": revoked, "already_gone": not existed})
     acc._terminate(conn, settings, {ha_user_id})  # noqa: SLF001
     out_documents.revoke_for_inactive_users_safe(conn)  # TEMPLINK-2320 (owner 4A): his report links die at once
+    push_svc.end_for_user(conn, ha_user_id, "user_deleted", actor=principal, request_id=_rid(request))  # FE-SAFETY-FIX-2520 (review FC-02)
     return {"deleted": ha_user_id, "already_gone": not existed}
