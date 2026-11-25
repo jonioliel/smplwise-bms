@@ -4,7 +4,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import './scenario-recipients';
-import { ApiError } from '../api/client';
+import { ApiError, fieldsOf } from '../api/client';
 import { getScenarioSettings, saveScenarioSettings, scenarioChoices, type ScenarioChoices, type TimeWindow } from '../api/scenarios';
 import { sct, type SctKey } from '../i18n/scenarios';
 import { settingsStyles } from '../styles/settings';
@@ -89,7 +89,7 @@ export class ScenarioSettings extends LitElement {
       this.draft = { ...r.settings };
       this.msg = sct('setSaved');
     } catch (e) {
-      this.err = e instanceof ApiError ? `${sct('setInvalid')}: ${String((e.body.details as { key?: string })?.key ?? '')}` : String(e);
+      this.err = e instanceof ApiError ? `${sct('setInvalid')}: ${fieldsOf(e)[0] ?? ''}` : String(e); // ADR-019: canonical `fields`, legacy `key`
     } finally {
       this.busy = false;
     }

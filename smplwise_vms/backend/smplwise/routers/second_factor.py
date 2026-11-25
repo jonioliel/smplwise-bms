@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
 from ..services import capture_lease, factor_reset, notify_sources, presence
@@ -393,7 +393,7 @@ def step_up_verify(body: StepUpBody, request: Request, principal: Principal = De
         return device_keys.verify_step_up(conn, request, principal, challenge_id=body.challenge_id, key_id=body.key_id,
                                           signature=body.signature, action=body.action)
     if not body.code:
-        raise ApiError(422, "validation", "הזן את הקוד מאפליקציית האימות.", details={"field": "code"})
+        raise field_error("הזן את הקוד מאפליקציית האימות.", ["code"], legacy={"field": "code"})
     # MFA-STEPUP-GATES-2490: a proof for ONE call of a once-action, on every channel (MFA-RESET-HARDENING-2510: also the once-actions
     # that apply only while step-up is on - a role change to system administrator, a backup restore)
     once = body.action in step_up.ANY_ONCE_ACTIONS

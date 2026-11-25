@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error, issue_problems
 from ..rbac import Principal
 from ..services import automation_blueprints as bps
 from ..services import automation_blueprints_store as store
@@ -97,7 +97,9 @@ def _blueprint(blueprint_id: str) -> dict[str, Any]:
 
 
 def _problems(items: list[dict[str, str]]) -> ApiError:
-    return ApiError(422, "validation", "הפרמטרים אינם תקינים.", details={"errors": items})
+    """Per-parameter refusals (`[{param, code, message}]`). ADR019-FAMILY678-2520: D1 `fields` / `problems` name the body's
+    `params.<name>`; the list itself is still sent as `errors`."""
+    return field_error("הפרמטרים אינם תקינים.", problems=issue_problems(items, key="param", prefix="params."), legacy={"errors": items})
 
 
 def _expand(w: ops.W, bp: dict[str, Any], params: dict[str, Any], name: str | None) -> dict[str, Any]:

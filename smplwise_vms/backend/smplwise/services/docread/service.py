@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 from ...audit import audit
 from ...db import Database, get_setting, new_id
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ..janitors import Every
 from ..maintenance import access as maccess
 from ..maintenance import service as msvc
@@ -276,7 +276,7 @@ def decide(viewer: Viewer, xid: str, field: str, body: dict[str, Any], rid: str 
             raise _invalid(field, "value_not_allowed")
         if decision == "confirm":
             if f.get("proposed") is None:
-                raise ApiError(422, "docread_nothing_to_confirm", "לא נמצא ערך לאישור. אפשר להזין ערך או לדחות את השדה.", details={"field": field})
+                raise field_error("לא נמצא ערך לאישור. אפשר להזין ערך או לדחות את השדה.", [field], code="docread_nothing_to_confirm", legacy={"field": field})
             value, status = f["proposed"], "confirmed"
         else:
             value, status = None, "rejected"

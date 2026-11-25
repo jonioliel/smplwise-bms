@@ -42,7 +42,7 @@ from typing import Any
 
 from ..audit import audit
 from ..db import Database, get_setting, new_id, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, STATION, Principal, authorize, is_system_admin, permissions_anywhere, scope_name, station_chain
 from . import door_windows as dw
 from . import door_windows_engine as dwe
@@ -188,7 +188,7 @@ def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
 def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, Any], *, confirm_engine_off: bool = False) -> dict[str, tuple[str, str]]:
     for key, value in changes.items():
         if key not in SETTINGS or not isinstance(value, str) or not SETTINGS[key][1](value):
-            raise ApiError(422, "invalid_setting", "ערך לא תקין להגדרה.", details={"key": str(key)[:64]})
+            raise field_error("ערך לא תקין להגדרה.", [str(key)[:64]], code="invalid_setting", legacy={"key": str(key)[:64]})
     if changes.get(ENGINE_SWITCH) == "off" and setting(conn, ENGINE_SWITCH) == "on":  # SPLITSWITCH2-297: an explicit, plain confirmation; never while an emergency runs
         if confirm_engine_off is not True:
             raise ApiError(409, "confirmation_required", "כיבוי לחצני החירום דורש אישור מפורש.")
@@ -196,7 +196,7 @@ def update_settings(conn: sqlite3.Connection, settings: Any, changes: dict[str, 
             raise ApiError(409, "incident_active", "יש מצב חירום פעיל - יש לשחרר אותו לפני כיבוי הלחצנים.")
     default_h, max_h = int(changes.get(GRANT_DEFAULT_H, setting(conn, GRANT_DEFAULT_H))), int(changes.get(GRANT_MAX_H, setting(conn, GRANT_MAX_H)))
     if (GRANT_DEFAULT_H in changes or GRANT_MAX_H in changes) and default_h > max_h:
-        raise ApiError(422, "invalid_setting", "ברירת המחדל לתוקף גדולה מהתוקף המרבי.", details={"key": GRANT_DEFAULT_H})
+        raise field_error("ברירת המחדל לתוקף גדולה מהתוקף המרבי.", [GRANT_DEFAULT_H], code="invalid_setting", legacy={"key": GRANT_DEFAULT_H})
     if changes.get(ENABLED) == "on" and not dwe.go_live_permitted():
         raise ApiError(409, "go_live_not_permitted", "הפעלה אמיתית של לחצני החירום אינה מאושרת בגרסה זו. תרגילים זמינים.")
     if changes.get(ENABLED) == "on" and not dwe.emergency_ready():  # DW-01: the permit alone is not enough - the live engine must exist

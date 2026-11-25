@@ -13,7 +13,7 @@ import { aIcon } from '../components/automation-icons';
 import { automationsStyles } from '../styles/automations-glass';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
-import { ApiError } from '../api/client';
+import { ApiError, issuesOf } from '../api/client';
 import { bidi } from '../i18n/bidi';
 import { sct } from '../i18n/scenarios';
 import {
@@ -354,8 +354,7 @@ export class ScenariosPanel extends LitElement {
 
   private fail(e: unknown) {
     if (e instanceof ApiError) {
-      const det = (e.body.details ?? {}) as { errors?: { path: string; message: string }[] };
-      this.errors = det.errors ?? [];
+      this.errors = issuesOf(e); // ADR-019: canonical `problems` first, the legacy `errors` list second
       this.say(e.code === 'version_conflict' ? sct('conflict') : e.code === 'test_required' ? sct('testFirst') : e.message, 'error');
     } else this.say(String(e), 'error');
   }

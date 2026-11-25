@@ -21,7 +21,7 @@ from typing import Any, Iterator
 
 from ..audit import audit
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error, issue_problems
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import automation_draft as drafts
 from . import automation_model as model
@@ -201,9 +201,9 @@ def problem_error(errors: list[dict[str, str]]) -> ApiError:
     for p in errors:
         if p["code"] in PROMOTED:
             status, msg = PROMOTED[p["code"]]
-            return ApiError(status, p["code"], msg, details={"errors": errors, "path": p["path"]})
+            return field_error(msg, problems=issue_problems(errors), code=p["code"], status=status, legacy={"errors": errors}, extra={"path": p["path"]})
     first = errors[0]
-    return ApiError(422, "validation", f"ערך לא תקין — {first['path']}: {first['message']}", details={"errors": errors})
+    return field_error(f"ערך לא תקין — {first['path']}: {first['message']}", problems=issue_problems(errors), legacy={"errors": errors})
 
 
 # A manual run (an automation's "run now", a script) that Home Assistant refuses with Unauthorized: since HA 2026.10 a step such as

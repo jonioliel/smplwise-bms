@@ -1,0 +1,11 @@
+{
+ "_note": "ADR-019 ratchet: legacy 422 sites per family (scripts/error_contract_inventory.py --check); counts may only go down.",
+ "legacy_422_by_family": {
+  "access": 25,
+  "intercom": 1,
+  "notifications": 6,
+  "notify": 1,
+  "tickets": 41
+ },
+ "total": 74
+}

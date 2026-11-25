@@ -223,7 +223,7 @@ def test_a_release_needs_the_confirmation_and_a_note(world):
     r = _put(c, "switch.gate", True, "א" * 301)
     assert r.status_code == 422 and r.json()["details"]["reason"] == "note_too_long"
     bad = _put(c, "Switch.Gate", True)
-    assert bad.status_code == 422 and bad.json()["details"] == {"field": "entity_id", "reason": "bad_entity"}, "an entity id is lower case"
+    assert bad.status_code == 422 and bad.json()["details"] == {"field": "entity_id", "fields": ["entity_id"], "reason": "bad_entity"}, "an entity id is lower case"  # ADR019-FAMILY678-2520: + fields
     assert _put(c, "no-dot", True).status_code == 422
     assert _entities(c)["switch.gate"]["state"] == "blocked"
     assert get_setting_of(world, door_overrides.KEY) is None

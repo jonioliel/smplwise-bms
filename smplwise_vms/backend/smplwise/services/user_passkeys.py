@@ -37,7 +37,7 @@ import logging
 import sqlite3
 from typing import Any
 
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import local_passkeys as lpk
 from . import webauthn as wa
 
@@ -434,7 +434,7 @@ def verify(conn: sqlite3.Connection, request: Any, principal: Any, cid: str | No
     if step_up.session_key(request, principal) is None:
         raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
     if not isinstance(cid, str) or not isinstance(assertion, dict):
-        raise ApiError(422, "validation", FAILED_HE, details={"field": "assertion"})
+        raise field_error(FAILED_HE, ["assertion"], legacy={"field": "assertion"})
     details = {"method": METHOD, "action": act}
     try:
         pk = check_assertion(conn, request, principal, cid, assertion, action)

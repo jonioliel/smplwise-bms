@@ -15,7 +15,7 @@
  *
  * Load order: this file imports ./automations (values); ./automations reaches this file only through a dynamic `import()` (no cycle).
  */
-import { ApiError } from './client';
+import { ApiError, issueDetails } from './client';
 import {
   AUTOMATION_ERROR_LABEL, AUTOMATION_SETTINGS_DEFAULT, ACTION_VERBS, CAPS, DEFAULT_ALLOWED_ACTIONS, GRANT_OF_CLASS, SCENE_CAPTURE_DOMAINS, automationSettingsOf,
   blockSentences, canonicalJson, captureMembers, changedLockedBlocks, classifyAction, configToDraft, draftSentence, draftTargets, draftToConfig, emitBlock, entityInScope, extraKeys, filterItems,
@@ -352,10 +352,12 @@ export class AutomationsMockStore implements AutomationsAdapter {
 
   private err(status: number, code: string, details: Raw = {}, message?: string): never {
     const tpl = (AUTOMATION_ERROR_LABEL as Record<string, string>)[code] ?? code;
+    // ADR019-FAMILY678-2520: an issue list also answers the canonical `fields` / `problems`, as the server does
+    const det: Raw = Array.isArray(details.errors) && !details.problems ? { ...details, ...issueDetails(details.errors as unknown as Issue[]) } : details;
     const first = Array.isArray(details.errors) ? (details.errors[0] as Partial<Issue> | undefined) : undefined;
-    const merged: Raw = { ...details, ...(first ? { field: first.path, what: first.message } : {}) };
+    const merged: Raw = { ...det, ...(first ? { field: first.path, what: first.message } : {}) };
     const text = message ?? tpl.replace(/\{(\w+)\}/g, (_m, k: string) => (typeof merged[k] === 'string' || typeof merged[k] === 'number' ? String(merged[k]) : '…'));
-    throw new ApiError(status, { code, user_message: text, retryable: false, correlation_id: `mock-${++this.seq}`, details });
+    throw new ApiError(status, { code, user_message: text, retryable: false, correlation_id: `mock-${++this.seq}`, details: det });
   }
   private statusOf(code: string): number {
     const t: Record<string, number> = { forbidden: 403, entity_not_controllable: 403, grant_required: 403, code_view_required: 403, locked_block_changed: 403, delegation_off: 403, not_ha_admin: 403, item_not_found: 404,

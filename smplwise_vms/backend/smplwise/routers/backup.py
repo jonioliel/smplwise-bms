@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..db import set_setting
 from ..services import backup as svc
@@ -67,9 +67,9 @@ def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
     # OFFBOX-RESTORE-2300: the password of the pre-restore safety archive (refused before anything is written)
     if exc.code == "safety_password_weak":
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
-        return ApiError(422, exc.code, f"הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n, "field": "safety_backup_password"})
+        return field_error(f"הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", ["safety_backup_password"], code=exc.code, legacy={"field": "safety_backup_password"}, extra={"can_skip": False, "min_chars": n})
     if exc.code == "safety_password_too_long":
-        return ApiError(422, exc.code, "הסיסמה לגיבוי הביטחון ארוכה מדי.", details={"can_skip": False, "field": "safety_backup_password"})
+        return field_error("הסיסמה לגיבוי הביטחון ארוכה מדי.", ["safety_backup_password"], code=exc.code, legacy={"field": "safety_backup_password"}, extra={"can_skip": False})
     return ApiError(422 if exc.code == "backup_password_too_long" else 409, exc.code,
                     SENSITIVE_MESSAGES.get(exc.code, "השחזור נדחה."), details={"can_skip": can_skip})
 

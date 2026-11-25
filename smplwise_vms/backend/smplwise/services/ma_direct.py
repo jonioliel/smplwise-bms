@@ -45,7 +45,7 @@ import httpx
 
 from ..audit import audit
 from ..db import get_setting, now_iso, set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import connection_probe, connection_store
 from .connection_store import SecretError
 from ..test_reset import register_reset
@@ -377,7 +377,7 @@ def check_address(url: str) -> str:
     if parts.scheme not in ("http", "https") or "@" in parts.netloc or not host:
         raise ApiError(422, "validation", "כתובת השרת: http(s)://שם-מארח:פורט בלבד.", details={"fields": ["url"]})
     if port in REFUSED_PORTS:
-        raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לשרת המוזיקה.", details={"field": "url"})
+        raise field_error("הפורט שמור לשירותי המערכת ואינו מותר לשרת המוזיקה.", ["url"], code="port_refused", legacy={"field": "url"})
     end = time.monotonic() + RESOLVE_BUDGET_S
     outer = _END.get()
     if outer is not None:
@@ -386,13 +386,13 @@ def check_address(url: str) -> str:
     try:
         target = connection_probe.connect_target(host, _policy_settings())
     except ApiError:
-        raise ApiError(422, "host_refused", HOST_REFUSED_HE, details={"field": "url"}) from None
+        raise field_error(HOST_REFUSED_HE, ["url"], code="host_refused", legacy={"field": "url"}) from None
     finally:
         connection_probe._BUDGET_END.reset(token)
     if target is None:
-        raise ApiError(422, "host_unresolved", "לא ניתן לפענח את שם השרת; הזינו את כתובת ה-IP של השרת ברשת הביתית.", details={"field": "url"})
+        raise field_error("לא ניתן לפענח את שם השרת; הזינו את כתובת ה-IP של השרת ברשת הביתית.", ["url"], code="host_unresolved", legacy={"field": "url"})
     if not lan_address(ipaddress.ip_address(target)):
-        raise ApiError(422, "host_refused", HOST_REFUSED_HE, details={"field": "url"})
+        raise field_error(HOST_REFUSED_HE, ["url"], code="host_refused", legacy={"field": "url"})
     return target
 
 

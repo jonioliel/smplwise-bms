@@ -31,7 +31,16 @@ export const MOCK_TODAY = '2026-10-04';
 const dec = (x: number): string => x.toFixed(2);
 const VAT = 0.18;
 
-const err = (status: number, code: string, user_message: string, details: Record<string, unknown> = {}): ApiError => new ApiError(status, { code, user_message, retryable: false, correlation_id: '', details });
+/** ADR019-FAMILY678-2520: a refusal written here with `fields` as a map (field -> message) answers as the server does (ADR-019 D1):
+ * `fields` = the names, `problems` = `{field, code: 'invalid', message}`; the screens read it through `problemsOf` / `fieldsOf`. */
+const canonicalFields = (details: Record<string, unknown>): Record<string, unknown> => {
+  const f = details.fields;
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return details;
+  const map = f as Record<string, string>;
+  return { ...details, fields: Object.keys(map), problems: Object.entries(map).map(([field, message]) => ({ field, code: 'invalid', message })) };
+};
+const err = (status: number, code: string, user_message: string, details: Record<string, unknown> = {}): ApiError =>
+  new ApiError(status, { code, user_message, retryable: false, correlation_id: '', details: canonicalFields(details) });
 
 // ------------------------------------------------------------------------------------------------ fixture
 
@@ -1073,7 +1082,10 @@ function checkTariff(b: TariffVersionBody): void {
   if (!b.name.trim()) throw err(422, 'validation', 'צריך לתת שם לתעריף.', { fields: { name: 'צריך לתת שם לתעריף' } });
   if (b.definition) {
     const c = mockCheck(b.definition);
-    if (!c.ok) throw err(422, 'tariff_definition_invalid', c.errors[0].message, { errors: c.errors, fields: [`definition.${c.errors[0].path}`] });
+    if (!c.ok) {
+      const field = c.errors[0].path ? `definition.${c.errors[0].path}` : 'definition'; // as the server's tou_error (ADR-019 D1)
+      throw err(422, 'tariff_definition_invalid', c.errors[0].message, { errors: c.errors, fields: [field], problems: [{ field, code: c.errors[0].code }] });
+    }
   } else if (!(Number(b.price) > 0)) throw err(422, 'validation', 'המחיר חייב להיות מספר גדול מאפס.', { fields: { price: 'המחיר חייב להיות מספר גדול מאפס' } });
   if (!isIsoDate(b.effective_from)) throw err(422, 'validation', 'תאריך התחלה לא תקין.', { fields: { effective_from: 'תאריך התחלה לא תקין' } });
 }

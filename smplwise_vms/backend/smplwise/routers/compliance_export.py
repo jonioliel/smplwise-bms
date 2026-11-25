@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import set_setting
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import access_external as ax
 from ..services import access_grants as ag
@@ -78,7 +78,7 @@ def _instant(name: str, value: str | None) -> datetime | None:
         return None
     at = ce.parse_instant(value, assume_utc=False)
     if at is None:
-        raise ApiError(422, "compliance_instant_invalid", "זמן לא תקין. יש לציין שעה עם אזור זמן.", details={"field": name})
+        raise field_error("זמן לא תקין. יש לציין שעה עם אזור זמן.", [name], code="compliance_instant_invalid", legacy={"field": name})
     return at
 
 

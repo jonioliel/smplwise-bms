@@ -880,7 +880,7 @@ export class PlayersMockStore implements PlayersAdapter {
   }
   private checkLeader(leader: Row): void {
     const ld = this.build(leader);
-    if (!groupSectionOffered(ld) || this.leaderId(leader.seed.id) !== leader.seed.id) fail(422, 'not_groupable', 'הנגן אינו יכול לנהל קבוצה.', { key: ld.key });
+    if (!groupSectionOffered(ld) || this.leaderId(leader.seed.id) !== leader.seed.id) fail(422, 'not_groupable', 'הנגן אינו יכול לנהל קבוצה.', { key: ld.key, fields: ['leader_key'] }); // ADR-019 D1, as the server
   }
 
   async join(body: GroupJoinBody): Promise<GroupRunResult> {
@@ -890,7 +890,7 @@ export class PlayersMockStore implements PlayersAdapter {
       const ids = [...new Set(body.member_keys.map(idOf))].filter((i) => i !== leader.seed.id);
       const rows = ids.map((i) => this.row(keyOf(i)));
       this.checkLeader(leader);
-      for (const m of rows) if (this.joinProblem(leader, m)) fail(422, 'not_groupable', 'הנגן אינו יכול להצטרף לקבוצה הזו.', { key: keyOf(m.seed.id) });
+      for (const m of rows) if (this.joinProblem(leader, m)) fail(422, 'not_groupable', 'הנגן אינו יכול להצטרף לקבוצה הזו.', { key: keyOf(m.seed.id), fields: ['member_keys'] });
       const existing = this.live(leader.seed.id).members;
       const result = [leader.seed.id, ...new Set([...existing, ...ids])];
       const need = needsConfirmation(result.map((i) => this.build(this.row(keyOf(i)))));

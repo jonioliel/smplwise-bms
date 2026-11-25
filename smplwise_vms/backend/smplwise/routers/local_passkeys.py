@@ -369,5 +369,5 @@ def assetlinks(request: Request) -> Response:
     with request.app.state.db.connection(mode="read", label="assetlinks") as conn:
         statements = lpk.assetlinks(conn)
     if statements is None:
-        return JSONResponse({"code": "not_found", "user_message": "Not found", "retryable": False, "correlation_id": _rid(request) or "", "details": {}}, status_code=404)
+        return JSONResponse(ApiError(404, "not_found", "Not found").payload(_rid(request) or ""), status_code=404)  # ADR019-FAMILY678-2520: the one envelope
     return JSONResponse(statements, headers={"Cache-Control": "public, max-age=300"})

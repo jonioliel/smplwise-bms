@@ -88,7 +88,7 @@ def test_m1_switching_the_purge_on_needs_the_typed_confirmation_and_shows_the_co
         body = {"privacy.local_purge": "on", **({"privacy.local_purge_confirm": confirm} if confirm is not None else {})}
         r = lx.admin.patch("/api/v1/settings", json=body)
         assert r.status_code == 422 and r.json()["code"] == "confirm_required", r.text
-        assert r.json()["details"] == {"field": "privacy.local_purge_confirm", "due_now": 1}
+        assert r.json()["details"] == {"field": "privacy.local_purge_confirm", "fields": ["privacy.local_purge_confirm"], "due_now": 1}  # ADR019-FAMILY678-2520
     assert _purge_setting(lx) == "off"
     r = lx.admin.patch("/api/v1/settings", json={"privacy.local_purge": "on", "privacy.local_purge_confirm": PURGE_WORD})
     assert r.status_code == 200 and r.json()["settings"]["privacy.local_purge"] == "on"

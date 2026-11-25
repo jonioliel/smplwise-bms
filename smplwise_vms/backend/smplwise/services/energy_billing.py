@@ -26,7 +26,7 @@ from typing import Any
 from .. import __version__
 from ..audit import audit
 from ..db import Database, get_setting, new_id, now_iso, set_setting
-from ..errors import ApiError, conflict, not_found
+from ..errors import ApiError, conflict, field_error, not_found
 from . import bill_ledger as bl
 from . import energy_calendar as ecal
 from . import energy_formula as fx
@@ -374,7 +374,10 @@ def price_versions(conn: sqlite3.Connection, tariff_id: str) -> list[px.PriceVer
 
 
 def tou_error(e: tou.TouError) -> ApiError:
-    return _err(422, "tariff_definition_invalid", e.message_he, errors=[e.as_dict()], fields=[f"definition.{e.path}" if e.path else "definition"])
+    """ADR019-FAMILY678-2520 (D1): `fields` names the definition path, `problems` its code (the text is the envelope's own message, so the
+    problem carries none); the issue list is still sent as `errors`."""
+    field = f"definition.{e.path}" if e.path else "definition"
+    return field_error(e.message_he, problems=[{"field": field, "code": e.code}], code="tariff_definition_invalid", legacy={"errors": [e.as_dict()]})
 
 
 def parse_definition_input(definition: Any) -> tou.Definition:
@@ -634,8 +637,11 @@ def formula_api(provider: BillingReadings, ast: dict[str, Any]) -> dict[str, Any
     return {"ast": ast, "text": fx.to_text(ast, names), "sentence_he": fx.sentence_he(ast, names), "meter_ids": ids}
 
 
-def formula_error(e: fx.FormulaError) -> ApiError:
-    return _err(422, "formula_invalid", e.as_dict()["message"], errors=[e.as_dict()])
+def formula_error(e: fx.FormulaError, field: str = "formula") -> ApiError:
+    """ADR019-FAMILY678-2520 (D1): the refused formula names the body field that carries it (`formula`; `preset` for the preset routes) with
+    the formula's own code; the text is the envelope's message, `errors` (with the position) is still sent."""
+    issue = e.as_dict()
+    return field_error(issue["message"], problems=[{"field": field, "code": e.code}], code="formula_invalid", legacy={"errors": [issue]})
 
 
 def _account_fields(conn: sqlite3.Connection, provider: BillingReadings, body: dict[str, Any], current: sqlite3.Row | None, installation_tz: str) -> dict[str, Any]:

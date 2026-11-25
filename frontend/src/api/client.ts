@@ -318,3 +318,29 @@ export function problemsOf(err: unknown): FieldProblem[] {
   const canonical = canonicalProblems(d);
   return canonical.length ? canonical : legacyProblems(d);
 }
+
+/** ADR019-FAMILY678-2520: the field of a problem about the submitted item as a whole (an issue list's empty `path`; server `errors.WHOLE_BODY`). */
+const WHOLE_BODY = 'body';
+
+/** One issue of a domain issue list as the editors show it: `path` relative to the item ('' = the item as a whole), its code and text. */
+interface PathIssue { path: string; code: string; message: string }
+
+/**
+ * ADR019-FAMILY678-2520: the issue list of a refused automation / schedule / scenario (and the like) - the canonical `details.problems`
+ * first (`body` back to the empty path, a missing message as ''), else the legacy `details.errors` list as it was (its empty paths
+ * kept). [] for an error without either.
+ */
+export function issuesOf(err: unknown): PathIssue[] {
+  const d = detailsOf(err);
+  const canonical = canonicalProblems(d);
+  if (canonical.length) return canonical.map((p) => ({ path: p.field === WHOLE_BODY ? '' : p.field, code: p.code, message: p.message ?? '' }));
+  if (!Array.isArray(d.errors)) return [];
+  return d.errors.filter(isBag).filter((v) => typeof v.path === 'string')
+    .map((v) => ({ path: v.path as string, code: str(v.code) ?? 'invalid', message: typeof v.message === 'string' ? v.message : '' }));
+}
+
+/** ADR019-FAMILY678-2520: the canonical keys a server sends beside an issue list (`errors.issue_problems`), for the demo stores. */
+export function issueDetails(issues: readonly { path?: string; code: string; message?: string }[]): { fields: string[]; problems: FieldProblem[] } {
+  const problems = issues.map((i) => ({ field: i.path || WHOLE_BODY, code: i.code || 'invalid', ...(i.message ? { message: i.message } : {}) }));
+  return { fields: uniq(problems.map((p) => p.field)), problems };
+}

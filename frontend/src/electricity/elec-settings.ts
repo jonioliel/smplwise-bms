@@ -13,7 +13,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
-import { ApiError } from '../api/client';
+import { problemsOf } from '../api/client';
 import { elec, elecErrorText, elecFieldErrors, elecForbidden, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffKind, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
@@ -185,8 +185,9 @@ export class ElecSettingsPrices extends ElecBase {
       const fe = elecFieldErrors(er);
       if (Object.keys(fe).length) this.tErr = fe;
       else this.error = elecErrorText(er);
-      const first = er instanceof ApiError ? (er.body.details?.errors as { path?: string }[] | undefined)?.[0] : undefined;
-      if (first?.path !== undefined) this.tErrPath = first.path;
+      // ADR-019: the refused definition path from `problems` (`definition.<path>`), the legacy `errors[0].path` second
+      const first = problemsOf(er)[0];
+      if (first && (first.field === 'definition' || first.field.startsWith('definition.'))) this.tErrPath = first.field.replace(/^definition\.?/, '');
     } finally {
       this.busy = false;
     }

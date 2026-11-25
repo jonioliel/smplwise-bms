@@ -21,7 +21,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..config import Settings
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, require
 from ..services import app_secrets_store as store
 from ..services import secrets_store
@@ -117,7 +117,7 @@ def _stored_or_candidate(conn: sqlite3.Connection, settings: Settings, name: str
         try:
             return secrets_store.read_value(settings.data_dir, row)
         except SecretError:
-            raise ApiError(422, "secret_unreadable", "לא ניתן לקרוא את הסוד השמור - יש להזין אותו מחדש.", details={"field": "value"}) from None
+            raise field_error("לא ניתן לקרוא את הסוד השמור - יש להזין אותו מחדש.", ["value"], code="secret_unreadable", legacy={"field": "value"}) from None
     return secrets_store.legacy_value(settings, secrets_store.BY_NAME[name])
 
 
@@ -195,7 +195,7 @@ def test_secret(name: str, request: Request, principal: Principal = Depends(_adm
     settings = settings_of(request)
     value = _stored_or_candidate(conn, settings, name, body.value)
     if not value:
-        raise ApiError(422, "secret_not_set", "אין ערך לבדוק: יש להזין ערך או לשמור אחד.", details={"field": "value"})
+        raise field_error("אין ערך לבדוק: יש להזין ערך או לשמור אחד.", ["value"], code="secret_not_set", legacy={"field": "value"})
     wait = request.app.state.connection_probe_limiter.take(principal.user_id or principal.username or "?")
     if wait:
         audit(conn, actor=principal, action="secret.test", decision="denied", resource_type="secret", resource_id=name, reason="rate_limited", request_id=_rid(request),

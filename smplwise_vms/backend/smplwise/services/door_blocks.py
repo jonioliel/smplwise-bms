@@ -18,7 +18,7 @@ import sqlite3
 from typing import Any
 
 from ..db import now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from . import door_overrides, door_path, door_run_guard, intercom_doors
 from .door_conversion_text import as_msg
 
@@ -55,7 +55,7 @@ def note_error(code: str) -> ApiError:
     """The refusal of a release the list cannot store (`OverrideError.code`): a bad id, a missing or long note, a full list."""
     if code == "too_many":
         return ApiError(409, "too_many_overrides", NOTE_ERRORS[code], details={"reason": code})
-    return ApiError(422, "validation", NOTE_ERRORS.get(code, NOTE_ERRORS["note_required"]), details={"field": "entity_id" if code == "bad_entity" else "note", "reason": code})
+    return field_error(NOTE_ERRORS.get(code, NOTE_ERRORS["note_required"]), ["entity_id" if code == "bad_entity" else "note"], legacy={"field": "entity_id" if code == "bad_entity" else "note"}, extra={"reason": code})
 
 
 def releasable(conn: sqlite3.Connection, r: door_path.Resolver, entity_id: str) -> str | None:
