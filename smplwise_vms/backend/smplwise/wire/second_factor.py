@@ -110,13 +110,14 @@ class OnceStepUp(WireModel):
 class FactorResetCheck(WireModel):
     """`GET /auth/second-factor/users/{id}/reset-check` (MFA-RESET-HARDENING-2510): the preflight of the reset for the dialog. `allowed`
     false names the first refusal the reset would meet (`reason`): `self` (the caller's own account - use `disable`), `user_unknown`,
-    `local_only` (`security.factor_reset_channel` = local and this request is remote), `last_admin` (the last system administrator who
+    `local_only` (`security.factor_reset_channel` = local and this request is remote), `reauth` (MFA-FACTOR-HARDEN-2520: a remote
+    request whose session signed in more than 5 minutes ago - sign in again), `last_admin` (the last system administrator who
     can sign in remotely), `rate_limited` (3 resets per administrator per hour). `confirm_text` = what to type into `confirm` (the
     username, else the user id). `remote` = this request came from outside. `must_enroll_after` = the user's factor policy requires a
     factor, so their next remote sign-in goes to enrolment. `step_up` = the once-action details (the administrator's own proof)."""
     user_id: str
     allowed: bool
-    reason: Literal["self", "user_unknown", "local_only", "last_admin", "rate_limited"] | None
+    reason: Literal["self", "user_unknown", "local_only", "reauth", "last_admin", "rate_limited"] | None
     confirm_text: str
     channel: Literal["any", "local"]
     remote: bool

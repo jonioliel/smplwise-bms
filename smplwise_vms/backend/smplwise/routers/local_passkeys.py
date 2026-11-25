@@ -330,6 +330,7 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A lost / suspected passkey (the CR-011 administrator reset, for one passkey): every local session of the user ends, a pending
     second step ends, the last passkey switches the user's passkey-first mode off. The password is never touched."""
+    from ..services.step_up import reauth_error
     from .second_factor import require_step_up
 
     require(conn, principal, "identity.local.manage", INSTALLATION)
@@ -340,6 +341,10 @@ def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | 
         audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="denied", resource_type="user", resource_id=user_id,
               reason="local_only", request_id=_rid(request), details={"channel": factor_reset.CHANNEL_LOCAL})
         raise ApiError(403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE, details={"channel": factor_reset.CHANNEL_LOCAL})
+    if factor_reset.reauth_refuses(request):  # MFA-FACTOR-HARDEN-2520 N-5: from outside, a sign-in within 5 minutes (as the reset)
+        audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="denied", resource_type="user", resource_id=user_id,
+              reason="reauth_required", request_id=_rid(request))
+        raise reauth_error("auth.local.passkey.removed")
     if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     if store.passkey_row(conn, pk_id[:40], user_id) is None:

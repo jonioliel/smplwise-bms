@@ -67,6 +67,17 @@ def channel(conn: sqlite3.Connection) -> str:
     return value if value in CHANNELS else DEFAULT_CHANNEL
 
 
+def reauth_refuses(request: Any) -> bool:
+    """MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-5, owner-approved): resetting another user's authentication methods from
+    outside needs a sign-in of the administrator's own session within 5 minutes - the rule a first factor has (MFA-SECFIX-2500 SR-3,
+    `step_up.recent_sign_in`; a re-sign-in, not a code prompt). It comes on top of the administrator's once-proof (which an
+    administrator with no factor of their own cannot give), so a stolen old administrator session resets nobody. The local channel
+    always passes (the break-glass path)."""
+    from . import step_up
+
+    return not step_up.recent_sign_in(request)
+
+
 def channel_refuses(conn: sqlite3.Connection, request: Any) -> bool:
     """True when the setting allows the reset on the local channel only and this request came from outside."""
     if channel(conn) != CHANNEL_LOCAL:
@@ -279,6 +290,8 @@ def check(conn: sqlite3.Connection, request: Any, principal: Any, target: str) -
         reason = "user_unknown"
     elif channel_refuses(conn, request):
         reason = "local_only"
+    elif reauth_refuses(request):
+        reason = "reauth"
     elif last_admin_blocks(conn, target, remote_on=remote_on(request)):
         reason = "last_admin"
     elif left <= 0:

@@ -288,7 +288,8 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     cookie alone cannot strip anyone's factor; the target's sign-ins end (M4).
 
     MFA-RESET-HARDENING-2510 (services/factor_reset.py), checked in this order, each refusal audited, all before the proof is read:
-    the channel setting `security.factor_reset_channel`, the typed username (`{"confirm"}`), the last administrator who can sign in
+    the channel setting `security.factor_reset_channel`, (MFA-FACTOR-HARDEN-2520 N-5) from outside a sign-in of the administrator's
+    session within 5 minutes (403 `reauth_required`, the first factor's rule), the typed username (`{"confirm"}`), the last administrator who can sign in
     remotely, 3 resets per administrator per hour. After the reset: every sign-in and device credential of the target ends (the
     administrator's "sign out everywhere"), the user AND the managers are told, and the user must enrol again (`must_enroll`)."""
     require(conn, principal, "system.configure", INSTALLATION)
@@ -302,6 +303,9 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
     if factor_reset.channel_refuses(conn, request):
         raise _reset_refused(conn, request, principal, user_id, "local_only", 403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE,
                              channel=factor_reset.CHANNEL_LOCAL)
+    if factor_reset.reauth_refuses(request):  # MFA-FACTOR-HARDEN-2520 N-5: from outside, a sign-in of this session within 5 minutes
+        raise _reset_refused(conn, request, principal, user_id, "reauth", 403, "reauth_required", step_up.REAUTH_HE,
+                             action=factor_reset.ACTION, within_s=int(step_up.RECENT_SIGN_IN_S))
     typed = body.confirm if body else None
     if not (typed or "").strip():
         raise _reset_refused(conn, request, principal, user_id, "confirm_required", 422, "factor_reset_confirm_required",
