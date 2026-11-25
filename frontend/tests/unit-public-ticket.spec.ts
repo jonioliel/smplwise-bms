@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterFailure, afterSendFailure, afterStep, bootFrom, codeMessage, editDraft, resendOnReconnect, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
+import { afterFailure, afterSendFailure, afterStep, bootFrom, codeMessage, draftFor, editDraft, linkId, resendOnReconnect, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
@@ -100,32 +100,79 @@ test('a stored draft survives a reload; a tampered one is an empty draft', () =>
 
 test('SCR-05: only a pressed "send" that failed offline goes out by itself; a chip or a half-typed note never does', () => {
   const crid = '00000000-0000-4000-8000-000000000001';
+  const link = linkId('AbCdEfGhIjKlMnOpQrStUvWxYz012345');
   // a tapped "done" and a half-typed note: a draft, never sent when the phone is back online
-  const typed: Draft = { status: 'done', note: 'החלפתי את המדח', eta: undefined, crids: {} };
-  expect(resendOnReconnect(typed)).toBe(false);
-  expect(resendOnReconnect(parseDraft(JSON.stringify({ ...typed, queued: true }))), 'a bare stored flag without the request ids of a press is a draft').toBe(false);
+  const typed: Draft = { status: 'done', note: 'החלפתי את המדח', eta: undefined, crids: {}, link: link ?? undefined };
+  expect(resendOnReconnect(typed, link)).toBe(false);
+  expect(resendOnReconnect(parseDraft(JSON.stringify({ ...typed, queued: true })), link), 'a bare stored flag without the request ids of a press is a draft').toBe(false);
   // "send" pressed, the call failed for want of reception: queued, and it survives a reload with its request ids
   const pressed = afterSendFailure({ ...typed, crids: { status: crid } }, { offline: true });
-  expect(resendOnReconnect(pressed)).toBe(true);
-  expect(resendOnReconnect(parseDraft(JSON.stringify(pressed)))).toBe(true);
+  expect(resendOnReconnect(pressed, link)).toBe(true);
+  expect(resendOnReconnect(parseDraft(JSON.stringify(pressed)), link)).toBe(true);
   // any other refusal is no queue (a 409 must not be retried by itself)
-  expect(resendOnReconnect(afterSendFailure({ ...typed, crids: { status: crid } }, { offline: false }))).toBe(false);
+  expect(resendOnReconnect(afterSendFailure({ ...typed, crids: { status: crid } }, { offline: false }), link)).toBe(false);
   // a change after the press (one more letter, another chip, the ETA) or the cancel makes it a draft again; the request ids stay
   for (const patch of [{ note: 'החלפתי את המדחס' }, { status: 'in_progress' }, { eta: null }, {}] as Partial<Draft>[]) {
     const edited = editDraft(pressed, patch);
-    expect(resendOnReconnect(edited)).toBe(false);
+    expect(resendOnReconnect(edited, link)).toBe(false);
     expect(edited.crids).toEqual({ status: crid });
   }
   // the page wires the "online" event to the queued send only, and shows the queue with a cancel in four languages
   const main = readFileSync(path.join(SRC, 'main.ts'), 'utf8');
-  const online = main.slice(main.indexOf("addEventListener('online'"), main.indexOf("addEventListener('online'") + 300);
-  expect(online).toContain('resendOnReconnect(this.draft)');
+  const online = main.slice(main.indexOf("addEventListener('online'"), main.indexOf("addEventListener('online'") + 500);
+  expect(online).toContain('this.queued()');
+  expect(main).toContain('resendOnReconnect(this.draft, linkId(this.creds.token))');
   expect(online).not.toContain('hasDraft');
   expect(main).toMatch(/data-queued-cancel/);
   for (const k of ['queuedSend', 'queuedCancel'] as Key[]) {
     expect(text('he', k, {}, null)).not.toBe('');
     for (const lang of LANGS) if (lang !== 'he') expect(text(lang, k, {}, null), `${lang} ${k}`).not.toBe(text('he', k, {}, null));
   }
+});
+
+test('SCR-40: a draft belongs to the link it was written for; a queued send never goes to another link opened in the same tab', () => {
+  const A = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+  const B = 'ZyXwVuTsRqPoNmLkJiHgFeDcBa543210';
+  const la = linkId(A);
+  const lb = linkId(B);
+  expect(la).toMatch(/^[0-9a-z]{1,7}\.[0-9a-z]{1,7}$/);
+  expect(la, 'the same token is the same link').toBe(linkId(A));
+  expect(lb).not.toBe(la);
+  expect(linkId(null)).toBeNull();
+  expect(linkId(''), 'no link').toBeNull();
+  expect(la, 'the fingerprint is not the token').not.toContain(A);
+  // a send pressed offline on link A, kept in the tab as the page keeps it (with A's fingerprint)
+  const pressedA = afterSendFailure({ status: 'done', note: 'הוחלף מדחס', eta: undefined, crids: { status: '00000000-0000-4000-8000-000000000001' }, link: la ?? undefined }, { offline: true });
+  const kept = parseDraft(JSON.stringify(pressedA));
+  expect(kept.link).toBe(la);
+  expect(resendOnReconnect(kept, la), 'back online on link A: it goes out').toBe(true);
+  // link B opened in the same tab: A's draft is not B's - empty, nothing queued, nothing to send
+  const onB = draftFor(kept, lb);
+  expect(onB).toEqual({ status: null, note: '', eta: undefined, crids: {}, link: lb });
+  expect(resendOnReconnect(onB, lb)).toBe(false);
+  expect(resendOnReconnect(kept, lb), 'A\'s queued send is never sent on link B').toBe(false);
+  expect(resendOnReconnect(kept, null), 'no link open: nothing is sent').toBe(false);
+  // back on link A: its own draft (still queued) is A's again
+  expect(draftFor(kept, la)).toBe(kept);
+  // a draft kept before this version (no link) or with a forged link is no link's draft
+  const { link: _drop, ...legacy } = pressedA;
+  void _drop;
+  expect(draftFor(parseDraft(JSON.stringify(legacy)), la).note).toBe('');
+  expect(resendOnReconnect(parseDraft(JSON.stringify(legacy)), la)).toBe(false);
+  expect(parseDraft(JSON.stringify({ ...pressedA, link: '<img src=x>' })).link).toBeUndefined();
+  // every edit keeps the link the draft belongs to
+  expect(editDraft(kept, { note: 'x' }).link).toBe(la);
+  // the page: the link change re-reads the draft for that link; the draft is stored with its link; send() only ever plans this link's
+  // draft and stops when another link took the tab while a call was out
+  const main = readFileSync(path.join(SRC, 'main.ts'), 'utf8');
+  const setToken = main.slice(main.indexOf('private setToken('), main.indexOf('private setToken(') + 300);
+  expect(setToken).toContain('draftFor(parseDraft(stored(STORE.draft)), linkId(token))');
+  const save = main.slice(main.indexOf('private saveDraft('), main.indexOf('private saveDraft(') + 200);
+  expect(save).toContain('JSON.stringify({ ...this.draft, link })');
+  const send = main.slice(main.indexOf('private async send('), main.indexOf('private async send(') + 1200);
+  expect(send).toContain('planSend(draftFor(this.draft, link)');
+  expect(send).toContain('if (linkId(this.creds.token) !== link)');
+  expect(main, 'the draft is read only through setToken').not.toMatch(/this\.draft = parseDraft\(/);
 });
 
 test('the status buttons: the allowed moves plus the current one, in the line order', () => {

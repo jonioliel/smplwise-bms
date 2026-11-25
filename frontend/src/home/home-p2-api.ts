@@ -43,16 +43,19 @@ export const listCalendars = () => get<{ calendars: Calendar[] }>('calendar/cale
 export const occurrences = (from: string, to: string, cals: string[]) =>
   get<{ occurrences: Occurrence[] }>(`calendar/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cals.length ? '&calendars=' + cals.map(encodeURIComponent).join(',') : ''}`);
 export const roomsDay = (date: string) => get<{ rooms: RoomDay[]; building_filter?: BuildingFilterMeta }>(`calendar/rooms/day?date=${date}`);
-export const myCalendar = (from: string, to: string) => get<{ occurrences: Occurrence[]; pending: { event_id: string; title: string; start: string; end: string; calendar_id: string }[] }>(`me/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+/** A booking request still waiting for approval (`GET /me/calendar` `pending`). SCREENS-FIX-B2-2520: `revision` is what its withdrawal
+ * sends (absent from an older server - the withdrawal then sends none and the server answers "stale", as before). */
+export interface PendingRequest { event_id: string; title: string; start: string; end: string; calendar_id: string; revision?: number }
+export const myCalendar = (from: string, to: string) => get<{ occurrences: Occurrence[]; pending: PendingRequest[] }>(`me/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 export const createEvent = (body: { calendar_id: string; kind: 'event' | 'booking'; title: string; start: string; end: string }) =>
   post<{ event: { id: string }; state: string }>('calendar/events', body);
-export const cancelEvent = (id: string, state: string, revision?: string, occurrenceStart?: string | null) =>
+export const cancelEvent = (id: string, state: string, revision?: string | number, occurrenceStart?: string | null) =>
   post<unknown>(`calendar/events/${encodeURIComponent(id)}/${state === 'pending' ? 'withdraw' : 'cancel'}`, cancelBody(state, revision, occurrenceStart));
 
 /** SCR-04: the cancel body - one date of a series names its local key (scope "occurrence", as the full interface sends it); without a
  * key the server's default is the whole series, so only an explicit "the whole series" choice may send none. A withdrawal is the request. */
-export function cancelBody(state: string, revision?: string, occurrenceStart?: string | null): Record<string, unknown> {
-  const body: Record<string, unknown> = revision ? { revision } : {};
+export function cancelBody(state: string, revision?: string | number, occurrenceStart?: string | null): Record<string, unknown> {
+  const body: Record<string, unknown> = revision !== undefined && revision !== null && revision !== '' ? { revision } : {};
   if (state !== 'pending' && occurrenceStart) Object.assign(body, { scope: 'occurrence', occurrence_start: occurrenceStart });
   return body;
 }

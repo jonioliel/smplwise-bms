@@ -153,6 +153,13 @@ for BR in "${BRANCHES[@]}"; do
   # blocking - so the nightly stays as strict and gains tablet and the retry. SW_NIGHTLY_VISUAL=warn makes it a report section only,
   # SW_NIGHTLY_VISUAL=off is the rollback (the old run: --no-visual, the spec back in the pixel group).
   VMODE="${SW_NIGHTLY_VISUAL:-block}"; NV=(); case "$VMODE" in warn|block) ;; *) VMODE=off; NV=(--no-visual);; esac
+  # GATE-HARDEN-2520 (TR-02): record whether the nightly engine is the tree's (warn only: main may be older than an engine that was
+  # installed ahead of its release); the record sits next to the report, the line goes into the engine log
+  if [ -f "$HOME/gate2/engine_sync.py" ] && [ "$ENGINE" = "$HOME/nightly-gate/release_gate.py" ]; then
+    python3 "$HOME/gate2/engine_sync.py" check --set nightly --warn-only --repo "$DIR" --ref "origin/$BR" --home "$HOME" --json "$REP.engine.json" > "$LOGD/engine_sync.log" 2>&1
+  fi
+  # owner 25.11 (Q11 a): lighter nightly - same parallelism as the release gate, so it no longer fills RAM + swap
+  GATE_PW_SLOTS="${SW_NIGHTLY_PW_SLOTS:-8}" GATE_BACKEND_SHARDS="${SW_NIGHTLY_SHARDS:-4}" GATE_PW_MAX_WORKERS="${SW_NIGHTLY_PW_MAX_WORKERS:-4}" GATE_MIN_FREE_MB="${SW_NIGHTLY_MIN_FREE_MB:-3000}" \
   GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL="$VMODE" GATE_VISUAL_SCOPE=all \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
     timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L ${NV[@]+"${NV[@]}"} > "$LOGD/engine.log" 2>&1; ERC=$?

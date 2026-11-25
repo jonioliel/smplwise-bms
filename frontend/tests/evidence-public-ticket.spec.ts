@@ -16,6 +16,8 @@ const OUT = path.resolve(HERE, '../../docs/design/evidence/tickets-s4');
 const BUNDLE = path.resolve(HERE, '../../smplwise_vms/www-public');
 const ORIGIN = 'https://t-demo.arx.example.test';
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+/** SCR-40: a second link opened in the same tab */
+const TOKEN_B = 'ZyXwVuTsRqPoNmLkJiHgFeDcBa543210';
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; form-action 'none'; "
   + "frame-ancestors 'none'; base-uri 'none'; manifest-src 'none'";
 const HEADERS = {
@@ -103,7 +105,7 @@ function view(lang: Lang, over: View = {}): View {
   };
 }
 
-interface Served { view: View | null; calls: { method: string; path: string; body: unknown }[]; /** SCR-05: writes fail as with no reception */ down?: boolean }
+interface Served { view: View | null; calls: { method: string; path: string; body: unknown; token?: string }[]; /** SCR-05: writes fail as with no reception */ down?: boolean }
 
 async function serve(page: Page, v: View | null): Promise<Served> {
   const s: Served = { view: v, calls: [] };
@@ -118,7 +120,7 @@ async function serve(page: Page, v: View | null): Promise<Served> {
     } catch {
       body = null;
     }
-    s.calls.push({ method: req.method(), path: p, body });
+    s.calls.push({ method: req.method(), path: p, body, token: req.headers()['x-ticket-token'] });
     if (s.down && req.method() === 'POST' && p.startsWith('/t/api/')) return route.abort('internetdisconnected');
     if (p.startsWith('/t/assets/')) {
       const file = path.join(BUNDLE, 'assets', path.basename(p));
@@ -130,7 +132,7 @@ async function serve(page: Page, v: View | null): Promise<Served> {
       return route.fulfill({ status: 200, headers: { ...HEADERS, 'content-type': 'text/html; charset=utf-8' }, body: fs.readFileSync(path.join(BUNDLE, 'index.html')) });
     }
     const json = (status: number, data: unknown) => route.fulfill({ status, headers: { ...HEADERS, 'content-type': 'application/json' }, body: JSON.stringify(data) });
-    const tokenOk = req.headers()['x-ticket-token'] === TOKEN;
+    const tokenOk = [TOKEN, TOKEN_B].includes(req.headers()['x-ticket-token'] ?? '');
     if (p === '/t/api/ticket') return s.view && tokenOk ? json(200, s.view) : json(404, { code: 'link_unavailable' });
     if (p.startsWith('/t/api/photo/')) return tokenOk ? route.fulfill({ status: 200, headers: { ...HEADERS, 'content-type': 'image/png' }, body: PHOTO }) : json(404, { code: 'link_unavailable' });
     if (p === '/t/api/return') return json(200, { ok: true, status: 'returned', kind: (body as { kind?: string })?.kind ?? 'not_mine', number: 1043 });
@@ -315,6 +317,47 @@ test.describe('the handler page (slice 4)', () => {
     const sent = posts().at(-1);
     expect(sent?.path).toBe('/t/api/status');
     expect(sent?.body).toMatchObject({ status: 'done', note: 'החלפתי את המדחס', client_request_id: pressedId });
+  });
+
+  test('SCR-40: a send queued on link A never goes to link B opened in the same tab; back on A it is still A\'s', async ({ page }) => {
+    const s = await open(page, view('he'));
+    const posts = () => s.calls.filter((c) => c.method === 'POST' && c.path.startsWith('/t/api/'));
+    const online = () => page.evaluate(() => window.dispatchEvent(new Event('online')));
+    // link A: "done" + a note, "send" pressed with no reception - waiting to send
+    await page.locator('[data-status-choice="done"]').click();
+    await page.locator('[data-note]').fill('הוחלף מדחס בקישור א');
+    s.down = true;
+    await page.locator('[data-send]').click();
+    await expect(page.locator('[data-queued]')).toBeVisible();
+    const pressed = posts().at(-1);
+    expect(pressed?.token).toBe(TOKEN);
+    // link B opened in the SAME tab (the tab's storage stays): nothing of A's draft is shown, queued or sent
+    await page.goto('about:blank');
+    await page.goto(`${ORIGIN}/t/#${TOKEN_B}`);
+    await page.waitForSelector('[data-ticket]');
+    await shot(page, 'public-scr40-link-b-he');
+    expect(await page.evaluate(() => sessionStorage.getItem('arx.t.token'))).toBe(TOKEN_B);
+    await expect(page.locator('[data-queued]')).toHaveCount(0);
+    await expect(page.locator('[data-note]')).toHaveValue('');
+    await expect(page.locator('[data-status-choice="done"]')).not.toHaveAttribute('aria-checked', 'true');
+    s.down = false;
+    const before = posts().length;
+    await online();
+    await page.waitForTimeout(300);
+    expect(posts().slice(before), 'A\'s queued send never goes out on link B').toEqual([]);
+    // back on link A (nothing was written on B): A's queued send is A's again, and goes out on A with the request id of the press
+    await page.goto('about:blank');
+    await page.goto(`${ORIGIN}/t/#${TOKEN}`);
+    await page.waitForSelector('[data-ticket]');
+    await expect(page.locator('[data-queued]')).toBeVisible();
+    await expect(page.locator('[data-note]')).toHaveValue('הוחלף מדחס בקישור א');
+    await online();
+    await expect(page.locator('[data-banner="sent"]')).toBeVisible();
+    const sent = posts().at(-1);
+    expect(sent?.path).toBe('/t/api/status');
+    expect(sent?.token, 'only ever to the link it was written for').toBe(TOKEN);
+    expect(sent?.body).toMatchObject({ status: 'done', note: 'הוחלף מדחס בקישור א', client_request_id: (pressed?.body as { client_request_id?: string })?.client_request_id });
+    expect(posts().filter((c) => c.token === TOKEN_B), 'nothing was ever posted with link B').toEqual([]);
   });
 
   test('"not mine" asks for a reason, then confirms from the answer and forgets the link', async ({ page }) => {

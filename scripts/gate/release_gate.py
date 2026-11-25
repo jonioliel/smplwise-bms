@@ -88,6 +88,11 @@ RES = Path(os.environ.get("GATE_RESULTS_DIR") or (HOME / "smplwise-results"))
 WORK = HOME / "work"
 PY = str(BASE / ".venv" / "bin" / "python")
 KNOWN_FILE = HOME / "known_issues.json"
+try:   # GATE-HARDEN-2520 (TR-02): every report names the engine that produced it
+    import hashlib as _hl
+    ENGINE_SHA256 = _hl.sha256(Path(__file__).read_bytes()).hexdigest()
+except OSError:
+    ENGINE_SHA256 = ""
 TOTAL = int(os.environ.get("GATE_TOTAL_SECS", "5400"))
 T0 = time.time()
 DEADLINE = T0 + TOTAL - 150
@@ -441,11 +446,51 @@ def check_running_phase_late():
 
 
 # ---------------------------------------------------------------- known issues
+KNOWN_MAX_DAYS = int(os.environ.get("GATE_KNOWN_MAX_DAYS", "7"))
+KNOWN_REFUSED = []   # GATE-HARDEN-2520 (TR-06): entries of ~/known_issues.json the engine refused, [{id, why}] (report + summary)
+
+
+def known_entry_problem(k, today=None, max_days=None):
+    """Why a ~/known_issues.json entry may NOT explain a failure (None = it may). Owner rule (quarantine only with ticket + expiry, as
+    gate2_quarantine.json): an entry needs a non-empty `ticket` and an `expires` date (YYYY-MM-DD) that is today or later and at most
+    KNOWN_MAX_DAYS (7) days ahead. An entry without them used to hide a whole spec file for eight weeks (TR-06)."""
+    import datetime as _dt
+    today = today or _dt.date.today()
+    max_days = KNOWN_MAX_DAYS if max_days is None else max_days
+    if not isinstance(k, dict):
+        return "not an object"
+    if not str(k.get("ticket") or "").strip():
+        return "no ticket"
+    exp = str(k.get("expires") or "").strip()
+    if not exp:
+        return "no expiry"
+    try:
+        d = _dt.date.fromisoformat(exp[:10])
+    except ValueError:
+        return f"expiry {exp!r} is not a date (YYYY-MM-DD)"
+    if d < today:
+        return f"expired on {d.isoformat()}"
+    if (d - today).days > max_days:
+        return f"expiry {d.isoformat()} is more than {max_days} days ahead"
+    return None
+
+
 def load_known():
     try:
-        return json.loads(KNOWN_FILE.read_text())
+        raw = json.loads(KNOWN_FILE.read_text())
     except Exception:
         return []
+    if not isinstance(raw, list):
+        KNOWN_REFUSED.append({"id": str(KNOWN_FILE), "why": "the file is not a JSON list"})
+        return []
+    ok = []
+    for k in raw:
+        why = known_entry_problem(k)
+        if why:
+            KNOWN_REFUSED.append({"id": str((k.get("id") if isinstance(k, dict) else "") or k)[:120], "why": why})
+        else:
+            ok.append(k)
+    return ok
 
 
 KNOWN = load_known()
@@ -557,10 +602,50 @@ def parse_pytest(text):
             break
     fails = []
     for line in text.splitlines():
-        m = re.match(r"(FAILED|ERROR) (\S+)(?: - (.*))?", line)
+        # GATE-HARDEN-2520 (TR-01): the node id runs up to pytest's " - " message separator, NOT to the first blank - a parametrized
+        # id may hold spaces (`test_gated[GET /api/v1/x]`); cutting it there made the retry run nothing and every failure FLAKY.
+        # An id that itself holds " - " is still cut short: the retry then finds no PASSED line for it and it stays FAIL (fail-safe).
+        m = re.match(r"(FAILED|ERROR) (.+?)(?: - (.*))?$", line.rstrip())
         if m:
-            fails.append((m.group(2), (m.group(3) or "")))
+            fails.append((m.group(2).strip(), (m.group(3) or "")))
     return c, fails
+
+
+def parse_pytest_passed(text):
+    """Node ids that pytest itself reported PASSED (`-rp` short-summary lines "PASSED <nodeid>"): the only positive evidence the
+    backend retry accepts (TR-01). A PASSED line carries no message, so the whole rest of the line is the id."""
+    out = set()
+    for line in text.splitlines():
+        if line.startswith("PASSED "):
+            out.add(line[len("PASSED "):].rstrip())
+    return out
+
+
+def retry_verdicts(todo, rc, timed_out, text):
+    """GATE-HARDEN-2520 (TR-01): the verdict of each backend id that failed in its shard and was run again alone.
+    Returns [(nodeid, "FLAKY"|"FAIL", reason)]. An id is FLAKY only when the retry ran properly (no timeout, a pytest summary line,
+    rc 0 or 1) AND reported that exact id PASSED AND did not also report it FAILED/ERROR (a teardown error). Everything else -
+    an id the retry did not find, skipped, did not reach, or a retry that crashed / timed out / ran nothing - stays FAIL."""
+    c, still = parse_pytest(text)
+    still_ids = {n for n, _ in still}
+    passed = parse_pytest_passed(text)
+    broken = ""
+    if timed_out:
+        broken = "the retry timed out"
+    elif not c:
+        broken = "the retry printed no pytest summary (crash, kill or no tests ran)"
+    elif rc not in (0, 1):
+        broken = f"the retry exited with rc={rc} (usage / collection error or nothing collected)"
+    out = []
+    for nid, why in todo:
+        if nid in passed and nid not in still_ids and not broken:
+            out.append((nid, "FLAKY", "failed in the shard run, passed alone"))
+        elif nid in still_ids:
+            out.append((nid, "FAIL", why or "failed twice"))
+        else:
+            out.append((nid, "FAIL", ((why + " ") if why else "") + "(not positively passed alone: "
+                        + (broken or "the retry did not report this id PASSED") + ")"))
+    return out
 
 
 def backend_finish(procs, wt, logd):
@@ -611,14 +696,20 @@ def backend_finish(procs, wt, logd):
         bd = wt / "smplwise_vms" / "backend"
         log = logd / "backend_retry.log"
         ids = [n for n, _ in todo]
-        run([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / "tmp_bretry")] + ids, bd, log, timeout=900)
-        _, still = parse_pytest(log.read_text(errors="replace"))
-        still_ids = {n for n, _ in still}
-        for nid, why in todo:
-            if nid in still_ids:
-                count("backend", "fail"); item("backend", nid, "FAIL", why or "failed twice")
-            else:
-                count("backend", "flaky"); item("backend", nid, "FLAKY", "failed in the shard run, passed alone")
+        # TR-01: the ids go to pytest as separate argv entries (no shell: a space or a bracket inside an id is passed as is) and are
+        # kept in backend_retry_ids.txt for the record; -rfEp prints a PASSED line per passing id - the only evidence of a pass
+        try:
+            (logd / "backend_retry_ids.txt").write_text("\n".join(ids) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+        rc, to = run([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfEp", "--basetemp", str(logd / "tmp_bretry")] + ids,
+                     bd, log, timeout=900)
+        try:
+            text = log.read_text(errors="replace")
+        except OSError:
+            text = ""
+        for nid, st, why in retry_verdicts(todo, rc, to, text):
+            count("backend", "flaky" if st == "FLAKY" else "fail"); item("backend", nid, st, why)
     else:
         for nid, why in todo:
             count("backend", "fail"); item("backend", nid, "FAIL", (why or "") + " (no time left to retry)")
@@ -2050,7 +2141,8 @@ def write_reports(sha, verdict, extra):
     fin = now()
     dur = int(time.time() - T0)
     base = RES / f"gate_{TAG}_{sha}"
-    doc = {"branch": BR, "sha": sha, "tier": TIER, "verdict": verdict, "time_dependent_known": len(TIMEDEP), "started": STARTED, "finished": fin, "wall_seconds": dur,
+    doc = {"branch": BR, "sha": sha, "tier": TIER, "verdict": verdict, "time_dependent_known": len(TIMEDEP), "known_refused": KNOWN_REFUSED,
+           "engine_sha256": ENGINE_SHA256, "started": STARTED, "finished": fin, "wall_seconds": dur,
            "counts": COUNTS, "baseline_check": BASELINE_ROWS, "drop_threshold": DROP_THRESHOLD, "count_drop_waiver": ALLOW_DROP,
            "baseline_candidate": {k: passed_of(k) for k in COUNTS if k != "baseline"},
            "phases": PHASES, "items": ITEMS, **extra}
@@ -2068,6 +2160,9 @@ def write_reports(sha, verdict, extra):
         md += [f"> המשך (resume): {len(extra['checkpoint']['reused_units'])} יחידות מריצה קודמת על אותו sha לא הורצו שוב.", ""]
     if TIMEDEP:
         md += [f"> **אזהרה:** {len(TIMEDEP)} בדיקות תלויות-שעה (שעות שקט) נכשלו בגלל שעת ההרצה ולכן סומנו KNOWN ולא נבדקו באמת. להריץ את השער שוב בשעות היום לפני שחרור.", ""]
+    if KNOWN_REFUSED:   # TR-06: ~/known_issues.json entries without ticket + expiry explain nothing; their failures count as FAIL
+        md += [f"> **אזהרה:** {len(KNOWN_REFUSED)} רשומות ב-`~/known_issues.json` נדחו (חסרים כרטיס ותאריך תפוגה של עד {KNOWN_MAX_DAYS} ימים) ולא הסתירו אף כישלון: "
+               + "; ".join(f"`{r['id']}` ({r['why']})" for r in KNOWN_REFUSED[:10]), ""]
     if ALLOW_DROP:
         md += [f"> **אזהרה:** בדיקת ירידת הספירה נוטרלה ב-`--allow-count-drop`: {ALLOW_DROP}", ""]
     md += ["## ספירה לפי קטגוריה", "", f"| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (שחרור קודם) | יחס (סף {DROP_THRESHOLD:.0%}) |", "|---|---|---|---|---|---|---|---|"]
@@ -2400,6 +2495,8 @@ def main():
     if VISUAL == "block" and (VISUAL_INFO.get("flaky") or VISUAL_INFO.get("nobase")):
         summary += (f" | WARNING: visual {len(VISUAL_INFO.get('flaky', []))} flaky render(s), {len(VISUAL_INFO.get('nobase', []))} case(s) without a "
                     "linux baseline (not compared), see the report's visual section")
+    if KNOWN_REFUSED:
+        summary += f" | WARNING: {len(KNOWN_REFUSED)} known_issues.json entr(y/ies) refused (no ticket + expiry), see the report"
     if TIMEDEP:
         summary += f" | WARNING: {len(TIMEDEP)} time-of-day (quiet hours) tests not really verified, re-run in daytime"
     if hard_fail:

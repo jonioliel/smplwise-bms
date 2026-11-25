@@ -453,7 +453,8 @@ def my_calendar(frm: str | None = Query(default=None, alias="from"), to: str | N
         raise field_error("from..to: up to 62 days", ["to"], legacy={"field": "to"})
     ctx = Ctx(conn, principal)
     mine = [o for o in events.occurrences(ctx, a, b, calendars=None, kinds=None, states=None)["occurrences"] if (o["organizer"] or {}).get("id") == principal.user_id]
-    pending = [{"event_id": r["id"], "title": r["title"], "start": r["starts_at"], "end": r["ends_at"], "calendar_id": r["calendar_id"]}
+    # SCREENS-FIX-B2-2520: the request's revision (additive) - a withdrawal from a list that holds no row of the request needs it
+    pending = [{"event_id": r["id"], "title": r["title"], "start": r["starts_at"], "end": r["ends_at"], "calendar_id": r["calendar_id"], "revision": r["revision"]}
                for r in store.pending_organized(conn, principal.user_id)
                if ctx.can_see(store.calendar(conn, r["calendar_id"]))]
     return {"occurrences": mine, "pending": pending}

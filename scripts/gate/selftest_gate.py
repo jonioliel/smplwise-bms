@@ -422,6 +422,96 @@ check("one project: in a /* */ block comment -> desktop only", oc["rest"]["block
 check("one project: dev spec, marker in code only -> one stays False", oc["dev"]["dev-code-only.spec.ts"]["one"] is False, oc["dev"])
 check("one project: dev spec, marker in a comment -> one is True", oc["dev"]["dev-comment.spec.ts"]["one"] is True, oc["dev"])
 
+# ---- GATE-HARDEN-2520 (TR-01): the backend retry needs POSITIVE evidence (a PASSED line) per id; ids with spaces survive the parse
+c0, f0 = g.parse_pytest("FAILED tests/test_x.py::test_gated[GET /api/v1/x] - AssertionError: no\nERROR tests/test_y.py::test_b - fixture\n"
+                        "FAILED tests/test_z.py::test_c\nERROR: not found: tests/test_x.py::test_gated[GET\n1 failed in 0.1s\n")
+check("TR-01 parse: an id with a space is kept whole (up to ' - ')", [n for n, _ in f0] == ["tests/test_x.py::test_gated[GET /api/v1/x]", "tests/test_y.py::test_b", "tests/test_z.py::test_c"], f0)
+todo0 = [("tests/test_a.py::t[x y]", "boom"), ("tests/test_a.py::u", "boom")]
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 4, False, "ERROR: not found: tests/test_a.py::t[x\nno tests ran in 0.01s\n")}
+check("TR-01 retry that ran nothing (rc=4, 'not found') -> every id FAIL, none FLAKY", set(v0.values()) == {"FAIL"}, v0)
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 124, True, "")}
+check("TR-01 retry killed by its time limit (no output) -> every id FAIL", set(v0.values()) == {"FAIL"}, v0)
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 0, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n")}
+check("TR-01 an id the retry did not report PASSED stays FAIL; the reported one is FLAKY",
+      v0 == {"tests/test_a.py::t[x y]": "FAIL", "tests/test_a.py::u": "FLAKY"}, v0)
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0[1:], 1, False, "PASSED tests/test_a.py::u\nERROR tests/test_a.py::u - teardown\n1 passed, 1 error in 0.1s\n")}
+check("TR-01 PASSED in the call but ERROR at teardown -> FAIL", v0 == {"tests/test_a.py::u": "FAIL"}, v0)
+v0 = {n: s for n, s, _ in g.retry_verdicts(todo0[1:], 3, False, "PASSED tests/test_a.py::u\n1 passed in 0.1s\n")}
+check("TR-01 a PASSED line with a broken exit code (rc=3, internal error) is not trusted -> FAIL", v0 == {"tests/test_a.py::u": "FAIL"}, v0)
+
+try:
+    import pytest as _pytest  # noqa: F401
+    HAVE_PYTEST = True
+except ImportError:
+    HAVE_PYTEST = False
+if not HAVE_PYTEST:
+    print("SKIP    TR-01 real-pytest cases: pytest is not importable by this python (run with ~/smplwisebms/.venv/bin/python)")
+else:
+    # the review's reproduction: a parametrized case whose id holds a space ("GET /a") next to an unrelated assert False, plus a test
+    # that fails once and passes alone (a real flake). The old engine turned BOTH real failures into FLAKY (the retry ran nothing).
+    rwt = TMP / "tr01"
+    rbd = rwt / "smplwise_vms" / "backend"
+    (rbd / "tests").mkdir(parents=True)
+    mark = TMP / "tr01_flaky_mark"
+    (rbd / "tests" / "test_tr01.py").write_text(textwrap.dedent(f'''
+        import pathlib, pytest
+        @pytest.mark.parametrize("route", ["GET /a"], ids=lambda r: r)
+        def test_gated(route):
+            assert False, "the gated route answered 200"
+        def test_unrelated():
+            assert False
+        def test_flaky_once():
+            p = pathlib.Path({str(mark)!r})
+            if not p.exists():
+                p.write_text("x")
+                assert False, "first run"
+        def test_ok():
+            assert True
+    '''), encoding="utf-8")
+    reset()
+    old_py = g.PY
+    g.PY = sys.executable
+    rlogd = TMP / "logs_tr01"
+    rlogd.mkdir()
+    rlog = rlogd / "backend_s1.log"
+    rp = g.spawn([sys.executable, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "tests/test_tr01.py"], rbd, rlog)
+    g.backend_finish([(1, rp, rlog)], rwt, rlogd)
+    st = {i["id"]: i["status"] for i in g.ITEMS if i["category"] == "backend"}
+    check("TR-01 real pytest: the spaced-id failure stays FAIL after the retry", st.get("tests/test_tr01.py::test_gated[GET /a]") == "FAIL", st)
+    check("TR-01 real pytest: the unrelated failure in the same retry stays FAIL", st.get("tests/test_tr01.py::test_unrelated") == "FAIL", st)
+    check("TR-01 real pytest: a real flake (fails once, passes alone) is FLAKY", st.get("tests/test_tr01.py::test_flaky_once") == "FLAKY", st)
+    check("TR-01 real pytest: the gate verdict is fail", g.compute_verdict([]) == "fail", (g.compute_verdict([]), st))
+    ids_file = rlogd / "backend_retry_ids.txt"
+    check("TR-01 real pytest: the retried ids are recorded whole", ids_file.exists() and "tests/test_tr01.py::test_gated[GET /a]" in ids_file.read_text(encoding="utf-8").splitlines(),
+          ids_file.read_text(encoding="utf-8") if ids_file.exists() else "missing")
+    g.PY = old_py
+
+# ---- GATE-HARDEN-2520 (TR-06): ~/known_issues.json entries need a ticket and an expiry within GATE_KNOWN_MAX_DAYS (7)
+import datetime as _dt
+today = _dt.date(2026, 11, 25)
+
+
+def kp(k):
+    return g.known_entry_problem(k, today=today, max_days=7)
+
+
+check("TR-06 the 2 Oct entry (no ticket, no expiry) is refused", kp({"id": "pwa", "kind": "playwright", "file": "evidence-pwa-push.spec.ts", "added": "2026-10-02"}) == "no ticket")
+check("TR-06 a ticket without an expiry is refused", kp({"ticket": "T1", "kind": "backend"}) == "no expiry")
+check("TR-06 an expired entry is refused", (kp({"ticket": "T1", "expires": "2026-11-24"}) or "").startswith("expired"))
+check("TR-06 an expiry more than 7 days ahead is refused", "more than 7 days" in (kp({"ticket": "T1", "expires": "2026-12-03"}) or ""))
+check("TR-06 a garbled expiry is refused", "not a date" in (kp({"ticket": "T1", "expires": "soon"}) or ""))
+check("TR-06 ticket + expiry within 7 days is accepted", kp({"ticket": "T1", "expires": "2026-12-02"}) is None and kp({"ticket": "T1", "expires": "2026-11-25"}) is None)
+kf = TMP / "home" / "known_issues.json"
+kf.write_text(json.dumps([{"id": "old", "kind": "playwright", "file": "a.spec.ts"},
+                          {"id": "good", "kind": "backend", "nodeid_contains": "test_q", "ticket": "T9", "expires": (_dt.date.today() + _dt.timedelta(days=3)).isoformat()}]))
+g.KNOWN_REFUSED.clear()
+loaded = g.load_known()
+check("TR-06 load_known keeps only the valid entry and records the refused one",
+      [k["id"] for k in loaded] == ["good"] and [r["id"] for r in g.KNOWN_REFUSED] == ["old"], (loaded, g.KNOWN_REFUSED))
+g.KNOWN = []
+g.KNOWN_REFUSED.clear()
+kf.unlink()
+
 print()
 print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)

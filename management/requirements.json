@@ -14103,5 +14103,85 @@
     "test_ids": [
       "AT-BRIDGE-REPAIR-LEGACY-2520-1"
     ]
+  },
+  {
+    "id": "R-VIDEO-SECFIX-2520-1",
+    "title": "go2rtc error frames never reach a viewer; NVR change detail and undo keep the camera scope",
+    "statement": "Every go2rtc upstream frame passes the shared sanitizer before a viewer sees it (V-01); the NVR change undo / detail / list keep the camera scope, fail closed (V-04).",
+    "task_ids": [
+      "VIDEO-SECFIX-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-VIDEO-SECFIX-2520-1"
+    ]
+  },
+  {
+    "id": "R-FE-SAFETY-FIX-2520-1",
+    "title": "Push subscriptions end with the sign-in; Enter confirms only on the confirm button",
+    "statement": "A push registration is tied to its sign-in and deleted on sign-out, revoke, sign-out everywhere and administrator actions, audited (FC-02); Enter confirms a dialog only on the confirm button (FC-04).",
+    "task_ids": [
+      "FE-SAFETY-FIX-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FE-SAFETY-FIX-2520-1"
+    ]
+  },
+  {
+    "id": "R-SCREENS-FIX-A-2520-1",
+    "title": "The high findings of the deep screens review (SCR-01, SCR-06, SCR-07)",
+    "statement": "The emergency door sheet retries (SCR-01); the home alarm reloads on every device, re-reads every 15 s and states its arm / disarm honestly (SCR-06); an Arx-only user cannot remove themselves or the last administrator (SCR-07).",
+    "task_ids": [
+      "SCREENS-FIX-A-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SCREENS-FIX-A-2520-1"
+    ]
+  },
+  {
+    "id": "R-GATE-HARDEN-2520-1",
+    "title": "Harden the release gate before the 2.52 gate",
+    "statement": "The gate engine retries backend infrastructure faults, refuses a branch whose engine drifted, expires known issues, checks the shipped bundle version; quiet-hours and home-clock tests are clock-independent.",
+    "task_ids": [
+      "GATE-HARDEN-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-HARDEN-2520-1"
+    ]
+  },
+  {
+    "id": "R-SCREENS-FIX-B2-2520-1",
+    "title": "Public-ticket draft bound to its link; calendar pending items carry their revision",
+    "statement": "A public-ticket draft is bound to its link (hash) and a queued send goes only to its own link; /me/calendar pending items carry `revision` (additive), used by the home withdraw.",
+    "task_ids": [
+      "SCREENS-FIX-B2-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SCREENS-FIX-B2-2520-1"
+    ]
   }
 ]
