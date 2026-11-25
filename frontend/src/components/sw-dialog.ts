@@ -70,7 +70,7 @@ export class SwDialog extends LitElement {
          faded every text of the dialog with it (on the phone too, where the sheet only rises) - for the length of the fade, on a busy
          machine for half a second and more, the dialog's texts were below contrast (axe caught it in camera-discovery-2500). The box
          itself never fades: its text is at full contrast from the first frame. The glass skins' blur of the page behind (crystal,
-         bubble: `:host(sw-dialog) .backdrop { backdrop-filter }`) eases in with the colour, as it did with the opacity; its start is
+         bubble: the backdrop-filter of :host(sw-dialog) .backdrop) eases in with the colour, as it did with the opacity; its start is
          marked important because the skin's rule is more specific (it applies to the starting style only). */
       transition:
         background-color var(--sw-t-slow) var(--sw-ease),
