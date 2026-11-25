@@ -1,8 +1,8 @@
 # Changelog — SmplWise Arx add-on
 
-## 2.52.0 (pilot) - DRAFT (RELEASE-2520-TRAIN; final text at release) - WisKey rc.19 adoption: intercom system status, relay inventory, numbered station sync, external visits, direct transport v2 and bridge 0.10.9
+## 2.52.0 (pilot) - WisKey rc.19 adoption: intercom system status, relay inventory, numbered station sync, external visits, direct transport v2 and bridge 0.10.9
 
-<!-- DRAFT: the train coordinator's working list, not the release text. The lead writes the final bilingual text at release. -->
+<!-- RELEASE-2520-TRAIN: the train coordinator's working list (draft), not the final release text - the lead writes the final bilingual text at release. The DRAFT mark left the heading so scripts/release_check.py reads 2.52.0 as the CHANGELOG head (the version files are already 2.52.0). -->
 
 ### חדש - New
 - הגדרות › בקרת כניסה › "מערכת האינטרקום": מצב מערכת WisKey כפי ש-WisKey מדווח (גרסה, תחנות, סנכרון, עבודות לפי סוג, תבניות הודעה), לקריאה בלבד ובלי לשאול אף התקן. - Settings › Access control › "Intercom system": the WisKey system state as WisKey reports it (version, stations, sync, jobs by kind, message templates), read only and without asking any device.
