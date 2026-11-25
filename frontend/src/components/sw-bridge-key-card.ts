@@ -210,9 +210,9 @@ export class SwBridgeKeyCard extends LitElement {
     const g = this.grant;
     if (g === 'hidden') return nothing;
     if (g === null && !this.grantError) return nothing;
-    const st: ServiceGrantState = g && g !== 'hidden' ? serviceGrantState(g) : 'unknown';
-    const cmds = g && g !== 'hidden' ? serviceGrantCommands(g) : [];
-    const code = g && g !== 'hidden' && st === 'refused' ? g.wiskey_code : null;
+    const st: ServiceGrantState = g ? serviceGrantState(g) : 'unknown';
+    const cmds = g ? serviceGrantCommands(g) : [];
+    const code = g && st === 'refused' ? g.wiskey_code : null;
     const panel = isApi() && mayOpenPanel({ api: true, accessReadInstallation: can('access.read'), hidden: WISKEY_HIDDEN });
     return html`<div class="grant" data-bridge-key-grant=${st}>
       <div class="row">

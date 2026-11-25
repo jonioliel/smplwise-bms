@@ -13,6 +13,8 @@ import { gotoApp } from './helpers/app-ready';
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/evidence-wiskey-r8-2520.spec.ts --workers=2
 const OUT = process.env.SW_SHOTS_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/wiskey-r8-2520');
 const C = 'sw-app system-setup sw-bridge-key-card';
+// a system administrator who may open the embedded panel (`access.read` at installation): the pointer to WisKey's tools screen is a link
+const PERMS = [...ADMIN, 'access.read'];
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
 const KEY = { kid: 'g3-1a2b3c4d', generation: 3, state: 'current', created_at: '2026-10-20T08:00:00Z', activated_at: '2026-10-20T08:01:00Z', verify_until: null, ended_at: null, readable: true };
@@ -40,9 +42,9 @@ const STATES: [string, unknown, number][] = [
   ['unavailable', grant('unavailable', { reason: 'direct_not_installed' }), 200],
 ];
 
-async function setup(page: Page, body: unknown, code = 200) {
+async function setup(page: Page, body: unknown, code = 200, perms: string[] = PERMS) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await installFrigate(page, newFrigateMock({ perms: ADMIN }));
+  await installFrigate(page, newFrigateMock({ perms }));
   const calls: { method: string; path: string }[] = [];
   await page.route('**/api/v1/system/bridge-key**', async (route) => {
     const req = route.request();
@@ -133,6 +135,15 @@ if (process.env.SW_R8_BEFORE) {
     await expect(block).toBeVisible({ timeout: 20_000 });
     await expect(block).toHaveAttribute('data-bridge-key-grant', 'unknown');
     await expect(block.locator('[data-bridge-key-grant-actions]')).toHaveCount(0);
+  });
+
+  test('a caller who may not open the embedded panel reads the pointer without a link', async ({ page }) => {
+    await setup(page, grant('active'), 200, ADMIN);
+    await gotoApp(page, '/?design=a#/system/setup');
+    const block = page.locator(`${C} [data-bridge-key-grant]`);
+    await expect(block).toBeVisible({ timeout: 20_000 });
+    await expect(block.locator('[data-bridge-key-grant-owner]')).toContainText('WisKey');
+    await expect(block.locator('[data-bridge-key-grant-open]')).toHaveCount(0);
   });
 
   test('an answer this client does not know is unknown (never an assumed grant)', async ({ page }) => {

@@ -29,7 +29,7 @@ const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config:
 async function open(page: Page, skin: string, body: unknown) {
   await page.clock.setFixedTime(new Date('2026-11-25T09:00:00Z'));
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await installFrigate(page, newFrigateMock({ perms: ADMIN }));
+  await installFrigate(page, newFrigateMock({ perms: [...ADMIN, 'access.read'] }));
   await page.route('**/api/v1/system/bridge-key**', async (route) => {
     const p = new URL(route.request().url()).pathname;
     if (p.endsWith('/service-grant')) return json(route, body);
