@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gotoApp } from './helpers/app-ready';
+import { appReady, gotoApp } from './helpers/app-ready';
 import { DIGEST, ITEM_COUNT, LEGACY_FILE, PRE_IMPORT, installLegacyMock, type LegacyMock } from './legacy-import-mock';
 
 // LEGACY-IMPORT-UI-2550 (T070; owner rule = recommendations Q1 a, Q3 a): Settings › גיבוי ושחזור › "ייבוא מהמערכת הישנה", against a MOCKED
@@ -204,7 +204,8 @@ test.describe('LEGACY-IMPORT-UI-2550: the legacy import card', () => {
       await expect.poll(() => page.locator(`${CARD} sw-card`).count()).toBe(0);
       await full('before');
       m.status = 'ok';
-      await gotoApp(page, `/?design=a&scheme=${scheme}#/system/diagnostics?tab=backup`);
+      await page.reload(); // the same address: a reload, so the card asks the server again
+      await appReady(page);
       await expect(page.locator(`${CARD} [data-legacy-pick]`)).toBeVisible({ timeout: 30_000 });
       await chooseFile(page);
       await full('after-report');
