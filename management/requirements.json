@@ -13271,5 +13271,597 @@
     "test_ids": [
       "AT-ADR019-L14-OBSERVE-2500-1"
     ]
+  },
+  {
+    "id": "R-I18N-EN-2490-1",
+    "title": "English completeness report and the first module pass (owner O5)",
+    "statement": "English completeness report and the first module pass: a per-module report of the missing English texts and the EN ratchet, and the first modules translated so the English interface has no Hebrew left in them.",
+    "task_ids": [
+      "I18N-EN-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-EN-2490-1"
+    ]
+  },
+  {
+    "id": "R-I18N-BACKEND-2490-1",
+    "title": "Server texts in the user's interface language (setup wizard, readiness, error envelope)",
+    "statement": "Server texts in the user's interface language: the setup wizard, readiness and the error envelope answer in the reader's language through the smplwise/i18n.py Msg catalogue.",
+    "task_ids": [
+      "I18N-BACKEND-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-BACKEND-2490-1"
+    ]
+  },
+  {
+    "id": "R-NOTICE-WIRE-DRIFT-2490-1",
+    "title": "Notice board union answers no longer log a false contract drift",
+    "statement": "Union answers of the notice board routes are validated against the right member so no false contract-drift error is logged; payload unchanged.",
+    "task_ids": [
+      "NOTICE-WIRE-DRIFT-2490"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTICE-WIRE-DRIFT-2490-1"
+    ]
+  },
+  {
+    "id": "R-REVIEW-2490-FIXES-2500-1",
+    "title": "The three findings of the 2.49.0 review, fixed for 2.50",
+    "statement": "The three findings of the 2.49.0 code review are fixed with regression tests (docs/changes/REVIEW-2490-FIXES-2500.md).",
+    "task_ids": [
+      "REVIEW-2490-FIXES-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-REVIEW-2490-FIXES-2500-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-FAMILY2-2500-1",
+    "title": "ADR-019 Step 1 family 2: presence and mobile field-error envelope",
+    "statement": "ADR-019 decision D1 for family 2 (presence 35, mobile 1): field errors carry the canonical details fields / problems; statuses, codes and user messages unchanged; pixel-neutral.",
+    "task_ids": [
+      "ADR019-FAMILY2-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-FAMILY2-2500-1"
+    ]
+  },
+  {
+    "id": "R-DOCS-GUIDE-REFRESH-2500-1",
+    "title": "User documentation brought up to 2.40.0 .. 2.48.0 and the 2.49.0 train",
+    "statement": "The user guide (Hebrew and English) covers the changes of 2.40.0 to 2.49.0; GUIDE_ALL_HE.html rebuilt and build_guide.py --check up to date.",
+    "task_ids": [
+      "DOCS-GUIDE-REFRESH-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOCS-GUIDE-REFRESH-2500-1"
+    ]
+  },
+  {
+    "id": "R-DOOR-PREVIEW-I18N-2500-1",
+    "title": "The door hand-over preview in the reader's language",
+    "statement": "The door hand-over preview answers in the reader's language (Hebrew and English at least), with tests.",
+    "task_ids": [
+      "DOOR-PREVIEW-I18N-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOOR-PREVIEW-I18N-2500-1"
+    ]
+  },
+  {
+    "id": "R-HAND-SWITCH-HOME-EDIT-2500-1",
+    "title": "The home editor's widget on / off choices are the compact switch",
+    "statement": "The home editor's widget on / off choices use the compact switch of HAND-SWITCH-2480; pixel baselines refreshed on the runner.",
+    "task_ids": [
+      "HAND-SWITCH-HOME-EDIT-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HAND-SWITCH-HOME-EDIT-2500-1"
+    ]
+  },
+  {
+    "id": "R-NOTICE-NEWS-EMPTY-2500-1",
+    "title": "No silent empty news on a notice board",
+    "statement": "A notice board with news switched on but no source shows an explicit alert instead of an empty news block (owner report 24.11).",
+    "task_ids": [
+      "NOTICE-NEWS-EMPTY-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTICE-NEWS-EMPTY-2500-1"
+    ]
+  },
+  {
+    "id": "R-NOTICE-NEWS-FEEDS-2500-1",
+    "title": "Notice board news feeds: compressed bodies, the Calcalist address, source health",
+    "statement": "Notice board news feeds read compressed bodies, use the current Calcalist address and report per-source health; the SSRF guard keeps refusing private addresses.",
+    "task_ids": [
+      "NOTICE-NEWS-FEEDS-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NOTICE-NEWS-FEEDS-2500-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2500-TRAIN-1",
+    "title": "RELEASE-2500-TRAIN - the 2.50.0 train and its release",
+    "statement": "The 2.50.0 train on release/2500-train (23 merges, docs/changes/RELEASE-2500-TRAIN.md sections 1 and 1b) passes the release gate, is tagged v2.50.0, published and installed in the lab with a passing read-only probe.",
+    "task_ids": [
+      "RELEASE-2500-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2500-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-DOOR-BLOCKS-I18N-2510-1",
+    "title": "The door blocks screen and the run guard in the reader's language",
+    "statement": "The door blocks screen and the door run guard texts are in the reader's language, with tests.",
+    "task_ids": [
+      "DOOR-BLOCKS-I18N-2510"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOOR-BLOCKS-I18N-2510-1"
+    ]
+  },
+  {
+    "id": "R-DOOR-WINDOW-TERM-2510-1",
+    "title": "'Door window' in the role, permission and notification English",
+    "statement": "The English role, permission and notification texts use the term 'door window' consistently.",
+    "task_ids": [
+      "DOOR-WINDOW-TERM-2510"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOOR-WINDOW-TERM-2510-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-FAMILY3-2510-1",
+    "title": "ADR-019 Step 1 family 3: NVR, recorders, connection, camera, device layouts and wall",
+    "statement": "ADR-019 decision D1 for family 3 (NVR, recorders, connection, camera, device layouts and wall): canonical field-error details; statuses, codes and user messages unchanged; pixel-neutral.",
+    "task_ids": [
+      "ADR019-FAMILY3-2510"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-FAMILY3-2510-1"
+    ]
+  },
+  {
+    "id": "R-RESPONSE-MODELS-E-2500-1",
+    "title": "Response-model ratchet, ExactModel and response models for the next routers (RESPONSE-MODELS-E-2480 on v2.48.0)",
+    "statement": "The response-model ratchet and ExactModel, with response models for the next routers; the real wire gaps found under SW_WIRE_STRICT fixed; full backend run clean before boarding.",
+    "task_ids": [
+      "RESPONSE-MODELS-E-2500"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RESPONSE-MODELS-E-2500-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2510-TRAIN-1",
+    "title": "RELEASE-2510-TRAIN - the 2.51.0 train (the second-factor release)",
+    "statement": "The 2.51.0 train on release/2510-train (docs/changes/RELEASE-2510-TRAIN.md section 1) passes the release gate, is tagged v2.51.0 after the owner's approval, published and installed in the lab with a passing read-only probe.",
+    "task_ids": [
+      "RELEASE-2510-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2510-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-RESYNC-2520-1",
+    "title": "WisKey resync reply (24.11): Arx adoption plan and slice 1 (system/status_v1, jobs/status_v1)",
+    "statement": "The WisKey 24.11 resync reply is turned into an adoption plan (rows R1-R8) and slice 1 consumes system/status_v1 and jobs/status_v1; relay_inventory and station_sync_v1 channels in use, none reserved.",
+    "task_ids": [
+      "WISKEY-RESYNC-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-RESYNC-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R2-2520-1",
+    "title": "WisKey system status page UI ('מערכת האינטרקום'), row R2",
+    "statement": "The access-control settings get the intercom-system status segment fed by slice 1; phone layout labelled; Linux pixel baselines refreshed on the runner.",
+    "task_ids": [
+      "WISKEY-R2-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R2-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R3-2520-1",
+    "title": "stations/relay_inventory_v1 as a read-only consumer (row R3, WISKEY-RELAY-INV-2520)",
+    "statement": "Arx reads WisKey stations/relay_inventory_v1 read-only next to the relay map; no write path.",
+    "task_ids": [
+      "WISKEY-R3-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R3-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R4-2520-1",
+    "title": "sync/station_v1 with a request id (row R4, master id B7)",
+    "statement": "Arx sends sync/station_v1 with a request id and holds the result on UNKNOWN until a status read settles it (owner 25.11 Q4).",
+    "task_ids": [
+      "WISKEY-R4-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R4-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R5-2520-1",
+    "title": "Listen gate on the last negotiated signed discovery (row R5, WisKey C4)",
+    "statement": "A listen session is offered and opened only when the last negotiated signed discovery offers listening; otherwise it is refused before talk_open with an honest reason.",
+    "task_ids": [
+      "WISKEY-R5-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R5-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R6-2520-1",
+    "title": "B8 visits/record_external_v1 on WisKey rc.19 external-visits-v1 (row R6)",
+    "statement": "Arx's external-visit consumer follows WisKey rc.19's external-visits-v1 contract, the ended visit status labelled end to end.",
+    "task_ids": [
+      "WISKEY-R6-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R6-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R7-2520-1",
+    "title": "Direct transport v2 with kid and direct/pairing_status_v2 (row R7, WISKEY-DIRECT-V2-2520)",
+    "statement": "Direct transport v2 with key id and pairing_status_v2 (owner 25.11 Q3: one current pairing); generated wire types match.",
+    "task_ids": [
+      "WISKEY-R7-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R7-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-BRIDGE-KEYSET-2520-1",
+    "title": "Bridge 0.10.9: smplwise_bridge.native_keyset, the key-set binding WisKey direct v2 needs",
+    "statement": "Bridge 0.10.9 adds native_keyset (and refuses the old pairing at once on a re-pair); both bridge copies and the version pins agree; install only after the owner approves one HA Core restart (owner 25.11 Q7, Q8).",
+    "task_ids": [
+      "WISKEY-BRIDGE-KEYSET-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-BRIDGE-KEYSET-2520-1"
+    ]
+  },
+  {
+    "id": "R-DESIGN-LITERALS-2510-1",
+    "title": "Tokenise the 2.50 train's design literals; the wizard 'same for all' is a switch",
+    "statement": "The 2.50 train's colour / px literals become tokens and the design ratchet is lowered (color-literal 1984, px-literal 25509, hand-switch 160 after the merge); before / after captures recorded.",
+    "task_ids": [
+      "DESIGN-LITERALS-2510"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DESIGN-LITERALS-2510-1"
+    ]
+  },
+  {
+    "id": "R-MFA-REVIEW-DOCS-2520-1",
+    "title": "Security review and documentation of the second factor shipped in 2.49-2.51 (slice 12)",
+    "statement": "Deep security review of the second-factor gates, enrolment and recovery shipped in 2.49-2.51, the small fixes it finds with tests, and the owner guide in Hebrew and English (slice 12 of MFA-STEPUP-TRAIN-2490).",
+    "task_ids": [
+      "MFA-REVIEW-DOCS-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-REVIEW-DOCS-2520-1"
+    ]
+  },
+  {
+    "id": "R-MFA-HA-PASSKEY-2520-1",
+    "title": "Passkey sign-in for users who come in through the home-system identity",
+    "statement": "A passkey can be the remote sign-in second step of home-system users, behind security.passkey_remote_factor (default off); pixel baseline of the policy tab refreshed.",
+    "task_ids": [
+      "MFA-HA-PASSKEY-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-HA-PASSKEY-2520-1"
+    ]
+  },
+  {
+    "id": "R-I18N-REST-2520-1",
+    "title": "The remaining translations: frontend literals, server refusal texts, notification titles",
+    "statement": "The remaining Hebrew-only frontend literals, server refusal texts and notification titles are in the reader's language; EN ratchet hard-coded count down to 0 on the train.",
+    "task_ids": [
+      "I18N-REST-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-REST-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-R8-2520-1",
+    "title": "Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8)",
+    "statement": "Arx reads the manual service grant v3, uses its write contract, and the people-write path is chosen explicitly; the inactive-card label explains removal after sync and readback.",
+    "task_ids": [
+      "WISKEY-R8-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-R8-2520-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-SCHED-READS-2520-1",
+    "title": "WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly",
+    "statement": "Arx starts and follows WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1) with a start / status cycle; schedule execution stays for 2.53 (owner 25.11 Q2).",
+    "task_ids": [
+      "WISKEY-SCHED-READS-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-SCHED-READS-2520-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-FAMILY45-2520-1",
+    "title": "ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey)",
+    "statement": "ADR-019 decision D1 for families 4 and 5: canonical field-error details; statuses, codes and user messages unchanged; pixel-neutral.",
+    "task_ids": [
+      "ADR019-FAMILY45-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-FAMILY45-2520-1"
+    ]
+  },
+  {
+    "id": "R-ADR019-FAMILY678-2520-1",
+    "title": "ADR-019 Step 1 families 6, 7 and 8",
+    "statement": "ADR-019 decision D1 for families 6, 7 and 8: canonical field-error details (media not_groupable names the body field, lead Q1 = a); statuses, codes and user messages unchanged; pixel-neutral.",
+    "task_ids": [
+      "ADR019-FAMILY678-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ADR019-FAMILY678-2520-1"
+    ]
+  },
+  {
+    "id": "R-FLAKY-FIX-2520-1",
+    "title": "Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason",
+    "statement": "Dialog texts never fade below the contrast floor during the enter animation and a refused revoke keeps its reason, so the flaky axe / text checks stop failing.",
+    "task_ids": [
+      "FLAKY-FIX-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FLAKY-FIX-2520-1"
+    ]
+  },
+  {
+    "id": "R-MFA-FACTOR-HARDEN-2520-1",
+    "title": "Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6)",
+    "statement": "Every factor added from outside needs a fresh sign-in (5 minutes) even with step-up off; an administrator's reset from outside needs a fresh sign-in; the user gets a content-free notice on factor removal, new recovery codes and a recovery-code sign-in (owner answers 25.11, all a).",
+    "task_ids": [
+      "MFA-FACTOR-HARDEN-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MFA-FACTOR-HARDEN-2520-1"
+    ]
+  },
+  {
+    "id": "R-MULTI-BUILDING-FILTER-2520-1",
+    "title": "Multi-building filter follow-up: the filter setting names the home interface lists; phone building control row",
+    "statement": "The building filter setting row names the home interface lists too, and on a phone the building control takes its own row under the tabs; before / after evidence captured.",
+    "task_ids": [
+      "MULTI-BUILDING-FILTER-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-MULTI-BUILDING-FILTER-2520-1"
+    ]
+  },
+  {
+    "id": "R-GEN-UNITS-FIELD-2520-1",
+    "title": "Generator routing: minute fields carry their unit inside the frame",
+    "statement": "The generator routing minute fields show their unit inside the field frame like the settings of GEN-UNITS-FIELD-2490; texts in all 4 languages; evidence spec evidence-gen-units-routing-2520.",
+    "task_ids": [
+      "GEN-UNITS-FIELD-2520"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GEN-UNITS-FIELD-2520-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2520-TRAIN-1",
+    "title": "RELEASE-2520-TRAIN - the 2.52.0 train",
+    "statement": "The 2.52.0 train on release/2520-train passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval (publish and the bridge 0.10.9 HA Core restart are not pre-approved).",
+    "task_ids": [
+      "RELEASE-2520-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2520-TRAIN-1"
+    ]
   }
 ]

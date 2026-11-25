@@ -3961,7 +3961,8 @@
       "RUN IN PROGRESS (not evidence): a 14 hour soak with the sampler is running on the Linux test machine, started 2026-10-06 23:26; no result file has been analyzed and no numbers are recorded. Evidence will be added only after the analyzer has been run on the finished sample file. Not measured: streams / transcodes per host against CPU on the HA host, device restarts during the soak, disk-full behaviour, leak check over days. AT135 / AT136 and AT243 stay NOT_RUN; status stays BACKLOG.",
       "2026-10-31 (TASKS-SYNC-3110): merged into main and shipped in v2.7.2 (commit 8212edbb2); registry status was stale. Status REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Kept BACKLOG: its dependencies are not formally DONE yet (registry rule)",
       "commit fb396fcab (release 2.40.6, on origin/main); also 74d395672 (release 2.40.6, on origin/main) - 2026-11-07 (BOARD-HYGIENE-2407): the long soak harness (T068-SOAK-2406) and the alert-stream write-hold fix found by the overnight run (T068-INGEST-LOCK-2406) are released in v2.40.6. Status kept BACKLOG: dependencies T042, T048, T051, T057, T058 are BACKLOG (chain pinned at T005 / T006).",
-      "2026-11-19 (TASKS-SYNC-1911): stays BACKLOG. Core shipped (probe, budget, soak recorded; BACKLOG-HYGIENE-2443). The missing edge tests (disconnects, full disk) are the 2.45.0 row T068-EDGE-2450 (IN_PROGRESS); the card moves when that row is delivered."
+      "2026-11-19 (TASKS-SYNC-1911): stays BACKLOG. Core shipped (probe, budget, soak recorded; BACKLOG-HYGIENE-2443). The missing edge tests (disconnects, full disk) are the 2.45.0 row T068-EDGE-2450 (IN_PROGRESS); the card moves when that row is delivered.",
+      "2026-11-25 (MGMT-SYNC-2520): status unchanged. The edge row T068-EDGE-2450 named as its trigger is released in v2.50.0 (merge 54967cb7e, head 856b234af) and is now REVIEW; this card moves with its dependency chain (the registry rule), not on git alone."
     ],
     "owner": null,
     "commit": null,
@@ -5570,7 +5571,8 @@
       "2026-10-06 (TASKS-SYNC-3, registry update): partial - only Arx's own optional TOTP second factor (CR-011 option B, branch pilot/K11-totp, head 4c43bf8a, merge 357ac74f) is released, in 2.2.0, migration 0065_second_factor_totp: RFC 6238 enrolment with QR in the user's account menu, a code asked after the password on a NEW remote sign-in, replay refusal, lockout after 5 wrong codes in 5 minutes (10 minutes), the secret stored encrypted (AES-256-GCM, key outside the project backup), audited administrator reset (system.configure), setting security.second_factor_policy optional (default) | admins; the local channel is not affected. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_second_factor.py; Playwright frontend/tests/evidence-second-factor.spec.ts and evidence-arx-second-factor.spec.ts (mocked backend / fixture). NOT DONE (none of it is in 2.2.0): the remote.mfa_policy off|admins|sensitive|all policy with the HA refresh-token check (acceptance 1; the 'admins' policy above is a simpler Arx-side rule, and the known gap that long-lived tokens skip MFA on the remote path is not recorded as closed); step-up for sensitive actions with server challenges and proofs (acceptance 2); the Android Keystore biometric device key; passkeys / WebAuthn including the assetlinks route (acceptance 3); push approval with number matching; the alarm-PIN fallback. Not proven: a sign-in from a real phone with a real authenticator app on the owner's installation. Evidence is not acceptance; AT193-AT195 NOT_RUN; status stays BACKLOG.",
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - second-factor hardening and follow-ups released. 2.2.1 (merge 88aea3ad of pilot/sec-220, head 4d09457d): the 2.2.0 review finding H1 closed - the optional TOTP second factor and the 'admins' policy now also apply to token-based (bearer) sign-ins over HTTP and the live WebSocket, setting security.second_factor_bearer enforce (default) | off (off audits every skipped check); enabling the factor ends the user's other remote sign-ins, an administrator reset ends the target's sign-ins, an administrator cannot reset their own factor and an enrolled administrator confirms a reset with their own code (review items M1-M4, L1-L3, L5-L9). 2.3.0 (merge 5e66cb39 of pilot/TFA2-followups, head 1bb505b3, migration 0069_second_factor_followups): persisted wrong-code lockout that survives a restart, a reset notice in the user's inbox (no actor, no secret), per-user and per-role override inherit | optional | required (user first, then roles, then the global policy; enforced on browser and token sign-ins), revocation of the phone app's device tokens when the factor is enabled or reset, a neutral note in the remote-access settings that the factor protects the Arx sign-in only; 2 override routes; security follow-ups I2 (single-shot Frigate undo) and I3 (the browser keeps freshly refreshed tokens in memory only while the second factor is pending; merge e0cd78a0). Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). Release 2.3.0 (main 383a03d9; integration branch integ/230, gated head 560b246f): tier L gate on the Linux test machine PASS (backend 6070 passed / 0 failed, preview 6011 passed / 1 flaky that passes alone, dev 620 passed / 1 flaky, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; visual step warning-only 72 pass / 0 differ; docs/release/2.3.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_security_review_220.py (29 test functions), test_second_factor_followups.py (11), test_second_factor.py; Playwright frontend/tests/unit-arx-pending-tokens.spec.ts, unit-second-factor-admin-ui.spec.ts, evidence-second-factor.spec.ts (mocked backend). An internal security review of 2.2.0 was done and its findings fixed in 2.2.1 (no content is reproduced here). Hebrew guide page docs/user-guide/he/82-second-factor_HE.md.",
       "NOT DONE (unchanged by 2.2.1 / 2.3.0): the remote.mfa_policy off|admins|sensitive|all policy with the HA refresh-token check (acceptance 1), step-up for sensitive actions with server challenges and proofs (acceptance 2), the Android Keystore biometric device key, passkeys / WebAuthn with the assetlinks route, push approval with number matching, the alarm-PIN fallback. Not proven: a sign-in from a real phone with a real authenticator app on the owner's installation; the override and lockout behaviour on the owner's installation. Evidence is not acceptance; AT193-AT195 NOT_RUN, AT237 and AT238 NOT_RUN; status stays BACKLOG.",
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the scope split is now owner-decided (Q44-Q53) and tracked by MFA-STEPUP-TRAIN-2490; this card stays the CR-011 umbrella."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): the scope split is now owner-decided (Q44-Q53) and tracked by MFA-STEPUP-TRAIN-2490; this card stays the CR-011 umbrella.",
+      "2026-11-25 (MGMT-SYNC-2520): status unchanged (CR-011 umbrella). The second-factor train it points to (MFA-STEPUP-TRAIN-2490) shipped slices 1-11 in v2.51.0 (main = tag 3d71fb183); slice 12 and MFA-HA-PASSKEY-2520 / MFA-FACTOR-HARDEN-2520 are 2.52 rows. Whether the umbrella's remaining items (push approval with number matching, alarm-PIN fallback, real-phone sign-in) are covered is a lead / owner reading, not a git fact."
     ],
     "owner": null,
     "commit": null,
@@ -21172,7 +21174,7 @@
     "test_ids": [
       "AT-ONVIF-DISCOVERY-2412-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P3",
     "model_policy": {
@@ -21186,10 +21188,11 @@
     ],
     "evidence": [
       "2026-11-09 (TASKS-SYNC-2412): card registered as a later item. Owner decision 08.11 (docs/changes/CAMERA-STREAM-SOURCES-2410.md, decision 6): ONVIF discovery is not in the 2.41.0 scope. No work until the owner schedules it. Acceptance test NOT_RUN.",
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner decisions Q54-Q61 (owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)), all recommended: build phase 1 as described (3-step wizard in the existing card of the NVR page) in the 2.5x series; probe each address of the range directly (no change needed); range = the site network, up to 1,024 addresses; one shared password allowed, one attempt per camera, no automatic retry; a camera already reaching Arx through the recorder is marked and cannot be added; a device that looks like a recorder offers 'add as recorder' in the recorder wizard; weekly new-camera notice: not now; add as a recorder channel (write to the recorder): later, behind the NVR write switch. Status stays BACKLOG until the 2.5x row is cut."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): owner decisions Q54-Q61 (owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html)), all recommended: build phase 1 as described (3-step wizard in the existing card of the NVR page) in the 2.5x series; probe each address of the range directly (no change needed); range = the site network, up to 1,024 addresses; one shared password allowed, one attempt per camera, no automatic retry; a camera already reaching Arx through the recorder is marked and cannot be added; a device that looks like a recorder offers 'add as recorder' in the recorder wizard; weekly new-camera notice: not now; add as a recorder channel (write to the recorder): later, behind the NVR write switch. Status stays BACKLOG until the 2.5x row is cut.",
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ONVIF-DISCOVER-2500 head 5a729cbca merged c00430f38; pilot/ONVIF-API-2500 head 004c0b695 merged e9936300e; pilot/ONVIF-CLIENT-2500 head d58353161 merged ec459f49e; pilot/ONVIF-UI-2500 head 5cc014eda merged e86dcb8d0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Phase 1 as the owner decided 22.11 (Q54-Q61): backend scan, HTTP routes and settings, ONVIF client with the add step (migration 0217), the camera-search wizard; change notes docs/changes/ONVIF-{DISCOVER,API,CLIENT,UI}-2500.md. Stays REVIEW, not DONE: AT-ONVIF-DISCOVERY-2412-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "5cc014eda",
     "actual_cost_usd": null
   },
   {
@@ -27525,7 +27528,7 @@
     "test_ids": [
       "AT-T068-EDGE-2450-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27538,10 +27541,11 @@
       "Branch pilot/T068-EDGE-2450, change note docs/changes/T068-EDGE-2450.md, tests"
     ],
     "evidence": [
-      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/T068-EDGE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN."
+      "2026-11-19 (TASKS-SYNC-1911): 2.45.0 row in progress on branch pilot/T068-EDGE-2450 (worktree created 19.11 from release/2440-train e9d17b5ab; no commit yet at the time of the sync). Programme source: private/planning/REMAINING_WORK_2026-11-18.md section C and code-review MASTER_PLAN 3.6. Nothing run, nothing released; acceptance test NOT_RUN.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/T068-EDGE-2450 head 856b234af merged 54967cb7e (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Stays REVIEW, not DONE: AT-T068-EDGE-2450-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "856b234af",
     "actual_cost_usd": null
   },
   {
@@ -27563,7 +27567,7 @@
     "test_ids": [
       "AT-FLAKY-CAPTURE-SCREENSHOT-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27577,10 +27581,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q29 = yes, own row (split from FLAKY-SWEEP-2480).",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5; not merged into origin/main (2.49.0 candidate)."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5; not merged into origin/main (2.49.0 candidate).",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/FLAKY-CAPTURE-SCREENSHOT-2490 head 169570cf5 merged 4fb7436d1 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-FLAKY-CAPTURE-SCREENSHOT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "169570cf5",
     "actual_cost_usd": null
   },
   {
@@ -27642,7 +27647,7 @@
     "test_ids": [
       "AT-GEN-UNITS-FIELD-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27656,10 +27661,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q16 = yes, separate row (N54).",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/GEN-UNITS-FIELD-2490 head bd551962d (settings read the active-language catalogue; spec evidence-gen-units-en-2490); not merged into origin/main (2.49.0 candidate)."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/GEN-UNITS-FIELD-2490 head bd551962d (settings read the active-language catalogue; spec evidence-gen-units-en-2490); not merged into origin/main (2.49.0 candidate).",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/GEN-UNITS-FIELD-2490 head bd551962d merged 16b38a7c4 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Follow-up for the routing minute fields: pilot/GEN-UNITS-FIELD-2520 (card GEN-UNITS-FIELD-2520). Stays REVIEW, not DONE: AT-GEN-UNITS-FIELD-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "bd551962d",
     "actual_cost_usd": null
   },
   {
@@ -27681,7 +27687,7 @@
     "test_ids": [
       "AT-TICKETS-PAGING-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27695,10 +27701,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q20 = option a: paging for the tickets table as the next SCROLL-AUDIT row, case details stay a scrolling document.",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/TICKETS-PAGING-2490 head 164b1fb7a; not merged into origin/main (2.49.0 candidate)."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/TICKETS-PAGING-2490 head 164b1fb7a; not merged into origin/main (2.49.0 candidate).",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/TICKETS-PAGING-2490 head 164b1fb7a merged ac0c5135e (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-TICKETS-PAGING-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "164b1fb7a",
     "actual_cost_usd": null
   },
   {
@@ -27734,7 +27741,8 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.48.0. Owner Q11 = fix after a comparison page (the fix is visible, so the comparison page comes first).",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> REVIEW: delivered by pilot/FLAKY-SWEEP-2480 (the product fix DOOR-TECH-REREAD-2480 in components/wk-door-tech.ts; head 67efe251c, merged 848f2ec20 on the 2.48.0 train; change note docs/changes/FLAKY-SWEEP-2480.md). Shipped in v2.48.0 (gate run 3 PASS at 09acc2db4). There is no docs/changes/DOOR-TECH-HOLD-FIX-2480.md and no comparison-page record found, and AT-DOOR-TECH-HOLD-FIX-2480-1 is NOT_RUN, so not DONE. Open: the owner's Q11 condition (comparison page first) is not recorded."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> REVIEW: delivered by pilot/FLAKY-SWEEP-2480 (the product fix DOOR-TECH-REREAD-2480 in components/wk-door-tech.ts; head 67efe251c, merged 848f2ec20 on the 2.48.0 train; change note docs/changes/FLAKY-SWEEP-2480.md). Shipped in v2.48.0 (gate run 3 PASS at 09acc2db4). There is no docs/changes/DOOR-TECH-HOLD-FIX-2480.md and no comparison-page record found, and AT-DOOR-TECH-HOLD-FIX-2480-1 is NOT_RUN, so not DONE. Open: the owner's Q11 condition (comparison page first) is not recorded.",
+      "2026-11-25 (MGMT-SYNC-2520): stays REVIEW. A local branch pilot/DOOR-TECH-HOLD-FIX-2520 (worktree C:\\cloude\\smplwise-doorhold, at main 3d71fb183, no commits, not pushed) is writing docs/changes/DOOR-TECH-HOLD-FIX-2480.md (untracked at this sync): the owner's Q11 comparison-page condition is being worked on."
     ],
     "owner": null,
     "commit": "67efe251c",
@@ -27798,7 +27806,7 @@
     "test_ids": [
       "AT-HAND-SWITCH-HOME-PERSONAL-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27811,10 +27819,11 @@
       "Branch pilot/HAND-SWITCH-HOME-PERSONAL-2490, change note docs/changes/HAND-SWITCH-HOME-PERSONAL-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open (follows the home panel edit). Owner Q32 = yes, after the home panel. Target version not stated by the owner; to be set when the home panel edit is cut."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open (follows the home panel edit). Owner Q32 = yes, after the home panel. Target version not stated by the owner; to be set when the home panel edit is cut.",
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-PERSONAL-2500 head ca28a964d merged 0a0a60e69 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered under the row name HAND-SWITCH-HOME-PERSONAL-2500 (change note docs/changes/HAND-SWITCH-HOME-PERSONAL-2500.md), cut on HOME-NEXT-2500 after the home panel edit as the owner asked (Q32). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-PERSONAL-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "ca28a964d",
     "actual_cost_usd": null
   },
   {
@@ -27836,7 +27845,7 @@
     "test_ids": [
       "AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -27850,10 +27859,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target open. Owner Q21 = yes, file by file (N59). Target version not stated.",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a (the phone project skips 25 desktop-only spec files with an explicit list + guard; the tablet project also ignores the 20 files that already skipped on every non-desktop project); not merged into origin/main."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a (the phone project skips 25 desktop-only spec files with an explicit list + guard; the tablet project also ignores the 20 files that already skipped on every non-desktop project); not merged into origin/main.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/PHONE-SKIP-DESKTOP-SHOTS-2490 head d8c95810a merged b1911de23 (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-PHONE-SKIP-DESKTOP-SHOTS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d8c95810a",
     "actual_cost_usd": null
   },
   {
@@ -28180,7 +28190,7 @@
     "test_ids": [
       "AT-MFA-STEPUP-TRAIN-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28194,10 +28204,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target after 2.49.0, one train (about 19 agent days). Owner Q44-Q53. Q44 = after 2.49.0 as one train. Q45/Q46 = step-up before every settings, users and permissions change with a 5 minute grace, PLUS a setting to turn step-up off (owner note). Q47 = keep the authenticator code beside passkeys. Q48 = long-lived token from outside while the rule is active ALLOWED, as today (non-recommended). Q49 = recovery codes (10 per user, single use). Q50 = passkeys for all users. Q51 = in the app, password plus phone key suffices as two-factor. Q52 = phone hardware attestation YES (non-recommended). Q53 = reset of auth methods from anywhere with admin approval (non-recommended; the security recommendation was local network only and the risk was explained).",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: slice 1 (STEPUP-CORE, backend core) on pilot/MFA-STEPUP-2490 head fb9a3ac1e, built from v2.47.0 619f94d04; not merged. Tests recorded in the branch note docs/changes/MFA-STEPUP-TRAIN-2490.md: tests/test_mfa_stepup_2490.py 22 passed (workstation); slot-B run of 102 backend files in 5 chunks: 2467 passed; ruff clean; tsc exit 0; full backend suite, Playwright / pixel and lab NOT_RUN. 12-slice plan (section 4 of that note): 1 STEPUP-CORE (done on the branch), 2 STEPUP-UI, 3 STEPUP-GATES, 4 PASSKEYS-ALL, 5 POLICY + PROVENANCE, 6 TOKENS, 7 RECOVERY, 8 DEVICEKEY-SRV + APP, 9 DEVICEKEY-ATTEST, 10 RESET-HARDENING, 11 SCREENS, 12 REVIEW-DOCS. Open questions are in section 7 of the note, each with a recommendation (notably: merge slices 1 + 2 together, never release slice 1 alone, because the step-up switch defaults ON before any UI exists)."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: slice 1 (STEPUP-CORE, backend core) on pilot/MFA-STEPUP-2490 head fb9a3ac1e, built from v2.47.0 619f94d04; not merged. Tests recorded in the branch note docs/changes/MFA-STEPUP-TRAIN-2490.md: tests/test_mfa_stepup_2490.py 22 passed (workstation); slot-B run of 102 backend files in 5 chunks: 2467 passed; ruff clean; tsc exit 0; full backend suite, Playwright / pixel and lab NOT_RUN. 12-slice plan (section 4 of that note): 1 STEPUP-CORE (done on the branch), 2 STEPUP-UI, 3 STEPUP-GATES, 4 PASSKEYS-ALL, 5 POLICY + PROVENANCE, 6 TOKENS, 7 RECOVERY, 8 DEVICEKEY-SRV + APP, 9 DEVICEKEY-ATTEST, 10 RESET-HARDENING, 11 SCREENS, 12 REVIEW-DOCS. Open questions are in section 7 of the note, each with a recommendation (notably: merge slices 1 + 2 together, never release slice 1 alone, because the step-up switch defaults ON before any UI exists).",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/MFA-TRAIN-2500 head 8d9faa6e3 merged 78e815e96; pilot/MFA-RESET-HARDENING-2510 head 54239de08 merged 6af4e5ace; pilot/MFA-SCREENS-2510 head 88c6c30ac merged 0fce818b4 (docs/changes/RELEASE-2510-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.51.0. Slices 1-9 with the security-review fixes (MFA-TRAIN-2500 incl. MFA-SECFIX-2500; migrations 0219-0223), slice 10 RESET-HARDENING (MFA-RESET-HARDENING-2510, first head aeb9db142 merged 8836f1603; migration 0224) and slice 11 SCREENS (MFA-SCREENS-2510) are released. Slice 12 REVIEW-DOCS = pilot/MFA-REVIEW-DOCS-2520, merged into release/2520-train at 0154ba924, NOT released. Open: the phone key in the step-up dialog was only exercised with a fake app bridge (RELEASE-2510-TRAIN.md section 5 item 6; check at the next lab install). Stays REVIEW, not DONE: AT-MFA-STEPUP-TRAIN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "88c6c30ac",
     "actual_cost_usd": null
   },
   {
@@ -28221,7 +28232,7 @@
     "test_ids": [
       "AT-MULTI-BUILDING-NEXT-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28234,10 +28245,11 @@
       "change note docs/changes/MULTI-BUILDING-NEXT-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q62-Q69, all recommended: Q62 a person managing content in both buildings may move a floor (with a view of who loses access); Q63 check required, a setting can skip it; Q64 \"all buildings\" hidden, a setting can show it; Q65 admin sets the first building per person, else the last chosen on the device; Q66 \"turn off all\" only in the chosen building with its name on the button; Q67 a meter or schedule serving two buildings appears in each with a note; Q68 each lobby board belongs to a building with the building name in the greeting; Q69 order: safety (check before switch-on, floor move), then the home interface, then filtering and lobby."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q62-Q69, all recommended: Q62 a person managing content in both buildings may move a floor (with a view of who loses access); Q63 check required, a setting can skip it; Q64 \"all buildings\" hidden, a setting can show it; Q65 admin sets the first building per person, else the last chosen on the device; Q66 \"turn off all\" only in the chosen building with its name on the button; Q67 a meter or schedule serving two buildings appears in each with a note; Q68 each lobby board belongs to a building with the building name in the greeting; Q69 order: safety (check before switch-on, floor move), then the home interface, then filtering and lobby.",
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/MULTI-BUILDING-SAFETY-2500 head d00aa3ede merged aebb29f94; pilot/MULTI-BUILDING-HOME-2500 head 63e7a7c02 merged f9c01d66a; pilot/MULTI-BUILDING-NEXT-2500 head d3c0dc171 merged 19310c147 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows in the owner's order (safety first): MULTI-BUILDING-SAFETY-2500 (floor move, check before switching on), MULTI-BUILDING-HOME-2500 (home interface and lobby boards; migration 0218), MULTI-BUILDING-NEXT-2500 (filtering, lobby audience, area-move signal). Follow-up in flight: pilot/MULTI-BUILDING-FILTER-2520 (card MULTI-BUILDING-FILTER-2520). Stays REVIEW, not DONE: AT-MULTI-BUILDING-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d3c0dc171",
     "actual_cost_usd": null
   },
   {
@@ -28259,7 +28271,7 @@
     "test_ids": [
       "AT-HOME-INTERFACE-NEXT-2490-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28272,10 +28284,11 @@
       "change note docs/changes/HOME-INTERFACE-NEXT-2490.md, tests"
     ],
     "evidence": [
-      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q70-Q79, all recommended: Q70 rest screen on by default after 2 minutes (first touch only wakes); Q71 night mode fixed hours 23:00-06:00, changeable; Q72 no \"read\" on the shared wall screen, notice marked \"new\" for 48 hours; Q73 tablet night = dim the screen only; Q74 takeover for alarm and urgent notice (door call always first); Q75 scenes editable by whoever holds the scene-management permission; Q76 air-conditioner \"hold\" dropped; Q77 favourites by long-press drag on tablet, arrows stay; Q78 missing row keeps my order, gap filled with \"+ add\"; Q79 a suggestion dialog after a scene, confirmed with the usual code."
+      "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.5x. Owner Q70-Q79, all recommended: Q70 rest screen on by default after 2 minutes (first touch only wakes); Q71 night mode fixed hours 23:00-06:00, changeable; Q72 no \"read\" on the shared wall screen, notice marked \"new\" for 48 hours; Q73 tablet night = dim the screen only; Q74 takeover for alarm and urgent notice (door call always first); Q75 scenes editable by whoever holds the scene-management permission; Q76 air-conditioner \"hold\" dropped; Q77 favourites by long-press drag on tablet, arrows stay; Q78 missing row keeps my order, gap filled with \"+ add\"; Q79 a suggestion dialog after a scene, confirmed with the usual code.",
+      "2026-11-25 (MGMT-SYNC-2520): BACKLOG -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HOME-WALL-NIGHT-2500 head c0fb81e2e merged 35e15d450; pilot/HOME-FAVORITES-2500 head 7156c24ef merged 081aa9708; pilot/HOME-NEXT-2500 head 966557e10 merged d72ec0561 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Delivered as three rows: HOME-WALL-NIGHT-2500 (rest screen, night mode dim only, screen takeover; Q70, Q71, Q73, Q74), HOME-FAVORITES-2500 (favourites order, holes, drag, scene suggestion, scene editing; Q75-Q79), HOME-NEXT-2500 (no 'read' on a shared wall panel, a notice is new for 48 hours; Q72; first merge 87dbf121a at 2b6711335, baselines 966557e10 at d72ec0561). HOME-NEXT-2500 has no change note of its own (its commits name one; none on main). Stays REVIEW, not DONE: AT-HOME-INTERFACE-NEXT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "966557e10",
     "actual_cost_usd": null
   },
   {
@@ -28414,7 +28427,7 @@
     "test_ids": [
       "AT-I18N-DEFAULT-NAMES-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28428,10 +28441,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q15 = TRANSLATE at creation (non-recommended choice; the recommendation was to keep Hebrew) (N53). Branch line pilot/I18N-EN-2490 exists.",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 (server default names made in the creator's language); slot-B backend run of 47 files in 6 shards: 1361 passed (branch change note); not merged into origin/main, so not DONE."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 (server default names made in the creator's language); slot-B backend run of 47 files in 6 shards: 1361 passed (branch change note); not merged into origin/main, so not DONE.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-DEFAULT-NAMES-2490 head 9b6c82cb3 merged 2824cf8ac (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-DEFAULT-NAMES-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "9b6c82cb3",
     "actual_cost_usd": null
   },
   {
@@ -28453,7 +28467,7 @@
     "test_ids": [
       "AT-I18N-SETTINGS-KEYWORDS-2490-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28467,10 +28481,11 @@
     ],
     "evidence": [
       "2026-11-22 (MGMT-OWNER-ANSWERS-2211): registered from the owner answers of 22.11 night (private/planning/answers_2026-11-22_night.txt; questions in questions_all_open_2026-11-22.html). Target 2.49.0. Owner Q14 = add English keywords (N52).",
-      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 (English search keywords for the settings search); not merged into origin/main."
+      "2026-11-24 (MGMT-SYNC-2411): BACKLOG -> IN_PROGRESS: pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 (English search keywords for the settings search); not merged into origin/main.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-SETTINGS-KEYWORDS-2490 head 1df34dc24 merged 1ad146e8c (docs/changes/RELEASE-2490-TRAIN.md section 1); each head is an ancestor of origin/main and of tag v2.49.0. Stays REVIEW, not DONE: AT-I18N-SETTINGS-KEYWORDS-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "1df34dc24",
     "actual_cost_usd": null
   },
   {
@@ -28530,7 +28545,7 @@
     "test_ids": [
       "AT-RELEASE-2490-TRAIN-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "DONE",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -28543,10 +28558,11 @@
       "Train merges, release commit, runner build, release gate, tag and lab install after a green gate"
     ],
     "evidence": [
-      "2026-11-24 (MGMT-SYNC-2411): Assembling on origin/release/2490-train (head 11eccfba8 at the sync, worktree C:\\cloude\\smplwise-2490train), cut from main = v2.48.0. Candidate rows: GEN-UNITS-FIELD-2490, TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490, I18N-EN-2490, I18N-BACKEND-2490, I18N-DEFAULT-NAMES-2490, I18N-SETTINGS-KEYWORDS-2490, PHONE-SKIP-DESKTOP-SHOTS-2490 (the board is kept by the train assembler). Gate NOT_RUN; no release note yet."
+      "2026-11-24 (MGMT-SYNC-2411): Assembling on origin/release/2490-train (head 11eccfba8 at the sync, worktree C:\\cloude\\smplwise-2490train), cut from main = v2.48.0. Candidate rows: GEN-UNITS-FIELD-2490, TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490, I18N-EN-2490, I18N-BACKEND-2490, I18N-DEFAULT-NAMES-2490, I18N-SETTINGS-KEYWORDS-2490, PHONE-SKIP-DESKTOP-SHOTS-2490 (the board is kept by the train assembler). Gate NOT_RUN; no release note yet.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> DONE: Released 24.11 ~10:55 IL: docs commit d0c456399 = main = tag v2.49.0; #addon 700fb1a09. Gate run 1 FULL PASS at f73c20728 (171 min, 0 real failures, 10 flaky passed alone). Eight rows merged (RELEASE-2490-TRAIN.md section 1): I18N-EN-2490, I18N-SETTINGS-KEYWORDS-2490, I18N-BACKEND-2490, I18N-DEFAULT-NAMES-2490, GEN-UNITS-FIELD-2490, TICKETS-PAGING-2490, FLAKY-CAPTURE-SCREENSHOT-2490, PHONE-SKIP-DESKTOP-SHOTS-2490. Lab install + read-only probe PASS (private-evidence/lab-1611/lab_check_2490_HE.md; no HA restart). The commit field names the gated head f73c20728."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "f73c20728",
     "actual_cost_usd": null
   },
   {
@@ -28568,7 +28584,7 @@
     "test_ids": [
       "AT-ADR019-STEP0-2500-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28581,10 +28597,11 @@
       "Branch pilot/ADR019-STEP0-2500, change note docs/changes/ADR019-STEP0-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019a on branch pilot/ADR019-STEP0-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered."
+      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019a on branch pilot/ADR019-STEP0-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-STEP0-2500 head 7a4328642 merged 95331be30 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Step 0 plus Step 1 family 1 (change note docs/changes/ADR019-STEP0-2500.md). origin/pilot/ADR019-STEP0-2500 carries one later docs-only commit 4ad1ec7fd (runner verification 24.11) that is not on main. Stays REVIEW, not DONE: AT-ADR019-STEP0-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "7a4328642",
     "actual_cost_usd": null
   },
   {
@@ -28606,7 +28623,7 @@
     "test_ids": [
       "AT-ADR019-L14-OBSERVE-2500-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -28619,7 +28636,1414 @@
       "Branch pilot/ADR019-L14-OBSERVE-2500, change note docs/changes/ADR019-L14-OBSERVE-2500.md, tests"
     ],
     "evidence": [
-      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019b on branch pilot/ADR019-L14-OBSERVE-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered. L14 steps run after Step 0 (ADR019-STEP0-2500) in parallel with the families."
+      "2026-11-24 (MGMT-SYNC-2411): Registered from ADR-019 (docs/architecture/ADR-019-error-envelope-and-request-strictness.md, proposed 2026-11-22, on main; lead decisions L2 and L14, no owner decision needed). Worktree C:\\cloude\\smplwise-adr019b on branch pilot/ADR019-L14-OBSERVE-2500 at d6f09395e (= main, no commits yet, branch not pushed): IN_PROGRESS, nothing delivered. L14 steps run after Step 0 (ADR019-STEP0-2500) in parallel with the families.",
+      "2026-11-25 (MGMT-SYNC-2520): IN_PROGRESS -> REVIEW: shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-L14-OBSERVE-2500 head 4b2470ed9 merged d17391f37 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b); each head is an ancestor of origin/main and of tag v2.50.0. Observe mode only (RequestModel extra=ignore); the strict step is the in-flight local branch pilot/ADR019-L14-STRICT-F123-2520 (no commits at this sync). Stays REVIEW, not DONE: AT-ADR019-L14-OBSERVE-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "4b2470ed9",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "I18N-EN-2490",
+    "title": "English completeness report and the first module pass (owner O5)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "English completeness report and the first module pass: a per-module report of the missing English texts and the EN ratchet, and the first modules translated so the English interface has no Hebrew left in them."
+    ],
+    "requirement_ids": [
+      "R-I18N-EN-2490-1"
+    ],
+    "test_ids": [
+      "AT-I18N-EN-2490-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/I18N-EN-2490, change note docs/changes/I18N-EN-2490.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-EN-2490 head d144aa612 merged d3911d6d8 (docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-EN-2490.md). Stays REVIEW, not DONE: AT-I18N-EN-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "d144aa612",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "I18N-BACKEND-2490",
+    "title": "Server texts in the user's interface language (setup wizard, readiness, error envelope)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Server texts in the user's interface language: the setup wizard, readiness and the error envelope answer in the reader's language through the smplwise/i18n.py Msg catalogue."
+    ],
+    "requirement_ids": [
+      "R-I18N-BACKEND-2490-1"
+    ],
+    "test_ids": [
+      "AT-I18N-BACKEND-2490-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/I18N-BACKEND-2490, change note docs/changes/I18N-BACKEND-2490.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.49.0 (main = tag = d0c456399, released 24.11; gate run 1 FULL PASS at f73c20728; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2490_HE.md); pilot/I18N-BACKEND-2490 head bd8fad7b7 merged aa6361d55 (carries I18N-EN-2490; docs/changes/RELEASE-2490-TRAIN.md section 1, change note docs/changes/I18N-BACKEND-2490.md). Stays REVIEW, not DONE: AT-I18N-BACKEND-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "bd8fad7b7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTICE-WIRE-DRIFT-2490",
+    "title": "Notice board union answers no longer log a false contract drift",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Union answers of the notice board routes are validated against the right member so no false contract-drift error is logged; payload unchanged."
+    ],
+    "requirement_ids": [
+      "R-NOTICE-WIRE-DRIFT-2490-1"
+    ],
+    "test_ids": [
+      "AT-NOTICE-WIRE-DRIFT-2490-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTICE-WIRE-DRIFT-2490, change note docs/changes/NOTICE-WIRE-DRIFT-2490.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-WIRE-DRIFT-2490 head fb7acbd8c merged 4e980289c (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-WIRE-DRIFT-2490.md). Stays REVIEW, not DONE: AT-NOTICE-WIRE-DRIFT-2490-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "fb7acbd8c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "REVIEW-2490-FIXES-2500",
+    "title": "The three findings of the 2.49.0 review, fixed for 2.50",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The three findings of the 2.49.0 code review are fixed with regression tests (docs/changes/REVIEW-2490-FIXES-2500.md)."
+    ],
+    "requirement_ids": [
+      "R-REVIEW-2490-FIXES-2500-1"
+    ],
+    "test_ids": [
+      "AT-REVIEW-2490-FIXES-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/REVIEW-2490-FIXES-2500, change note docs/changes/REVIEW-2490-FIXES-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/REVIEW-2490-FIXES-2500 head 21e444071 merged 71a71a1c0 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/REVIEW-2490-FIXES-2500.md). Stays REVIEW, not DONE: AT-REVIEW-2490-FIXES-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "21e444071",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-FAMILY2-2500",
+    "title": "ADR-019 Step 1 family 2: presence and mobile field-error envelope",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 decision D1 for family 2 (presence 35, mobile 1): field errors carry the canonical details fields / problems; statuses, codes and user messages unchanged; pixel-neutral."
+    ],
+    "requirement_ids": [
+      "R-ADR019-FAMILY2-2500-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-FAMILY2-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-FAMILY2-2500, change note docs/changes/ADR019-FAMILY2-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/ADR019-FAMILY2-2500 head 4488de48c merged a1be19272 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/ADR019-FAMILY2-2500.md). Stays REVIEW, not DONE: AT-ADR019-FAMILY2-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "4488de48c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOCS-GUIDE-REFRESH-2500",
+    "title": "User documentation brought up to 2.40.0 .. 2.48.0 and the 2.49.0 train",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The user guide (Hebrew and English) covers the changes of 2.40.0 to 2.49.0; GUIDE_ALL_HE.html rebuilt and build_guide.py --check up to date."
+    ],
+    "requirement_ids": [
+      "R-DOCS-GUIDE-REFRESH-2500-1"
+    ],
+    "test_ids": [
+      "AT-DOCS-GUIDE-REFRESH-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOCS-GUIDE-REFRESH-2500, change note docs/changes/DOCS-GUIDE-REFRESH-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOCS-GUIDE-REFRESH-2500 head f0c7bcc2e merged 684715ed3 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOCS-GUIDE-REFRESH-2500.md). Stays REVIEW, not DONE: AT-DOCS-GUIDE-REFRESH-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "f0c7bcc2e",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOOR-PREVIEW-I18N-2500",
+    "title": "The door hand-over preview in the reader's language",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The door hand-over preview answers in the reader's language (Hebrew and English at least), with tests."
+    ],
+    "requirement_ids": [
+      "R-DOOR-PREVIEW-I18N-2500-1"
+    ],
+    "test_ids": [
+      "AT-DOOR-PREVIEW-I18N-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOOR-PREVIEW-I18N-2500, change note docs/changes/DOOR-PREVIEW-I18N-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/DOOR-PREVIEW-I18N-2500 head 8d512f1fd merged 93b28da97 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/DOOR-PREVIEW-I18N-2500.md). Stays REVIEW, not DONE: AT-DOOR-PREVIEW-I18N-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "8d512f1fd",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HAND-SWITCH-HOME-EDIT-2500",
+    "title": "The home editor's widget on / off choices are the compact switch",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The home editor's widget on / off choices use the compact switch of HAND-SWITCH-2480; pixel baselines refreshed on the runner."
+    ],
+    "requirement_ids": [
+      "R-HAND-SWITCH-HOME-EDIT-2500-1"
+    ],
+    "test_ids": [
+      "AT-HAND-SWITCH-HOME-EDIT-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HAND-SWITCH-HOME-EDIT-2500, change note docs/changes/HAND-SWITCH-HOME-EDIT-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/HAND-SWITCH-HOME-EDIT-2500 head 2c019f37f merged 444dda163 (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/HAND-SWITCH-HOME-EDIT-2500.md). Stays REVIEW, not DONE: AT-HAND-SWITCH-HOME-EDIT-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "2c019f37f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTICE-NEWS-EMPTY-2500",
+    "title": "No silent empty news on a notice board",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A notice board with news switched on but no source shows an explicit alert instead of an empty news block (owner report 24.11)."
+    ],
+    "requirement_ids": [
+      "R-NOTICE-NEWS-EMPTY-2500-1"
+    ],
+    "test_ids": [
+      "AT-NOTICE-NEWS-EMPTY-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTICE-NEWS-EMPTY-2500, change note docs/changes/NOTICE-NEWS-EMPTY-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-EMPTY-2500 head 9cad89813 merged 60fc78e3d (docs/changes/RELEASE-2500-TRAIN.md section 1/1b, change note docs/changes/NOTICE-NEWS-EMPTY-2500.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-EMPTY-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "9cad89813",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "NOTICE-NEWS-FEEDS-2500",
+    "title": "Notice board news feeds: compressed bodies, the Calcalist address, source health",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Notice board news feeds read compressed bodies, use the current Calcalist address and report per-source health; the SSRF guard keeps refusing private addresses."
+    ],
+    "requirement_ids": [
+      "R-NOTICE-NEWS-FEEDS-2500-1"
+    ],
+    "test_ids": [
+      "AT-NOTICE-NEWS-FEEDS-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/NOTICE-NEWS-FEEDS-2500, change note docs/changes/NOTICE-NEWS-FEEDS-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.50.0 (main = tag = fd600e96d, released 24.11; gate FULL PASS at bdf28fc37; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2500_HE.md); pilot/NOTICE-NEWS-FEEDS-2500 heads 0b08c1fe3 (merged cbc5951b1) and final 2f0dcfd7f (merged db8920a06) (docs/changes/RELEASE-2500-TRAIN.md section 1b, change note docs/changes/NOTICE-NEWS-FEEDS-2500.md). Lab: 4 sources x 6 items on the board after the 2.50.0 install (lab_check_2500_HE.md). Stays REVIEW, not DONE: AT-NOTICE-NEWS-FEEDS-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "2f0dcfd7f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2500-TRAIN",
+    "title": "RELEASE-2500-TRAIN - the 2.50.0 train and its release",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.50.0 train on release/2500-train (23 merges, docs/changes/RELEASE-2500-TRAIN.md sections 1 and 1b) passes the release gate, is tagged v2.50.0, published and installed in the lab with a passing read-only probe."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2500-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2500-TRAIN-1"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag, #addon refresh and lab install"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Released 24.11 ~21:30 IL: section 6 commit fd600e96d = main = tag v2.50.0; #addon ba153da90. Gate FULL PASS at bdf28fc37 (173 min; preview 23,814, backend 44,901 passed; 0 real failures, 5 flaky passed alone). Rows: ONVIF-DISCOVER/API/CLIENT/UI-2500, HOME-WALL-NIGHT-2500, HOME-NEXT-2500, HAND-SWITCH-HOME-PERSONAL-2500, HOME-FAVORITES-2500, MULTI-BUILDING-SAFETY/HOME/NEXT-2500, ADR019-STEP0-2500, ADR019-FAMILY2-2500, REVIEW-2490-FIXES-2500, NOTICE-WIRE-DRIFT-2490, T068-EDGE-2450, DOCS-GUIDE-REFRESH-2500, ADR019-L14-OBSERVE-2500, DOOR-PREVIEW-I18N-2500, HAND-SWITCH-HOME-EDIT-2500, NOTICE-NEWS-EMPTY-2500, NOTICE-NEWS-FEEDS-2500. Not on the train: RESPONSE-MODELS-E-2500 (moved to 2.51). Lab install + read-only probe PASS (private-evidence/lab-1611/lab_check_2500_HE.md; no HA restart). The commit field names the gated head bdf28fc37."
+    ],
+    "owner": null,
+    "commit": "bdf28fc37",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOOR-BLOCKS-I18N-2510",
+    "title": "The door blocks screen and the run guard in the reader's language",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The door blocks screen and the door run guard texts are in the reader's language, with tests."
+    ],
+    "requirement_ids": [
+      "R-DOOR-BLOCKS-I18N-2510-1"
+    ],
+    "test_ids": [
+      "AT-DOOR-BLOCKS-I18N-2510-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOOR-BLOCKS-I18N-2510, change note docs/changes/DOOR-BLOCKS-I18N-2510.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-BLOCKS-I18N-2510 head 7b763b1b9 merged d91bd96a2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-BLOCKS-I18N-2510.md). Stays REVIEW, not DONE: AT-DOOR-BLOCKS-I18N-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "7b763b1b9",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOOR-WINDOW-TERM-2510",
+    "title": "'Door window' in the role, permission and notification English",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The English role, permission and notification texts use the term 'door window' consistently."
+    ],
+    "requirement_ids": [
+      "R-DOOR-WINDOW-TERM-2510-1"
+    ],
+    "test_ids": [
+      "AT-DOOR-WINDOW-TERM-2510-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOOR-WINDOW-TERM-2510, change note docs/changes/DOOR-WINDOW-TERM-2510.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/DOOR-WINDOW-TERM-2510 head e813e20af merged 7f0f6e743 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/DOOR-WINDOW-TERM-2510.md). Stays REVIEW, not DONE: AT-DOOR-WINDOW-TERM-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "e813e20af",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-FAMILY3-2510",
+    "title": "ADR-019 Step 1 family 3: NVR, recorders, connection, camera, device layouts and wall",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 decision D1 for family 3 (NVR, recorders, connection, camera, device layouts and wall): canonical field-error details; statuses, codes and user messages unchanged; pixel-neutral."
+    ],
+    "requirement_ids": [
+      "R-ADR019-FAMILY3-2510-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-FAMILY3-2510-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-FAMILY3-2510, change note docs/changes/ADR019-FAMILY3-2510.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/ADR019-FAMILY3-2510 head b9bd801f8 merged d422993d0 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/ADR019-FAMILY3-2510.md). Its own backend shards never ran on the row (the train's full backend covered it, RELEASE-2510-TRAIN.md section 1 row 6). Stays REVIEW, not DONE: AT-ADR019-FAMILY3-2510-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "b9bd801f8",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RESPONSE-MODELS-E-2500",
+    "title": "Response-model ratchet, ExactModel and response models for the next routers (RESPONSE-MODELS-E-2480 on v2.48.0)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The response-model ratchet and ExactModel, with response models for the next routers; the real wire gaps found under SW_WIRE_STRICT fixed; full backend run clean before boarding."
+    ],
+    "requirement_ids": [
+      "R-RESPONSE-MODELS-E-2500-1"
+    ],
+    "test_ids": [
+      "AT-RESPONSE-MODELS-E-2500-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/RESPONSE-MODELS-E-2500, change note docs/changes/RESPONSE-MODELS-E-2500.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. Shipped in v2.51.0 (main = tag = 3d71fb183, released 25.11; gate run 2 --after PASS at d886d7929; lab install + read-only probe PASS, private-evidence/lab-1611/lab_check_2510_HE.md); pilot/RESPONSE-MODELS-E-2500 head 69a33ab0d merged 874f7f0d2 (docs/changes/RELEASE-2510-TRAIN.md section 1, change note docs/changes/RESPONSE-MODELS-E-2500.md). Carries pilot/RESPONSE-MODELS-E-2480 (6bf65de99, left off the 2.48.0 and 2.49.0 trains, then 2.50.0) merged onto v2.48.0 at 841cda787. Stays REVIEW, not DONE: AT-RESPONSE-MODELS-E-2500-1 NOT_RUN as a per-card record (the release gate run is not mapped to the card's acceptance test); flips at an acceptance sweep."
+    ],
+    "owner": null,
+    "commit": "69a33ab0d",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2510-TRAIN",
+    "title": "RELEASE-2510-TRAIN - the 2.51.0 train (the second-factor release)",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.51.0 train on release/2510-train (docs/changes/RELEASE-2510-TRAIN.md section 1) passes the release gate, is tagged v2.51.0 after the owner's approval, published and installed in the lab with a passing read-only probe."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2510-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2510-TRAIN-1"
+    ],
+    "status": "DONE",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate with targeted re-runs, tag, #addon refresh and lab install"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Released 25.11 ~09:55 IL after the owner's approval ('כן, לפרסם'): section 6 commit 3d71fb183 = main = tag v2.51.0; #addon ba8b14de1. Gate run 1 FULL at df3ee6d12 FAIL (only unit-mfa-passkeys-2490.spec.ts:182, test setup: WebAuthn on a plain-http origin; test-only fix 319f81676), run 2 --after PASS at d886d7929 (18 min, 0 failures, 0 flaky). Rows: MFA-TRAIN-2500 (slices 1-9 + MFA-SECFIX-2500), MFA-RESET-HARDENING-2510, MFA-SCREENS-2510, DOOR-BLOCKS-I18N-2510, DOOR-WINDOW-TERM-2510, ADR019-FAMILY3-2510, RESPONSE-MODELS-E-2500. Not boarded: DESIGN-LITERALS-2510 (to 2.52). Lab install (migrations 0219-0224) + read-only probe PASS (private-evidence/lab-1611/lab_check_2510_HE.md; no HA restart). The commit field names the gated head d886d7929."
+    ],
+    "owner": null,
+    "commit": "d886d7929",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-RESYNC-2520",
+    "title": "WisKey resync reply (24.11): Arx adoption plan and slice 1 (system/status_v1, jobs/status_v1)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The WisKey 24.11 resync reply is turned into an adoption plan (rows R1-R8) and slice 1 consumes system/status_v1 and jobs/status_v1; relay_inventory and station_sync_v1 channels in use, none reserved."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-RESYNC-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-RESYNC-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-RESYNC-2520, change note docs/changes/WISKEY-RESYNC-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-RESYNC-2520 head 6a66cca80 merged 7ba2c445a into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-RESYNC-2520.md on the branch. Row R1; owner answers 25.11 Q1-Q5 apply. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "6a66cca80",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R2-2520",
+    "title": "WisKey system status page UI ('מערכת האינטרקום'), row R2",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The access-control settings get the intercom-system status segment fed by slice 1; phone layout labelled; Linux pixel baselines refreshed on the runner."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R2-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R2-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R2-2520, change note docs/changes/WISKEY-R2-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R2-2520 head a297010d7 merged f94bbdeea into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-R2-2520.md on the branch. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "a297010d7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R3-2520",
+    "title": "stations/relay_inventory_v1 as a read-only consumer (row R3, WISKEY-RELAY-INV-2520)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx reads WisKey stations/relay_inventory_v1 read-only next to the relay map; no write path."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R3-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R3-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R3-2520, change note docs/changes/WISKEY-R3-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R3-2520 head daea1bc4b merged 0e04d43eb into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-RELAY-INV-2520.md on the branch. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "daea1bc4b",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R4-2520",
+    "title": "sync/station_v1 with a request id (row R4, master id B7)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx sends sync/station_v1 with a request id and holds the result on UNKNOWN until a status read settles it (owner 25.11 Q4)."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R4-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R4-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R4-2520, change note docs/changes/WISKEY-R4-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R4-2520 head 36a04800f merged 564e98d71 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-R4-2520.md on the branch. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "36a04800f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R5-2520",
+    "title": "Listen gate on the last negotiated signed discovery (row R5, WisKey C4)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A listen session is offered and opened only when the last negotiated signed discovery offers listening; otherwise it is refused before talk_open with an honest reason."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R5-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R5-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R5-2520, change note docs/changes/WISKEY-R5-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R5-2520 head 49f7d3020 merged 7a3a3154f into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-R5-2520.md on the branch. Joined after the version bump (train row 9). Open: the new listen reasons are Hebrew only (train note section 1). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "49f7d3020",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R6-2520",
+    "title": "B8 visits/record_external_v1 on WisKey rc.19 external-visits-v1 (row R6)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx's external-visit consumer follows WisKey rc.19's external-visits-v1 contract, the ended visit status labelled end to end."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R6-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R6-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R6-2520, change note docs/changes/WISKEY-R6-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R6-2520 head 1dc994650 merged 94def9d34 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-R6-2520.md on the branch. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "1dc994650",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R7-2520",
+    "title": "Direct transport v2 with kid and direct/pairing_status_v2 (row R7, WISKEY-DIRECT-V2-2520)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Direct transport v2 with key id and pairing_status_v2 (owner 25.11 Q3: one current pairing); generated wire types match."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R7-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R7-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R7-2520, change note docs/changes/WISKEY-R7-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R7-2520 head d4e7d1d3c merged 4b4d83847 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-DIRECT-V2-2520.md on the branch. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "d4e7d1d3c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-BRIDGE-KEYSET-2520",
+    "title": "Bridge 0.10.9: smplwise_bridge.native_keyset, the key-set binding WisKey direct v2 needs",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge 0.10.9 adds native_keyset (and refuses the old pairing at once on a re-pair); both bridge copies and the version pins agree; install only after the owner approves one HA Core restart (owner 25.11 Q7, Q8)."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-BRIDGE-KEYSET-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-BRIDGE-KEYSET-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-BRIDGE-KEYSET-2520, change note docs/changes/WISKEY-BRIDGE-KEYSET-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-BRIDGE-KEYSET-2520 head 4dee910e2 merged bfe445ee6 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/WISKEY-BRIDGE-KEYSET-2520.md on the branch. First head 8e412b0c0 merged 4b2bf1ea4 (train row 7); the re-pair fix WISKEY-BRIDGE-REPAIR-2520 (82a335a93, note 4dee910e2) merged bfe445ee6. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "4dee910e2",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DESIGN-LITERALS-2510",
+    "title": "Tokenise the 2.50 train's design literals; the wizard 'same for all' is a switch",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.50 train's colour / px literals become tokens and the design ratchet is lowered (color-literal 1984, px-literal 25509, hand-switch 160 after the merge); before / after captures recorded."
+    ],
+    "requirement_ids": [
+      "R-DESIGN-LITERALS-2510-1"
+    ],
+    "test_ids": [
+      "AT-DESIGN-LITERALS-2510-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DESIGN-LITERALS-2510, change note docs/changes/DESIGN-LITERALS-2510.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/DESIGN-LITERALS-2510 head 344e3163a merged 10ee1aa8f into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/DESIGN-LITERALS-2510.md on the branch. Left off the 2.51.0 train (no change note then); boarded 2.52 per the owner's 2.51 answer (RELEASE-2510-TRAIN.md section 5 item 4). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "344e3163a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-REVIEW-DOCS-2520",
+    "title": "Security review and documentation of the second factor shipped in 2.49-2.51 (slice 12)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep security review of the second-factor gates, enrolment and recovery shipped in 2.49-2.51, the small fixes it finds with tests, and the owner guide in Hebrew and English (slice 12 of MFA-STEPUP-TRAIN-2490)."
+    ],
+    "requirement_ids": [
+      "R-MFA-REVIEW-DOCS-2520-1"
+    ],
+    "test_ids": [
+      "AT-MFA-REVIEW-DOCS-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-REVIEW-DOCS-2520, change note docs/changes/MFA-REVIEW-DOCS-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MFA-REVIEW-DOCS-2520 head 284ac25ea merged 0154ba924 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/MFA-REVIEW-DOCS-2520.md on the branch. Joined after the version bump (train row 10); review report docs/security/MFA-REVIEW-2520.md. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "284ac25ea",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-HA-PASSKEY-2520",
+    "title": "Passkey sign-in for users who come in through the home-system identity",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A passkey can be the remote sign-in second step of home-system users, behind security.passkey_remote_factor (default off); pixel baseline of the policy tab refreshed."
+    ],
+    "requirement_ids": [
+      "R-MFA-HA-PASSKEY-2520-1"
+    ],
+    "test_ids": [
+      "AT-MFA-HA-PASSKEY-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-HA-PASSKEY-2520, change note docs/changes/MFA-HA-PASSKEY-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MFA-HA-PASSKEY-2520 head 7a8cd98b2 merged b5604b743 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/MFA-HA-PASSKEY-2520.md on the branch. Joined after the version bump (train row 11). Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "7a8cd98b2",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "I18N-REST-2520",
+    "title": "The remaining translations: frontend literals, server refusal texts, notification titles",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The remaining Hebrew-only frontend literals, server refusal texts and notification titles are in the reader's language; EN ratchet hard-coded count down to 0 on the train."
+    ],
+    "requirement_ids": [
+      "R-I18N-REST-2520-1"
+    ],
+    "test_ids": [
+      "AT-I18N-REST-2520-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/I18N-REST-2520, change note docs/changes/I18N-REST-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/I18N-REST-2520 head f493b96a9 merged 0f690fec1 into release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train); change note docs/changes/I18N-REST-2520.md on the branch. Train fix f3dfcd158 (WisKey demo data marked i18n-keep; EN ratchet hard-coded 34 -> 0). Local spin-off branches pilot/I18N-RUNTIME-ERRORS-2520 and pilot/NOTIFY-RECIPIENT-LANG-2520 (at f493b96a9, not pushed, uncommitted work) are not registered. Merged into the 2.52.0 train, NOT released (no gate yet; 2.52 publish and the bridge 0.10.9 HA restart are not approved). Target 2.52.0. REVIEW until the release; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "f493b96a9",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-R8-2520",
+    "title": "Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx reads the manual service grant v3, uses its write contract, and the people-write path is chosen explicitly; the inactive-card label explains removal after sync and readback."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-R8-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-R8-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-R8-2520, change note docs/changes/WISKEY-R8-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-R8-2520 head 70a61e61d (8 commit(s) ahead of origin/main 3d71fb183). Cut on R7; change note docs/changes/WISKEY-R8-2520.md. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-SCHED-READS-2520",
+    "title": "WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx starts and follows WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1) with a start / status cycle; schedule execution stays for 2.53 (owner 25.11 Q2)."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-SCHED-READS-2520-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-SCHED-READS-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-SCHED-READS-2520, change note docs/changes/WISKEY-SCHED-READS-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/WISKEY-SCHED-READS-2520 head bc4c5a942 (43 commit(s) ahead of origin/main 3d71fb183). Cut on the 2.52 train (b5604b743); its own commits are 56d0d3290 and bc4c5a942; change note draft docs/changes/WISKEY-SCHED-READS-2520.md. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-FAMILY45-2520",
+    "title": "ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey)",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 decision D1 for families 4 and 5: canonical field-error details; statuses, codes and user messages unchanged; pixel-neutral."
+    ],
+    "requirement_ids": [
+      "R-ADR019-FAMILY45-2520-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-FAMILY45-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-FAMILY45-2520, change note docs/changes/ADR019-FAMILY45-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/ADR019-FAMILY45-2520 head f1d76d66b (2 commit(s) ahead of origin/main 3d71fb183). No change note on the branch yet. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ADR019-FAMILY678-2520",
+    "title": "ADR-019 Step 1 families 6, 7 and 8",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "ADR-019 decision D1 for families 6, 7 and 8: canonical field-error details (media not_groupable names the body field, lead Q1 = a); statuses, codes and user messages unchanged; pixel-neutral."
+    ],
+    "requirement_ids": [
+      "R-ADR019-FAMILY678-2520-1"
+    ],
+    "test_ids": [
+      "AT-ADR019-FAMILY678-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ADR019-FAMILY678-2520, change note docs/changes/ADR019-FAMILY678-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/ADR019-FAMILY678-2520 head e6ef0cc46 (5 commit(s) ahead of origin/main 3d71fb183). Change note docs/changes/ADR019-FAMILY678-2520.md; runner run queued per the note. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FLAKY-FIX-2520",
+    "title": "Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Dialog texts never fade below the contrast floor during the enter animation and a refused revoke keeps its reason, so the flaky axe / text checks stop failing."
+    ],
+    "requirement_ids": [
+      "R-FLAKY-FIX-2520-1"
+    ],
+    "test_ids": [
+      "AT-FLAKY-FIX-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FLAKY-FIX-2520, change note docs/changes/FLAKY-FIX-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/FLAKY-FIX-2520 head 43828d697 (2 commit(s) ahead of origin/main 3d71fb183). No change note on the branch yet. Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MFA-FACTOR-HARDEN-2520",
+    "title": "Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every factor added from outside needs a fresh sign-in (5 minutes) even with step-up off; an administrator's reset from outside needs a fresh sign-in; the user gets a content-free notice on factor removal, new recovery codes and a recovery-code sign-in (owner answers 25.11, all a)."
+    ],
+    "requirement_ids": [
+      "R-MFA-FACTOR-HARDEN-2520-1"
+    ],
+    "test_ids": [
+      "AT-MFA-FACTOR-HARDEN-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MFA-FACTOR-HARDEN-2520, change note docs/changes/MFA-FACTOR-HARDEN-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MFA-FACTOR-HARDEN-2520 head d4986953a (7 commit(s) ahead of origin/main 3d71fb183). Cut on pilot/MFA-REVIEW-DOCS-2520 (284ac25ea). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "MULTI-BUILDING-FILTER-2520",
+    "title": "Multi-building filter follow-up: the filter setting names the home interface lists; phone building control row",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The building filter setting row names the home interface lists too, and on a phone the building control takes its own row under the tabs; before / after evidence captured."
+    ],
+    "requirement_ids": [
+      "R-MULTI-BUILDING-FILTER-2520-1"
+    ],
+    "test_ids": [
+      "AT-MULTI-BUILDING-FILTER-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/MULTI-BUILDING-FILTER-2520, change note docs/changes/MULTI-BUILDING-FILTER-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/MULTI-BUILDING-FILTER-2520 head 44483b0c7 (4 commit(s) ahead of origin/main 3d71fb183). Follow-up of MULTI-BUILDING-NEXT-2490 (released v2.50.0). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GEN-UNITS-FIELD-2520",
+    "title": "Generator routing: minute fields carry their unit inside the frame",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The generator routing minute fields show their unit inside the field frame like the settings of GEN-UNITS-FIELD-2490; texts in all 4 languages; evidence spec evidence-gen-units-routing-2520."
+    ],
+    "requirement_ids": [
+      "R-GEN-UNITS-FIELD-2520-1"
+    ],
+    "test_ids": [
+      "AT-GEN-UNITS-FIELD-2520-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GEN-UNITS-FIELD-2520, change note docs/changes/GEN-UNITS-FIELD-2520.md, tests"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Registered from git. pilot/GEN-UNITS-FIELD-2520 head ae7a252d3 (1 commit(s) ahead of origin/main 3d71fb183). Follow-up of GEN-UNITS-FIELD-2490 (released v2.49.0). Branch pushed, not merged into release/2520-train or main at this sync. Target 2.52.0. Nothing released; acceptance test NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2520-TRAIN",
+    "title": "RELEASE-2520-TRAIN - the 2.52.0 train",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.52.0 train on release/2520-train passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval (publish and the bridge 0.10.9 HA Core restart are not pre-approved)."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2520-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2520-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
+    ],
+    "evidence": [
+      "2026-11-25 (MGMT-SYNC-2520): Assembling on release/2520-train (cut from main = v2.51.0 3d71fb183; head bfe445ee6 at this sync; docs/changes/RELEASE-2520-TRAIN.md on the train). Merged so far: WISKEY-RESYNC-2520, WISKEY-R2/R3/R4/R6/R7-2520, WISKEY-BRIDGE-KEYSET-2520 (+ re-pair fix), DESIGN-LITERALS-2510, version bump a9dd8243c (2.52.0, draft changelog, API inventory), WISKEY-R5-2520, MFA-REVIEW-DOCS-2520, MFA-HA-PASSKEY-2520, I18N-REST-2520. Not yet merged: WISKEY-R8-2520, WISKEY-SCHED-READS-2520, ADR019-FAMILY45-2520, ADR019-FAMILY678-2520, FLAKY-FIX-2520, MFA-FACTOR-HARDEN-2520, MULTI-BUILDING-FILTER-2520, GEN-UNITS-FIELD-2520. Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,

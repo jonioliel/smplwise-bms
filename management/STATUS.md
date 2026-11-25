@@ -1,25 +1,25 @@
 # Project status — generated view
 
-Generated: 2026-11-25T10:31:20.199746+00:00
+Generated: 2026-11-25T10:38:53.704712+00:00
 
-Tasks: 651 | Requirements: 765 | Tests: 782 | Screens: 32
+Tasks: 688 | Requirements: 802 | Tests: 819 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 16
+- BACKLOG: 12
 - BLOCKED: 27
-- DONE: 482
-- IN_PROGRESS: 14
-- REVIEW: 112
+- DONE: 485
+- IN_PROGRESS: 12
+- REVIEW: 152
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 556
+- V1: 593
 - V2: 29
 - V3: 3
 
@@ -515,7 +515,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [EVIDENCE-CAMERAS-2412](tasks/EVIDENCE-CAMERAS-2412.md) | V1 | REVIEW | Evidence screenshots for the 2.41.x camera screens (with and without a recorder) | — |
 | [LAB-CHECKS-2412](tasks/LAB-CHECKS-2412.md) | V1 | BLOCKED | Owner manual lab checks for the 2.41.0 / 2.41.1 cameras | — |
 | [PRIVATE-REPO-2412](tasks/PRIVATE-REPO-2412.md) | V1 | BLOCKED | Move development to a private repository (public add-on repository kept) | — |
-| [ONVIF-DISCOVERY-2412](tasks/ONVIF-DISCOVERY-2412.md) | V1 | BACKLOG | ONVIF discovery of cameras without a recorder (later) | — |
+| [ONVIF-DISCOVERY-2412](tasks/ONVIF-DISCOVERY-2412.md) | V1 | REVIEW | ONVIF discovery of cameras without a recorder (later) | — |
 | [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | DONE | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
 | [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
 | [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | DONE | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
@@ -677,15 +677,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [CR-SHELL-EXTRACT-B-2450](tasks/CR-SHELL-EXTRACT-B-2450.md) | V1 | DONE | Shell extraction part B: further controllers out of the shell (sw-app.ts), after CR-SHELL-EXTRACT-2440 | — |
 | [CR-CMP2-SELECTS-2450](tasks/CR-CMP2-SELECTS-2450.md) | V1 | REVIEW | CMP-2 step 2, the selects family (O13 a: family by family, new baselines) | — |
 | [CR-BE-COMPLEXITY-2450](tasks/CR-BE-COMPLEXITY-2450.md) | V1 | DONE | Backend complexity extractions (code-review programme 3.6) | — |
-| [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | IN_PROGRESS | T068 edge cases of the soak and load work: disconnects and a full disk | — |
-| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | IN_PROGRESS | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
+| [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | REVIEW | T068 edge cases of the soak and load work: disconnects and a full disk | — |
+| [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | REVIEW | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
 | [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | DONE | Shared checkbox component for the checkboxes that remain checkboxes | — |
-| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | IN_PROGRESS | Generator settings: units move from the field label into the field frame | — |
-| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | IN_PROGRESS | Tickets table paging; case details stay a scrolling document | — |
+| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | REVIEW | Generator settings: units move from the field label into the field frame | — |
+| [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | REVIEW | Tickets table paging; case details stay a scrolling document | — |
 | [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | REVIEW | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
 | [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | REVIEW | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
-| [HAND-SWITCH-HOME-PERSONAL-2490](tasks/HAND-SWITCH-HOME-PERSONAL-2490.md) | V1 | BACKLOG | Switches in the home "personal" card, after the home panel edit | — |
-| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | IN_PROGRESS | The phone test run skips desktop-size screenshots, file by file | — |
+| [HAND-SWITCH-HOME-PERSONAL-2490](tasks/HAND-SWITCH-HOME-PERSONAL-2490.md) | V1 | REVIEW | Switches in the home "personal" card, after the home panel edit | — |
+| [PHONE-SKIP-DESKTOP-SHOTS-2490](tasks/PHONE-SKIP-DESKTOP-SHOTS-2490.md) | V1 | REVIEW | The phone test run skips desktop-size screenshots, file by file | — |
 | [SOAK-14H-2490](tasks/SOAK-14H-2490.md) | V1 | BACKLOG | 14 hour soak on the test server after the 2.49.0 release checks | — |
 | [LAB-V0-ROLE-2490](tasks/LAB-V0-ROLE-2490.md) | V1 | BLOCKED | Lab test account gets the lab system-admin role (owner action) | — |
 | [LAB-V2-DRILLS-2490](tasks/LAB-V2-DRILLS-2490.md) | V1 | REVIEW | Disconnect drills a, b and c (V2) closed | — |
@@ -694,15 +694,52 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [LAB-V5-WISKEY-WRITE-2490](tasks/LAB-V5-WISKEY-WRITE-2490.md) | V1 | BACKLOG | Real WisKey write through the system, including a disabled test card (V5) | — |
 | [LAB-V6-LOG-EXPORT-2490](tasks/LAB-V6-LOG-EXPORT-2490.md) | V1 | BACKLOG | Real log export and redaction check (V6) | — |
 | [LAB-V7-ENGLISH-WALK-2490](tasks/LAB-V7-ENGLISH-WALK-2490.md) | V1 | BACKLOG | English UI walk in the lab (V7) | — |
-| [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | IN_PROGRESS | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
-| [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | BACKLOG | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
-| [HOME-INTERFACE-NEXT-2490](tasks/HOME-INTERFACE-NEXT-2490.md) | V1 | BACKLOG | Home interface next phase: rest screen, night mode, takeover, scenes, favourites | — |
+| [MFA-STEPUP-TRAIN-2490](tasks/MFA-STEPUP-TRAIN-2490.md) | V3 | REVIEW | Two-factor authentication train: step-up before sensitive actions, recovery codes, passkeys, attestation | — |
+| [MULTI-BUILDING-NEXT-2490](tasks/MULTI-BUILDING-NEXT-2490.md) | V1 | REVIEW | Multi-building next phase (safety first, then the home interface, then filtering and lobby) | MULTIBUILDING-HOME-2330 |
+| [HOME-INTERFACE-NEXT-2490](tasks/HOME-INTERFACE-NEXT-2490.md) | V1 | REVIEW | Home interface next phase: rest screen, night mode, takeover, scenes, favourites | — |
 | [NATIVE-SELECT-B-2480](tasks/NATIVE-SELECT-B-2480.md) | V1 | BLOCKED | Remaining 241 selects moved to the shared field in design-stripping mode (dropped) | — |
 | [COLOR-LITERAL-A-2480](tasks/COLOR-LITERAL-A-2480.md) | V1 | REVIEW | Colour-literal ratchet A: device palettes file out of the count; shared video text-shadow colour variable now | — |
 | [COLOR-LITERAL-B-2480](tasks/COLOR-LITERAL-B-2480.md) | V1 | REVIEW | Colour-literal ratchet B: skip the module palette tables (about 830 colours) | — |
-| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | IN_PROGRESS | English: default names saved on the server (such as "(copy)") are translated at creation | — |
-| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | IN_PROGRESS | English: add English search keywords to the settings search | — |
+| [I18N-DEFAULT-NAMES-2490](tasks/I18N-DEFAULT-NAMES-2490.md) | V1 | REVIEW | English: default names saved on the server (such as "(copy)") are translated at creation | — |
+| [I18N-SETTINGS-KEYWORDS-2490](tasks/I18N-SETTINGS-KEYWORDS-2490.md) | V1 | REVIEW | English: add English search keywords to the settings search | — |
 | [RELEASE-2480-TRAIN](tasks/RELEASE-2480-TRAIN.md) | V1 | DONE | RELEASE-2480-TRAIN - the 2.48.0 train and its release | — |
-| [RELEASE-2490-TRAIN](tasks/RELEASE-2490-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2490-TRAIN - the 2.49.0 train | — |
-| [ADR019-STEP0-2500](tasks/ADR019-STEP0-2500.md) | V1 | IN_PROGRESS | ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields) | — |
-| [ADR019-L14-OBSERVE-2500](tasks/ADR019-L14-OBSERVE-2500.md) | V1 | IN_PROGRESS | ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings | — |
+| [RELEASE-2490-TRAIN](tasks/RELEASE-2490-TRAIN.md) | V1 | DONE | RELEASE-2490-TRAIN - the 2.49.0 train | — |
+| [ADR019-STEP0-2500](tasks/ADR019-STEP0-2500.md) | V1 | REVIEW | ADR-019 Step 0: error envelope contract and reader (wire/errors.py, field_error(), fieldsOf/problemsOf, additive RequestValidationError fields) | — |
+| [ADR019-L14-OBSERVE-2500](tasks/ADR019-L14-OBSERVE-2500.md) | V1 | REVIEW | ADR-019 L14 step 1: observing base model and SW_REQUEST_STRICT=1 in the backend test settings | — |
+| [I18N-EN-2490](tasks/I18N-EN-2490.md) | V1 | REVIEW | English completeness report and the first module pass (owner O5) | — |
+| [I18N-BACKEND-2490](tasks/I18N-BACKEND-2490.md) | V1 | REVIEW | Server texts in the user's interface language (setup wizard, readiness, error envelope) | — |
+| [NOTICE-WIRE-DRIFT-2490](tasks/NOTICE-WIRE-DRIFT-2490.md) | V1 | REVIEW | Notice board union answers no longer log a false contract drift | — |
+| [REVIEW-2490-FIXES-2500](tasks/REVIEW-2490-FIXES-2500.md) | V1 | REVIEW | The three findings of the 2.49.0 review, fixed for 2.50 | — |
+| [ADR019-FAMILY2-2500](tasks/ADR019-FAMILY2-2500.md) | V1 | REVIEW | ADR-019 Step 1 family 2: presence and mobile field-error envelope | — |
+| [DOCS-GUIDE-REFRESH-2500](tasks/DOCS-GUIDE-REFRESH-2500.md) | V1 | REVIEW | User documentation brought up to 2.40.0 .. 2.48.0 and the 2.49.0 train | — |
+| [DOOR-PREVIEW-I18N-2500](tasks/DOOR-PREVIEW-I18N-2500.md) | V1 | REVIEW | The door hand-over preview in the reader's language | — |
+| [HAND-SWITCH-HOME-EDIT-2500](tasks/HAND-SWITCH-HOME-EDIT-2500.md) | V1 | REVIEW | The home editor's widget on / off choices are the compact switch | — |
+| [NOTICE-NEWS-EMPTY-2500](tasks/NOTICE-NEWS-EMPTY-2500.md) | V1 | REVIEW | No silent empty news on a notice board | — |
+| [NOTICE-NEWS-FEEDS-2500](tasks/NOTICE-NEWS-FEEDS-2500.md) | V1 | REVIEW | Notice board news feeds: compressed bodies, the Calcalist address, source health | — |
+| [RELEASE-2500-TRAIN](tasks/RELEASE-2500-TRAIN.md) | V1 | DONE | RELEASE-2500-TRAIN - the 2.50.0 train and its release | — |
+| [DOOR-BLOCKS-I18N-2510](tasks/DOOR-BLOCKS-I18N-2510.md) | V1 | REVIEW | The door blocks screen and the run guard in the reader's language | — |
+| [DOOR-WINDOW-TERM-2510](tasks/DOOR-WINDOW-TERM-2510.md) | V1 | REVIEW | 'Door window' in the role, permission and notification English | — |
+| [ADR019-FAMILY3-2510](tasks/ADR019-FAMILY3-2510.md) | V1 | REVIEW | ADR-019 Step 1 family 3: NVR, recorders, connection, camera, device layouts and wall | — |
+| [RESPONSE-MODELS-E-2500](tasks/RESPONSE-MODELS-E-2500.md) | V1 | REVIEW | Response-model ratchet, ExactModel and response models for the next routers (RESPONSE-MODELS-E-2480 on v2.48.0) | — |
+| [RELEASE-2510-TRAIN](tasks/RELEASE-2510-TRAIN.md) | V1 | DONE | RELEASE-2510-TRAIN - the 2.51.0 train (the second-factor release) | — |
+| [WISKEY-RESYNC-2520](tasks/WISKEY-RESYNC-2520.md) | V1 | REVIEW | WisKey resync reply (24.11): Arx adoption plan and slice 1 (system/status_v1, jobs/status_v1) | — |
+| [WISKEY-R2-2520](tasks/WISKEY-R2-2520.md) | V1 | REVIEW | WisKey system status page UI ('מערכת האינטרקום'), row R2 | — |
+| [WISKEY-R3-2520](tasks/WISKEY-R3-2520.md) | V1 | REVIEW | stations/relay_inventory_v1 as a read-only consumer (row R3, WISKEY-RELAY-INV-2520) | — |
+| [WISKEY-R4-2520](tasks/WISKEY-R4-2520.md) | V1 | REVIEW | sync/station_v1 with a request id (row R4, master id B7) | — |
+| [WISKEY-R5-2520](tasks/WISKEY-R5-2520.md) | V1 | REVIEW | Listen gate on the last negotiated signed discovery (row R5, WisKey C4) | — |
+| [WISKEY-R6-2520](tasks/WISKEY-R6-2520.md) | V1 | REVIEW | B8 visits/record_external_v1 on WisKey rc.19 external-visits-v1 (row R6) | — |
+| [WISKEY-R7-2520](tasks/WISKEY-R7-2520.md) | V1 | REVIEW | Direct transport v2 with kid and direct/pairing_status_v2 (row R7, WISKEY-DIRECT-V2-2520) | — |
+| [WISKEY-BRIDGE-KEYSET-2520](tasks/WISKEY-BRIDGE-KEYSET-2520.md) | V1 | REVIEW | Bridge 0.10.9: smplwise_bridge.native_keyset, the key-set binding WisKey direct v2 needs | — |
+| [DESIGN-LITERALS-2510](tasks/DESIGN-LITERALS-2510.md) | V1 | REVIEW | Tokenise the 2.50 train's design literals; the wizard 'same for all' is a switch | — |
+| [MFA-REVIEW-DOCS-2520](tasks/MFA-REVIEW-DOCS-2520.md) | V1 | REVIEW | Security review and documentation of the second factor shipped in 2.49-2.51 (slice 12) | — |
+| [MFA-HA-PASSKEY-2520](tasks/MFA-HA-PASSKEY-2520.md) | V1 | REVIEW | Passkey sign-in for users who come in through the home-system identity | — |
+| [I18N-REST-2520](tasks/I18N-REST-2520.md) | V1 | REVIEW | The remaining translations: frontend literals, server refusal texts, notification titles | — |
+| [WISKEY-R8-2520](tasks/WISKEY-R8-2520.md) | V1 | IN_PROGRESS | Manual service grant v3: the READ, the v3 write contract, explicit path selection (row R8) | — |
+| [WISKEY-SCHED-READS-2520](tasks/WISKEY-SCHED-READS-2520.md) | V1 | IN_PROGRESS | WisKey's signed schedule inspection jobs (wiskey-schedule-reads.v1), adopted explicitly | — |
+| [ADR019-FAMILY45-2520](tasks/ADR019-FAMILY45-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 4 and 5: canonical field keys (tickets, messaging, notifications, access control / WisKey) | — |
+| [ADR019-FAMILY678-2520](tasks/ADR019-FAMILY678-2520.md) | V1 | IN_PROGRESS | ADR-019 Step 1 families 6, 7 and 8 | — |
+| [FLAKY-FIX-2520](tasks/FLAKY-FIX-2520.md) | V1 | IN_PROGRESS | Flaky fixes: dialog texts never fade below contrast; a refused revoke keeps its reason | — |
+| [MFA-FACTOR-HARDEN-2520](tasks/MFA-FACTOR-HARDEN-2520.md) | V1 | IN_PROGRESS | Second factor hardening after the 2.51 review (owner 25.11: N-1, N-5, N-6) | — |
+| [MULTI-BUILDING-FILTER-2520](tasks/MULTI-BUILDING-FILTER-2520.md) | V1 | IN_PROGRESS | Multi-building filter follow-up: the filter setting names the home interface lists; phone building control row | — |
+| [GEN-UNITS-FIELD-2520](tasks/GEN-UNITS-FIELD-2520.md) | V1 | IN_PROGRESS | Generator routing: minute fields carry their unit inside the frame | — |
+| [RELEASE-2520-TRAIN](tasks/RELEASE-2520-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2520-TRAIN - the 2.52.0 train | — |
