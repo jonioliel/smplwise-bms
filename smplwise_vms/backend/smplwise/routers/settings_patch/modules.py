@@ -100,7 +100,7 @@ def station_media_direct_v2(patch: Patch) -> None:
     a system administrator changes it; turning it on needs the bridge that serves v2 for WisKey (0.10.9+, as Arx last saw it). A repeated
     value is dropped from the change; every attempt that changes it is audited (allowed or denied); a refusal fails the whole request."""
     from ...error_text import tpl
-    from ...errors import ApiError
+    from ...errors import field_error
     from ...services import wiskey_media_v2 as media_v2
 
     changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
@@ -117,15 +117,17 @@ def station_media_direct_v2(patch: Patch) -> None:
     if not is_system_admin(conn, principal.user_id):
         audit(conn, actor=principal, action=key, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
               request_id=_rid(request), details=details)
-        raise ApiError(403, "forbidden", "רק מנהל מערכת משנה את ערוץ המדיה החתום של עמדות WisKey.",
-                       details={"field": key, "message_en": "Only a system administrator changes the signed media channel of the WisKey stations."})
+        raise field_error("רק מנהל מערכת משנה את ערוץ המדיה החתום של עמדות WisKey.", [key], code="forbidden", status=403,
+                          legacy={"field": key},
+                          extra={"message_en": "Only a system administrator changes the signed media channel of the WisKey stations."})
     if changes[key] == "on" and not media_v2.bridge_ok(conn):
         audit(conn, actor=principal, action=key, decision="denied", resource_type="installation", resource_id="*", reason="bridge_outdated",
               request_id=_rid(request), details=details)
-        raise ApiError(409, "bridge_outdated", tpl("מדיה בחיבור החתום החדש דורשת רכיב חיבור {required} ומעלה (כעת {version}).",
-                                                    required=media_v2.BRIDGE_REQUIRED, version=details["bridge_version"] or "?"),
-                       details={"field": key, "required": media_v2.BRIDGE_REQUIRED, "version": details["bridge_version"],
-                                "message_en": f"Media over the new signed connection needs the bridge {media_v2.BRIDGE_REQUIRED} or newer "
-                                              f"(now {details['bridge_version'] or '?'})."})
+        raise field_error(tpl("מדיה בחיבור החתום החדש דורשת רכיב חיבור {required} ומעלה (כעת {version}).",
+                              required=media_v2.BRIDGE_REQUIRED, version=details["bridge_version"] or "?"),
+                          [key], code="bridge_outdated", status=409, legacy={"field": key},
+                          extra={"required": media_v2.BRIDGE_REQUIRED, "version": details["bridge_version"],
+                                 "message_en": f"Media over the new signed connection needs the bridge {media_v2.BRIDGE_REQUIRED} or newer "
+                                               f"(now {details['bridge_version'] or '?'})."})
     audit(conn, actor=principal, action=key, decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details=details)
