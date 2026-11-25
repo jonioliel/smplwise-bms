@@ -84,16 +84,21 @@ def start(body: StartBody, request: Request, principal: Principal = Depends(curr
     if not pa.approvable(body.action):
         _audit(conn, request, principal, "refused", None, allowed=False, reason="step_up_method_refused", action=body.action)
         raise _refused(body.action)
+    refusal: ApiError | None = None
     if not pa.enabled(conn):
-        raise ApiError(409, "push_approval_unavailable", pa.OFF_HE, details={"reason": "off"})
-    if not dk.has_active(conn, principal.user_id):
-        raise ApiError(409, "push_approval_unavailable", pa.NO_PHONE_HE, details={"reason": "no_phone_key"})
-    reason = step_up.not_applicable(conn, request, principal, body.action)
-    if reason is not None:
-        raise ApiError(409, "step_up_not_applicable", step_up.NOT_APPLICABLE_HE, details={"reason": reason})
+        refusal = ApiError(409, "push_approval_unavailable", pa.OFF_HE, details={"reason": "off"})
+    elif not dk.has_active(conn, principal.user_id):
+        refusal = ApiError(409, "push_approval_unavailable", pa.NO_PHONE_HE, details={"reason": "no_phone_key"})
+    elif (reason := step_up.not_applicable(conn, request, principal, body.action)) is not None:
+        refusal = ApiError(409, "step_up_not_applicable", step_up.NOT_APPLICABLE_HE, details={"reason": reason})
     session = step_up.session_key(request, principal)
-    if session is None:
-        raise ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
+    if refusal is None and session is None:
+        refusal = ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
+    if refusal is not None or session is None:
+        refusal = refusal or ApiError(409, "step_up_no_session", step_up.NO_SESSION_HE)
+        why = refusal.details.get("reason") if isinstance(refusal.details, dict) else None
+        _audit(conn, request, principal, "refused", None, allowed=False, reason=f"{refusal.code}:{why}" if why else refusal.code, action=body.action)
+        raise refusal
     wait = pa.cooldown_left(principal.user_id)
     if wait > 0:
         _audit(conn, request, principal, "refused", None, allowed=False, reason="push_approval_cooldown", action=body.action)
