@@ -236,11 +236,16 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
             raise
     except sens.SensitiveError as exc:
         raise _sensitive_error(exc) from None
-    except ValueError as exc:
+    except (ValueError, sqlite3.IntegrityError) as exc:
+        # CORE-01: a refused restore may have written rows already - an ApiError commits, so roll them back first (nothing restored)
+        from ..db import rollback_and_restart
+
+        rollback_and_restart(conn)
         raise ApiError(409, "restore_refused", tpl("השחזור נדחה: {exc}", exc=exc))
     if safety:
         svc.prune(st)
     audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": scope, "tables": result["tables"], "files": result["files"],
+                   **({"dependents_dropped": result["dependents_dropped"]} if result.get("dependents_dropped") else {}),  # CORE-01
                    "safety": safety["name"] if safety else None,
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},

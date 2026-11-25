@@ -668,6 +668,68 @@ def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list
     return out
 
 
+# ---- CORE-01 (DEEP-REVIEW-2520-BACKEND-CORE): the foreign keys of the rows a `replace` restore does not own
+
+def _fk_edges(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
+    """Every foreign key of the schema as (child table, parent table, ON DELETE action), read from SQLite itself."""
+    out: list[tuple[str, str, str]] = []
+    for t in sorted(_tables(conn)):
+        if t.startswith("sqlite_"):
+            continue
+        for fk in conn.execute(f'PRAGMA foreign_key_list("{t}")').fetchall():
+            out.append((t, fk[2], str(fk[6] or "NO ACTION").upper()))
+    return out
+
+
+def restore_dependents(conn: sqlite3.Connection, tables: list[str]) -> list[str]:
+    """The tables OUTSIDE the restore's own list whose rows point - directly, or through another such table - at a table the
+    restore empties (today `maint_files` -> `maint_tasks`, `doc_extractions` -> `maint_files`). Derived from the schema, never a
+    hand-kept list: a new module's table that references a project table is covered the day its migration lands."""
+    scope = set(tables)
+    edges = _fk_edges(conn)
+    out: list[str] = []
+    reach = set(scope)
+    changed = True
+    while changed:
+        changed = False
+        for child, parent, _action in edges:
+            if parent in reach and child not in scope and child not in out:
+                out.append(child)
+                reach.add(child)
+                changed = True
+    return out
+
+
+def _fk_violations(conn: sqlite3.Connection, tables: list[str]) -> set[tuple[Any, ...]]:
+    out: set[tuple[Any, ...]] = set()
+    for t in tables:
+        out.update(tuple(r) for r in conn.execute(f'PRAGMA foreign_key_check("{t}")').fetchall())
+    return out
+
+
+def _settle_dependents(conn: sqlite3.Connection, check: list[str], dependents: set[str], baseline: set[tuple[Any, ...]]) -> dict[str, int]:
+    """After a `replace` restore wrote its rows (foreign keys deferred): a row of a table the restore does not own whose parent
+    did not come back is removed (a certificate file of a task the archive does not have - like the door history whose block is
+    gone); a dependent of such a row follows in the next round. A restored row of the archive itself that points at a missing
+    parent refuses the restore (ValueError, rolled back by the caller) - exactly what the immediate check did before. Violations
+    the database already had before the restore are not this restore's and are left alone. Returns {table: rows removed}."""
+    dropped: dict[str, int] = {}
+    for _ in range(len(dependents) + 2):
+        new = _fk_violations(conn, check) - baseline
+        if not new:
+            return dropped
+        own = sorted({(v[0], v[2]) for v in new if v[0] not in dependents})
+        if own:
+            raise ValueError(f"the archive's {own[0][0]} rows point at {own[0][1]} rows it does not have")
+        for table, rowid, _parent, _fkid in sorted(new, key=lambda v: (v[0], v[1] if v[1] is not None else -1)):
+            if rowid is None:
+                raise ValueError(f"rows of {table} would point at restored rows that are gone")
+            n = conn.execute(f'DELETE FROM "{table}" WHERE rowid = ?', (rowid,)).rowcount
+            if n:
+                dropped[table] = dropped.get(table, 0) + n
+    raise ValueError("the restore could not settle the rows that point at the restored tables")
+
+
 def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]], replace: bool) -> int:
     """Write the archive's rows of one table; returns how many rows were written (what the restore answer reports)."""
     cols_now = set(_columns(conn, table)) - NEVER_EXPORTED_COLUMNS.get(table, frozenset())
@@ -841,7 +903,17 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         kept_current = [t for t in tables if t in KEEP_WHEN_ABSENT and t not in data]
         door_history = _keep_door_history(conn) if mode == "replace" and "door_automations" in tables else None
         passkeys_now = _keep_passkeys(conn) if "users" in tables else None  # MFA-SECFIX-2500 SR-6
+        fk_check: list[str] = []
+        fk_dependents: set[str] = set()
+        fk_baseline: set[tuple[Any, ...]] = set()
         if mode == "replace":
+            # CORE-01: rows outside the archive's tables may point at a table emptied here (maint_files -> maint_tasks has no ON DELETE
+            # rule, so the DELETE was refused and the whole restore answered 500). The foreign keys are checked at the end of the
+            # restore instead of on every statement, and the rows that still point nowhere are settled (_settle_dependents).
+            fk_dependents = set(restore_dependents(conn, tables))
+            fk_check = [*tables, *sorted(fk_dependents)]
+            fk_baseline = _fk_violations(conn, fk_check)
+            conn.execute("PRAGMA defer_foreign_keys = ON")  # this transaction only: SQLite switches it off at COMMIT / ROLLBACK
             for t in reversed(tables):  # children before parents; a table missing from the archive is emptied too
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
@@ -878,6 +950,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             _put_back_passkeys(conn, passkeys_now)
             kept_current.append("auth_webauthn_credentials")  # the restore answer says the passkeys stayed as they are now
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
+        dependents_dropped = _settle_dependents(conn, fk_check, fk_dependents, fk_baseline) if mode == "replace" else {}
+        if dependents_dropped:
+            log.warning("restore removed %s row(s) that pointed at rows the archive does not have", sum(dependents_dropped.values()))
         backgrounds_rejected: list[dict[str, str]] = []  # SEC246 I2
         files = 0
         files_skipped = 0
@@ -961,7 +1036,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "door_automations": {"disarmed": door_blocks_disarmed, "dropped": door_blocks_dropped}, "energy": energy, "water": water, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at"),
             "update_apply_enabled": update_switch, "backgrounds_rejected": backgrounds_rejected, "capture_lease_settings": lease_settings,
-            "settings_invalid": settings_invalid[:100],
+            "settings_invalid": settings_invalid[:100], "dependents_dropped": dependents_dropped,
             "sensitive": {"state": sens_state, "restored": payload is not None or legacy_hashes > 0, "skipped": sens_skipped,
                           "plaintext_ignored": plaintext_ignored, "settings_kept_current": keep_sensitive},
             "passwords": passwords}

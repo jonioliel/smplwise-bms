@@ -284,6 +284,7 @@ class BackupRestoreBackup(ExactModel):
     update_apply_enabled: BackupRestoreBackupUpdateApplyEnabled
     backgrounds_rejected: list[Any]
     capture_lease_settings: BackupRestoreBackupCaptureLeaseSettings
+    dependents_dropped: dict[str, Num]  # CORE-01 (SEC-FIX-2520): rows outside the archive's tables whose parent did not come back
     settings_invalid: list[str]  # CORE-04 (SEC-FIX-2520): archive settings a settings write would refuse - skipped, current value kept
     sensitive: BackupRestoreBackupSensitive
     passwords: BackupRestoreBackupPasswords | None
