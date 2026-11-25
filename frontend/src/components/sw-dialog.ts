@@ -64,19 +64,25 @@ export class SwDialog extends LitElement {
       /* standalone: keep the box clear of the notch and the home indicator */
       padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
       /* POLISH-CLASSIC-DOMUS-297 (apple-design "dim to focus", emil-design-eng "nothing appears from nothing"): the scrim fades in and
-         the box lands from 96 % with opacity on the dialog spring. Centred (a modal is not anchored to a trigger). Reduced motion zeroes
-         the durations (css.ts); a browser without @starting-style simply shows the dialog, as before. */
-      opacity: 1;
-      transition: opacity var(--sw-t-slow) var(--sw-ease);
+         the box lands from 96 % on the dialog spring. Centred (a modal is not anchored to a trigger). Reduced motion zeroes the
+         durations (css.ts); a browser without @starting-style simply shows the dialog, as before.
+         FLAKY-FIX-2520: the scrim fades its COLOUR, not the layer's opacity. The box is a child of this layer, so an opacity fade here
+         faded every text of the dialog with it (on the phone too, where the sheet only rises) - for the length of the fade, on a busy
+         machine for half a second and more, the dialog's texts were below contrast (axe caught it in camera-discovery-2500). The box
+         itself never fades: its text is at full contrast from the first frame. The glass skins' blur of the page behind (crystal,
+         bubble: `:host(sw-dialog) .backdrop { backdrop-filter }`) eases in with the colour, as it did with the opacity; its start is
+         marked important because the skin's rule is more specific (it applies to the starting style only). */
+      transition:
+        background-color var(--sw-t-slow) var(--sw-ease),
+        backdrop-filter var(--sw-t-slow) var(--sw-ease),
+        -webkit-backdrop-filter var(--sw-t-slow) var(--sw-ease);
       overscroll-behavior: contain;
     }
     @starting-style {
       .backdrop {
-        opacity: 0;
-      }
-      .box {
-        opacity: 0;
-        transform: scale(0.96) translateY(6px);
+        background-color: transparent;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
       }
     }
     /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A a): ONE dialog for the whole system. An opaque surface with no blur - the
@@ -95,9 +101,15 @@ export class SwDialog extends LitElement {
       display: flex;
       flex-direction: column;
       max-block-size: calc(100dvh - 32px);
-      opacity: 1;
       transform: none;
-      transition: opacity var(--sw-t-sheet) var(--sw-ease), transform var(--sw-spring-dialog-ms) var(--sw-spring-dialog);
+      transition: transform var(--sw-spring-dialog-ms) var(--sw-spring-dialog);
+    }
+    /* FLAKY-FIX-2520: AFTER the .box rule - a starting style only wins over the rules before it (the same specificity), so the old
+       block above .box never applied and the box did not land at all. Transform only: no opacity on anything that holds text. */
+    @starting-style {
+      .box {
+        transform: scale(0.96) translateY(6px);
+      }
     }
     :host([wide]) .box {
       inline-size: min(720px, 100%);
@@ -212,12 +224,7 @@ export class SwDialog extends LitElement {
       footer {
         padding-block-end: max(16px, env(safe-area-inset-bottom, 0px));
       }
-      @starting-style {
-        .box {
-          opacity: 1;
-          transform: none;
-        }
-      }
+      /* the sheet has no transition (it rises by the mask), so the desktop starting transform never shows here */
     }
   `;
 

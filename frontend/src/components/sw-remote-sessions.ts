@@ -66,13 +66,16 @@ export class SwRemoteSessions extends LitElement {
   private async revoke(row: RemoteSession) {
     this.busy = true;
     this.message = '';
+    let failed = '';
     try {
       this.announce(await revokeRemoteSession(row.id), row.current ? tr('יצאת מהמכשיר הזה.') : tr('הכניסה נותקה.'), false);
     } catch (err) {
-      this.error = describeError(err);
+      failed = describeError(err);
+      this.error = failed;
     } finally {
       this.busy = false;
       await this.load();
+      if (failed && !this.error) this.error = failed; // FLAKY-FIX-2520: the reload must not wipe the refusal's reason
     }
   }
 
@@ -84,14 +87,17 @@ export class SwRemoteSessions extends LitElement {
     this.armed = false;
     this.busy = true;
     this.message = '';
+    let failed = '';
     try {
       const r = await revokeAllRemoteSessions();
       this.announce(r, tr('נותקו {n} כניסות.', { n: r.sessions_ended }), true);
     } catch (err) {
-      this.error = describeError(err);
+      failed = describeError(err);
+      this.error = failed;
     } finally {
       this.busy = false;
       await this.load();
+      if (failed && !this.error) this.error = failed; // FLAKY-FIX-2520: the reload must not wipe the refusal's reason
     }
   }
 

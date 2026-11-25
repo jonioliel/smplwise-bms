@@ -87,8 +87,13 @@ test('sw-dialog: the backdrop is a manual popover shown after the opener is kept
   const back = s.slice(s.indexOf('    .backdrop {'), s.indexOf('@starting-style'));
   for (const d of ['position: fixed;', 'inset: 0;', 'inline-size: auto;', 'block-size: auto;', 'max-inline-size: none;', 'max-block-size: none;', 'margin: 0;', 'border: 0;', 'overflow: visible;', 'color: inherit;', 'background: var(--sw-overlay);', 'z-index: var(--sw-z-modal);']) expect(back).toContain(d);
   // the open animation and reduced motion are untouched
-  expect(s).toMatch(/@starting-style \{\s*\.backdrop \{\s*opacity: 0;/);
+  // FLAKY-FIX-2520: the scrim fades its colour (not the layer's opacity, which faded the box's texts below contrast); the box lands
+  // by transform only, from a starting style placed AFTER the .box rule (before it, the later .box rule won and nothing moved)
+  expect(s).toMatch(/@starting-style \{\s*\.backdrop \{\s*background-color: transparent;/);
   expect(s).toContain('transform: scale(0.96) translateY(6px);');
+  expect(s.indexOf('transform: scale(0.96) translateY(6px);')).toBeGreaterThan(s.indexOf('    .box {'));
+  const css = s.slice(s.indexOf('static styles'), s.indexOf('private opener'));
+  expect(css).not.toMatch(/^\s*opacity:/m);
   // updated(): the opener is read BEFORE the backdrop enters the top layer (showing it may move focus), then the focus pick runs
   const upd = s.slice(s.indexOf('  updated(changed'), s.indexOf('  /** DIALOG-TOPLAYER-2381: the backdrop in / out'));
   expect(upd.indexOf('this.opener = a')).toBeGreaterThan(0);

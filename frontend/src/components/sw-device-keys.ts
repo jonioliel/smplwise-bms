@@ -55,15 +55,21 @@ export class SwDeviceKeys extends LitElement {
     this.busy = true;
     this.message = '';
     this.error = '';
+    let failed = '';
     try {
       await revokeDeviceKey(row.id);
       this.message = tr('מפתח הטלפון בוטל.');
       this.dispatchEvent(new CustomEvent('factors-changed', { bubbles: true, composed: true }));
     } catch (err) {
-      this.error = describeError(err);
+      failed = describeError(err);
+      this.error = failed;
     } finally {
       this.busy = false;
       await this.load();
+      // FLAKY-FIX-2520: the reload after the revoke clears its own load error (`load()` sets error = ''), which wiped the revoke's
+      // reason one round trip after it appeared ("a cancelled step-up keeps the key and says so" showed the line only for a moment).
+      // The revoke's reason stays until the next action (a failed reload shows its own reason instead).
+      if (failed && !this.error) this.error = failed;
     }
   }
 

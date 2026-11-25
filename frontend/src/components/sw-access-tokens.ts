@@ -51,14 +51,17 @@ export class SwAccessTokens extends LitElement {
     this.busy = true;
     this.message = '';
     this.error = '';
+    let failed = '';
     try {
       await revokeAccessToken(row.id);
       this.message = tr('הכניסה השמורה בוטלה.');
     } catch (err) {
-      this.error = describeError(err);
+      failed = describeError(err);
+      this.error = failed;
     } finally {
       this.busy = false;
       await this.load();
+      if (failed && !this.error) this.error = failed; // FLAKY-FIX-2520: the reload must not wipe the refusal's reason
     }
   }
 
@@ -71,14 +74,17 @@ export class SwAccessTokens extends LitElement {
     this.busy = true;
     this.message = '';
     this.error = '';
+    let failed = '';
     try {
       const r = await revokeAllAccessTokens();
       this.message = tr('בוטלו {n} כניסות שמורות.', { n: r.revoked });
     } catch (err) {
-      this.error = describeError(err);
+      failed = describeError(err);
+      this.error = failed;
     } finally {
       this.busy = false;
       await this.load();
+      if (failed && !this.error) this.error = failed; // FLAKY-FIX-2520: the reload must not wipe the refusal's reason
     }
   }
 
