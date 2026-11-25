@@ -297,7 +297,8 @@ def _app_revoke(request: Request, principal: Principal, admin: bool, pid: str) -
         app_session._end_where(conn, "sid_hash = ?", (row["sid_hash"],), reason)  # the family was already ended elsewhere: the row still goes
         app_refresh.release_pins(conn, [row["device_id"]], reason, actor=principal, request_id=rid)  # Q296: only the user's own end
         # XSECFIX-297 (review M2): ending the app's web session (own or by an administrator) ends that device's token and push too
-        presence.end_on_sign_out(conn, owner, reason, device_ids=[row["device_id"]], actor=principal, request_id=rid)
+        presence.end_on_sign_out(conn, owner, reason, device_ids=[row["device_id"]], actor=principal, request_id=rid,
+                                 sign_ins=("a:" + pid,))  # FE-SAFETY-FIX-2520: and the browser push subscriptions of that sign-in
         audit(conn, actor=principal, action="auth.app_session.revoked", decision="allowed", resource_type="user", resource_id=owner, reason=reason,
               request_id=rid, details={"session": pid, "family": row["family_id"], "families_ended": ended})
     ends_current = current == "a:" + pid

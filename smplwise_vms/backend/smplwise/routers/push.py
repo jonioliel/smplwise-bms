@@ -65,6 +65,17 @@ class PrefsIn(BaseModel):
     quiet: Quiet = Field(default_factory=Quiet)
 
 
+def _sign_in_of(request: Request) -> str | None:
+    """FE-SAFETY-FIX-2520 (review FC-02): the remote sign-in this request runs under (None inside Home Assistant), so the row ends with it."""
+    from ..services import ha_user_auth as hua
+
+    s = hua.session_of(request)
+    try:
+        return s.sign_in() if s is not None else None
+    except Exception:  # noqa: BLE001 - a session object without a sign-in: the row is kept without one (ended by "everywhere" only)
+        return None
+
+
 @router.get("/push/vapid-key")
 def vapid_key(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The installation's VAPID public key (applicationServerKey); the pair is created on the first call (a short side
@@ -101,7 +112,8 @@ def subscribe(body: SubscriptionIn, request: Request, principal: Principal = Dep
     ua = body.user_agent or request.headers.get("user-agent")
     svc.ensure_vapid(conn)  # a subscription is only useful with the key pair it was made for
     try:
-        row, previous, created = svc.upsert(conn, principal, body.endpoint, body.keys.p256dh, body.keys.auth, ua, body.old_endpoint)
+        row, previous, created = svc.upsert(conn, principal, body.endpoint, body.keys.p256dh, body.keys.auth, ua, body.old_endpoint,
+                                            sign_in=_sign_in_of(request))
     except svc.InvalidSubscription as exc:
         audit(conn, actor=principal, action="push.subscription.create", decision="denied", resource_type="push_subscription", reason=exc.code,
               request_id=_rid(request), details={"endpoint_host": svc.endpoint_host(body.endpoint)})

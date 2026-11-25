@@ -1490,8 +1490,9 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
         # XSECFIX-297 (review M2 / L1): a sign-out inside the phone app ends the app's device token and push registration too
+        # FE-SAFETY-FIX-2520 (review FC-02): and the browser push subscriptions registered through this sign-in
         _end_device_credentials(app_state.db, s.principal.user_id, "logout", user_agents=(s.user_agent, request_meta(conn_like).get("user_agent", "")),
-                                actor=s.principal)
+                                actor=s.principal, sign_ins=(s.sign_in(),))
     return s is not None
 
 
@@ -1965,9 +1966,11 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             # administrator's - the lost-phone kill switch), and with one ended sign-in that came from inside the app
             from . import presence
 
+            # FE-SAFETY-FIX-2520 (review FC-02): the browser push subscriptions of the ended sign-ins (all of the user's when everywhere)
             presence.end_on_sign_out(conn, target_user, reason, everywhere=reason in ("signed_out_everywhere", "revoked_all_by_admin"),
                                      user_agents=tuple(s.user_agent for s in dropped if s.principal.user_id == target_user),
-                                     actor=actor, request_id=request_id)
+                                     actor=actor, request_id=request_id,
+                                     sign_ins=tuple(s.sign_in() for s in dropped if s.principal.user_id == target_user))
             # review L4: the channel is the ACTOR's (an administrator may revoke from inside the system); what was ended
             # is `ended_via` (cookie / bearer)
             audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,
@@ -2020,6 +2023,10 @@ def revoke_user_sign_ins(conn: Any, user_id: str, *, actor: Principal, reason: s
     for s in dropped:
         _remember_rejected(s.token)
     sign_ins = {s.sign_in() for s in dropped}
+    # FE-SAFETY-FIX-2520 (review FC-02): the browser push subscriptions registered through the ended sign-ins go with them
+    from . import push
+
+    push.end_for_sign_ins(conn, sign_ins, reason, user_id=user_id, actor=actor, request_id=request_id)
     now = now_iso()
     try:
         for h in {s.iss_hash for s in dropped if s.iss_hash}:

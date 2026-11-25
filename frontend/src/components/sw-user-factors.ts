@@ -99,7 +99,7 @@ export class SwUserFactors extends LitElement {
   }
 
   private async reset() {
-    if (!this.ready()) return;
+    if (!this.ready() || this.busy) return; // FE-SAFETY-FIX-2520: Enter in the typed field confirms only when valid, once
     this.busy = true;
     this.error = '';
     try {

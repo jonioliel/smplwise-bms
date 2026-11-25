@@ -580,7 +580,7 @@ export class SystemLocalUsers extends LitElement {
 
   private async removePasskey(u: LocalUser) {
     const arm = this.pkArm;
-    if (!arm || !this.pkReady()) return;
+    if (!arm || !this.pkReady() || this.busy) return; // FE-SAFETY-FIX-2520: Enter in the typed field confirms only when valid, once
     this.busy = true;
     try {
       await adminRemovePasskey(u.id, arm.pk, arm.typed, this.pkStepUp ? this.pkCode.trim() : undefined);

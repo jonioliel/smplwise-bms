@@ -860,14 +860,19 @@ def end_device_credentials(conn: sqlite3.Connection, user_id: str, reason: str, 
 
 
 def end_on_sign_out(conn: sqlite3.Connection, user_id: str, reason: str, *, everywhere: bool = False, user_agents: tuple[str, ...] | list[str] = (),
-                    device_ids: list[str] | None = None, actor: Principal | None = None, request_id: str | None = None) -> int:
+                    device_ids: list[str] | None = None, actor: Principal | None = None, request_id: str | None = None,
+                    sign_ins: tuple[str, ...] | list[str] = ()) -> int:
     """XSECFIX-297 (review M2, L1): which device credentials a sign-out ends.
     - `everywhere` ("sign out everywhere", an administrator ending all of a user's sign-ins, remote access removed): every device of the user;
     - `device_ids` (an app web session, which knows its device): those devices;
     - otherwise only a sign-out made from inside the phone app (one of `user_agents` carries the app mark): every device of the user -
       the web session does not know which installation it runs in, and a sign-out inside the app means "this phone is no longer
       signed in as me". A sign-out in a desktop browser leaves the phones alone.
+    FE-SAFETY-FIX-2520 (review FC-02): the BROWSER push subscriptions end here too - `everywhere`: every one of the user's; else those
+    registered through the ended `sign_ins` (services/push.end_for_sign_ins), whatever the browser. The return value still counts
+    devices only.
     Never raises."""
+    _end_browser_push(conn, user_id, reason, everywhere=everywhere, sign_ins=sign_ins, actor=actor, request_id=request_id)
     if everywhere:
         return end_device_credentials(conn, user_id, reason, actor=actor, request_id=request_id)
     if device_ids is not None:
@@ -875,6 +880,22 @@ def end_on_sign_out(conn: sqlite3.Connection, user_id: str, reason: str, *, ever
     if any(is_app_user_agent(ua) for ua in user_agents):
         return end_device_credentials(conn, user_id, reason, actor=actor, request_id=request_id)
     return 0
+
+
+def _end_browser_push(conn: sqlite3.Connection, user_id: str, reason: str, *, everywhere: bool, sign_ins: tuple[str, ...] | list[str],
+                      actor: Principal | None, request_id: str | None) -> int:
+    """FE-SAFETY-FIX-2520: the browser (Web Push) side of end_on_sign_out. Never raises."""
+    if not everywhere and not sign_ins:
+        return 0
+    try:
+        from . import push
+
+        if everywhere:
+            return push.end_for_user(conn, user_id, reason, actor=actor, request_id=request_id)
+        return push.end_for_sign_ins(conn, sign_ins, reason, user_id=user_id, actor=actor, request_id=request_id)
+    except Exception:  # noqa: BLE001 - the sign-out stands
+        log.warning("presence: could not end the browser push subscriptions of a signed-out user", exc_info=True)
+        return 0
 
 
 def out(conn: sqlite3.Connection, device_id: str, *, with_user: bool = False) -> dict[str, Any]:

@@ -818,7 +818,8 @@ def logout(db: Database, conn_like: Any, cookie_value: str) -> bool:
             # XSECFIX-297 (review M2 / L1): the sign-out ends this device's token and push registration too (it re-registers on sign-in)
             from . import presence
 
-            presence.end_on_sign_out(conn, row["user_id"], "logout", device_ids=[row["device_id"]], actor=actor)
+            presence.end_on_sign_out(conn, row["user_id"], "logout", device_ids=[row["device_id"]], actor=actor,
+                                     sign_ins=("a:" + row["public_id"],))  # FE-SAFETY-FIX-2520: and its browser push subscriptions
             audit(conn, actor=actor, action="auth.app_session.signed_out", decision="allowed", resource_type="mobile_device", resource_id=row["device_id"],
                   reason="web_sign_out", details={"session": row["public_id"], "family": row["family_id"]})
             return True

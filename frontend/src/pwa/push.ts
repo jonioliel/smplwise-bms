@@ -4,6 +4,7 @@
  * open inside Home Assistant (Ingress) or on the remote channel.
  */
 import { del, get, post, put } from '../api/client';
+import { endpointHash } from './push-signout';
 import { appBase, isFramed, isIos, isStandalone } from './register';
 import { inAndroidShell } from '../arx/android-app';
 import { tr } from '../i18n/msg/misc';
@@ -66,11 +67,7 @@ function sameKey(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
   return x.length === b.length && x.every((v, i) => v === b[i]);
 }
 
-/** sha256(endpoint)[:32] - how the server names a subscription without handing the endpoint back. */
-export async function endpointHash(endpoint: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
-}
+export { endpointHash }; // FE-SAFETY-FIX-2520: lives in push-signout.ts (the sign-out path loads only that small module)
 
 async function registration(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;

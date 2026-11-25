@@ -7,6 +7,8 @@ import { installAccessMock, NOW, url } from './access-control-mocks';
 //   2. the confirm button has the focus; Escape cancels, nothing is deleted, the dialog leaves the page;
 //   3. the cancel button cancels; the ✕ cancels;
 //   4. Enter confirms: the DELETE goes out once.
+//   5. FE-SAFETY-FIX-2520 (review FC-04): Enter confirms ONLY on the confirm button - Enter on the ✕ (one Tab from the confirm button)
+//      and on the cancel button closes without deleting.
 //   npx playwright test tests/evidence-confirm-dialog-2438.spec.ts --project=desktop --workers=1
 
 const at = (h: number) => new Date(Date.UTC(2026, 9, 31, h, 15)).toISOString();
@@ -110,5 +112,47 @@ test.describe('the system confirmation dialog replaces confirm() (CR-CONFIRM-DIA
     await expect(page.locator(DLG)).toHaveCount(0);
     await expect.poll(() => st.deletes).toEqual(['identity/local-users/l_01']);
     expect(st.nativeDialogs).toBe(0);
+  });
+
+  test('FE-SAFETY-FIX-2520 FC-04: Enter on the close button or on cancel never confirms', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one viewport is enough for the behaviour');
+    const st = await boot(page);
+    await expect(page.locator(`${LU} [data-local-users]`)).toBeVisible({ timeout: 30_000 });
+    await page.locator(LU).getByText('מריה כהן').first().click();
+    /** What holds the focus: 'ok', 'cancel', 'close' (the ✕ of sw-dialog) or the host's tag. */
+    const focused = () => page.evaluate(() => {
+      let a: Element | null = document.activeElement;
+      while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+      const host = (a?.getRootNode() as ShadowRoot | undefined)?.host;
+      if (host?.hasAttribute('data-confirm-ok')) return 'ok';
+      if (host?.hasAttribute('data-confirm-cancel')) return 'cancel';
+      if (host?.hasAttribute('data-dialog-close')) return 'close';
+      return host?.tagName.toLowerCase() ?? a?.tagName.toLowerCase() ?? 'none';
+    });
+
+    // the ✕: one Tab from the confirm button wraps to it (the dialog's focus trap); Enter there closes, nothing is deleted
+    await ask(page);
+    await expect.poll(focused).toBe('ok');
+    await page.keyboard.press('Tab');
+    await expect.poll(focused).toBe('close');
+    await page.keyboard.press('Enter');
+    await expect(page.locator(DLG)).toHaveCount(0);
+    expect(st.deletes).toEqual([]);
+
+    // the cancel button: Shift+Tab from the confirm button; Enter there cancels
+    await ask(page);
+    await expect.poll(focused).toBe('ok');
+    await page.keyboard.press('Shift+Tab');
+    await expect.poll(focused).toBe('cancel');
+    await page.keyboard.press('Enter');
+    await expect(page.locator(DLG)).toHaveCount(0);
+    expect(st.deletes).toEqual([]);
+
+    // back on the confirm button, Enter still confirms - once
+    await ask(page);
+    await expect.poll(focused).toBe('ok');
+    await page.keyboard.press('Enter');
+    await expect(page.locator(DLG)).toHaveCount(0);
+    await expect.poll(() => st.deletes).toEqual(['identity/local-users/l_01']);
   });
 });
