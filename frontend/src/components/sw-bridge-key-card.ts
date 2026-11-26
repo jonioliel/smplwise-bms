@@ -316,7 +316,7 @@ export class SwBridgeKeyCard extends LitElement {
         <span class="lbl">${bkt('switchLabel')}</span>
         <span class="acts">
           <sw-badge kind=${kind} label=${label} data-bridge-key-state></sw-badge>
-          <sw-toggle .checked=${s.enabled} ?disabled=${this.busy || (!s.enabled && !s.go_live_permitted)} label=${bkt('switchLabel')} labelHidden
+          <sw-toggle controlled .checked=${s.enabled} ?disabled=${this.busy || (!s.enabled && !s.go_live_permitted)} label=${bkt('switchLabel')} labelHidden
             data-bridge-key-switch @change=${(e: CustomEvent<{ checked: boolean }>) => void this.run(() => setBridgeKeySettings({ enabled: e.detail.checked }))}></sw-toggle>
         </span>
       </div>

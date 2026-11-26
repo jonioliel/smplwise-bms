@@ -86,3 +86,13 @@ guard('system settings', {
   'screens/system-transit.ts': 3,
   'screens/presence-opt-out.ts': 1,
 });
+
+guard('security and integration cards', {
+  'components/sw-offbox-backup.ts': 2, // a target on / off, the monthly drill (the restore scope saves optimistically; the form is a draft)
+  'components/sw-bridge-key-card.ts': 1,
+  'components/sw-partner-api-card.ts': 1,
+  'screens/messaging-pacing-card.ts': 1,
+  'screens/messaging-policy-card.ts': 1,
+  'screens/wa-installed-card.ts': 1,
+  'components/media-ma-connection.ts': 1,
+});

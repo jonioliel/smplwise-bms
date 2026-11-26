@@ -7,6 +7,8 @@ import { installMaintenanceMock } from './maintenance-mocks';
 import { url as moduleUrl } from './generator-mocks';
 import { appReady } from './helpers/app-ready';
 import { PERMS as CAST_PERMS, installCastMock } from './cast-mocks';
+import { installMessagingSettings } from './wiskey-messaging-settings';
+import { installWaInstalled, newWaInstalled } from './wa-installed-mock';
 
 // CONTROLLED-TOGGLES-2540 (deep review FC-01 follow-up, owner rule "one row per screen family with its own tests"): the switches that save
 // at once are `controlled` (HONEST-STATES-2540's opt-in sw-toggle mode). A press only asks; the switch moves when the screen has the saved
@@ -195,5 +197,42 @@ test.describe('system settings: the cast to screens switches', () => {
     await sw.locator('button').click();
     await expect.poll(() => m.config.enabled).toBe(false);
     await expectSwitch(sw, false);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ security and integration cards
+
+test.describe('integration cards: the installed messaging client', () => {
+  const CARD = 'sw-app system-access-control system-access-messaging wa-installed-card';
+
+  test('the paced send: a refused save leaves it off; an accepted one turns it on', async ({ page }) => {
+    await installMessagingSettings(page, { persona: 'admin' });
+    const wa = await installWaInstalled(page, newWaInstalled((v) => { v.commands['whatsapp/send_pacing_v1'] = true; }));
+    const st = { refuse: true, puts: 0 };
+    await page.route(/\/api\/v1\/access-control\/messaging\/installed$/, async (route) => {
+      if (route.request().method() !== 'PUT') return route.fallback();
+      st.puts += 1;
+      if (st.refuse) return json(route, refusal(500), 500);
+      return route.fallback(); // the installed-client mock keeps the change
+    });
+    await page.clock.setFixedTime(NOW);
+    await page.goto('about:blank');
+    await page.goto(accessUrl('/system/access-control/messaging'));
+    await page.waitForSelector('sw-app');
+    await expect(page.locator(`${CARD} [data-wa-installed]`)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    const sw = page.locator(`${CARD} [data-wa-paced-toggle]`);
+    await sw.scrollIntoViewIfNeeded();
+    await expect(sw).not.toHaveAttribute('disabled', '');
+    await expectSwitch(sw, false);
+    await sw.locator('button').click();
+    await expect.poll(() => st.puts).toBe(1);
+    await expect(sw).not.toHaveAttribute('disabled', '');
+    await expectSwitch(sw, false);
+    expect(wa.view.settings.send_pacing_v1).toBe(false);
+
+    st.refuse = false;
+    await sw.locator('button').click();
+    await expect.poll(() => wa.puts).toEqual([{ send_pacing_v1: true }]);
+    await expectSwitch(sw, true);
   });
 });

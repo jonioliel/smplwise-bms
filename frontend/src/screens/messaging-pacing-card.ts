@@ -170,7 +170,7 @@ export class MessagingPacingCard extends LitElement {
           ${PACING_MODES.map((m) => html`<option value=${m} ?selected=${m === v.mode}>${mp(`mode_${m}` as MpKey)}</option>`)}
         </select></span></div>
       <div class="row"><span class="lbl">${mp('wiskey')}</span>
-        <sw-toggle label=${mp('wiskey')} labelHidden data-pacing-wiskey .checked=${v.wiskey_shared} ?disabled=${!this.editable || this.busy}
+        <sw-toggle controlled label=${mp('wiskey')} labelHidden data-pacing-wiskey .checked=${v.wiskey_shared} ?disabled=${!this.editable || this.busy}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ wiskey_shared: e.detail.checked })}></sw-toggle></div>
       <div class="row stack"><span class="lbl">${mp('perMinute')} / ${mp('burstLbl')}</span>
         <div class="waits" data-pacing-rate>
