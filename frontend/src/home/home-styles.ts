@@ -259,7 +259,8 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .dim:active .dim-fill {transition: none;}
 /* LOWS-FRONTEND-2550 (review SCR-57): the fill grows from the inline start - from the right in Hebrew, from the left in English (a range
    input runs left to right there); the edge mark follows it. The inline transform (scaleX / translateX) stays as it is. */
-.dim-fill:dir(ltr), .dim-edge:dir(ltr) {scale: -1 1;}
+.dim-fill:dir(ltr) {transform-origin: 0 50%;}
+.dim-edge:dir(ltr) {scale: -1 1;}
 .dim input {position: absolute; inset: 0; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; cursor: pointer; touch-action: pan-y; font-size: 16px;}
 .dim-v {--dim-v-at: 16px; position: absolute; right: var(--dim-v-at); inset-block: 0; display: grid; align-items: center; font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); pointer-events: none;}
 .dim:has(input:focus-visible) {outline: 3px solid var(--hs-focus); outline-offset: 3px;}
