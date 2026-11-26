@@ -2501,6 +2501,9 @@ export class ExploreFloorMap extends LitElement {
     this.trigger(d.entityId, d.spec);
   }
 
+  /** SCR-52: a room's "all off" batch is on its way. */
+  private bulkRunning = false;
+
   /** "כבה הכול": at once (the recommended rule: lights never ask), or after a confirmation with `map.room_card_confirm` = bulk. */
   private onRoomBulk(d: RoomCardBulkDetail): void {
     if (this.r28?.['map.room_card_confirm'] === 'bulk') {
@@ -2512,9 +2515,17 @@ export class ExploreFloorMap extends LitElement {
 
   private async runBulk(d: RoomCardBulkDetail): Promise<void> {
     this.roomConfirm = null;
-    for (const it of d.items) {
-      if (it.spec.sensitive) continue; // a sensitive action never rides in a batch: it has its own confirmation
-      await this.send(it.entityId, it.spec, true);
+    // LOWS-FRONTEND-2550 (review SCR-52): one "all off" at a time - a second tap while the first batch is still sending does not start a
+    // second batch over the same devices
+    if (this.bulkRunning) return;
+    this.bulkRunning = true;
+    try {
+      for (const it of d.items) {
+        if (it.spec.sensitive) continue; // a sensitive action never rides in a batch: it has its own confirmation
+        await this.send(it.entityId, it.spec, true);
+      }
+    } finally {
+      this.bulkRunning = false;
     }
   }
 

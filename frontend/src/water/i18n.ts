@@ -395,6 +395,7 @@ const he = {
   noTariffs: 'אין תעריפים עדיין',
   loadTariffsError: 'לא ניתן לטעון את התעריפים',
   delVersion: 'מחיקת גרסה',
+  delVersionConfirm: 'למחוק את גרסת המחיר מ־{date}?',
   shared: 'משותף עם החשבון',
   sharedTitle: 'משותף עם החשמל',
   sharedNote: 'מע״מ, פרטי העסק, מספור, תנאי תשלום ושמירת נתונים - מהגדרות החיוב של החשמל.',

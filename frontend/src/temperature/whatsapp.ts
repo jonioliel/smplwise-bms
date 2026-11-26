@@ -6,6 +6,7 @@ import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
+import { confirmDialog } from '../components/confirm-dialog';
 import { createSchedule, deleteSchedule, getReportPreview, getReportRecipients, getSends, listSchedules, sendReport, type RecipientsResponse, type ReportParams,
   type ReportRange, type ReportRecipient, type Schedule, type SendRow, type TempUnit, type VendorChannel } from '../api/temperature';
 import { REPORT_RANGES, bidi, chosenVendors, recipientPicks, unreachable, vendorChannel, vendorChannelReason, vendorChannelsOffered } from './model';
@@ -174,6 +175,19 @@ export class TempWa extends LitElement {
     }
   }
 
+  /** LOWS-FRONTEND-2550 (review SCR-53): a scheduled report is deleted only after a confirmation that names it, and a refused delete
+   * says so (it was one tap, and a failure was silent - the row stayed with no word). */
+  private async removeSchedule(s: Schedule, when: string) {
+    if (!(await confirmDialog({ body: tt('waDeleteConfirm', { when }), danger: true, confirmLabel: tt('waDelete') }))) return;
+    this.err = '';
+    try {
+      await deleteSchedule(s.id);
+      this.schedules = this.schedules.filter((x) => x.id !== s.id);
+    } catch (e) {
+      this.err = describeError(e);
+    }
+  }
+
   private async saveSchedule() {
     this.busy = true;
     this.err = '';
@@ -240,7 +254,7 @@ export class TempWa extends LitElement {
             ${this.schedules.length ? html`<div class="status"><span class="lbl">${tt('waSchedules')}</span>${this.schedules.map((s) => html`<div class="r" data-wa-schedule=${s.id}>
               <span>${tt(s.freq === 'daily' ? 'waDaily' : s.freq === 'weekly' ? 'waWeekly' : 'waMonthly')}${s.freq === 'weekly' && s.dow !== null ? ` · ${tt(`dow${s.dow}` as TtKey)}` : ''} · ${s.at} ·
                 ${s.units.map((u) => unitName.get(u) ?? '').filter(Boolean).join(', ')} · ${s.recipients.map((x) => names.get(x.id) ?? '').filter(Boolean).join(', ')}</span>
-              <button type="button" class="btn sm ghost" @click=${async () => { await deleteSchedule(s.id); this.schedules = this.schedules.filter((x) => x.id !== s.id); }}>${tt('waDelete')}</button></div>`)}</div>` : nothing}
+              <button type="button" class="btn sm ghost" data-wa-schedule-delete @click=${() => void this.removeSchedule(s, `${tt(s.freq === 'daily' ? 'waDaily' : s.freq === 'weekly' ? 'waWeekly' : 'waMonthly')} · ${s.at}`)}>${tt('waDelete')}</button></div>`)}</div>` : nothing}
           </div>
           ${r ? html`<div class="banner"><sw-icon name="clock" size="16"></sw-icon><span>${tt('waHours', { h: bidi(`${r.send_hours.from}–${r.send_hours.to}`) })}</span></div>` : nothing}
           ${this.sends.length ? html`<div class="status" data-wa-status>${this.sends.map((s) => html`<div>${s.name}${s.channel ? html` · ${tt(s.channel === 'email' ? 'waChannelEmail' : 'waChannelWhatsapp')}` : nothing} · <b>${tt(`waStatus_${s.status}` as TtKey)}</b>${s.reason ? html` <span class="hint">(${this.reasonText(s.reason)})</span>` : nothing}</div>`)}</div>` : nothing}

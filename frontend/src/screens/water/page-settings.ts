@@ -24,6 +24,7 @@ import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 import { dateInputLang } from '../../api/day-format';
 import { ToastController } from '../../components/toast-controller';
+import { confirmDialog } from '../../components/confirm-dialog';
 
 type Section = 'prices' | 'alerts';
 const MAX_CHOICES = [1440, 10080, 43200];
@@ -145,6 +146,9 @@ export class WaterSettingsPage extends LitElement {
   }
 
   private async deleteVersion(t: Tariff, v: TariffVersion) {
+    if (this.busy) return;
+    // LOWS-FRONTEND-2550 (review SCR-53): a price version is deleted only after a confirmation that names it (it was one tap)
+    if (!(await confirmDialog({ body: wt('delVersionConfirm', { date: fmtDate(v.effective_from) }), danger: true, confirmLabel: wt('delVersion') }))) return;
     if (this.busy) return;
     this.busy = true;
     this.error = '';
