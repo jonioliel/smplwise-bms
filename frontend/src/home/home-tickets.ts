@@ -17,8 +17,8 @@ import { tr } from '../i18n/msg/home';
 const STEPS = [tr('התקבלה'), tr('בטיפול'), tr('טופלה')];
 const st: {
   items: Ticket[]; cats: TicketCat[]; canCreate: boolean; tab: 'open' | 'all'; at: number; loading: boolean; error: string;
-  draft: { cat: number; where: string; text: string; note: string; crid: string }; busy: boolean; photos: { file: File; url: string }[];
-} = { items: [], cats: [], canCreate: false, tab: 'open', at: 0, loading: false, error: '', draft: { cat: -1, where: '', text: '', note: '', crid: '' }, busy: false, photos: [] };
+  draft: { cat: number; where: string; text: string; note: string; crid: string; noteCrid: string }; busy: boolean; photos: { file: File; url: string }[];
+} = { items: [], cats: [], canCreate: false, tab: 'open', at: 0, loading: false, error: '', draft: { cat: -1, where: '', text: '', note: '', crid: '', noteCrid: '' }, busy: false, photos: [] };
 
 /** HOME-V3-FOLLOWUP-B-2431: the photos picked in the new-ticket sheet (object URLs for the small previews, released when dropped). */
 function dropPhotos(i?: number) {
@@ -78,7 +78,7 @@ const noteOf = (t: Ticket) => (t.step === 2 ? tr('הפנייה טופלה.') : t
 
 /** Opens the new-ticket sheet (also from other screens, e.g. a leak). */
 function openNewTicket(h: HomeHost, where = '') {
-  st.draft = { cat: -1, where, text: '', note: '', crid: rid() };
+  st.draft = { cat: -1, where, text: '', note: '', crid: rid(), noteCrid: '' };
   dropPhotos();
   h.ovl = { type: 'ext', mod: 'p2tickets', kind: 'new' } as ExtOvl;
 }
@@ -132,7 +132,7 @@ registerScreen((h: HomeHost) => ({
     p2TkCat: (el) => { st.draft.cat = Number(el.dataset.v); h.requestUpdate(); },
     p2TkPhDel: (el) => { dropPhotos(Number(el.dataset.v)); h.requestUpdate(); },
     p2Ticket: (el) => { h.ovl = { type: 'ext', mod: 'p2tickets', kind: 'open', id: el.dataset.id ?? '' } as ExtOvl; },
-    p2TkNote: (el) => { st.draft.note = ''; h.ovl = { type: 'ext', mod: 'p2tickets', kind: 'note', id: el.dataset.id ?? '' } as ExtOvl; },
+    p2TkNote: (el) => { st.draft.note = ''; st.draft.noteCrid = rid(); h.ovl = { type: 'ext', mod: 'p2tickets', kind: 'note', id: el.dataset.id ?? '' } as ExtOvl; },
     p2TkSend: () => {
       const d = st.draft;
       const c = st.cats.length === 1 ? st.cats[0] : st.cats[d.cat];
@@ -155,10 +155,13 @@ registerScreen((h: HomeHost) => ({
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },
     p2TkNoteSend: (el) => {
+      if (st.busy) return; // STALE-ANSWERS-2540 (SCR-39): a second tap while the note is on its way sends nothing
       const text = st.draft.note.trim();
       if (!text) return h.toast(tr('כתבו את ההערה.'));
       st.busy = true;
-      void ticketNote(el.dataset.id ?? '', text).then(() => { h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
+      h.requestUpdate(); // the send button is drawn disabled at once (the host does not re-render after an action by itself)
+      // the note's own request id (one per opening of the sheet): a retry after a lost answer is the same note, never a second one
+      void ticketNote(el.dataset.id ?? '', text, st.draft.noteCrid || rid()).then(() => { st.draft.noteCrid = ''; h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
         .catch((e) => h.toast(errText(e)))
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },

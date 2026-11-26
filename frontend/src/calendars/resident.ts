@@ -8,6 +8,7 @@ import '../components/sw-state-panel';
 import '../components/sw-building-filter';
 import { keepBuilding, pickChosen, readChosen, type BuildingFilterMeta } from '../components/building-filter-logic';
 import { describeError } from '../api/client';
+import { Latest } from '../api/latest';
 import { calErrorText } from './conflict-hint';
 import type { Calendar, Equipment, Occurrence, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
@@ -256,22 +257,29 @@ export class CalResident extends LitElement {
     return this.ctx!.access.ui;
   }
 
+  /** STALE-ANSWERS-2540 (SCR-35): the newest day read wins - tap day 3 then day 5, and day 3's answer landing last is dropped (the
+   * slot grid of day 5 was computed against day 3's bookings: taken slots read "free"). */
+  private dayReads = new Latest();
+
   private async loadDay(): Promise<void> {
     if (!this.ctx) return;
+    const current = this.dayReads.begin();
     this.error = '';
     this.slow = false;
     clearTimeout(this.slowTimer);
     this.slowTimer = window.setTimeout(() => (this.slow = true), 300); // owner answer 26: no flash for a fast answer
     try {
       const r = await this.ctx.api.roomsDay(isoDate(this.day));
+      if (!current()) return;
       this.rooms = r.rooms;
       this.buildingMeta = r.building_filter ?? null;
       this.building = pickChosen(this.buildingMeta, this.building || readChosen());
       this.roomBuildings = new Map(r.rooms.map((x) => [x.calendar_id, x.buildings ?? []]));
     } catch (e) {
+      if (!current()) return;
       this.error = describeError(e);
     } finally {
-      clearTimeout(this.slowTimer);
+      if (current()) clearTimeout(this.slowTimer); // a newer read owns the "slow" timer now
     }
   }
 
