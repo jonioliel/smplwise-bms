@@ -58,3 +58,13 @@ guard('tickets settings', {
   'tickets/staff-mine.ts': 1,
   'screens/system-tickets.ts': 5, // the module switch, urgent is critical, arrival schedule, question badge, vendor uploads
 });
+
+guard('module settings', {
+  'maintenance/settings.ts': 4, // the module, emergency readiness, reminders, missing insurance
+  'temperature/temp-settings.ts': 1, // an alert kind's switch (the rule switches are a draft)
+  'screens/insights-settings.ts': 2, // the insight switches, the building report delivery
+  'elevators/elevator-alerts.ts': 1,
+  'components/frigate-auto-profile.ts': 1, // the auto-apply consent
+  'screens/investigate-rules.ts': 1, // a rule's on / off in the list
+  'screens/devices-type-admin.ts': 1, // "may be turned on in bulk"
+});

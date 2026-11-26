@@ -151,7 +151,7 @@ export class InsightsSettings extends LitElement {
     const a = this.ans!;
     return html`<div class="card" data-switches>${SWITCH_KEYS.map(
       (k) => html`<div class="sw"><span class="title">${ix(SWITCH_LABEL[k])}</span>
-        <sw-toggle data-switch=${k} .checked=${a.switches[k]} ?disabled=${!a.can_switch || this.busy} label=${ix(SWITCH_LABEL[k])} labelHidden
+        <sw-toggle controlled data-switch=${k} .checked=${a.switches[k]} ?disabled=${!a.can_switch || this.busy} label=${ix(SWITCH_LABEL[k])} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.flip(k, e.detail.checked)}></sw-toggle></div>`,
     )}${a.can_switch ? nothing : html`<div class="sw"><span class="muted">${ix('switchNeedsAdmin')}</span></div>`}</div>`;
   }
@@ -260,7 +260,7 @@ export class InsightsSettings extends LitElement {
     const last = d.last ? ix('deliveryLast', { month: d.last.month, sent: d.last.counts.sent ?? 0 }) : ix('deliveryLastNone');
     return html`<div class="card" data-delivery><div class="ch-h"><h2>${ix('deliveryTitle')}</h2>
         <span class="sw" style="padding:0"><span class="muted" data-delivery-state>${on ? ix('deliveryOn', { day: d.config.dom, time: d.config.at }) : ix('deliveryOff')}</span>
-          <sw-toggle data-delivery-switch .checked=${on} ?disabled=${!d.can_enable || this.delBusy || dirty || (!on && d.problems.length > 0)} label=${ix('deliveryEnable')} labelHidden
+          <sw-toggle controlled data-delivery-switch .checked=${on} ?disabled=${!d.can_enable || this.delBusy || dirty || (!on && d.problems.length > 0)} label=${ix('deliveryEnable')} labelHidden
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDelivery(e.detail.checked)}></sw-toggle></span></div>
       <div class="pad muted">${ix('deliveryMonthly')}</div>
       ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note role=${this.delNote.tone === 'bad' ? 'alert' : 'status'} style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}

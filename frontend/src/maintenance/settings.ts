@@ -132,12 +132,12 @@ export class MaintSettings extends LitElement {
       ${p[k] ? html`<span class="err">${mt(p[k])}</span>` : html`<span class="mut">${mt(unit)}</span>`}</div>`;
     return html`<div class="panel card" data-maint-settings>
         <div class="switch"><div><h4>${mt('setModule')}</h4><div class="hint">${mt('setModuleHint')}</div></div>
-          <sw-toggle label=${mt('setModule')} labelHidden .checked=${on} ?disabled=${this.busy} data-maint-enabled
+          <sw-toggle controlled label=${mt('setModule')} labelHidden .checked=${on} ?disabled=${this.busy} data-maint-enabled
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ 'maintenance.enabled': String(e.detail.checked) })}></sw-toggle></div>
       </div>
       <div class="panel card">
         <div class="switch"><div><h4>${em('setModule')}</h4><div class="hint">${em('setModuleHint')}</div></div>
-          <sw-toggle label=${em('setModule')} labelHidden .checked=${v['emergency_readiness.enabled'] === 'true'} ?disabled=${this.busy || !on} data-emergency-enabled
+          <sw-toggle controlled label=${em('setModule')} labelHidden .checked=${v['emergency_readiness.enabled'] === 'true'} ?disabled=${this.busy || !on} data-emergency-enabled
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ 'emergency_readiness.enabled': String(e.detail.checked) })}></sw-toggle></div>
       </div>
       <div class="panel card">
@@ -156,7 +156,7 @@ export class MaintSettings extends LitElement {
       </div>
       <div class="panel card" data-maint-behaviour>
         <div class="switch"><div><h4>${mt('setReminders')}</h4><div class="hint">${mt('setRemindersHint')}</div></div>
-          <sw-toggle label=${mt('setReminders')} labelHidden .checked=${v[REMINDERS] === 'true'} ?disabled=${this.busy} data-maint-reminders
+          <sw-toggle controlled label=${mt('setReminders')} labelHidden .checked=${v[REMINDERS] === 'true'} ?disabled=${this.busy} data-maint-reminders
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [REMINDERS]: String(e.detail.checked) })}></sw-toggle></div>
         <div class="grid4">
           ${num(CHECK_MIN, 'chk-min', 'setMinutes')}${num(LOG_KEEP, 'log-keep', 'daysUnit')}
@@ -169,7 +169,7 @@ export class MaintSettings extends LitElement {
           ${num(FILE_MAX, 'file-max', 'fileAdd')}
         </div>
         <div><h4>${mt('setInsurance')}</h4>
-          <div class="switch"><span>${mt('setMissingIns')}</span><sw-toggle label=${mt('setMissingIns')} labelHidden .checked=${v[MISSING_INS] === 'true'} ?disabled=${this.busy} data-maint-missing-ins
+          <div class="switch"><span>${mt('setMissingIns')}</span><sw-toggle controlled label=${mt('setMissingIns')} labelHidden .checked=${v[MISSING_INS] === 'true'} ?disabled=${this.busy} data-maint-missing-ins
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [MISSING_INS]: String(e.detail.checked) })}></sw-toggle></div>
           <div class="grid4">${num(INS_WARN, 'ins-warn', 'daysUnit')}</div><div class="hint">${mt('insHint')}</div></div>
         <div class="foot"><span class="sp"></span><button type="button" class="btn pri" ?disabled=${this.busy || Object.keys(p).length > 0} data-maint-behaviour-save @click=${() => this.saveDefaults()}>${mt('setSave')}</button></div>

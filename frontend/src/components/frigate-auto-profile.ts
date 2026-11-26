@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-dialog';
 import './sw-toggle';
+import { toggled } from './toggle-value';
 import './sw-segmented';
 import type { SegmentedChange } from './sw-segmented';
 import { describeError } from '../api/client';
@@ -169,7 +170,7 @@ export class FrigateAutoProfile extends LitElement {
       </div>
       <div class="row">
         <span class="name"><span>${a.consent}</span>${st.auto_apply_consent && st.consent_at ? html`<span class="sub" data-auto-consent-by>${a.consentBy} · ${dateText(st.consent_at, this.tz || undefined)}</span>` : nothing}</span>
-        <sw-toggle .checked=${st.auto_apply_consent} ?disabled=${lock} labelHidden label=${a.consent} data-auto-consent @change=${(e: Event) => void this.setting({ auto_apply_consent: (e.currentTarget as HTMLElement & { checked: boolean }).checked })}></sw-toggle>
+        <sw-toggle controlled .checked=${st.auto_apply_consent} ?disabled=${lock} labelHidden label=${a.consent} data-auto-consent @change=${(e: Event) => void this.setting({ auto_apply_consent: toggled(e) })}></sw-toggle>
       </div>
       <h5>${a.suggestions}</h5>
       ${open.length

@@ -3,6 +3,9 @@ import { installAccessMock, NOW, url as accessUrl } from './access-control-mocks
 import { installSchedWritesMock, newSchedMock } from './schedule-writes-mocks';
 import { installExecMock, newExecMock } from './schedule-exec-mocks';
 import { INSTALLATION, installTicketsMock, url as ticketsUrl } from './tickets-mocks';
+import { installMaintenanceMock } from './maintenance-mocks';
+import { url as moduleUrl } from './generator-mocks';
+import { appReady } from './helpers/app-ready';
 
 // CONTROLLED-TOGGLES-2540 (deep review FC-01 follow-up, owner rule "one row per screen family with its own tests"): the switches that save
 // at once are `controlled` (HONEST-STATES-2540's opt-in sw-toggle mode). A press only asks; the switch moves when the screen has the saved
@@ -118,5 +121,44 @@ test.describe('tickets settings: the installation and department switches', () =
     expect(st.patches[0]).toEqual({ share_history_external: false, revision: 2 });
     await expect(sw).not.toHaveAttribute('disabled', '');
     await expectSwitch(sw, true);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ module settings
+
+test.describe('module settings: the maintenance switches', () => {
+  const M = 'sw-app maint-settings';
+  const REMINDERS = 'maintenance.reminders_enabled';
+
+  test('the reminders switch: a refused save leaves it on; an accepted one turns it off', async ({ page }) => {
+    await installMaintenanceMock(page);
+    const st = { refuse: true, patches: [] as Record<string, string>[] };
+    let values: Record<string, string> = { 'ui.design': 'a', 'tickets.enabled': 'true', 'maintenance.enabled': 'true', [REMINDERS]: 'true' };
+    await page.route('**/api/v1/settings', async (route) => {
+      const req = route.request();
+      if (req.method() === 'PATCH') {
+        const body = req.postDataJSON() as Record<string, string>;
+        st.patches.push(body);
+        if (st.refuse) return json(route, refusal(500), 500);
+        values = { ...values, ...body };
+      }
+      return json(route, { settings: values, can_edit: true });
+    });
+    await page.goto('about:blank');
+    await page.goto(moduleUrl('/system/infra/maintenance'));
+    await appReady(page);
+    const sw = page.locator(`${M} [data-maint-reminders]`);
+    await expect(sw).toBeVisible({ timeout: 30_000 });
+    await expectSwitch(sw, true);
+    await sw.locator('button').click();
+    await expect.poll(() => st.patches.length).toBe(1);
+    expect(st.patches[0]).toEqual({ [REMINDERS]: 'false' });
+    await expect(page.locator(`${M} .alert.err`)).toBeVisible();
+    await expectSwitch(sw, true);
+
+    st.refuse = false;
+    await sw.locator('button').click();
+    await expect.poll(() => st.patches.length).toBe(2);
+    await expectSwitch(sw, false);
   });
 });
