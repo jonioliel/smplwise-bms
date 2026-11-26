@@ -78,7 +78,7 @@ class Recorder:
 _REC: Recorder | None = None
 
 
-def pytest_configure(config: Any) -> None:  # noqa: ARG001 - pytest hook signature
+def pytest_configure(config: Any) -> None:
     global _REC
     out, src = os.environ.get(_ENV_OUT), os.environ.get(_ENV_SRC)
     if not out or not src or _REC is not None:
@@ -88,7 +88,7 @@ def pytest_configure(config: Any) -> None:  # noqa: ARG001 - pytest hook signatu
         _REC = rec
 
 
-def pytest_unconfigure(config: Any) -> None:  # noqa: ARG001
+def pytest_unconfigure(config: Any) -> None:
     global _REC
     rec, _REC = _REC, None
     if rec is None:
