@@ -83,6 +83,16 @@ Source: original
 - מסך קיר יכול להוסיף אירוע ליומן המשפחתי, ורק את זה (בלי הזמנת חדרים, ביטול או משיכה).
 - השליטה נבדקה מול נתונים מדומים בלבד, ועוד לא בטאבלט או בטלפון אמיתיים.
 
+## מה השתנה בגרסאות 2.53.0 עד 2.55.0
+
+- **"החשבון שלי" (2.53):** בתפריט האישי של הממשק הביתי - אבטחה, הכניסות שלי ושפה, גם למי שמשתמש רק בממשק הביתי.
+- **מצב לא ידוע (2.54):** מנעול לא מקוון, או מנעול שלא ידוע אם הוא נעול, לא נספר ולא מוצג כדלת פתוחה, והוא לא מופיע בהצעה "לנעול?"
+  ביציאה מהבית. לוח אזעקה לא זמין לא מוצג "דרוך". מצב לא ידוע מוצג באפור, "לא ידוע"; לוח שכולו לא זמין - "לא זמין".
+- **מזגנים (2.54):** +/- במזגן כבוי מדליק אותו עם הטמפרטורה החדשה; "כיבוי החדר" ו"כיבוי הבית" מכבים גם את המזגנים.
+- **תשובות מאוחרות (2.54):** חשבון החשמל, סצנה ויום בלוח החדרים לא מתחלפים בתשובה ישנה אחרי שבחרתם משהו חדש; ניגון הקלטה והערה
+  לפנייה בלחיצה כפולה רצים פעם אחת. הממשק מתרענן מהר יותר אחרי שינויים, ורק כשמשתנה משהו שהוא מציג.
+- **עמעום בממשק באנגלית (2.55):** בממשק משמאל לימין מילוי העמעום גדל משמאל, כמו שקוראים. בעברית שום דבר לא השתנה.
+
 ---
 
 # The home interface
@@ -179,3 +189,18 @@ Everything is in Settings › Users and permissions › the **"Home interface"**
 - Doors, gates and the alarm always ask for a confirmation. A door not linked to a station shows the reason, not an open button.
 - A wall panel can add an event to the family calendar, and only that (no room booking, cancelling or withdrawing).
 - The controls were tried against mocked data only, not yet on a real tablet or phone.
+
+## What changed in 2.53.0 to 2.55.0
+
+- **"My account" (2.53):** in the home interface's personal menu - security, my sign-ins and language, also for people who use the
+  home interface only.
+- **Unknown state (2.54):** an offline lock, or a lock whose state is unknown, is not counted or shown as an open door, and it is not in
+  the "lock it?" suggestion when leaving home. An unavailable alarm panel does not show as "armed". An unknown state shows in grey as
+  "unknown"; a panel that is wholly unavailable shows "unavailable".
+- **Air conditioners (2.54):** +/- on an air conditioner that is off turns it on with the new temperature; "room off" and "house off"
+  turn the air conditioners off too.
+- **Late answers (2.54):** the electricity bill, a scene and a day in the rooms board no longer swap to an old answer after you chose
+  something new; recording playback and a ticket note run once on a double tap. The interface refreshes sooner after changes, and only
+  when something it shows has changed.
+- **Dimming in the English interface (2.55):** left to right, the dim fill grows from the left, in reading order. Nothing changed in
+  Hebrew.
