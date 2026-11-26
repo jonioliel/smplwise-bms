@@ -642,20 +642,40 @@ def prune(settings: Settings) -> list[str]:
 
 def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False,
            backup_password: str | None = None) -> dict[str, Any]:
+    """The archive in one go, on `conn` (the restore's safety archive: written under the restore's own write lock)."""
+    return write_prepared(settings, prepare(conn, kind, note, include_access, include_audit, include_events, backup_password))
+
+
+def prepare(conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False,
+            backup_password: str | None = None) -> dict[str, Any]:
+    """CORE-RELIABILITY-2540 (deep review CORE-05): everything an archive needs from the database, read on `conn` - one consistent
+    snapshot. Writes nothing. `write_prepared` then writes the archive WITHOUT the database (the slow part: deflating the plan files,
+    the energy / water copies), so a caller can give the write lock up in between."""
     from . import energy_backup, water_backup
 
     min_chars = sens.min_chars(conn)
     if backup_password is not None:
         sens.password_bytes(backup_password, min_chars)  # refuse a weak / oversized password before the snapshot is taken
-    data = snapshot(conn, include_access, include_audit, include_events)
-    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn), water_history=water_backup.include_history(conn), backup_password=backup_password,
-                    min_chars=min_chars)
+    return {"data": snapshot(conn, include_access, include_audit, include_events), "kind": kind, "schema": schema_version(conn), "note": note,
+            "energy_history": energy_backup.include_history(conn), "water_history": water_backup.include_history(conn),
+            "backup_password": backup_password, "min_chars": min_chars}
+
+
+def write_prepared(settings: Settings, prepared: dict[str, Any]) -> dict[str, Any]:
+    """CORE-05: the archive of a `prepare` snapshot - no database connection is used here."""
+    p = prepared
+    out = write_zip(settings, p["data"], p["kind"], p["schema"], p["note"], energy_history=p["energy_history"], water_history=p["water_history"],
+                    backup_password=p["backup_password"], min_chars=p["min_chars"])
     return entry(out)
 
 
 def create_standalone(settings: Settings, db: Database, kind: str, note: str = "") -> dict[str, Any]:
-    with db.connection() as conn:
-        return create(settings, conn, kind, note)
+    """The daily (and any background) backup. CORE-05: the snapshot is read in a WAL read transaction - the same consistent view,
+    and it blocks no writer - and the archive is written after that transaction has ended. It used to run inside a write
+    transaction: the single write lock was held for the whole compression, and past 10 s every waiting writer failed."""
+    with db.connection(mode="read", label="backup.snapshot") as conn:
+        prepared = prepare(conn, kind, note)
+    return write_prepared(settings, prepared)
 
 
 def _actor_rows(conn: sqlite3.Connection, user_id: str | None) -> dict[str, list[dict[str, Any]]]:

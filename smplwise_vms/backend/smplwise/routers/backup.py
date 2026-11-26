@@ -16,7 +16,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, require
-from ..db import set_setting
+from ..db import set_setting, unlocked
 from ..services import backup as svc
 from ..services import backup_drill as drill
 from ..services import backup_sensitive as sens
@@ -99,10 +99,15 @@ def list_backups_api(request: Request, principal: Principal = Depends(current_pr
 def create_backup(body: CreateIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
     try:
-        e = svc.create(settings_of(request), conn, "manual", body.note, include_audit=body.include_audit, include_events=body.include_events,
-                       backup_password=_secret(body.backup_password))
+        prepared = svc.prepare(conn, "manual", body.note, include_audit=body.include_audit, include_events=body.include_events,
+                               backup_password=_secret(body.backup_password))
     except sens.SensitiveError as exc:
         raise _sensitive_error(exc) from None
+    # CORE-RELIABILITY-2540 (deep review CORE-05): the snapshot above was read inside this request's transaction; the archive is
+    # compressed with the write lock given up (other writers - HA state updates, recorder alerts, user actions - go on meanwhile),
+    # then the lock is taken back for the audit row. Only the restore keeps its safety archive under the lock (restore guarantee).
+    with unlocked(conn):
+        e = svc.write_prepared(settings_of(request), prepared)
     audit(conn, actor=principal, action="backup.create", decision="allowed", resource_type="backup", resource_id=e["name"], request_id=_rid(request),
           details={"bytes": e["bytes"], "tables": e["tables"], "files": e["files"], "sensitive": (e.get("sensitive") or {}).get("state")})
     return e
