@@ -296,6 +296,38 @@ test.describe('the home screen against the devices fixture backend', () => {
     });
   }
 
+  // HOME-SCROLL-2-2530: the product's own info style (auto - the cards in the cards view, the header bar in tiles) on the low screens:
+  // the tiles view at 1366x768 (a / c) and a landscape tablet (every direction) used to scroll the page by 7-68 px at fit 2. The last fit
+  // step (data-squeeze: the top bar and the floor tiles compress) takes it; a screen that already fits never reaches that step.
+  test('the product default info style: every direction and view fits without a vertical scroll down to 1366x768 and a landscape tablet; the squeeze step only where needed', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop sizes (the landscape tablet is a viewport here)');
+    test.setTimeout(300_000);
+    await seed(request);
+    await resetHome(request);
+    expect((await request.patch('/api/v1/settings', { data: { 'home.info_style': 'auto' } })).status()).toBe(200);
+    for (const dir of ['a', 'b', 'c'] as const) {
+      expect((await request.patch('/api/v1/settings', { data: { 'home.direction': dir, 'home.side': 'end' } })).status()).toBe(200);
+      for (const view of ['cards', 'tiles'] as const) {
+        for (const [w, h] of [[1440, 900], [1366, 768], [1280, 800], [1024, 768]]) {
+          await page.setViewportSize({ width: w, height: h });
+          await open(page, '/devices/building', view);
+          const body = page.locator('devices-building .page-body');
+          await expect(body).toHaveAttribute('data-home-direction', dir);
+          const where = `${dir} ${view} ${w}x${h}`;
+          // (polled: the shell's setup hint above the page can arrive after the packing settled - the screen measures again, 0.6-3 s)
+          await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: where, timeout: 8000 }).toEqual([]);
+          const tc = await treeCapped(page);
+          if (tc) expect(tc.bottom, `${where}: the tree ends inside the viewport`).toBeLessThanOrEqual(tc.vh);
+          // the owner's site fits at 1440x900 at fit 2 at most: the resting look there never compresses
+          if (w === 1440) {
+            await expect(body, where).not.toHaveAttribute('data-squeeze', /.*/);
+            await expect(page.locator('devices-building sw-page'), where).not.toHaveAttribute('data-squeeze', /.*/);
+          }
+        }
+      }
+    }
+  });
+
   test('direction b: the widget column can be on either side, and the floor filter narrows the floors', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop');
     await seed(request);
