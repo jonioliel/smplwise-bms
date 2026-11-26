@@ -1,6 +1,6 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
-import { pickOption } from './helpers/wk-choose';
+import { ddItems, ddValue, pickOption } from './helpers/wk-choose';
 
 // The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
 useSmplwiseWiskeyScreens();
@@ -176,11 +176,12 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     });
     await openCapture(page);
     // WisKey's defaults: the first online station with a managed lock, its readers read from the device
-    await expect(cap(page, 'station')).toHaveValue('gate');
-    await expect(cap(page, 'station').locator('option:not([disabled])')).toHaveCount(3); // gate, lobby, office (store is offline)
-    await expect(cap(page, 'reader').locator('option')).toHaveText(['קורא ברירת המחדל בתחנה']);
+    // AUDIT30-H2: the station and reader lists are <sw-dropdown>s (no native select): their value and items
+    await expect.poll(() => ddValue(cap(page, 'station'))).toBe('gate');
+    expect((await ddItems(cap(page, 'station'))).map((i) => i.id)).toEqual(['gate', 'lobby', 'office']); // store is offline
+    await expect.poll(async () => (await ddItems(cap(page, 'reader'))).map((i) => i.label)).toEqual(['קורא ברירת המחדל בתחנה']);
     await pickOption(cap(page, 'station'), 'lobby');
-    await expect(cap(page, 'reader').locator('option')).toHaveText(['1', '2'], { timeout: 15000 });
+    await expect.poll(async () => (await ddItems(cap(page, 'reader'))).map((i) => i.label), { timeout: 15000 }).toEqual(['1', '2']);
     await pickOption(cap(page, 'reader'), '2');
     await cap(page, 'next').click();
     // the confirmation step: what happens at the door, what the person must do

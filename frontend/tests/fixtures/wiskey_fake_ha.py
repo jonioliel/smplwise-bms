@@ -152,7 +152,10 @@ VERSION = "4.2.0-fake"
 # WisKey's `overview.api.commands`: the reads this fixture answers. The typed feature flags of CR-036 (services/intercom_adapter.FEATURES)
 # follow from it - the entry log and the people directory are offered; `events/detail`, `users/photo_get` and `events/export` are not
 # (the event drawer then shows the row alone, and there is no picture and no export button).
-FIXTURE_COMMANDS = ["events/list", "users/get", "users/query"]
+# STALE-FIXTURE-SPECS-2530: also the writes it answers (people editor A1, card capture A2): WisKey lists every command the add-on's HA user may
+# use, and the editor offers a save only when users/create | update | delete are listed (intercom_sync `writes_listed`)
+FIXTURE_COMMANDS = ["events/list", "users/get", "users/query", "users/create", "users/update", "users/delete", "users/pin_generate",
+                    "cards/reader_capabilities", "cards/capture_start", "cards/capture_status", "cards/capture_cancel", "cards/capture_confirm"]
 
 
 # a 64x36 synthetic picture (flat colours, no camera frame), the body of every good frame.jpeg answer
