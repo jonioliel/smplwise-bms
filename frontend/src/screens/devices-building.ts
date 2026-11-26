@@ -1668,11 +1668,11 @@ export class DevicesBuilding extends LitElement {
             // HOMELIVE-295: a state moved - the elevators / temperature / generators derive from states, so they re-read (bounded: at most one read per source per 15 s)
             for (const id of ['elevators', 'temperature', 'generators']) this.live.nudge(id);
           },
-          structure: () => {
+          structure: (reason) => {
             // an entity moved / an area renamed / a device added or removed in HA: same throttled refetch, plus a note.
             // The push of this user's own "רענן" is skipped: refreshFromHa refetches once itself.
             if (Date.now() >= this.manualUntil) this.scheduleReload();
-            this.flashStructure();
+            if (reason !== 'resync') this.flashStructure(); // LOWS-BACKEND-2550: a forced refetch is not a structure change
           },
           connected: (on) => {
             this.sync = withConnected(this.sync, on);

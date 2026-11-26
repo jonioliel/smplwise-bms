@@ -1304,9 +1304,10 @@ export class DevicesArea extends LitElement {
           entity: (id) => {
             if (!this.detail || this.entityIds.has(id)) this.scheduleReload();
           },
-          structure: () => {
+          structure: (reason) => {
             // the entity filter above cannot see an entity moved INTO this area, nor a rename: refetch whole
             this.scheduleReload();
+            if (reason === 'resync') return; // LOWS-BACKEND-2550: a forced refetch is not a structure change - no "מבנה עודכן"
             this.structureFlash = true;
             window.clearTimeout(this.flashTimer);
             this.flashTimer = window.setTimeout(() => (this.structureFlash = false), STRUCTURE_FLASH_MS);
