@@ -3,22 +3,24 @@
  * helpers, no network): unit-tested in Node (tests/unit-calendars-ui-2310.spec.ts).
  */
 import type { Equipment, OnBehalfKind, Occurrence, RoomDay } from '../api/calendars';
-import { DAY_LONG, addDays, atMinute, ddmm, sameDay, startOfDay } from './model';
+import { DAY_LONG, addDays, atMinute, ddmm, minuteExists, sameDay, startOfDay } from './model';
 import { tr } from '../i18n/msg/calendars';
 
 export const EQUIPMENT_LABEL: Record<Equipment, string> = { screen: tr('מסך'), projector: tr('מקרן'), video_call: tr('שיחת וידאו'), whiteboard: tr('לוח'), kitchen: tr('מטבחון'), accessible: tr('נגיש') };
 /** Lanes of one room's track: overlapping entries (a maintenance window over a displaced booking) get their own band. */
-export function trackLanes(entries: Pick<Occurrence, 'start' | 'end'>[]): number[] {
+export function trackLanes(entries: Pick<Occurrence, 'start' | 'end'>[], range: (o: Pick<Occurrence, 'start' | 'end'>) => [number, number] = (o) => [new Date(o.start).getTime(), new Date(o.end).getTime()]): number[] {
+  // DST-TIMELINE-2540: `range` = where an entry sits on the drawn axis; the rooms timeline passes the clock range of its day, so two
+  // entries of the repeated autumn hour (the same clock place, an hour apart in time) get two lanes instead of covering each other
   const lanes: number[] = [];
   const ends: number[] = [];
   entries.forEach((o) => {
-    const s = new Date(o.start).getTime();
+    const [s, end] = range(o);
     let l = ends.findIndex((e) => e <= s);
     if (l < 0) {
       l = ends.length;
-      ends.push(0);
+      ends.push(-Infinity);
     }
-    ends[l] = new Date(o.end).getTime();
+    ends[l] = Math.max(ends[l], end);
     lanes.push(l);
   });
   return lanes;
@@ -28,6 +30,7 @@ export function trackLanes(entries: Pick<Occurrence, 'start' | 'end'>[]): number
 export function firstFree(rooms: Pick<RoomDay, 'calendar_id' | 'open' | 'entries'>[], day: Date, now: Date, minutes: number, until = 23): { room: string; start: Date; end: Date } | null {
   const base = sameDay(day, now) ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : 8 * 60;
   for (let m = base; m + minutes <= until * 60; m += 15) {
+    if (!minuteExists(day, m)) continue; // DST-TIMELINE-2540: no start inside the missing spring hour
     const s = atMinute(day, m);
     const e = atMinute(day, m + minutes);
     for (const r of rooms) {

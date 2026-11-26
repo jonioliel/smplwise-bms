@@ -128,13 +128,80 @@ export function timelineWindow(phone: boolean, now: Date): { from: number; to: n
   const h = Math.min(Math.max(now.getHours() - 1, 0), 18);
   return { from: h, to: h + 6 };
 }
+/** DST-TIMELINE-2540: the rooms timeline and the resident's time bar are drawn on a wall-clock hour axis (like the week / day grid): an
+ * entry's place is its CLOCK time, never midnight + elapsed minutes. On the 23-hour day (spring, 02:00 -> 03:00 in Asia/Jerusalem) and
+ * the 25-hour day (autumn, 02:00 -> 01:00) elapsed time put every entry after the change one hour off its hour label. */
 export function span(o: Pick<Occurrence, 'start' | 'end'>, day: Date, from: number, to: number): { start: number; width: number } | null {
-  const a = startOfDay(day).getTime();
-  const s = Math.max((new Date(o.start).getTime() - a) / 60000, from * 60);
-  const e = Math.min((new Date(o.end).getTime() - a) / 60000, to * 60);
+  const [s0, e0] = wallRange(o, day);
+  const s = Math.max(s0, from * 60);
+  const e = Math.min(e0, to * 60);
   if (e <= s) return null;
   const total = (to - from) * 60;
   return { start: ((s - from * 60) / total) * 100, width: ((e - s) / total) * 100 };
+}
+
+/** DST-TIMELINE-2540: the clock minute of instant `t` on the axis of `day` - minutes since `day`'s midnight BY THE CLOCK (both passes through
+ * the repeated autumn hour read the same minute). An instant on an earlier day is < 0, on a later day >= 1440 (elapsed past that edge). */
+export function wallMinute(t: Date, day: Date): number {
+  const d0 = startOfDay(day);
+  if (sameDay(t, d0)) return t.getHours() * 60 + t.getMinutes() + t.getSeconds() / 60 + t.getMilliseconds() / 60000;
+  if (t < d0) return (t.getTime() - d0.getTime()) / 60000;
+  return 1440 + (t.getTime() - addDays(d0, 1).getTime()) / 60000;
+}
+/** An entry's [start, end] in clock minutes of `day`. One that runs through the repeated hour can end at an earlier clock minute than it
+ * starts (01:40 of the first pass -> 01:10 of the second); it then keeps its real length from its start. */
+export function wallRange(o: Pick<Occurrence, 'start' | 'end'>, day: Date): [number, number] {
+  const a = new Date(o.start);
+  const b = new Date(o.end);
+  const s = wallMinute(a, day);
+  let e = wallMinute(b, day);
+  if (e <= s && b.getTime() > a.getTime()) e = s + (b.getTime() - a.getTime()) / 60000;
+  return [s, e];
+}
+
+/** DST-TIMELINE-2540: what the clock does in hour `h` (0-23) of `day`: 'missing' = the clock jumps over it (spring: 02:00 -> 03:00),
+ * 'repeated' = it is lived twice (autumn: 02:00 -> 01:00), else 'plain'. Read from the zone itself (the browser runs in the installation's
+ * zone), so any zone and year works; JS resolves a skipped clock time forward and a repeated one to its first pass. */
+export type HourKind = 'plain' | 'missing' | 'repeated';
+export function hourKind(day: Date, h: number): HourKind {
+  if (h < 0 || h > 23) return 'plain';
+  const a = atMinute(day, h * 60);
+  if (a.getHours() !== h || !sameDay(a, day)) return 'missing';
+  const lived = (atMinute(day, (h + 1) * 60).getTime() - a.getTime()) / 60000;
+  return lived > 60 ? 'repeated' : 'plain';
+}
+/** The hour labels of a wall-clock axis from `from` to `to` (k = 0..to-from): the missing hour has no label (it is skipped), the repeated
+ * hour keeps its one place on the axis and is marked (the screens add "×2" and say why). */
+export interface AxisHour { k: number; h: number; kind: HourKind }
+export function axisHours(day: Date, from: number, to: number): AxisHour[] {
+  return Array.from({ length: to - from + 1 }, (_, k) => ({ k, h: (from + k) % 24, kind: from + k < 24 ? hourKind(day, from + k) : 'plain' }));
+}
+/** The clock hours inside [from, to) that do not exist on `day`, as start / width in percent of the window (drawn hatched, not bookable). */
+export function missingBands(day: Date, from: number, to: number): { h: number; start: number; width: number }[] {
+  const total = to - from;
+  return axisHours(day, from, to).filter((x) => x.k < total && x.kind === 'missing').map((x) => ({ h: x.h, start: (x.k / total) * 100, width: (1 / total) * 100 }));
+}
+/** The instant at clock minute `min` of `day`, like `atMinute`, except that a minute the clock skips gives the first minute after the jump
+ * (02:30 on the spring day -> 03:00, not 03:30): a tap inside the missing hour starts at the change, never an hour later. */
+export function wallInstant(day: Date, min: number): Date {
+  const t = atMinute(day, min);
+  if (min <= 0 || min >= 1440 || wallMinute(t, day) === min) return t;
+  let k = 1;
+  while (k <= 180 && wallMinute(new Date(t.getTime() - k * 60000), day) > min) k += 1;
+  return new Date(t.getTime() - (k - 1) * 60000);
+}
+/** A clock minute of `day` that exists (not inside the missing spring hour). */
+export const minuteExists = (day: Date, min: number) => min <= 0 || min >= 1440 || wallMinute(atMinute(day, min), day) === min;
+/** The rooms timeline: a tap at `frac` (0-1) of the track opens a booking at that half hour BY THE CLOCK. */
+export function roomsTapStart(day: Date, win: { from: number; to: number }, frac: number): Date {
+  const f = Math.min(Math.max(frac, 0), 1);
+  return wallInstant(day, Math.floor((win.from * 60 + f * (win.to - win.from) * 60) / 30) * 30);
+}
+/** The resident's time bar: a tap / drag at `frac` centres the chosen duration there, on the quarter hour, inside the window, by the clock. */
+export function barStart(day: Date, win: { from: number; to: number }, frac: number, duration: number): Date {
+  const f = Math.min(Math.max(frac, 0), 1);
+  const min = Math.round((win.from * 60 + f * (win.to - win.from) * 60 - duration / 2) / 15) * 15;
+  return wallInstant(day, Math.max(win.from * 60, Math.min(win.to * 60 - duration, min)));
 }
 
 /** Paging instead of a page scroll: how many rows fit in the given height, and the slice of a page (1-based). */
@@ -175,6 +242,8 @@ export function slotGrid(entries: Occurrence[], day: Date, open: { from: string;
     const [fh, fm] = w.from.split(':').map(Number);
     const [th, tm] = w.to.split(':').map(Number);
     for (let m = fh * 60 + fm; m + duration <= th * 60 + tm; m += step) {
+      // DST-TIMELINE-2540: a start inside the missing spring hour does not exist (02:30 would be built as 03:30, a second "03:30")
+      if (!minuteExists(day, m)) continue;
       const s = atMinute(day, m);
       const e = atMinute(day, m + duration);
       if (s < now) continue;
