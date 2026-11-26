@@ -19,7 +19,9 @@ test('run log strings: Hebrew and English complete, placeholders match, no platf
   expect(GLT_DEV_MARKED).toEqual(['ar', 'ru']);
   expect(glt('page_of', { p: 2, n: 5 }, 'he')).toBe('עמוד 2 מתוך 5');
   expect(glt('kind_mains_failure', undefined, 'ar')).toBeTruthy();
-  expect(glt('setIntro', undefined, 'ru')).toBe(GLT_TABLES.he.setIntro); // falls back to Hebrew
+  // a key without a Russian word falls back to Hebrew (GEN-UNITS-ARRU-2530 gave the settings words - setIntro among them - Russian words)
+  expect(glt('why_none', undefined, 'ru')).toBe(GLT_TABLES.he.why_none);
+  expect(glt('setIntro', undefined, 'ru')).not.toBe(GLT_TABLES.he.setIntro);
   // every setting of the server's LOG_SPECS has its label
   for (const k of ['min_run_s', 'mains_lookback_s', 'test_min_minutes', 'test_max_minutes', 'classify_unloaded_as_test', 'test_interval_days', 'no_data_close_min',
     'refill_min_pct', 'refill_settle_min', 'drop_min_pct', 'fuel_window_h', 'retention_days']) expect(GLT_KEYS).toContain(`set_${k}`);
