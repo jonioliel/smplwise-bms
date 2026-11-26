@@ -360,8 +360,3 @@ export function jobsView(data: unknown): WkJobs | null {
 
 /** A job id as the page shows it: the first eight characters (the full id stays in the row's title). */
 export const shortId = (id: string): string => id.slice(0, 8);
-
-/** The row counts of a job, each null when WisKey did not give it (the page writes "unknown", never 0). */
-function jobCounts(j: WkJob): { saved: number | null; failed: number | null; pending: number | null; total: number | null } {
-  return { saved: j.saved, failed: j.failed, pending: j.pending, total: j.total };
-}

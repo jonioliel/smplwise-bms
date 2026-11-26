@@ -12,7 +12,6 @@ import type { Tone } from './schedule-editor-logic';
 
 export type ReadState = 'sending' | 'not_sent' | 'accepted' | 'running' | 'completed' | 'refused' | 'unknown';
 export const READ_STATES: readonly ReadState[] = ['sending', 'not_sent', 'accepted', 'running', 'completed', 'refused', 'unknown'];
-const STARTABLE = ['readiness', 'dependencies'] as const;
 export const SHOWN = 5;
 
 export function readState(state: string | null | undefined): ReadState {
