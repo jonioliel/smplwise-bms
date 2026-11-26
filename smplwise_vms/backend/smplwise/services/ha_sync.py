@@ -129,6 +129,7 @@ class SyncState:
         # rate-limited) attempt is due; 0 / None while the token is accepted
         self.auth_refusals = 0
         self.next_attempt_at: str | None = None
+        self.dropped_frames = 0  # LOWS-BACKEND-2550 (CORE-06): frames a full /ha/ws subscriber queue could not take (since start)
 
     def __setattr__(self, name: str, value: Any) -> None:
         # when the connection was lost (monotonic): the NVR-less health reports an HA outage past a grace period
@@ -229,7 +230,22 @@ def publish(msg: dict[str, Any]) -> None:
         try:
             q.put_nowait(msg)
         except queue.Full:
-            pass
+            # LOWS-BACKEND-2550 (CORE-06): never silently - the socket's handler sees the mark and tells its client to refetch
+            q.overflowed = True  # type: ignore[attr-defined]
+            STATE.dropped_frames += 1
+
+
+def take_overflow(q: queue.Queue) -> bool:
+    """LOWS-BACKEND-2550 (CORE-06): True once after `publish` dropped a frame for this subscriber. The frames still queued are older
+    than the refetch the client is about to make, so they are discarded (a stale frame landing after the refetch would undo it)."""
+    if not getattr(q, "overflowed", False):
+        return False
+    q.overflowed = False  # type: ignore[attr-defined]
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            return True
 
 
 FORECAST_KEEP = 14  # a weather entity's own `forecast` attribute: the first entries only (a week of days, or half a day of hours)
@@ -271,6 +287,28 @@ def scrub_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in attrs.items() if k not in SECRET_ATTRS and not _tokenised(v)}
 
 
+ATTR_BUDGET = 4000  # characters of the stored attribute document (the TV lists above are outside it)
+
+
+def _fit_attributes(kept: dict[str, Any], budget: int) -> dict[str, Any]:
+    """LOWS-BACKEND-2550 (CORE-07): bring the attribute document under `budget` without ever cutting the JSON text (a cut document
+    does not parse, and every reader then sees no attributes at all). The largest attribute goes first: a list loses its tail items
+    (halved, never a cut string), anything else is dropped whole - the small ones (unit, device class, name, icon) stay."""
+    out = dict(kept)
+
+    def size(v: Any) -> int:
+        return len(json.dumps(v, ensure_ascii=False, default=str))
+
+    while out and len(json.dumps(out, ensure_ascii=False, default=str)) > budget:
+        key = max(out, key=lambda k: size(out[k]) + len(k))
+        value = out[key]
+        if isinstance(value, list) and len(value) > 1:
+            out[key] = value[: len(value) // 2]
+        else:
+            del out[key]
+    return out
+
+
 def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     kept = scrub_attributes({k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW})
     if "forecast" in kept:
@@ -281,9 +319,9 @@ def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     if domain in ("media_player", "scene") and isinstance((attrs or {}).get("entity_id"), list):  # CR-017: a scene's members (a native scene lists what it sets)
         media_lists["entity_id"] = _media_list(attrs["entity_id"], HELPER_GROUP_MEMBERS_MAX)  # CR-016: the members of a helper group (a shortcut, never joinable)
     text = json.dumps(kept, ensure_ascii=False, default=str)
-    if len(text) > 4000:
-        kept = {k: kept[k] for k in list(kept)[:10]}
-        text = json.dumps(kept, ensure_ascii=False, default=str)[:4000]
+    if len(text) > ATTR_BUDGET:
+        kept = _fit_attributes(kept, ATTR_BUDGET)
+        text = json.dumps(kept, ensure_ascii=False, default=str)
     if media_lists:
         try:
             merged = json.loads(text)
