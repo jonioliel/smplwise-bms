@@ -192,7 +192,7 @@ export class WkScheduleExec extends LitElement {
   private switchRow() {
     const v = this.view!;
     if (!v.can_configure) return nothing;
-    return html`<sw-toggle data-sx-switch size="sm" label=${sed('sx_switch')} ?checked=${v.enabled} ?disabled=${this.busy === 'switch'}
+    return html`<sw-toggle controlled data-sx-switch size="sm" label=${sed('sx_switch')} ?checked=${v.enabled} ?disabled=${this.busy === 'switch'}
       @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggle(e.detail.checked === true)}></sw-toggle>`;
   }
 

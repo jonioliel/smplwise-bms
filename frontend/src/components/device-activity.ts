@@ -857,7 +857,7 @@ export class DeviceActivity extends LitElement {
     return html`<div class="sr" data-schedule=${s.id}>
       <div class="c"><div class="nm">${bidi(s.display_name)}${roTag ? html` <span class="tag" data-readonly><sw-icon name="lock" size=${11}></sw-icon>${t('deviceActivity.schedReadOnly')}</span>` : nothing}${more ? html` <span class="tag">${t('deviceActivity.schedMore')}</span>` : nothing}</div>
         <div class="nx"><span>${nextRunLabel(s)}</span><span class="dy"> · ${daysLabel(s.days.tokens)}</span></div></div>
-      <sw-toggle .checked=${s.enabled} ?disabled=${!s.can.toggle || this.busy.has(s.id)} label=${s.enabled ? t('deviceActivity.schedEnabled') : t('deviceActivity.schedDisabled')} labelHidden data-sched-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggle(s, e.detail.checked)}></sw-toggle>
+      <sw-toggle controlled .checked=${s.enabled} ?disabled=${!s.can.toggle || this.busy.has(s.id)} label=${s.enabled ? t('deviceActivity.schedEnabled') : t('deviceActivity.schedDisabled')} labelHidden data-sched-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggle(s, e.detail.checked)}></sw-toggle>
       <sw-button iconOnly size="sm" variant="ghost" icon=${ro ? 'eye' : 'edit'} label=${ro ? t('deviceActivity.schedView') : t('deviceActivity.schedEdit')} data-sched-edit @click=${() => this.openEditor(s.id)}></sw-button>
     </div>`;
   }
