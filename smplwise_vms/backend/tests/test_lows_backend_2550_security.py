@@ -5,6 +5,9 @@ SEC-6  every WebSocket now passes the home-interface gate an HTTP request passes
        (`home_interface_only`), and the home interface's own sockets (the door call's talk / listen included) stay open.
 SEC-7  the Arx-only sign-in's per-account ceiling counts failures in the database (UPDATE ... RETURNING), so a failure that overlaps
        another inside the hashing time is not lost.
+SEC-8  (owner Q1a) adding / editing / testing an off-box target and the key export are refused on the remote channel (403
+       `offbox_local_only`, audited); the local channel is unchanged.
+D-12   (owner Q6a) mapping an area that resolved to no building INTO one needs the route's permission installation-wide.
 Fakes only: no Home Assistant, no device."""
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from test_devices import bulk_app, dev_app  # noqa: F401 - the fixtures of the device tests
 from test_local_identity import Lx, _net
 
 from smplwise.services import ha_user_auth as hua
@@ -128,3 +132,85 @@ def test_sec7_a_new_window_starts_the_count_again(lx, monkeypatch):
     assert lx.sign_in(lx.remote(**_net(31)), "maria", "not the password").status_code == 401
     row = lx.rows("SELECT failed_count, delay_until FROM auth_local_credentials WHERE user_id = ?", (uid,))[0]
     assert row == {"failed_count": 1, "delay_until": None}
+
+
+# ---------------------------------------------------------------- SEC-8 (owner Q1a): off-box administration is local-only
+
+OFFBOX = "backups/offbox"
+
+
+@pytest.fixture()
+def arx(settings, tmp_path, monkeypatch):
+    from test_remote_access import Arx
+
+    a = Arx(settings, tmp_path, monkeypatch)
+    yield a
+    hua.reset_for_tests()
+
+
+def _local_target_body(share) -> dict:
+    return {"name": "USB", "kind": "local", "enabled": True, "config": {"path": str(share)}}
+
+
+def test_sec8_target_create_update_test_and_key_export_are_refused_remotely(arx, tmp_path):
+    share = tmp_path / "share"
+    share.mkdir()
+    local = TestClient(arx.app)  # the local channel (Ingress), the developer identity joni - the bootstrap system administrator
+    assert local.get(f"{API}/me").status_code == 200
+    made = local.post(f"{API}/{OFFBOX}/targets", json=_local_target_body(share))
+    assert made.status_code == 201, made.text
+    tid = made.json()["id"]
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    assert arx.login(arx.owner).status_code == 200
+    remote = arx.client
+    assert remote.get(f"/arx{API}/{OFFBOX}").status_code == 200  # the listing stays remote
+    refused = [
+        remote.post(f"/arx{API}/{OFFBOX}/targets", json=_local_target_body(share)),
+        remote.put(f"/arx{API}/{OFFBOX}/targets/{tid}", json=_local_target_body(share)),
+        remote.post(f"/arx{API}/{OFFBOX}/targets/{tid}/test"),
+        remote.post(f"/arx{API}/{OFFBOX}/key/export", json={"confirm": "EXPORT"}),
+    ]
+    for r in refused:
+        assert r.status_code == 403 and r.json()["code"] == "offbox_local_only", r.text
+        assert "SWXB-KEY" not in r.text
+    with arx.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM backup_offbox_targets").fetchone()[0] == 1  # nothing created remotely
+        denied = {(r["action"], r["reason"]) for r in conn.execute("SELECT action, reason FROM audit_log WHERE decision = 'denied' AND reason = 'local_only'")}
+    assert denied == {("backup.offbox.target_create", "local_only"), ("backup.offbox.target_update", "local_only"), ("backup.offbox.test", "local_only"),
+                      ("backup.offbox.key_export", "local_only")}
+    # the same four from the local channel are allowed
+    assert local.put(f"{API}/{OFFBOX}/targets/{tid}", json={**_local_target_body(share), "name": "USB 2"}).status_code == 200
+    assert local.post(f"{API}/{OFFBOX}/targets/{tid}/test").status_code == 200
+    exp = local.post(f"{API}/{OFFBOX}/key/export", json={"confirm": "EXPORT"})
+    assert exp.status_code == 200 and exp.json()["key"].startswith("SWXB-KEY-1:")
+
+
+# ---------------------------------------------------------------- D-12 (owner Q6a): mapping an unmapped area into a building
+
+def test_d12_an_unmapped_area_goes_into_a_building_only_with_installation_wide_permission(bulk_app):
+    from test_building_scope_control_2351 import _site
+    from test_building_scope_single_2351 import _multi_on
+
+    app, s, c, _fake = bulk_app
+    ids = _site(c, app)
+    bind(c, s, "eda", "site_admin", "floor", ids["fA"])
+    _multi_on(c)
+    with app.state.db.connection() as conn:  # the garden resolves to no building now
+        conn.execute("DELETE FROM home_area_buildings WHERE area_id = 'garden'")
+
+    def area_row(aid: str):
+        with app.state.db.connection() as conn:
+            r = conn.execute("SELECT floor_id FROM home_area_links WHERE area_id = ?", (aid,)).fetchone()
+        return r[0] if r else "absent"
+
+    r = c.put(f"{API}/floors/{ids['fA']}/home-link", json={"areas": {"garden": "include"}}, headers=as_user("eda"))
+    assert r.status_code == 403, r.text
+    assert area_row("garden") == "absent", "nothing written"
+    with app.state.db.connection() as conn:
+        denied = conn.execute("SELECT resource_type, resource_id FROM audit_log WHERE action = 'site.content.configure' AND decision = 'denied' "
+                              "ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert (denied["resource_type"], denied["resource_id"]) == ("installation", "*")
+    # an installation-wide administrator maps it
+    assert c.put(f"{API}/floors/{ids['fA']}/home-link", json={"areas": {"garden": "include"}}).status_code == 200
+    assert area_row("garden") == ids["fA"]

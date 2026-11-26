@@ -279,6 +279,7 @@
 "את הכניסה השמורה באפליקציה מפעילים רק מתוך הרשת המקומית.": "The saved sign-in in the app can be turned on only from the local network.",
 "את המפסק של מעגל בחלל המשותף משנים בקומה שלו.": "The switch of a circuit in the shared space is changed on its own floor.",
 "את הפעולה הזו אי אפשר לאשר בטלפון. אשר עם הקוד מאפליקציית האימות, מפתח גישה או מפתח הטלפון במכשיר הזה.": "This action cannot be approved on the phone. Confirm with the authenticator app code, a passkey or the phone key on this device.",
+"את הפעולה הזו של הגיבוי החיצוני (ייצוא מפתח, הוספה, עריכה או בדיקה של יעד) אפשר לעשות רק מהרשת המקומית.": "This off-box backup action (key export, adding, editing or testing a target) is allowed from the local network only.",
 "את הקוד האישי שלך מוחק מנהל מערכת אחר.": "Your personal code is being deleted by another system administrator.",
 "את חיבור מסך האפליקציה מפעילים רק כשהכניסה השמורה באפליקציה פעילה.": "The app screen connection can only be turned on when the sign-in saved in the app is active.",
 "את חיבור מסך האפליקציה מפעילים רק מתוך הרשת המקומית.": "The app screen connection can be turned on only from the local network.",

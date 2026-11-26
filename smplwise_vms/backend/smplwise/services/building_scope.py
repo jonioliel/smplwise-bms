@@ -162,7 +162,8 @@ class RemapGuard:
     """Round 14 security rule for every mapping write (the floor's home links, the mapping assistant's apply / restore, a plan room's area
     link): while the mapping counts for reach, moving an area OUT of the building it resolves to now (to another building, or to none)
     also edits that building - the writer must hold the route's own permission where the area is now (its floor, else its building), the
-    rule a camera moved between floors follows (HA_IDENTITY_RBAC_HE §5: source and target). Otherwise a floor editor of building A could
+    rule a camera moved between floors follows (HA_IDENTITY_RBAC_HE §5: source and target). LOWS-BACKEND-2550 (D-12): mapping an area that
+    resolved to no building INTO one needs the route's permission installation-wide. Otherwise a floor editor of building A could
     pull building B's areas - and with them B's devices - into the reach of A's holders. Usage: create it after the route's own permission
     check and before any write (it opens a savepoint), call `check()` after the writes and before the route's own audit row: a refused
     move rolls the writes back and raises the audited 403 of `require`. While the mapping does not count (switch off / "מיקום במפה") it
@@ -179,7 +180,7 @@ class RemapGuard:
     def check(self) -> None:
         if not self.on:
             return
-        from ..rbac import authorize, require
+        from ..rbac import INSTALLATION, authorize, require
 
         after = area_targets(self.conn, _light(self.conn)[0])
         for aid, (old_b, old_f) in sorted(self.before.items()):
@@ -191,6 +192,14 @@ class RemapGuard:
                 self.conn.execute("ROLLBACK TO building_remap")
                 self.conn.execute("RELEASE building_remap")
                 require(self.conn, self.principal, self.permission, target)  # the audited 403 (raises)
+        # LOWS-BACKEND-2550 (D-12, owner Q6a): an area that resolved to NO building and now resolves to one puts its devices within reach
+        # of that building's holders - before, only an installation-level binding reached them. That needs the route's permission
+        # installation-wide (a building- or floor-scoped editor cannot claim unmapped areas, e.g. another building's not yet mapped).
+        for aid in sorted(set(after) - set(self.before)):
+            if not authorize(self.conn, self.principal, self.permission, INSTALLATION).allowed:
+                self.conn.execute("ROLLBACK TO building_remap")
+                self.conn.execute("RELEASE building_remap")
+                require(self.conn, self.principal, self.permission, INSTALLATION)  # the audited 403 (raises)
         self.conn.execute("RELEASE building_remap")
         if after != self.before:
             mapping_changed(self.conn)
