@@ -11,7 +11,7 @@ import { html, nothing } from 'lit';
 import { uiLocale } from '../i18n/locale';
 import { tr } from '../i18n/msg/home';
 import { hi } from './home-icons';
-import { doorsText } from './home-logic';
+import { doorsText, doorsTone } from './home-logic';
 import { listNotices, type Notice } from './home-p2-api';
 import { has, warmFamily } from './home-p2-ui';
 import { alarmWord } from './home-v3-words';
@@ -220,8 +220,7 @@ export class WallPanel {
     if (cal) pills.push(html`<span class="st-pill wr-pill" data-wr="today">${hi('cal')}<span class="clamp1">${cal.line(h).text}</span></span>`);
     if (d.modules.has('doors')) {
       const doors = h.allDoors();
-      const open = doors.filter((x) => !x.locked).length;
-      pills.push(html`<span class="st-pill wr-pill" data-wr="doors" data-tone=${!doors.length ? 'neutral' : open ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${doorsText(doors)}</span></span>`);
+      pills.push(html`<span class="st-pill wr-pill" data-wr="doors" data-tone=${doorsTone(doors)}><i class="dot"></i><span class="clamp1">${doorsText(doors)}</span></span>`);
     }
     const p = h.panels[0];
     if (p) {

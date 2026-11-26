@@ -32,6 +32,9 @@ interface St {
   eventLog: boolean;
   /** FLAKY-SWEEP-2480: `automations/*` requests being answered right now (see openStyleguideWithEditors) */
   inflight: number;
+  /** HONEST-STATES-2540: fields laid over the item read (e.g. `unknown_effects`), and an enable / disable the server refuses */
+  itemPatch?: Record<string, unknown>;
+  refuseToggle?: { status: number; code: string };
 }
 
 const fresh = (user: MockUserId = 'installer', opts: { delegation?: boolean; schedulerPresent?: boolean } = {}): St => ({
@@ -82,10 +85,11 @@ async function answer(route: Route, st: St) {
       if (p === 'automations/preview') return json(await m.preview(body as never));
       if (p === 'automations/scene/capture') return json(await m.capture(body as never));
       if (method === 'POST' && seg.length === 1) return json(await m.create(kind, body as never), 201);
-      if (method === 'GET' && seg.length === 2) { if (st.failGet) return json({ code: 'ha_unavailable', user_message: '׳×׳©׳×׳™׳× ׳”׳׳¢׳¨׳›׳× ׳׳™׳ ׳” ׳–׳׳™׳ ׳” ׳›׳¨׳’׳¢.', retryable: true, correlation_id: '', details: {} }, 503); return json(await m.get(kind, id)); }
+      if (method === 'GET' && seg.length === 2) { if (st.failGet) return json({ code: 'ha_unavailable', user_message: '׳×׳©׳×׳™׳× ׳”׳׳¢׳¨׳›׳× ׳׳™׳ ׳” ׳–׳׳™׳ ׳” ׳›׳¨׳’׳¢.', retryable: true, correlation_id: '', details: {} }, 503); return json({ ...(await m.get(kind, id)), ...(st.itemPatch ?? {}) }); }
       if (method === 'PUT' && seg.length === 2) return json(await m.replace(kind, id, body as never));
       if (method === 'PUT' && seg[2] === 'code') return json(await m.putCode(kind, id, body as never));
       if (seg[2] === 'delete') return json(await m.remove(kind, id, body as never));
+      if ((seg[2] === 'enable' || seg[2] === 'disable') && st.refuseToggle) return json({ code: st.refuseToggle.code, user_message: 'refused (sample)', retryable: false, correlation_id: '', details: {} }, st.refuseToggle.status);
       if (seg[2] === 'enable' || seg[2] === 'disable') return json(await m.setEnabled(id, seg[2] === 'enable', body as never));
       if (seg[2] === 'run') return json(kind === 'script' ? await m.runScript(id, body as never) : await m.run(id, body as never), 202);
       if (seg[2] === 'dry-run') return json(await m.dryRun(kind, id));
@@ -908,6 +912,45 @@ test.describe('automation builder: dry-run, run now, enable, delete and the unsa
     await expect.poll(() => lastCall(st, 'POST', /\/disable$/)).toBeTruthy();
     await expect.poll(() => st.store.entry('automation', id)!.meta.enabled).toBe(false);
     await expect.poll(async () => (await events(page)).some((e) => e.name === 'item-changed')).toBe(true);
+  });
+
+  // HONEST-STATES-2540 (deep review FC-01): the enable switch is controlled - it shows the saved state only
+  test('the enable switch stays where it was when the server refuses the change (FC-01)', async ({ page }) => {
+    const st = fresh();
+    st.refuseToggle = { status: 403, code: 'forbidden' };
+    const id = idOf(st, 'automation.hall_motion');
+    const { tag } = await mount(page, st, 'automation-builder', { itemId: id });
+    await ready(page, tag);
+    const sw = page.locator(`${tag} [data-enable-toggle]`).locator('button');
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await sw.click();
+    await expect.poll(() => lastCall(st, 'POST', /\/disable$/)).toBeTruthy();
+    await expect(sw).toBeEnabled(); // the save finished (busy cleared)
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator(`${tag} [data-enable-toggle]`)).toHaveJSProperty('checked', true);
+    expect(st.store.entry('automation', id)!.meta.enabled).toBe(true);
+  });
+
+  test('the enable switch does not move when the "enable?" confirmation is cancelled, and moves once it is confirmed (FC-01)', async ({ page }) => {
+    const st = fresh();
+    const id = idOf(st, 'automation.vacation_freeze'); // stored off
+    st.itemPatch = { unknown_effects: true };
+    const { tag } = await mount(page, st, 'automation-builder', { itemId: id });
+    await ready(page, tag);
+    const sw = page.locator(`${tag} [data-enable-toggle]`).locator('button');
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await sw.click();
+    const dlg = page.locator(`${tag} sw-dialog[open]`).filter({ hasText: 'כולל פעולה מתקדמת שהמערכת לא יודעת לתאר' });
+    await expect(dlg).toBeVisible();
+    await expect(sw).toHaveAttribute('aria-checked', 'false'); // asked, not moved
+    await dlg.getByRole('button', { name: 'ביטול' }).click();
+    await expect(dlg).toHaveCount(0);
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    expect(lastCall(st, 'POST', /\/enable$/)).toBeFalsy();
+    await sw.click();
+    await page.locator(`${tag} sw-dialog[open]`).filter({ hasText: 'כולל פעולה מתקדמת שהמערכת לא יודעת לתאר' }).getByRole('button', { name: 'הפעל' }).click();
+    await expect.poll(() => lastCall(st, 'POST', /\/enable$/)?.body).toMatchObject({ confirm: true });
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
   });
 
   test('delete: a confirmation, then the item goes to the trash (the editor reports `deleted` and closes)', async ({ page }) => {

@@ -519,6 +519,8 @@ export class LiveCamera extends LitElement {
     }
   }
 
+  // HONEST-STATES-2540 (SCR-29 / FC-01): the two OSD switches are controlled - they show what the NVR answers (`loadOsd` after the write),
+  // never a value a refused write left behind
   private renderOsd() {
     const o = this.osd;
     if (!o || !o.can_write) return nothing;
@@ -526,8 +528,8 @@ export class LiveCamera extends LitElement {
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
       <span>${tr('שם במקליט:')} <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ` ${tr('(זהה לשם ב־Arx)')}` : ` · ${tr('ב־Arx: {name}', { name: o.vms_name })}`}</span>
       <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction(tr('שם הערוץ'), () => writeChannelName(this.cam!.id))}>${tr('כתוב את השם מ־Arx למקליט')}</sw-button>
-      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" labelHidden in-label label=${tr('שם על התמונה')} data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: toggled(e) }))}></sw-toggle> ${tr('שם על התמונה')}</label>` : nothing}
-      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" labelHidden in-label label=${tr('חותמת זמן')} data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: toggled(e) }))}></sw-toggle> ${tr('חותמת זמן')}</label>
+      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" controlled labelHidden in-label label=${tr('שם על התמונה')} data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: toggled(e) }))}></sw-toggle> ${tr('שם על התמונה')}</label>` : nothing}
+      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" controlled labelHidden in-label label=${tr('חותמת זמן')} data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: toggled(e) }))}></sw-toggle> ${tr('חותמת זמן')}</label>
         <sw-field><select aria-label=${tr('פורמט תאריך')} data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('פורמט תאריך'), () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
       ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
     </div>`;

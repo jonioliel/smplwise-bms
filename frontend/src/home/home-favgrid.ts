@@ -158,7 +158,7 @@ interface PanelLike {
   can: { arm: boolean };
   code: { arm: string };
 }
-interface DoorLike { id: string; ok: boolean; can: boolean; locked: boolean; wiskey: boolean; kind: 'door' | 'gate' }
+interface DoorLike { id: string; ok: boolean; can: boolean; locked: boolean; wiskey: boolean; kind: 'door' | 'gate'; /** HONEST-STATES-2540: false = unknown state (not offered as an open door) */ known?: boolean }
 
 export type Suggestion<P, D> = { kind: 'lock'; doors: D[] } | { kind: 'arm'; panel: P; mode: ArmMode };
 
@@ -169,7 +169,7 @@ export type Suggestion<P, D> = { kind: 'lock'; doors: D[] } | { kind: 'arm'; pan
 export function sceneSuggestions<P extends PanelLike, D extends DoorLike>(icon: string, panels: P[], doors: D[]): Suggestion<P, D>[] {
   if (icon !== 'leave' && icon !== 'night') return [];
   const out: Suggestion<P, D>[] = [];
-  const open = doors.filter((d) => d.kind === 'door' && d.ok && d.can && !d.locked && !d.wiskey);
+  const open = doors.filter((d) => d.kind === 'door' && d.ok && d.known !== false && d.can && !d.locked && !d.wiskey);
   if (open.length) out.push({ kind: 'lock', doors: open });
   const want: ArmMode[] = icon === 'leave' ? ['arm_away'] : ['arm_night', 'arm_home'];
   for (const p of panels) {

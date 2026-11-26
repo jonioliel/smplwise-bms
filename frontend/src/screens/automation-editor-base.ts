@@ -1485,8 +1485,10 @@ export abstract class AutomationEditorBase extends LitElement {
     const seg = (cls: string, fill: boolean) => html`<sw-tabs controlled variant="pill" class=${cls} fill=${fill ? 'always' : nothing} group-label=${tr('תצוגה')} data-view-toggle .items=${views} .active=${this.view}
       @change=${(e: CustomEvent<{ id: string }>) => { e.stopPropagation(); this.setView(e.detail.id as 'builder' | 'code'); }}></sw-tabs>`;
     const on = this.item ? this.item.state !== 'off' : true;
+    // HONEST-STATES-2540 (FC-01): a controlled switch - it moves only when the saved item answers (a cancelled "להפעיל?" or a refused save
+    // leaves it where it was)
     const tgl = this.kind === 'automation' && !this.isNew && this.item?.can.toggle && !this.hardReadOnly
-      ? html`<sw-toggle class="tgl" labelHidden label=${tr('פעילה')} .checked=${on} ?disabled=${this.busy !== ''} data-enable-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleEnabled(e.detail.checked)}></sw-toggle>` : nothing;
+      ? html`<sw-toggle class="tgl" controlled labelHidden label=${tr('פעילה')} .checked=${on} ?disabled=${this.busy !== ''} data-enable-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleEnabled(e.detail.checked)}></sw-toggle>` : nothing;
     return html`<div class="grab" aria-hidden="true"></div>
       <header class="shh">
         <button class="bk" type="button" aria-label=${tr('סגירה')} data-editor-close @click=${() => this.requestCancel()}>${icon('chevron')}</button>

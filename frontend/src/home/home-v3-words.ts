@@ -83,6 +83,28 @@ export function alarmWord(state: string | null, available = true): { text: strin
   }
 }
 
+// HONEST-STATES-2540 (deep review SCR-09): what a panel's state means for the summaries. A panel that is offline, or answers a state the
+// home interface does not know (null, 'unknown', anything new), is never "armed" (green) and never "disarmed" either.
+const ALARM_ARMED = new Set(['armed_home', 'armed_away', 'armed_night', 'armed_vacation', 'armed_custom_bypass', 'arming', 'pending', 'disarming']);
+export type AlarmLook = 'triggered' | 'armed' | 'disarmed' | 'unknown' | 'unavailable';
+export function alarmLook(state: string | null, available = true): AlarmLook {
+  if (!available || state === 'unavailable') return 'unavailable';
+  if (state === 'triggered') return 'triggered';
+  if (state === 'disarmed') return 'disarmed';
+  return state != null && ALARM_ARMED.has(state) ? 'armed' : 'unknown';
+}
+
+/** The home screen's "אבטחה" chip over every panel the person sees: an alarm wins, then an armed panel; a panel that cannot be read
+ *  makes the chip say so (never "לא דרוך" while one panel is unknown). Tone '' = the chip's plain look. */
+export function securityChip(panels: readonly { state: string | null; available: boolean }[]): { text: string; tone: '' | 'ok' | 'warn' } {
+  const looks = panels.map((p) => alarmLook(p.state, p.available));
+  if (looks.includes('triggered')) return { text: tr('אזעקה!'), tone: 'warn' };
+  if (looks.includes('armed')) return { text: tr('דרוך'), tone: 'ok' };
+  if (looks.length && looks.every((l) => l === 'unavailable')) return { text: tr('לא זמין'), tone: 'warn' };
+  if (looks.some((l) => l === 'unknown' || l === 'unavailable')) return { text: tr('לא ידוע'), tone: '' };
+  return { text: tr('לא דרוך'), tone: '' };
+}
+
 export const ARM_WORD: Record<string, string> = { arm_away: tr('דריכה מלאה'), arm_home: tr('דריכה: בבית'), arm_night: tr('דריכת לילה') };
 
 /** "היום" / "אתמול" / "שלשום" / a short date, for a day `back` days before today. */

@@ -37,11 +37,30 @@ export function homeBarText(rs: HRoom[]): string {
   return n || a ? `${lightsText(n)}${a ? (a === 1 ? tr(' · בחדר אחד') : tr(' · ב-{a} חדרים', { a })) : ''}` : tr('הכל כבוי בבית');
 }
 
+// HONEST-STATES-2540 (deep review SCR-10): a lock that is offline, or answers no state the home interface knows, is neither locked nor
+// open - it is "unknown". It is never counted, announced or coloured as an open door, and never as a locked one either.
+const LOCK_STATES = new Set(['locked', 'unlocked', 'open', 'opening', 'locking', 'unlocking', 'jammed']);
+/** Whether a lock row's state is one the home interface can say (available, and a lock state it knows). */
+export const lockKnown = (state: string | null, available: boolean): boolean => available && state != null && LOCK_STATES.has(state);
+/** A door that is open now (its state is known and it is not locked). */
+export const doorOpen = (d: Pick<HDoor, 'known' | 'locked'>): boolean => d.known && !d.locked;
+/** A door the screen cannot vouch for as locked: open, or its state is unknown (the "לא נעולות" filter keeps both). */
+export const doorNotLocked = (d: Pick<HDoor, 'known' | 'locked'>): boolean => !d.known || !d.locked;
+export type DoorTone = 'ok' | 'warn' | 'neutral';
+/** The tone of a door's own icon and state: locked = ok, open = warn, unknown = neutral. */
+export const doorTone = (d: Pick<HDoor, 'known' | 'locked'>): DoorTone => (!d.known ? 'neutral' : d.locked ? 'ok' : 'warn');
+/** The tone of the doors' summary: an open door warns; otherwise a door in an unknown state (or no door) is neutral; all locked = ok. */
+export const doorsTone = (doors: Pick<HDoor, 'known' | 'locked'>[]): DoorTone =>
+  doors.some(doorOpen) ? 'warn' : !doors.length || doors.some((d) => !d.known) ? 'neutral' : 'ok';
+
 export function doorsText(doors: HDoor[]): string {
-  const u = doors.filter((d) => !d.locked);
+  const u = doors.filter(doorOpen);
   if (!doors.length) return tr('אין דלתות מחוברות');
-  if (!u.length) return tr('כל הדלתות נעולות');
-  return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? tr('פתוח') : tr('פתוחה')}` : tr('{length} דלתות פתוחות', { length: u.length });
+  if (u.length) return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? tr('פתוח') : tr('פתוחה')}` : tr('{length} דלתות פתוחות', { length: u.length });
+  const k = doors.filter((d) => !d.known);
+  if (!k.length) return tr('כל הדלתות נעולות');
+  if (k.length === doors.length) return k.length === 1 ? tr('מצב {name} לא ידוע', { name: k[0].name }) : tr('מצב הדלתות לא ידוע');
+  return k.length === 1 ? tr('מצב {name} לא ידוע', { name: k[0].name }) : tr('מצב {length} דלתות לא ידוע', { length: k.length });
 }
 
 // HOME-SIMPLE-2421 (lab 2.42.0): why a door offers no "open" here (the server's unlock_reason, the devices panel's own rule), in calm words
@@ -50,7 +69,8 @@ const DOOR_NO_OPEN: Record<string, string> = {
   wall_profile: tr('מסך קיר לא פותח דלתות'), alarm_managed: tr('נשלטת ממסך האזעקה'),
 };
 export const doorNoOpenText = (reason: string): string => DOOR_NO_OPEN[reason] ?? tr('אי אפשר לפתוח מכאן כרגע');
-export const doorState = (d: HDoor): string => (d.kind === 'gate' ? (d.locked ? tr('סגור') : tr('פתוח')) : d.locked ? tr('נעולה') : tr('פתוחה'));
+export const doorState = (d: HDoor): string =>
+  !d.ok ? tr('לא זמינה כרגע') : !d.known ? tr('לא ידוע') : d.kind === 'gate' ? (d.locked ? tr('סגור') : tr('פתוח')) : d.locked ? tr('נעולה') : tr('פתוחה');
 
 export function shadeText(pos: number | null, moving = false, state: string | null = null): string {
   if (moving) return state === 'closing' ? tr('נסגר') : tr('נפתח');
