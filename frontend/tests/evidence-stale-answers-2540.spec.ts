@@ -199,7 +199,7 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     expect(Date.parse(rec.st.seeks[1]) - Date.parse(rec.st.seeks[0])).toBeGreaterThanOrEqual(19_000);
   });
 
-  test('Q3a (SCR-28): the playing position follows the player's own clock - it stops with the picture and moves with it', async ({ page }) => {
+  test("Q3a (SCR-28): the playing position follows the player's own clock - it stops with the picture and moves with it", async ({ page }) => {
     await mockHome(page, { perms: ['devices.read', 'video.live', 'video.playback', 'events.read', 'map.read'] });
     const rec = await recordingsRoutes(page);
     await page.routeWebSocket(/playback/, () => undefined); // the relay socket: held open, nothing plays
