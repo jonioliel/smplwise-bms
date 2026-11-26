@@ -32297,5 +32297,195 @@
     "owner": null,
     "commit": "35332dd3a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "LEGACY-MIGRATION-2550",
+    "title": "Import from the legacy NVR add-on 1.5.27: reader, dry run, apply (T070, software part)",
+    "epic": "LEGACY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A copy of the legacy add-on's files is read without its secrets, a dry run lists every legacy element with an action and writes nothing, and an apply bound to the dry run's digest writes a project backup first and then only empty camera aliases, idempotently and audited."
+    ],
+    "requirement_ids": [
+      "R-LEGACY-MIGRATION-2550-1"
+    ],
+    "test_ids": [
+      "AT-LEGACY-MIGRATION-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LEGACY-MIGRATION-2550, change note docs/changes/LEGACY-MIGRATION-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/LEGACY-MIGRATION-2550 head aa7a68c74 merged ba41fdfb6 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 1; cut from release/2520-train 91de5c377); change note docs/changes/LEGACY-MIGRATION-2550.md. Decisions Q1-Q4 = a (Q1 and Q3 built by LEGACY-IMPORT-UI-2550). Card T070 stays BACKLOG (its acceptance needs the shadow run on the owner's installation, LAB-T070-01..07). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "aa7a68c74",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LEGACY-IMPORT-UI-2550",
+    "title": "The legacy import screen on Settings > Backup and restore (T070)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A system administrator chooses a legacy file, reads the grouped and paged dry-run report, applies with the typed word after the backup-first line, sees honest 409 refusals and the result; the backup list names the auto-pre-legacy-import kind."
+    ],
+    "requirement_ids": [
+      "R-LEGACY-IMPORT-UI-2550-1"
+    ],
+    "test_ids": [
+      "AT-LEGACY-IMPORT-UI-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LEGACY-IMPORT-UI-2550, change note docs/changes/LEGACY-IMPORT-UI-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/LEGACY-IMPORT-UI-2550 head 14b407255 merged 3e1ab2e35 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 2; cut from LEGACY-MIGRATION-2550 aa7a68c74; only its own six commits); change note docs/changes/LEGACY-IMPORT-UI-2550.md. Decisions Q1 = a (the guide link, train doc fix 6943fcfba), Q2 = a. Train fix 3f31dd97d (two file-local exports). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "14b407255",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PILOT-ROLLBACK-2550",
+    "title": "Safe rollback of an add-on version: downgrade-safety check of migrations, pilot runbook, commit-time disk-full and clock-jump fixes (T035, T036)",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every migration since the previous release is checked backward compatible (or carries a Rollback note) by release_check; a refused COMMIT answers 507 storage_full and is rolled back at once; outages and coverage gaps are measured on the monotonic clock when the wall clock jumps."
+    ],
+    "requirement_ids": [
+      "R-PILOT-ROLLBACK-2550-1"
+    ],
+    "test_ids": [
+      "AT-PILOT-ROLLBACK-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/PILOT-ROLLBACK-2550, change note docs/changes/PILOT-ROLLBACK-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/PILOT-ROLLBACK-2550 head 9ee1eaad9 merged 49d1ffffb into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 3; cut from release/2520-train 91de5c377); change note docs/changes/PILOT-ROLLBACK-2550.md. Decisions Q1 = a (already done on the 2.52 train, 8e7c3f8cf), Q2 = a, Q3 = a (blocking). Cards T035 / T036 stay as they are (their acceptance runs on real equipment). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "9ee1eaad9",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ANDROID-PUSH-2550",
+    "title": "Android push without Google (UnifiedPush), server side, off by default (CR-012 4C, T096)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "With unifiedpush_servers set, a device registers a UnifiedPush endpoint on a listed server and receives content-less RFC 8291 pushes under the app channel's policy; every sign-out path clears it; the endpoint is never returned, logged, audited or exported; an empty option = off."
+    ],
+    "requirement_ids": [
+      "R-ANDROID-PUSH-2550-1"
+    ],
+    "test_ids": [
+      "AT-ANDROID-PUSH-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/ANDROID-PUSH-2550, change note docs/changes/ANDROID-PUSH-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/ANDROID-PUSH-2550 head 3920151db merged 599398f73 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 4; cut from origin/main = v2.53.0 3b4654f8b); change note docs/changes/ANDROID-PUSH-2550.md. Migration 0227_mobile_unifiedpush.sql (additive; the number is free on the train, no renumbering). Decisions Q1-Q3 = a. Card T096 stays BLOCKED (the app's connector and a push server). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "3920151db",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2550-TRAIN",
+    "title": "RELEASE-2550-TRAIN - the 2.55.0 train",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.55.0 train on release/2550-train (cut from release/2540-train) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2550-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2550-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): release/2550-train cut from origin/release/2540-train f9217db8a (2.54.0 not released yet; its gate running). Merged: LEGACY-MIGRATION-2550 ba41fdfb6, LEGACY-IMPORT-UI-2550 3e1ab2e35, PILOT-ROLLBACK-2550 49d1ffffb, ANDROID-PUSH-2550 599398f73 (migration 0227, no renumbering); doc fix 6943fcfba; version bump 32a3432bc (2.55.0, draft changelog, API inventory 1962 routes); train fix 3f31dd97d (two file-local exports). HA-STATE-RECONCILE-2550 still to come. UI NOT rebuilt (2.54 may still change). Gate NOT_RUN; nothing released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

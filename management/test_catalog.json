@@ -22776,5 +22776,130 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-LEGACY-MIGRATION-2550-1",
+    "requirement_ids": [
+      "R-LEGACY-MIGRATION-2550-1"
+    ],
+    "task_ids": [
+      "LEGACY-MIGRATION-2550"
+    ],
+    "title": "Import from the legacy NVR add-on 1.5.27: reader, dry run, apply (T070, software part)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A copy of the legacy add-on's files is read without its secrets, a dry run lists every legacy element with an action and writes nothing, and an apply bound to the dry run's digest writes a project backup first and then only empty camera aliases, idempotently and audited.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LEGACY-IMPORT-UI-2550-1",
+    "requirement_ids": [
+      "R-LEGACY-IMPORT-UI-2550-1"
+    ],
+    "task_ids": [
+      "LEGACY-IMPORT-UI-2550"
+    ],
+    "title": "The legacy import screen on Settings > Backup and restore (T070)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A system administrator chooses a legacy file, reads the grouped and paged dry-run report, applies with the typed word after the backup-first line, sees honest 409 refusals and the result; the backup list names the auto-pre-legacy-import kind.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PILOT-ROLLBACK-2550-1",
+    "requirement_ids": [
+      "R-PILOT-ROLLBACK-2550-1"
+    ],
+    "task_ids": [
+      "PILOT-ROLLBACK-2550"
+    ],
+    "title": "Safe rollback of an add-on version: downgrade-safety check of migrations, pilot runbook, commit-time disk-full and clock-jump fixes (T035, T036)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Every migration since the previous release is checked backward compatible (or carries a Rollback note) by release_check; a refused COMMIT answers 507 storage_full and is rolled back at once; outages and coverage gaps are measured on the monotonic clock when the wall clock jumps.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ANDROID-PUSH-2550-1",
+    "requirement_ids": [
+      "R-ANDROID-PUSH-2550-1"
+    ],
+    "task_ids": [
+      "ANDROID-PUSH-2550"
+    ],
+    "title": "Android push without Google (UnifiedPush), server side, off by default (CR-012 4C, T096)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "With unifiedpush_servers set, a device registers a UnifiedPush endpoint on a listed server and receives content-less RFC 8291 pushes under the app channel's policy; every sign-out path clears it; the endpoint is never returned, logged, audited or exported; an empty option = off.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2550-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2550-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2550-TRAIN"
+    ],
+    "title": "RELEASE-2550-TRAIN - the 2.55.0 train",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 2.55.0 train on release/2550-train (cut from release/2540-train) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

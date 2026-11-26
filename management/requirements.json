@@ -14775,5 +14775,85 @@
     "test_ids": [
       "AT-MEDIUM-REST-2540-1"
     ]
+  },
+  {
+    "id": "R-LEGACY-MIGRATION-2550-1",
+    "title": "Import from the legacy NVR add-on 1.5.27: reader, dry run, apply (T070, software part)",
+    "statement": "A copy of the legacy add-on's files is read without its secrets, a dry run lists every legacy element with an action and writes nothing, and an apply bound to the dry run's digest writes a project backup first and then only empty camera aliases, idempotently and audited.",
+    "task_ids": [
+      "LEGACY-MIGRATION-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LEGACY-MIGRATION-2550-1"
+    ]
+  },
+  {
+    "id": "R-LEGACY-IMPORT-UI-2550-1",
+    "title": "The legacy import screen on Settings > Backup and restore (T070)",
+    "statement": "A system administrator chooses a legacy file, reads the grouped and paged dry-run report, applies with the typed word after the backup-first line, sees honest 409 refusals and the result; the backup list names the auto-pre-legacy-import kind.",
+    "task_ids": [
+      "LEGACY-IMPORT-UI-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LEGACY-IMPORT-UI-2550-1"
+    ]
+  },
+  {
+    "id": "R-PILOT-ROLLBACK-2550-1",
+    "title": "Safe rollback of an add-on version: downgrade-safety check of migrations, pilot runbook, commit-time disk-full and clock-jump fixes (T035, T036)",
+    "statement": "Every migration since the previous release is checked backward compatible (or carries a Rollback note) by release_check; a refused COMMIT answers 507 storage_full and is rolled back at once; outages and coverage gaps are measured on the monotonic clock when the wall clock jumps.",
+    "task_ids": [
+      "PILOT-ROLLBACK-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PILOT-ROLLBACK-2550-1"
+    ]
+  },
+  {
+    "id": "R-ANDROID-PUSH-2550-1",
+    "title": "Android push without Google (UnifiedPush), server side, off by default (CR-012 4C, T096)",
+    "statement": "With unifiedpush_servers set, a device registers a UnifiedPush endpoint on a listed server and receives content-less RFC 8291 pushes under the app channel's policy; every sign-out path clears it; the endpoint is never returned, logged, audited or exported; an empty option = off.",
+    "task_ids": [
+      "ANDROID-PUSH-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ANDROID-PUSH-2550-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2550-TRAIN-1",
+    "title": "RELEASE-2550-TRAIN - the 2.55.0 train",
+    "statement": "The 2.55.0 train on release/2550-train (cut from release/2540-train) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "task_ids": [
+      "RELEASE-2550-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2550-TRAIN-1"
+    ]
   }
 ]

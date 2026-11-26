@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T17:26:04.612979+00:00
+Generated: 2026-11-26T18:26:41.042867+00:00
 
-Tasks: 745 | Requirements: 859 | Tests: 876 | Screens: 32
+Tasks: 750 | Requirements: 864 | Tests: 881 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 516
-- IN_PROGRESS: 5
-- REVIEW: 185
+- IN_PROGRESS: 6
+- REVIEW: 189
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 650
+- V1: 655
 - V2: 29
 - V3: 3
 
@@ -800,3 +800,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HOME-SPEC-STABLE-2540](tasks/HOME-SPEC-STABLE-2540.md) | V1 | REVIEW | The release gate's home screen spec is stable | — |
 | [DATA-RULES-2540](tasks/DATA-RULES-2540.md) | V1 | REVIEW | Backend data rules: billing cycle change, automatic drafts, generator battery system, generator mute | — |
 | [MEDIUM-REST-2540](tasks/MEDIUM-REST-2540.md) | V1 | REVIEW | The rest of the medium screen findings and the wall display's new-build notice | — |
+| [LEGACY-MIGRATION-2550](tasks/LEGACY-MIGRATION-2550.md) | V1 | REVIEW | Import from the legacy NVR add-on 1.5.27: reader, dry run, apply (T070, software part) | — |
+| [LEGACY-IMPORT-UI-2550](tasks/LEGACY-IMPORT-UI-2550.md) | V1 | REVIEW | The legacy import screen on Settings > Backup and restore (T070) | — |
+| [PILOT-ROLLBACK-2550](tasks/PILOT-ROLLBACK-2550.md) | V1 | REVIEW | Safe rollback of an add-on version: downgrade-safety check of migrations, pilot runbook, commit-time disk-full and clock-jump fixes (T035, T036) | — |
+| [ANDROID-PUSH-2550](tasks/ANDROID-PUSH-2550.md) | V1 | REVIEW | Android push without Google (UnifiedPush), server side, off by default (CR-012 4C, T096) | — |
+| [RELEASE-2550-TRAIN](tasks/RELEASE-2550-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2550-TRAIN - the 2.55.0 train | — |
