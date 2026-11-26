@@ -583,7 +583,7 @@ export class SystemFleetReport extends LitElement {
         </div>
         <div class="act">
           <label class="tog"><span>${ft('switchLabel')}</span>
-            <sw-toggle data-switch label=${ft('switchLabel')} labelHidden .checked=${st.enabled} ?disabled=${this.busy}
+            <sw-toggle controlled data-switch label=${ft('switchLabel')} labelHidden .checked=${st.enabled} ?disabled=${this.busy}
               @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></label>
           <sw-button size="sm" variant=${a.view === 'failed' ? 'primary' : 'secondary'} data-send ?disabled=${!a.canSend || this.busy} @click=${() => void this.sendNow()}>${this.busy && a.canSend ? ft('sending') : a.view === 'failed' ? ft('sendRetry') : ft('sendNow')}</sw-button>
         </div>

@@ -382,7 +382,7 @@ export class SystemBuildingPresence extends LitElement {
   private renderMaster() {
     return html`<sw-card heading=${BP.masterLabel} data-building-presence-master>
       <div class="row">
-        <sw-toggle label=${BP.masterLabel} labelHidden data-building-enabled .checked=${this.cfg.enabled} ?disabled=${!this.editable || this.busy}
+        <sw-toggle controlled label=${BP.masterLabel} labelHidden data-building-enabled .checked=${this.cfg.enabled} ?disabled=${!this.editable || this.busy}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ enabled: e.detail.checked })}></sw-toggle>
         ${this.cfg.enabled ? nothing : html`<b data-building-off-note>${BP.masterOffNote}</b>`}
         <span class="muted">${BP.masterHint}</span>
@@ -456,9 +456,9 @@ export class SystemBuildingPresence extends LitElement {
       <div class="row"><span>${BP.homeLabel}</span><sw-segmented label=${BP.homeLabel} value=${this.cfg.home_display} ?disabled=${!this.editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => void this.patch({ home_display: e.detail.value as HomeDisplay })}
         .options=${([['card', BP.homeCard], ['chip', BP.homeChip], ['off', BP.homeOff]] as [HomeDisplay, string][]).map(([v, l]) => ({ value: v, label: l, attrs: { 'data-building-home': v } }))}></sw-segmented></div>
       ${this.cfg.home_display === 'card' ? this.renderCardOptions() : nothing}
-      <div class="row"><sw-toggle label=${BP.tintLabel} data-building-tint .checked=${this.cfg.map_tint} ?disabled=${!this.editable || this.busy}
+      <div class="row"><sw-toggle controlled label=${BP.tintLabel} data-building-tint .checked=${this.cfg.map_tint} ?disabled=${!this.editable || this.busy}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ map_tint: e.detail.checked })}></sw-toggle><span class="muted">${BP.tintHint}</span></div>
-      <div class="row"><sw-toggle label=${BP.areaSwitchLabel} data-building-area-line .checked=${!!this.cfg.area_line} ?disabled=${!this.editable || this.busy}
+      <div class="row"><sw-toggle controlled label=${BP.areaSwitchLabel} data-building-area-line .checked=${!!this.cfg.area_line} ?disabled=${!this.editable || this.busy}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patch({ area_line: e.detail.checked })}></sw-toggle><span class="muted">${BP.areaSwitchHint}</span></div>
     </sw-card>`;
   }

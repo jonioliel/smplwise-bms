@@ -6,6 +6,7 @@ import { INSTALLATION, installTicketsMock, url as ticketsUrl } from './tickets-m
 import { installMaintenanceMock } from './maintenance-mocks';
 import { url as moduleUrl } from './generator-mocks';
 import { appReady } from './helpers/app-ready';
+import { PERMS as CAST_PERMS, installCastMock } from './cast-mocks';
 
 // CONTROLLED-TOGGLES-2540 (deep review FC-01 follow-up, owner rule "one row per screen family with its own tests"): the switches that save
 // at once are `controlled` (HONEST-STATES-2540's opt-in sw-toggle mode). A press only asks; the switch moves when the screen has the saved
@@ -159,6 +160,40 @@ test.describe('module settings: the maintenance switches', () => {
     st.refuse = false;
     await sw.locator('button').click();
     await expect.poll(() => st.patches.length).toBe(2);
+    await expectSwitch(sw, false);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ system settings
+
+test.describe('system settings: the cast to screens switches', () => {
+  const C = 'sw-app system-cast';
+
+  test('"cast on": a refused save (the screen re-reads) leaves it on; an accepted one turns it off', async ({ page }) => {
+    const m = await installCastMock(page, { perms: CAST_PERMS.admin });
+    const st = { refuse: true, puts: [] as Record<string, unknown>[] };
+    await page.route('**/api/v1/multimedia/cast/config', async (route) => {
+      const req = route.request();
+      if (req.method() !== 'PUT') return route.fallback();
+      st.puts.push(req.postDataJSON() as Record<string, unknown>);
+      if (st.refuse) return json(route, refusal(500), 500);
+      return route.fallback(); // the cast mock keeps the change
+    });
+    await page.goto('about:blank');
+    await page.goto('/?design=a#/system/multimedia?tab=cast');
+    await page.waitForSelector(`${C} [data-cast-general]`, { timeout: 30_000 });
+    const sw = page.locator(`${C} [data-cast-enabled]`);
+    await expectSwitch(sw, true);
+    await sw.locator('button').click();
+    await expect.poll(() => st.puts.length).toBe(1);
+    expect(st.puts[0]).toEqual({ enabled: false });
+    await expect(page.locator(`${C} [data-cast-err]`)).toBeVisible();
+    await expectSwitch(sw, true);
+    expect(m.config.enabled).toBe(true);
+
+    st.refuse = false;
+    await sw.locator('button').click();
+    await expect.poll(() => m.config.enabled).toBe(false);
     await expectSwitch(sw, false);
   });
 });

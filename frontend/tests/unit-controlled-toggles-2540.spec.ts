@@ -68,3 +68,21 @@ guard('module settings', {
   'screens/investigate-rules.ts': 1, // a rule's on / off in the list
   'screens/devices-type-admin.ts': 1, // "may be turned on in bulk"
 });
+
+guard('system settings', {
+  'screens/system-announcements.ts': 9, // quiet, notify, screens, screens default, a screen allowed, translate, a speaker, announcements, pause music
+  'screens/system-building-presence.ts': 3,
+  'screens/system-calendars.ts': 1, // a calendar's approval (the settings switches save optimistically and put themselves back)
+  'calendars/connect-dialogs.ts': 1, // a feed's remote address (on waits for the confirmation)
+  'screens/system-cast.ts': 5,
+  'screens/system-diagnostics.ts': 3, // the local restore scope, the safety backup, the first-run guide
+  'screens/system-fleet-report.ts': 1,
+  'screens/system-local-users.ts': 1, // a passkey as the first factor
+  'screens/system-multimedia.ts': 2, // a device public, the module
+  'screens/system-multimedia-players.ts': 4,
+  'screens/media-admin-list.ts': 1, // a device approved
+  'screens/system-notices.ts': 5, // the module, remote boards, the places tree, own news, a board on
+  'notices/info-sources.ts': 1,
+  'screens/system-transit.ts': 3,
+  'screens/presence-opt-out.ts': 1,
+});

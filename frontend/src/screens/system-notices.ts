@@ -309,7 +309,7 @@ export class SystemNotices extends LitElement {
           actionLabel=${can.configure ? nt('turnOn') : ''} @action=${() => this.patchSettings({ enabled: true })}></sw-state-panel>` : nothing}
       <div class="two">
         <div class="panel" data-module-card><div class="hd"><h2>${nt('moduleCard')}</h2><span class="sp"></span>
-          <sw-toggle .checked=${st.enabled} ?disabled=${!can.configure} label=${st.enabled ? nt('moduleOn') : nt('moduleOff')} data-module-switch
+          <sw-toggle controlled .checked=${st.enabled} ?disabled=${!can.configure} label=${st.enabled ? nt('moduleOn') : nt('moduleOff')} data-module-switch
             @change=${(e: CustomEvent<{ checked: boolean }>) => this.patchSettings({ enabled: e.detail.checked })}></sw-toggle></div>
           <dl class="kv"><dt>${nt('kvWrite')}</dt><dd>${nt('kvWriteV')} <span class="mut ltr">(notices.manage)</span></dd><dt>${nt('kvPush')}</dt><dd>${nt('kvPushV')} <span class="mut ltr">(notices.push)</span></dd>
             <dt>${nt('kvBoards')}</dt><dd>${nt('kvBoardsV')} <span class="mut ltr">(notices.boards)</span></dd></dl></div>
@@ -319,7 +319,7 @@ export class SystemNotices extends LitElement {
         @news-sources-change=${(e: CustomEvent<NewsSource[]>) => (this.s = { ...this.s!, settings: { ...this.s!.settings, news_sources: e.detail } })}></notice-news-sources>` : nothing}
       ${st.enabled && can.boards ? html`<div class="panel flush" data-boards-card>
         <div class="toolbar"><h2>${nt('boardsCard')}</h2><span class="chip num">${nt('boardsCount', { n: this.boards.length, m: st.boards_max })}</span><span class="sp"></span>
-          ${can.configure ? html`<label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('dRemote')} .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: toggled(e) })}></sw-toggle>${nt('dRemote')}</label>` : nothing}
+          ${can.configure ? html`<label class="ck"><sw-toggle controlled size="sm" labelHidden in-label label=${nt('dRemote')} .checked=${st.boards_remote} @change=${(e: Event) => this.patchSettings({ boards_remote: toggled(e) })}></sw-toggle>${nt('dRemote')}</label>` : nothing}
           <sw-button variant="primary" icon="plus" data-new-board ?disabled=${this.boards.length >= st.boards_max} @click=${() => this.openCreate()}>${nt('newBoard')}</sw-button></div>
         ${this.boards.length ? html`<div class="scrollx">${this.boardsTable()}</div><div class="cards">${this.boards.map((b) => this.boardCard(b))}</div>`
           : html`<sw-state-panel icon="wall" state="empty" heading=${nt('noBoards')} hint=${nt('boardsEmpty')} actionLabel=${nt('firstBoard')} @action=${() => this.openCreate()}></sw-state-panel>`}
@@ -402,8 +402,8 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-cadr">${nt('dConnPerAddr')}</label><sw-field class="short"><input id="ns-cadr" class="num" type="number" min="1" max="64" data-conn-per-address .value=${String(st.conn_per_address)}
           @change=${(e: Event) => this.patchSettings({ conn_per_address: Number((e.target as HTMLInputElement).value) })}></sw-field></div>
       </div>
-      <label class="ck" data-places-tree-setting><sw-toggle size="sm" labelHidden in-label label=${nt('dPlacesTree')} .checked=${st.show_places_tree !== false} @change=${(e: Event) => this.patchSettings({ show_places_tree: toggled(e) })}></sw-toggle>${nt('dPlacesTree')}</label>
-      <label class="ck"><sw-toggle size="sm" labelHidden in-label label=${nt('dCustomFeeds')} .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: toggled(e) })}></sw-toggle>${nt('dCustomFeeds')}</label>
+      <label class="ck" data-places-tree-setting><sw-toggle controlled size="sm" labelHidden in-label label=${nt('dPlacesTree')} .checked=${st.show_places_tree !== false} @change=${(e: Event) => this.patchSettings({ show_places_tree: toggled(e) })}></sw-toggle>${nt('dPlacesTree')}</label>
+      <label class="ck"><sw-toggle controlled size="sm" labelHidden in-label label=${nt('dCustomFeeds')} .checked=${st.news_custom} @change=${(e: Event) => this.patchSettings({ news_custom: toggled(e) })}></sw-toggle>${nt('dCustomFeeds')}</label>
       <div class="fld"><span class="lbl">${nt('companyLogo')}</span><a href="#/system/diagnostics?tab=general" data-logo-link>${nt('logoWhere')}</a></div>
     </div></div>`;
   }
@@ -585,7 +585,7 @@ export class SystemNotices extends LitElement {
           <sw-button icon="eye" data-tv-open @click=${() => window.open(this.previewSrc(false), '_blank', 'noopener')}>${nt('openTv')}</sw-button>
           ${this.canCopyLink() ? html`<sw-button icon="copy" data-copy-link @click=${() => void this.copyLink(b)}>${nt('copyLink')}</sw-button>` : nothing}
           <sw-button icon="refresh" data-rotate @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button>
-          <sw-toggle .checked=${b.enabled} label=${nt('boardEnabled')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveBoard({ enabled: e.detail.checked })}></sw-toggle>
+          <sw-toggle controlled .checked=${b.enabled} label=${nt('boardEnabled')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveBoard({ enabled: e.detail.checked })}></sw-toggle>
         </div></div>
       <sw-tabs .items=${tabs} active=${this.tab} panel="board-panel" @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as BoardTab)}></sw-tabs>
       <div class="stack" id="board-panel">${this.tab === 'general' ? this.generalTab() : this.tab === 'display' ? this.displayTab() : this.noticesTab()}</div>`;
