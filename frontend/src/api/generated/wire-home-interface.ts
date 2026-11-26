@@ -110,6 +110,7 @@ export interface HomePolicies {
   seed: Record<string, unknown>;
   kiosk_code_set: boolean;
   buildings?: HomeBuilding[] | null;
+  shared_scope?: HomeSharedScope | null;
 }
 
 /**
@@ -187,6 +188,17 @@ export interface HomeShade {
 }
 
 /**
+ * HOME-PERMS-WARN-2550 (D-11): how much of the site a site-wide home category shows - billing customers (households), active
+ * electricity accounts, electricity and water meters (not retired). null = unknown (the database cannot answer).
+ */
+export interface HomeSharedScope {
+  customers: number | null;
+  bill_accounts: number | null;
+  energy_meters: number | null;
+  water_meters: number | null;
+}
+
+/**
  * An on/off load that is not typed as a light: on/off only, never part of "turn the room off"; `protected` = an administrator's
  * protection, `load_type` = its device type (or the activity kind).
  */
@@ -224,6 +236,7 @@ export interface HomeUserPolicy {
   guests: boolean;
   can_invite: boolean;
   building_id?: string | null;
+  site_wide?: ("bills" | "energy" | "water")[];
 }
 
 /**
