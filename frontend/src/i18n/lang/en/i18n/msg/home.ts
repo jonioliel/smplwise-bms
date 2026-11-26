@@ -1260,4 +1260,13 @@ export const en = {
   'מצב לא ידוע': 'Unknown state',
   // MEDIUM-REST-2540 (SCR-31): +/- on a unit that is off and offers no other mode
   '{name} כבוי ואי אפשר להדליק אותו מכאן.': '{name} is off and cannot be turned on from here.',
+  // HOME-PERMS-WARN-2550 (D-11): the administrator's page warns when a category shows the whole site's data
+  'חשבון חשמל: החשבונות והסכומים של כל הלקוחות באתר (לקוחות: {c}, חשבונות פעילים: {a}), לא רק של הבית שלו.': 'Electricity bill: the bills and amounts of every customer on the site (customers: {c}, active accounts: {a}), not only their own household's.',
+  'חשבון חשמל: החשבונות והסכומים של כל הלקוחות באתר, לא רק של הבית שלו.': 'Electricity bill: the bills and amounts of every customer on the site, not only their own household's.',
+  'חשמל: הצריכה של כל מוני החשמל באתר (מונים: {n}).': 'Electricity: the use of every electricity meter on the site (meters: {n}).',
+  'חשמל: הצריכה של כל מוני החשמל באתר.': 'Electricity: the use of every electricity meter on the site.',
+  'מים: הצריכה של כל מוני המים באתר (מונים: {n}). הרשאת מים לפי קומה מגבילה אותו לקומות שלו.': 'Water: the use of every water meter on the site (meters: {n}). A water permission for a floor limits them to their floors.',
+  'מים: הצריכה של כל מוני המים באתר. הרשאת מים לפי קומה מגבילה אותו לקומות שלו.': 'Water: the use of every water meter on the site. A water permission for a floor limits them to their floors.',
+  '{name} יראה בממשק הביתי נתונים של כל האתר': '{name} will see the whole site's data in the home interface',
+  'עדיין אין קישור בין אדם ללקוח החשבון או למונה שלו. ההרשאות עצמן נקבעות במשתמשים והרשאות; כאן אפשר רק להסתיר את המסך מהממשק הביתי.': 'There is no link yet between a person and their billing customer or meter. The permissions themselves are set in Users and permissions; here you can only hide the screen from the home interface.',
 };

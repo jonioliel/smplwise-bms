@@ -436,6 +436,7 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         out.append({"user_id": u["id"], "username": u["username"], "display_name": u["display_name"] or u["username"], "source": u["source"],
                     "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin", "guests")},
                     "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite"),
+                    "site_wide": site_wide_reads(conn, u["id"]),  # HOME-PERMS-WARN-2550 (D-11): the page's "sees every household" warning
                     **({"building_id": eff["building_id"]} if eff.get("building_id") else {})})  # MULTI-BUILDING-HOME-2500 (Q65)
     return out
 
@@ -448,6 +449,43 @@ def holds_anywhere(conn: sqlite3.Connection, user_id: str, permission: str) -> b
         return permission in set(permissions_anywhere(conn, Principal(user_id=user_id, username="", display_name="", source="")))
     except Exception:  # noqa: BLE001 - a display hint only, never an authorization
         return False
+
+
+# HOME-PERMS-WARN-2550 (LOWS-BACKEND-2550 finding D-11, question 3 = a): the home categories whose data is the whole site's, never one
+# household's - there is no person -> billing customer (or meter) binding yet. {category: the permission that opens it installation-wide}.
+# bills: the electricity bills of every account (energy.bills is an installation permission); energy: every electricity meter (energy.view,
+# installation only); water: every water meter for an installation-wide water.view (a floor-scoped holder sees his floors' meters only).
+SITE_WIDE_READS = (("bills", "energy.bills"), ("energy", "energy.view"), ("water", "water.view"))
+
+
+def site_wide_reads(conn: sqlite3.Connection, user_id: str) -> list[str]:
+    """The categories of SITE_WIDE_READS this person reads for the whole site (a display hint for the administrator's page only, never an
+    authorization: every route checks its own permission). A system administrator reads everything anyway and is not listed."""
+    try:
+        if is_system_admin(conn, user_id):
+            return []
+        p = Principal(user_id=user_id, username="", display_name="", source="")
+        return [cat for cat, perm in SITE_WIDE_READS if authorize(conn, p, perm, INSTALLATION).allowed]
+    except Exception:  # noqa: BLE001 - a display hint only
+        return []
+
+
+def shared_scope(conn: sqlite3.Connection) -> dict[str, int | None]:
+    """HOME-PERMS-WARN-2550: how much of the site a SITE_WIDE_READS category shows - the billing customers (the shared card of the
+    electricity and water bills; more than one = more than one household), the active electricity accounts, and the electricity / water
+    meters that are not retired. A count the database cannot answer (an older database without the table) stays null (unknown)."""
+    def count(sql: str) -> int | None:
+        try:
+            return int(conn.execute(sql).fetchone()[0])
+        except sqlite3.OperationalError:
+            return None
+    return {
+        "customers": count("SELECT COUNT(*) FROM energy_customers WHERE deleted_at IS NULL"),
+        "bill_accounts": count("SELECT COUNT(*) FROM energy_accounts a JOIN energy_customers c ON c.id = a.customer_id "
+                               "WHERE a.status = 'active' AND c.deleted_at IS NULL"),
+        "energy_meters": count("SELECT COUNT(*) FROM energy_meters WHERE status <> 'retired'"),
+        "water_meters": count("SELECT COUNT(*) FROM water_meters WHERE status <> 'retired'"),
+    }
 
 
 # ---------------------------------------------------------------- the server-side gate
