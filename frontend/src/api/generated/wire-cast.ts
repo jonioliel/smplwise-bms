@@ -96,7 +96,7 @@ export interface CastSession {
   profile: string;
   state: string;
   started_at: string;
-  expires_at: string;
+  expires_at: string | null;
   permanent: boolean;
   extended_n: number;
   extensions_left: number;
@@ -128,7 +128,7 @@ export interface CastSessionsSession {
   profile: string;
   state: string;
   started_at: string;
-  expires_at: string;
+  expires_at: string | null;
   permanent: boolean;
   extended_n: number;
   extensions_left: number;

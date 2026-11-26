@@ -18,7 +18,12 @@ This module serves exactly that shape and proxies it to go2rtc's HLS:
   keeps hammering ends its session (`error`);
 - only GET (and a bodiless OPTIONS for CORS: the Cast receiver page fetches cross-origin) - everything else is 405;
 - the first segment served is the honest "playing" signal (callback to services/cast_sessions.py);
-- `GET /cast/probe/<token>` answers 204 once for the administrator's origin self-check (cast_sessions.check_origin).
+- `GET /cast/probe/<token>` answers 204 once for the administrator's origin self-check (cast_sessions.check_origin);
+- CAST-RELAY-HARDEN-2540 (deep review V-02): the socket handling has the bounds of the other LAN listeners (services/lan_listener.py,
+  the notice boards' `CappedServer`; recorders/provision_push.py): MAX_CONNECTIONS simultaneous connections, MAX_PER_ADDRESS from one
+  client address (over a cap the socket is closed without a thread), every socket read / write bounded by SOCKET_TIMEOUT_S and the
+  whole wait for one request (idle keep-alive gap + request line + headers) by REQUEST_DEADLINE_S, so a client that sends nothing, or
+  drips a byte at a time, frees its thread; a token's HLS ids are capped at HLS_IDS_MAX (the newest kept).
 
 Never logged: the token, the full path, the stream name, the client's address."""
 from __future__ import annotations
@@ -29,10 +34,11 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from typing import Any, Callable
 from urllib.parse import parse_qsl, urlsplit
 from ..test_reset import register_reset
+from .lan_listener import CappedServer, RequestDeadline
 
 log = logging.getLogger("smplwise.cast")
 
@@ -52,6 +58,12 @@ PLAYLIST_RATE = (2.0, 6.0)
 MEDIA_RATE = (4.0, 24.0)
 ABUSE_LIMIT = 60
 PROBE_TTL_S = 30.0
+# CAST-RELAY-HARDEN-2540 (deep review V-02): a handful of TVs, each with a few parallel fetches (playlist + segments)
+SOCKET_TIMEOUT_S = 15.0  # one socket read or write
+REQUEST_DEADLINE_S = 15.0  # one whole request: the keep-alive gap before it, its request line and its headers
+MAX_CONNECTIONS = 32
+MAX_PER_ADDRESS = 8
+HLS_IDS_MAX = 8  # the go2rtc HLS session ids a token's master playlists named, newest kept (a permanent cast refetches for days)
 
 CONTENT_TYPES = {"index.m3u8": "application/vnd.apple.mpegurl", "playlist.m3u8": "application/vnd.apple.mpegurl", "segment.ts": "video/mp2t",
                  "init.mp4": "video/mp4", "segment.m4s": "video/mp4"}
@@ -85,7 +97,7 @@ class Entry:
     session_id: str
     stream: str
     expires_at: float | None
-    hls_ids: set[str] = field(default_factory=set)
+    hls_ids: dict[str, None] = field(default_factory=dict)  # an ordered set: oldest first, at most HLS_IDS_MAX
     first_served: bool = False
     refused: int = 0
     last_fetch: float = 0.0
@@ -149,6 +161,7 @@ ON_FIRST_SEGMENT: list[Callable[[str], None]] = []
 ON_ABUSE: list[Callable[[str], None]] = []
 
 _PROBES: dict[str, float] = {}
+_HLS_LOCK = threading.Lock()
 _PROBE_LOCK = threading.Lock()
 
 
@@ -226,7 +239,7 @@ def check_master(text: str) -> set[str] | None:
     return ids
 
 
-def check_media(text: str, ids: set[str]) -> bool:
+def check_media(text: str, ids: "set[str] | dict[str, None]") -> bool:
     """A media playlist may name only `segment.ts|segment.m4s|init.mp4?id=<one of ids>[&n=<n>]` - relative, inside hls/."""
     for uri in _uris(text):
         m = _MEDIA_URI_RE.match(uri)
@@ -289,7 +302,12 @@ def handle(method: str, target: str, fetch: Fetch, *, index: Index | None = None
         if ids is None:
             log.warning("cast relay: go2rtc master playlist refused (unexpected URI) for session %s", entry.session_id[:8])
             return Reply(502)
-        entry.hls_ids |= ids
+        with _HLS_LOCK:  # two handler threads of one TV may answer master playlists at once
+            for i in sorted(ids):
+                entry.hls_ids.pop(i, None)
+                entry.hls_ids[i] = None  # the newest at the end
+            while len(entry.hls_ids) > HLS_IDS_MAX:
+                entry.hls_ids.pop(next(iter(entry.hls_ids)))
         return Reply(200, body, CONTENT_TYPES["index.m3u8"])
     if q.get("id") not in entry.hls_ids:
         return Reply(403)
@@ -346,15 +364,18 @@ def go2rtc_fetch(settings: Any) -> Fetch:
     return fetch
 
 
-class _Handler(BaseHTTPRequestHandler):
+class _Handler(RequestDeadline, BaseHTTPRequestHandler):
     server_version = "arx-cast"
     sys_version = ""
     protocol_version = "HTTP/1.1"
+    timeout = SOCKET_TIMEOUT_S  # CAST-RELAY-HARDEN-2540: StreamRequestHandler applies it to the connection socket
+    request_deadline_s = REQUEST_DEADLINE_S
 
     def log_message(self, fmt: str, *args: Any) -> None:  # never the path (the token) or the client address
         return
 
     def _reply(self, r: Reply) -> None:
+        self.clear_deadline()  # the request is in: the answer is bounded by the socket timeout alone
         self.send_response(r.status)
         self.send_header("Access-Control-Allow-Origin", "*")
         if r.status == 204 and self.command == "OPTIONS":
@@ -395,7 +416,7 @@ class RelayServer:
     mapping (owner's choice) decides whether anything outside reaches it."""
 
     def __init__(self) -> None:
-        self._server: ThreadingHTTPServer | None = None
+        self._server: CappedServer | None = None
         self._thread: threading.Thread | None = None
         self.port: int | None = None
         self.error: str | None = None
@@ -408,7 +429,7 @@ class RelayServer:
         if self._server is not None:
             return True
         try:
-            server = ThreadingHTTPServer((host, port), _Handler)
+            server = CappedServer((host, port), _Handler, max_connections=MAX_CONNECTIONS, max_per_address=MAX_PER_ADDRESS)
         except OSError as exc:
             self.error = type(exc).__name__
             log.warning("cast relay could not listen on port %s: %s", port, self.error)

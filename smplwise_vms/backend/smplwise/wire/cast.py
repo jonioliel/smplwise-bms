@@ -137,7 +137,7 @@ class CastSessionsSession(ExactModel):
     profile: str
     state: str
     started_at: str
-    expires_at: str
+    expires_at: str | None  # CAST-RELAY-HARDEN-2540: None = a permanent cast (the model was drawn from timed casts only)
     permanent: bool
     extended_n: Num
     extensions_left: Num
@@ -169,7 +169,7 @@ class CastSession(ExactModel):
     profile: str
     state: str
     started_at: str
-    expires_at: str
+    expires_at: str | None  # CAST-RELAY-HARDEN-2540: None = a permanent cast (the model was drawn from timed casts only)
     permanent: bool
     extended_n: Num
     extensions_left: Num

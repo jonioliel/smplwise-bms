@@ -254,8 +254,18 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     return rec
 
 
-def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, change_id: str, *, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
-    """PUT the document the change replaced; recorded as its own change pointing back at the original."""
+CHANGED_SINCE_TEXT = "ההגדרה במכשיר שונתה מאז השינוי הזה; ההחזרה תדרוס את מה שיש בו עכשיו. אפשר לאשר החזרה בכל זאת."
+ALREADY_ROLLED_BACK_TEXT = "השינוי הזה כבר הוחזר."
+
+
+def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, change_id: str, *, request_id: str | None = None, client: httpx.Client | None = None,
+             force: bool = False) -> dict[str, Any]:
+    """PUT the document the change replaced; recorded as its own change pointing back at the original.
+    CAST-RELAY-HARDEN-2540 (deep review V-03): like the privacy-mask and encoding undo, only while the device still holds what the
+    change left: the document is read first and compared (whitespace aside) with the change's `after`; when it differs the undo is
+    refused (409 `changed_since`, audited, nothing written) - a later change, or an edit in the recorder's own screens, would be
+    overwritten. A change already undone is refused too (409 `already_rolled_back`). `force=True` (the caller's explicit
+    confirmation, body `{"force": true}`) skips both checks and writes the old document anyway."""
     orig = get_change(conn, change_id)
     if not orig:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
@@ -274,10 +284,20 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         return restore_change(settings, conn, principal, change_id, request_id=request_id, client=client)
     if orig["status"] not in ("applied", "rolled_back") or not orig["before_xml"]:
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
+    if orig["status"] == "rolled_back" and not force:
+        audit(conn, actor=principal, action="nvr.rollback", decision="denied", resource_type="nvr", resource_id=orig["target"], reason="already_rolled_back",
+              request_id=request_id, details={"kind": orig["kind"], "path": orig["path"], "rollback_of": change_id})
+        raise ApiError(409, "already_rolled_back", ALREADY_ROLLED_BACK_TEXT, details={"change_id": change_id, "force_allowed": True})
     settings = settings_for(settings, rec_id)  # CR-024: the undo goes to the recorder the change was made on
     own = client is None
     c = client or _client(settings)
     try:
+        if not force:
+            current = _get(c, orig["path"])
+            if not orig["after_xml"] or _normalize(current) != _normalize(orig["after_xml"]):
+                audit(conn, actor=principal, action="nvr.rollback", decision="denied", resource_type="nvr", resource_id=orig["target"], reason="changed_since",
+                      request_id=request_id, details={"kind": orig["kind"], "path": orig["path"], "rollback_of": change_id})
+                raise ApiError(409, "changed_since", CHANGED_SINCE_TEXT, details={"change_id": change_id, "force_allowed": True})
         _put(c, orig["path"], orig["before_xml"])
         try:
             verify = _get(c, orig["path"])
@@ -297,7 +317,7 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"], after=verify,
                   status="applied", rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id, camera_id=orig["camera_id"] if "camera_id" in orig.keys() else None)
     audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
-          details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id})
+          details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, **({"forced": True} if force else {})})
     return rec
 
 
