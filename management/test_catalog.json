@@ -19790,12 +19790,17 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "Generator settings: units move from the field label into the field frame: the generator settings show units inside the field frame like electricity and water; text changes exist in all 4 languages.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (owner) - evidence-gen-units-en-2490.spec.ts passes at f73c20728 (Hebrew + English, desktop / tablet / mobile), but the acceptance says the text changes exist in all 4 languages and the change note adds unit words in Hebrew and English only; Arabic / Russian not evidenced - a gap to confirm or fix, not PASS.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-22 (MGMT-OWNER-ANSWERS-2211); NOT_RUN as a catalog record. | 2026-11-25 (ACCEPT-SWEEP-2530): NOT_RUN (owner) - evidence-gen-units-en-2490.spec.ts passes at f73c20728 (Hebrew + English, desktop / tablet / mobile), but the acceptance says the text changes exist in all 4 languages and the change note adds unit words in Hebrew and English only; Arabic / Russian not evidenced - a gap to confirm or fix, not PASS. | 2026-11-26 (RELEASE-2530-TRAIN, lead): PASS - the 4-language gap closed by GEN-UNITS-ARRU-2530 (merged 579652ec6); Hebrew / English evidence of 2.49 re-run on the train.",
+    "commit": "579652ec6",
+    "environment": "Linux test runner (Ubuntu, Node 24, Playwright Chromium against a vite preview of the merged build, mocked backend); release/2530-train run F, ~/work/p2520_t2530_f.sh; fixtures only",
+    "evidence": [
+      "Hebrew + English: evidence-gen-units-en-2490.spec.ts (desktop / tablet / mobile) - run F at 579652ec6, part of 33 passed / 0 failed",
+      "Arabic + Russian: evidence-gen-units-arru-2530.spec.ts \"ar light / dark\", \"ru light / dark\" (desktop / tablet / mobile): labels and unit words in the page language, the unit inside the frame at the end of the reading direction, the figure left-to-right - run F at 579652ec6, part of 33 passed / 0 failed (the same spec failed 12 of 12 on the base 8ae83adfa: the gap the acceptance sweep found)",
+      "Words in 4 languages: unit-gen-units-arru-2530.spec.ts with unit-genlog-tempexplain, unit-generator, unit-i18n-lang-packs-2443, unit-i18n-core, unit-i18n-en-ratchet-2490 - run F at 579652ec6, 61 passed",
+      "docs/changes/GEN-UNITS-ARRU-2530.md \"Acceptance test record - AT-GEN-UNITS-FIELD-2490-1\" (the row's runner run 2 at 4a9bc028a: 21 passed); docs/changes/RELEASE-2530-TRAIN.md section 3"
+    ],
+    "executed_at": "2026-11-26T06:30:00Z"
   },
   {
     "id": "AT-TICKETS-PAGING-2490-1",
@@ -22215,6 +22220,31 @@
       "Run the tests or checks named in the change record against the commit recorded here."
     ],
     "expected": "In the default info style the home screen does not scroll the page at 1366x768, 1280x800, 1024x768 or 1180x820 in any direction or view; evidence-home-screen.spec.ts checks it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GEN-UNITS-ARRU-2530-1",
+    "requirement_ids": [
+      "R-GEN-UNITS-ARRU-2530-1"
+    ],
+    "task_ids": [
+      "GEN-UNITS-ARRU-2530"
+    ],
+    "title": "Arabic and Russian unit words and labels for the generator settings and run-log settings",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "On an Arabic or Russian page the generator settings and the run-log settings show their unit words and unit-field labels in that language, the unit inside the field frame at the end of the reading direction; Hebrew and English unchanged.",
     "status": "NOT_RUN",
     "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
     "commit": null,

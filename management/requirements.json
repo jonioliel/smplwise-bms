@@ -14423,5 +14423,21 @@
     "test_ids": [
       "AT-HOME-SCROLL-2-2530-1"
     ]
+  },
+  {
+    "id": "R-GEN-UNITS-ARRU-2530-1",
+    "title": "Arabic and Russian unit words and labels for the generator settings and run-log settings",
+    "statement": "On an Arabic or Russian page the generator settings and the run-log settings show their unit words and unit-field labels in that language, the unit inside the field frame at the end of the reading direction; Hebrew and English unchanged.",
+    "task_ids": [
+      "GEN-UNITS-ARRU-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GEN-UNITS-ARRU-2530-1"
+    ]
   }
 ]

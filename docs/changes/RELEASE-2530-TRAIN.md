@@ -31,6 +31,8 @@ Every row merged with `--no-ff` in the lead's order; each merge commit names the
 | - | `origin/main` = **v2.52.0** | `bf4e6da76` | `1c5183244` | - | `smplwise_vms/CHANGELOG.md` | 2.52.0 released. The 2.53.0 DRAFT section kept on top of main's final 2.52.0 text (the file now differs from main only by that section). Brings the 2.52 train's fix of its 17 unused exports (open point 1), the pixel spec name fix and the gate engine log-line fix (`522985143`) |
 | 12 | `pilot/STALE-FIXTURE-SPECS-2530` | `9c0dc7310` | `1336cca07` | `d52a6e649` (row 10) | `test_fixture_job.py` | both sides' gate-set additions kept (evidence-home-screen + the row's four specs; the home spec asserted IN the gate); 13 gate fixture specs; Q1 = a, Q2 = a |
 | 13 | `pilot/HOME-SCROLL-2-2530` | `4b20587d9` | `8ae83adfa` | `c41c14ad0` (row 11) | none | squeeze step for low screens; Q1-Q3 = a |
+| 14 | `pilot/GEN-UNITS-ARRU-2530` | `367d36556` | `579652ec6` | `8ae83adfa` | none | ar / ru unit words and labels; `ar.ts` / `ru.ts` merged cleanly (`i18n-split-langs --dry` moved 0); Q1 = a, Q2 = a. Closes AT-GEN-UNITS-FIELD-2490-1 (section 5) |
+| - | UI rebuild | - | `f73b4b270` | - | - | `npm run build:addon` at `579652ec6`, section 3.4 |
 
 Conflicts:
 - Row 5: `sw-step-up-dialog.ts` - the row's push / alarm-code body and the 2.52 train's MFA-RESET-CHANNEL-UI `pkElsewhere` hint, both
@@ -136,6 +138,32 @@ Pixel failure (1): `pixel-onboarding-2530` Support desktop, 283 px inside the ma
 6 of the 8 Linux baselines rewritten (2 byte-identical) -> committed; re-check twice without `-u` (`pixel-wiskey-schedule-exec-2530` +
 `pixel-onboarding-2530`, desktop + mobile): **23 passed, 1 skipped** both times.
 
+### 3.3 Runner run E at `8ae83adfa` (after main = v2.52.0 and rows 12-13; `~/work/p2520_t2530_e.sh`, results `~/work/p2530e-out`)
+
+| check | exit | result |
+|---|---|---|
+| generators / ratchets + `ruff check smplwise` | 0 each | as run B: match, 897 = baseline, 144, 0 legacy 422 sites, 0 without English / 0 run-time, 0 lint findings, no count above the design baseline, guide up to date, 1958 routes no diff, clean |
+| gate self-tests from the tree (no gate process running) | 0 x 3 | `selftest_gate`, `selftest_engine_sync`, `selftest_gate_fast`: SELFTEST PASSED x3 |
+| backend, one process per file: `test_media_groups` 22, `test_media_players_commands` 20, `test_media_players_api` 23, `test_bridge_media_players` 17, `test_media_commands` 59, `test_media_fake_ha` 75, `test_fixture_job` 16, `test_singletons_registered` 4, `test_gate_always_run` 19, `test_i18n_errors_en_2520` 9 | 0 each | all passed. `test_release_check` 1 failed / 2 passed and `test_release_bundle_version_2520` 1 failed / 5 passed: the UI bundle before the rebuild (both green after `f73b4b270`, PC 3 / 6 passed) |
+| `tsc` app / tests + scripts; `npm run lint`; `npm run build`; lazy-tags; bundle budget | 0 each | 0 / 0 errors; clean; built; OK; OK |
+| **`unused-exports --enforce`** | **0** | **no export outside the baseline** (the v2.52.0 merge brought the 2.52 rows' fix) |
+| Node unit suite | 1 | 5327 passed, **3 failed** = `unit-mfa-passkeys-2490` x3 (the known node-only harness), 13 skipped |
+| `fixture_job.py` evidence-home-screen, evidence-media-players-live, evidence-wiskey-people / -editor / -capture (the JSON's projects, their fixture backends) | 0 | home screen 24 / 0 (desktop + mobile); media_ma 49 / 0, media_sonos 44 / 0 (desktop / tablet / mobile); wiskey 22 / 0; no_ha 5 / 0 - every gate fixture spec the train added, 0 unexpected, 0 flaky |
+| `visual-matrix` home cases desktop + tablet | 0 | 12 passed (baselines unchanged) |
+| **every pixel spec desktop + mobile, no `-u`** | **0** | **545 passed, 0 failed**, 86 skipped; no baseline changed |
+
+### 3.4 Run F at `579652ec6` (row 14 and the UI rebuild; `~/work/p2520_t2530_f.sh`, results `~/work/p2530f-out`)
+
+`i18n-split-langs --dry` 0 (moved 0); `tsc` app / tests 0 / 0 errors; lint clean; `unused-exports --enforce` OK; unit
+`unit-gen-units-arru-2530`, `unit-genlog-tempexplain`, `unit-generator`, `unit-i18n-lang-packs-2443`, `unit-i18n-core`,
+`unit-i18n-en-ratchet-2490`: **61 passed**; build; `evidence-gen-units-arru-2530` + `evidence-gen-units-en-2490` +
+`evidence-gen-units-routing-2520` desktop / tablet / mobile: **33 passed, 0 failed**.
+Then `npm run build:addon` (`~/work/p2520_t2530_buildui.sh 579652ec6`): rc 0; `www/arx-sw.js` arx-shell-2.53.0; 0 `.map` files and 0
+`sourceMappingURL` in www / www-public (369 maps archived under `smplwise-results/sourcemaps/2.53.0`); public chunk largest
+public-ticket 60.23 kB (budget 62 KB). Archive sha256 `a67809ee...a7b7`, copied as base64 and verified, extracted over
+`smplwise_vms/www` / `www-public` -> `f73b4b270`. `release_check.py`: every check ok except the v2.53.0 tag -> "ready for the owner's
+approval"; PC `test_release_check` 3 passed, `test_release_bundle_version_2520` 6 passed.
+
 ## 4. HOME-SCROLL-FIX-2530 question 1 (evidence-home-screen in the gate)
 
 Run B (`8cf1444db`, section 3.2): `scripts/fixture_job.py evidence-home-screen --no-build` on the merged train (GATE-FIXTURE-LANE-2530's
@@ -150,7 +178,9 @@ row's branch) had not started when this was written; the train run above is the 
 `management/tasks.json`: cards for the 2.53 rows (LOAD-BUDGET, NOTICE-TV-LASTSEEN, HOME-T120-REST, DOCS-ONBOARDING, MFA-T095-REST,
 WISKEY-MEDIA-V2, WISKEY-NOFALLBACK-2, WISKEY-KNOWN-TREES-RC20, WISKEY-A2-EXEC, GATE-FIXTURE-LANE, HOME-SCROLL-FIX, all -2530) as REVIEW
 with the row head and the merge commit (R-<id>-1 PLANNED, AT-<id>-1 NOT_RUN), RELEASE-2530-TRAIN IN_PROGRESS; evidence lines on T068,
-T071, T095 (status unchanged). **T120 -> DONE** (HOME-T120-REST-2530 Q1 = a): acceptance lines 1 and 4 (and R-T120-1 / R-T120-4, AT-T120-1 /
+T071, T095 (status unchanged). **GEN-UNITS-FIELD-2490 -> DONE** (lead): AT-GEN-UNITS-FIELD-2490-1 PASS at `579652ec6` (run F: Hebrew / English / Arabic / Russian
+evidence, section 3.4), card commit = that acceptance commit (the 2.49 implementation is `bd551962d`); card GEN-UNITS-ARRU-2530 REVIEW.
+Cards STALE-FIXTURE-SPECS-2530 and HOME-SCROLL-2-2530 REVIEW. **T120 -> DONE** (HOME-T120-REST-2530 Q1 = a): acceptance lines 1 and 4 (and R-T120-1 / R-T120-4, AT-T120-1 /
 -4 expected) updated to the owner decisions (`home.default_mode`, default `full_all`, HOME-SIMPLE-2421; scenes by whoever holds scene
 management, Q75); AT-T120-1..5 PASS at `0a4286b4c` with the run-A receipts (section 3.1) and the row's own runner receipts; known limits
 (no lab / real device checks - a separate lab card, Q3 = a) and rollback in the card. `py -3.12 scripts/project_status.py --write`: PASS.

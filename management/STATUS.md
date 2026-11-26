@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T05:46:51.263048+00:00
+Generated: 2026-11-26T06:38:03.701357+00:00
 
-Tasks: 723 | Requirements: 837 | Tests: 854 | Screens: 32
+Tasks: 724 | Requirements: 838 | Tests: 855 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -11,7 +11,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 ## Status counts
 - BACKLOG: 12
 - BLOCKED: 27
-- DONE: 515
+- DONE: 516
 - IN_PROGRESS: 4
 - REVIEW: 165
 
@@ -19,7 +19,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 628
+- V1: 629
 - V2: 29
 - V3: 3
 
@@ -680,7 +680,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T068-EDGE-2450](tasks/T068-EDGE-2450.md) | V1 | DONE | T068 edge cases of the soak and load work: disconnects and a full disk | — |
 | [FLAKY-CAPTURE-SCREENSHOT-2490](tasks/FLAKY-CAPTURE-SCREENSHOT-2490.md) | V1 | DONE | Find and fix the intermittent "Unable to capture screenshot" failure in the UI test runs | — |
 | [SHARED-CHECKBOX-2480](tasks/SHARED-CHECKBOX-2480.md) | V1 | DONE | Shared checkbox component for the checkboxes that remain checkboxes | — |
-| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | REVIEW | Generator settings: units move from the field label into the field frame | — |
+| [GEN-UNITS-FIELD-2490](tasks/GEN-UNITS-FIELD-2490.md) | V1 | DONE | Generator settings: units move from the field label into the field frame | — |
 | [TICKETS-PAGING-2490](tasks/TICKETS-PAGING-2490.md) | V1 | DONE | Tickets table paging; case details stay a scrolling document | — |
 | [DOOR-TECH-HOLD-FIX-2480](tasks/DOOR-TECH-HOLD-FIX-2480.md) | V1 | DONE | Door technician screen: hold buttons stay usable while the screen re-reads after a write | — |
 | [HAND-SWITCH-2480](tasks/HAND-SWITCH-2480.md) | V1 | DONE | On/off checkboxes become switches (about 160 places in 80 files), including the terms (I agree) checkboxes | — |
@@ -778,3 +778,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HOME-SCROLL-FIX-2530](tasks/HOME-SCROLL-FIX-2530.md) | V1 | REVIEW | Direction b of the home screen without a page scroll (the widget column fits the viewport) | — |
 | [STALE-FIXTURE-SPECS-2530](tasks/STALE-FIXTURE-SPECS-2530.md) | V1 | REVIEW | The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix | — |
 | [HOME-SCROLL-2-2530](tasks/HOME-SCROLL-2-2530.md) | V1 | REVIEW | The home screen fits low screens too (one more squeeze step for every direction and view, default info style) | — |
+| [GEN-UNITS-ARRU-2530](tasks/GEN-UNITS-ARRU-2530.md) | V1 | REVIEW | Arabic and Russian unit words and labels for the generator settings and run-log settings | — |
