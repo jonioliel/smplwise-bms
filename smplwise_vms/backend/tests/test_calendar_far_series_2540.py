@@ -54,8 +54,8 @@ def cc(_app, monkeypatch):
     return _app
 
 
-def room(c):
-    r = c.post(f"{API}/calendar/calendars", json={"name": "חדר ישיבות", "type": "room", "color": "blue", "capacity": 10, "buffer_after_min": 0, "hours_mode": "always"})
+def room(c, name="חדר ישיבות"):
+    r = c.post(f"{API}/calendar/calendars", json={"name": name, "type": "room", "color": "blue", "capacity": 10, "buffer_after_min": 0, "hours_mode": "always"})
     assert r.status_code == 201, r.text
     return r.json()["calendar"]
 
@@ -116,7 +116,7 @@ def test_the_mirror_a_new_series_meets_a_single_booking_further_ahead(cc):
     s = book(cc, a, Z(2026, 11, 3, 16), Z(2026, 11, 3, 17), title="חוג", rrule=TUE)
     assert s["state"] == "pending", "the series' 19th Tuesday falls on the booking of 09.03.2027"
     # a series that ends before it is free
-    b = room(cc)
+    b = room(cc, "חדר שני")
     assert book(cc, b, Z(2027, 3, 9, 16), Z(2027, 3, 9, 17))["state"] == "confirmed"
     assert book(cc, b, Z(2026, 11, 3, 16), Z(2026, 11, 3, 17), rrule=f"{TUE};COUNT=8")["state"] == "confirmed"
 

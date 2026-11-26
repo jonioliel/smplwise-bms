@@ -432,9 +432,10 @@ export class CalEventDrawer extends LitElement {
           ${this.confirmCancel ? this.confirmLabel(ev as CalEvent, canWithdraw) : canWithdraw ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
   }
 
-  /** SCR-38: the one date this drawer was opened on (its local key, as the grid's delete sends it), when the entry is recurring. */
+  /** SCR-38: the one date this drawer was opened on (its local key, as the grid's delete sends it), when the entry is a recurring booking
+   * (a pending request is withdrawn or cancelled as a whole, as on the home screen - home-p2-api.ts `cancelBody`). */
   private occurrence(ev: CalEvent): { key: string; label: string } | null {
-    const key = ev.recurring ? this.detail?.occurrenceKey : undefined;
+    const key = ev.recurring && ev.state !== 'pending' ? this.detail?.occurrenceKey : undefined;
     if (!key || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(key)) return null;
     const at = new Date(this.detail?.occurrenceStart ?? key);
     return { key, label: Number.isNaN(at.getTime()) ? key.slice(0, 10) : `${DAY_SHORT[at.getDay()]} ${ddmm(at)}` };
