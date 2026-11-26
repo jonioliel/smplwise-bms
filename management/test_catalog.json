@@ -22701,5 +22701,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-HOME-SPEC-STABLE-2540-1",
+    "requirement_ids": [
+      "R-HOME-SPEC-STABLE-2540-1"
+    ],
+    "task_ids": [
+      "HOME-SPEC-STABLE-2540"
+    ],
+    "title": "The release gate's home screen spec is stable",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "evidence-home-screen.spec.ts passes run after run on the runner: the fit is polled before measuring, the edit-mode drag never starts from a scrolled point, and the developer-only state push leaves after its commit.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DATA-RULES-2540-1",
+    "requirement_ids": [
+      "R-DATA-RULES-2540-1"
+    ],
+    "task_ids": [
+      "DATA-RULES-2540"
+    ],
+    "title": "Backend data rules: billing cycle change, automatic drafts, generator battery system, generator mute",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A billing-cycle change after sealed bills leaves no unbilled gap (or is refused clearly); automatic drafts survive the draft retention and water drafts are announced; a 24 V battery is judged as 24 V; a critical generator mute needs generator.manage, lasts at most 4 h and can be ended.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MEDIUM-REST-2540-1",
+    "requirement_ids": [
+      "R-MEDIUM-REST-2540-1"
+    ],
+    "task_ids": [
+      "MEDIUM-REST-2540"
+    ],
+    "title": "The rest of the medium screen findings and the wall display's new-build notice",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Map action arguments are per entity and untyped optional arguments are not sent; the walls re-read their cameras; change arrows read in the reading direction; the home push refresh is bounded and selective; +/- on an A/C that is off turns it on; the wall display shows a quiet new-build notice.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
