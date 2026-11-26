@@ -78,7 +78,12 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
 
   /** The person's page (the drawer) of a listed person: its "עריכה" opens the editor. */
   async function openPerson(page: Page, id: string) {
-    if (!(await drawer(page).isVisible())) await page.locator(`${SCREEN} [data-person-row="${id}"]`).click();
+    if (await drawer(page).isVisible()) {
+      // the drawer is modal: close the person on view before opening another row
+      await drawer(page).locator('[data-drawer-close]').first().click();
+      await expect(drawer(page)).toBeHidden();
+    }
+    await page.locator(`${SCREEN} [data-person-row="${id}"]`).click();
     await expect(drawer(page)).toBeVisible({ timeout: 15000 });
     return drawer(page);
   }
@@ -505,12 +510,23 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       await expect(editor(page)).toHaveCount(1);
       await expect(page.locator(`${SCREEN} [data-wiskey-people-notice]`)).toHaveCount(0);
       await page.screenshot({ path: testInfo.outputPath('wiskey-editor-unknown.png'), fullPage: true });
+      // never a retry: while that write's outcome is unknown the server holds the next write of the same person (nothing is sent)
+      await field(page, 'save').click();
+      await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_pending', { timeout: 15000 });
+      await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'not_sent');
+      expect((await sent('users/update')).filter((m) => m.user_id === 'u003')).toHaveLength(1);
+      // an answer of an unexpected shape (success: true, no record) reads the same as no answer - on another person
+      await closeX(page).click();
+      await field(page, 'close-discard').click();
+      await expect(editor(page)).toHaveCount(0);
       expect((await control.post('/mode', { data: { people: 'unexpected' } })).status()).toBe(200);
+      await openEditorFor(page, 'u006');
+      await field(page, 'active').click();
       await field(page, 'save').click();
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
-      await expect(error).toContainText('לא ידוע אם בוצע'); // success: true with an unexpected shape reads the same as no answer
       await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_unknown');
-      expect((await sent('users/update')).filter((m) => m.user_id === 'u003')).toHaveLength(2); // one frame per attempt, never a retry
+      await expect(error).toContainText('לא ידוע אם בוצע');
+      expect((await sent('users/update')).filter((m) => m.user_id === 'u006')).toHaveLength(1); // one frame per attempt
     } finally {
       expect((await control.post('/mode', { data: { people: 'accept' } })).status()).toBe(200);
     }
