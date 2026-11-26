@@ -31335,7 +31335,8 @@
     ],
     "evidence": [
       "2026-11-25 (RELEASE-2530-TRAIN): release/2530-train cut from release/2520-train 91de5c377 (2.52.0 not released yet). Merged: LOAD-BUDGET-2530 3fe6bf2c3, NOTICE-TV-LASTSEEN-2530 9ef72a575, HOME-T120-REST-2530 4f72e6438, DOCS-ONBOARDING-2530 11cf23be5, MFA-T095-REST-2530 46692b29e, WISKEY-MEDIA-V2-2530 6365fcb17, WISKEY-NOFALLBACK-2-2530 c74e485f1; version bump 4c43d7619 (2.53.0, draft changelog, API inventory 1955 routes); chore/ACCEPT-SWEEP-2530 db79121bd (registry); sync with release/2520-train 8abc5d652 (c9085c0ad) and 9fb8109fb (4cb8ed934); WISKEY-KNOWN-TREES-RC20-2530 0a4286b4c; WISKEY-A2-EXEC-2530 1ea525393; GATE-FIXTURE-LANE-2530 6329e4178 (engine not installed); sync with release/2520-train 6d8fd71e1 (5bca84ee2); HOME-SCROLL-FIX-2530 2d674e581. Train fixes 8dfd46115, f41473bbc (WISKEY-MEDIA-V2 refusals: English, ADR-019 field envelope), 7b888872e (A2 English). Gate NOT_RUN; nothing released.",
-      "2026-11-26 (RELEASE-2530-TRAIN): runner run A at 0a4286b4c, run B at 8cf1444db, run C at 014ee92ae (docs/changes/RELEASE-2530-TRAIN.md section 3); train fixes 8dfd46115, f41473bbc, 7b888872e, b2f3ae668, 548e81acf, 8cf1444db, 0d76a0980, 014ee92ae and the schedule-exec baselines; T120 DONE. Open: the 2.52 train's 17 unused exports, the 2.53 gate engine install (lead, after 2.52). Gate NOT_RUN; nothing released."
+      "2026-11-26 (RELEASE-2530-TRAIN): runner run A at 0a4286b4c, run B at 8cf1444db, run C at 014ee92ae (docs/changes/RELEASE-2530-TRAIN.md section 3); train fixes 8dfd46115, f41473bbc, 7b888872e, b2f3ae668, 548e81acf, 8cf1444db, 0d76a0980, 014ee92ae and the schedule-exec baselines; T120 DONE. Open: the 2.52 train's 17 unused exports, the 2.53 gate engine install (lead, after 2.52). Gate NOT_RUN; nothing released.",
+      "2026-11-26 (RELEASE-2530-TRAIN): 2.52.0 released - main = v2.52.0 bf4e6da76 merged 1c5183244 (CHANGELOG: the 2.53.0 DRAFT section on top of the final 2.52.0 text); STALE-FIXTURE-SPECS-2530 1336cca07; HOME-SCROLL-2-2530 8ae83adfa. Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -31378,6 +31379,82 @@
     ],
     "owner": null,
     "commit": "c41c14ad0",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "STALE-FIXTURE-SPECS-2530",
+    "title": "The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "evidence-media-players-live, evidence-wiskey-people, evidence-wiskey-editor and evidence-wiskey-capture run in the gate's fixture lane and pass; a media player still grouped elsewhere is not reported as having left the group."
+    ],
+    "requirement_ids": [
+      "R-STALE-FIXTURE-SPECS-2530-1"
+    ],
+    "test_ids": [
+      "AT-STALE-FIXTURE-SPECS-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/STALE-FIXTURE-SPECS-2530, change note docs/changes/STALE-FIXTURE-SPECS-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2530-TRAIN): Registered at the merge. pilot/STALE-FIXTURE-SPECS-2530 head 9c0dc7310 merged 1336cca07 into release/2530-train (main = v2.52.0 bf4e6da76 merged in 1c5183244; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 12); change note docs/changes/STALE-FIXTURE-SPECS-2530.md. Decisions Q1 = a, Q2 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "9c0dc7310",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-SCROLL-2-2530",
+    "title": "The home screen fits low screens too (one more squeeze step for every direction and view, default info style)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "In the default info style the home screen does not scroll the page at 1366x768, 1280x800, 1024x768 or 1180x820 in any direction or view; evidence-home-screen.spec.ts checks it."
+    ],
+    "requirement_ids": [
+      "R-HOME-SCROLL-2-2530-1"
+    ],
+    "test_ids": [
+      "AT-HOME-SCROLL-2-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-SCROLL-2-2530, change note docs/changes/HOME-SCROLL-2-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-SCROLL-2-2530 head 4b20587d9 merged 8ae83adfa into release/2530-train (main = v2.52.0 bf4e6da76 merged in 1c5183244; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 13); change note docs/changes/HOME-SCROLL-2-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "4b20587d9",
     "actual_cost_usd": null
   }
 ]

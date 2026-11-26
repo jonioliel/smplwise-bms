@@ -22171,5 +22171,55 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-STALE-FIXTURE-SPECS-2530-1",
+    "requirement_ids": [
+      "R-STALE-FIXTURE-SPECS-2530-1"
+    ],
+    "task_ids": [
+      "STALE-FIXTURE-SPECS-2530"
+    ],
+    "title": "The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "evidence-media-players-live, evidence-wiskey-people, evidence-wiskey-editor and evidence-wiskey-capture run in the gate's fixture lane and pass; a media player still grouped elsewhere is not reported as having left the group.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-SCROLL-2-2530-1",
+    "requirement_ids": [
+      "R-HOME-SCROLL-2-2530-1"
+    ],
+    "task_ids": [
+      "HOME-SCROLL-2-2530"
+    ],
+    "title": "The home screen fits low screens too (one more squeeze step for every direction and view, default info style)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "In the default info style the home screen does not scroll the page at 1366x768, 1280x800, 1024x768 or 1180x820 in any direction or view; evidence-home-screen.spec.ts checks it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

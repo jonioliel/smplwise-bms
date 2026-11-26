@@ -14391,5 +14391,37 @@
     "test_ids": [
       "AT-HOME-SCROLL-FIX-2530-1"
     ]
+  },
+  {
+    "id": "R-STALE-FIXTURE-SPECS-2530-1",
+    "title": "The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix",
+    "statement": "evidence-media-players-live, evidence-wiskey-people, evidence-wiskey-editor and evidence-wiskey-capture run in the gate's fixture lane and pass; a media player still grouped elsewhere is not reported as having left the group.",
+    "task_ids": [
+      "STALE-FIXTURE-SPECS-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-STALE-FIXTURE-SPECS-2530-1"
+    ]
+  },
+  {
+    "id": "R-HOME-SCROLL-2-2530-1",
+    "title": "The home screen fits low screens too (one more squeeze step for every direction and view, default info style)",
+    "statement": "In the default info style the home screen does not scroll the page at 1366x768, 1280x800, 1024x768 or 1180x820 in any direction or view; evidence-home-screen.spec.ts checks it.",
+    "task_ids": [
+      "HOME-SCROLL-2-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-SCROLL-2-2530-1"
+    ]
   }
 ]

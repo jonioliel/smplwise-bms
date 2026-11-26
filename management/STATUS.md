@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T05:44:21.504416+00:00
+Generated: 2026-11-26T05:46:51.263048+00:00
 
-Tasks: 721 | Requirements: 835 | Tests: 852 | Screens: 32
+Tasks: 723 | Requirements: 837 | Tests: 854 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 515
 - IN_PROGRESS: 4
-- REVIEW: 163
+- REVIEW: 165
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 626
+- V1: 628
 - V2: 29
 - V3: 3
 
@@ -776,3 +776,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [GATE-FIXTURE-LANE-2530](tasks/GATE-FIXTURE-LANE-2530.md) | V1 | REVIEW | The release gate runs the fixture specs as a lane (one job per fixture group) | — |
 | [RELEASE-2530-TRAIN](tasks/RELEASE-2530-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2530-TRAIN - the 2.53.0 train | — |
 | [HOME-SCROLL-FIX-2530](tasks/HOME-SCROLL-FIX-2530.md) | V1 | REVIEW | Direction b of the home screen without a page scroll (the widget column fits the viewport) | — |
+| [STALE-FIXTURE-SPECS-2530](tasks/STALE-FIXTURE-SPECS-2530.md) | V1 | REVIEW | The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix | — |
+| [HOME-SCROLL-2-2530](tasks/HOME-SCROLL-2-2530.md) | V1 | REVIEW | The home screen fits low screens too (one more squeeze step for every direction and view, default info style) | — |

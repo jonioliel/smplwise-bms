@@ -1,8 +1,8 @@
 # RELEASE-2530-TRAIN - the 2.53.0 train
 
 Branch `release/2530-train`, worktree `C:\cloude\smplwise-2530train`, cut from `origin/release/2520-train` at `91de5c377` (2.52.0 not
-released yet; the 2.52 train was then merged in three more times, last at its gate head `6d8fd71e1`). When 2.52.0 is released, `main` /
-the `v2.52.0` tag are merged in. Coordinator: the train agent (merges, version bump, train checks). No release gate was started here (the
+released then; the 2.52 train was merged in three more times, last at its gate head `6d8fd71e1`). 2.52.0 was released on 26.11: `main` =
+the `v2.52.0` tag = `bf4e6da76`, merged in `1c5183244`. Coordinator: the train agent (merges, version bump, train checks). No release gate was started here (the
 lead's), nothing was installed, no lab, no Home Assistant, no WisKey contact. The 2.53 gate engine (GATE-FIXTURE-LANE-2530) is NOT installed
 on the runner (lead: the 2.52 gate runs with the 2.52 engine; the lead installs the 2.53 engine with `engine_sync.py` after 2.52 is released).
 
@@ -28,6 +28,9 @@ Every row merged with `--no-ff` in the lead's order; each merge commit names the
 | 10 | `pilot/GATE-FIXTURE-LANE-2530` | `d52a6e649` | `6329e4178` | `c128c2f86` | none | engine NOT installed (above); Q1-Q4 = a |
 | - | sync `release/2520-train` | `6d8fd71e1` | `5bca84ee2` | - | generated views | SEC-FIX-2520, rows 43-44, `aefc33e70` (pairing catalogue, run A failure 7), the 2.52.0 UI rebuilds |
 | 11 | `pilot/HOME-SCROLL-FIX-2530` | `c41c14ad0` | `2d674e581` | `9b659b361` (2.52 train) | none | Q1-Q3 = a; `evidence-home-screen` -> `"gate": true` waits for one 23/23 run (section 4) |
+| - | `origin/main` = **v2.52.0** | `bf4e6da76` | `1c5183244` | - | `smplwise_vms/CHANGELOG.md` | 2.52.0 released. The 2.53.0 DRAFT section kept on top of main's final 2.52.0 text (the file now differs from main only by that section). Brings the 2.52 train's fix of its 17 unused exports (open point 1), the pixel spec name fix and the gate engine log-line fix (`522985143`) |
+| 12 | `pilot/STALE-FIXTURE-SPECS-2530` | `9c0dc7310` | `1336cca07` | `d52a6e649` (row 10) | `test_fixture_job.py` | both sides' gate-set additions kept (evidence-home-screen + the row's four specs; the home spec asserted IN the gate); 13 gate fixture specs; Q1 = a, Q2 = a |
+| 13 | `pilot/HOME-SCROLL-2-2530` | `4b20587d9` | `8ae83adfa` | `c41c14ad0` (row 11) | none | squeeze step for low screens; Q1-Q3 = a |
 
 Conflicts:
 - Row 5: `sw-step-up-dialog.ts` - the row's push / alarm-code body and the 2.52 train's MFA-RESET-CHANNEL-UI `pkElsewhere` hint, both
@@ -154,20 +157,38 @@ management, Q75); AT-T120-1..5 PASS at `0a4286b4c` with the run-A receipts (sect
 
 ## 6. Open points
 
-1. **Inherited from the 2.52 train, not fixed here:** 17 `unused-exports --enforce` items of the 2.52 rows (`STARTABLE`, `jobCounts`,
+1. ~~**Inherited from the 2.52 train**~~ - RESOLVED by the v2.52.0 merge `1c5183244` (lead decision: Q1 resolved by the merge). Was: 17 `unused-exports --enforce` items of the 2.52 rows (`STARTABLE`, `jobCounts`,
    `WkReadState`, `SupportState`, `WkTiles`, `RequestLine`, `SERVICE_GRANT_COMMANDS`, `ScheduleReadAction`, `SyncMode` / `SyncGate` /
    `SyncMatch`, `WkLastResult`, `EnterAnswer`, `WfsReason`, `WpsLine`, `OfflineLang`, `InventoryLine`; the gate's `fe_static` step enforces
    it; reported to the lead 26.11): a) the 2.52 train drops the `export`s or records them in the baseline with a reason, and the 2.53 train
    takes it with the next sync (recommended) b) the 2.53 train does it after 2.52 is released.
-2. **The 2.53 gate engine** (GATE-FIXTURE-LANE-2530) is merged but not installed; the 2.53 gate needs `engine_sync.py install --apply` by the
+2. **The 2.53 gate engine** (GATE-FIXTURE-LANE-2530) - installed after 2.52.0 by the lead's order, section 7. Was: merged but not installed; the 2.53 gate needs `engine_sync.py install --apply` by the
    lead after 2.52 is released (the drift check refuses otherwise).
 3. **Design ratchet** says `px-literal` can be lowered (rows' token work); left for the release step (`design_ratchet.py --update` only lowers).
-4. **`selftest_engine_sync.py` is not hermetic against a running gate** (`engine_sync.busy()` probes the machine with `pgrep`, so
+4. **`selftest_engine_sync.py` is not hermetic against a running gate** (lead decision Q3 = a: a small GATE row later) (`engine_sync.busy()` probes the machine with `pgrep`, so
    the selftest fails while any `release_gate` process runs - run B): a) a GATE row lets the selftest pass a fake `busy` (or `--force-busy`
    for its own fake home) (recommended) b) run the selftest only when no gate runs.
-6. **`evidence-home-screen` drag test** ("edit mode ... the order by drag", line ~549): green 5 / 5 on the train, lost 2 of 3 times at the row's branch. a) keep `"gate": true`; if the 2.53 gate shows it, quarantine that one test with a ticket and an expiry (owner rule) and make the drag wait for the drop's settle (recommended) b) set `"gate": false` again until a `--repeat-each=10` run is clean.
+6. **`evidence-home-screen` drag test** (lead decision Q2 = a: keep the spec in the gate; quarantine only the drag test with a ticket and an expiry if it fails a gate) ("edit mode ... the order by drag", line ~549): green 5 / 5 on the train, lost 2 of 3 times at the row's branch. a) keep `"gate": true`; if the 2.53 gate shows it, quarantine that one test with a ticket and an expiry (owner rule) and make the drag wait for the drop's settle (recommended) b) set `"gate": false` again until a `--repeat-each=10` run is clean.
+7. **`~/gate2/gate_budget.py` is newer than the repository** (section 7; warn-only drift): a) a GATE row commits the installed
+   GATE-SPEED-2320 version to `scripts/gate/gate_budget.py` (recommended) b) leave the warning.
 5. **More rows** will join this train; each one cut from `eadaa25b8` should be checked against the 2.52 ratchets that reached 0 later
    (backend refusal English / run-time, ADR-019 field envelope, Node unit guards) - rows 6 and 9 needed train fixes for exactly this.
 
 NOT_RUN on the train: the release gate (the lead's), the full backend suite in one sweep (the touched areas above only), the full Playwright
 suites beyond the specs named, tablet, the 14 h soak (LOAD-BUDGET), any lab / live WisKey / Home Assistant check.
+
+## 7. The 2.53 gate engine on the runner (lead's order, after 2.52.0)
+
+Installed on 26.11 with no gate, entry check or nightly running (status files `pass` / `fail` / `done`, no `release_gate` /
+`nightly_tests` process), from a clean detached worktree `~/work/p2530eng` at `origin/release/2530-train` = `8ae83adfa`:
+`python3 scripts/gate/engine_sync.py install --src ~/work/p2530eng --apply --suffix .bak_2611` -> 5 files (`release_gate.py` in `~`,
+`~/gate2`, `~/nightly-gate`; `engine_sync.py` in `~` and `~/gate2`; `release_gate2.sh` and `selftest_gate.py` were already the same), 5
+backups `*.bak_2611`; `--files fixture_lane.sh --apply` -> `~/fixture_lane.sh` (new). Manifest `~/gate_install_manifest.json`: source
+commit `8ae83adfa`, not dirty.
+
+Drift check `python3 ~/engine_sync.py check --repo ~/smplwisebms --ref origin/release/2530-train`: **exit 0** - the engine
+(`~/release_gate.py`, sha256 `49141c6fbf06ae08...`) equals the train's `scripts/gate/release_gate.py`. One warn-only line, pre-existing
+and not from this train: `~/gate2/gate_budget.py` DIFFERENT - the installed copy is NEWER than the repository (GATE-SPEED-2320's
+effective-limit code, installed by hand 31.10, never committed; the same warning against `origin/main`). Not replaced (the repository
+version would drop that limit logic). Open point 7. Against `origin/main` the strict check now exits 4, as expected (the nightly runs it
+warn-only). No later train commit changes `scripts/gate/release_gate.py`, so the drift check stays clean at the train's head.
