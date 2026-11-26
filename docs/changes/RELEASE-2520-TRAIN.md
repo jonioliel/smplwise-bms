@@ -323,3 +323,18 @@ Final code head `9d06b64cc` (docs / registry commits after it change no code). R
   `test_release_check` and `test_release_bundle_version_2520` green; (2) comes after the owner's approval;
 - every row's own test files green (sections 3.2-3.3 and the runs per row above), every pixel spec green twice (514 passed, no baseline
   changed), the Node unit suite green except the three `unit-mfa-passkeys-2490` page tests that need a server (green under their own config).
+
+## 6. Gate run 1 (6d8fd71e1, FAIL, 199 min) - triage
+
+| item | real? | evidence | fix |
+|---|---|---|---|
+| [lint] `evidence-wiskey-relay-inv-2520.spec.ts:96` geometry read after a click without a wait | yes (spec) | `lint_spec_waits.py --new-since 3d71fb183`: 1 finding before, 0 after (PC and runner) | `522985143`: `settle(page)` before the read |
+| [fe_static] 17 new file-local exports | yes | `unused-exports --enforce` OK at `07effe334`; tsc app / tests 0 errors; lint; the 11 files' unit specs 68 passed; `build:addon` output identical to the committed bundle (0 changed paths) - no new release rebuild | `977710cd8` (no `export`), `07effe334` (STARTABLE, jobCounts, WkReadState were dead code: removed) |
+| [pixel] pixel_53 "No tests found / 0 tests" | yes (spec) | pixel_53 = the 54th entry of the engine's pixel list = `pixel-wiskey-schedule-reads-2520.spec.ts`; the engine runs pixel specs with `--grep pixel-stable` and no title said so. Runner, as the gate runs it: 8 passed, baselines unchanged | `522985143`: the two titles carry "is pixel-stable" |
+| [backend] two "ids" that are log lines (`smplwise.events:db.py:386 ...`, `smplwise:main.py:195 ...`) | engine bug | `parse_pytest` took pytest's captured log lines ("ERROR    ...") as failed ids; the alone-retry got them as arguments and aborted ("file or directory not found", no summary) | `522985143`: only short-summary lines (one space, an id that starts with a .py path); `selftest_gate.py` case added - SELFTEST PASSED on the runner; engine re-installed (`engine_sync install --apply`, gate not running), `engine_sync check`: engine sha256 cb445b1cd4f48eaa = tree (one remaining WARNING: `~/gate2/gate_budget.py`, not in the default install set) |
+| [backend] `test_soak_edges2_2450::test_g1_a_real_full_database_under_load` | no - load timing | never retried in run 1 (the retry aborted); alone on the runner at `07effe334`: 3 / 3 passed | - (the fixed retry gives it its alone-run next time) |
+| [backend] `test_wiskey_media_v11::test_batches_are_never_sent_faster_than_real_time...` | no - load timing (a 0.022 s gap against a 0.030 s floor under the gate's load) | alone on the runner: 3 / 3 passed | - |
+
+Next run: the hard failures were lint and fe_static only (no tsc / build / release_check / engine guard), all fixed on the branch; the
+engine is re-installed from the branch. An `--after` run on the run-1 report is allowed by the engine; its spec lint uses `--new-since` the
+report's sha (6d8fd71e1), so the lint fix is evidenced above, not by that run.
