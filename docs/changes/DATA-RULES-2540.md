@@ -86,12 +86,52 @@ Shared files other rows may also touch: `error_text_en.json` / `error_text_tpl_e
 None of the files owned by TIME-CORRECT-2540, CORE-RELIABILITY-2540, HONEST-STATES-2540, PHYSICAL-CONFIRM-2540 or CAST-RELAY-HARDEN-2540.
 
 UI: no screen changes in the shipped fixtures (the pixel fixtures read 27.4 V / 13.x V, which look as before); only a 24 V bank at 16-18 V
-or a known 24 V bank below 16 V draws differently. No pixel baseline refresh and no compare page were needed (no visible change on the
-captured screens).
+or a known 24 V bank below 16 V draws differently. No pixel baseline refresh was needed (no visible change on the captured screens); the
+before / after of the edge values is a table page (local, Hebrew): `private/planning/data-rules-2540_compare_2026-11-26.html`.
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+All on the Linux runner (slot B) unless marked PC. Branch head tested: `1eee3f203` (code identical to this commit's; this commit adds
+only this note).
+
+Fails before / passes after (the new test files copied onto `origin/release/2530-train` at `130ca5213`, which has none of these fixes):
+
+| file | base (before) | branch (after) |
+|---|---|---|
+| `tests/test_data_rules_generator_2540.py` | exit 1: 8 failed, 1 passed | exit 0: 9 passed |
+| `tests/test_data_rules_billing_2540.py` | exit 1: 3 failed, 2 passed | exit 0: 5 passed |
+| `tests/test_data_rules_water_2540.py` | exit 1: 3 failed, 1 passed | exit 0: 4 passed |
+| `frontend/tests/unit-data-rules-2540.spec.ts` | exit 1: `gen-logic` has no `batterySystem` (SyntaxError on import) | exit 0: 4 passed |
+
+The tests that pass on the base too are the guards of unchanged behaviour (a non-critical mute stays with the operator, an account
+without issued bills changes its cycle freely, the anchor month of a monthly cycle, the water source hidden while the module is off).
+The same three backend files also passed on the PC (one file per process): 9, 5 and 4 passed.
+
+Other checks (runner):
+- `scripts/gen_wire_types.py --check` exit 0; `wire_ratchet.py` exit 0; `request_strict_ratchet.py --check` exit 0;
+  `error_contract_inventory.py --check` exit 0; `i18n_backend_errors.py` exit 0 (without English: 0); `gate/lint_backend.py --strict`
+  exit 0 (0 findings); `design_ratchet.py` exit 0; `api_inventory.py` regenerated and committed (the new DELETE route), then unchanged.
+- `ruff check` on the changed product files and the generator test: exit 0. (The two billing / water test files reuse the fixtures of
+  `test_energy_billing_api` / `test_water_billing_s3` by import, which ruff reports as F811 - the same pattern and the same report as the
+  existing `tests/test_energy_elecbill77.py`; the blocking backend lint passes.)
+- Frontend: `tsc --noEmit -p tsconfig.json` exit 0 (0 errors); `npm run typecheck` exit 0; `npm run lint` exit 0;
+  `unused-exports.mjs --enforce` exit 0; `api-client-check.mjs` exit 0.
+- Node unit suite (`playwright.unit.config.ts`, 2 workers): 5336 passed, 15 skipped, 3 failed - the 3 are
+  `unit-mfa-passkeys-2490.spec.ts` browser cases that need a preview server on port 4173 (`ERR_CONNECTION_REFUSED`); they fail the same
+  way on the base worktree. Not related.
+- Golden SQL traces: `tests/test_bill_ledger_lifecycle_b.py` regenerated with `SW_BILL_LEDGER_GOLDEN_WRITE=1` (PC), then passed without
+  it (PC: 25 passed); `tests/test_bill_ledger_cross_kind.py` 11 passed (PC); `tests/test_generator.py` 49 passed (PC).
+
+FULL backend suite (runner, all 1,123 `tests/test_*.py`, one pytest process per 10 files, 4 lanes, `-m "not timing_lane"`):
+46,409 passed, 32 skipped, 3 xfailed, 4 deselected, **3 failed** - all three fail identically on this row's base `aeb05ad3d` without any
+change of this row (runner: 3 failed) and pass on the newer train head `3b4654f8b` (the train fixed them after this branch was cut;
+they go away when the row is merged onto the train). None touches this row's code:
+- `tests/test_gate_speed.py::test_v2_jobs_cover_exactly_the_v1_specs_and_projects` (the gate's fixture job list);
+- `tests/test_secfix_restore_settings_2520.py::test_every_security_and_remote_setting_is_classified_keep_or_travel`
+  (`access.station_media_direct_v2` not classified in backup.py - owned by CORE-RELIABILITY-2540);
+- `tests/test_t06_admission_295.py::test_the_only_modules_that_reach_a_signing_call_are_the_known_ones`.
+
+NOT_RUN: pixel specs (no captured screen changes - see UI above); the Playwright browser suites; lab (not allowed).
 
 ## Open questions (recommendation first)
 
