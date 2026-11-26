@@ -405,16 +405,26 @@ test.describe('the home screen against the devices fixture backend', () => {
             continue;
           }
           // direction a: the band of large cards (hero) - folded exactly when the page squeezes, its headings then gone and one row
-          const squeezed = (await body.getAttribute('data-squeeze')) !== null;
           await expect(band, where).toHaveAttribute('layout', 'hero');
-          const fold = await band.evaluate((el) => {
-            const cards = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wrap > .wg'));
-            const heads = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wg-h')).filter((x) => getComputedStyle(x).display !== 'none').length;
-            return { on: el.hasAttribute('data-squeeze'), heads, rows: new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top))).size };
-          });
-          expect(fold.on, `${where}: the band folds with the page's squeeze step`).toBe(squeezed);
-          if (squeezed) expect(fold, `${where}: folded band`).toEqual({ on: true, heads: 0, rows: 1 });
-          else expect(fold.heads, `${where}: the resting band keeps its headings`).toBeGreaterThan(0);
+          // HOME-SPEC-STABLE-2540: the page's step and the band's state are read in ONE frame and polled, like the scroll check above (they
+          // were read in two calls, once). The loaded runner once read a squeezed page with the folded band on 2 rows (1 of 4 whole-file
+          // runs in parallel; not seen again in 200 isolated checks under the same load) - most likely a frame between a re-render and the
+          // packing's next measure, which the screen steps through by design. A state that stays wrong still fails here, with what was read.
+          await expect
+            .poll(
+              () =>
+                band.evaluate((el) => {
+                  const squeezed = (el.getRootNode() as ShadowRoot).querySelector('.page-body')?.hasAttribute('data-squeeze') ?? false;
+                  const cards = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wrap > .wg'));
+                  const heads = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wg-h')).filter((x) => getComputedStyle(x).display !== 'none').length;
+                  const rows = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top))).size;
+                  const on = el.hasAttribute('data-squeeze');
+                  if (squeezed) return on && heads === 0 && rows === 1 ? 'folded band, one row' : `the page squeezes, the band: on ${on}, ${heads} headings, ${rows} rows, ${cards.length} cards`;
+                  return !on && heads > 0 ? 'resting band with its headings' : `the page rests, the band: on ${on}, ${heads} headings`;
+                }),
+              { message: `${where}: the band folds with the page's squeeze step (then no heading, one row); at rest it keeps its headings`, timeout: 8000 },
+            )
+            .toMatch(/^(folded band, one row|resting band with its headings)$/);
         }
       }
     }
