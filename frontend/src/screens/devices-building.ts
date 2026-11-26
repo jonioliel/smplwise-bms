@@ -476,6 +476,12 @@ export class DevicesBuilding extends LitElement {
    * pixel or two left a control screen scrolling at the loosest packing (tablet 1024x768, a building of a site, the domus skin). */
   private fitObs: ResizeObserver | null = null;
   private fitObserved: Element | null = null;
+  /** HOME-FIT-FOLLOWUPS-2550: the page area (the shell's scroll container) and each of its own children are watched too - what grows
+   * there without resizing the page body (the shell's setup hint arriving above the screen, a banner) was measured only on the recheck
+   * timers, so a slow device scrolled for 1.5-3 s (and not at all once those were spent). See watchPageArea. */
+  private fitAreaObs: ResizeObserver | null = null;
+  private fitArea: HTMLElement | null = null;
+  private fitAreaKids = new WeakSet<Element>();
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
   /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
@@ -1567,7 +1573,37 @@ export class DevicesBuilding extends LitElement {
         this.fitObs.observe(body);
       }
     }
+    this.watchPageArea();
   }
+
+  /** HOME-FIT-FOLLOWUPS-2550: one ResizeObserver on the page area and its direct children (the screen's own wrapper shrinks when
+   * something above it arrives; a child that grows is seen itself). Bounded: a ResizeObserver reports only boxes that really changed
+   * size (a page at rest reports nothing); a notification only asks for the usual measure, at most one per animation frame (the shared
+   * `fitTimer`); and the measure only ever packs tighter for a given fit key (fit 1, fit 2, b's fold, the squeeze - four steps at most), so
+   * a run of notifications that its own steps cause ends once the packing settles. No timer, no loosening, no new state. */
+  private watchPageArea() {
+    const sc = this.isConnected ? scrollParentOf(this) : null;
+    if (sc !== this.fitArea) {
+      this.fitAreaObs?.disconnect();
+      this.fitArea = sc;
+      this.fitAreaKids = new WeakSet();
+      if (!sc) return;
+      this.fitAreaObs ??= new ResizeObserver(this.onPageArea);
+      this.fitAreaObs.observe(sc);
+    }
+    if (!sc || !this.fitAreaObs) return;
+    for (const el of Array.from(sc.children)) {
+      if (this.fitAreaKids.has(el)) continue;
+      this.fitAreaKids.add(el);
+      this.fitAreaObs.observe(el);
+    }
+  }
+
+  private onPageArea = () => {
+    if (!this.isConnected) return;
+    this.watchPageArea(); // a child that arrived since (its first notification comes back here once)
+    if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+  };
 
   static styles = devicesBuildingStyles;
 
@@ -1692,6 +1728,8 @@ export class DevicesBuilding extends LitElement {
     this.fitObs?.disconnect();
     this.fitObs = null;
     this.fitObserved = null;
+    this.fitAreaObs?.disconnect(); // HOME-FIT-FOLLOWUPS-2550
+    this.fitAreaObs = this.fitArea = null;
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();
