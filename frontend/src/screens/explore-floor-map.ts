@@ -2517,7 +2517,8 @@ export class ExploreFloorMap extends LitElement {
     if (!c) return nothing;
     return html`<sw-dialog open heading=${`${c.label}?`} subheading=${c.items.length > 1 ? tr('{itemsCount} התקנים', { itemsCount: c.items.length }) : ''} @close=${() => (this.roomConfirm = null)} data-room-confirm>
       <div style="font-size:var(--sw-fs-sm);line-height:1.5">${tr('הפעולה תבוצע בזהות שלך ותירשם באודיט.')}</div>
-      <div slot="footer"><sw-button variant="primary" @click=${() => this.runBulk(c)}>${c.label}</sw-button><sw-button variant="ghost" @click=${() => (this.roomConfirm = null)}>${t('actions.cancel')}</sw-button></div>
+      <!-- PHYSICAL-CONFIRM-2540 (review SCR-16): cancel first and focused - a stray or held Enter / Space never runs the devices -->
+      <div slot="footer"><sw-button variant="ghost" autofocus data-room-confirm-cancel @click=${() => (this.roomConfirm = null)}>${t('actions.cancel')}</sw-button><sw-button variant="primary" data-room-confirm-run @click=${() => this.runBulk(c)}>${c.label}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -3136,7 +3137,9 @@ export class ExploreFloorMap extends LitElement {
     const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === c.entityId)?.entity;
     return html`<sw-dialog open heading=${t('entity.confirm')} subheading=${ent?.name ?? c.entityId} @close=${() => (this.confirmSpec = null)}>
       <div style="font-size:var(--sw-fs-sm);line-height:1.5">${tr('הפעולה')} <strong>${c.spec.label}</strong> ${tr('על')} <span class="ltr">${c.entityId}</span> ${tr('היא פעולה {v}{v2}. היא תבוצע בזהות שלך ותירשם באודיט.', { v: c.spec.risk_label ?? tr('רגישה'), v2: c.spec.risk === 'sensitive' ? tr(' (הרשאה נפרדת)') : '' })}</div>
-      <div slot="footer"><sw-button variant="danger" @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button><sw-button variant="ghost" @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button></div>
+      <!-- PHYSICAL-CONFIRM-2540 (review SCR-16): cancel first and focused (as the tiles panel's unlock dialog) - a stray or held Enter /
+           Space on the danger button no longer sends the unlock with its confirmation grant -->
+      <div slot="footer"><sw-button variant="ghost" autofocus data-action-confirm-cancel @click=${() => (this.confirmSpec = null)}>${t('actions.cancel')}</sw-button><sw-button variant="danger" data-action-confirm-run @click=${() => this.send(c.entityId, c.spec, true)}>${c.spec.label}</sw-button></div>
     </sw-dialog>`;
   }
 

@@ -990,4 +990,11 @@ export const en = {
   'מנטרל': 'Disarms',
   'פותח נעילה': 'Unlocks',
   'פותח': 'Opens',
+  'לא ידוע אם הפעולה בוצעה · בדקו במקום לפני הפעלה חוזרת': 'It is not known whether the action was carried out · check on site before trying again',
+  'נשלח · ההתקן אינו מדווח מצב': 'Sent · the device does not report its state',
+  'הצעד יופעל עכשיו באמת ({n} התקנים), בזהות שלך, ויירשם באודיט.': 'The step will now really run ({n} devices), under your identity, and is recorded in the audit log.',
+  'הפעלת הצעד': 'Run the step',
+  'ההחזרה כוללת {n} פעולות רגישות (מנעול, אזעקה או צופר). הן יופעלו עכשיו באמת, בזהות שלך, ויירשמו באודיט.': 'Putting the devices back includes {n} sensitive actions (a lock, an alarm or a siren). They will now really run, under your identity, and are recorded in the audit log.',
+  'לא כל ההתקנים הוחזרו: {why}': 'Not every device was put back: {why}',
+  'לא ידוע אם כל ההתקנים חזרו למצב הקודם · בדקו במקום': 'It is not known whether every device went back to its previous state · check on site',
 };

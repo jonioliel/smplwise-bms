@@ -18,6 +18,8 @@ import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredential
 import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
 import { listNvrChanges, notifyStatus, nvrSystemApi, rollbackNvrChange, setNotify, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
+import { physicalOutcome } from '../api/physical-outcome';
+import { confirmDialog } from '../components/confirm-dialog';
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -105,14 +107,18 @@ export class SystemSetup extends LitElement {
   @state() private wiskeyMsg = '';
   @state() private wiskeyBusy = false;
   /** SETUPPLAN-POLISH-2331: the tone of the three result lines (sysMsg, notifyResult, wiskeyMsg) - set with the text, never guessed from it. */
-  @state() private sysOk = true;
+  /** true = ok, false = failed (red), 'warn' = a physical action whose outcome is unknown (amber; PHYSICAL-CONFIRM-2540). */
+  @state() private sysOk: boolean | 'warn' = true;
   @state() private notifyOk = true;
   @state() private wiskeyOk = true;
 
   /** A result line in the settings vocabulary (.msg: a tinted pill with its icon; styles/settings.ts), the screen's hook kept. */
-  private static statusLine(text: string, ok: boolean, hook: 'data-nvr-system-msg' | 'data-nvr-result' | 'data-wiskey-cred-msg') {
-    const icon = html`<sw-icon name=${ok ? 'check' : 'warning'} size=${13}></sw-icon>`;
-    if (hook === 'data-nvr-system-msg') return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-nvr-system-msg>${icon}${text}</div>`;
+  private static statusLine(text: string, ok: boolean | 'warn', hook: 'data-nvr-system-msg' | 'data-nvr-result' | 'data-wiskey-cred-msg') {
+    const icon = html`<sw-icon name=${ok === true ? 'check' : 'warning'} size=${13}></sw-icon>`;
+    if (hook === 'data-nvr-system-msg') {
+      const tone = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err';
+      return html`<div class=${`msg ${tone}`} role=${ok === true ? 'status' : 'alert'} data-nvr-system-msg=${tone}>${icon}${text}</div>`;
+    }
     if (hook === 'data-nvr-result') return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-nvr-result>${icon}${text}</div>`;
     return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-wiskey-cred-msg>${icon}${text}</div>`;
   }
@@ -192,27 +198,75 @@ export class SystemSetup extends LitElement {
       this.sysError = '';
       return;
     }
+    // PHYSICAL-CONFIRM-2540 (review SCR-14): the answer belongs to the recorder it was asked for - a late answer for recorder A is
+    // dropped once B is selected, so the card never shows A's outputs while its buttons act on B
+    const rid = this.sysRecorder;
     try {
-      this.sys = await this.sysApi.nvrSystem();
+      const sys = await nvrSystemApi(rid).nvrSystem();
+      if (rid !== this.sysRecorder) return;
+      this.sys = sys;
       this.sysError = '';
     } catch (err) {
+      if (rid !== this.sysRecorder) return;
       this.sysError = describeError(err);
     }
   }
 
-  /** One NVR system action with the shared busy flag and result line (0.1.71). */
-  private async sysAction(label: string, run: () => Promise<unknown>) {
+  /** The selected recorder's name, only when there is more than one to choose from (the confirmations name it). */
+  private recorderName(rid: string): string {
+    return this.sysRecorders.length > 1 ? this.sysRecorders.find((r) => r.id === rid)?.name ?? rid : '';
+  }
+
+  /** PHYSICAL-CONFIRM-2540 (review SCR-15): an alarm-output pulse energises a physical relay (a siren, a light, a gate) - it is never
+   * one click away. The confirmation names the output, the recorder (with two or more) and the pulse length, opens with the focus on
+   * cancel, and the pulse goes to the recorder the operator saw when he confirmed (`rid`), once. */
+  private async pulse(o: NvrSystem['outputs'][number]) {
+    if (this.sysBusy) return;
+    const rid = this.sysRecorder;
+    const output = tr('יציאה {id}{v}', { id: o.id, v: o.name ? ` · ${o.name}` : '' });
+    const rec = this.recorderName(rid);
+    const ok = await confirmDialog({
+      heading: tr('הפעלת יציאת אזעקה'),
+      body: [
+        tr('להפעיל עכשיו את {output}{rec}?', { output, rec: rec ? tr(' ב־{name}', { name: rec }) : '' }),
+        tr('זהו ממסר פיזי: הוא עשוי להפעיל צופר, תאורה או שער{v}.', { v: o.pulse_ms ? tr(' למשך {v} שנ׳', { v: o.pulse_ms / 1000 }) : '' }),
+        tr('הפעולה נרשמת באודיט עם שם המשתמש.'),
+      ].join('\n'),
+      confirmLabel: tr('הפעל את היציאה'),
+      danger: true,
+      focusCancel: true,
+    });
+    if (!ok || rid !== this.sysRecorder) return; // the recorder changed while the question was open: nothing is sent
+    void this.sysAction(tr('הפעלת יציאה {id}', { id: o.id }), () => nvrSystemApi(rid).pulseNvrOutput(o.id), true);
+  }
+
+  /** One NVR system action with the shared busy flag and result line (0.1.71). PHYSICAL-CONFIRM-2540: a `physical` action (the
+   * output pulse, the restart) that did not answer with success is read honestly - a refusal is a failure (red), anything else
+   * (a dropped connection, a time-out) is "unknown, check on site" (amber), never "failed" and never "done". */
+  private async sysAction(label: string, run: () => Promise<unknown>, physical = false) {
     if (this.sysBusy) return;
     this.sysBusy = true;
     this.sysMsg = '';
+    const doneText = () => (physical ? tr('{label}: ה־NVR אישר את הפקודה · נרשם באודיט.', { label }) : tr('{label}: בוצע ונרשם באודיט.', { label }));
+    let sent = false;
     try {
       await run();
+      sent = true;
       await Promise.all([this.loadSystem(), listNvrChanges(10).then((c) => (this.changes = c.changes))]);
       this.sysOk = true;
-      this.sysMsg = tr('{label}: בוצע ונרשם באודיט.', { label }); // after the refresh, so the next button is already enabled
+      this.sysMsg = doneText(); // after the refresh, so the next button is already enabled
     } catch (err) {
-      this.sysOk = false;
-      this.sysMsg = `${label}: ${describeError(err)}`;
+      if (sent) {
+        // the action itself was accepted; only the refresh after it failed
+        this.sysOk = true;
+        this.sysMsg = doneText();
+      } else if (physical && physicalOutcome(err) === 'unknown') {
+        this.sysOk = 'warn';
+        this.sysMsg = `${label}: ${tr('לא ידוע אם הפעולה בוצעה · בדקו במקום לפני הפעלה חוזרת')}`;
+      } else {
+        this.sysOk = false;
+        this.sysMsg = `${label}: ${describeError(err)}`;
+      }
     } finally {
       this.sysBusy = false;
     }
@@ -273,7 +327,7 @@ export class SystemSetup extends LitElement {
             ? s.outputs.map((o) => html`<div class="check" data-nvr-output=${o.id}><span>${tr('יציאה {id}{v}', { id: o.id, v: o.name ? ` · ${o.name}` : '' })} <span class="hint">${o.io_type === 'local' ? tr('ממסר ב־NVR') : tr('במצלמה')} · ${o.use_type === 'whiteLight' ? tr('אור לבן') : o.use_type === 'disable' ? tr('לא בשימוש') : o.use_type}${o.pulse_ms ? tr(' · פולס {v} שנ׳', { v: o.pulse_ms / 1000 }) : ''}</span></span>
                 ${!o.pulse_supported
                   ? html`<span class="val" data-nvr-output-unsupported>${tr('הפעלה דרך המצלמה בלבד (ה־NVR לא מעביר)')}</span>`
-                  : s.can.alarm ? html`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy || !o.enabled} data-nvr-pulse=${o.id} @click=${() => this.sysAction(tr('הפעלת יציאה {id}', { id: o.id }), () => this.sysApi.pulseNvrOutput(o.id))}>${tr('הפעל (pulse)')}</sw-button>` : html`<span class="val">${o.enabled ? tr('פעיל') : tr('כבוי')}</span>`}
+                  : s.can.alarm ? html`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy || !o.enabled} data-nvr-pulse=${o.id} @click=${() => void this.pulse(o)}>${tr('הפעל (pulse)')}</sw-button>` : html`<span class="val">${o.enabled ? tr('פעיל') : tr('כבוי')}</span>`}
               </div>`)
             : html`<div class="hint">${tr('אין יציאות{v}.', { v: s.errors.outputs ? ` (${s.errors.outputs})` : '' })}</div>`}
           ${this.sectionHead('refresh', tr('הפעלה מחדש'))}
@@ -284,10 +338,10 @@ export class SystemSetup extends LitElement {
             : html`<div class="hint">${tr('הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).')}</div>`}
           ${this.sysMsg ? SystemSetup.statusLine(this.sysMsg, this.sysOk, 'data-nvr-system-msg') : nothing}`}`}
       ${this.rebootOpen
-        ? html`<sw-dialog open heading=${tr('הפעלה מחדש של ה־NVR')} subheading=${tr('במשך 1–2 דקות אין לייב ואין הקלטה')} data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
+        ? html`<sw-dialog open heading=${tr('הפעלה מחדש של ה־NVR')} subheading=${this.recorderName(this.sysRecorder) ? `${this.recorderName(this.sysRecorder)} · ${tr('במשך 1–2 דקות אין לייב ואין הקלטה')}` : tr('במשך 1–2 דקות אין לייב ואין הקלטה')} data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
             <div class="dlgtext">${tr('הקלד')} <b>RESTART</b> ${tr('כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.')}</div>
             <sw-field label=${tr('אישור')}><input data-ltr data-nvr-reboot-word .value=${this.rebootWord} @input=${(e: Event) => (this.rebootWord = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy || this.rebootWord.trim().toUpperCase() !== 'RESTART'} data-nvr-reboot-run @click=${() => { const w = this.rebootWord; this.rebootOpen = false; void this.sysAction(tr('הפעלה מחדש'), () => this.sysApi.rebootNvr(w)); }}>${tr('הפעל מחדש')}</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>${tr('ביטול')}</sw-button></div>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy || this.rebootWord.trim().toUpperCase() !== 'RESTART'} data-nvr-reboot-run @click=${() => { const w = this.rebootWord; const rid = this.sysRecorder; this.rebootOpen = false; void this.sysAction(tr('הפעלה מחדש'), () => nvrSystemApi(rid).rebootNvr(w), true); }}>${tr('הפעל מחדש')}</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
     </sw-card>`;

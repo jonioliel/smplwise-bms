@@ -14,7 +14,7 @@ import { wkIcon } from '../screens/wiskey-stations-icons';
 import { armRingTone, Ringer, ringBlocked } from '../wiskey/ring-tone';
 import { openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps } from '../wiskey/talk-session';
-import { answerPlan, clockText, doorLabel, elapsedNow, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
+import { answerPlan, clockText, doorFailure, doorLabel, elapsedNow, frontCall, frontSettled, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
 import { srOnlyStyles } from '../styles/fragments';
 
 const HIDDEN_KEY = 'sw.calls.hidden';
@@ -34,6 +34,14 @@ type Note = { text: string; tone: 'ok' | 'warn' | 'error' };
  *              permission) nothing is sent: the station opens in the stations screen, and the reason is said in one line.
  *   decline  - one signal; the banner goes when the station stops ringing.
  *   door     - an inline confirmation ("open X?") and ONE release (POST intercom/stations/{id}/release, confirmed); "sent", never "opened".
+ *              PHYSICAL-CONFIRM-2540 (review SCR-12): an answer that is not a structured "not sent" / "refused" is "unknown, check on
+ *              site" (amber), and that door's button waits as long as the backend holds the relay; the release has its own busy
+ *              state per door, so it never wipes an answer in flight.
+ *
+ * PHYSICAL-CONFIRM-2540 (review SCR-11): the call in front is held by its id. A newer station ringing never swaps the sheet under the
+ * finger - it waits one tap away ("עוד 1"); when the front call leaves, the next one takes over and ignores taps for FRONT_SETTLE_MS.
+ * An open door question belongs to its call: it is dropped when another call comes to the front, and it never disables another
+ * call's doors.
  *
  * The ring is a short chime (wiskey/ring-tone.ts) only while the server says it may sound (quiet hours hold it; the critical sound
  * never applies to a doorbell), until silenced here. "Hide" puts a ringing call away on this device. A ringing call whose station
@@ -45,11 +53,18 @@ type Note = { text: string; tone: 'ok' | 'warn' | 'error' };
 export class SwIncomingCall extends LitElement {
   @state() protected active: ActiveCalls | null = null;
   @state() protected tick = 0;
-  @state() protected front = 0;
+  /** PHYSICAL-CONFIRM-2540 (SCR-11): the front call by id (null = the first shown) and when it last came to the front by itself. */
+  @state() protected frontId: string | null = null;
+  protected frontAt = Number.NEGATIVE_INFINITY; // performance.now() (monotonic: a clock change never stretches the settle time)
   @state() protected muted = false;
   @state() protected notes: Record<string, Note> = {};
   @state() protected busy: Record<string, string> = {};
   @state() protected doorAsk: string | null = null;
+  /** PHYSICAL-CONFIRM-2540 (SCR-12): the doors (`station/lock`) whose release is on its way, and those held after an unknown outcome
+   * (until when, wall clock ms). */
+  @state() protected doorSending: ReadonlySet<string> = new Set();
+  @state() protected doorHeld: Readonly<Record<string, number>> = {};
+  protected holdTimer = 0;
   @state() protected picture = Date.now();
   protected fetchedAt = 0;
   protected hiddenCalls = new Set<string>();
@@ -315,7 +330,8 @@ export class SwIncomingCall extends LitElement {
     window.clearTimeout(this.pollTimer);
     window.clearInterval(this.clockTimer);
     window.clearInterval(this.pictureTimer);
-    this.clockTimer = this.pictureTimer = 0;
+    window.clearTimeout(this.holdTimer);
+    this.clockTimer = this.pictureTimer = this.holdTimer = 0;
     this.ringer.dispose();
     for (const s of this.sessions.values()) s.dispose();
     this.sessions.clear();
@@ -407,7 +423,31 @@ export class SwIncomingCall extends LitElement {
     if (!any && this.clockTimer) (window.clearInterval(this.clockTimer), (this.clockTimer = 0));
     if (any && !this.pictureTimer) this.pictureTimer = window.setInterval(() => (document.hidden ? undefined : (this.picture = Date.now())), PICTURE_MS);
     if (!any && this.pictureTimer) (window.clearInterval(this.pictureTimer), (this.pictureTimer = 0));
-    if (this.front >= shown.length) this.front = 0;
+  }
+
+  /** PHYSICAL-CONFIRM-2540 (SCR-11): keeps the front call by id; when another call comes to the front by itself (the front one ended
+   * or was hidden), it ignores taps for a moment and an open door question of the call that left is dropped. */
+  protected willUpdate(): void {
+    const c = frontCall(this.shown(), this.frontId);
+    const id = c?.call_id ?? null;
+    if (id === this.frontId) return;
+    if (this.frontId !== null && id !== null) this.frontAt = performance.now(); // the first call to appear is not a swap
+    this.frontId = id;
+    if (this.doorAsk && (!id || !this.doorAsk.startsWith(`${id}/`))) this.doorAsk = null;
+  }
+
+  /** The operator's "next": his own choice, no settle time. */
+  protected showNext(shown: readonly IncomingCall[], c: IncomingCall): void {
+    const at = shown.findIndex((x) => x.call_id === c.call_id);
+    const next = shown[(at + 1) % shown.length];
+    this.frontId = next.call_id;
+    this.frontAt = Number.NEGATIVE_INFINITY;
+    if (this.doorAsk && !this.doorAsk.startsWith(`${next.call_id}/`)) this.doorAsk = null;
+  }
+
+  /** A tap on a control of the front call counts only once that call has settled in front (FRONT_SETTLE_MS). */
+  protected settled(c: IncomingCall): boolean {
+    return c.call_id !== this.frontId || frontSettled(this.frontAt, performance.now());
   }
 
   protected updated(): void {
@@ -447,7 +487,7 @@ export class SwIncomingCall extends LitElement {
   }
 
   protected async answer(c: IncomingCall): Promise<void> {
-    if (this.busy[c.call_id]) return;
+    if (this.busy[c.call_id] || !this.settled(c)) return;
     const t = ict();
     const have = this.media.get(c.station_id);
     const media = have instanceof Promise || have === undefined ? await this.mediaOf(c.station_id) : have;
@@ -479,7 +519,7 @@ export class SwIncomingCall extends LitElement {
   }
 
   protected async signal(c: IncomingCall, command: 'reject' | 'hangUp'): Promise<void> {
-    if (this.busy[c.call_id]) return;
+    if (this.busy[c.call_id] || !this.settled(c)) return;
     this.setBusy(c.call_id, command);
     if (command === 'hangUp') this.sessions.get(c.call_id)?.end();
     try {
@@ -493,18 +533,50 @@ export class SwIncomingCall extends LitElement {
     }
   }
 
+  static doorKey(c: IncomingCall, lock: number): string {
+    return `${c.station_id}/${lock}`;
+  }
+
+  protected isHeld(key: string): boolean {
+    return (this.doorHeld[key] ?? 0) > Date.now();
+  }
+
+  /** ONE release from the question's own button. PHYSICAL-CONFIRM-2540 (SCR-12): nothing is sent while this door's release is on
+   * its way or held after an unknown outcome; an unknown outcome is said as unknown (amber) and holds the door's button. */
   protected async openDoor(c: IncomingCall, lock: number): Promise<void> {
     const t = ict();
+    const key = SwIncomingCall.doorKey(c, lock);
     this.doorAsk = null;
-    this.setBusy(c.call_id, 'door');
+    if (this.doorSending.has(key) || this.isHeld(key)) return;
+    this.doorSending = new Set([...this.doorSending, key]);
     try {
       await releaseIntercomDoor(c.station_id, lock);
       this.note(c.call_id, { text: t.banner.doorSent, tone: 'ok' });
     } catch (err) {
-      this.note(c.call_id, { text: fill(t.banner.doorFailed, { why: describeError(err) }), tone: 'error' });
+      const f = doorFailure(err);
+      this.note(c.call_id, f.unknown ? { text: t.banner.doorUnknown, tone: 'warn' } : { text: fill(t.banner.doorFailed, { why: describeError(err) }), tone: 'error' });
+      if (f.holdMs > 0) this.hold(key, f.holdMs);
     } finally {
-      this.setBusy(c.call_id, null);
+      const next = new Set(this.doorSending);
+      next.delete(key);
+      this.doorSending = next;
     }
+  }
+
+  /** The door's button waits until the backend's hold ends (one timer for the nearest end, then a re-render). */
+  protected hold(key: string, ms: number): void {
+    const now = Date.now();
+    this.doorHeld = { ...Object.fromEntries(Object.entries(this.doorHeld).filter(([, until]) => until > now)), [key]: Math.max(this.doorHeld[key] ?? 0, now + ms) };
+    window.clearTimeout(this.holdTimer);
+    const soonest = Math.min(...Object.values(this.doorHeld));
+    this.holdTimer = window.setTimeout(() => this.holdEnd(), Math.max(0, soonest - now) + 50);
+  }
+
+  protected holdEnd(): void {
+    const now = Date.now();
+    this.doorHeld = Object.fromEntries(Object.entries(this.doorHeld).filter(([, until]) => until > now));
+    const left = Object.values(this.doorHeld);
+    if (left.length) this.holdTimer = window.setTimeout(() => this.holdEnd(), Math.max(0, Math.min(...left) - now) + 50);
   }
 
   protected hide(c: IncomingCall): void {
@@ -515,7 +587,6 @@ export class SwIncomingCall extends LitElement {
     } catch {
       /* storage unavailable: hidden for this page only */
     }
-    this.front = 0;
     this.requestUpdate();
     this.sync();
   }
@@ -561,7 +632,7 @@ export class SwIncomingCall extends LitElement {
       return html`<div class="ask" role="group" data-call-door-ask=${ask}>
         <span>${fill(t.doorAsk, { name })}</span>
         <div class="row">
-          <wk-action-button tone="primary" icon="unlock" size="lg" block data-call-door-yes @click=${() => void this.openDoor(c, ask)}>${t.doorYes}</wk-action-button>
+          <wk-action-button tone="primary" icon="unlock" size="lg" block data-call-door-yes @click=${() => { if (this.settled(c)) void this.openDoor(c, ask); }}>${t.doorYes}</wk-action-button>
           <wk-action-button size="lg" block data-call-door-no @click=${() => (this.doorAsk = null)}>${t.doorNo}</wk-action-button>
         </div>
       </div>`;
@@ -572,11 +643,15 @@ export class SwIncomingCall extends LitElement {
   protected doorButtons(c: IncomingCall): TemplateResult[] {
     if (!c.can_open_door || !c.online) return [];
     const t = ict().banner;
-    const sending = this.busy[c.call_id] === 'door';
-    return c.locks.map(
-      (l) => html`<wk-action-button icon="unlock" size="lg" block data-call-door=${l.physical_index} ?busy=${sending} ?disabled=${sending || !!this.doorAsk}
-        @click=${() => (this.doorAsk = `${c.call_id}/${l.physical_index}`)}>${sending ? t.doorSending : doorLabel(l, c.locks.length, ict())}</wk-action-button>`,
-    );
+    // PHYSICAL-CONFIRM-2540 (SCR-11 / SCR-12): sending / held per door; only this call's own open question disables its doors
+    const asking = !!this.doorAsk?.startsWith(`${c.call_id}/`);
+    return c.locks.map((l) => {
+      const key = SwIncomingCall.doorKey(c, l.physical_index);
+      const sending = this.doorSending.has(key);
+      const held = !sending && this.isHeld(key);
+      return html`<wk-action-button icon="unlock" size="lg" block data-call-door=${l.physical_index} data-call-door-held=${held ? 'true' : 'false'} ?busy=${sending} ?disabled=${sending || held || asking}
+        @click=${() => { if (this.settled(c)) this.doorAsk = `${c.call_id}/${l.physical_index}`; }}>${sending ? t.doorSending : held ? t.doorHeld : doorLabel(l, c.locks.length, ict())}</wk-action-button>`;
+    });
   }
 
   render() {
@@ -584,7 +659,7 @@ export class SwIncomingCall extends LitElement {
     const shown = this.shown();
     if (!shown.length) return nothing;
     const t = ict().banner;
-    const c = shown[Math.min(this.front, shown.length - 1)];
+    const c = frontCall(shown, this.frontId) ?? shown[0];
     const mine = c.answered_by_me || this.talking.has(c.call_id);
     const st = mine ? 'in_call' : 'ringing';
     const busy = this.busy[c.call_id];
@@ -621,7 +696,7 @@ export class SwIncomingCall extends LitElement {
       ${c.can_open_door && c.online && c.locks.length ? html`<div class="acts doors">${this.doorButtons(c)}</div>` : nothing}
       <div class="foot">
         <a href=${stationDrawerHref(c.station_id)} data-call-open-station>${wkIcon('window', 14)}${t.station}</a>
-        ${others > 0 ? html`<button class="link" data-call-next aria-label=${t.next} @click=${() => (this.front = (this.front + 1) % shown.length)}>${fill(t.more, { n: others })}</button>` : nothing}
+        ${others > 0 ? html`<button class="link" data-call-next aria-label=${t.next} @click=${() => this.showNext(shown, c)}>${fill(t.more, { n: others })}</button>` : nothing}
       </div>
     </section>`;
   }

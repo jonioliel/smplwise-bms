@@ -5,8 +5,11 @@ import {
   applyMerge, detectPress, deviceTestPlan, mergeCounts, mergeParts, restorePlan, scheduleDeviceTestPlan,
   type MergePart, type MergeSide, type TestPlan,
 } from '../api/automations-ext';
-import { runAction } from '../api/ha';
+import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, runAction, type HaActionRecord } from '../api/ha';
 import { describeError } from '../api/client';
+import { physicalOutcome } from '../api/physical-outcome';
+import { confirmDialog } from '../components/confirm-dialog';
+import { continueAfter, needsConfirm, recordOutcome, worstOutcome, type DeviceOutcome } from './automation-device-test-logic';
 import '../components/sw-tabs';
 import { icon } from './automation-builder-icons';
 import { tr } from '../i18n/msg/automation';
@@ -19,11 +22,21 @@ import { tr } from '../i18n/msg/automation';
  *                      its button, through the ordinary device-control route (the same permission, grant and confirmation rules as a manual action -
  *                      "פעולה רגישה דורשת הרשאת הפעלה ידנית, כמו היום"); a button trigger can be heard first (a real press). At the end the setting
  *                      decides (owner 359: ask by default): put the devices back from the snapshot, leave them, or ask.
+ *                      PHYSICAL-CONFIRM-2540 (review SCR-18): each device's action record is followed to its end - a refused / failed
+ *                      device is an error with its reason, no state report is "unknown" (amber), never "done"; a sensitive step (lock,
+ *                      alarm panel, siren) and a restore that holds one run only from their own confirmation (focus on cancel), which
+ *                      is what the confirmation grant now stands for.
  *   <kav-merge>        "השוואה ומיזוג": per changed part, mine or the other person's; a part changed on BOTH sides is pre-marked with the other version
  *                      and waits for a click (owner 366) before "שמירת המיזוג" is enabled. Emits `merge-save` with the merged draft.
  */
 
-type StepState = 'idle' | 'busy' | 'done' | 'error';
+type StepState = 'idle' | 'busy' | 'done' | 'unknown' | 'error';
+
+/** The reason of one device's record that did not end confirmed, in the screen's words. */
+function recordText(r: HaActionRecord): string {
+  if (r.status === 'failed' || r.status === 'denied') return (r.error && ACTION_ERROR_LABEL[r.error]) || r.error || ACTION_STATUS_LABEL[r.status];
+  return ACTION_STATUS_LABEL.unknown;
+}
 
 @customElement('kav-device-test')
 export class KavDeviceTest extends LitElement {
@@ -43,6 +56,8 @@ export class KavDeviceTest extends LitElement {
   @state() private restored = false;
   @state() private asking = false;
   @state() private busy = false;
+  /** PHYSICAL-CONFIRM-2540: the last restore's outcome when it did not end confirmed for every device (shown above the footer). */
+  @state() private restoreNote: { tone: 'unknown' | 'error'; text: string } | null = null;
 
   createRenderRoot() { return this; }
 
@@ -74,34 +89,103 @@ export class KavDeviceTest extends LitElement {
     } catch (e) { this.heard = { st: 'error', text: describeError(e) }; }
   }
 
+  /** PHYSICAL-CONFIRM-2540 (SCR-18): one device action, followed to where it ended. A thrown error is a refusal only when the server
+   * said no before anything happened; otherwise the device may have acted - unknown. */
+  private async sendOne(entityId: string, action: string, data: Record<string, unknown>, confirmed: boolean): Promise<{ o: DeviceOutcome; text: string; sent: boolean }> {
+    let rec: HaActionRecord;
+    try {
+      rec = await runAction(entityId, action, data, confirmed);
+    } catch (e) {
+      return physicalOutcome(e) === 'refused' ? { o: 'error', text: describeError(e), sent: false } : { o: 'unknown', text: tr('לא ידוע אם הפעולה בוצעה · בדקו במקום לפני הפעלה חוזרת'), sent: true };
+    }
+    if (rec.status === 'pending' && rec.id) {
+      try { rec = await awaitAction(rec.id, () => undefined, undefined, entityId); } catch { return { o: 'unknown', text: ACTION_STATUS_LABEL.unknown, sent: true }; }
+    }
+    const o = recordOutcome(rec);
+    const sent = rec.status !== 'denied'; // a denied action never reached the device
+    if (o === 'done') return { o, text: rec.confirmation === 'none' ? tr('נשלח · ההתקן אינו מדווח מצב') : tr('הופעל'), sent };
+    return { o, text: recordText(rec), sent };
+  }
+
   private async runStep(path: string) {
     const s = this.plan?.steps.find((x) => x.path === path);
     if (!s || (this.source === 'schedule' && !this.armed)) return;
     if (Object.values(this.steps).some((x) => x.st === 'busy')) return;  // one run at a time
+    // PHYSICAL-CONFIRM-2540 (SCR-18): a sensitive step (unlock, disarm, a siren) is never one tap away - its own confirmation, every press
+    if (needsConfirm(s)) {
+      const prev = this.steps[path];
+      this.steps = { ...this.steps, [path]: { st: 'busy', note: '' } }; // nothing else starts while the question is open
+      const ok = await confirmDialog({
+        heading: tr('פעולה רגישה'),
+        body: `${s.sentence}\n${tr('הצעד יופעל עכשיו באמת ({n} התקנים), בזהות שלך, ויירשם באודיט.', { n: s.entity_ids.length })}`,
+        confirmLabel: tr('הפעלת הצעד'),
+        danger: true,
+        focusCancel: true,
+      });
+      if (!ok) {
+        const { [path]: _drop, ...rest } = this.steps;
+        this.steps = prev ? { ...rest, [path]: prev } : rest; // cancelled: nothing was sent, the step is as it was
+        return;
+      }
+    }
     this.steps = { ...this.steps, [path]: { st: 'busy', note: '' } };
-    try {
-      for (const e of s.entity_ids) await runAction(e, s.action, s.data, s.sensitive);
-      this.steps = { ...this.steps, [path]: { st: 'done', note: tr('הופעל') } };
-      this.ran = true; this.restored = false;
-    } catch (e) { this.steps = { ...this.steps, [path]: { st: 'error', note: describeError(e) } }; }
+    const outcomes: DeviceOutcome[] = [];
+    let last = '';
+    let anySent = false;
+    for (const e of s.entity_ids) {
+      const r = await this.sendOne(e, s.action, s.data, s.sensitive);
+      outcomes.push(r.o);
+      anySent = anySent || r.sent;
+      if (r.o !== 'done' || !last) last = r.text;
+      if (!continueAfter(r.o)) break; // a refused device stops the step: nothing more is sent blind
+    }
+    const st = worstOutcome(outcomes);
+    this.steps = { ...this.steps, [path]: { st, note: last } };
+    if (anySent) { this.ran = true; this.restored = false; } // something may have changed: the end-of-test restore is offered
   }
 
-  private async restore(): Promise<boolean> {
-    if (!this.plan) return true;
+  /** Puts the devices back from the snapshot. 'ok' only when every device confirmed; 'unknown' / 'failed' keep the restore offered;
+   * 'cancel' = a sensitive restore was not confirmed (nothing sent). */
+  private async restore(): Promise<'ok' | 'unknown' | 'failed' | 'cancel'> {
+    if (!this.plan) return 'ok';
     this.busy = true;
+    this.restoreNote = null;
     try {
       const { actions } = await restorePlan(this.plan.snapshot);
-      for (const a of actions) await runAction(a.entity_id, a.action, a.arguments, a.sensitive);
-      this.restored = true; this.asking = false;
-      return true;
-    } catch (e) { this.error = describeError(e); return false; } finally { this.busy = false; }
+      const sensitive = actions.filter((a) => a.sensitive).length;
+      if (sensitive) {
+        const ok = await confirmDialog({
+          heading: tr('החזרה למצב הקודם'),
+          body: tr('ההחזרה כוללת {n} פעולות רגישות (מנעול, אזעקה או צופר). הן יופעלו עכשיו באמת, בזהות שלך, ויירשמו באודיט.', { n: sensitive }),
+          confirmLabel: tr('החזרה למצב הקודם'),
+          danger: true,
+          focusCancel: true,
+        });
+        if (!ok) return 'cancel';
+      }
+      const outcomes: DeviceOutcome[] = [];
+      let text = '';
+      for (const a of actions) {
+        const r = await this.sendOne(a.entity_id, a.action, a.arguments, a.sensitive);
+        outcomes.push(r.o);
+        if (r.o !== 'done' && !text) text = r.text;
+      }
+      const o = worstOutcome(outcomes);
+      if (o === 'done') { this.restored = true; this.asking = false; return 'ok'; }
+      this.restoreNote = { tone: o === 'error' ? 'error' : 'unknown', text: o === 'error' ? tr('לא כל ההתקנים הוחזרו: {why}', { why: text }) : tr('לא ידוע אם כל ההתקנים חזרו למצב הקודם · בדקו במקום') };
+      return o === 'error' ? 'failed' : 'unknown';
+    } catch (e) {
+      this.restoreNote = { tone: physicalOutcome(e) === 'refused' ? 'error' : 'unknown', text: describeError(e) };
+      return physicalOutcome(e) === 'refused' ? 'failed' : 'unknown';
+    } finally { this.busy = false; }
   }
 
   private async close() {
     const end = this.flags?.device_test_end ?? 'ask';
     if (this.ran && !this.restored) {
       if (end === 'ask' && !this.asking) { this.asking = true; return; }
-      if (end === 'restore' && !(await this.restore())) return;
+      // a restore whose outcome is already unknown is not sent again by closing; the restore button stays for a deliberate retry
+      if (end === 'restore' && this.restoreNote?.tone !== 'unknown' && (await this.restore()) !== 'ok') return;
     }
     this.dispatchEvent(new CustomEvent('test-close', { bubbles: true, composed: true }));
   }
@@ -131,12 +215,13 @@ export class KavDeviceTest extends LitElement {
       ${p.steps.length ? p.steps.map((s) => {
         const st = this.steps[s.path] ?? { st: 'idle' as StepState, note: '' };
         const now = s.now.map((x) => x.state ?? '?').join(', ');
-        return html`<div class="kav-step ${st.st}" data-kav-step=${s.path}><span class="sn">${st.st === 'done' ? icon('check') : String(++n)}</span>
+        return html`<div class="kav-step ${st.st}" data-kav-step=${s.path} data-kav-step-state=${st.st}><span class="sn">${st.st === 'done' ? icon('check') : String(++n)}</span>
           <div><b>${s.sentence}</b><span class="s">${st.note || (now ? tr('עכשיו: {now}', { now }) : '')}</span></div>
-          <button class="btn sm primary" type="button" ?disabled=${Object.values(this.steps).some((x) => x.st === 'busy') || !s.entity_ids.length || (this.source === 'schedule' && !this.armed)} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'done' ? tr('שוב') : tr('הפעלה')}</button></div>`;
+          <button class="btn sm primary" type="button" ?disabled=${Object.values(this.steps).some((x) => x.st === 'busy') || !s.entity_ids.length || (this.source === 'schedule' && !this.armed)} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'idle' || st.st === 'busy' ? tr('הפעלה') : tr('שוב')}</button></div>`;
       }) : html`<div class="kvrow"><span>${tr('אין צעדים שמפעילים התקנים')}</span></div>`}
+      ${this.restoreNote ? html`<div class="banner ${this.restoreNote.tone === 'error' ? 'bad' : 'warn'}" role="alert" data-kav-restore-note=${this.restoreNote.tone}>${icon('info')}<div class="t"><b>${this.restoreNote.text}</b></div></div>` : nothing}
       ${this.asking ? html`<div class="banner" role="alert" data-kav-test-ask>${icon('info')}<div class="t"><b>${tr('להחזיר את ההתקנים למצב הקודם?')}</b>
-        <div class="acts"><button class="btn sm primary" type="button" ?disabled=${this.busy} data-kav-restore-yes @click=${async () => { if (await this.restore()) void this.close(); }}>${tr('החזרה למצב הקודם')}</button>
+        <div class="acts"><button class="btn sm primary" type="button" ?disabled=${this.busy} data-kav-restore-yes @click=${async () => { if ((await this.restore()) === 'ok') void this.close(); }}>${tr('החזרה למצב הקודם')}</button>
         <button class="btn sm" type="button" data-kav-restore-no @click=${() => { this.restored = true; void this.close(); }}>${tr('להשאיר')}</button></div></div></div>` : nothing}`;
   }
 
@@ -225,6 +310,8 @@ export const extDialogStyles = css`
   .kav-step .sn { inline-size: 26px; block-size: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--dv-surface-3); font-weight: var(--sw-fw-bold); font-size: var(--sw-fs-sm); }
   .kav-step.done .sn { background: var(--dv-success-soft); color: var(--sw-success-text); }
   .kav-step.error { border-color: color-mix(in srgb, var(--dv-danger) 50%, transparent); }
+  .kav-step.unknown { border-color: color-mix(in srgb, var(--dv-warning) 50%, transparent); }
+  .kav-step.unknown .s { color: var(--sw-warning-text); }
   .kav-step > div { display: flex; flex-direction: column; min-inline-size: 0; }
   .kav-step .s { font-size: var(--sw-fs-sm); color: var(--dv-text-2); }
   .kav-mt { display: grid; grid-template-columns: minmax(90px, 0.8fr) 1fr 1fr; gap: 0; border: 1px solid var(--dv-border); border-radius: var(--sw-r-lg); overflow: hidden; font-size: var(--sw-fs-sm); }
