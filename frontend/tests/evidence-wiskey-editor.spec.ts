@@ -489,7 +489,9 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect((await control.post('/mode', { data: { people: 'storage_write_failed' } })).status()).toBe(200);
     try {
       await openEditorFor(page, 'u003');
-      await field(page, 'active').uncheck();
+      // HAND-SWITCH: the active flag is an <sw-toggle> (a switch, not a native checkbox)
+      await field(page, 'active').click();
+      await expect.poll(() => field(page, 'active').evaluate((n) => (n as HTMLElement & { checked: boolean }).checked)).toBe(false);
       await field(page, 'save').click();
       const error = field(page, 'error');
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
