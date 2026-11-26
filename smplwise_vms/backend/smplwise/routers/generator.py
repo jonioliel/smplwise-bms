@@ -1,7 +1,7 @@
 """CR-031 GEN1 - the generator control screen's API (`/api/v1/generator/...`). View and alerts only: there is no route that sends
 anything to the controller.
 
-Permissions: reads, acknowledge and mute need `generator.view`; detection, the manual pick, the sensor mapping, rated values,
+Permissions: reads, acknowledge, mute and un-mute need `generator.view` (muting a CRITICAL type needs `generator.manage`, DATA-RULES-2540); detection, the manual pick, the sensor mapping, rated values,
 thresholds, the settings and the alert routing need `generator.manage` (installation scope). Entity ids are returned only by the
 two manage routes of the mapping screen; every operator route speaks in display names and role keys. Nothing here calls the
 infrastructure: the values come from the state mirror."""
@@ -88,6 +88,13 @@ def _values_out(values: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {r: {"value": v["value"], "unit": v["unit"], "available": v["available"], "updated_at": v["updated_at"], "label": cat.ROLES[r][2]} for r, v in values.items()}
 
 
+def _battery_out(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
+    """DATA-RULES-2540 (review D-02 / SCR-21): what the screen's battery dial needs to judge a reading by the server's one rule."""
+    entry = core.battery_store(conn).get(device_id)
+    nominal = entry.get("nominal") if entry else None
+    return {"battery_system_v": core.battery_known(entry), "battery_nominal_v": nominal if nominal in core.BATTERY_SYSTEMS else None}
+
+
 def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, values: dict[str, dict[str, Any]] | None = None, open_alerts: int | None = None) -> dict[str, Any]:
     values = core.read_values(conn, d["id"]) if values is None else values
     roles = set(values)
@@ -99,6 +106,7 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, value
         "rated_kw": d["rated_kw"], "rated_kva": d["rated_kva"], "fuel_type": d["fuel_type"], "detected_at": d["detected_at"], "last_seen_at": d["last_seen_at"], "revision": d["revision"],
         "availability": avail, "stale": avail != "online", "core_met": cat.is_core_met(roles),
         "open_alerts": open_alerts if open_alerts is not None else store.open_alert_count(conn, d["id"]),
+        **_battery_out(conn, d["id"]),
         "capabilities": {"roles": sorted(roles), "values": sum(1 for r in roles if r in value_roles), "values_total": len(value_roles),
                          "alert_types": len(types_ok), "alert_types_total": len(cat.ALERT_TYPES),
                          "disabled_roles": core.disabled_roles(conn, d["id"]),
@@ -214,6 +222,7 @@ class DeviceBody(_Body):
     rated_kva: float | None = Field(default=None, gt=0, le=100000)
     fuel_type: Literal["diesel", "gas", "petrol", "other"] | None = None
     thresholds: dict[str, float] | None = None
+    battery_nominal_v: Literal[12, 24] | None = None  # DATA-RULES-2540 (D-02): the starter battery's nominal system; null = detect (the default)
     revision: int | None = None
 
 
@@ -235,9 +244,12 @@ def update_device(device_id: str, body: DeviceBody, principal: Principal = Depen
             part[k] = v
         stored[device_id] = part
         core.jset(conn, "generator.thresholds", stored)
+    if "battery_nominal_v" in sent:
+        core.set_battery_nominal(conn, device_id, body.battery_nominal_v)
     if sets:
         store.update_device(conn, device_id, sets)
-    audit(conn, actor=principal, action="generator.device.update", decision="allowed", resource_type="generator_device", resource_id=device_id)
+    audit(conn, actor=principal, action="generator.device.update", decision="allowed", resource_type="generator_device", resource_id=device_id,
+          details={"battery_nominal_v": body.battery_nominal_v} if "battery_nominal_v" in sent else None)
     return _device_out(conn, _device(conn, device_id), detail=True)
 
 
@@ -366,10 +378,21 @@ def ack_alert(alert_id: str, body: AckBody | None = None, principal: Principal =
 
 @router.post("/generator/alerts/{alert_id}/mute", **wire(W.GeneratorMuted))
 def mute_alert(alert_id: str, body: MuteBody | None = None, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """DATA-RULES-2540 (review D-03): a critical type needs generator.manage and is muted for at most alerts.MUTE_CRITICAL_MAX_H hours (the
+    answer's `muted_until` is the real end); the other severities as before (generator.view, up to MUTE_MAX_H)."""
     until = alerts.mute(conn, principal, alert_id, body.hours if body else 24)
     if until is None:
         raise not_found("ההתראה לא נמצאה.")
     return {"muted_until": until}
+
+
+@router.delete("/generator/alerts/{alert_id}/mute", **wire(W.GeneratorAlertDetail))
+def unmute_alert(alert_id: str, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """DATA-RULES-2540 (review D-03): end the mute of the alert's type on its generator now (idempotent). An alert raised while muted is
+    told on the engine's next pass. Answers the alert as GET /generator/alerts/{id} does (`muted_until` null)."""
+    if alerts.unmute(conn, principal, alert_id) == "not_found":
+        raise not_found("ההתראה לא נמצאה.")
+    return alerts.alert_detail(conn, alert_id) or {}
 
 
 @router.post("/generator/devices/{device_id}/alerts/ack-all", **wire(W.GeneratorAcknowledged))

@@ -114,6 +114,8 @@ export interface GeneratorDevice {
   values?: Record<string, GeneratorValue>;
   alert_types?: GeneratorAlertTypeState[];
   thresholds?: Record<string, number>;
+  battery_system_v?: 12 | 24 | null;
+  battery_nominal_v?: 12 | 24 | null;
 }
 
 export interface GeneratorDeviceCandidate {
@@ -437,6 +439,7 @@ export interface GeneratorRoutes {
   "GET /api/v1/generator/alerts/{alert_id}": GeneratorAlertDetail;
   "POST /api/v1/generator/alerts/{alert_id}/ack": GeneratorAlertDetail;
   "POST /api/v1/generator/alerts/{alert_id}/mute": GeneratorMuted;
+  "DELETE /api/v1/generator/alerts/{alert_id}/mute": GeneratorAlertDetail;
   "POST /api/v1/generator/devices/{device_id}/alerts/ack-all": GeneratorAcknowledged;
   "GET /api/v1/generator/devices/{device_id}/policies": GeneratorPolicies;
   "PUT /api/v1/generator/devices/{device_id}/policies/{alert_key}": GeneratorPolicy;

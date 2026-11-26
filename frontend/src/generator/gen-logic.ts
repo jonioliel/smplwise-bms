@@ -141,8 +141,22 @@ export interface Gauge {
 
 const clampPct = (x: number) => Math.max(0, Math.min(100, x));
 
-/** The dials the controller can feed, in order: fuel, battery, coolant, oil, and the load only when there is no fuel dial (the mockup's rule). */
-export function gaugeList(values: GenValues | undefined, caps: Caps, th: Record<string, number>, engine: EngineState, ratedKw: number | null): Gauge[] {
+/** DATA-RULES-2540 (review D-02 / SCR-21): the server's 12 V / 24 V boundary (services/generator_core.BATTERY_SPLIT_V). */
+const BATTERY_SPLIT_V = 16;
+
+/**
+ * The starter battery's nominal system a reading is judged against - the server's ONE rule (services/generator_core.battery_system):
+ * what the server already knows (`battery_system_v`: the administrator's choice, or 24 once the bank was seen above 16 V), else the
+ * reading itself (above 16 V = 24). A sagging 24 V bank therefore never shows as a healthy 12 V bank.
+ */
+export function batterySystem(known: number | null | undefined, reading: number): 12 | 24 {
+  if (known === 12 || known === 24) return known;
+  return reading > BATTERY_SPLIT_V ? 24 : 12;
+}
+
+/** The dials the controller can feed, in order: fuel, battery, coolant, oil, and the load only when there is no fuel dial (the mockup's rule).
+ * `batteryKnown` is the device's `battery_system_v` (DATA-RULES-2540). */
+export function gaugeList(values: GenValues | undefined, caps: Caps, th: Record<string, number>, engine: EngineState, ratedKw: number | null, batteryKnown: number | null = null): Gauge[] {
   const out: Gauge[] = [];
   const fuel = num(values, 'fuel_pct');
   if (caps.has('fuel_pct') && fuel !== null) {
@@ -151,7 +165,7 @@ export function gaugeList(values: GenValues | undefined, caps: Caps, th: Record<
   }
   const batt = num(values, 'battery_v');
   if (caps.has('battery_v') && batt !== null) {
-    const v24 = batt > 18;
+    const v24 = batterySystem(batteryKnown, batt) === 24;
     const lo = v24 ? 20 : 10;
     const hi = v24 ? 30 : 15;
     const min = v24 ? th.battery_min_24v ?? 23.2 : th.battery_min_12v ?? 11.6;

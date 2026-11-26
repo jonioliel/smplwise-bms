@@ -190,7 +190,7 @@ export class GenLivePage extends LitElement {
     const plan = flowPlan(values, caps, availability);
     const stale = plan.stale;
     const th = d.thresholds ?? {};
-    const gauges = gaugeList(values, caps, th, plan.engine, d.rated_kw);
+    const gauges = gaugeList(values, caps, th, plan.engine, d.rated_kw, d.battery_system_v ?? null);
     const table = phaseTable(values, caps, d.rated_kva);
     const kpis = this.phone ? phoneKpis(values, caps) : [];
     const banner = availability === 'offline'

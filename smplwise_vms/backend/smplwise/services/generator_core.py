@@ -74,6 +74,55 @@ def thresholds_from(stored: Any, device_id: str | None = None) -> dict[str, floa
     return out
 
 
+# ---------------------------------------------------------------- the starter battery's nominal system (DATA-RULES-2540: review D-02 / SCR-21)
+#
+# ONE rule, here and in frontend/src/generator/gen-logic.ts (`batterySystem`): the system is the administrator's explicit choice
+# (`battery_nominal_v`, 12 or 24), else 24 once the bank has EVER read above BATTERY_SPLIT_V (latched and stored, also from the stored
+# history), else what the current reading says (above the split = 24). A 12 V bank never stays above the split (charging tops out near
+# 14.8 V), so the latch only errs towards "24 V" - a sagging 24 V bank (anything from 11.6 V to 16 V) is never judged as a healthy 12 V
+# bank again. Stored in the setting `generator.battery_system` = {device id: {"nominal": 12 | 24 | null, "seen_24": bool}}; no migration.
+
+BATTERY_SPLIT_V = 16.0
+BATTERY_SYSTEMS = (12, 24)
+BATTERY_KEY = "generator.battery_system"
+
+
+def battery_store(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    v = jget(conn, BATTERY_KEY, {})
+    return {k: e for k, e in v.items() if isinstance(e, dict)} if isinstance(v, dict) else {}
+
+
+def battery_known(entry: dict[str, Any] | None) -> int | None:
+    """What is known WITHOUT a reading: the explicit choice, else 24 when the bank was ever seen above the split, else None."""
+    if not entry:
+        return None
+    if entry.get("nominal") in BATTERY_SYSTEMS:
+        return int(entry["nominal"])
+    return 24 if entry.get("seen_24") else None
+
+
+def battery_system(known: int | None, reading: float) -> int:
+    """The nominal system (12 / 24) a reading is judged against - the rule gen-logic.ts `batterySystem` repeats."""
+    return known if known in BATTERY_SYSTEMS else (24 if reading > BATTERY_SPLIT_V else 12)
+
+
+def battery_history_max(conn: sqlite3.Connection, device_id: str) -> float | None:
+    """The highest battery reading the stored history holds (raw minutes and the five-minute rollup), None without history."""
+    a = conn.execute("SELECT MAX(v) FROM generator_samples WHERE device_id = ? AND role = 'battery_v'", (device_id,)).fetchone()[0]
+    b = conn.execute("SELECT MAX(v_max) FROM generator_samples_5m WHERE device_id = ? AND role = 'battery_v'", (device_id,)).fetchone()[0]
+    vals = [float(x) for x in (a, b) if x is not None]
+    return max(vals) if vals else None
+
+
+def set_battery_nominal(conn: sqlite3.Connection, device_id: str, nominal: int | None) -> None:
+    """The administrator's choice: 12 or 24, or None = detect (the latch stays)."""
+    store = battery_store(conn)
+    entry = dict(store.get(device_id) or {})
+    entry["nominal"] = nominal if nominal in BATTERY_SYSTEMS else None
+    store[device_id] = entry
+    jset(conn, BATTERY_KEY, store)
+
+
 def overrides(conn: sqlite3.Connection, device_id: str) -> dict[str, str | None]:
     stored = jget(conn, "generator.role_overrides", {})
     part = stored.get(device_id) if isinstance(stored, dict) else None

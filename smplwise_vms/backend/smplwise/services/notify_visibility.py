@@ -216,6 +216,10 @@ class Reach:
             return rfq_notify.can_see(self.conn, self.principal, sid)
         if kind == "energy_bills":  # ELECBILL77: holders of energy.bills (installation scope) - the same permission as the bills screen
             return self._allowed("energy.bills")
+        if kind == "water_bills":  # DATA-RULES-2540 (D-05): holders of water.bills (installation scope), only while the water module is on
+            from . import water_alerts
+
+            return water_alerts.module_on(self.conn) and self._allowed("water.bills")
         if kind == "access_denied":  # DENYALERT133-295: access.external.grant on THE station of the refused attempt (the approvers of that door)
             sid = origin.get("station_id") or sid
             return bool(sid) and authorize(self.conn, self.principal, "access.external.grant", (STATION, str(sid))).allowed
