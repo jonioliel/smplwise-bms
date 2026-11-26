@@ -32482,7 +32482,8 @@
       "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
     ],
     "evidence": [
-      "2026-11-26 (RELEASE-2550-TRAIN): release/2550-train cut from origin/release/2540-train f9217db8a (2.54.0 not released yet; its gate running). Merged: LEGACY-MIGRATION-2550 ba41fdfb6, LEGACY-IMPORT-UI-2550 3e1ab2e35, PILOT-ROLLBACK-2550 49d1ffffb, ANDROID-PUSH-2550 599398f73 (migration 0227, no renumbering); doc fix 6943fcfba; version bump 32a3432bc (2.55.0, draft changelog, API inventory 1962 routes); train fix 3f31dd97d (two file-local exports). HA-STATE-RECONCILE-2550 still to come. UI NOT rebuilt (2.54 may still change). Gate NOT_RUN; nothing released."
+      "2026-11-26 (RELEASE-2550-TRAIN): release/2550-train cut from origin/release/2540-train f9217db8a (2.54.0 not released yet; its gate running). Merged: LEGACY-MIGRATION-2550 ba41fdfb6, LEGACY-IMPORT-UI-2550 3e1ab2e35, PILOT-ROLLBACK-2550 49d1ffffb, ANDROID-PUSH-2550 599398f73 (migration 0227, no renumbering); doc fix 6943fcfba; version bump 32a3432bc (2.55.0, draft changelog, API inventory 1962 routes); train fix 3f31dd97d (two file-local exports). HA-STATE-RECONCILE-2550 still to come. UI NOT rebuilt (2.54 may still change). Gate NOT_RUN; nothing released.",
+      "2026-11-26 (RELEASE-2550-TRAIN): registry d74a31247 (rows 1-4); train fix 1c389ba73 (English for ANDROID-PUSH-2550's five refusals; test_i18n_errors_en_2520 1 failed -> 9 passed); train note 4909a656e (docs/changes/RELEASE-2550-TRAIN.md: PC checks - generators and ratchets green, tsc / typecheck / eslint / build 0, 22 backend files 332 passed, test_release_check fails only on the not-rebuilt UI bundle, migration 0227 applied on an empty and on a 2.54 database, downgrade check PASS). UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
