@@ -19,6 +19,17 @@ export interface RouteState {
 
 const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra', 'tickets', 'calendars', 'home'];
 
+/** LOWS-FRONTEND-2550 (review FC-10): one route segment decoded - or kept as written when it is not a valid escape (`50%`, a pasted or
+ * cut link). `decodeURIComponent` throws `URIError` there, and inside the shell's render that left the previous screen (or nothing)
+ * with no message. */
+export function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';
   const [pathPart, queryPart = ''] = raw.split('?');

@@ -495,8 +495,16 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
       onSocket?.(false);
     },
     onMessage: (data) => {
+      // LOWS-FRONTEND-2550 (review FC-09): only a malformed frame is ignored; an error thrown by the screen's own handler is no longer
+      // swallowed with it (a bug in a live handler looked like "live updates stopped", with no console line)
+      let m: { type: string; payload: Record<string, unknown> };
       try {
-        const m = JSON.parse(data) as { type: string; payload: Record<string, unknown> };
+        m = JSON.parse(data) as typeof m;
+      } catch {
+        return; // a malformed frame
+      }
+      if (!m || typeof m !== 'object') return;
+      try {
         if (m.type === 'entity_state_changed') {
           // the command listeners first (LAT1): a toggle confirms in the same tick the push lands, before the screen's own refetch
           notePush(m.payload.entity as HaEntity);
@@ -512,8 +520,8 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (m.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(m.payload?.reason ?? '') });
         else if (m.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
         else if (m.type === 'cast_sessions_changed') onMessage({ type: 'cast_sessions_changed', reason: String(m.payload?.reason ?? '') });
-      } catch {
-        /* ignore malformed frames */
+      } catch (err) {
+        console.error('ha/ws frame handler failed', m.type, err); // the frame was well formed: the handler (or a missing payload) failed
       }
     },
   });

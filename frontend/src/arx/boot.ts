@@ -12,6 +12,7 @@ import { mountShell } from './pre-gate';
 import { inAndroidApp } from './android-app';
 import { localMe, welcomeToken } from './local-auth';
 import { lit } from '../i18n/local-identity';
+import { syncUiLang } from '../i18n/ui-lang';
 import './arx-login';
 import './arx-welcome';
 
@@ -41,6 +42,10 @@ async function startApp(): Promise<void> {
     window.location.reload();
   });
   mountShell();
+  // LOWS-FRONTEND-2550 (review FC-07): the personal language is read again now that the session exists - main.ts's early read ran
+  // before the remote sign-in (a 401, swallowed), so a user whose stored language differs from this browser's copy stayed in the
+  // wrong language for the whole session. Same language: nothing happens; another one: the mirror is written and the page reloads once.
+  void syncUiLang();
 }
 
 function showLogin(notice: string, kind: 'info' | 'error', mode: '' | 'local' = ''): void {
