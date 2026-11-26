@@ -7,7 +7,8 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import type { DeviceCounts } from '../api/devices';
-import { ALARM_HE } from '../api/devices';
+import { ALARM_HE, alarmKnown } from '../api/devices';
+import { alarmsUnknown, lockUnknown } from '../api/area-row';
 import {
   BULK_KIND_LABEL,
   BULK_MENU_KINDS,
@@ -507,7 +508,8 @@ export class DevicesBulkMenu extends LitElement {
       ${c.heating ? chip('activity', tr('חימום {on}/{total}', { on: c.heating_active, total: c.heating }), c.heating_active > 0, 'heating') : nothing}
       ${c.media ? chip('play', tr('מסכים {on}/{total}', { on: c.media_on, total: c.media }), c.media_on > 0, 'media') : nothing}
       ${c.locks ? chip('lock', tr('נעולים {on}/{total}', { on: c.locks_locked, total: c.locks }), false, 'locks') : nothing}
-      ${c.alarm ? chip('shield', tr('אזעקה: {state}', { state: ALARM_HE[c.alarm] ?? c.alarm }), false, 'alarm') : nothing}
+      ${lockUnknown(c) ? chip('lock', tr('מצב לא ידוע {n}', { n: lockUnknown(c) }), false, 'locks_unknown') : nothing}
+      ${c.alarm ? chip('shield', alarmKnown(c.alarm) && alarmsUnknown(c) ? tr('אזעקה: {state} · {n} לא ידוע', { state: ALARM_HE[c.alarm] ?? c.alarm, n: alarmsUnknown(c) }) : tr('אזעקה: {state}', { state: ALARM_HE[c.alarm] ?? c.alarm }), false, 'alarm') : nothing}
       ${!c.entities ? html`<span class="chip">${tr('אין התקנים')}</span>` : nothing}
     </div>`;
   }

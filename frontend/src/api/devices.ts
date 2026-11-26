@@ -21,8 +21,11 @@ export type { UnlockReason };
 
 /** The per-kind counts of a scope. SWITCH-LIGHT-DIMMER-2331: `switch_entities(_on)` = the switch.* entities among `switches` (no
  * input_boolean helper) - the synoptic option "מפסקים בעמודת התאורה = כל המפסקים" adds them to its lights column; absent from an older
- * server. Heating (a climate entity that cannot cool) is its own group, never part of `climate`. `alarm`: the panel's state, null = no panel. */
-export type DeviceCounts = Omit<Wire.DeviceCounts, 'switch_entities' | 'switch_entities_on'> & Partial<Pick<Wire.DeviceCounts, 'switch_entities' | 'switch_entities_on'>>;
+ * server. Heating (a climate entity that cannot cool) is its own group, never part of `climate`. `alarm`: the panel's state, null = no panel.
+ * AREA-HONEST-COUNT-2540: `locks_unknown` (the locks whose state is not known, never in `locks_locked`) and `alarms_unknown` (the panels
+ * whose state is not known) - absent from an older server and the demo trees (read as 0: today's behaviour). */
+type OptionalCounts = 'switch_entities' | 'switch_entities_on' | 'locks_unknown' | 'alarms_unknown';
+export type DeviceCounts = Omit<Wire.DeviceCounts, OptionalCounts> & Partial<Pick<Wire.DeviceCounts, OptionalCounts>>;
 
 /** CR-007 slice 3 `can_bulk`: the caller may start a bulk action here. Release 0.1.149 (the area row's indicators, api/area-row.ts): this
  * area's own climate.* units, the room temperature (null = unknown) and the open doors / windows. K88 `map`: the plan room linked to this
@@ -231,6 +234,23 @@ export const ALARM_HE: Record<string, string> = {
   unavailable: tr('לא זמינה'),
   unknown: tr('לא ידוע'),
 };
+
+/* AREA-HONEST-COUNT-2540 (deep review SCR-09): the alarm summary of several panels / scopes - the server's rule (services/devices.py
+ * ALARM_RANKS), repeated for the sums the client makes itself (several buildings, the demo trees): the most urgent KNOWN state wins -
+ * triggered > pending > armed_* (or a state the table does not name) > arming > disarming > disarmed; "unknown" / "unavailable" only
+ * when no state is known ("unknown" before "unavailable"). Equal ranks keep the first. */
+const ALARM_RANKS: Record<string, number> = { unavailable: 0, unknown: 1, disarmed: 2, disarming: 3, arming: 4, pending: 6, triggered: 7 };
+export function alarmRank(state: string | null | undefined): number {
+  return !state ? 1 : (ALARM_RANKS[state] ?? 5);
+}
+/** A summary state the screen can vouch for (not unknown / unavailable). */
+export const alarmKnown = (state: string | null | undefined): boolean => !!state && alarmRank(state) >= 2;
+/** A known state other than disarmed: the summary is drawn stronger ("needs a look"). An unknown state never is. */
+export const alarmWarm = (state: string | null | undefined): boolean => alarmKnown(state) && state !== 'disarmed';
+export function mergeAlarm(current: string | null, other: string | null | undefined): string | null {
+  if (!other) return current;
+  return current === null || alarmRank(other) > alarmRank(current) ? other : current;
+}
 
 /**
  * SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01): the ONE gate of every brightness slider (area tiles and rows, the lights panel, the quick

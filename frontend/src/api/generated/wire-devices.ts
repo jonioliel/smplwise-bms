@@ -266,7 +266,9 @@ export interface DeviceCounts {
   media_on: number;
   locks: number;
   locks_locked: number;
+  locks_unknown: number;
   alarm: string | null;
+  alarms_unknown: number;
   cameras: number;
   sensors: number;
 }
