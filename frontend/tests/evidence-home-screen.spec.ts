@@ -1041,12 +1041,21 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect(card.locator('[data-home-dir-thumb]')).toHaveCount(3); // a live preview thumbnail per direction
       await expect(card.locator('[data-home-dir-option="a"]')).toHaveAttribute('aria-pressed', 'true'); // the default
       await expect(card.locator('[data-home-side-option]')).toHaveCount(0);
+      // HOME-FIT-FOLLOWUPS-2550: the card says "saved" only once the server answered the PATCH, and that answer comes after a durable
+      // commit (synchronous=FULL). On the loaded runner that commit once held the write lock 5.1 s (backend log "write lock held 5.1 s
+      // by PATCH /api/v1/settings", 50 ms before this test gave up), so the message's 5 s default timeout measured the runner's disk,
+      // not the card. The wait is on the save's own answer now (its status checked), and the message must follow it at once.
+      const saved = (path: string) => page.waitForResponse((r) => r.request().method() === 'PATCH' && new URL(r.url()).pathname === path, { timeout: 30000 });
+      const dirSaved = saved('/api/v1/settings');
       await card.locator('[data-home-dir-option="b"]').click();
+      expect((await dirSaved).status()).toBe(200);
       await expect(card.locator('[data-home-message]')).toHaveText('המסך הראשי נשמר');
       expect((await settings(request))['home.direction']).toBe('b');
       await expect(card.locator('[data-home-side-option="end"]')).toHaveAttribute('aria-pressed', 'true');
+      const sideSaved = saved('/api/v1/settings');
       await card.locator('[data-home-side-option="start"]').click();
-      await expect.poll(async () => (await settings(request))['home.side']).toBe('start');
+      expect((await sideSaved).status()).toBe(200);
+      expect((await settings(request))['home.side']).toBe('start');
       await shot(page, 'home-settings', testInfo);
       // the screen follows
       await open(page, '/devices/building');
