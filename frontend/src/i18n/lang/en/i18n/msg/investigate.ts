@@ -907,4 +907,6 @@ export const en = {
   '90 שניות': '90 seconds',
   '5 דקות': '5 minutes',
   'אדם בכניסה הראשית היום': 'person at the main entrance today',
+  // LOWS-FRONTEND-2550 (review SCR-55)
+  'מוצגים {n} האירועים האחרונים בלבד. צמצמו את הסינון או את טווח הימים כדי לראות אירועים מוקדמים יותר; "סמן הכול כטופל" חל רק על המוצגים.': 'Only the latest {n} events are shown. Narrow the filter or the day range to see earlier events; "Mark all as handled" applies only to the events shown.',
 };

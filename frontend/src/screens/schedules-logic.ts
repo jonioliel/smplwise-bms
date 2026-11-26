@@ -575,3 +575,10 @@ export function deletedText(iso: string, now: Date = new Date()): string {
   const n = daysSince(iso, now);
   return n <= 0 ? tr('נמחק היום') : n === 1 ? tr('נמחק אתמול') : tr('נמחק לפני {n} ימים', { n });
 }
+
+/** LOWS-FRONTEND-2550 (review SCR-54): the selected schedules a bulk "enable / disable" acts on - only those the current filter shows (on
+ * any page of it). A selection made before a filter change stayed selected while hidden, and the bulk action changed schedules the person
+ * no longer saw. The bar's count is the same number. */
+export function pickedShown<T extends { id: string }>(shown: readonly T[], selected: ReadonlySet<string>): T[] {
+  return shown.filter((s) => selected.has(s.id));
+}

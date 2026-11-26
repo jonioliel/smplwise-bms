@@ -32,7 +32,7 @@ import { dateInputLang, timeText, dayMonthText, isoZ } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
 import { t as vt } from '../i18n/he';
 import { Latest } from '../api/latest';
-import { pushedAction, sevKind, ThumbPoller } from './investigate-events-logic';
+import { EVENTS_LIMIT, eventsRange, pushedAction, sevKind, ThumbPoller } from './investigate-events-logic';
 import { tr } from '../i18n/msg/investigate';
 import { ltrStyles } from '../styles/fragments';
 
@@ -1080,15 +1080,12 @@ export class InvestigateEvents extends LitElement {
     return f.places.flatMap((s) => s.buildings.flatMap((b) => b.floors.map((fl) => ({ ...fl, name: `${b.name} · ${fl.name}` }))));
   }
 
-  /** `date` (or today, in local time) as the range's last day; `rangeDays` days ending there. Day 1 = the plain
-   * `date` filter the backend already resolves correctly in the installation's own time zone; wider ranges are
-   * an additive browsing convenience, so a UTC day-boundary approximation is an acceptable trade for staying simple. */
+  /** `date` (or today, in the installation's zone) as the range's last day; `rangeDays` days ending there. Day 1 = the plain
+   * `date` filter the backend resolves in the installation's own time zone; LOWS-FRONTEND-2550 (review SCR-55): wider ranges use the
+   * same zone's day edges (`eventsRange`) - they used UTC day edges. */
   private searchWindow(): { date?: string; from?: string; to?: string } {
     if (this.rangeDays <= 1) return { date: this.date || undefined };
-    const to = new Date(`${this.date || dateInZone(new Date(), this.tz)}T23:59:59.999Z`);
-    const from = new Date(to.getTime() - (this.rangeDays - 1) * 86_400_000);
-    from.setUTCHours(0, 0, 0, 0);
-    return { from: from.toISOString(), to: to.toISOString() };
+    return eventsRange(this.date || dateInZone(new Date(), this.tz), this.rangeDays, this.tz);
   }
 
   private async load() {
@@ -1096,7 +1093,7 @@ export class InvestigateEvents extends LitElement {
     this.loadedFor = { cameraId: this.cameraId, date: this.date };
     window.clearTimeout(this.pushReloadTimer);
     try {
-      const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined, recorderId: this.recorderId || undefined });
+      const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: EVENTS_LIMIT, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined, recorderId: this.recorderId || undefined });
       if (!current()) return;
       this.events = r.events;
       this.thumbs.prune(new Set(r.events.map((e) => e.id)));
@@ -1396,6 +1393,9 @@ export class InvestigateEvents extends LitElement {
       ${this.renderTech(noAlerts)}
       ${this.unsupported.length ? html`<div class="banner warn" data-unsupported>${tr('המסנן אינו נתמך כאן, לא "אין תוצאות":')} ${this.unsupported.map((u) => u.reason).join(' · ')}</div>` : nothing}
       ${this.error ? html`<div class="banner warn" role="alert">${this.error}</div>` : nothing}
+      ${this.mode !== 'windows' && this.events.length >= EVENTS_LIMIT
+        ? html`<div class="banner" data-events-capped><sw-icon name="info" size=${14}></sw-icon><span>${tr('מוצגים {n} האירועים האחרונים בלבד. צמצמו את הסינון או את טווח הימים כדי לראות אירועים מוקדמים יותר; "סמן הכול כטופל" חל רק על המוצגים.', { n: EVENTS_LIMIT })}</span></div>`
+        : nothing}
       <div class="stage ${(ev || (this.mode === 'windows' && this.selectedWindow)) && this.dock ? 'docked' : ''}">
         ${this.mode === 'windows'
           ? this.windows === null || (this.windowsBusy && !this.windows.length)
