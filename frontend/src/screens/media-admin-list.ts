@@ -427,7 +427,7 @@ function row(ctx: TableCtx, d: AdminDevice, f: RowFacts): TemplateResult {
       <div role="cell" class=${`c c-area ${hz('room')}`}><span class="lb">${tr('חדר')}</span>${f.area ? html`${d.floor_name ? html`<span class="fp">${d.floor_name} ‹ </span>` : nothing}${f.area}` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class=${`c c-st ${hz('status')}`} data-mm-status=${d.key}>${st ? html`<sw-badge kind=${st.kind} label=${st.label}></sw-badge>` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class=${`c c-cast ${hz('cast')}`} data-mm-cast=${d.key} data-mm-cast-method=${d.cast?.method ?? ''}><span class="lb">${tr('שידור')}</span>${cc ? html`<sw-badge kind=${cc.kind} label=${cc.label} title=${cc.title}></sw-badge>` : html`<span class="muted">—</span>`}</div>
-      <div role="cell" class="c c-ap"><sw-toggle label=${tr('מאושר: {name}', { name: d.name })} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => ctx.onApprove(d, e.detail.checked)}></sw-toggle></div>
+      <div role="cell" class="c c-ap"><sw-toggle controlled label=${tr('מאושר: {name}', { name: d.name })} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => ctx.onApprove(d, e.detail.checked)}></sw-toggle></div>
       <div role="cell" class=${`c c-cn ${hz('connections')}`}><button type="button" class="cnb" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(conn)} @click=${() => ctx.onEndpoints(d.key)}>${tr('חיבורים ({n})', { n: d.endpoints.length })} ${conn ? '▴' : '◂'}</button></div>
     </div>
     ${editing || conn ? html`<div class="detail" role="row"><div role="cell" class="dcell">

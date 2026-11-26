@@ -380,7 +380,7 @@ export class CalConnectDialog extends LitElement {
       <div class="what"><span class="ell" title=${names(f.calendar_ids)}>${names(f.calendar_ids)}</span>
         <span class="fine exp ${exp.expired ? 'bad' : ''}" data-feed-expiry>${exp.text}</span></div>
       <span class="chip" data-feed-detail-chip=${f.remote ? 'busy-remote' : (f.detail_effective ?? f.detail)}>${feedDetailHe(f)}</span>
-      ${rv.show ? html`<span class="rem" title=${rv.locked ? FEED_REMOTE_LOCAL_ONLY_HE : ''}><sw-toggle label=${tr('גישה מרחוק ל{names}', { names: names(f.calendar_ids) })} labelHidden data-feed-remote-toggle
+      ${rv.show ? html`<span class="rem" title=${rv.locked ? FEED_REMOTE_LOCAL_ONLY_HE : ''}><sw-toggle controlled label=${tr('גישה מרחוק ל{names}', { names: names(f.calendar_ids) })} labelHidden data-feed-remote-toggle
         .checked=${live(on)} ?disabled=${this.busy || rv.locked || !this.feedsEnabled || !!this.confirmRemote}
         @change=${(e: CustomEvent<{ checked: boolean }>) => this.flipRemote(f, e.detail.checked)}></sw-toggle>${tr('מבחוץ')}</span>` : nothing}
       <button type="button" class="btn sm" data-feed-rotate title=${tr('כתובת חדשה עם תוקף חדש; הכתובת הקודמת מפסיקה לעבוד')} ?disabled=${this.busy || !this.feedsEnabled}

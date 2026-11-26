@@ -147,7 +147,7 @@ export class MessagingPolicyCard extends LitElement {
       ${this.ok ? html`<div class="msg ok" role="status" data-ok>${this.ok}</div>` : nothing}
       <div class="row"><span class="lbl">${mw('allowTitle')}</span></div>
       <div class="row"><span class="lbl">${mw('enforce')}</span>
-        <sw-toggle label=${mw('enforce')} labelHidden data-policy-enforce .checked=${v.enforce} ?disabled=${off}
+        <sw-toggle controlled label=${mw('enforce')} labelHidden data-policy-enforce .checked=${v.enforce} ?disabled=${off}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.run(() => messagingPolicyApi().setEnforce(e.detail.checked))}></sw-toggle>
         ${v.enforce ? nothing : html`<span class="tag" data-enforce-off>${mw('enforceOff')}</span>`}</div>
       ${blocksEverything(v.enforce, v.allow.length) ? html`<div class="msg err" role="status" data-blocks-all>${mw('blocksAll')}</div>` : nothing}

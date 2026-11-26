@@ -166,7 +166,7 @@ export class SwPartnerApiCard extends LitElement {
     const label = this.on ? pt('stateOn') : s.go_live_permitted ? pt('stateOff') : pt('stateBlocked');
     const sw = (key: 'api' | 'webhooks', text: string) => html`<div class="row">
       <span class="lbl">${text}</span>
-      <sw-toggle .checked=${s[key]} ?disabled=${this.busy || (!s[key] && (!s.go_live_permitted || s.remote))} label=${text} labelHidden
+      <sw-toggle controlled .checked=${s[key]} ?disabled=${this.busy || (!s[key] && (!s.go_live_permitted || s.remote))} label=${text} labelHidden
         data-partner-switch=${key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.run(() => putPartnerSettings({ [key]: e.detail.checked }))}></sw-toggle>
     </div>`;
     return html`<div class="row"><span class="lbl">${pt('title')}</span><sw-badge kind=${kind} label=${label} data-partner-state></sw-badge></div>

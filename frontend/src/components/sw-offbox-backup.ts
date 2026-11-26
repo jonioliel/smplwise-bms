@@ -206,7 +206,7 @@ export class SwOffboxBackup extends LitElement {
     return html`<div class="target" data-offbox-target=${t.id}>
       <div class="head">
         <span class="name">${t.name}<span class="muted"> · ${obt(`kind_${t.kind}` as ObtKey)}</span></span>
-        <sw-toggle ?checked=${t.enabled} label=${t.enabled ? obt('enabled') : obt('disabled')} ?disabled=${!!b || lockToggle}
+        <sw-toggle controlled ?checked=${t.enabled} label=${t.enabled ? obt('enabled') : obt('disabled')} ?disabled=${!!b || lockToggle}
           title=${lockToggle ? obt('gdriveEnableAfter') : nothing}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(`en:${t.id}`, () => setTargetEnabled(t.id, e.detail.checked))}></sw-toggle>
       </div>
@@ -630,7 +630,7 @@ export class SwOffboxBackup extends LitElement {
             ${enabled.map((t) => html`<sw-button size="sm" variant="ghost" ?disabled=${!!d?.running || !!this.busy} data-drill-run-target=${t.id}
               @click=${() => void this.act('drill', () => runDrill(t.id))}>${enabled.length > 1 ? `${obt('drillRunTarget')} · ${t.name}` : obt('drillRunTarget')}</sw-button>`)}</span></div>`
         : nothing}
-      <div class="row"><span class="lbl">${obt('drillMonthly')}</span><sw-toggle ?checked=${!!d?.schedule.monthly} label=${obt('drillMonthly')} labelHidden data-drill-monthly
+      <div class="row"><span class="lbl">${obt('drillMonthly')}</span><sw-toggle controlled ?checked=${!!d?.schedule.monthly} label=${obt('drillMonthly')} labelHidden data-drill-monthly
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act('monthly', () => setDrillMonthly(e.detail.checked))}></sw-toggle></div>
     </sw-card>`;
   }

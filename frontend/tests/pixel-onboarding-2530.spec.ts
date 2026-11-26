@@ -90,7 +90,8 @@ test.describe('getting started (DOCS-ONBOARDING-2530)', () => {
       await page.goto(url('/system/readiness', 'domus'));
     }
     await expect(row).toHaveCount(0);
-    expect(m.puts).toContainEqual({ 'onboarding.dismissed': true });
+    // the row leaves at once (the dismissal is drawn before it is stored): wait for the stored value instead of reading it once
+    await expect.poll(() => m.puts).toContainEqual({ 'onboarding.dismissed': true });
     // hidden: no landing any more
     await page.goto('/?design=a&skin=domus');
     await page.waitForTimeout(1500);

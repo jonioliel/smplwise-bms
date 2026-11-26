@@ -2193,10 +2193,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row" data-backup-min-row><span class="lbl">${bpt('minLabel')}<span class="muted">${bpt('minHint')}</span></span>
           <input class="note-in" type="number" min="8" max="64" data-ltr data-backup-min ?disabled=${!isApi() || !this.canEdit || this.backupMinBusy} .value=${String(this.backupMin())} @change=${(e: Event) => void this.saveBackupMin(e.target as HTMLInputElement)} /></div>
         <div class="row" data-backup-local-scope-row><span class="lbl">${obr('localScope')}<span class="muted">${obr('localScopeHint')}</span></span>
-          <sw-toggle data-backup-local-scope ?checked=${scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
+          <sw-toggle controlled data-backup-local-scope ?checked=${scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
             label=${obr('localScope')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalScope(e.detail.checked)}></sw-toggle></div>
         <div class="row" data-backup-local-safety-row><span class="lbl">${obr('localSafety')}<span class="muted">${obr('localSafetyHint')}</span></span>
-          <sw-toggle data-backup-local-safety ?checked=${localSafetyOn(this.settings?.['backup.safety_before_local_restore'])} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
+          <sw-toggle controlled data-backup-local-safety ?checked=${localSafetyOn(this.settings?.['backup.safety_before_local_restore'])} ?disabled=${!isApi() || !this.canEdit || this.localSafetyBusy}
             label=${obr('localSafety')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleLocalSafety(e.detail.checked)}></sw-toggle></div>
         <div class="row"><span class="lbl">${tr('העלאת גיבוי')}<span class="muted">${tr('קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"')}</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>${tr('בחר קובץ…')}</sw-button></span></div>
@@ -2270,7 +2270,7 @@ export class SystemDiagnostics extends LitElement {
       ${err ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${err}</div>` : nothing}
       <sw-card heading=${tr('תחילת עבודה')} subheading=${tr('רשימה מסודרת של מה מגדירים קודם, עם קישור לכל מסך')} data-support-onboarding>
         <div class="row"><span class="lbl">${tr('רשימת תחילת העבודה')}<span class="muted">${tr('נפתחת מעצמה למי שמגדיר את המערכת ומוצגת בשורה מתחת ללשוניות. בהתקנה חדשה היא מופעלת מעצמה; בהתקנה קיימת היא כבויה עד שמפעילים אותה כאן.')}</span></span>
-          <sw-toggle data-set-onboarding label=${on ? tr('מופעלת') : tr('כבויה')} ?checked=${on} ?disabled=${!api || !this.canEdit || this.busy} @change=${(e: Event) => void this.setOnboarding(toggled(e))}></sw-toggle></div>
+          <sw-toggle controlled data-set-onboarding label=${on ? tr('מופעלת') : tr('כבויה')} ?checked=${on} ?disabled=${!api || !this.canEdit || this.busy} @change=${(e: Event) => void this.setOnboarding(toggled(e))}></sw-toggle></div>
         <div class="row"><span class="lbl">${tr('אצלך')}<span class="muted">${hidden ? tr('הסתרת את הרשימה: היא לא נפתחת מעצמה ואין לה שורה. אפשר להציג אותה שוב.') : tr('הרשימה מוצגת אצלך כל עוד היא מופעלת בהתקנה.')}</span></span>
           <span class="end">${hidden ? html`<sw-button size="sm" variant="ghost" icon="info" data-support-onboarding-restore @click=${() => void restoreOnboarding().then(() => this.requestUpdate())}>${tr('הצג שוב')}</sw-button>` : nothing}<sw-button size="sm" data-support-onboarding-open @click=${() => (window.location.hash = ONBOARDING_HREF)}>${tr('לרשימה')}</sw-button></span></div>
       </sw-card>

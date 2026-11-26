@@ -409,7 +409,7 @@ export class TicketsRulesSettings extends LitElement {
     const full = d.rules.length >= d.bounds.max_rules;
     return html`<sw-card heading=${rlt('title')} subheading=${rlt('sub')} data-card="ticket-rules-settings">
       <div class="row"><span class="lbl">${rlt('master')}<span class="muted">${rlt('masterSub')}</span></span>
-        <span class="end"><sw-toggle label=${rlt('master')} labelHidden .checked=${d.enabled} ?disabled=${this.busy} data-rules-master
+        <span class="end"><sw-toggle controlled label=${rlt('master')} labelHidden .checked=${d.enabled} ?disabled=${this.busy} data-rules-master
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setMaster(e.detail.checked)}></sw-toggle></span></div>
       <div class="row"><span class="lbl">${rlt('defaultLimit')}<span class="muted">${rlt('defaultLimitSub', { max: d.bounds.hard_daily_max })}</span></span>
         <span class="end"><input class="in num" inputmode="numeric" dir="ltr" data-rules-default-limit aria-label=${rlt('defaultLimit')}

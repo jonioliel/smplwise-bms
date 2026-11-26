@@ -346,7 +346,7 @@ export class SystemCast extends LitElement {
     const reason = c.ready ? null : NOT_READY_ADMIN_TEXT[c.reason ?? ''] ?? c.reason;
     return html`<sw-card heading=${tr('שידור למסכים')} data-cast-general>
       <div class="row"><span class="lbl">${tr('שידור מצלמות למסכים')}<span class="muted">${tr('כבוי = אף משתמש לא רואה את הכפתור "שדר למסך"')}</span></span>
-        <sw-toggle label=${tr('שידור למסכים')} labelHidden .checked=${cf.enabled} data-cast-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ enabled: e.detail.checked })}></sw-toggle></div>
+        <sw-toggle controlled label=${tr('שידור למסכים')} labelHidden .checked=${cf.enabled} data-cast-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ enabled: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tr('מצב')}<span class="muted" data-cast-ready>${c.ready ? tr('מוכן לשידור') : reason}</span></span>
         <sw-badge kind=${c.ready ? 'live' : 'stale'} label=${c.ready ? tr('מוכן') : tr('לא מוכן')}></sw-badge></div>
       <div class="row"><span class="lbl">${tr('כתובת המקור (ה־relay ברשת הביתית)')}<span class="muted">${tr('http://כתובת-IP:פורט של שרת Home Assistant; המסך מושך משם את התמונה. שם מארח לא מתקבל.')}</span></span>
@@ -361,9 +361,9 @@ export class SystemCast extends LitElement {
         <sw-field><select data-cast-minutes aria-label=${tr('משך שידור ברירת מחדל')} .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
           ${[...new Set([...CAST_MINUTES, cf.minutes])].sort((a, b) => a - b).map((m) => html`<option value=${m} ?selected=${m === cf.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></sw-field></div>
       <div class="row"><span class="lbl">${tr('זרם ראשי (איכות גבוהה)')}<span class="muted">${tr('רק למצלמה ב־H.264 ולמסך שאישר. כבוי = תמיד הזרם המשני.')}</span></span>
-        <sw-toggle label=${tr('זרם ראשי')} labelHidden .checked=${cf.allow_main} data-cast-allow-main @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ allow_main: e.detail.checked })}></sw-toggle></div>
+        <sw-toggle controlled label=${tr('זרם ראשי')} labelHidden .checked=${cf.allow_main} data-cast-allow-main @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ allow_main: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tr('כיבוי המסך אחרי העצירה')}<span class="muted">${tr('רק כשהמסך היה כבוי לפני השידור; המשתמש יכול לבטל בעצירה')}</span></span>
-        <sw-toggle label=${tr('כיבוי אחרי עצירה')} labelHidden .checked=${cf.power_off_after} data-cast-power-off @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ power_off_after: e.detail.checked })}></sw-toggle></div>
+        <sw-toggle controlled label=${tr('כיבוי אחרי עצירה')} labelHidden .checked=${cf.power_off_after} data-cast-power-off @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ power_off_after: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tr('מסכים חסומים בבורר')}<span class="muted">${tr('מסך שהמשתמש לא יכול לשדר אליו')}</span></span>
         <sw-field><select data-cast-blocked-display aria-label=${tr('מסכים חסומים בבורר')} @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
           ${Object.entries(BLOCKED_DISPLAY_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === cf.blocked_display}>${v}</option>`)}</select></sw-field></div>
@@ -379,12 +379,12 @@ export class SystemCast extends LitElement {
     return html`<div class="scr" data-cast-screen=${s.key}>
       <div class="nm"><b>${s.name}</b><span class="muted">${[s.floor_name, s.area_name].filter(Boolean).join(' · ') || '—'}${s.approved ? '' : ' · ' + tr('לא מאושר')}${s.public ? ' · ' + tr('ציבורי') : ''}</span></div>
       <div class="cl">${chip ? html`<sw-badge kind=${chip.kind} label=${chip.label} title=${chip.title}></sw-badge>` : '—'}</div>
-      <div class="cl"><span class="lb">${tr('מותר לשדר')}</span><sw-toggle label=${`${tr('מותר לשדר')}: ${s.name}`} labelHidden .checked=${st.allow} data-cast-allow=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { allow: e.detail.checked })}></sw-toggle></div>
+      <div class="cl"><span class="lb">${tr('מותר לשדר')}</span><sw-toggle controlled label=${`${tr('מותר לשדר')}: ${s.name}`} labelHidden .checked=${st.allow} data-cast-allow=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { allow: e.detail.checked })}></sw-toggle></div>
       <div class="cl"><span class="lb">${tr('שיטה')}</span><sw-field><select aria-label=${`${tr('שיטה')}: ${s.name}`} data-cast-method=${s.key} @change=${(e: Event) => void this.saveScreen(s, { method: (e.target as HTMLSelectElement).value as CastScreenSettings['method'] })}>
         ${Object.entries(SCREEN_METHOD_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === st.method}>${v}</option>`)}</select></sw-field></div>
       <div class="cl"><span class="lb">${tr('משך')}</span><sw-field><select aria-label=${`${tr('משך')}: ${s.name}`} data-cast-screen-minutes=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { minutes: v ? Number(v) : null }); }}>
         <option value="" ?selected=${st.minutes == null}>${tr('ברירת מחדל')}</option>${CAST_MINUTES.map((m) => html`<option value=${m} ?selected=${m === st.minutes}>${tr('{n} דקות', { n: m })}</option>`)}</select></sw-field></div>
-      <div class="cl"><span class="lb">${tr('שידור קבוע')}</span><sw-toggle label=${`${tr('שידור קבוע')}: ${s.name}`} labelHidden .checked=${st.permanent} data-cast-permanent=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { permanent: e.detail.checked })}></sw-toggle></div>
+      <div class="cl"><span class="lb">${tr('שידור קבוע')}</span><sw-toggle controlled label=${`${tr('שידור קבוע')}: ${s.name}`} labelHidden .checked=${st.permanent} data-cast-permanent=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { permanent: e.detail.checked })}></sw-toggle></div>
       <div class="cl"><span class="lb">${tr('זרם ראשי')}</span><sw-field><select aria-label=${`${tr('זרם ראשי')}: ${s.name}`} data-cast-screen-main=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { allow_main: v === '' ? null : v === 'yes' }); }}>
         <option value="" ?selected=${st.allow_main == null}>${tr('לפי ההתקנה')}</option><option value="yes" ?selected=${st.allow_main === true}>${tr('מותר')}</option><option value="no" ?selected=${st.allow_main === false}>${tr('אסור')}</option></select></sw-field></div>
       ${testable ? html`<div class="cl wide"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>${tr('בדיקת שידור (60 שניות)')}</sw-button></div>` : nothing}

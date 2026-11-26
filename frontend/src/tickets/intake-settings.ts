@@ -102,7 +102,7 @@ export class TicketsIntakeSettings extends LitElement {
 
   private toggle(label: Parameters<typeof itx>[0], key: 'enabled' | 'whatsapp' | 'approval_reply' | 'unlisted_reply', checked: boolean, off = false) {
     return html`<div class="row"><span class="lbl">${itx(label)}</span>
-      <sw-toggle label=${itx(label)} labelHidden .checked=${checked} ?disabled=${this.busy || off} data-intake=${key}
+      <sw-toggle controlled label=${itx(label)} labelHidden .checked=${checked} ?disabled=${this.busy || off} data-intake=${key}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [key]: e.detail.checked })}></sw-toggle></div>`;
   }
 
@@ -183,7 +183,7 @@ export class TicketsIntakeSettings extends LitElement {
       ${this.toggle('approvalReply', 'approval_reply', s.approval_reply, off)}
       ${this.toggle('unlistedReply', 'unlisted_reply', s.unlisted_reply, off)}
       <div class="row"><span class="lbl">${itx('classifier')}</span>
-        <sw-toggle label=${itx('classifier')} labelHidden .checked=${s.classifier === 'rules'} ?disabled=${this.busy || off} data-intake="classifier"
+        <sw-toggle controlled label=${itx('classifier')} labelHidden .checked=${s.classifier === 'rules'} ?disabled=${this.busy || off} data-intake="classifier"
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ classifier: e.detail.checked ? 'rules' : 'off' })}></sw-toggle></div>
       <div class="grid2">${NUMBER_ROWS.map((r) => this.numberRow(r.key, r.label, s, off))}</div>
     </sw-card>${this.knownCard()}`;

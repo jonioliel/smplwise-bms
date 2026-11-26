@@ -73,7 +73,7 @@ export class PresenceOptOut extends LitElement {
     if (!this.shown) return nothing;
     return html`<sw-card heading=${pt('title')} data-presence-optout-card>
       <div class="row"><span class="lbl">${pt('optOut')}<span class="muted">${pt('optOutHint')}</span></span>
-        <sw-toggle ?checked=${this.optedOut} ?disabled=${this.busy} label=${pt('optOut')} labelHidden data-presence-optout
+        <sw-toggle controlled ?checked=${this.optedOut} ?disabled=${this.busy} label=${pt('optOut')} labelHidden data-presence-optout
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.set(e.detail.checked)}></sw-toggle></div>
       ${this.message ? html`<span class="ok" role="status">${this.message}</span>` : nothing}
       ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}

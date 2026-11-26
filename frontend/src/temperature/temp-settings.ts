@@ -254,7 +254,7 @@ export class TempSettings extends LitElement {
         <div style="display:grid;gap:10px">${a.kinds_order.map((k) => {
           const s = a.kinds[k];
           return html`<div class="kind" data-on=${String(s.enabled)} data-kind=${k}>
-            <label class="sw"><sw-toggle size="sm" labelHidden in-label label=${tt(KIND_LABEL[k])} .checked=${s.enabled} ?disabled=${!a.can_edit} @change=${(e: Event) => this.saveAlert(k, { enabled: toggled(e) })}></sw-toggle><b>${tt(KIND_LABEL[k])}</b></label>
+            <label class="sw"><sw-toggle controlled size="sm" labelHidden in-label label=${tt(KIND_LABEL[k])} .checked=${s.enabled} ?disabled=${!a.can_edit} @change=${(e: Event) => this.saveAlert(k, { enabled: toggled(e) })}></sw-toggle><b>${tt(KIND_LABEL[k])}</b></label>
             <div class="body"><div class="opts">${a.roles.map((r) => html`<label class="sw"><input type="checkbox" .checked=${s.recipients.roles.includes(r.id)} ?disabled=${!a.can_edit}
               @change=${(e: Event) => this.saveAlert(k, { recipients: { ...s.recipients, roles: (e.target as HTMLInputElement).checked ? [...s.recipients.roles, r.id] : s.recipients.roles.filter((x) => x !== r.id) } })} />${r.label}</label>`)}</div>
             <div class="opts">${a.channels.map((c) => html`<label class="sw"><input type="checkbox" .checked=${s.channels.includes(c)} ?disabled=${!a.can_edit}

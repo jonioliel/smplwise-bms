@@ -190,10 +190,10 @@ export class TicketsChannelSettings extends LitElement {
     const winOk = Number.isInteger(win) && win >= 1 && win <= 336;
     return html`<sw-card heading=${mtt('chCard')} data-card="channel-whatsapp">
       <div class="row"><span class="lbl">${mtt('chEnabled')}<span class="muted">${mtt('chEnabledSub')}</span></span>
-        <sw-toggle label=${mtt('chEnabled')} labelHidden .checked=${v.whatsapp.enabled} ?disabled=${this.busy} data-channel-enabled
+        <sw-toggle controlled label=${mtt('chEnabled')} labelHidden .checked=${v.whatsapp.enabled} ?disabled=${this.busy} data-channel-enabled
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ whatsapp: { enabled: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${mtt('chButtons')}<span class="muted">${mtt('chButtonsSub')}</span></span>
-        <sw-toggle label=${mtt('chButtons')} labelHidden .checked=${v.whatsapp.use_buttons} ?disabled=${this.busy} data-channel-buttons
+        <sw-toggle controlled label=${mtt('chButtons')} labelHidden .checked=${v.whatsapp.use_buttons} ?disabled=${this.busy} data-channel-buttons
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ whatsapp: { use_buttons: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${mtt('chWindow')}</span>
         <span class="end"><input class="in num short" type="number" min="1" max="336" data-channel-window aria-invalid=${String(!winOk)} .value=${this.windowDraft}
@@ -201,15 +201,15 @@ export class TicketsChannelSettings extends LitElement {
           <sw-button size="sm" ?disabled=${this.busy || !winOk || win === v.whatsapp.reply_window_h} data-channel-window-save
             @click=${() => void this.save({ whatsapp: { reply_window_h: win } })}>${mtt('save')}</sw-button></span></div>
       <div class="row"><span class="lbl">${mtt('chEmail')}<span class="muted">${mtt('chEmailSub')}</span></span>
-        <sw-toggle label=${mtt('chEmail')} labelHidden .checked=${v.email_fallback} ?disabled=${this.busy} data-channel-email
+        <sw-toggle controlled label=${mtt('chEmail')} labelHidden .checked=${v.email_fallback} ?disabled=${this.busy} data-channel-email
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ email_fallback: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${mtt('chMailServer')}</span>
         <span class="val" data-mail-state=${v.email.configured ? 'ok' : 'missing'}>${v.email.configured ? mtt('chMailOk') : mtt('chMailMissing')}</span></div>
       <div class="row"><span class="lbl">${tt('otpSettingTitle')}<span class="muted">${tt('otpSettingHint')}</span></span>
-        <sw-toggle label=${tt('otpSettingTitle')} labelHidden .checked=${!!v.phone_verify?.required} ?disabled=${this.busy} data-channel-phone-verify
+        <sw-toggle controlled label=${tt('otpSettingTitle')} labelHidden .checked=${!!v.phone_verify?.required} ?disabled=${this.busy} data-channel-phone-verify
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ phone_verify: { required: e.detail.checked } })}></sw-toggle></div>
       ${this.fullPhones === null ? nothing : html`<div class="row"><span class="lbl">${tt('dmFullPhones')}<span class="muted">${tt('dmFullPhonesHint')}</span></span>
-        <sw-toggle label=${tt('dmFullPhones')} labelHidden .checked=${this.fullPhones} ?disabled=${this.busy} data-channel-managers-full-phones
+        <sw-toggle controlled label=${tt('dmFullPhones')} labelHidden .checked=${this.fullPhones} ?disabled=${this.busy} data-channel-managers-full-phones
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveFullPhones(e.detail.checked)}></sw-toggle></div>`}
     </sw-card>`;
   }

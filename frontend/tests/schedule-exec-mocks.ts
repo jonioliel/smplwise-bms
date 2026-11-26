@@ -8,6 +8,8 @@ import type { Page, Route } from '@playwright/test';
 export interface ExecMock {
   enabled: boolean;
   canConfigure: boolean;
+  /** CONTROLLED-TOGGLES-2540: while true the switch's save is refused (409) - the switch must stay where the server keeps it. */
+  refuseSwitch: boolean;
   support: { state: string; reason: string | null; contract: string };
   /** The reads already known (memory of the server). */
   jobs: any[];
@@ -25,6 +27,7 @@ export function newExecMock(over: Partial<ExecMock> = {}): ExecMock {
   return {
     enabled: false,
     canConfigure: true,
+    refuseSwitch: false,
     support: { state: 'supported', reason: null, contract: CONTRACT },
     jobs: [],
     next: {},
@@ -70,6 +73,7 @@ export async function installExecMock(page: Page, m: ExecMock): Promise<void> {
     if (method === 'GET' && p === 'schedules/execution') return json(route, view());
     if (method === 'PUT' && p === 'schedules/execution/settings') {
       if (!m.canConfigure) return json(route, { code: 'forbidden', user_message: 'רק מנהל מערכת יכול לשנות הגדרה זו.', retryable: false, correlation_id: 'mock', details: {} }, 403);
+      if (m.refuseSwitch) return json(route, { code: 'settings_conflict', user_message: 'השרת לא שמר את השינוי (דוגמה).', retryable: false, correlation_id: 'mock', details: {} }, 409);
       m.enabled = body?.enabled === true;
       if (!m.enabled) m.jobs = [];
       return json(route, view());

@@ -606,7 +606,7 @@ export class SystemCalendars extends LitElement {
       return html`<h2>${tr('אישור לכל יומן')}</h2>
         <div class="fitbox"><div class="grid" data-fit="66" data-calset-rows>${p.items.map((c) => html`<div class="row" data-approval=${c.id}><span class="dot" style=${`--h:${colorVar(c.color)}`}></span>
           <div class="grow"><div class="name ell">${c.name}</div><div class="sub ell">${APPROVAL_LABEL[c.approval_mode]}</div></div>
-          <sw-toggle label=${tr('אישור ב{name}', { name: c.name })} labelHidden ?checked=${c.approval_mode !== 'none'} ?disabled=${!canRow(c)} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchCal(c, { approval_mode: e.detail.checked ? 'always' : 'none' })}></sw-toggle></div>`)}</div></div>
+          <sw-toggle controlled label=${tr('אישור ב{name}', { name: c.name })} labelHidden ?checked=${c.approval_mode !== 'none'} ?disabled=${!canRow(c)} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchCal(c, { approval_mode: e.detail.checked ? 'always' : 'none' })}></sw-toggle></div>`)}</div></div>
         ${this.pager(p.page, p.pages)}`;
     }
     return html`<h2>${tr('אישור לכל יומן')}</h2><p class="lead">${tr('ברירת המחדל: ללא אישור. כשמדליקים, מנהל היומן מאשר או דוחה. כל שינוי נשמר מיד.')}</p>

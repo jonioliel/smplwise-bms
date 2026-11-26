@@ -531,7 +531,7 @@ export class SystemMultimediaPlayers extends LitElement {
         </label>
         <span class="f">${tr('חלון לילה')}
           <span class="night">
-            <sw-toggle label=${`${tr('חלון לילה')}: ${d.name}`} labelHidden .checked=${!!night} data-mm-night=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { volume_night: e.detail.checked ? { ...DEFAULT_NIGHT } : null })}></sw-toggle>
+            <sw-toggle controlled label=${`${tr('חלון לילה')}: ${d.name}`} labelHidden .checked=${!!night} data-mm-night=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { volume_night: e.detail.checked ? { ...DEFAULT_NIGHT } : null })}></sw-toggle>
             ${night ? html`<span>${tr('מ־')}</span><input type="time" lang=${dateInputLang()} .value=${night.from} data-mm-night-from=${d.key} aria-label=${tr('מ־')} @change=${(e: Event) => nightPatch({ from: (e.target as HTMLInputElement).value })} />
               <span>${tr('עד')}</span><input type="time" lang=${dateInputLang()} .value=${night.to} data-mm-night-to=${d.key} aria-label=${tr('עד')} @change=${(e: Event) => nightPatch({ to: (e.target as HTMLInputElement).value })} />
               <span>${tr('תקרה')}</span><input type="number" min="0" max="100" .value=${String(night.max)} data-mm-night-max=${d.key} aria-label=${tr('תקרה בלילה')} @change=${(e: Event) => nightPatch({ max: Number((e.target as HTMLInputElement).value) })} />` : html`<span class="muted">${tr('כבוי')}</span>`}
@@ -585,7 +585,7 @@ export class SystemMultimediaPlayers extends LitElement {
       ${np?.length ? html`<div class="row" data-mm-nonphysical><span class="lbl">${tr('רכיבים לא פיזיים')}<span class="muted">${tr('{n} רשומות: סשנים, קבוצות עזר ושירותים · לא מוצגים כנגנים ולא מוצעים לאיחוד', { n: np.length })}</span></span>
           <sw-button size="sm" data-mm-np-toggle aria-expanded=${String(this.npOpen)} @click=${() => (this.npOpen = !this.npOpen)}>${this.npOpen ? tr('הסתר') : tr('הצג')}</sw-button></div>
         ${this.npOpen ? np.map((n) => html`<div class="row" data-mm-np-row=${n.key}><span class="lbl">${n.name}</span>
-          ${n.kind === 'virtual_group' ? html`<label class="f inline">${tr('מוצג בקבוצות')}<sw-toggle label=${`${tr('מוצג בקבוצות')}: ${n.name}`} labelHidden .checked=${!!n.approved} data-mm-np-approved=${n.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.approveHelper(n.key, e.detail.checked)}></sw-toggle></label>` : nothing}
+          ${n.kind === 'virtual_group' ? html`<label class="f inline">${tr('מוצג בקבוצות')}<sw-toggle controlled label=${`${tr('מוצג בקבוצות')}: ${n.name}`} labelHidden .checked=${!!n.approved} data-mm-np-approved=${n.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.approveHelper(n.key, e.detail.checked)}></sw-toggle></label>` : nothing}
           <sw-badge kind="neutral" label=${NP[n.kind] ?? n.kind}></sw-badge></div>`) : nothing}` : nothing}
     </sw-card>`;
   }
@@ -613,7 +613,7 @@ export class SystemMultimediaPlayers extends LitElement {
     const kinds = KINDS.filter((k) => !(k === 'playlists' && sonos));
     return html`<sw-card heading=${tr('מועדפים ותחנות')} data-mm-favs>
       <div class="row"><span class="lbl">${tr('לשוניות בנגן')}<span class="muted">${tr('רשימה אחת לכולם')}</span></span>
-        <span class="acts">${kinds.map((k) => html`<label class="f inline">${LIBRARY_TAB_LABEL[k]}<sw-toggle label=${LIBRARY_TAB_LABEL[k]} labelHidden .checked=${f.kinds_on.includes(k)} data-mm-fav-kind=${k} @change=${(e: CustomEvent<{ checked: boolean }>) => this.toggleKind(k, e.detail.checked)}></sw-toggle></label>`)}</span></div>
+        <span class="acts">${kinds.map((k) => html`<label class="f inline">${LIBRARY_TAB_LABEL[k]}<sw-toggle controlled label=${LIBRARY_TAB_LABEL[k]} labelHidden .checked=${f.kinds_on.includes(k)} data-mm-fav-kind=${k} @change=${(e: CustomEvent<{ checked: boolean }>) => this.toggleKind(k, e.detail.checked)}></sw-toggle></label>`)}</span></div>
       <div class="row"><span class="lbl">${tr('מקור')}<span class="muted">${lib?.provider === 'ma' ? tr('Music Assistant · המועדפים של ההתקנה') : sonos ? tr('Sonos · המועדפים של הרמקולים (source_list) · אין פלייליסטים בלי Music Assistant') : tr('אין ספריית מוזיקה')}</span></span></div>
       ${has ? kinds.map((k) => this.favList(k)) : nothing}
     </sw-card>`;
@@ -623,7 +623,7 @@ export class SystemMultimediaPlayers extends LitElement {
     const l = this.favLists[k];
     if (!l.length) return nothing;
     return html`<div class="fgrp" data-mm-fav-group=${k}><h3>${LIBRARY_TAB_LABEL[k]} · ${tr('סדר והצגה')}</h3>${l.map((r, i) => html`<div class=${r.hidden ? 'frow off' : 'frow'} data-mm-fav=${r.ref}>
-      <sw-toggle label=${`${tr('הצג')}: ${r.name}`} labelHidden .checked=${!r.hidden} data-mm-fav-show=${r.ref} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setHidden(k, r.ref, !e.detail.checked)}></sw-toggle>
+      <sw-toggle controlled label=${`${tr('הצג')}: ${r.name}`} labelHidden .checked=${!r.hidden} data-mm-fav-show=${r.ref} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setHidden(k, r.ref, !e.detail.checked)}></sw-toggle>
       <span class="nm"><b>${r.name}</b>${r.artist ? html`<span class="muted">${r.artist}</span>` : nothing}</span>
       <button type="button" class="ib" data-mm-fav-up=${r.ref} aria-label=${tr('הקדם: {name}', { name: r.name })} ?disabled=${i === 0} @click=${() => this.moveFav(k, r.ref, -1)}><sw-icon name="arrowUp" size="14"></sw-icon></button>
       <button type="button" class="ib" data-mm-fav-down=${r.ref} aria-label=${tr('אחר: {name}', { name: r.name })} ?disabled=${i === l.length - 1} @click=${() => this.moveFav(k, r.ref, 1)}><sw-icon name="arrowDown" size="14"></sw-icon></button>

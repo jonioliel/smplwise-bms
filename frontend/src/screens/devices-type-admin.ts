@@ -117,7 +117,7 @@ export class DevicesTypeAdmin extends DevicesOverrideListAdmin<DeviceTypeRow, Ty
 
   private bulkOn(r: DeviceTypeRow) {
     if (!r.set || !BULK_ON_SENSITIVE.includes(r.set)) return nothing;
-    return html`<label class="bulk-on muted"><sw-toggle size="sm" labelHidden in-label label=${tr('לכלול בהדלק הכל')} data-type-bulk-on=${r.entity_id} .checked=${!!r.bulk_on_allowed}
+    return html`<label class="bulk-on muted"><sw-toggle controlled size="sm" labelHidden in-label label=${tr('לכלול בהדלק הכל')} data-type-bulk-on=${r.entity_id} .checked=${!!r.bulk_on_allowed}
         ?disabled=${this.busyId === r.entity_id || this.busy}
         @change=${(e: Event) => void this.setBulkOn(r, toggled(e))}></sw-toggle>${tr('לכלול בהדלק הכל')}</label>`;
   }

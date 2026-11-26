@@ -147,7 +147,7 @@ export class MediaMaConnection extends LitElement {
     return html`
       <div class="row"><span class="lbl">${tr('חיבור ישיר ל־Music Assistant')}<span class="muted">${tr('תור מלא (גרירה, מחיקה, נגן הבא) וחיפוש בספרייה. ללא החיבור: התור הקצר והספרייה בלי חיפוש.')}</span></span>
         <span class="acts"><sw-badge kind=${BADGE[c.state]} label=${MA_STATE_LABEL[c.state]} data-mc-state=${c.state}></sw-badge>
-          <sw-toggle label=${tr('חיבור ישיר')} labelHidden .checked=${c.enabled} ?disabled=${this.busy || (!c.url && !this.url)} data-mc-enabled
+          <sw-toggle controlled label=${tr('חיבור ישיר')} labelHidden .checked=${c.enabled} ?disabled=${this.busy || (!c.url && !this.url)} data-mc-enabled
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked, ...(this.url && this.url !== c.url ? { url: this.url } : {}) })}></sw-toggle></span></div>
       <div class="row"><span class="lbl">${tr('כתובת השרת')}<span class="muted">${tr('http://שם-מארח:8095 · נשמרת בהגדרות בלבד')}</span></span>
         <span class="acts"><input type="url" inputmode="url" spellcheck="false" placeholder="http://host:8095" .value=${this.url} data-mc-url aria-label=${tr('כתובת השרת')}

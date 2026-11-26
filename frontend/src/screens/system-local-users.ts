@@ -854,7 +854,7 @@ export class SystemLocalUsers extends LitElement {
         <div class="muted full">${lit('publicUrlHint')}</div>
         ${this.publicUrlNote ? html`<div class="note full" role="status">${this.publicUrlNote}</div>` : nothing}
         <div class="actions"><sw-button @click=${() => this.savePublicUrl()} ?disabled=${this.busy} data-local-public-url-save>${lit('publicUrlSave')}</sw-button></div>
-        <label class="full check"><sw-toggle size="sm" labelHidden in-label label=${lit('passkeySettingFirst')} .checked=${!!d.passkey_first_allowed} ?disabled=${this.busy}
+        <label class="full check"><sw-toggle controlled size="sm" labelHidden in-label label=${lit('passkeySettingFirst')} .checked=${!!d.passkey_first_allowed} ?disabled=${this.busy}
             @change=${(e: Event) => this.setPasskeyFirstAllowed(toggled(e))} data-local-passkey-first-allowed></sw-toggle>
           ${lit('passkeySettingFirst')}</label>
         <div class="muted full">${lit('passkeySettingHelp')}</div>

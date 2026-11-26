@@ -346,7 +346,7 @@ export class SystemMultimedia extends LitElement {
         <span class="grow"></span>
       </div>
       <div class="line">
-        <label class="f inline">${tr('מסך ציבורי')}<sw-toggle label=${`${tr('מסך ציבורי')}: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
+        <label class="f inline">${tr('מסך ציבורי')}<sw-toggle controlled label=${`${tr('מסך ציבורי')}: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
         <label class="f">${tr('פרופיל')}
           <sw-field><select data-mm-profile=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { profile: v === '' ? null : (v as ProfileId) }); }}>
             <option value="" ?selected=${d.profile_source === 'auto'}>${tr('זיהוי אוטומטי')} · ${PROFILE_LABEL[d.profile]}</option>
@@ -448,7 +448,7 @@ export class SystemMultimedia extends LitElement {
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <sw-card heading=${tr('כללי')} data-mm-general>
           <div class="row"><span class="lbl">${tr('מולטימדיה')}<span class="muted">${tr('כבוי = הכניסה "מולטימדיה" אינה מוצגת לאף משתמש')}</span></span>
-            <sw-toggle label=${tr('מולטימדיה')} labelHidden .checked=${this.enabled} data-mm-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
+            <sw-toggle controlled label=${tr('מולטימדיה')} labelHidden .checked=${this.enabled} data-mm-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
           <div class="row"><span class="lbl">${tr('רכיב החיבור (גשר Arx)')}<span class="muted" data-mm-bridge>${bridge ? (bridge.media_ready ? `${tr('גרסה {n}', { n: bridge.version ?? '?' })} · ${tr('מוכן לפקודות מדיה')}` : bridge.paired ? `${tr('גרסה {n}', { n: bridge.version ?? '?' })} · ${tr('נדרש עדכון (0.4.0 ומעלה)')}` : tr('לא מצומד')) : '—'}</span></span></div>
           <div class="row"><span class="lbl">${tr('תצוגה')}<span class="muted" data-mm-display>${tr('זכוכית תמיד; בהיר/כהה לפי חשמל והתקנים')}</span></span></div>
         </sw-card>

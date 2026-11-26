@@ -681,7 +681,7 @@ export class SystemTickets extends LitElement {
           <span class="muted">${tt('hoursTo')}</span>
           <input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} /></span></div>
       <div class="row"><span class="lbl">${tt('setUrgent')}<span class="muted">${tt('setUrgentSub')}</span></span>
-        <sw-toggle label=${tt('setUrgent')} labelHidden .checked=${doc.urgent_is_critical ?? true} ?disabled=${this.busy} data-inst-urgent
+        <sw-toggle controlled label=${tt('setUrgent')} labelHidden .checked=${doc.urgent_is_critical ?? true} ?disabled=${this.busy} data-inst-urgent
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ urgent_is_critical: e.detail.checked })}></sw-toggle></div>
       <!-- TKSET-POLISH-2331: the hours' save sits in the card's footer like the link card's (it saves the two time fields only; the switch saves at once) -->
       <div class="foot"><sw-button size="sm" variant="primary" data-inst-hours-save ?hidden=${!dirty} ?disabled=${!dirty || !!err || this.busy}
@@ -702,7 +702,7 @@ export class SystemTickets extends LitElement {
     const qAll = doc.rfq?.question_badge_all_viewers === true;
     return html`<sw-card heading=${rt('stRfqCard')} data-card="rfq-terms">
       <div class="row"><span class="lbl">${rt('stScheduleArrival')}<span class="muted">${rt('stScheduleArrivalSub')}</span></span>
-        <sw-toggle label=${rt('stScheduleArrival')} labelHidden .checked=${on} ?disabled=${this.busy} data-inst-schedule-arrival
+        <sw-toggle controlled label=${rt('stScheduleArrival')} labelHidden .checked=${on} ?disabled=${this.busy} data-inst-schedule-arrival
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { schedule_arrival: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${rt('stArrivalHours')}<span class="muted">${rt('stArrivalHoursSub')}</span></span>
         <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-arrival-hours aria-label=${rt('stArrivalHours')} aria-invalid=${String(Number.isNaN(n))} .value=${raw}
@@ -715,7 +715,7 @@ export class SystemTickets extends LitElement {
           <sw-button size="sm" variant="primary" data-inst-question-save ?hidden=${qn === qHours} ?disabled=${Number.isNaN(qn) || qn === qHours || this.busy}
             @click=${() => void this.saveDoc({ rfq: { question_reminder_hours: qn } }, () => (this.instDraft = { ...this.instDraft, qHours: undefined }))}>${tt('save')}</sw-button></span></div>
       <div class="row"><span class="lbl">${qst('qBadgeAll')}<span class="muted">${qst('qBadgeAllSub')}</span></span>
-        <sw-toggle label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
+        <sw-toggle controlled label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { question_badge_all_viewers: e.detail.checked } })}></sw-toggle></div>
       ${this.instalmentHoursRow(doc)}
       ${this.awardNoticeRow(doc)}
@@ -771,7 +771,7 @@ export class SystemTickets extends LitElement {
     const preview = ['{module}', '{ticket} {f:חדשה|m:חדש}', '{the_tickets} {f:פתוחות|m:פתוחים}'].map((tpl) => renderName(tpl, { one: heOne, many: heMany, gender: he.gender, module: he.module?.trim() || moduleDefault('he', heOne, heMany) })); // i18n-keep: Hebrew name templates rendered by renderName for the Hebrew preview
     const moduleCard = html`<sw-card heading=${tt('setModuleCard')} data-card="module">
         <div class="row"><span class="lbl">${tt('setModuleSwitch')}<span class="muted">${tt('setModuleSwitchSub')}</span></span>
-          <sw-toggle label=${tt('setModuleSwitch')} labelHidden .checked=${!!this.enabled} ?disabled=${!mayConfigure || this.switching} data-tickets-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
+          <sw-toggle controlled label=${tt('setModuleSwitch')} labelHidden .checked=${!!this.enabled} ?disabled=${!mayConfigure || this.switching} data-tickets-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
         ${this.enabled && this.draft ? html`<div class="row stack" data-name-editor>
           <span class="lbl">${tt('setName')}<span class="muted">${tt('setNameSub')}</span></span>
           ${this.nameRow('he')}
@@ -826,7 +826,7 @@ export class SystemTickets extends LitElement {
     const patch = Object.fromEntries(fields.map((f) => [f.key, f.n])) as Partial<RfqVendorUploadSettings>;
     return html`<sw-card heading=${rt('stVendorUploads')} data-card="rfq-vendor-uploads">
       <div class="row"><span class="lbl">${rt('stVendorUploadsOn')}<span class="muted">${rt('stVendorUploadsOnSub')}</span></span>
-        <sw-toggle label=${rt('stVendorUploadsOn')} labelHidden .checked=${vu?.enabled === true} ?disabled=${this.busy} data-inst-vendor-uploads
+        <sw-toggle controlled label=${rt('stVendorUploadsOn')} labelHidden .checked=${vu?.enabled === true} ?disabled=${this.busy} data-inst-vendor-uploads
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ rfq: { vendor_uploads: { enabled: e.detail.checked } } })}></sw-toggle></div>
       ${fields.map((f) => html`<div class="row"><span class="lbl">${rt(f.label)}<span class="muted">${rt('stVuMax', { n: f.max })}</span></span>
         <span class="unit"><input class="in num" type="number" min="1" max=${f.max} data-inst-vu=${f.key} aria-label=${rt(f.label)} aria-invalid=${String(Number.isNaN(f.n))}

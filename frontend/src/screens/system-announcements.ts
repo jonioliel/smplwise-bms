@@ -188,7 +188,7 @@ export class SystemAnnouncements extends LitElement {
     return html`
       <sw-card heading=${t.quiet} data-announce-quiet>
         <div class="row"><span class="lbl">${t.quietEnabled}<span class="muted">${t.quietHint}</span></span>
-          <sw-toggle label=${t.quietEnabled} labelHidden .checked=${q.enabled} data-announce-quiet-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ quiet: { enabled: e.detail.checked } })}></sw-toggle></div>
+          <sw-toggle controlled label=${t.quietEnabled} labelHidden .checked=${q.enabled} data-announce-quiet-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ quiet: { enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.from}</span>
           <input type="time" lang=${dateInputLang()} data-announce-quiet-from .value=${q.from} @change=${(e: Event) => void this.save({ quiet: { from: (e.target as HTMLInputElement).value } })} /></div>
         <div class="row"><span class="lbl">${t.to}</span>
@@ -201,7 +201,7 @@ export class SystemAnnouncements extends LitElement {
       </sw-card>
       <sw-card heading=${t.routing} data-announce-routing>
         <div class="row"><span class="lbl">${t.routingEnabled}<span class="muted">${t.routingHint}</span></span>
-          <sw-toggle label=${t.routingEnabled} labelHidden .checked=${n.enabled} data-announce-routing-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ notify: { enabled: e.detail.checked } })}></sw-toggle></div>
+          <sw-toggle controlled label=${t.routingEnabled} labelHidden .checked=${n.enabled} data-announce-routing-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ notify: { enabled: e.detail.checked } })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.routingRoom}</span>
           <sw-field><select data-announce-routing-room aria-label=${t.routingRoom} @change=${(e: Event) => void this.save({ notify: { scope: 'area', ref: (e.target as HTMLSelectElement).value } })}>
             <option value="" ?selected=${!rooms.some((r) => r.id === n.ref)}>${t.routingNone}</option>
@@ -237,9 +237,9 @@ export class SystemAnnouncements extends LitElement {
     const apply = (key: string, patch: Parameters<typeof patchScreen>[2]) => void this.save({ screens: { targets: screenTargets(patchScreen(opts, key, patch)) } });
     return html`<sw-card heading=${t.screens} subheading=${t.screensHint} data-announce-screens>
       <div class="row"><span class="lbl">${t.screensEnabled}<span class="muted">${t.screensEnabledHint}</span></span>
-        <sw-toggle label=${t.screensEnabled} labelHidden .checked=${sc.enabled} data-announce-screens-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { enabled: e.detail.checked } })}></sw-toggle></div>
+        <sw-toggle controlled label=${t.screensEnabled} labelHidden .checked=${sc.enabled} data-announce-screens-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { enabled: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${t.screensDefault}</span>
-        <sw-toggle label=${t.screensDefault} labelHidden .checked=${sc.default_on} data-announce-screens-default @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { default_on: e.detail.checked } })}></sw-toggle></div>
+        <sw-toggle controlled label=${t.screensDefault} labelHidden .checked=${sc.default_on} data-announce-screens-default @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ screens: { default_on: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${t.screensSeconds}</span>
         <input type="number" min=${ANNOUNCE_SCREEN_RANGE.seconds[0]} max=${ANNOUNCE_SCREEN_RANGE.seconds[1]} data-announce-screens-seconds aria-label=${t.screensSeconds} .value=${String(sc.seconds)} @change=${(e: Event) => this.screenNumber('seconds', e)} /></div>
       <div class="row"><span class="lbl">${t.screensCriticalSeconds}</span>
@@ -250,7 +250,7 @@ export class SystemAnnouncements extends LitElement {
         <input type="number" step="1" inputmode="numeric" min=${ANNOUNCE_SCREEN_RANGE.critical_close_s[0]} max=${ANNOUNCE_SCREEN_RANGE.critical_close_s[1]} data-announce-screens-critical-close aria-label=${t.screensCriticalClose} .value=${String(sc.critical_close_s)} @change=${(e: Event) => this.screenNumber('critical_close_s', e)} /></div>` : nothing}
       <div class="area">${t.screensList}</div>
       ${opts.length ? opts.map((o) => html`<div class="row" data-announce-screen=${o.key}>
-        <label class="pick"><sw-toggle size="sm" labelHidden in-label label=${o.name} .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: toggled(e) })}></sw-toggle>${o.name}
+        <label class="pick"><sw-toggle controlled size="sm" labelHidden in-label label=${o.name} .checked=${o.allowed} data-announce-screen-allow @change=${(e: Event) => apply(o.key, { allowed: toggled(e) })}></sw-toggle>${o.name}
           <span class="muted">${o.kind === 'board' ? t.screensKindBoard : t.screensKindWall}</span></label>
         <span class="inl">
           <sw-field><select data-announce-screen-area aria-label=${t.screensArea} ?disabled=${!o.allowed} @change=${(e: Event) => apply(o.key, { area_id: (e.target as HTMLSelectElement).value || null })}>
@@ -279,7 +279,7 @@ export class SystemAnnouncements extends LitElement {
       <div class="row"><span class="lbl">${t.translateApprove}${approved ? html`<span class="muted" data-announce-translate-approved>${t.translateApprovedBy} ${tc.approval?.by ?? '—'} · ${when}</span>` : html`<span class="muted">${t.translateNotApproved}</span>`}</span>
         <sw-button size="sm" data-announce-translate-approve ?disabled=${tc.provider === 'off' || approved} @click=${() => void this.save({ translate: { approve: true } })}>${t.translateApproveAction}</sw-button></div>
       <div class="row"><span class="lbl">${t.translateEnabled}${tc.provider === 'cloud' ? html`<span class="muted" data-announce-translate-key>${tc.key_set ? t.cloudKeySet : t.cloudKeyMissing}</span>` : nothing}</span>
-        <sw-toggle label=${t.translateEnabled} labelHidden .checked=${tc.enabled} ?disabled=${!approved && !tc.enabled} data-announce-translate-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ translate: { enabled: e.detail.checked } })}></sw-toggle></div>
+        <sw-toggle controlled label=${t.translateEnabled} labelHidden .checked=${tc.enabled} ?disabled=${!approved && !tc.enabled} data-announce-translate-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ translate: { enabled: e.detail.checked } })}></sw-toggle></div>
       <div class="row"><span class="lbl">${t.translateTargets}</span>
         <span class="inl">${ANNOUNCE_TRANSLATE_TARGETS.map((l) => html`<label class="pick"><input type="checkbox" data-announce-translate-target=${l} .checked=${tc.targets.includes(l)}
           @change=${(e: Event) => { const next = ANNOUNCE_TRANSLATE_TARGETS.filter((x) => (x === l ? (e.target as HTMLInputElement).checked : tc.targets.includes(x))); if (next.length) void this.save({ translate: { targets: next } }); else (e.target as HTMLInputElement).checked = true; }} />${t.langName[l]}</label>`)}</span></div>
@@ -315,7 +315,7 @@ export class SystemAnnouncements extends LitElement {
     const on = !!this.data?.config.enabled && !!this.data?.config.engine;
     return html`${[...groups].map(([k, rows]) => html`<div class="area">${k}</div>${rows.map((s) => html`
       <div class="row" data-announce-speaker=${s.key}>
-        <label class="pick"><sw-toggle size="sm" labelHidden in-label label=${s.name} .checked=${s.allowed} data-announce-allow @change=${(e: Event) => void this.toggleSpeaker(s, toggled(e))}></sw-toggle>${s.name}</label>
+        <label class="pick"><sw-toggle controlled size="sm" labelHidden in-label label=${s.name} .checked=${s.allowed} data-announce-allow @change=${(e: Event) => void this.toggleSpeaker(s, toggled(e))}></sw-toggle>${s.name}</label>
         <sw-button size="sm" data-announce-test ?disabled=${!s.allowed || !on || this.busy !== ''} @click=${() => void this.run(`t:${s.key}`, () => announceTest({ scope: 'device', ref: s.key, language: announceLang() }))}>${t.testAction}</sw-button>
       </div>`)}`)}`;
   }
@@ -333,7 +333,7 @@ export class SystemAnnouncements extends LitElement {
       ${this.err ? html`<div class="err" role="alert">${this.err}</div>` : nothing}
       <sw-card heading=${t.general}>
         <div class="row"><span class="lbl">${t.enabled}<span class="muted">${t.enabledHint}</span></span>
-          <sw-toggle label=${t.enabled} labelHidden .checked=${cf.enabled} data-announce-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle></div>
+          <sw-toggle controlled label=${t.enabled} labelHidden .checked=${cf.enabled} data-announce-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle></div>
         <div class="row"><span class="lbl">${t.engine}<span class="muted">${t.engineHint}</span>${(d.engine_info ?? []).some((x) => x.entity_id === cf.engine && x.cloud) ? html`<span class="muted" data-announce-cloud-warn>${t.engineCloudWarn}</span>` : nothing}</span>
           <sw-field><select data-ltr data-announce-engine aria-label=${t.engine} @change=${(e: Event) => void this.save({ engine: (e.target as HTMLSelectElement).value })}>
             <option value="" ?selected=${cf.engine === ''}>—</option>
@@ -348,7 +348,7 @@ export class SystemAnnouncements extends LitElement {
         <div class="row"><span class="lbl">${t.volume}<span class="muted">${t.volumeHint}</span></span>
           <input type="number" min="0" max="100" data-announce-volume .value=${cf.volume === null ? '' : String(cf.volume)} @change=${(e: Event) => void this.save({ volume: this.pct(e) })} /></div>
         <div class="row"><span class="lbl">${t.pause}<span class="muted">${t.pauseHint}</span></span>
-          <sw-toggle label=${t.pause} labelHidden .checked=${cf.pause_music} data-announce-pause @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ pause_music: e.detail.checked })}></sw-toggle></div>
+          <sw-toggle controlled label=${t.pause} labelHidden .checked=${cf.pause_music} data-announce-pause @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ pause_music: e.detail.checked })}></sw-toggle></div>
       </sw-card>
       ${this.extraCards(t, cf)}
       ${this.screensCard(t, d)}

@@ -193,7 +193,7 @@ export class WaInstalledCard extends LitElement {
         <div class="toggle" data-wa-paced>
           <span class="txt"><span class="t">${wi('paced')}</span>
             <span class="x">${v.settings.send_pacing_v1 ? wi('pacedOn') : pacedOk ? wi('pacedOff') : wi('pacedUnlisted')}</span></span>
-          <sw-toggle label=${wi('paced')} labelHidden data-wa-paced-toggle .checked=${v.settings.send_pacing_v1} ?disabled=${!!this.busy || !pacedOk}
+          <sw-toggle controlled label=${wi('paced')} labelHidden data-wa-paced-toggle .checked=${v.settings.send_pacing_v1} ?disabled=${!!this.busy || !pacedOk}
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setPaced(e.detail.checked)}></sw-toggle>
         </div>
         <div class="hint" data-wa-history>${wi('history')}</div>
