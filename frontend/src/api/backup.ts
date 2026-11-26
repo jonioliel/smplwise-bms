@@ -47,6 +47,8 @@ export const KIND_LABEL: Record<string, string> = {
   'auto-pre-upgrade': tr('אוטומטי · לפני עדכון'),
   'auto-daily': tr('אוטומטי · יומי'),
   'auto-pre-restore': tr('אוטומטי · לפני שחזור'),
+  // LEGACY-IMPORT-UI-2550 (owner rule = recommendation Q3 a): the project backup written before a legacy import applies
+  'auto-pre-legacy-import': tr('אוטומטי · לפני ייבוא מהמערכת הישנה'),
 };
 
 export const TABLE_LABEL: Record<string, string> = {

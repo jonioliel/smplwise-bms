@@ -9,6 +9,7 @@ export const en = {
   'אוטומטי · לפני עדכון': 'Automatic · before an update',
   'אוטומטי · יומי': 'Automatic · daily',
   'אוטומטי · לפני שחזור': 'Automatic · before a restore',
+  'אוטומטי · לפני ייבוא מהמערכת הישנה': 'Automatic · before the legacy import',
   'אתרים': 'Sites',
   'מבנים': 'Buildings',
   'קומות': 'Floors',
