@@ -934,6 +934,8 @@ export const en = {
   'מנעולים נעולים': 'Locked locks',
   'הכול נעול': 'All locked',
   'יש מנעול פתוח': 'A lock is open',
+  'מצב מנעול אחד לא ידוע': 'One lock in an unknown state',
+  'מצב {n} מנעולים לא ידוע': '{n} locks in an unknown state',
   'מפלס {ltrNum}': 'Level {ltrNum}',
   '{areasCount} אזורים': '{areasCount} areas',
   'כבה קומה': 'Turn off floor',

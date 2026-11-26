@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockHonestArea, openBuilding } from './area-honest-count-2540-mocks';
+import { honestTree, mockHonestArea, openBuilding } from './area-honest-count-2540-mocks';
 
 // AREA-HONEST-COUNT-2540 (deep review SCR-10 / SCR-09, the FULL interface): the building screen's area row and area summary never show
 // a lock whose state is not known as "not locked" (its own grey "לא ידוע"), and an unreadable alarm summary is grey, never the warm
@@ -74,6 +74,26 @@ test.describe('the area row tells an unknown lock / alarm apart', () => {
     await expect(panel.locator('[data-chip="locks"]')).toContainText('1/2');
     await expect(panel.locator('[data-chip="locks_unknown"]')).toContainText('מצב לא ידוע 1');
     await expect(panel.locator('[data-chip="alarm"]')).toContainText('אזעקה: דרוכה (בית) · 1 לא ידוע');
+  });
+
+  test('the building locks tile: an offline lock is not "a lock is open"; a really open one still is', async ({ page }) => {
+    await mockHonestArea(page);
+    // the building's counts without an open lock: one locked, three unknown - nothing is known to be open
+    const t = honestTree();
+    t.building = { ...t.building, locks: 4, locks_locked: 1, locks_unknown: 3 };
+    await page.route((u) => u.pathname.endsWith('/api/v1/devices/tree'), (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(t) }));
+    await openBuilding(page);
+    const tile = B(page).locator('sw-kpi[data-tile-kind="locks"]');
+    await expect(tile).toHaveAttribute('detail', 'מצב 3 מנעולים לא ידוע');
+    await expect(tile).toHaveAttribute('tone', 'offline');
+  });
+
+  test('the building locks tile with a really open lock says so', async ({ page }) => {
+    await mockHonestArea(page);
+    await openBuilding(page);
+    const tile = B(page).locator('sw-kpi[data-tile-kind="locks"]');
+    await expect(tile).toHaveAttribute('detail', 'יש מנעול פתוח'); // the office's open lock
+    await expect(tile).toHaveAttribute('tone', 'stale');
   });
 
   test('no horizontal page scroll with the extra indicator', async ({ page }) => {

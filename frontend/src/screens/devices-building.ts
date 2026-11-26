@@ -96,7 +96,7 @@ import type { SiteGo } from './home-site-view';
 import type { HomeSiteOff, SiteOffBuilding } from './home-site-off';
 import { media } from '../api/media-screens';
 import { hueOf, SkinController } from '../design/skin';
-import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
+import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, lockUnknown, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
 import { modalKeydown } from '../components/a11y-keys';
 import { removeLayer, syncLayer } from '../components/modal-stack';
@@ -230,6 +230,15 @@ export const DEMO_DEVICES_TREE: DeviceTree = {
   scoped: false,
   sync: { connected: false, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 0, entities: 20, started_at: null, ha_version: null },
 };
+
+/** AREA-HONEST-COUNT-2540 (SCR-10): the locks tile - an open lock is news (stale tone); a lock whose state is not known is neither
+ * open nor locked (offline tone, "מצב N מנעולים לא ידוע"); all known and locked = live. */
+function lockKpi(c: DeviceCounts): { tone: 'live' | 'stale' | 'offline'; detail: string } {
+  const unknown = lockUnknown(c);
+  if (c.locks - c.locks_locked - unknown > 0) return { tone: 'stale', detail: tr('יש מנעול פתוח') };
+  if (unknown > 0) return { tone: 'offline', detail: unknown === 1 ? tr('מצב מנעול אחד לא ידוע') : tr('מצב {n} מנעולים לא ידוע', { n: unknown }) };
+  return { tone: 'live', detail: tr('הכול נעול') };
+}
 
 const ZERO: DeviceCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
 function sumCounts(list: DeviceCounts[]): DeviceCounts {
@@ -2330,7 +2339,7 @@ export class DevicesBuilding extends LitElement {
       climate: () => kpi(tr('מיזוג פעיל'), c.climate_active, c.climate, 'snow', 'climate'),
       heating: () => kpi(tr('חימום פעיל'), c.heating_active, c.heating, 'flame', 'heating'),
       media: () => kpi(tr('מסכים דולקים'), c.media_on, c.media, 'play', 'media'),
-      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi=${'נעולים' /* i18n-keep: identifier, selected by tests and styles */} data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label=${tr('מנעולים נעולים')} value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${c.locks_locked === c.locks ? 'live' : 'stale'} detail=${c.locks_locked === c.locks ? tr('הכול נעול') : tr('יש מנעול פתוח')} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint=${tr('הצג ושלוט')} @click=${open('locks')}></sw-kpi>`,
+      locks: () => html`<sw-kpi tag=${this.kpiTag} data-kpi=${'נעולים' /* i18n-keep: identifier, selected by tests and styles */} data-tile-kind="locks" data-value=${`${c.locks_locked}/${c.locks}`} label=${tr('מנעולים נעולים')} value=${`${c.locks_locked} / ${c.locks}`} icon="lock" tone=${lockKpi(c).tone} detail=${lockKpi(c).detail} layout=${layout} icon-end action ?expanded=${this.isOpen('locks')} hint=${tr('הצג ושלוט')} @click=${open('locks')}></sw-kpi>`,
       sensors: () => count(tr('חיישנים'), c.sensors, 'sensor', 'sensors'),
       cameras: () => count(tr('מצלמות'), c.cameras, 'camera', 'cameras'),
       alarm: () => (c.alarm && !hideAlarm ? html`<sw-kpi tag=${this.kpiTag} data-kpi=${'אזעקה' /* i18n-keep: identifier, selected by tests and styles */} data-tile-kind="alarm" label=${tr('אזעקה')} value=${ALARM_HE[c.alarm] ?? c.alarm} icon="shield" tone=${alarmTone(c.alarm)} layout=${layout} icon-end action ?expanded=${this.isOpen('alarm')} hint=${tr('הצג')} @click=${open('alarm')}></sw-kpi>` : nothing),
