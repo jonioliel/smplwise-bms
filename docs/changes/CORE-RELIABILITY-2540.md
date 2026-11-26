@@ -138,7 +138,7 @@ Runner (`~/work/p2520_corerel_targeted.sh` through `slotb.sh`, head `e2b96cbe6`,
   `test_app_session_295`, `test_app_session_cache_race_2443`, `test_app_session_fixtures_sx25`, `test_authrevoke_2435`,
   `test_session_cache_2438`, `test_local_identity`, `test_mfa_tokens_2490`; guards: `test_i18n_errors_en_2520`,
   `test_singletons_registered`, `test_wire_ratchet_2480`, `test_routers_table_2440`, `test_async_routes_hold_no_write_conn`), nine
-  pytest processes of 5 files, three lanes: **831 passed, 2 failed**.
+  pytest processes of 5 files, three lanes: **829 passed, 2 failed** (831 tests).
   - `test_secfix_restore_settings_2520.py::test_every_security_and_remote_setting_is_classified_keep_or_travel` - fails at the base
     `aeb05ad3d` too (re-run there: 1 failed, 51 passed; also one of the 3 backend failures of the base's release gate). Not this row.
   - `test_db_gate.py::test_a_waiting_writer_is_handed_the_lock_on_release_and_times_out_as_locked` - a wall-clock bound (0.84 s against
