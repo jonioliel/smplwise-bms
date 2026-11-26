@@ -49,6 +49,11 @@ mocked backends only, except the three unit files marked PC.
 | existing home pixels | pixel-home-account-2530, -next-2500, -gaps-2436, -auditfix-2437, -fb-2431, desktop + mobile | 0 | 42 passed, 4 skipped - the demo house looks exactly as before |
 | compare captures | `honest-states-2540-shots.spec.ts` SW_SHOTS=1, base build (before) and branch (after) | 0 | 24 pictures: `private/planning/honest_states_2540_compare_2026-11-25.html` |
 
+Unused exports (coordinator, AREA-HONEST-COUNT-2540): `node scripts/unused-exports.mjs --enforce` failed on two new file-local
+types (`DoorTone`, `AlarmLook`); their `export` keyword was dropped. Re-run on the PC: exit 0, "no export outside the baseline";
+unit (PC, one file each) unit-honest-states-2540 / unit-home-simple-logic / unit-home-v3-p1 / unit-home-favorites-2500 / unit-i18n-home:
+12 / 9 / 8 / 19 / 6 passed.
+
 NOT_RUN: the full release gate; the full `evidence-automations-builder.spec.ts` and the other sw-toggle screens (the default,
 uncontrolled path is unchanged: same `checked` flip, same `detail.checked`); the lab (forbidden for this row).
 

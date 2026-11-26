@@ -86,7 +86,7 @@ export function alarmWord(state: string | null, available = true): { text: strin
 // HONEST-STATES-2540 (deep review SCR-09): what a panel's state means for the summaries. A panel that is offline, or answers a state the
 // home interface does not know (null, 'unknown', anything new), is never "armed" (green) and never "disarmed" either.
 const ALARM_ARMED = new Set(['armed_home', 'armed_away', 'armed_night', 'armed_vacation', 'armed_custom_bypass', 'arming', 'pending', 'disarming']);
-export type AlarmLook = 'triggered' | 'armed' | 'disarmed' | 'unknown' | 'unavailable';
+type AlarmLook = 'triggered' | 'armed' | 'disarmed' | 'unknown' | 'unavailable';
 export function alarmLook(state: string | null, available = true): AlarmLook {
   if (!available || state === 'unavailable') return 'unavailable';
   if (state === 'triggered') return 'triggered';
