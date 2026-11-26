@@ -1,5 +1,30 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.55.0 (pilot) - import from the old NVR add-on, a safe way back, Android push without Google
+
+<!-- RELEASE-2550-TRAIN: DRAFT - the train coordinator's working list for rows 1-4 (LEGACY-MIGRATION-2550, LEGACY-IMPORT-UI-2550, PILOT-ROLLBACK-2550, ANDROID-PUSH-2550) and the train fixes, not the final release text; the lead writes the final bilingual text at release. HA-STATE-RECONCILE-2550 is still to come. The word DRAFT is kept out of the heading (as on the 2.52-2.54 trains) so scripts/release_check.py reads 2.55.0 as the CHANGELOG head while the version files are 2.55.0. -->
+
+### חדש - New
+- ייבוא מהמערכת הישנה (תוסף ה-NVR הקודם, גרסה 1.5.27): בהגדרות › גיבוי ושחזור בוחרים קובץ (גיבוי לא מוצפן של מערכת הבית, ZIP / TAR של קובצי התוסף או קובץ הייצוא של הסקריפט), רואים דוח של כל פריט - מה יועתק, מה זהה, מה נשאר ומה צריך לעשות אדם - ומחילים עם מילת אישור. לפני השינוי נכתב גיבוי (בלי גיבוי - אין שינוי); מועתקים רק כינויי מצלמות שריקים היום; סיסמאות, PIN וכתובות לא נקראים החוצה ולא נשמרים; שום דבר לא נכתב ל-NVR, ל-go2rtc או למערכת הבית. - Import from the old system (the previous NVR add-on, version 1.5.27): in Settings › Backup and restore choose a file (an unprotected home-system backup, a ZIP / TAR of the add-on's files or the script's export), see a report of every item - what is copied, what is the same, what stays and what a person must do - and apply with a confirmation word. A backup is written before the change (no backup, no change); only camera names that are empty today are copied; passwords, PINs and addresses are never read out or kept; nothing is written to the NVR, go2rtc or the home system.
+- התראות לטלפון אנדרואיד בלי שירותי Google (UnifiedPush): מנהל מגדיר שרת דחיפה בהגדרות התוסף (`unifiedpush_servers`, ריק = כבוי) והאפליקציה יכולה להירשם דרכו; השרת רואה רק הודעה מוצפנת וריקה מתוכן, והאפליקציה מביאה את הטקסט מהשרת של הלקוח. דורש גרסה של האפליקציה שתומכת בכך. - Notifications on an Android phone without Google services (UnifiedPush): an administrator sets a push server in the add-on options (`unifiedpush_servers`, empty = off) and the app can register through it; the push server sees only an encrypted, content-less message, and the app fetches the text from the customer's own server. Needs an app version that supports it.
+
+### שופר - Improved
+- מדריך חזרה לגרסה קודמת לפיילוט (בעברית): אילו נתונים נשמרים ואילו לא, איזה גיבוי לשחזר, הגשר ו-WisKey, ובדיקה אחרי החזרה. - A pilot rollback guide (Hebrew): which data is kept and which is not, which backup to restore, the bridge and WisKey, and the check after the rollback.
+
+### תוקן - Fixed
+- כשהדיסק מלא ברגע השמירה, הפעולה מוצגת "האחסון מלא" ולא "שגיאה לא צפויה", והשינוי שנדחה לא נשמר מאוחר יותר בשקט. - When the disk is full at the moment of saving, the action shows "storage full" instead of "unexpected error", and the refused change is no longer stored silently later.
+- שעון שזז אחורה או קדימה (סנכרון זמן) כבר לא מעלים התראת "ה-NVR מנותק", לא מוחק פער בכיסוי ההקלטות, לא הופך ניתוק קצר לפער של שעה ולא דוחה בשעה את בדיקת שירות הווידאו. - A clock moved back or forward (time sync) no longer hides the "NVR disconnected" alert, no longer drops a recording-coverage gap, no longer turns a short drop into an hour-long gap and no longer delays the video service check by an hour.
+
+### שינוי בממשק השרת - API change
+- חדש: `GET /migration/legacy`, `POST /migration/legacy/dry-run`, `POST /migration/legacy/apply` (מנהל מערכת; ההחלה דורשת `plan_digest` ומילת האישור `legacy_import_apply`). תוספות בלבד: `POST /notifications/devices` מקבל `kind: "unifiedpush"` עם `endpoint` / `p256dh` / `auth`; `unifiedpush` ב-`GET /presence/config`; `app_unifiedpush` ב-`GET /notify/stats`; `push.kind` בתצוגת המכשיר. - New: `GET /migration/legacy`, `POST /migration/legacy/dry-run`, `POST /migration/legacy/apply` (system administrator; apply needs the `plan_digest` and the confirmation word `legacy_import_apply`). Additive only: `POST /notifications/devices` accepts `kind: "unifiedpush"` with `endpoint` / `p256dh` / `auth`; `unifiedpush` in `GET /presence/config`; `app_unifiedpush` in `GET /notify/stats`; `push.kind` in the device view.
+
+### לצוות הפיתוח - For the development team
+- בדיקת השחרור בודקת שכל מיגרציה מאז הגרסה הקודמת תואמת לאחור (הגרסה הקודמת יכולה לרוץ על המסד החדש), או נושאת הערת `Rollback:`. - The release check verifies that every migration since the previous release is backward compatible (the previous version can run on the newer database) or carries a `Rollback:` note.
+- סקריפט התחנה `scripts/migrate_legacy.py` קורא גיבוי מלא (`--backup`) וכותב קובץ ייצוא בלי סודות (`--export`). - The workstation script `scripts/migrate_legacy.py` reads a full backup (`--backup`) and writes a secret-free export (`--export`).
+
+### התקנה - Install
+- מיגרציה אחת חדשה: `0227_mobile_unifiedpush.sql` - שלוש עמודות ריקות ואינדקס בטבלת מכשירי הטלפון; מוסיפה בלבד ותואמת לאחור (2.54.0 רץ עליה). אופציה חדשה בתוסף: `unifiedpush_servers` (ריק = כבוי). הגשר נשאר 0.10.9. בחזרה לגרסה קודמת: לשחזר את הגיבוי `auto-pre-upgrade` שההערה שלו "before upgrade 2.54.0 -> 2.55.0", לא את החדש ביותר. - One new migration: `0227_mobile_unifiedpush.sql` - three empty columns and an index on the phone devices table; additive and backward compatible (2.54.0 runs on it). New add-on option: `unifiedpush_servers` (empty = off). The bridge stays 0.10.9. On a rollback: restore the `auto-pre-upgrade` backup whose note reads "before upgrade 2.54.0 -> 2.55.0", not the newest one.
+
 ## 2.54.0 (pilot) - honest states and confirmed physical actions; reliability, time and security fixes from the deep code review
 
 <!-- RELEASE-2540-TRAIN: DRAFT - the train coordinator's working list for rows 1-17 and the train fixes, not the final release text; the lead writes the final bilingual text at release. The word DRAFT is kept out of the heading (as on the 2.52 and 2.53 trains) so scripts/release_check.py reads 2.54.0 as the CHANGELOG head while the version files are 2.54.0. -->
