@@ -1091,6 +1091,17 @@ export const homeWidgetsStyles = [css`
     :host([layout='hero'][data-squeeze]) .wg-h {
       display: none;
     }
+    /* the narrower large weather card keeps its reading whole: the measures leave the side column for a line under it (the band's row
+       is as tall as the Shabbat card anyway) */
+    :host([layout='hero'][data-squeeze]) .wg-weather[data-size='l'] .wg-b {
+      grid-template-columns: 1fr;
+      row-gap: var(--sw-s-1);
+    }
+    :host([layout='hero'][data-squeeze]) .wg-weather[data-size='l'] .wx-m {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--sw-s-3);
+    }
     :host([layout='hero']) .wg-weather[data-size='l'] .wg-b,
     :host([layout='side']) .wg-weather[data-size='l'] .wg-b {
       display: grid;
