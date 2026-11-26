@@ -583,8 +583,12 @@ def dev_states(body: DevStatesIn, request: Request, background: BackgroundTasks,
     for st in body.states:
         row = ha_sync.upsert_state(conn, {"entity_id": st.entity_id, "state": st.state, "attributes": st.attributes.model_dump(), "last_changed": now, "last_updated": now})
         ha_sync.STATE.sequence += 1
-        ha_sync.publish({"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
+        # HOME-SPEC-STABLE-2540: the push after the commit, as the real path does (ha_sync.on_state_changed: the row first, then the push).
+        # Published here, inside the request, it left before this transaction committed: a screen whose refetch reached the server in
+        # between read the old state and kept it (no further push came) until its slow fallback poll. Background tasks run after the commit.
+        background.add_task(ha_sync.publish, {"type": "entity_state_changed", "sequence": ha_sync.STATE.sequence, "entity": row})
         rows.append(row)
+    for st in body.states:  # the same order as before: every entity push first, then the media frames
         background.add_task(media_store.on_state_event, request.app.state.db, st.entity_id)  # CR-015: the same `media_state` frame a real state event sends, after the commit
     audit(conn, actor=principal, action="ha.dev.states", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"entities": [r["entity_id"] for r in rows]})

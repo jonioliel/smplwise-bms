@@ -259,6 +259,12 @@ test.describe('the home screen against the devices fixture backend', () => {
           await expect(b.locator('.page-body')).toHaveAttribute('data-home-direction', dir);
           const hw = b.locator('home-widgets');
           await expect(hw).toBeVisible();
+          // FIXTURE-SPECS-2405: the page never scrolls; the floor tree may scroll inside its own capped panel (HOME-295, after this spec was
+          // written: the shell's sub-navigation row and the bolder summary tiles left the owner's 12-row tree 58 px short at 1440x900).
+          // HOME-SPEC-STABLE-2540: polled, as the other fit tests below - the screen packs one step per render (fit 0 -> 1 -> 2, b's fold,
+          // the squeeze), starts again from 0 whenever a late read changes what is drawn, and measures again on its recheck timers (up to
+          // 3 s); read once after open()'s fixed pause, b at 1366x768 was caught mid-packing on a loaded runner ("main 962/768")
+          await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: `${dir} ${view} ${w}x${h}`, timeout: 8000 }).toEqual([]);
           const box = (await hw.boundingBox())!;
           const kpis = (await b.locator('.kpis').boundingBox())!;
           const split = (await b.locator('.split').boundingBox())!;
@@ -280,9 +286,6 @@ test.describe('the home screen against the devices fixture backend', () => {
             expect(Math.max(...tops) - Math.min(...tops), 'one row').toBeLessThanOrEqual(3);
             expect(box.height, 'about 90 px').toBeLessThanOrEqual(130);
           }
-          // FIXTURE-SPECS-2405: the page never scrolls; the floor tree may scroll inside its own capped panel (HOME-295, after this spec was
-          // written: the shell's sub-navigation row and the bolder summary tiles left the owner's 12-row tree 58 px short at 1440x900)
-          expect(await scrolls(page, '.split > nav.tree'), `${dir} ${view} ${w}x${h}`).toEqual([]);
           const tc = await treeCapped(page);
           if (tc) {
             expect(tc.capped, `${dir} ${view} ${w}x${h}: the tree is sized to the height left`).toBe(true);
