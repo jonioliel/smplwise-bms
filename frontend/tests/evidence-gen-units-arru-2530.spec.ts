@@ -12,8 +12,8 @@ import { installGeneratorMock, PERMS, url } from './generator-mocks';
 const SHOTS = process.env.SW_GEN_ARRU_SHOTS ?? '';
 
 const WORDS = {
-  ar: { oil: 'الحد الأدنى لضغط الزيت', fuelLow: 'وقود منخفض', interval: 'الفترة المتوقعة بين الاختبارات (0 = بدون متابعة)', shortRun: 'التشغيل الأقصر من هذا لا يُسجَّل', days: 'يوم', s: 'ثانية', retStale: 'الوقت حتى عرض "لا يوجد اتصال"' },
-  ru: { oil: 'Минимальное давление масла', fuelLow: 'Низкий уровень топлива', interval: 'Ожидаемый интервал тестов (0 = не отслеживать)', shortRun: 'Запуск короче этого не записывается', days: 'дн.', s: 'с', retStale: 'Время до показа «Нет связи»' },
+  ar: { oil: 'الحد الأدنى لضغط الزيت', fuelLow: 'وقود منخفض', interval: 'الفترة المتوقعة بين الاختبارات (0 = بدون متابعة)', shortRun: 'التشغيل الأقصر من هذا لا يُسجَّل', bar: 'bar', days: 'يوم', s: 'ثانية', retStale: 'الوقت حتى عرض "لا يوجد اتصال"' },
+  ru: { oil: 'Минимальное давление масла', fuelLow: 'Низкий уровень топлива', interval: 'Ожидаемый интервал тестов (0 = не отслеживать)', shortRun: 'Запуск короче этого не записывается', bar: 'бар', days: 'дн.', s: 'с', retStale: 'Время до показа «Нет связи»' },
 } as const;
 
 type Scheme = 'light' | 'dark';
@@ -67,7 +67,7 @@ test.describe('generator settings: Arabic and Russian unit words in the field fr
     test(`${lang} ${scheme}: unit words and labels in ${lang}, the unit at the end of the reading direction, digits left-to-right`, async ({ page }) => {
       const s = await open(page, lang, scheme, '/system/infra/generator/thresholds', 'thresholds');
       await shot(page, `gen-units-${lang}-${scheme}-thresholds`);
-      await expect.poll(async () => (await fields(s)).find((x) => x.label === w.oil)?.unit ?? null).toBe('bar');
+      await expect.poll(async () => (await fields(s)).find((x) => x.label === w.oil)?.unit ?? null).toBe(w.bar);
       const f = await fields(s);
       expect(f.length).toBeGreaterThan(0);
       for (const x of f) {
