@@ -388,13 +388,16 @@ export class SwStepUpDialog extends LitElement {
     // dialog offers the code and says why the passkey is not offered, instead of leaving it out silently
     // (RELEASE-2530-TRAIN: MFA-T095-REST-2530's phone approval is another way too)
     const pkElsewhere = listed && !pk && (code || dk || push);
+    // A11Y-NEW-2550: the field is described by the refused action and the expiry (the dialog's own name is only its heading, and the
+    // focus lands in the field, so a screen reader did not say WHICH action waits for the code nor that it is cancelled by itself)
+    const describedBy = named ? 'su-action su-expiry' : 'su-expiry';
     return html`<sw-dialog ?open=${this.open} heading=${t('stepUp.heading')} data-step-up-dialog @close=${(e: Event) => { e.stopPropagation(); this.answer(false); }}>
-      ${named ? html`<p class="msg action" data-step-up-action>${trm('הפעולה: {action}', { action: named })}</p>` : nothing}
+      ${named ? html`<p class="msg action" id="su-action" data-step-up-action>${trm('הפעולה: {action}', { action: named })}</p>` : nothing}
       ${can
         ? html`<p class="msg" data-step-up-text>${body}</p>
             ${pkElsewhere ? html`<p class="hint" data-step-up-passkey-elsewhere>${trm('למפתח הגישה שלך צריך דפדפן שתומך במפתחות גישה. כאן אפשר לאשר בדרך אחרת.')}</p>` : nothing}
             <p class="hint" data-step-up-window>${minutes > 0 ? tf('stepUp.window', { minutes }) : t('stepUp.once')}</p>
-            <p class="hint" data-step-up-expiry>${trm('אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.', { seconds })}</p>
+            <p class="hint" id="su-expiry" data-step-up-expiry>${trm('אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.', { seconds })}</p>
             ${pk
               ? html`<div class="pk"><sw-button variant=${code ? 'secondary' : 'primary'} data-step-up-passkey ?disabled=${this.busy} @click=${() => void this.byPasskey()}>${this.passkeyBusy ? t('stepUp.passkeyWaiting') : t('stepUp.passkey')}</sw-button></div>`
               : nothing}
@@ -416,10 +419,10 @@ export class SwStepUpDialog extends LitElement {
               ? html`<form @submit=${(e: Event) => void this.submit(e)}>
                   ${pinMode
                     ? html`<input name="code" type="password" inputmode="numeric" autocomplete="off" maxlength="8" spellcheck="false" placeholder="••••"
-                        aria-label=${trm('קוד האזעקה האישי')} data-step-up-code data-step-up-pin-field
+                        aria-label=${trm('קוד האזעקה האישי')} aria-describedby=${describedBy} data-step-up-code data-step-up-pin-field
                         .value=${this.code} ?disabled=${this.busy} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />`
                     : html`<input name="code" inputmode=${this.recovery ? 'text' : 'numeric'} autocomplete="one-time-code" maxlength=${this.recovery ? 11 : 7} autocapitalize=${this.recovery ? 'characters' : 'off'}
-                        spellcheck="false" placeholder=${this.recovery ? 'XXXX-XXXX' : '000000'} aria-label=${this.recovery ? t('secondFactor.recoveryCodeLabel') : t('stepUp.codeLabel')} data-step-up-code
+                        spellcheck="false" placeholder=${this.recovery ? 'XXXX-XXXX' : '000000'} aria-label=${this.recovery ? t('secondFactor.recoveryCodeLabel') : t('stepUp.codeLabel')} aria-describedby=${describedBy} data-step-up-code
                         .value=${this.code} ?disabled=${this.busy} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} />`}
                 </form>
                 ${this.recoveryAllowed && !pinMode
