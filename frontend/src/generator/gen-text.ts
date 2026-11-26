@@ -1,10 +1,15 @@
 import { he, uiLang } from '../i18n/he';
 import { en } from '../i18n/en';
+import { docLang } from '../i18n/core';
+import { packTable } from '../i18n/lang-packs';
 
 /**
  * GEN-UNITS-FIELD-2520: the generator settings texts of the ACTIVE language, shared by the settings screen (gen-settings, GEN-UNITS-FIELD-2490)
  * and the alert routing screen (gen-routing). English where the English catalogue has the key, else the Hebrew; a Hebrew page reads the Hebrew
  * catalogue object itself (its output is unchanged). Read at render time, never captured when a module is evaluated.
+ * GEN-UNITS-ARRU-2530: an Arabic or Russian page reads the Hebrew with this module's own Arabic / Russian words merged over it - the unit words
+ * inside the field frames and the labels of those fields (rated power, alert thresholds, retention windows). The main catalogue has no Arabic or
+ * Russian column, so every other word of these screens stays Hebrew there, as on every other screen. An initial translation, dev-marked.
  */
 type GenText = typeof he.generator;
 
@@ -29,7 +34,33 @@ const englishText = (): GenText => {
   }
   return english;
 };
-const active = (): GenText => (uiLang() === 'en' ? englishText() : he.generator);
+
+// initial translation - needs a native review (dev-marked)
+const ar = packTable<typeof import('../i18n/lang/ar/generator/gen-text').ar>('ar', 'generator/gen-text', 'ar');
+
+// initial translation - needs a native review (dev-marked)
+const ru = packTable<typeof import('../i18n/lang/ru/generator/gen-text').ru>('ru', 'generator/gen-text', 'ru');
+
+/** The Arabic / Russian words of this module, by language (live pack tables: the same object, filled in place when the pack arrives). */
+export const GEN_TEXT_PACKS = { ar, ru } as const;
+type PackLang = keyof typeof GEN_TEXT_PACKS;
+/** Built on a read, from the words in at that moment; built again only when the pack's `settings` table is another object. */
+const packFrom: Partial<Record<PackLang, object>> = {};
+const packText: Partial<Record<PackLang, GenText>> = {};
+const otherText = (l: PackLang): GenText => {
+  const over = GEN_TEXT_PACKS[l].settings as object | undefined;
+  if (!over) return he.generator; // the pack is not in yet: the Hebrew, as before
+  if (packFrom[l] !== over || !packText[l]) {
+    packFrom[l] = over;
+    packText[l] = mergeText(he.generator, { settings: over });
+  }
+  return packText[l]!;
+};
+const active = (): GenText => {
+  if (uiLang() === 'en') return englishText();
+  const l = docLang(['ar', 'ru'] as const);
+  return l === 'he' ? he.generator : otherText(l);
+};
 
 /** `he.generator` of the active language (each top-level section resolved on read). */
 export const GEN: GenText = new Proxy(he.generator, { get: (_t, k) => active()[k as keyof GenText] });
