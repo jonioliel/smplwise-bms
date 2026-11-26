@@ -50,6 +50,9 @@ continued indefinitely.
   `access_lost` only when it happened (the existing count shape is unchanged otherwise).
 - A re-check that raises (a busy database) keeps the cast for that round (asked again 30 s later), like a camera lease re-check.
 - `frontend/src/api/cast.ts`: `'access_lost'` added to the `CastStopReason` type (type only; no screen shows the reason text today).
+- Found on the way: the response models `CastSession` / `CastSessionsSession` declared `expires_at: str`, so `GET` of a session or
+  the session list answered 500 while a PERMANENT cast was open (`expires_at` is null). Now `str | None` (`wire/cast.py`;
+  `frontend/src/api/generated/wire-cast.ts` regenerated with `scripts/gen_wire_types.py`).
 
 ### V-03 - generic NVR undo overwrote whatever the device held
 
@@ -73,13 +76,31 @@ continued indefinitely.
   `_end(lost=)`
 - `smplwise_vms/backend/smplwise/services/nvr_write.py`, `routers/nvr_write.py` - the undo check and `force`
 - `smplwise_vms/backend/smplwise/error_text_en.json` - two English texts
+- `smplwise_vms/backend/smplwise/wire/cast.py`, `frontend/src/api/generated/wire-cast.ts` - nullable `expires_at`
 - `frontend/src/api/cast.ts` - the stop-reason type
 - tests: `test_cast_relay_harden_2540.py`, `test_cast_access_lost_2540.py`, `test_nvr_undo_changed_since_2540.py` (new)
 
 ## 3. Tests
 
-See the report of this row for the exact runs (command, exit, counts). Fakes only: the relay on 127.0.0.1 with a fake go2rtc, the
-synthetic media installation with a fake bridge, the fake NVR (httpx MockTransport).
+Fakes only: the relay on 127.0.0.1 with a fake go2rtc, the synthetic media installation with a fake bridge, the fake NVR (httpx
+MockTransport). Runner (Linux, slot B, `~/work/p2520_castrelay_run.sh` at `0b1990190`, one pytest process per group,
+`python -m pytest -q -p no:cacheprovider -o addopts=""`):
+
+| group | files | exit | result |
+|---|---|---|---|
+| ruff | the 10 touched backend / test files | 0 | all checks passed |
+| new | the 3 new test files | 0 | 20 passed |
+| cast | test_cast_relay, test_cast_sessions, test_janitor, test_service_identity, test_shutdown_safely | 0 | 137 passed |
+| notices | test_notices_security_295, test_notice_caps_295, test_notices_106, test_bustimes_295, test_notice_slides_295, test_notice_rss_sources_295 | 0 | 210 passed |
+| nvr | test_nvr_write, test_backend_safety_2435, test_video_secfix_2520, test_nvr_write_guard_2438, test_nvr_schedule, test_nvr_system, test_multi_nvr, test_nvr_privacy_mask, test_camera_reboot_2407 | 0 | 93 passed |
+| guards | test_i18n_errors_en_2520, test_singletons_registered, test_wire_ratchet_2480, test_wire_route_coverage_2460, test_error_envelope_family678_2520, test_routers_table_2440, test_mfa_stepup_gates_2490, test_go2rtc_stream_sync_2436, test_timeutil_formats, test_secrets_transitional_263 | 0 | 184 passed |
+| frontend | `npx tsc --noEmit` | 0 | clean |
+
+Also on the PC (Windows, one file at a time): the 3 new files (7 + 8 + 5 passed), test_cast_relay.py (40 passed),
+test_notice_caps_295.py (12 passed), test_i18n_errors_en_2520.py (9 passed). A side check without the request deadline (only the
+1 s read timeout) showed a dripping connection still open after 5 s - the deadline is what cuts it.
+
+NOT_RUN: the full backend suite and the release gate (the train's gate covers them); Playwright / pixel specs (no screen changed).
 
 - `test_cast_relay_harden_2540.py` (7): an idle connection is closed and frees its slot; a slow-loris that drips a byte every 0.3 s
   (inside the 1 s read timeout) is cut off by the 1.5 s request deadline; the per-address cap closes the extra socket at once and a TV is
