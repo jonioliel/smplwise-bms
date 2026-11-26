@@ -904,8 +904,6 @@ export const en = {
   'לא התקבל וידאו ({mseTrace})': 'No video received ({mseTrace})',
   'הדפדפן לא תומך ב־codec של המצלמה': 'The browser does not support the camera codec',
   'WebRTC: תשובה לא תקינה': 'WebRTC: invalid answer',
-  'שגיאת זרם: {v}': 'Stream error: {v}',
-  'שגיאה בזרם הווידאו': 'Video stream error',
   'ההרשאה לצפייה במצלמה הזו הוסרה': 'Permission to view this camera was removed',
   'שגיאת buffer ({name})': 'Buffer error ({name})',
   '{undecodableMessage} · מוצג הזרם {v}': '{undecodableMessage} · showing the {v} stream',

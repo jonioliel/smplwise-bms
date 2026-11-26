@@ -13,6 +13,7 @@ import { frameSaysReplaced, replacedCloseCode } from '../api/socket-replaced';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
 import { tr } from '../i18n/msg/components';
+import { DENIAL_CODES, streamErrorHint, streamErrorText, type StreamKind } from '../api/stream-errors';
 
 /**
  * Live player over the add-on's WebSocket relay (go2rtc signalling behind it).
@@ -223,6 +224,10 @@ export class SwLivePlayer extends LitElement {
   /** HEALTH-GO2RTC-2430: the video service itself is down - one message, no own retry timer; the shared watch (api/video-service)
    * re-checks on a backoff to 60 s and this tile reconnects when it reports the recovery */
   @state() private serviceDown = false;
+  /** PLAYER-ERROR-TEXT-2530: the retry hint under a relay error's sentence (api/stream-errors), '' for any other error */
+  @state() private errorHint = '';
+  /** PLAYER-ERROR-TEXT-2530: the last relay error frame's sentence and code: a failure that ends on that sentence shows its hint */
+  private streamErr: { text: string; code: string } | null = null;
   private unsubService: (() => void) | undefined;
   /** HEALTH-GO2RTC-2430: the current socket delivered a frame (text or media) - a close without one is checked against the server */
   private gotFrame = false;
@@ -885,6 +890,8 @@ export class SwLivePlayer extends LitElement {
     this.error = '';
     this.offerRetry = false;
     this.serviceDown = false;
+    this.errorHint = '';
+    this.streamErr = null;
     this.gotFrame = false;
     this.replacedSaid = false;
     this.capped = false;
@@ -1146,8 +1153,10 @@ export class SwLivePlayer extends LitElement {
     this.status = 'error';
     this.error = message;
     this.offerRetry = message === VIDEO_SERVER_DOWN;
+    const willRetry = retryable && this.retry && this.active && !!(this.cameraId || this.wsUrl || this.livePath);
+    this.errorHint = this.streamErr && message === this.streamErr.text ? streamErrorHint(this.streamErr.code, this.streamKind, willRetry) : '';
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message, ...(code !== undefined ? { code } : {}) }, bubbles: true, composed: true }));
-    if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl || this.livePath)) {
+    if (willRetry) {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
       this.attempts += 1;
       this.retryTimer = window.setTimeout(() => {
@@ -1498,6 +1507,16 @@ export class SwLivePlayer extends LitElement {
     }
   }
 
+  /** PLAYER-ERROR-TEXT-2530: a camera live, or a recording (a playback session's socket) */
+  private get streamKind(): StreamKind {
+    return this.wsUrl ? 'recording' : 'live';
+  }
+
+  /** PLAYER-ERROR-TEXT-2530: the sentence for a relay error code (api/stream-errors) - never the code itself */
+  private streamErrorSentence(code: string | undefined): string {
+    return streamErrorText(code, this.streamKind);
+  }
+
   private onSignal(text: string) {
     let msg: { type?: string; value?: string; max?: number; message?: string; media?: string };
     try {
@@ -1511,6 +1530,13 @@ export class SwLivePlayer extends LitElement {
     // HEALTH-GO2RTC-2430: the relay says the video service itself is down (routers/media.refuse_media) - no transport step can help
     if (frameSaysDown(msg)) {
       this.videoServiceDown();
+      return;
+    }
+    if (msg.type === 'error') this.streamErr = { text: this.streamErrorSentence(msg.value), code: msg.value ?? '' };
+    // PLAYER-ERROR-TEXT-2530: the socket was refused for its caller (routers/media._refuse_socket, then close 4403) - a denial, never
+    // retried (it used to show "Stream error: presence_required" and retry every 30 s)
+    if (msg.type === 'error' && (msg.value === 'presence_required' || msg.value === 'service_account')) {
+      this.fail(this.streamErrorSentence(msg.value), false, msg.value);
       return;
     }
     // VIDEO-SUB-FALLBACK-2402: go2rtc refused this stream (not the cap, not a denial, not the video server being down)
@@ -1544,16 +1570,16 @@ export class SwLivePlayer extends LitElement {
       case 'error':
         if (this.laddered && msg.value === 'upstream_unavailable') this.fail(VIDEO_SERVER_DOWN); // no step can help; retried later
         else if (this.laddered && this.transport === 'webrtc' && msg.value !== 'access_lost') this.webrtcFailed(tr('WebRTC נכשל')); // never a raw code on screen
-        else if (!this.laddered && this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(msg.value ?? 'WebRTC', msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost');
+        else if (!this.laddered && this.transport === 'webrtc' && this.mode === 'auto') this.webrtcFailed(this.streamErrorSentence(msg.value), msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost');
         // a LAN chain with a step left: go2rtc refused this stream (e.g. no common codec) - the next step, never a loop
         else if (this.hasChainStep() && this.status !== 'playing' && msg.value !== 'upstream_unavailable' && msg.value !== 'access_lost') {
-          if (this.transport === 'webrtc') this.webrtcFailed(tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), true);
-          else this.mseFailed(tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), true);
+          if (this.transport === 'webrtc') this.webrtcFailed(this.streamErrorSentence(msg.value), true);
+          else this.mseFailed(this.streamErrorSentence(msg.value), true);
         }
         else if (this.laddered && msg.value !== 'access_lost' && this.status !== 'playing' && this.trySubFallback()) break; // VIDEO-SUB-FALLBACK-2402
-        else if (this.laddered && msg.value !== 'access_lost') this.fail(tr('שגיאה בזרם הווידאו'), true, msg.value ?? undefined);
+        else if (this.laddered && msg.value !== 'access_lost') this.fail(this.streamErrorSentence(msg.value), true, msg.value ?? undefined);
         else if (this.lanChained && msg.value !== 'access_lost' && msg.value !== 'upstream_unavailable' && this.status !== 'playing' && this.trySubFallback()) break;
-        else this.fail(msg.value === 'upstream_unavailable' ? VIDEO_SERVER_DOWN : msg.value === 'access_lost' ? tr('ההרשאה לצפייה במצלמה הזו הוסרה') : tr('שגיאת זרם: {v}', { v: msg.value ?? '' }), msg.value !== 'access_lost', msg.value ?? undefined);
+        else this.fail(this.streamErrorSentence(msg.value), !DENIAL_CODES.has(msg.value ?? ''), msg.value ?? undefined);
         break;
       default:
         break;
@@ -1724,7 +1750,7 @@ export class SwLivePlayer extends LitElement {
       ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
-          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.serviceDown && !this.compact && can('system.configure') && !onRemote() ? html`<sw-video-service-picker compact data-video-service-picker></sw-video-service-picker>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>${tr('נסה שוב')}</button>` : nothing}</div></div>`
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.errorHint && !this.serviceDown && !this.compact ? html`<span class="hint" data-stream-error-hint>${this.errorHint}</span>` : nothing}${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.serviceDown && !this.compact && can('system.configure') && !onRemote() ? html`<sw-video-service-picker compact data-video-service-picker></sw-video-service-picker>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>${tr('נסה שוב')}</button>` : nothing}</div></div>`
           : nothing}
       ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>${tr('הקטע הסתיים')}</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>${tr('לא מחובר')}</span></div></div>` : nothing}
