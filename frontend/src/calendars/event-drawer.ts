@@ -459,6 +459,8 @@ export class CalEventDrawer extends LitElement {
   private async cancelEvent(withdraw: boolean): Promise<void> {
     if (!this.confirmCancel) {
       this.confirmCancel = true;
+      // SCR-38: the question (and its choice) is where the eye is, also in a long form scrolled down
+      void this.updateComplete.then(() => this.renderRoot.querySelector('[data-cal-cancel-note]')?.scrollIntoView({ block: 'nearest' }));
       return;
     }
     const ev = this.event as CalEvent;
@@ -506,6 +508,7 @@ export class CalEventDrawer extends LitElement {
     const toReq = ev ? !!hint && (hint.level === 'pend' || hint.level === 'contest') : toApproval;
     return this.frame(ev ? 'edit' : 'new', ev ? tr('עריכת הזמנה') : tr('הזמנה חדשה'), sub, html`
         <div class="lockline" data-cal-roleline><sw-icon name="shield" size="16"></sw-icon><span class="ell">${this.roleLine(cal)}</span></div>
+        ${ev && this.confirmCancel ? this.cancelNote(ev, ev.state === 'pending' && !!ev.held) : nothing /* SCR-38: at the top, in view when the cancel is pressed */}
         ${ev?.held ? html`<div class="note warn" role="note" data-cal-held-note><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('בקשת שינוי ממתינה')}</b>
           <span class="muted">${tr('המועד הקודם')} <span class="ltr num">${hm(ev.held.start)}–${hm(ev.held.end)}</span> ${tr('שמור עד שתתקבל החלטה.')}</span></div></div>` : nothing}
         ${series ? html`<div class="note" role="note" data-cal-series-note><sw-icon name="refresh" size="18"></sw-icon><div><b>${tr('אירוע חוזר')}</b><span class="muted">${tr('כאן משנים כותרת ומשתתפים לכל הסדרה. את השעות של מועד אחד משנים מהלוח.')}</span></div></div>` : nothing}
@@ -543,7 +546,6 @@ export class CalEventDrawer extends LitElement {
             <span class="hint" data-cal-retention><sw-icon name="clock" size="14"></sw-icon><span>${this.retention === null ? tr('השם והטלפון יימחקו אחרי המועד האחרון, לפי הגדרות השמירה.') : this.retention === 0 ? tr('השם והטלפון יימחקו בסיום המועד האחרון.') : html`${tr('השם והטלפון יימחקו')} <span class="num">${this.retention}</span> ${tr('יום אחרי המועד האחרון.')}`}${this.behalfLabel.trim() ? ` ${tr('התווית "{label}" נשארת.', { label: this.behalfLabel.trim() })}` : ''}</span></span></div></div>` : nothing}
         ${!ev && toApproval ? html`<div class="note" role="note" data-cal-approval-note><sw-icon name="info" size="18"></sw-icon><div><b>${tr('הבקשה תישלח לאישור')}</b>
           <span class="muted">${conflicts.length ? `${tr('המועד חופף להזמנה שכבר אושרה; הבקשה תיכנס לתור והמנהל יחליט.')} ` : ''}${cal?.owner.name ? `${tr('{name}, מנהל/ת היומן, ת/יקבל התראה.', { name: cal.owner.name })} ` : ''}${tr('בקשה לא שומרת את המועד: מי שמאושר ראשון מקבל אותו.')}</span></div></div>` : nothing}
-        ${ev && this.confirmCancel ? this.cancelNote(ev, ev.state === 'pending' && !!ev.held) : nothing}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}
         ${this.suggestions.length ? html`<div class="sugg">${this.suggestions.map((s) => html`<button type="button" class="num ltr" @click=${() => this.take(s)}>${hm(s.start)}–${hm(s.end)}</button>`)}</div>` : nothing}`,
       html`<sw-button variant="primary" icon="check" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}>${toReq ? tr('שליחה לאישור') : tr('שמירה')}</sw-button>
