@@ -155,7 +155,7 @@ def test_critical_mute_needs_manage_and_is_capped(app):
 
 def test_a_non_critical_mute_stays_with_the_operator(app):
     c, db, settings = app
-    g = _gen(db)
+    _gen(db)
     set_state(db, "sensor.gen_fuel", "18")
     evaluate(db, T0)
     evaluate(db, T0 + 61)
@@ -169,7 +169,7 @@ def test_a_non_critical_mute_stays_with_the_operator(app):
 
 def test_unmute_and_a_muted_alert_is_told_when_the_mute_ends(app):
     c, db, settings = app
-    g = _gen(db)
+    _gen(db)
     set_state(db, "sensor.gen_fuel", "18")
     evaluate(db, T0)
     evaluate(db, T0 + 61)

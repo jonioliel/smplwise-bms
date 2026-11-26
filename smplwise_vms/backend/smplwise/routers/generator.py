@@ -378,8 +378,9 @@ def ack_alert(alert_id: str, body: AckBody | None = None, principal: Principal =
 
 @router.post("/generator/alerts/{alert_id}/mute", **wire(W.GeneratorMuted))
 def mute_alert(alert_id: str, body: MuteBody | None = None, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """DATA-RULES-2540 (review D-03): a critical type needs generator.manage and is muted for at most alerts.MUTE_CRITICAL_MAX_H hours (the
-    answer's `muted_until` is the real end); the other severities as before (generator.view, up to MUTE_MAX_H)."""
+    """Mute re-raises of the alert's type on its generator for `hours`. A critical type needs generator.manage and is muted for at most
+    alerts.MUTE_CRITICAL_MAX_H hours (the answer's `muted_until` is the real end); other severities: generator.view, up to MUTE_MAX_H
+    (DATA-RULES-2540, review D-03)."""
     until = alerts.mute(conn, principal, alert_id, body.hours if body else 24)
     if until is None:
         raise not_found("ההתראה לא נמצאה.")
@@ -388,8 +389,8 @@ def mute_alert(alert_id: str, body: MuteBody | None = None, principal: Principal
 
 @router.delete("/generator/alerts/{alert_id}/mute", **wire(W.GeneratorAlertDetail))
 def unmute_alert(alert_id: str, principal: Principal = Depends(_view_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """DATA-RULES-2540 (review D-03): end the mute of the alert's type on its generator now (idempotent). An alert raised while muted is
-    told on the engine's next pass. Answers the alert as GET /generator/alerts/{id} does (`muted_until` null)."""
+    """End the mute of the alert's type on its generator now (idempotent, audited when a mute was running). An alert raised while muted
+    is told on the engine's next pass. Answers the alert as GET /generator/alerts/{id} does (DATA-RULES-2540, review D-03)."""
     if alerts.unmute(conn, principal, alert_id) == "not_found":
         raise not_found("ההתראה לא נמצאה.")
     return alerts.alert_detail(conn, alert_id) or {}
