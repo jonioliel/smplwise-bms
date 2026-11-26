@@ -110,6 +110,29 @@ def _target_digest(target: Path) -> str | None:
         return None
 
 
+LEFTOVER_SUFFIXES = (".smplwise-new", ".smplwise-old")
+
+
+def _sweep_leftovers(dst: Path) -> list[str]:
+    """LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-12): remove what an interrupted swap of `_copy_tree` left next to the target - the
+    staged `<domain>.smplwise-new` and the replaced `<domain>.smplwise-old` - on EVERY install run, not only when a new copy is needed.
+    Each holds a manifest with this integration's domain, so Home Assistant would see a second `smplwise_bridge` folder for a whole
+    version. Only these two exact names, only real directories (never a link), never anything else in custom_components. Returns the
+    names removed; a removal that fails is logged and retried at the next run."""
+    removed: list[str] = []
+    for suffix in LEFTOVER_SUFFIXES:
+        stray = dst.with_name(dst.name + suffix)
+        if stray.is_symlink() or not stray.is_dir():
+            continue
+        try:
+            shutil.rmtree(stray)
+        except OSError as exc:
+            log.warning("bridge integration: could not remove the leftover %s (%s)", stray.name, type(exc).__name__)
+            continue
+        removed.append(stray.name)
+    return removed
+
+
 def _copy_tree(src: Path, dst: Path) -> int:
     """Fresh copy next to the target, then swap (Home Assistant only reads custom components at start-up)."""
     expected = distribution_digest(src)  # rejects links/collisions before copy
@@ -236,6 +259,8 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
                 announce_discovery(db, settings, conn)
             return status(db, conn)
         target = cfg / "custom_components" / DOMAIN
+        if _sweep_leftovers(target):  # TR-12: an interrupted swap of an earlier run
+            log.info("bridge integration: removed the leftover folder(s) of an interrupted copy")
         installed = read_version(target) if target.is_dir() else None
         STATE["installed_version"] = installed
         STATE["installed_at"] = _marker(target).get("at") if installed else None

@@ -26,6 +26,7 @@ case "$1" in
   version) [ "$m" = nodaemon ] && exit 1; echo 27.5.1; exit 0;;
   build) [ "$m" = buildfail ] && { echo "ERROR: process \\"/bin/sh -c pip install\\" did not complete successfully: exit code: 127"; exit 1; }; exit 0;;
   run) case "$*" in *healthz*) [ "$m" = nohealth ] && exit 4;; esac; exit 0;;
+  image) [ "$2" = inspect ] && { [ "$m" = badcmd ] && echo '["/bin/sh"]' || echo '["/run.sh"]'; }; exit 0;;  # LOWS-BRIDGE-GATE-2550: CMD
 esac
 exit 0
 """
@@ -121,7 +122,7 @@ def test_main_wires_the_stage_after_release_check_and_before_the_backend():
 
 @posix
 @pytest.mark.parametrize("mode,result,verdict", [("ok", "PASS", "pass"), ("buildfail", "FAIL", "fail"), ("nohealth", "FAIL", "fail"),
-                                                 ("nodaemon", "NOT_RUN", "pass")])
+                                                 ("badcmd", "FAIL", "fail"), ("nodaemon", "NOT_RUN", "pass")])
 def test_real_script_with_a_fake_docker(g, fake_docker, monkeypatch, tmp_path, mode, result, verdict):
     monkeypatch.setenv("FAKE_DOCKER_MODE", mode)
     logd = tmp_path / "logs"
@@ -138,9 +139,12 @@ def test_real_script_with_a_fake_docker(g, fake_docker, monkeypatch, tmp_path, m
         assert "--no-cache" not in build and build.rstrip().endswith(str(ROOT / "smplwise_vms")), "cached layers; the add-on folder is the context"
         assert all("--network none" in ln for ln in argv.splitlines() if ln.startswith("docker run ")), "smoke steps never reach the network"
         assert [s["name"] for s in out["steps"]] == ["lock_static", "lock_wheels", "lock_pip", "build", "import_smplwise", "import_server",
-                                                     "server_healthz", "system_tools", "constraints_match"]
+                                                     "server_healthz", "system_tools", "constraints_match",
+                                                     "run_sh_in_image", "run_sh_is_cmd"]
         assert [s["result"] for s in out["steps"]][:3] == ["PASS", "NOT_RUN", "NOT_RUN"], "ADDON_BUILD_LOCK=static: offline only"
         assert "open('/app/constraints.txt'" in argv, "constraints_match reads the lock inside the image"
+    if mode == "badcmd":  # LOWS-BRIDGE-GATE-2550 (TR-08): an image whose CMD is not /run.sh fails the check
+        assert "run_sh_is_cmd" in out["reason"], out
     if mode == "buildfail":
         assert any("exit code: 127" in ln for ln in out["log_tail"])
     if mode == "nodaemon":

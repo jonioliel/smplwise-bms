@@ -702,11 +702,11 @@ def test_init_attaches_the_setups_key_set_and_rotate_uses_the_saver():
 
 def test_bridge_0_10_9_and_both_copies_identical():
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.9"
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.10"
         const = (root / "const.py").read_text(encoding="utf-8")
-        assert 'VERSION = "0.10.9"' in const and "WISKEY-BRIDGE-KEYSET-2520" in const.split("# 0.10.8", 1)[0]
+        assert 'VERSION = "0.10.10"' in const and "WISKEY-BRIDGE-KEYSET-2520" in const.split("# 0.10.8", 1)[0]
         assert "Needs one Home Assistant restart (by the owner)" in const.split("# 0.10.8", 1)[0]
-        assert "const VERSION = '0.10.9';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert "const VERSION = '0.10.10';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     for name in ("native_keyset.py", "keyset.py", "__init__.py", "const.py", "manifest.json"):
         assert (SRC / name).read_bytes() == (MIRROR / name).read_bytes(), name
 

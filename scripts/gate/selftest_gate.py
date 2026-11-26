@@ -367,6 +367,7 @@ case "$1" in
   version) [ "$m" = nodaemon ] && exit 1; echo 27.5.1; exit 0;;
   build) [ "$m" = buildfail ] && { echo "ERROR: process \"/bin/sh -c pip install\" did not complete successfully: exit code: 127"; exit 1; }; exit 0;;
   run) case "$*" in *"import smplwise,"*) [ "$m" = importfail ] && { echo "ModuleNotFoundError: smplwise"; exit 1; };; esac; exit 0;;
+  image) [ "$2" = inspect ] && echo '["/run.sh"]'; exit 0;;  # LOWS-BRIDGE-GATE-2550: the CMD step (run_sh_is_cmd)
 esac
 exit 0
 """

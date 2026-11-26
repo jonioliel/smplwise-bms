@@ -150,7 +150,7 @@ def test_the_manifest_does_not_declare_single_config_entry():
     including the Supervisor's `hassio` discovery flow that delivers a re-paired code to the existing entry (BRIDGE-STALE-DISCOVERY-2383,
     config_flow.async_step_hassio). Declaring it would silently drop that update path, so it is left out on purpose."""
     manifest = json.loads((BRIDGE / "manifest.json").read_text(encoding="utf-8"))
-    assert "single_config_entry" not in manifest and manifest["version"] == "0.10.9"
+    assert "single_config_entry" not in manifest and manifest["version"] == "0.10.10"
     flow = (BRIDGE / "config_flow.py").read_text(encoding="utf-8")
     assert "async def async_step_hassio" in flow and "await self.async_set_unique_id(DOMAIN)" in flow
 

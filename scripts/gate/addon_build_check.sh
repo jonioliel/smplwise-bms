@@ -15,6 +15,8 @@
 #   4. the system tools the Dockerfile installs: pdftoppm, pdfinfo, ffmpeg
 #   5. PY-CONSTRAINTS-LOCK-2407: the installed Python set = smplwise_vms/backend/constraints.txt (every pin installed at its
 #      exact version, nothing outside the lock but the base image's own pip / setuptools / wheel)
+#   6. LOWS-BRIDGE-GATE-2550 (TR-08): the start command - CMD is /run.sh, executable, LF, the with-contenv bashio shebang, bash -n,
+#      and every bashio:: function it calls exists in the image's bashio library
 # The Python lock is also checked before the engine probe, so it runs on a machine without docker too:
 #   lock_static  scripts/lock_python.py --check (offline): every direct requirement pinned in constraints.txt and satisfied
 #   lock_wheels  scripts/lock_python.py --verify-wheels: every pin has a CPython 3.12 musllinux wheel for amd64 and aarch64 (PyPI)
@@ -283,7 +285,23 @@ for b in bad:
     print('MISMATCH', b)
 sys.exit(1 if bad else 0)
 "
+# LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-08): the steps above bypass s6 and run.sh. The add-on's real start command is checked
+# here without the Supervisor: CMD is /run.sh, /run.sh is executable, has LF line ends, starts with the with-contenv bashio shebang,
+# both interpreters exist, bash parses it, and every bashio:: function it calls is defined by the IMAGE's bashio library (a typo
+# such as bashio::confg used to pass every gate). Executing run.sh with fake options: smplwise_vms/backend/tests/test_run_sh_sandbox_2550.py.
+step run_sh_in_image "$ENGINE" run --rm --network none --entrypoint /bin/bash "$IMG" -c '
+set -e
+[ -x /run.sh ] || { echo "run.sh is not executable"; exit 1; }
+[ "$(head -n 1 /run.sh)" = "#!/usr/bin/with-contenv bashio" ] || { echo "unexpected shebang: $(head -n 1 /run.sh)"; exit 1; }
+if grep -q "$(printf "\r")" /run.sh; then echo "run.sh has CR line ends"; exit 1; fi
+[ -x /usr/bin/with-contenv ] && [ -x /usr/bin/bashio ] || { echo "with-contenv or bashio missing in the image"; exit 1; }
+bash -n /run.sh
+source /usr/lib/bashio/bashio.sh
+for f in $(grep -o "bashio::[A-Za-z_.]*" /run.sh | sort -u); do declare -F "$f" >/dev/null || { echo "bashio has no function $f"; exit 1; }; done
+echo "run.sh: shebang, mode, syntax and $(grep -o "bashio::[A-Za-z_.]*" /run.sh | sort -u | wc -l) bashio functions ok"
+'
+step run_sh_is_cmd bash -c '"$0" image inspect --format "{{json .Config.Cmd}}" "$1" | tee /dev/stderr | grep -q "\"/run.sh\""' "$ENGINE" "$IMG"
 
 # --- 5. only this check's own dangling layers (the tagged image stays: it is the next run's cache)
 "$ENGINE" image prune -f --filter "label=smplwise.gate=addon-build" >> "$LOG" 2>&1 || true
-finish PASS 0 "built $IMG from $BASE with $ENGINE $ENGINE_VER ($BUILDER) and the image passed import, create_app, /healthz and tools in $(( $(date +%s) - T0 ))s"
+finish PASS 0 "built $IMG from $BASE with $ENGINE $ENGINE_VER ($BUILDER) and the image passed import, create_app, /healthz, tools and run.sh in $(( $(date +%s) - T0 ))s"

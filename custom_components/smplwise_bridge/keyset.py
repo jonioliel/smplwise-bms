@@ -431,7 +431,8 @@ class Persister:
       the first save was still running, so "persist returned" did not mean "saved"); `saved_through(kid, ts)` tells whether the STORE
       holds a high-water mark of at least `ts` for `kid` (native_keyset admits a WisKey v2 message only then); `control(msg)` is the
       rotation service's write-ahead step (handle the op, save, go back to the saved state if the save fails), moved here from
-      `__init__.rotate` unchanged so that path and native_keyset share one lock."""
+      `__init__.rotate` unchanged so that path and native_keyset share one lock.
+    - LOWS-BRIDGE-GATE-2550 (bridge 0.10.10, WB-06): `control` holds that lock for the whole step and a rollback leaves the set dirty."""
 
     def __init__(self, keyset: KeySet, save: Callable[[dict[str, Any]], Awaitable[None]], entry_code: Callable[[], str],
                  wipe_entry_code: Callable[[], None], spawn: Callable[[Awaitable[None]], Any], *, delay_s: float = SAVE_DELAY_S,
@@ -470,19 +471,23 @@ class Persister:
 
     async def persist(self) -> None:
         async with self._guard():
-            if not self.keyset.dirty:
-                return
-            self.keyset.dirty = False
-            state = self.keyset.state()
-            try:
-                await self._save(state)
-            except BaseException:
-                self.keyset.dirty = True
-                raise
-            self._saved_retired = bool(state.get("legacy_retired"))
-            self._saved_fp = state.get("legacy_fp")
-            self._saved_hw = dict(state.get("hw") or {})
-            self.clean_entry()
+            await self._persist_held()
+
+    async def _persist_held(self) -> None:
+        """`persist()`'s body; the caller holds the lock."""
+        if not self.keyset.dirty:
+            return
+        self.keyset.dirty = False
+        state = self.keyset.state()
+        try:
+            await self._save(state)
+        except BaseException:
+            self.keyset.dirty = True
+            raise
+        self._saved_retired = bool(state.get("legacy_retired"))
+        self._saved_fp = state.get("legacy_fp")
+        self._saved_hw = dict(state.get("hw") or {})
+        self.clean_entry()
 
     def saved_through(self, kid: str, ts: int) -> bool:
         """The last successful save holds a high-water mark >= `ts` for `kid` (a restart then refuses every message of `kid` up to `ts`)."""
@@ -491,15 +496,23 @@ class Persister:
 
     async def control(self, msg: Any, now: float | None = None) -> dict[str, Any]:
         """One signed key-rotation control message -> the signed answer, saved BEFORE the answer leaves (write-ahead); if the save fails
-        the in-memory state goes back to the saved one and the error propagates (the add-on asks `status` and recovers)."""
-        saved = self.keyset.state()
-        answer = self.keyset.handle_control(msg, now)
-        try:
-            await self.persist()
-        except Exception:  # the step did not happen as far as the add-on can tell
-            self.keyset.reload(saved)
-            raise
-        return answer
+        the in-memory state goes back to the saved one and the error propagates (the add-on asks `status` and recovers).
+
+        LOWS-BRIDGE-GATE-2550 (deep review 2.52 WB-06, bridge 0.10.10): (a) the rollback leaves the set dirty - the snapshot can hold
+        high-water marks whose delayed save was still pending, and `reload` used to mark them clean, so they were not saved until the
+        next message raised the mark again; (b) the lock is held for the whole step (snapshot, op, save), not only the save - a second
+        control that ran its op while the first one's save was in flight used to answer "ok" for a change the first one's rollback had
+        reverted (its own save then found the set clean)."""
+        async with self._guard():
+            saved = self.keyset.state()
+            answer = self.keyset.handle_control(msg, now)
+            try:
+                await self._persist_held()
+            except Exception:  # the step did not happen as far as the add-on can tell
+                self.keyset.reload(saved)
+                self.keyset.dirty = True  # WB-06 (a): a redundant save is harmless, a mark left unsaved is not
+                raise
+            return answer
 
     def save_soon(self) -> None:
         if not self.keyset.dirty or self._pending:

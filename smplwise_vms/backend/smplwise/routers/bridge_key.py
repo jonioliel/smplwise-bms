@@ -152,11 +152,12 @@ def _direct_transport(conn: sqlite3.Connection) -> dict[str, Any]:
 @router.get("/system/bridge-key/service-grant", **wire(W.BridgeKeyServiceGrant))
 def get_service_grant(request: Request, principal: Principal = Depends(current_principal_ro),
                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """WISKEY-R8-2520: what WisKey reports about the owner's manual service grant v3 (one READ, or the reason none was sent)."""
+    """WISKEY-R8-2520: what WisKey reports about the owner's manual service grant v3 (one READ, or the reason none was sent).
+    LOWS-BRIDGE-GATE-2550 (WB-05): a read of the current connection younger than FRESHNESS_S is answered without a new one."""
     _gate(conn, request, principal, "bridge.key.read")
     from ..services import wiskey_service_grants_v3 as v3
 
-    return v3.view(v3.SOURCE.refresh())
+    return v3.view(v3.SOURCE.observe())
 
 
 class SettingsBody(BaseModel):

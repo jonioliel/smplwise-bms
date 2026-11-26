@@ -35,7 +35,10 @@ def differences() -> list[str]:
         cmp = filecmp.dircmp(a, b, ignore=["__pycache__", ".DS_Store"])
         out.extend(f"{rel}{n} (only in source)" for n in cmp.left_only if not n.endswith(".pyc"))
         out.extend(f"{rel}{n} (only in mirror)" for n in cmp.right_only if not n.endswith(".pyc"))
-        out.extend(f"{rel}{n} (differs)" for n in cmp.diff_files)
+        # LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-13): every common file is compared by its BYTES. dircmp's diff_files is shallow
+        # (same size + same mtime = "identical" unread), so a same-length edit in the same timestamp tick passed as in sync.
+        out.extend(f"{rel}{n} (differs)" for n in sorted(cmp.common_files) if not n.endswith(".pyc")
+                   and (a / n).read_bytes() != (b / n).read_bytes())
         for sub in cmp.common_dirs:
             walk(a / sub, b / sub, f"{rel}{sub}/")
 

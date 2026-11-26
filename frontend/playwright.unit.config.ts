@@ -21,7 +21,10 @@ process.env.TZ = process.env.SW_TEST_TZ || 'Asia/Jerusalem';
 // it used to fall through to the node-only run and fail there with no baseURL.
 // TRIAL-2480: FLAKY-SWEEP-2480 moved page specs to the helper `gotoApp(page, '/...')` (helpers/app-ready.ts); that call navigates too
 // (unit-device-types-admin-ui fell into the node-only run and failed there with "invalid URL").
-export const PAGE_SPEC = /goto\(\s*[`'"]\.?\/|gotoApp\(\s*\w+\s*,\s*[`'"]\.?\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\.?\/[?#]/;
+// LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-10): a spec that reaches the app another way (unit-mfa-passkeys-2490 builds its origin at
+// run time, `${await appOrigin(page, baseURL)}/...`) declares itself with the header marker `@unit-page-spec`; it used to land in the
+// node-only run and fail there with ERR_CONNECTION_REFUSED (or test whatever served 4173).
+export const PAGE_SPEC = /goto\(\s*[`'"]\.?\/|gotoApp\(\s*\w+\s*,\s*[`'"]\.?\/|\bconst\s+[A-Z_]+\s*=\s*['"`]\.?\/[?#]|@unit-page-spec\b/;
 // Only unit-* specs belong to this config, in either mode: a bare `-c playwright.unit.config.ts` run must not pick up the evidence / layout /
 // pixel specs (they need playwright.config.ts's preview server and projects).
 export const UNIT_SPEC = /^unit-.*\.spec\.ts$/;
