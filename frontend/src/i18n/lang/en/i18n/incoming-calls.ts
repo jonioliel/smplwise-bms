@@ -20,6 +20,8 @@ export const en = {
     doorSending: 'Sending…',
     doorSent: 'The open command was sent. This does not confirm the door opened.',
     doorFailed: 'The door did not open: {why}',
+    doorUnknown: 'It is not known whether the door was opened · check on site before sending again',
+    doorHeld: 'Waiting to be sorted out…',
     hide: 'Hide',
     station: 'Station',
     more: '{n} more',

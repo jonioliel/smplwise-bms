@@ -6,7 +6,8 @@
 import { html, nothing, type CSSResultGroup, type TemplateResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { SwIncomingCall } from '../components/sw-incoming-call';
-import { answerPlan, clockText, elapsedNow } from '../components/incoming-call-logic';
+import { answerPlan, clockText, elapsedNow, frontCall } from '../components/incoming-call-logic';
+import { ict } from '../i18n/incoming-calls';
 import { intercomSnapshotUrl } from '../api/intercom';
 import type { IncomingCall } from '../api/intercom-calls';
 import type { StationMedia } from '../api/station-media';
@@ -72,7 +73,7 @@ export class SwHomeCall extends SwIncomingCall {
     void this.tick;
     const shown = this.shown();
     if (!shown.length) return nothing;
-    const c = shown[Math.min(this.front, shown.length - 1)];
+    const c = frontCall(shown, this.frontId) ?? shown[0]; // PHYSICAL-CONFIRM-2540 (SCR-11): the front call by id, never swapped under the finger
     const mine = c.answered_by_me || this.talking.has(c.call_id);
     const busy = this.busy[c.call_id];
     const talkable = answerPlan(this.mediaNow(c)).kind === 'talk';
@@ -85,9 +86,14 @@ export class SwHomeCall extends SwIncomingCall {
     let side: TemplateResult;
     if (ask !== null) {
       side = html`<h1>${tr('לפתוח את')} ${door(ask)}?</h1><p class="sub">${tr('הדלת תינעל שוב מעצמה אחרי כמה שניות.')}</p>
-        <div class="call-acts"><button class="hbtn strong xl" data-call-door-yes ?disabled=${busy === 'door'} @click=${() => void this.openDoor(c, ask)}>${hi('unlock')}${tr('כן, פתח')}</button><button class="hbtn xl" data-call-door-no @click=${() => (this.doorAsk = null)}>${tr('ביטול')}</button></div>`;
+        <div class="call-acts"><button class="hbtn strong xl" data-call-door-yes ?disabled=${this.doorSending.has(SwIncomingCall.doorKey(c, ask))} @click=${() => { if (this.settled(c)) void this.openDoor(c, ask); }}>${hi('unlock')}${tr('כן, פתח')}</button><button class="hbtn xl" data-call-door-no @click=${() => (this.doorAsk = null)}>${tr('ביטול')}</button></div>`;
     } else {
-      const doors = canDoor ? c.locks.map((l) => html`<button class="hbtn xl${mine ? ' strong' : ''}" data-call-door=${l.physical_index} ?disabled=${!!busy} @click=${() => (this.doorAsk = `${c.call_id}/${l.physical_index}`)}>${hi('unlock')}${c.locks.length > 1 && l.name ? tr('פתח: {name}', { name: l.name }) : tr('פתח דלת')}</button>`) : [];
+      // PHYSICAL-CONFIRM-2540 (SCR-12): a door whose release is on its way, or held after an unknown outcome, waits (its own state per door)
+      const doors = canDoor ? c.locks.map((l) => {
+        const key = SwIncomingCall.doorKey(c, l.physical_index);
+        const held = !this.doorSending.has(key) && this.isHeld(key);
+        return html`<button class="hbtn xl${mine ? ' strong' : ''}" data-call-door=${l.physical_index} data-call-door-held=${held ? 'true' : 'false'} ?disabled=${!!busy || this.doorSending.has(key) || held} @click=${() => { if (this.settled(c)) this.doorAsk = `${c.call_id}/${l.physical_index}`; }}>${hi('unlock')}${held ? ict().banner.doorHeld : c.locks.length > 1 && l.name ? tr('פתח: {name}', { name: l.name }) : tr('פתח דלת')}</button>`;
+      }) : [];
       side = html`<p class="ring-line">${hi('bell')}${mine ? tr('בשיחה') : tr('מצלצלים עכשיו')} <span class="num">${clockText(sec)}</span></p><h1>${mine ? tr('מדברים עם ') + c.station_name : tr('מישהו ב') + c.station_name.replace(/^ה/, '')}</h1>
         <p class="sub">${mine ? (s?.muted ? tr('המיקרופון מושתק.') : tr('שומעים אותך בכניסה. אפשר לדבר.')) : talkable ? tr('אפשר לענות, לפתוח או להתעלם.') : tr('אפשר לפתוח או להתעלם. דיבור עם הכניסה הזו לא זמין מכאן.')}</p>
         ${n ? html`<p class="sub" role="status" data-call-note=${n.tone}>${n.text}</p>` : nothing}
