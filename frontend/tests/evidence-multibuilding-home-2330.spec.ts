@@ -136,7 +136,10 @@ test('the shared building opens with its own switch and the mini cross-section o
   await expect(B(page).locator('[data-site-bar]')).toHaveAttribute('data-site-level', 'bC');
   await B(page).locator('[data-site-switch-btn="bS"]').click();
   await expect(B(page).locator('.crumb.here')).toHaveText('משותף');
-  if (!phone(page)) expect(await overflowY(page)).toBeLessThanOrEqual(1);
+  // RELEASE-2540-TRAIN (2.54 gate, tablet): a new building is a new fit key, so the packing restarts from its loosest step and settles
+  // one or two frames after the crumb changed (frame trace at f9217db8a: crumb "משותף" at 204 ms, fit 0 and 5 px over at 241 ms, fit 1
+  // and 0 px at 280 ms; the same restart at 3b4654f8b). The fit is polled, as in the building test above (DOMUS-DEFAULT-2439).
+  if (!phone(page)) await expect.poll(() => overflowY(page), { message: 'the shared building fits like today home', timeout: 3000 }).toBeLessThanOrEqual(1);
   await shot(page, 'building-shared', info.project.name);
 });
 
