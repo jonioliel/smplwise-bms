@@ -574,12 +574,18 @@ export const homeWidgetsStyles = [css`
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    /* RELEASE-2540-TRAIN (2.54 gate, layout-worstcase-screens-297 tablet): a state longer than a narrow card ends in an ellipsis inside
+       the card (the full state is the element's title) instead of spilling out of it - measured: "דרוכה (חוץ)" 86 px in an 81 px box on
+       the squeezed band at 1024x768. One line always: wrapping made the card taller and the shared building's page scrolled again. */
     .al-s {
       font-size: var(--als, var(--sw-fs-xl));
       font-weight: var(--sw-fw-bold);
       letter-spacing: -0.015em;
       color: var(--sw-heading);
       white-space: nowrap;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .al-x {
       font-size: var(--sw-fs-xs);
