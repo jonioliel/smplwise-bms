@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Self-test of engine_sync.py (GATE-HARDEN-2520, TR-02) in a throw-away git repo and a fake runner home. Touches nothing real.
   python3 scripts/gate/selftest_engine_sync.py      -> last line "SELFTEST PASSED", exit 0
+TEST-STABILITY-2530: hermetic against the machine it runs on. HOME points at the fake home for the whole run, and the busy probe's
+process table is a fake (FAKE_PROCS), so a release gate that runs on the same runner no longer makes `install --apply` refuse here
+(it did: rc 3, then a manifest that was never written). The production probe (pgrep) is still exercised, against a fake `pgrep`.
 """
 import atexit
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -17,6 +22,15 @@ import engine_sync as es  # noqa: E402
 TMP = Path(tempfile.mkdtemp(prefix="engine_sync_selftest_"))
 atexit.register(shutil.rmtree, TMP, True)
 FAILS = []
+
+HOME = TMP / "home"
+HOME.mkdir()
+os.environ["HOME"] = os.environ["USERPROFILE"] = str(HOME)   # every Path.home() default (argparse --home / --repo) is the fake home
+
+# the machine's process table is never read: busy() asks this fake (pattern -> "pid command line" lines, like pgrep -af)
+FAKE_PROCS: list = []
+PROD_PROBE = es.PROC_PROBE
+es.PROC_PROBE = lambda pat: [ln for ln in FAKE_PROCS if re.search(pat, ln)]
 
 
 def check(name, cond, detail=""):
@@ -42,7 +56,6 @@ subprocess.run(["git", "init", "-q", str(REPO)], check=True)
 git("-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
 git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "v1")
 
-HOME = TMP / "home"
 for d in ("gate2", "nightly-gate", "smplwise-results/nightly"):
     (HOME / d).mkdir(parents=True)
 
@@ -101,6 +114,43 @@ check("install: after the gate, the new engine is installed", rc == 0 and (HOME 
 check("install: the backup of the replaced engine is kept", (HOME / "release_gate.py.bak_t").read_text() == files["release_gate.py"])
 rc = run("install", "--src", str(REPO), "--home", str(HOME), "--files", "nope.py")
 check("install: a file outside the install map is a usage error", rc == 2, rc)
+
+# TEST-STABILITY-2530: the process half of the busy probe, on the fake process table (the production refusal is unchanged)
+V5 = "# release_gate.py v5\n"
+(gd / "release_gate.py").write_bytes(V5.encode("utf-8"))
+git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qam", "v5")
+FAKE_PROCS[:] = ["4242 python3 /home/sw/gate2/release_gate.py pilot/X --tier L"]
+rc = run("install", "--src", str(REPO), "--home", str(HOME), "--files", "release_gate.py", "--apply", "--suffix", ".bak_t")
+check("install: refused while a release_gate process runs (rc 3), nothing copied",
+      rc == 3 and (HOME / "release_gate.py").read_text() == "# release_gate.py v4\n", rc)
+check("busy: names the pattern and the pid", "[r]elease_gate" in es.busy(HOME) and "pid 4242" in es.busy(HOME), es.busy(HOME))
+FAKE_PROCS[:] = ["4243 python3 /home/sw/gate2/engine_sync.py install --src /x --files release_gate.py --apply"]
+check("busy: engine_sync's own command line naming release_gate.py is not a gate", es.busy(HOME) == "", es.busy(HOME))
+FAKE_PROCS[:] = ["4244 bash /home/sw/nightly_tests.sh"]
+check("busy: a nightly run is busy too", "[n]ightly_tests" in es.busy(HOME) and "pid 4244" in es.busy(HOME), es.busy(HOME))
+FAKE_PROCS[:] = []
+check("busy: quiet fake home + quiet fake process table -> '' (whatever runs on this machine)", es.busy(HOME) == "", es.busy(HOME))
+rc = run("install", "--src", str(REPO), "--home", str(HOME), "--files", "release_gate.py", "--apply", "--suffix", ".bak_t")
+check("install: the process gone, the new engine is installed", rc == 0 and (HOME / "release_gate.py").read_text() == V5, rc)
+check("busy: production asks the real machine (pgrep) by default", PROD_PROBE is es.pgrep_lines, PROD_PROBE)
+
+# the production probe itself, against a fake `pgrep` on PATH (POSIX: the runner); the real process table is still never read
+if os.name == "posix":
+    fb = TMP / "fakebin"
+    fb.mkdir()
+    (fb / "pgrep").write_text('#!/bin/sh\ncase "$2" in *elease_gate*) echo "4245 python3 /home/sw/release_gate.py main";; esac\n', encoding="utf-8")
+    (fb / "pgrep").chmod(0o755)
+    (TMP / "nobin").mkdir()
+    path0 = os.environ.get("PATH", "")
+    try:
+        os.environ["PATH"] = str(fb)
+        why = es.busy(HOME, probe=es.pgrep_lines)
+        check("busy (production probe): a release_gate process that pgrep lists -> busy", "4245" in why, why)
+        os.environ["PATH"] = str(TMP / "nobin")
+        check("busy (production probe): no pgrep on the machine -> only the status files count", es.pgrep_lines("[r]elease_gate") is None
+              and es.busy(HOME, probe=es.pgrep_lines) == "", es.busy(HOME, probe=es.pgrep_lines))
+    finally:
+        os.environ["PATH"] = path0
 
 print()
 print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))

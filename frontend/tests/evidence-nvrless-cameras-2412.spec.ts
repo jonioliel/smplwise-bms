@@ -239,9 +239,19 @@ test.describe('EVIDENCE-CAMERAS-2412', () => {
       await shot(page, 'editor-camera-tool', info);
       await facts(page, info, 'editor-camera-tool');
       const canvas = ed.locator('sw-plan-canvas');
+      // TEST-STABILITY-2530: the placement click waits for real readiness signals and aims at a point of the PLAN. It used to click at
+      // 30 % / 75 % of the canvas BOX with page.mouse. The box is 909 px tall (the map column grows with the side panel), so that point
+      // is inside the window only when an earlier step left the page scrolled down (quiet runner: box top -10 / -21 px, PASS). Under
+      // load the page stayed at the top (box top 225 px): the point was y 906 on a 900 / 768 px window, nothing received the click -
+      // no plan-click event, no anchor - although the editor and the canvas were both armed (diagnostic runs, the change note).
+      await expect(item).toHaveClass(/\bon\b/); // the editor has the camera armed
+      await expect(canvas.locator('.viewport.placing')).toHaveCount(1); // the canvas takes the next click as a placement
+      await expect.poll(() => canvas.evaluate((el) => (el as unknown as { getView(): unknown }).getView() !== null), { timeout: 15000 }).toBe(true); // fitted
       await settle(page);
-      const box = (await canvas.boundingBox())!;
-      await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.75);
+      // the lower left room of the plan (30 % across, 75 % down), mapped by the canvas itself; locator.click scrolls it into view if
+      // needed and checks that the point really hits the canvas (no overlay, not off-screen) before it clicks
+      const at = await canvas.evaluate((el) => (el as unknown as { toScreen(x: number, y: number): { x: number; y: number } }).toScreen(0.3, 0.75));
+      await canvas.click({ position: at });
       await expect.poll(async () => ((await (await api.get(`api/v1/floors/${fl}/anchors`)).json()).anchors as { resource_id: string }[]).some((a) => a.resource_id === second.id), { timeout: 15000 }).toBe(true);
       await page.waitForTimeout(800);
       await shot(page, 'editor-placed', info);

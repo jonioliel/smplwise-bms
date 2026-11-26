@@ -35,7 +35,9 @@ copy is atomic, and `~/gate_install_manifest.json` records the source commit and
 A deliberate pin: `--engine-drift-ok "<reason>"` (or `GATE2_ENGINE_DRIFT_OK`), written into `gate_<b>_<sha>.engine.json`. The other
 gate-2 files (`gate2_select.py`, `gate2_verdict.py`, `gate_entry.py`, ...) are compared too and reported loudly, never refused.
 The nightly writes the same record for `~/nightly-gate/` (warn only: main can be older than an engine installed ahead of its release),
-and every report's JSON carries `engine_sha256`. Self-test: `python3 scripts/gate/selftest_engine_sync.py`.
+and every report's JSON carries `engine_sha256`. Self-test: `python3 scripts/gate/selftest_engine_sync.py` (hermetic since
+TEST-STABILITY-2530: a fake home as HOME and a fake process table, so it passes while a gate runs on the same runner; the install
+itself still refuses then).
 
 **`~/known_issues.json` (TR-06):** an entry explains a failure only with a non-empty `ticket` and an `expires` date (YYYY-MM-DD) from
 today to at most `GATE_KNOWN_MAX_DAYS` (7) days ahead - the quarantine rule. Other entries are refused, listed in the report (`known_refused`)

@@ -165,8 +165,27 @@ def cmd_check(a: argparse.Namespace) -> int:
     return 4 if refused else 0
 
 
-def busy(home: Path) -> str:
-    """Why the runner is not quiet ('' = quiet): a gate / entry check / nightly status says running, or such a process exists."""
+BUSY_PATTERNS = ("[r]elease_gate", "[n]ightly_tests", "[b]ranch_check.sh")
+
+
+def pgrep_lines(pat: str) -> list[str] | None:
+    """`pgrep -af PAT` of this machine as lines ("<pid> <command line>"); None when there is no pgrep (not the runner)."""
+    try:
+        r = subprocess.run(["pgrep", "-af", pat], capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return None
+    return r.stdout.splitlines()
+
+
+# TEST-STABILITY-2530: the process probe busy() asks. Production = the machine's real process table (pgrep). The selftest swaps in a
+# fake so its result never depends on a gate that happens to run on the same machine.
+PROC_PROBE = pgrep_lines
+
+
+def busy(home: Path, probe=None) -> str:
+    """Why the runner is not quiet ('' = quiet): a gate / entry check / nightly status says running, or such a process exists.
+    `probe` (default PROC_PROBE): pattern -> `pgrep -af` lines, or None when the machine cannot be probed."""
+    probe = PROC_PROBE if probe is None else probe
     for st in (home / "smplwise-results" / "gate_status.json", home / "smplwise-results" / "nightly" / "gate_status.json",
                home / "smplwise-results" / "entry_status.json"):
         try:
@@ -174,13 +193,12 @@ def busy(home: Path) -> str:
                 return f"{st} says running"
         except (OSError, ValueError, AttributeError):
             pass
-    for pat in ("[r]elease_gate", "[n]ightly_tests", "[b]ranch_check.sh"):
-        try:
-            r = subprocess.run(["pgrep", "-af", pat], capture_output=True, text=True, check=False)
-        except FileNotFoundError:   # no pgrep (not the runner): the status files above are the only probe
+    for pat in BUSY_PATTERNS:
+        lines = probe(pat)
+        if lines is None:   # no pgrep (not the runner): the status files above are the only probe
             continue
         # our own command line (and the shell that started it) may name release_gate.py in --files: never count those
-        pids = [ln.split()[0] for ln in r.stdout.splitlines() if ln.strip() and "engine_sync" not in ln and ln.split()[0] != str(os.getpid())]
+        pids = [ln.split()[0] for ln in lines if ln.strip() and "engine_sync" not in ln and ln.split()[0] != str(os.getpid())]
         if pids:
             return f"a process matching {pat!r} runs (pid {', '.join(pids[:5])})"
     return ""
