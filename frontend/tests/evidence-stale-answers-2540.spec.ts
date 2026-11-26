@@ -7,11 +7,9 @@ import { mockP3 } from './home-v3p3-mocks';
 import { mockFavs } from './home-favorites-2500-mocks';
 import { installCalendarsMock } from './calendars-mocks';
 import { url as appUrl } from './generator-mocks';
-import { BANNER, GATE_CALL, LOBBY_CALL, installCallsMock, openApp } from './incoming-call-mocks';
-import { installMulti } from './multi-nvr-mock';
 import { mock as playbackMock, openAndPlay } from './playback-stall-mock';
 
-// STALE-ANSWERS-2540 (review DEEP-REVIEW-2520-FRONTEND-SCREENS SCR-11 / 14 / 19 / 24 / 28 / 32 / 33 / 35 / 39; docs/changes/STALE-ANSWERS-2540.md).
+// STALE-ANSWERS-2540 (review DEEP-REVIEW-2520-FRONTEND-SCREENS SCR-19 / 24 / 28 / 32 / 33 / 35 / 39; SCR-11 / 14 moved to PHYSICAL-CONFIRM-2540; docs/changes/STALE-ANSWERS-2540.md).
 // The real screens against a MOCKED backend (the existing mock layers, plus a route per test that HOLDS one answer until the test lets it
 // go): a late answer for something the user already left never overwrites the newer selection, and a double action runs once.
 // Nothing is sent anywhere; no device, no recorder, no Home Assistant. Desktop project only (the sizes are set inside the tests).
@@ -226,52 +224,6 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     await page.waitForTimeout(600);
     await expect(page.locator(`${R} [data-res-day="5"]`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator(`${R} [data-res-room="a"] .mini i`)).toHaveCount(0);
-  });
-
-  // ---------------------------------------------------------------- SCR-11
-  test('SCR-11: a newer call that rings while one is shown goes behind it; the open door question stays on the call it was asked on', async ({ page }) => {
-    const m = await installCallsMock(page);
-    await openApp(page, '#/explore/floors/f0');
-    const banner = page.locator(BANNER);
-    await expect(banner).toHaveAttribute('data-station', 'gate', { timeout: 30_000 });
-    await page.locator(`${BANNER} [data-call-door="1"]`).click();
-    await expect(page.locator(`${BANNER} [data-call-door-ask="1"]`)).toBeVisible();
-    m.active.calls = [{ ...GATE_CALL }, { ...LOBBY_CALL }]; // the lobby rings (newer)
-    m.stations.push();
-    await expect(page.locator(`${BANNER} [data-call-next]`)).toHaveText('עוד 1', { timeout: 10_000 });
-    await expect(banner).toHaveAttribute('data-station', 'gate');
-    await expect(page.locator(`${BANNER} [data-call-door-ask="1"]`)).toBeVisible();
-    // "next" brings the lobby forward: the gate's question does not follow it, and the lobby's doors are not held
-    await page.locator(`${BANNER} [data-call-next]`).click();
-    await expect(banner).toHaveAttribute('data-station', 'lobby');
-    await expect(page.locator(`${BANNER} [data-call-door-ask]`)).toHaveCount(0);
-    await expect(page.locator(`${BANNER} [data-call-door="2"]`)).toBeEnabled();
-    expect(m.stations.released).toEqual([]);
-  });
-
-  // ---------------------------------------------------------------- SCR-14
-  test('SCR-14: the NVR system card shows the recorder selected last, even when the first recorder answers last', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await installMulti(page, { count: 2 });
-    const hold = gate();
-    await page.route('**/api/v1/nvr/system**', async (r) => {
-      const rid = new URL(r.request().url()).searchParams.get('recorder_id') ?? 'nvr-1';
-      if (rid === 'nvr-1') await hold.held;
-      return json(r, { time: { local_time: rid === 'nvr-1' ? '2026-10-04T10:00:00' : '2026-10-04T22:22:22', mode: 'NTP', drift_s: 0, ntp: null }, disks: [], outputs: [], errors: {},
-        can: { time: false, storage: false, alarm: false, reboot: false, osd: false, connection: true }, recorder_id: rid });
-    });
-    await page.goto('about:blank');
-    await page.goto('/?design=a#/system/setup');
-    await appReady(page);
-    const card = page.locator('sw-app system-setup [data-nvr-system]');
-    const sel = card.locator('select[data-nvr-system-recorder]');
-    await expect(sel).toBeVisible({ timeout: 20_000 });
-    await sel.selectOption('nvr-2');
-    await expect(card).toContainText('22:22:22');
-    hold.open(); // the first recorder's read lands last
-    await page.waitForTimeout(600);
-    await expect(card).toContainText('22:22:22');
-    await expect(card).not.toContainText('2026-10-04T10:00:00');
   });
 
   // ---------------------------------------------------------------- SCR-24

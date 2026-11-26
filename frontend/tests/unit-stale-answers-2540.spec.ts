@@ -1,12 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import type { IncomingCall } from '../src/api/intercom-calls';
 import { Latest } from '../src/api/latest';
 import { SeekCoalescer } from '../src/api/seek-coalescer';
 
-// STALE-ANSWERS-2540 (review DEEP-REVIEW-2520-FRONTEND-SCREENS: SCR-11, SCR-14, SCR-19, SCR-24, SCR-28, SCR-32, SCR-33, SCR-35, SCR-39;
-// docs/changes/STALE-ANSWERS-2540.md). Node only: the banner's front-call rule, the "newest read wins" guard (api/latest.ts, reused)
-// and the seek coalescer (api/seek-coalescer.ts, reused) driven with answers in the wrong order, and the nine screens' sources.
+// STALE-ANSWERS-2540 (review DEEP-REVIEW-2520-FRONTEND-SCREENS: SCR-19, SCR-24, SCR-28, SCR-32, SCR-33, SCR-35, SCR-39;
+// docs/changes/STALE-ANSWERS-2540.md; SCR-11 / SCR-14 moved to PHYSICAL-CONFIRM-2540). Node only: the "newest read wins" guard (api/latest.ts, reused)
+// and the seek coalescer (api/seek-coalescer.ts, reused) driven with answers in the wrong order, and the seven screens' sources.
 // The same races are driven against the real screens with a mocked backend in tests/evidence-stale-answers-2540.spec.ts.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-stale-answers-2540.spec.ts
 
@@ -30,53 +29,6 @@ function deferred<T>() {
 const tick = async (): Promise<void> => {
   for (let i = 0; i < 8; i++) await Promise.resolve();
 };
-
-function call(id: string, rangAt: string): IncomingCall {
-  return {
-    call_id: id, station_id: id, station_name: id, state: 'ringing', rang_at: rangAt, answered_at: null, answered_by_me: false,
-    elapsed_s: 5, online: true, has_camera: true, still: true, can_open_door: true, locks: [{ physical_index: 1, name: 'שער' }],
-  };
-}
-
-// ---------------------------------------------------------------- SCR-11 the banner's front call
-
-test('SCR-11: the call in front is kept by id - a newer ringing call goes behind it; "next" and a call that left move the front', async () => {
-  const logic = await import('../src/components/incoming-call-logic');
-  expect(typeof logic.frontCall, 'frontCall is exported').toBe('function');
-  const { frontCall, nextCall, visibleCalls } = logic;
-  const a = call('A', '2026-11-26T08:00:00.000Z');
-  const b = call('B', '2026-11-26T08:00:30.000Z');
-  const c = call('C', '2026-11-26T08:01:00.000Z');
-  const shownA = visibleCalls({ enabled: true, mode: 'everyone', feed: 'ready', sound: 'ring', sound_reason: null, server_time_ms: 0, calls: [a] }, new Set(), null);
-  expect(frontCall(shownA, null)?.call_id).toBe('A'); // nothing pinned yet: the first shown call
-  // B rings while A is shown: the list puts B first (newest first) - the front stays A
-  const shownAB = visibleCalls({ enabled: true, mode: 'everyone', feed: 'ready', sound: 'ring', sound_reason: null, server_time_ms: 0, calls: [a, b] }, new Set(), null);
-  expect(shownAB.map((x) => x.call_id)).toEqual(['B', 'A']);
-  expect(frontCall(shownAB, 'A')?.call_id).toBe('A');
-  // "next" walks the list from the front call, round
-  expect(nextCall(shownAB, 'A')?.call_id).toBe('B');
-  expect(nextCall(shownAB, 'B')?.call_id).toBe('A');
-  expect(nextCall([b, a, c], 'C')?.call_id).toBe('B');
-  // the front call left the list (ended / hidden / its drawer took it): the first shown call comes forward
-  expect(frontCall([b, c], 'A')?.call_id).toBe('B');
-  expect(frontCall([], 'A')).toBeUndefined();
-  expect(nextCall([], 'A')).toBeUndefined();
-});
-
-test('SCR-11: the banner and the home call screen draw the front call by id; the door question is dropped when the front call changes', () => {
-  const s = code('components/sw-incoming-call.ts');
-  expect(s).not.toMatch(/\bthis\.front\b/);
-  expect(s).toMatch(/@state\(\) protected frontId: string \| null = null;/);
-  expect(s).toMatch(/const c = this\.frontOf\(shown\) \?\? shown\[0\];/);
-  expect(s).toMatch(/protected pinFront\(shown: readonly IncomingCall\[\], next\?: IncomingCall\): void \{\s*const id = \(next \?\? this\.frontOf\(shown\)\)\?\.call_id \?\? null;\s*if \(id !== this\.frontId\) this\.frontId = id;\s*if \(this\.doorAsk && !this\.doorAsk\.startsWith\(`\$\{id\}\/`\)\) this\.doorAsk = null;/);
-  expect(between(s, 'protected sync(): void {', 'protected frontOf(')).toContain('this.pinFront(shown);');
-  expect(s).toContain('@click=${() => this.pinFront(shown, nextCall(shown, c.call_id))}');
-  // the door buttons are held only by a door question of the call they belong to
-  expect(s).toContain('?disabled=${sending || !!this.doorAsk?.startsWith(`${c.call_id}/`)}');
-  const home = code('home/sw-home-call.ts');
-  expect(home).not.toMatch(/\bthis\.front\b/);
-  expect(home).toContain('const c = this.frontOf(shown) ?? shown[0];');
-});
 
 // ---------------------------------------------------------------- the shared guard, reused
 
@@ -103,20 +55,6 @@ test('the shared guard (api/latest.ts): with two reads answered in the wrong ord
   c.resolve('C');
   await c.promise;
   expect(current()).toBe(false);
-});
-
-// ---------------------------------------------------------------- SCR-14 NVR system card
-
-test('SCR-14: the NVR system card reads the recorder it names and drops an answer for a recorder that is no longer selected', () => {
-  const s = code('screens/system-setup.ts');
-  expect(s).toContain("import { Latest } from '../api/latest';");
-  const load = between(s, 'private async loadSystem() {', 'private async sysAction(');
-  expect(load).toMatch(/const current = this\.sysReads\.begin\(\);/);
-  expect(load).toMatch(/const recorder = this\.sysRecorder;\s*try \{\s*const sys = await nvrSystemApi\(recorder\)\.nvrSystem\(\);\s*if \(!current\(\) \|\| recorder !== this\.sysRecorder\) return;\s*this\.sys = sys;/);
-  expect(load).toMatch(/catch \(err\) \{\s*if \(!current\(\) \|\| recorder !== this\.sysRecorder\) return;\s*this\.sysError = describeError\(err\);/);
-  expect(load).not.toContain('this.sys = await');
-  // switching the recorder clears the card and its error before the new read
-  expect(s).toContain("this.sysRecorder = (e.target as HTMLSelectElement).value; this.sys = null; this.sysError = ''; this.sysMsg = ''; void this.loadSystem();");
 });
 
 // ---------------------------------------------------------------- SCR-19 bulk dialog
