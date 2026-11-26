@@ -61,7 +61,7 @@ const opens = new Latest();
 
 /** The scene sheet this save / delete was started from is still the one open. */
 function sheetOpen(h: HomeHost, open: () => boolean): boolean {
-  const o = h.ovl as { type?: string; mod?: string; kind?: string } | null;
+  const o = h.ovl as unknown as { type?: string; mod?: string; kind?: string } | null;
   return open() && o?.type === 'ext' && o.mod === 'scene2500' && o.kind === 'edit';
 }
 
