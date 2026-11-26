@@ -4,7 +4,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
 import { onMeEvent, onSession } from '../api/session';
-import { applyUpdate, dismiss, noteServerBuild, onPwa, promptInstall, pwa, showInstall, showIosHint, startPwa } from './register';
+import { applyUpdate, dismiss, noteServerBuild, onPwa, promptInstall, showInstall, showIosHint, showUpdate, startPwa, updateLater } from './register';
 import { syncSubscription } from './push';
 import { tr } from '../i18n/msg/misc';
 
@@ -246,11 +246,15 @@ export class ArxPwaPrompts extends LitElement {
     const cards = [];
     if (this.offline) cards.push(html`<span class="net" role="status" data-net="offline"><i></i>${tr('אין חיבור · מוצגים נתונים אחרונים')}</span>`);
     else if (this.backOnline) cards.push(html`<span class="net" role="status" data-net="online"><i></i>${tr('החיבור חזר')}</span>`);
-    if (pwa.updateReady) {
+    if (showUpdate()) {
+      // CLIENT-RESILIENCE-2540 (owner answer Q4 = a): "אחר כך" hides the card until the next new version
       cards.push(html`<div class="card" role="status" data-pwa-update>
         <sw-icon name="refresh" size=${22}></sw-icon>
         <div class="text"><b>${tr('גרסה חדשה של Arx זמינה')}</b><span>${tr('רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.')}</span></div>
-        <div class="actions"><sw-button size="lg" variant="primary" @click=${() => applyUpdate()}>${tr('רענון')}</sw-button></div>
+        <div class="actions">
+          <sw-button size="lg" variant="primary" data-pwa-update-go @click=${() => applyUpdate()}>${tr('רענון')}</sw-button>
+          <sw-button size="lg" variant="ghost" data-pwa-update-later @click=${() => updateLater()}>${tr('אחר כך')}</sw-button>
+        </div>
       </div>`);
     }
     if (showInstall()) {

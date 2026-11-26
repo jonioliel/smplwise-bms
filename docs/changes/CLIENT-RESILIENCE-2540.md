@@ -46,6 +46,10 @@ the fix; the new tests fail there - see "Before / after").
   waiting service worker ("גרסה חדשה של Arx זמינה" + "רענון"), also without a worker (plain-http local address, the HA frame). Nothing
   reloads by itself (owner rule: default = today's behaviour plus a quiet notice). The worker, when there is one, is asked to look for the
   new release, so "רענון" takes the usual hand-over. No version, `dev`, or the same version: nothing.
+- Owner answer to question 4 (= a, the recommendation): the card has "אחר כך" / "Later". It hides the card until the NEXT new version:
+  the version put off is kept per browser (`localStorage` `arx.pwa.update.later`, every access in try/catch; without storage the card
+  stays hidden on this page only). A waiting worker whose version the page does not know is put off for this page only. The refresh
+  button is now `data-pwa-update-go` (`evidence-pwa-push.spec.ts` presses it by that name).
 - `shell/lazy-screens.ts` needed no change (its reload-once for a missing chunk stays the fallback).
 
 ### SCR-23 (+ FC-12) - the step-up dialog (only while step-up is on; it ships OFF)
@@ -131,5 +135,5 @@ On a phone the update card (bottom of the screen, above the navigation bar) cove
 2. Wall / kiosk pages after an update: a) the quiet card only, as built (owner rule: no forced reload); b) a setting "reload by itself on a
    new version" for wall / kiosk routes, default off; c) also teach the separate wall entry (`sw-wall.ts`) to compare builds.
 3. Step-up dialog life: a) 90 s for every action (built; the phone approval lives 90 s); b) 60 s for physical actions, 120 s for the rest.
-4. The update card on a phone covers the bottom save button while shown: a) add a "later" button that hides it until the next version
-   (recommended, small); b) move it to the top of the screen; c) leave it as it is.
+4. ANSWERED (owner rule: unanswered = the recommendation; coordinator 26.11): a) the "אחר כך" button - built in this row.
+Questions 1-3 likewise stay as built (a).

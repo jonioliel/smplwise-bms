@@ -9,6 +9,7 @@ export const en = {
   'גרסה חדשה של Arx זמינה': 'A new version of Arx is available',
   'רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.': 'Refresh to switch to it; what is open stays in the address.',
   'רענון': 'Refresh',
+  'אחר כך': 'Later', // CLIENT-RESILIENCE-2540: the update card hides until the next new version
   'התקן את Arx': 'Install Arx',
   'אפליקציה במסך הבית או בשולחן העבודה: פתיחה מהירה, מסך מלא והתראות.': 'An app on the home screen or desktop: quick to open, full screen and notifications.',
   'התקנה': 'Install',

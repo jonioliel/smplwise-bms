@@ -91,6 +91,39 @@ test.describe('FC-06: an open page learns that the add-on was updated', () => {
     expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument === true)).toBe(true);
   });
 
+  test('"אחר כך" hides the card until the next new version (kept per browser); the next version shows it again', async ({ page, context }) => {
+    await setup(page, { build: '9.99.0' });
+    await page.goto('/?design=a#/system/diagnostics');
+    await page.waitForSelector('sw-app system-diagnostics');
+    await expect(updateCard(page)).toBeVisible();
+    await expect(updateCard(page).locator('[data-pwa-update-later]')).toHaveText('אחר כך');
+    await updateCard(page).locator('[data-pwa-update-later]').click();
+    await expect(updateCard(page)).toHaveCount(0);
+    expect(await page.evaluate(() => window.localStorage.getItem('arx.pwa.update.later'))).toBe('9.99.0');
+    await page.reload(); // the same new version: still put off
+    await page.waitForSelector('sw-app system-diagnostics');
+    await page.waitForTimeout(1500);
+    await expect(updateCard(page)).toHaveCount(0);
+    const next = await context.newPage(); // the same browser, the server on a newer version again
+    await setup(next, { build: '9.100.0' });
+    await next.goto('/?design=a#/system/diagnostics');
+    await next.waitForSelector('sw-app system-diagnostics');
+    await expect(updateCard(next)).toBeVisible();
+  });
+
+  test('"אחר כך" with no usable storage still hides the card on this page', async ({ page }) => {
+    await page.addInitScript(() => {
+      Storage.prototype.setItem = () => {
+        throw new Error('blocked');
+      };
+    });
+    await setup(page, { build: '9.99.0' });
+    await page.goto('/?design=a#/system/diagnostics');
+    await page.waitForSelector('sw-app system-diagnostics');
+    await updateCard(page).locator('[data-pwa-update-later]').click();
+    await expect(updateCard(page)).toHaveCount(0);
+  });
+
   for (const build of ['same', null] as const) {
     test(`${build === 'same' ? 'the same version' : 'a hello without a version (an older server)'}: no card`, async ({ page }) => {
       await setup(page, { build: build === 'same' ? OWN_BUILD : null });

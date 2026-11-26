@@ -28,6 +28,41 @@ interface PwaState {
 
 export const pwa: PwaState = { registration: null, updateReady: false, installEvent: null, installed: false, serverBuild: null };
 
+/** CLIENT-RESILIENCE-2540 (owner answer to question 4 = a): "אחר כך" on the update card hides it until the NEXT new version. The version
+ * that was put off is kept per browser (localStorage, every access in try/catch: a locked-down browser just shows the card again). A
+ * waiting service worker whose version the page does not know (no server hello yet) is put off for this page only. */
+const UPDATE_LATER_KEY = 'arx.pwa.update.later';
+/** What this page put off ('*' = a version it does not know); also the fallback when storage is not available. */
+let laterThisPage: string | null = null;
+
+function laterBuild(): string | null {
+  try {
+    return localStorage.getItem(UPDATE_LATER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Show the update card: a new version is there and it was not put off. */
+export function showUpdate(): boolean {
+  if (!pwa.updateReady) return false;
+  const version = pwa.serverBuild ?? '*';
+  return laterThisPage !== version && !(pwa.serverBuild && laterBuild() === pwa.serverBuild);
+}
+
+/** "אחר כך": hide the update card until another version appears. */
+export function updateLater(): void {
+  laterThisPage = pwa.serverBuild ?? '*';
+  if (pwa.serverBuild) {
+    try {
+      localStorage.setItem(UPDATE_LATER_KEY, pwa.serverBuild);
+    } catch {
+      /* no storage: this page stays quiet; another page shows the card again */
+    }
+  }
+  changed();
+}
+
 /** This page's bundle version (vite.config.ts `__ARX_BUILD__`, the add-on version); '' when the build defined none. */
 function ownBuild(): string {
   try {

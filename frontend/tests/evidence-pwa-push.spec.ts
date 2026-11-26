@@ -160,7 +160,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
       // without a reload (PWA-UPDATE-STALL-2435: a warm-up fetch restarted the old worker in the middle of the hand-over and Chromium
       // dropped the activation); register.ts applyUpdate now quiets the warm-up first and reloads anyway when the hand-over stalls
       await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state ?? ''), { timeout: 15_000 }).toBe('installed');
-      await Promise.all([page.waitForEvent('load'), toast.locator('sw-button').click()]);
+      await Promise.all([page.waitForEvent('load'), toast.locator('sw-button[data-pwa-update-go]').click()]);
       await expect.poll(shellCaches, { timeout: 15_000 }).toEqual([`${oldName}-next`]);
       await expect(toast).toBeHidden();
     } finally {
@@ -328,7 +328,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
     await page.goto('/');
     const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
     await expect(toast).toBeVisible({ timeout: 10_000 });
-    await toast.locator('sw-button').click();
+    await toast.locator('sw-button[data-pwa-update-go]').click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __swMessages: { type?: string }[] }).__swMessages.some((m) => m?.type === 'arx-skip-waiting'))).toBe(true);
     await Promise.all([
       page.waitForEvent('load'),
