@@ -180,6 +180,11 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     value = _opt(options, "push_relay_url", "SW_PUSH_RELAY_URL")
     if value:
         os.environ["SW_PUSH_RELAY_URL"] = value
+    # ANDROID-PUSH-2550 (CR-012 section 4C): the UnifiedPush servers the phone app may register an endpoint on (a phone without Google
+    # services). Reaches services/unifiedpush.py as runtime environment, like the push relay URL. Empty = UnifiedPush off.
+    value = _opt(options, "unifiedpush_servers", "SW_UNIFIEDPUSH_SERVERS")
+    if value:
+        os.environ["SW_UNIFIEDPUSH_SERVERS"] = value
     # CR-FLEET215: the SmplWise fleet receiver - the installer's half of the two keys of the daily fleet report (the other half is the
     # Arx switch `fleet.report_enabled`, OFF by default). Reaches services/fleet_report.py as runtime environment, like the push relay URL.
     value = _opt(options, "fleet_report_url", "SW_FLEET_REPORT_URL")

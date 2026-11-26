@@ -268,6 +268,7 @@ def get_config(request: Request, caller: Caller = Depends(any_caller)) -> dict[s
                 sid = mobile_push.server_id(w)
         cfg["server_id"] = sid
         cfg["relay_url"] = mobile_push.relay_url()  # never the relay key
+        cfg["unifiedpush"] = mobile_push.unifiedpush_config(conn, _db(request).write_aside)  # ANDROID-PUSH-2550: a phone without Google services
         if caller.device is not None:
             cfg["device"] = {"device_id": caller.device["id"], "name": caller.device["name"], "notice_ack_version": caller.device["notice_ack_version"]}
         return cfg

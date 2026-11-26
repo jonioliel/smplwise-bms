@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import touch_user
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..services import mobile_push as svc
 from ._common import db_of as _db, rid as _rid
 from .presence import CONFIGURE, Caller, _own_device, any_caller, device_caller
@@ -20,10 +20,16 @@ router = APIRouter()
 
 
 class PushRegisterIn(BaseModel):
+    """`kind` (ANDROID-PUSH-2550, additive; absent = "relay", the v2 body): "relay" registers `relay_token` (FCM / APNs through the
+    SmplWise relay), "unifiedpush" registers `endpoint` + `p256dh` + `auth` (a phone without Google services)."""
     model_config = ConfigDict(extra="ignore")
 
     platform: str = Field(min_length=2, max_length=16)
-    relay_token: str = Field(min_length=1, max_length=512)
+    kind: str = Field(default="relay", max_length=16)
+    relay_token: str | None = Field(default=None, max_length=512)
+    endpoint: str | None = Field(default=None, max_length=2048)
+    p256dh: str | None = Field(default=None, max_length=128)
+    auth: str | None = Field(default=None, max_length=64)
     app_version: str | None = Field(default=None, max_length=80)
 
 
@@ -36,11 +42,17 @@ class MutedIn(BaseModel):
 @router.post("/notifications/devices")
 def register_push(body: PushRegisterIn, request: Request, caller: Caller = Depends(device_caller)) -> dict[str, Any]:
     """Register (or refresh) this device's relay token for push (device token). Re-sent whenever the relay token changes."""
+    if body.kind not in ("relay", "unifiedpush"):
+        raise field_error("סוג הרישום להתראות אינו מוכר (relay / unifiedpush).", ["kind"], code="invalid_push_kind", status=400, legacy={"field": "kind"})
     with _db(request).connection(label="mobile_push.register") as conn:
-        out = svc.register(conn, caller.device, body.platform, body.relay_token, body.app_version)
+        if body.kind == "unifiedpush":
+            out = svc.register_unifiedpush(conn, caller.device, body.platform, body.endpoint, body.p256dh, body.auth, body.app_version)
+        else:
+            out = svc.register(conn, caller.device, body.platform, body.relay_token, body.app_version)
         audit(conn, actor=caller.principal, action="notify.app.register", decision="allowed", resource_type="mobile_device", resource_id=caller.device["id"], request_id=_rid(request),
-              details={"platform": body.platform, "channel": "app"})
+              details={"platform": body.platform, "channel": "app", "kind": body.kind})  # never the endpoint or the keys
         return out
+
 
 
 @router.patch("/notifications/devices/{device_id}")

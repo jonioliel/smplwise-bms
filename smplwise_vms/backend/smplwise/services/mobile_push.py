@@ -17,7 +17,13 @@ How it works (docs/api/mobile-presence-contract.md section 7, CR-027 section 6):
 Configuration: `SW_PUSH_RELAY_URL` (e.g. https://push.smplwise.com) and `SW_PUSH_RELAY_KEY` (this server's key at the relay),
 runtime only - never in git, never in a backup, never logged. Without them the channel plans `skipped / channel_unavailable`.
 `TRANSPORT` lets the tests install a fake relay (httpx.MockTransport). The installation's opaque `server` id (the relay's
-thread / grouping key) is generated once (`push.server_id` in settings) and carries no address."""
+thread / grouping key) is generated once (`push.server_id` in settings) and carries no address.
+
+ANDROID-PUSH-2550 (CR-012 section 4C): a device may instead register a UnifiedPush endpoint (`kind: "unifiedpush"`, a phone without
+Google services). Such a device is sent to by services/unifiedpush.py (RFC 8291 Web Push with the installation's VAPID key) with the
+same content-less body, the same stored message, the same re-checks, mutes, quiet hours, rate limits and retries; it needs no relay.
+One device has one push route at a time (relay token OR endpoint): registering one clears the other. Off until the add-on option
+`unifiedpush_servers` names a push server."""
 from __future__ import annotations
 
 import datetime as dt
@@ -35,7 +41,7 @@ import httpx
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, field_error
 from ..relay_url import check_relay_url
-from . import notify, notify_channels, notify_settings, push
+from . import notify, notify_channels, notify_settings, push, unifiedpush
 from .notify_delivery_lang import user_langs, word
 from .notify_policy import CATEGORIES
 from .notify_visibility import Reach, principal_of
@@ -137,10 +143,59 @@ def register(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, pla
     conn.execute("UPDATE mobile_devices SET push_relay_token = NULL, push_platform = NULL, push_failures = 0, push_last_error = NULL WHERE push_relay_token = ? AND id != ?",
                  (relay_token, device["id"]))
     conn.execute(
-        "UPDATE mobile_devices SET push_platform = ?, push_relay_token = ?, push_app_version = ?, push_registered_at = COALESCE(push_registered_at, ?), push_failures = 0, push_last_error = NULL, last_seen_at = ? WHERE id = ?",
+        "UPDATE mobile_devices SET push_platform = ?, push_relay_token = ?, push_app_version = ?, push_registered_at = COALESCE(push_registered_at, ?), push_failures = 0, push_last_error = NULL, last_seen_at = ?,"
+        " push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL WHERE id = ?",  # ANDROID-PUSH-2550: one push route per device
         (platform, relay_token, (str(app_version or "")[:80] or None), now, now, device["id"]),
     )
     return push_view(get_device(conn, device["id"]), server_id(conn))
+
+
+def register_unifiedpush(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, platform: Any, endpoint: Any, p256dh: Any, auth: Any, app_version: Any) -> dict[str, Any]:
+    """ANDROID-PUSH-2550: register (or refresh) this device's UnifiedPush endpoint and Web Push keys. Refused while UnifiedPush is off
+    (`409 unifiedpush_off`), for a platform other than android, an endpoint not on the site's push-server list, or malformed keys.
+    Idempotent like the relay registration; one endpoint is one phone (another device row holding it loses it); clears the relay token."""
+    if not unifiedpush.enabled():
+        raise ApiError(409, "unifiedpush_off", "UnifiedPush אינו מופעל בשרת הזה.")
+    if platform != "android":
+        raise field_error("UnifiedPush זמין לאנדרואיד בלבד.", ["platform"], code="invalid_platform", status=400, legacy={"field": "platform"})
+    try:
+        unifiedpush.validate(endpoint, p256dh, auth)
+    except push.InvalidSubscription as exc:
+        field = "endpoint" if exc.code == "unifiedpush_endpoint_refused" else "p256dh"
+        raise field_error(exc.message, [field], code=exc.code, status=400, legacy={"field": field}) from None
+    now = now_iso()
+    conn.execute("UPDATE mobile_devices SET push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL, push_platform = NULL, push_failures = 0, push_last_error = NULL"
+                 " WHERE push_up_endpoint = ? AND id != ?", (endpoint, device["id"]))
+    conn.execute(
+        "UPDATE mobile_devices SET push_platform = ?, push_relay_token = NULL, push_up_endpoint = ?, push_up_p256dh = ?, push_up_auth = ?, push_app_version = ?,"
+        " push_registered_at = COALESCE(push_registered_at, ?), push_failures = 0, push_last_error = NULL, last_seen_at = ? WHERE id = ?",
+        (platform, endpoint, p256dh, auth, (str(app_version or "")[:80] or None), now, now, device["id"]),
+    )
+    push.ensure_vapid(conn)  # the key the push server checks; created once, shared with the browsers' Web Push
+    return push_view(get_device(conn, device["id"]), server_id(conn))
+
+
+def route_of(r: sqlite3.Row | dict[str, Any]) -> str | None:
+    """The device's push route: "relay" | "unifiedpush" | None (not registered)."""
+    if r["push_relay_token"]:
+        return "relay"
+    try:
+        return "unifiedpush" if r["push_up_endpoint"] else None
+    except (IndexError, KeyError):  # a row read before migration 0227
+        return None
+
+
+def unifiedpush_config(conn: sqlite3.Connection, write: Any = None) -> dict[str, Any]:
+    """`GET presence/config` member `unifiedpush` (ANDROID-PUSH-2550, additive): whether this installation accepts a UnifiedPush
+    registration and the VAPID public key the app hands its distributor (`null` while off). `write` is a callable giving a write
+    connection context, used once to create the VAPID pair on a read-only request. Never a push-server host name or a private key."""
+    if not unifiedpush.enabled():
+        return {"enabled": False, "vapid_public_key": None}
+    key = push.vapid_public_key(conn)
+    if key is None and write is not None:
+        with write() as w:
+            key = push.ensure_vapid(w)
+    return {"enabled": True, "vapid_public_key": key}
 
 
 def set_muted(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, muted: Any) -> dict[str, Any]:
@@ -153,13 +208,16 @@ def set_muted(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, mu
 
 
 def unregister(conn: sqlite3.Connection, device_id: str) -> None:
-    conn.execute("UPDATE mobile_devices SET push_relay_token = NULL, push_platform = NULL, push_failures = 0, push_last_error = NULL WHERE id = ?", (device_id,))
+    conn.execute("UPDATE mobile_devices SET push_relay_token = NULL, push_platform = NULL, push_failures = 0, push_last_error = NULL,"
+                 " push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL WHERE id = ?", (device_id,))
     conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (device_id,))
 
 
 def push_view(r: sqlite3.Row, sid: str) -> dict[str, Any]:
-    """`server_id` is the opaque id the relay payload's `server` carries: the app stores it with the origin it registered at."""
-    return {"device_id": r["id"], "server_id": sid, "relay_url": relay_url(), "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
+    """`server_id` is the opaque id the relay payload's `server` carries: the app stores it with the origin it registered at.
+    ANDROID-PUSH-2550 (additive): `push.kind` is the route ("relay" | "unifiedpush" | null); the endpoint is never returned."""
+    kind = route_of(r)
+    return {"device_id": r["id"], "server_id": sid, "relay_url": relay_url(), "push": {"registered": kind is not None, "kind": kind, "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
                                            "last_ok_at": r["push_last_ok_at"], "failures": r["push_failures"], "last_error": r["push_last_error"], "app_version": r["push_app_version"]}}
 
 
@@ -295,10 +353,28 @@ def retryable(status: int) -> bool:
     return status == 0 or status == 429 or status >= 500
 
 
-def record(db: Database, device_id: str, outcome: Outcome, final: bool, *, delivery_id: str | None, notification_id: str | None, attempt: int) -> str:
+def record(db: Database, device_id: str, outcome: "Outcome | unifiedpush.Outcome", final: bool, *, delivery_id: str | None, notification_id: str | None, attempt: int,
+           via: str = "relay") -> str:
     """Store the relay's answer on the device row and the delivery log: sent / gone (push dropped; only on the contract's token error body) / retry /
     failed (dropped after DROP_AFTER_FAILURES) / config_error (the relay address is wrong, the server key refused, or the server id taken: registration kept,
-    no failure counted)."""
+    no failure counted). `via = "unifiedpush"` (ANDROID-PUSH-2550): the answer of a UnifiedPush server - a 404 / 410 is the Web Push "subscription
+    gone" and drops the endpoint, there is no relay configuration state."""
+    st = outcome.status
+    up = via == "unifiedpush"
+    result = _record(db, device_id, outcome, final, delivery_id=delivery_id, notification_id=notification_id, attempt=attempt, up=up)
+    if up:
+        key = {"sent": "sent", "gone": "gone", "failed": "failed"}.get(result)
+        if key:
+            unifiedpush.STATS[key] += 1
+        if result == "sent":
+            unifiedpush.STATS["last_sent_at"] = now_iso()
+        elif result in ("failed", "gone"):
+            unifiedpush.STATS["last_error"] = outcome.error or f"http_{st}"
+    return result
+
+
+def _record(db: Database, device_id: str, outcome: "Outcome | unifiedpush.Outcome", final: bool, *, delivery_id: str | None, notification_id: str | None, attempt: int,
+            up: bool) -> str:
     st = outcome.status
     with db.connection(label="mobile_push.record") as conn:
         if 200 <= st < 300:
@@ -306,6 +382,20 @@ def record(db: Database, device_id: str, outcome: Outcome, final: bool, *, deliv
             STATS["sent"] += 1
             STATS["last_sent_at"] = now_iso()
             result = "sent"
+        elif up and st in (404, 410):
+            unregister(conn, device_id)
+            conn.execute("UPDATE mobile_devices SET push_last_error = ? WHERE id = ?", (f"unifiedpush_{st}", device_id))
+            STATS["gone"] += 1
+            log.info("app push registration (UnifiedPush) of device %s dropped: the push server answered %s", device_id, st)
+            result = "gone"
+        elif up and outcome.error in unifiedpush.CONFIG_ERRORS:
+            # UnifiedPush switched off, the endpoint's server taken off the site's list, or no VAPID key: the SITE's setup changed, not the
+            # phone. Keep the registration, count no device failure, do not retry this message.
+            cfg = str(outcome.error)
+            conn.execute("UPDATE mobile_devices SET push_last_error = ? WHERE id = ?", (cfg, device_id))
+            STATS["config_errors"] += 1
+            STATS["last_error"] = cfg
+            result = "config_error"
         elif outcome.kind == "relay_config" or (st in (404, 410) and outcome.kind != "token_gone"):
             # a 404 / 410 that is not the contract's token error, a 401 (key refused), a 403 (server id taken) or a call skipped by the backoff: the
             # relay SETUP is wrong, not the phone's token. Keep the registration, count no device failure (ten of them would drop it), do not
@@ -361,13 +451,20 @@ class _Job:
     attempt: int = 0
     critical_alert: bool = False
     resolved_tone: bool = False
+    via: str = "relay"  # ANDROID-PUSH-2550: "relay" | "unifiedpush"
+    endpoint: str | None = None
+    p256dh: str | None = None
+    auth: str | None = None
 
     def recheck(self, db: Database) -> bool:
         with db.connection(mode="read", label="mobile_push.recheck") as conn:
             d = get_device(conn, self.device_id)
-            if d is None or d["revoked_at"] or not d["push_relay_token"]:
+            if d is None or d["revoked_at"] or route_of(d) != self.via:  # unregistered, or moved to the other route since: this attempt is void
                 return False
-            self.relay_token = d["push_relay_token"]
+            if self.via == "relay":
+                self.relay_token = d["push_relay_token"]
+            else:
+                self.endpoint, self.p256dh, self.auth = d["push_up_endpoint"], d["push_up_p256dh"], d["push_up_auth"]
             if self.notification_id:
                 n = conn.execute("SELECT * FROM notifications WHERE id = ?", (self.notification_id,)).fetchone()
                 p = principal_of(conn, self.user_id)
@@ -381,10 +478,24 @@ class _Job:
         attempt_job(notifier, notifier.db, self)
 
 
+def send_unifiedpush(db: Database, endpoint: str, p256dh: str, auth: str, category: str, message_id: str, priority: str, server: str,
+                     critical_alert: bool = False, resolved_tone: bool = False) -> unifiedpush.Outcome:
+    """ANDROID-PUSH-2550: the relay's content-less body, encrypted for the phone and sent to its UnifiedPush endpoint (no lock held)."""
+    with db.connection(mode="read", label="mobile_push.vapid") as conn:
+        key = push.signing_key(conn)
+    body = unifiedpush.body_for(message_id, category, server, priority, critical_alert=critical_alert, resolved_tone=resolved_tone)
+    return unifiedpush.send(endpoint, p256dh, auth, body, priority, key)
+
+
 def attempt_job(notifier: "push.PushNotifier | None", db: Database, job: _Job) -> str:
-    outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id, critical_alert=job.critical_alert, resolved_tone=job.resolved_tone)
+    outcome: Outcome | unifiedpush.Outcome
+    if job.via == "unifiedpush":
+        outcome = send_unifiedpush(db, job.endpoint or "", job.p256dh or "", job.auth or "", job.category, job.message_id, job.priority, job.server,
+                                   critical_alert=job.critical_alert, resolved_tone=job.resolved_tone)
+    else:
+        outcome = send_relay(job.relay_token, job.category, job.message_id, job.priority, job.server, collapse=job.notification_id, critical_alert=job.critical_alert, resolved_tone=job.resolved_tone)
     final = job.attempt + 1 >= len(BACKOFF_S) + 1
-    result = record(db, job.device_id, outcome, final, delivery_id=job.delivery_id, notification_id=job.notification_id, attempt=job.attempt + 1)
+    result = record(db, job.device_id, outcome, final, delivery_id=job.delivery_id, notification_id=job.notification_id, attempt=job.attempt + 1, via=job.via)
     if result == "retry" and notifier is not None:
         delay = outcome.retry_after if outcome.retry_after is not None else BACKOFF_S[job.attempt]
         job.attempt += 1
@@ -407,14 +518,19 @@ class AppPushChannel(notify_channels.Channel):
 
     def plan(self, d: notify_channels.Dispatch, conn: Any) -> list[notify_channels.Target]:
         out: list[notify_channels.Target] = []
-        ready = configured()
-        if not ready:
+        relay_ready = configured()
+        servers = unifiedpush.allowed_servers()  # ANDROID-PUSH-2550: empty = UnifiedPush off
+        if not relay_ready:
             STATS["skipped_unconfigured"] += 1
         for uid in d.users:
-            devices = conn.execute("SELECT * FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND push_relay_token IS NOT NULL ORDER BY created_at", (uid,)).fetchall()
+            devices = conn.execute("SELECT * FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND (push_relay_token IS NOT NULL OR push_up_endpoint IS NOT NULL) ORDER BY created_at",
+                                   (uid,)).fetchall()
             reach = d.reach(uid)
             if reach is None or not devices:
                 continue
+            # a device is sendable when ITS route is: the relay configured, or its endpoint's server on the site's UnifiedPush list
+            usable = {dev["id"] for dev in devices if (relay_ready if route_of(dev) == "relay" else unifiedpush.allowed_endpoint(dev["push_up_endpoint"], servers))}
+            ready = bool(usable)
             ref = f"app:{len(devices)}"
             if not reach.can_see(d.n):
                 push.STATS["refused"] += 1
@@ -439,6 +555,9 @@ class AppPushChannel(notify_channels.Channel):
                 continue
             lang = d.lang(uid)  # NOTIFY-RECIPIENT-LANG-2520: the stored message speaks this recipient's language
             for dev in devices:
+                if dev["id"] not in usable:  # ANDROID-PUSH-2550: this device's route is not available while another device's is
+                    out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "skipped", "channel_unavailable", {"device": dev}))
+                    continue
                 if d.n["category"] in _json(dev["push_muted_json"], []) and d.n["category"] not in CRITICAL_CATEGORIES and d.severity != "critical" and d.mode != "escalate":
                     out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "skipped", "muted", {"device": dev}))
                     continue
@@ -448,6 +567,8 @@ class AppPushChannel(notify_channels.Channel):
     def prepare(self, d: notify_channels.Dispatch, targets: list[notify_channels.Target], conn: Any) -> None:
         texts: dict[str, dict[str, Any]] = {}  # one text per language of this dispatch's recipients
         d.scratch["app_server"] = server_id(conn)
+        if any(t.status == "queued" and route_of(t.data["device"]) == "unifiedpush" for t in targets):
+            push.ensure_vapid(conn)  # ANDROID-PUSH-2550: the VAPID pair exists before the send (write connection here, none at send time)
         for t in targets:
             if t.status != "queued":
                 continue
@@ -467,7 +588,8 @@ class AppPushChannel(notify_channels.Channel):
             job = _Job(dev["id"], t.user_id or dev["user_id"], dev["push_relay_token"], t.data["message_id"], d.n["category"], "high" if (d.severity == "critical" or d.mode == "escalate") else "normal",
                        d.scratch.get("app_server") or "srv", d.nid, t.delivery_id or None, d.mode,
                        critical_alert=d.mode != "resolved" and notify_settings.critical_sound_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity),
-                       resolved_tone=d.mode == "resolved" and notify_settings.resolved_tone_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity))
+                       resolved_tone=d.mode == "resolved" and notify_settings.resolved_tone_for(d.settings, d.n.get("source"), d.n.get("category"), d.severity),
+                       via=route_of(dev) or "relay", endpoint=dev["push_up_endpoint"], p256dh=dev["push_up_p256dh"], auth=dev["push_up_auth"])
             attempt_job(notifier, notifier.db, job)
 
 
@@ -494,7 +616,7 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
     """`POST notifications/app/test`: one generic push to this device now, with a stored test message (24 h). Called outside any request lock."""
     with db.connection(label="mobile_push.test") as conn:
         dev = get_device(conn, device_id)
-        if dev is None or not dev["push_relay_token"]:
+        if dev is None or route_of(dev) is None:
             raise ApiError(409, "push_not_registered", "המכשיר הזה עדיין לא נרשם להתראות.")
         lang = user_langs(conn, [dev["user_id"]]).get(dev["user_id"], "he")  # NOTIFY-RECIPIENT-LANG-2520: the device owner's language
         mid = _store_message(conn, dev, notification_id=None, delivery_id=None, mode="test", category="system", severity="info", title=word("Arx · התראת בדיקה", lang),
@@ -502,6 +624,13 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
                              deep_link="#/system/notifications", at=now_utc())
         sid = server_id(conn)
         token = dev["push_relay_token"]
+        via = route_of(dev)
+        if via == "unifiedpush":
+            push.ensure_vapid(conn)
+    if via == "unifiedpush":  # ANDROID-PUSH-2550
+        up = send_unifiedpush(db, dev["push_up_endpoint"], dev["push_up_p256dh"], dev["push_up_auth"], "system", mid, "normal", sid)
+        result = record(db, device_id, up, final=True, delivery_id=None, notification_id=None, attempt=1, via="unifiedpush")
+        return {"message_id": mid, "sent": result == "sent", "reason": None if result == "sent" else (up.error or f"http_{up.status}")}
     if not configured():
         return {"message_id": mid, "sent": False, "reason": "relay_unconfigured"}
     outcome = send_relay(token, "system", mid, "normal", sid)

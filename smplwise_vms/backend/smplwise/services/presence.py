@@ -666,6 +666,14 @@ def _state_of(sensors: Any, key: str, allowed: list[str] | None = None) -> str:
     return v
 
 
+def _up_endpoint(r: Any) -> str | None:
+    """ANDROID-PUSH-2550: the device's UnifiedPush endpoint (migration 0227), None for a row without it. Never returned by the API."""
+    try:
+        return r["push_up_endpoint"] or None
+    except (IndexError, KeyError):
+        return None
+
+
 def _device_out(r: sqlite3.Row, *, with_user: bool = False, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     status = _json(r["status_json"], {})
     out: dict[str, Any] = {
@@ -675,7 +683,8 @@ def _device_out(r: sqlite3.Row, *, with_user: bool = False, conn: sqlite3.Connec
         "status": {"location_auth": status.get("location_auth") or "not_determined", "precise": bool(status.get("precise", False)), "sharing": bool(status.get("sharing", False)),
                    "sensors": {k: _state_of(status.get("sensors"), k) for k in SENSOR_KEYS}},
         "presence": _json(r["presence_json"], {}),
-        "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []), "last_ok_at": r["push_last_ok_at"],
+        "push": {"registered": bool(r["push_relay_token"] or _up_endpoint(r)), "kind": "relay" if r["push_relay_token"] else ("unifiedpush" if _up_endpoint(r) else None),  # ANDROID-PUSH-2550: additive
+                 "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []), "last_ok_at": r["push_last_ok_at"],
                  "failures": r["push_failures"], "last_error": r["push_last_error"]},
         "revoked_at": r["revoked_at"],
     }
@@ -793,7 +802,8 @@ def rename(conn: sqlite3.Connection, device: sqlite3.Row, name: Any) -> dict[str
 
 def unregister(conn: sqlite3.Connection, device: sqlite3.Row) -> None:
     """Revoke: the token stops working at once, the event log is dropped, the row stays REVOKED_KEEP_DAYS for the audit trail."""
-    conn.execute("UPDATE mobile_devices SET revoked_at = ?, token_hash = ?, push_relay_token = NULL, push_platform = NULL, presence_json = '{}', status_json = '{}' WHERE id = ?",
+    conn.execute("UPDATE mobile_devices SET revoked_at = ?, token_hash = ?, push_relay_token = NULL, push_platform = NULL, presence_json = '{}', status_json = '{}',"
+                 " push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL WHERE id = ?",  # ANDROID-PUSH-2550: the UnifiedPush endpoint ends with the device
                  (now_iso(), "revoked:" + new_id(), device["id"]))
     conn.execute("DELETE FROM mobile_presence_events WHERE device_id = ?", (device["id"],))
     conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (device["id"],))
@@ -833,7 +843,7 @@ def end_device_credentials(conn: sqlite3.Connection, user_id: str, reason: str, 
     push messages of those devices are dropped. `device_ids` limits it to those devices of the user. One audit row when anything ended.
     Never raises (the sign-out itself stands); returns the number of devices whose credential ended."""
     try:
-        sql = "SELECT id FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND (token_hash NOT LIKE 'revoked:%' OR push_relay_token IS NOT NULL)"
+        sql = "SELECT id FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND (token_hash NOT LIKE 'revoked:%' OR push_relay_token IS NOT NULL OR push_up_endpoint IS NOT NULL)"
         args: list[Any] = [user_id]
         if device_ids is not None:
             ids = [d for d in device_ids if d]
@@ -845,7 +855,7 @@ def end_device_credentials(conn: sqlite3.Connection, user_id: str, reason: str, 
         now = now_iso()
         for r in rows:
             conn.execute("UPDATE mobile_devices SET token_hash = ?, token_rotated_at = ?, push_relay_token = NULL, push_platform = NULL, push_failures = 0,"
-                         " push_last_error = NULL WHERE id = ?", ("revoked:" + new_id(), now, r["id"]))
+                         " push_last_error = NULL, push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL WHERE id = ?", ("revoked:" + new_id(), now, r["id"]))
             conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (r["id"],))
         if rows:
             from ..audit import audit

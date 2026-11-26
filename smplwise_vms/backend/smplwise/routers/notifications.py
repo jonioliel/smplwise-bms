@@ -461,10 +461,10 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
             c["skipped"][r["reason"] or "other"] = c["skipped"].get(r["reason"] or "other", 0) + r["n"]
     by_source = {r["source"]: r["n"] for r in store.notification_counts_by_source_since(conn, since)}
     worker = {k: push_svc.STATS[k] for k in ("queued", "sent", "retried", "gone", "failed", "refused", "retry_skipped", "rate_limited", "dropped_queue")}
-    from ..services import mobile_push  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
+    from ..services import mobile_push, unifiedpush  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
 
     return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": store.push_subscription_count(conn),
-            "app_relay": mobile_push.relay_health()}
+            "app_relay": mobile_push.relay_health(), "app_unifiedpush": unifiedpush.health()}  # ANDROID-PUSH-2550: off / invalid / ok, no host names
 
 
 def _reset_for_tests() -> None:
