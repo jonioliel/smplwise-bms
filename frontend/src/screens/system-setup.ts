@@ -527,8 +527,7 @@ export class SystemSetup extends LitElement {
         reason,
         tr('החזרה בכל זאת תכתוב ל־NVR את המצב שלפני השינוי {target} ותדרוס את מה שמוגדר בו עכשיו.', { target: c.target }),
         tr('הפעולה נרשמת באודיט עם שם המשתמש.'),
-      ].join('
-'),
+      ].join('\n'),
       confirmLabel: tr('החזר בכל זאת'),
       danger: true,
       focusCancel: true,
