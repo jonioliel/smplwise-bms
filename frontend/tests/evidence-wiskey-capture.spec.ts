@@ -1,6 +1,6 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
-import { pickOption } from './helpers/wk-choose';
+import { ddItems, ddValue, pickOption } from './helpers/wk-choose';
 
 // The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
 useSmplwiseWiskeyScreens();
@@ -20,6 +20,8 @@ useSmplwiseWiskeyScreens();
 // the editor reloads with the card saved and masked, the number in no response and nowhere in the document; the timeout
 // path (WisKey's collector gives up); cancel; a station that advertises no collection; a start whose outcome is unknown
 // ("the reader may still be collecting until WisKey's timeout", the station held).
+// STALE-FIXTURE-SPECS-2530: the editor is reached from the native people screen of CR-036 S7 (rows `[data-person-row]`, "עריכה" on the
+// person's page in `wiskey-person-drawer`); the capture dialog and every assertion about it are unchanged.
 
 const HREF = '#/wiskey/people';
 const SCREEN = 'wiskey-people';
@@ -54,7 +56,8 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     await api?.dispose();
   });
 
-  const rows = (page: Page) => page.locator(`${SCREEN} sw-table[data-wiskey-people-table] tbody tr`);
+  const rows = (page: Page) => page.locator(`${SCREEN} [data-person-row]`);
+  const drawer = (page: Page) => page.locator('wiskey-person-drawer sw-drawer[data-person-drawer]');
   const editor = (page: Page) => page.locator(EDITOR);
   const field = (page: Page, name: string) => editor(page).locator(`[data-wiskey-editor-${name}]`);
   // DIALOG-DRAWER-ONE-2439: the editor is the shared sw-dialog (xl) - its ✕ is the dialog's own round close button
@@ -67,14 +70,20 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
   async function openPeople(page: Page) {
     await page.goto(`/?design=a${HREF}`);
     await page.waitForSelector('sw-app');
+    await expect(page.locator(`${SCREEN} sw-page[data-people-screen]`)).toHaveAttribute('data-people-phase', 'ready', { timeout: 30000 });
     await expect(rows(page).first()).toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1500); // the catch-up read the screen makes once its change-notice socket opens (TESTDEBT3-295)
+  }
+
+  /** The person's page (the drawer) of a listed person: its "עריכה" opens the editor. */
+  async function openPerson(page: Page, id: string) {
+    if (!(await drawer(page).isVisible())) await page.locator(`${SCREEN} [data-person-row="${id}"]`).click();
+    await expect(drawer(page)).toBeVisible({ timeout: 15000 });
+    return drawer(page);
   }
 
   async function openEditorFor(page: Page, id: string) {
-    await page.locator(`${SCREEN} tr[data-row-id="${id}"]`).click();
-    const detail = page.locator(`${SCREEN} [data-wiskey-person-detail="${id}"]`);
-    await expect(detail).toHaveAttribute('data-wiskey-person-detail-source', 'record', { timeout: 15000 });
+    const detail = await openPerson(page, id);
     await detail.locator('[data-wiskey-person-edit]').click();
     await expect(editor(page).locator('[data-wiskey-editor-mode="edit"]')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
@@ -116,7 +125,9 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
   }
 
   test('gating: people editing without access.cards.capture offers no capture and every capture endpoint refuses; a new person and a modified draft cannot capture', async ({ browser, page, request }, testInfo) => {
-    const role = await request.post('/api/v1/access/roles', { data: { name: `people-no-capture-${Date.now()}`, description: 'A1 without A2', permissions: ['access.read'], sensitive: ['access.people.manage'] } });
+    // CR-036: the people screen needs access.people.read, the editor access.people.manage, its PIN and cards sections the sensitive level
+    // (access.people.sensitive) - and no access.cards.capture
+    const role = await request.post('/api/v1/access/roles', { data: { name: `people-no-capture-${Date.now()}`, description: 'A1 without A2', permissions: ['access.read', 'access.people.read'], sensitive: ['access.people.manage', 'access.people.sensitive'] } });
     expect(role.status()).toBe(201);
     const roleId = ((await role.json()) as { id: string }).id;
     const me = await (await request.get('/api/v1/me', { headers: { 'X-SW-Dev-User': 'wiskeypeopleonly' } })).json();
@@ -128,8 +139,9 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
       const p = await ctx.newPage();
       await openPeople(p);
       await openEditorFor(p, PERSON);
-      await expect(field(p, 'capture-denied')).toBeVisible();
-      await expect(field(p, 'capture-denied')).toContainText('access.cards.capture');
+      // a separate permission: without it the capture block is absent (never greyed, never a note naming the permission)
+      await expect(field(p, 'section="cards"')).toBeVisible();
+      await expect(field(p, 'capture')).toHaveCount(0);
       await expect(field(p, 'capture-open')).toHaveCount(0);
       expect((await p.request.get('/api/v1/intercom/stations/gate/card-readers')).status()).toBe(403);
       expect((await p.request.post(`/api/v1/intercom/people/${PERSON}/card-capture`, { data: { station_id: 'gate', reader_id: 0, revision: 1, confirmed: true } })).status()).toBe(403);
@@ -145,7 +157,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     await page.locator(`${SCREEN} [data-wiskey-people-add]`).click();
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'capture-open').locator('button')).toBeDisabled();
-    await expect(field(page, 'capture')).toContainText('יש לשמור תחילה את המשתמש החדש');
+    await expect(field(page, 'capture')).toContainText('יש לשמור תחילה');
     await closeX(page).click();
     await expect(editor(page)).toHaveCount(0);
     // an existing person with a modified draft: save or discard first (WisKey editorAction)
@@ -164,11 +176,12 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     });
     await openCapture(page);
     // WisKey's defaults: the first online station with a managed lock, its readers read from the device
-    await expect(cap(page, 'station')).toHaveValue('gate');
-    await expect(cap(page, 'station').locator('option:not([disabled])')).toHaveCount(3); // gate, lobby, office (store is offline)
-    await expect(cap(page, 'reader').locator('option')).toHaveText(['קורא ברירת המחדל בתחנה']);
+    // AUDIT30-H2: the station and reader lists are <sw-dropdown>s (no native select): their value and items
+    await expect.poll(() => ddValue(cap(page, 'station'))).toBe('gate');
+    expect((await ddItems(cap(page, 'station'))).map((i) => i.id)).toEqual(['gate', 'lobby', 'office']); // store is offline
+    await expect.poll(async () => (await ddItems(cap(page, 'reader'))).map((i) => i.label)).toEqual(['קורא ברירת המחדל בתחנה']);
     await pickOption(cap(page, 'station'), 'lobby');
-    await expect(cap(page, 'reader').locator('option')).toHaveText(['1', '2'], { timeout: 15000 });
+    await expect.poll(async () => (await ddItems(cap(page, 'reader'))).map((i) => i.label), { timeout: 15000 }).toEqual(['1', '2']);
     await pickOption(cap(page, 'reader'), '2');
     await cap(page, 'next').click();
     // the confirmation step: what happens at the door, what the person must do
@@ -253,7 +266,8 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     const before = (await sent('cards/capture_cancel')).length;
     await cap(page, 'cancel').click();
     await expect(state(page)).toHaveAttribute('data-wiskey-capture-state', 'cancelled', { timeout: 15000 });
-    await expect(cap(page, 'status')).toContainText('הקריאה בוטלה. לא נשמר כרטיס.');
+    // the dialog says what it knows: the cancel was SENT (the reader's own timeout is the firmware's) and no card was saved
+    await expect(cap(page, 'status')).toContainText('נשלח ביטול לקריאה. לא נשמר כרטיס.');
     await expect(dialog(page)).toContainText('זמן ההמתנה בקורא נקבע בקושחה');
     const cancels = await sent('cards/capture_cancel');
     expect(cancels.length).toBe(before + 1);

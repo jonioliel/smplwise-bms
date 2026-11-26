@@ -6,8 +6,10 @@ import { pickOption } from './helpers/wk-choose';
 useSmplwiseWiskeyScreens();
 
 // Evidence for the WisKey person editor (CR-005 phase 2, slice A1, `access.people.manage`): the port of WisKey's own
-// editor dialog (panel.ts editorBody / save / removeUser) opened from the people directory (#/wiskey/people) - "Add
-// user" in the page actions and "Edit" in the details pane, for the permission's holders only. Runs against the
+// editor dialog (panel.ts editorBody / save / removeUser) opened from the people screen (#/wiskey/people) - "הוספת אדם"
+// in the page actions and "עריכה" on the person's page (the drawer), for the permission's holders only. STALE-FIXTURE-SPECS-2530
+// moved it from the phase-1b screen (an sw-table and a details pane) to the native screen of CR-036 S7 (rows `[data-person-row]`,
+// the person's page in `wiskey-person-drawer`); the editor and every assertion about it are unchanged. Runs against the
 // committed fixture backend tests/fixtures/wiskey_fake_ha.py (the real SMPLWISE backend with an in-process fake Home
 // Assistant whose users/create | update | delete follow WisKey's own field and collision rules and keep the PIN and
 // card numbers on their private side, as WisKey does). Runs with SW_LIVE=1 SW_WISKEY_FIXTURE=1, one project (desktop);
@@ -58,7 +60,8 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await api?.dispose();
   });
 
-  const rows = (page: Page) => page.locator(`${SCREEN} sw-table[data-wiskey-people-table] tbody tr`);
+  const rows = (page: Page) => page.locator(`${SCREEN} [data-person-row]`);
+  const drawer = (page: Page) => page.locator('wiskey-person-drawer sw-drawer[data-person-drawer]');
   const editor = (page: Page) => page.locator(EDITOR);
   const field = (page: Page, name: string) => editor(page).locator(`[data-wiskey-editor-${name}]`);
   // DIALOG-DRAWER-ONE-2439: the editor is the shared sw-dialog (xl) - its ✕ is the dialog's own round close button
@@ -68,14 +71,25 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
   async function openPeople(page: Page) {
     await page.goto(`/?design=a${HREF}`);
     await page.waitForSelector('sw-app');
+    await expect(page.locator(`${SCREEN} sw-page[data-people-screen]`)).toHaveAttribute('data-people-phase', 'ready', { timeout: 30000 });
     await expect(rows(page).first()).toBeVisible({ timeout: 30000 });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1500); // the catch-up read the screen makes once its change-notice socket opens (TESTDEBT3-295)
+  }
+
+  /** The person's page (the drawer) of a listed person: its "עריכה" opens the editor. */
+  async function openPerson(page: Page, id: string) {
+    if (await drawer(page).isVisible()) {
+      // the drawer is modal: close the person on view before opening another row
+      await drawer(page).locator('[data-drawer-close]').first().click();
+      await expect(drawer(page)).toBeHidden();
+    }
+    await page.locator(`${SCREEN} [data-person-row="${id}"]`).click();
+    await expect(drawer(page)).toBeVisible({ timeout: 15000 });
+    return drawer(page);
   }
 
   async function openEditorFor(page: Page, id: string) {
-    await page.locator(`${SCREEN} tr[data-row-id="${id}"]`).click();
-    const detail = page.locator(`${SCREEN} [data-wiskey-person-detail="${id}"]`);
-    await expect(detail).toHaveAttribute('data-wiskey-person-detail-source', 'record', { timeout: 15000 });
+    const detail = await openPerson(page, id);
     await detail.locator('[data-wiskey-person-edit]').click();
     await expect(editor(page).locator('[data-wiskey-editor-mode="edit"]')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
@@ -114,16 +128,17 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
   test('gating: a viewer (access.read) sees no add or edit and every editor endpoint refuses; the administrator sees both', async ({ browser, page, request }, testInfo) => {
     let binding = '';
     try {
-      binding = await bindUser(request, 'wiskeyeditorviewer', 'viewer');
+      // the built-in operator reads people (access.people.read) but does not manage them
+      binding = await bindUser(request, 'wiskeyeditorviewer', 'operator');
       const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-SW-Dev-User': 'wiskeyeditorviewer' } });
       const p = await ctx.newPage();
       await openPeople(p);
       await expect(p.locator(`${SCREEN} [data-wiskey-people-add]`)).toHaveCount(0);
-      await rows(p).nth(1).click();
-      const detail = p.locator(`${SCREEN} [data-wiskey-person-detail="u002"]`);
-      await expect(detail).toHaveAttribute('data-wiskey-person-detail-source', 'record', { timeout: 15000 });
+      const detail = await openPerson(p, 'u002');
+      await expect(detail).toHaveAttribute('heading', 'Yossi Levi');
+      await detail.locator('[data-person-tab="access"]').click();
+      await expect(detail.locator('[data-person-station="gate"]')).toBeVisible({ timeout: 15000 });
       await expect(detail.locator('[data-wiskey-person-edit]')).toHaveCount(0);
-      await expect(detail).toContainText('עריכת אנשים מתבצעת ב־WisKey עצמו');
       expect((await p.request.get('/api/v1/intercom/people-editor/context')).status()).toBe(403);
       expect((await p.request.get('/api/v1/intercom/people/u002/editor')).status()).toBe(403);
       expect((await p.request.post('/api/v1/intercom/people/pin-generate', { data: { user_id: '' } })).status()).toBe(403);
@@ -140,9 +155,8 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(await sent('users/create')).toHaveLength(0);
     await openPeople(page);
     await expect(page.locator(`${SCREEN} [data-wiskey-people-add]`)).toBeVisible();
-    await expect(page.locator(`${SCREEN} [data-wiskey-people-add]`)).toContainText('הוספת משתמש');
-    await rows(page).nth(1).click();
-    const detail = page.locator(`${SCREEN} [data-wiskey-person-detail="u002"]`);
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-add]`)).toContainText('הוספת אדם');
+    const detail = await openPerson(page, 'u002');
     await expect(detail.locator('[data-wiskey-person-edit]')).toBeVisible({ timeout: 15000 });
     await page.screenshot({ path: testInfo.outputPath('wiskey-editor-people-admin.png'), fullPage: true });
   });
@@ -157,7 +171,11 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await expect(editor(page).locator('[data-wiskey-editor-mode="new"]')).toBeVisible({ timeout: 15000 });
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
     // the notes are honest about what this slice does not edit yet, and no disabled stubs for it
-    await expect(editor(page).locator('[data-wiskey-editor-section]')).toHaveCount(5); // person, validity, pin, cards, assignments (no actions for a new person)
+    // person, category and timing (later CRs), validity, pin, cards, assignments - no actions for a new person
+    await expect(editor(page).locator('[data-wiskey-editor-section]')).toHaveCount(7);
+    expect(await editor(page).locator('[data-wiskey-editor-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-wiskey-editor-section')))).toEqual(
+      expect.arrayContaining(['person', 'validity', 'pin', 'cards', 'assignments']));
+    await expect(editor(page).locator('[data-wiskey-editor-section="actions"]')).toHaveCount(0);
     expect(await editor(page).locator('[data-wiskey-editor-validity-mode]').evaluate((n) => (n as HTMLElement & { items: unknown[] }).items.length)).toBe(2); // permanent / period only
     await expect(editor(page).getByText(/weekly|native|photo|תמונה/)).toHaveCount(0);
     // a random nine-digit employee number, as WisKey's edit() gives a new person
@@ -193,12 +211,12 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await expect(editor(page).locator('[data-wiskey-editor-stations-count]')).toHaveAttribute('data-wiskey-editor-stations-count', '2');
     await page.screenshot({ path: testInfo.outputPath('wiskey-editor-create-form.png'), fullPage: true });
     await field(page, 'save-sync').click();
-    // the editor closed, the page says what WisKey answered (saved, sync requested - not "synced")
+    // the editor closed, the page says what WisKey answered: saved (never "synced": the stations are only queued)
     await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
     const notice = page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`);
     await expect(notice).toBeVisible();
-    await expect(notice).toContainText('נשלחה בקשה לסנכרון');
-    await expect(notice).toContainText('WisKey שמר');
+    await expect(notice).toContainText('נשמר');
+    await expect(notice).not.toContainText('סונכרן');
     // WisKey's exact users/create frame
     const [frame] = await sent('users/create');
     expect(frame).toEqual({
@@ -210,13 +228,16 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
         permission_overrides: { gate: 'allow', lobby: 'allow' },
         door_permissions: { gate: [1], lobby: [1] },
         cards: [{ card_no: CARD, label: 'תג ראשי', card_type: 'normalCard', enabled: true }],
+        // WisKey round 3 (CR-036): a new person's access category (the default, staff) and, at the sensitive level, the responsible
+        // person and the purpose (empty for staff)
+        access_category: 'staff', responsible_person: '', access_purpose: '',
       },
     });
     // the fixture WisKey stored the PIN and the number - and only it has them
     const search = page.locator(`${SCREEN} [data-wiskey-people-search]`);
     await search.fill(createdEmployee);
     await expect(rows(page)).toHaveCount(1, { timeout: 15000 });
-    createdId = (await rows(page).first().getAttribute('data-row-id')) ?? '';
+    createdId = (await rows(page).first().getAttribute('data-person-row')) ?? '';
     expect(createdId).not.toBe('');
     const stored = await secret(createdId);
     expect(stored.pin).toBe(PIN);
@@ -227,14 +248,14 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(bodies.some((b) => b.includes(CARD))).toBe(false);
     expect(await domHolds(page, PIN)).toBe(false);
     expect(await domHolds(page, CARD)).toBe(false);
-    // the details pane (read projection) still shows no phone / card / PIN (the new person sorts onto the last page, so
-    // the refetch dropped the selection: select the found row)
-    await rows(page).first().click();
-    const detail = page.locator(`${SCREEN} [data-wiskey-person-detail="${createdId}"]`);
-    await expect(detail).toBeVisible({ timeout: 15000 });
-    await expect(detail).toHaveAttribute('data-wiskey-person-detail-source', 'record', { timeout: 15000 });
-    await expect(detail).toContainText('נועה ברק');
-    await expect(detail).not.toContainText(/050-777|••••|PIN/);
+    // the person's page (read projection, the administrator's sensitive level: the phone is shown) never holds the PIN or the card
+    // number (the new person sorts after the first page, so the found row is opened)
+    const detail = await openPerson(page, createdId);
+    await expect(detail).toHaveAttribute('heading', 'נועה ברק', { timeout: 15000 });
+    await detail.locator('[data-person-tab="access"]').click();
+    await expect(detail.locator('[data-person-station]')).toHaveCount(2, { timeout: 15000 });
+    await expect(detail).not.toContainText(PIN);
+    await expect(detail).not.toContainText(CARD);
     // re-opened for editing: PIN "configured", the card masked and read-only, the stations as saved
     await openEditorFor(page, createdId);
     await expect(field(page, 'section="pin"')).toHaveAttribute('data-wiskey-editor-pin-configured', 'true');
@@ -276,7 +297,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await field(page, 'valid-until').fill('2026-12-31T18:00');
     await field(page, 'save').click();
     await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
-    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`)).toContainText('הסנכרון האוטומטי ממשיך לפעול');
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`)).toContainText('נשמר');
     const [frame] = await sent('users/update');
     const cardId = Object.keys(before.cards)[0];
     expect(frame).toEqual({
@@ -293,7 +314,10 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect(after.revision).toBe(before.revision + 1);
     expect(after.pin).toBeNull();
     expect(after.cards).toEqual(before.cards);
-    await expect(page.locator(`${SCREEN} tr[data-row-id="${createdId}"] [data-wiskey-person-validity]`)).toHaveAttribute('data-wiskey-person-validity', 'validity_future', { timeout: 15000 });
+    // the read model carries the window (the phase-1b check of a "future" badge was dated: 2026-10-01 has passed since)
+    const read = (await (await page.request.get(`/api/v1/access-control/people/${createdId}`)).json()).person as { valid_from: string; valid_until: string };
+    expect(Date.parse(read.valid_from)).toBe(Date.parse('2026-10-01T05:00:00Z'));
+    expect(Date.parse(read.valid_until)).toBe(Date.parse('2026-12-31T16:00:00Z'));
   });
 
   test('relays: adding the lobby barrier to an existing assignment and removing it again both reach WisKey and stay (review B1)', async ({ page }) => {
@@ -470,25 +494,39 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     expect((await control.post('/mode', { data: { people: 'storage_write_failed' } })).status()).toBe(200);
     try {
       await openEditorFor(page, 'u003');
-      await field(page, 'active').uncheck();
+      // HAND-SWITCH: the active flag is an <sw-toggle> (a switch, not a native checkbox)
+      await field(page, 'active').click();
+      await expect.poll(() => field(page, 'active').evaluate((n) => (n as HTMLElement & { checked: boolean }).checked)).toBe(false);
       await field(page, 'save').click();
       const error = field(page, 'error');
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
       await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_unknown');
-      await expect(error).toContainText('לא ידוע אם השינוי נשמר');
-      await expect(error).toContainText('storage_write_failed');
+      // the shared unknown-outcome wording (CR-036 S11); WisKey's own code stays in the attribute, never on an operator screen
+      await expect(error).toContainText('לא ידוע אם בוצע');
+      await expect(error).not.toContainText('storage_write_failed');
       await expect(error).toContainText('טענו מחדש');
       await expect(error).not.toContainText('לא בוצעה');
       await expect(field(page, 'reload')).toBeVisible();
       await expect(editor(page)).toHaveCount(1);
       await expect(page.locator(`${SCREEN} [data-wiskey-people-notice]`)).toHaveCount(0);
       await page.screenshot({ path: testInfo.outputPath('wiskey-editor-unknown.png'), fullPage: true });
+      // never a retry: while that write's outcome is unknown the server holds the next write of the same person (nothing is sent)
+      await field(page, 'save').click();
+      await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_pending', { timeout: 15000 });
+      await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'not_sent');
+      expect((await sent('users/update')).filter((m) => m.user_id === 'u003')).toHaveLength(1);
+      // an answer of an unexpected shape (success: true, no record) reads the same as no answer - on another person
+      await closeX(page).click();
+      await field(page, 'close-discard').click();
+      await expect(editor(page)).toHaveCount(0);
       expect((await control.post('/mode', { data: { people: 'unexpected' } })).status()).toBe(200);
+      await openEditorFor(page, 'u006');
+      await field(page, 'active').click();
       await field(page, 'save').click();
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
-      await expect(error).toContainText('לא התקבלה מ־WisKey תשובה ברורה'); // success: true with an unexpected shape reads the same as no answer
-      await expect(error).not.toContainText('storage_write_failed');
-      expect((await sent('users/update')).filter((m) => m.user_id === 'u003')).toHaveLength(2); // one frame per attempt, never a retry
+      await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_unknown');
+      await expect(error).toContainText('לא ידוע אם בוצע');
+      expect((await sent('users/update')).filter((m) => m.user_id === 'u006')).toHaveLength(1); // one frame per attempt
     } finally {
       expect((await control.post('/mode', { data: { people: 'accept' } })).status()).toBe(200);
     }
@@ -518,11 +556,13 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await field(page, 'delete').click();
     await field(page, 'delete-confirm').click();
     await expect(editor(page)).toHaveCount(0, { timeout: 15000 });
-    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`)).toContainText('ההסרה תוזמנה');
+    // a delete is sent and pending until the read model no longer finds the person, then "האדם הוסר" (CR-036 S11)
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice]`)).toContainText(/ממתין לאישור|האדם הוסר/);
     const [frame] = await sent('users/delete');
     expect(frame).toEqual({ id: frame.id, type: 'hikvision_intercom/users/delete', user_id: 'u005', revision: before.revision, api_contract: 1 });
-    await expect(page.locator(`${SCREEN} tr[data-row-id="u005"]`)).toHaveCount(0, { timeout: 15000 });
-    await expect(page.locator(`${SCREEN} [data-wiskey-person-detail]`)).toHaveCount(0);
+    await expect(page.locator(`${SCREEN} [data-person-row="u005"]`)).toHaveCount(0, { timeout: 15000 });
+    await expect(page.locator('wiskey-person-drawer')).toHaveCount(0);
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-notice="ok"]`)).toContainText('האדם הוסר', { timeout: 20000 });
     expect((await control.get('/people/u005/secret')).status()).toBe(404);
   });
 });

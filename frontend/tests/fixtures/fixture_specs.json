@@ -74,32 +74,40 @@
       }
     },
     "media_ma": {
-      "_why_not_gate": "GATE-FIXTURE-LANE-2530 runner run (2026-11-25): ma 43 pass / 6 fail, sonos 40 pass / 4 fail, all failing again alone. The spec was written against the CR-016 contract before S1-S3 merged (its header: UNVERIFIED until they meet a real server); the failures are such guesses - 'unplaced devices are listed last', the favourites tab text, the group-leave outcome ('left' expected, 'unknown' answered), a cross-brand group's room name. A spec (or product) follow-up first, then gate: true.",
+      "_gate": "STALE-FIXTURE-SPECS-2530: settled against the merged product (three spec guesses, one product fix: a leave read back from the group) - in the gate.",
       "script": "frontend/tests/fixtures/media_fake_ha.py",
       "backend_env": {"SW_FAKE_HOUSE": "ma", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
       "pw_env": {"SW_LIVE": "1", "SW_MEDIA_FIXTURE": "1", "SW_HOUSE": "ma", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
       "specs": {
-        "evidence-media-players-live.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
+        "evidence-media-players-live.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
       }
     },
     "media_sonos": {
-      "_why_not_gate": "GATE-FIXTURE-LANE-2530 runner run (2026-11-25): ma 43 pass / 6 fail, sonos 40 pass / 4 fail, all failing again alone. The spec was written against the CR-016 contract before S1-S3 merged (its header: UNVERIFIED until they meet a real server); the failures are such guesses - 'unplaced devices are listed last', the favourites tab text, the group-leave outcome ('left' expected, 'unknown' answered), a cross-brand group's room name. A spec (or product) follow-up first, then gate: true.",
+      "_gate": "STALE-FIXTURE-SPECS-2530: settled against the merged product (three spec guesses, one product fix: a leave read back from the group) - in the gate.",
       "script": "frontend/tests/fixtures/media_fake_ha.py",
       "backend_env": {"SW_FAKE_HOUSE": "sonos", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
       "pw_env": {"SW_LIVE": "1", "SW_MEDIA_FIXTURE": "1", "SW_HOUSE": "sonos", "SW_FAKE_HA_CONTROL_PORT": "{port+1}"},
       "specs": {
-        "evidence-media-players-live.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
+        "evidence-media-players-live.spec.ts": {"gate": true, "projects": ["desktop", "tablet", "mobile"]}
       }
     },
     "wiskey": {
-      "_why_not_gate": "GATE-FIXTURE-LANE-2530 runner run (2026-11-25): the three specs still drive the pre-CR-036 people screen (sw-table[data-wiskey-people-table] rows from /intercom/people); the native people screen (CR-036 S7) reads /api/v1/access-control/people and draws div.tablewrap[data-wiskey-people-table], so every first test of the three serial groups fails (no row in 30 s) and the rest do not run. A stale-spec fix (and the fixture's access-control answers) is a follow-up row; flip gate to true when they pass with `fixture_job.py evidence-wiskey-people evidence-wiskey-editor evidence-wiskey-capture`.",
+      "_gate": "STALE-FIXTURE-SPECS-2530: rewritten for the native people screen (CR-036 S7); the fixture sends applied_revision null for an unapplied assignment, lists the writes it answers and takes the round-3 category fields - in the gate.",
       "script": "frontend/tests/fixtures/wiskey_fake_ha.py",
       "backend_env": {"SW_WISKEY_CONTROL_PORT": "{port+1}"},
       "pw_env": {"SW_LIVE": "1", "SW_WISKEY_FIXTURE": "1", "SW_WISKEY_CONTROL": "http://127.0.0.1:{port+1}"},
       "specs": {
-        "evidence-wiskey-people.spec.ts": {"gate": false, "projects": ["desktop"]},
-        "evidence-wiskey-editor.spec.ts": {"gate": false, "projects": ["desktop"]},
-        "evidence-wiskey-capture.spec.ts": {"gate": false, "projects": ["desktop"]}
+        "evidence-wiskey-people.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-wiskey-editor.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-wiskey-capture.spec.ts": {"gate": true, "projects": ["desktop"]}
+      }
+    },
+    "no_ha": {
+      "_comment": "STALE-FIXTURE-SPECS-2530: the real backend with NO Home Assistant at all (part 1 of evidence-wiskey-people: the honest not-available state, the tab and its gating on access.people.read).",
+      "script": "frontend/tests/fixtures/no_ha_backend.py",
+      "pw_env": {"SW_LIVE": "1", "SW_NO_HA": "1"},
+      "specs": {
+        "evidence-wiskey-people.spec.ts": {"gate": true, "projects": ["desktop", "mobile"]}
       }
     },
     "shots_devpolish": {

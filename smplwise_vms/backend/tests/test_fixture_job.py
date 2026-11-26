@@ -47,10 +47,13 @@ def test_the_gate_and_the_job_agree():
                 "evidence-floorstrip.spec.ts", "evidence-nvrless-cameras-2412.spec.ts", "devpolish-2331-shoot.spec.ts",
                 "hand-switch-home-personal-2500-shots.spec.ts", "hand-switch-home-edit-2500-shots.spec.ts",
                 # HOME-SCROLL-FIX-2530 question 1 = a (RELEASE-2530-TRAIN): the home screen's scroll is fixed, the spec joined the gate
-                "evidence-home-screen.spec.ts"}
-    # listed for the job, not (yet) the gate - each failed on the runner for a reason recorded in the JSON ("_why_not_gate"):
-    # the WisKey specs predate the native people screen (CR-036 S7), the media spec's pre-S1 guesses
-    assert not fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos")})
+                "evidence-home-screen.spec.ts",
+                # STALE-FIXTURE-SPECS-2530: the media spec settled against the merged players server (both houses), the three WisKey
+                # specs rewritten for the native people screen (CR-036 S7), the people spec's part 1 on the no-HA backend
+                "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts",
+                "evidence-wiskey-capture.spec.ts"}
+    assert fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos", "no_ha")}) == {
+        "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts", "evidence-wiskey-capture.spec.ts"}
     assert GROUPS["devices"]["specs"]["evidence-home-screen.spec.ts"]["gate"]
     assert gate.FIXTURE_SPECS == fj.gate_specs(GROUPS) == expected
     assert {n for g in gate.fixture_groups(ROOT / "frontend").values() for n in g["specs"]} == expected
@@ -150,7 +153,11 @@ def test_the_gate_runs_one_pool_job_per_fixture_group():
     cls = gate.classify(ROOT / "frontend", "L")
     assert set(cls["fixture_groups"]) == {k for k, g in GROUPS.items() if any(s.get("gate") for s in g["specs"].values())}
     assert cls["fixture_groups"]["shots_home_edit"] == {"hand-switch-home-edit-2500-shots.spec.ts": ["desktop"]}
-    assert "wiskey" not in cls["fixture_groups"]   # no "gate": true spec in it
+    assert "arx" not in cls["fixture_groups"]   # no "gate": true spec in it
+    # STALE-FIXTURE-SPECS-2530: a spec in two groups runs in each with that group's projects (the people spec: wiskey on desktop, no_ha on
+    # desktop + mobile)
+    assert cls["fixture_groups"]["no_ha"] == {"evidence-wiskey-people.spec.ts": ["desktop", "mobile"]}
+    assert cls["fixture_groups"]["wiskey"]["evidence-wiskey-people.spec.ts"] == ["desktop"]
     jobs = [j for j in gate.v2_jobs(cls, {}, "L", False) if j["kind"] == "fixture"]
     assert sorted(j["group"] for j in jobs) == sorted(cls["fixture_groups"])
     by = {j["group"]: j for j in jobs}
