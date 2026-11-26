@@ -45,12 +45,12 @@ export const AREAS: Record<string, { name: string; now: Record<string, number | 
 const AREA_ROW = { items: ['lights', 'locks', 'alarm'], climate: 'temp', show_empty: false, climate_mode: 'mean', climate_lead: {}, only_active: ['openings', 'locks'] };
 
 function sum(list: Record<string, number | string | null>[], legacy: boolean) {
-  const out = counts({});
-  for (const c of list) for (const [k, v] of Object.entries(c)) if (k !== 'alarm' && typeof v === 'number') (out as Record<string, unknown>)[k] = ((out as Record<string, number>)[k] ?? 0) + v;
-  out.alarm = (legacy ? 'unavailable' : 'armed_home') as never;
+  const out: Record<string, number | string | null> = counts({});
+  for (const c of list) for (const [k, v] of Object.entries(c)) if (k !== 'alarm' && typeof v === 'number') out[k] = ((out[k] as number) ?? 0) + v;
+  out.alarm = legacy ? 'unavailable' : 'armed_home';
   if (legacy) {
-    delete (out as Record<string, unknown>).locks_unknown;
-    delete (out as Record<string, unknown>).alarms_unknown;
+    delete out.locks_unknown;
+    delete out.alarms_unknown;
   }
   return out;
 }
