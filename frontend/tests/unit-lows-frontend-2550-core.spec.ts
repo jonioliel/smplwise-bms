@@ -8,8 +8,18 @@ import type { SocketEnv, SocketLike } from '../src/api/reconnecting-socket';
 //   npx playwright test -c playwright.unit.config.ts tests/unit-lows-frontend-2550-core.spec.ts
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 
-// session.ts builds the socket address from document.baseURI (the page's base); Node has no document
-(globalThis as unknown as { document?: { baseURI: string } }).document ??= { baseURI: 'http://arx.test/' };
+// session.ts builds the socket address from document.baseURI (the page's base); Node has no document. Only for the socket tests, and
+// taken away after them: other specs of the same worker look for a real document (`typeof document`) and must not find this one.
+const G = globalThis as unknown as { document?: { baseURI: string } };
+let stubbed = false;
+function stubDocument() {
+  if (G.document) return;
+  G.document = { baseURI: 'http://arx.test/' };
+  stubbed = true;
+}
+test.afterAll(() => {
+  if (stubbed) delete G.document;
+});
 
 class FakeSocket implements SocketLike {
   readyState = 0;
@@ -119,6 +129,7 @@ test.describe('FC-07 the personal language after the remote sign-in', () => {
 });
 
 test.describe('FC-09 / FC-11 the /me/ws channel', () => {
+  test.beforeEach(() => stubDocument());
   test('FC-09: a listener that throws skips neither the permissions check nor the listeners after it, and is logged', async () => {
     const { watchPermissions, onMeEvent } = await import('../src/api/session');
     const f = fakeEnv();
@@ -212,6 +223,7 @@ test.describe('FC-09 / FC-11 the /me/ws channel', () => {
 });
 
 test.describe('FC-09 the ha/ws frames', () => {
+  test.beforeEach(() => stubDocument());
   test('an error thrown by the screen handler is logged (not swallowed) and the next frames still arrive', async () => {
     const { subscribeHa } = await import('../src/api/ha');
     const f = fakeEnv();

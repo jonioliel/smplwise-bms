@@ -606,9 +606,13 @@ export class DevicesSchedules extends LitElement {
 
   /** LOWS-FRONTEND-2550 (review SCR-54): the selection the current filter shows (`pickedShown`) - never a selected schedule it hides. */
   private pickedNow(): Schedule[] {
-    const all = this.scopedItems();
+    return pickedShown(this.shownRows(this.scopedItems()), this.selected);
+  }
+
+  /** The schedules the current filter shows (all pages), memoised on the list and the filters. */
+  private shownRows(all: Schedule[]): Schedule[] {
     const filters = this.filters;
-    return pickedShown(this.filteredMemo.get([all, filters], () => filterSchedules(all, filters)), this.selected);
+    return this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
   }
 
   private async bulk(op: 'enable' | 'disable') {
@@ -1038,8 +1042,7 @@ export class DevicesSchedules extends LitElement {
 
   private renderReady(st: ReturnType<typeof screenState>) {
     const all = this.scopedItems();
-    const filters = this.filters;
-    const rows = this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
+    const rows = this.shownRows(all);
     const manage = !!this.status?.can.manage;
     let content: TemplateResult;
     if (!(this.items ?? []).length) {

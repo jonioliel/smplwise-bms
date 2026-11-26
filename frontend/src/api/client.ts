@@ -382,7 +382,7 @@ export const upload = <T>(path: string, form: FormData) => api<T>(path, { method
 const FETCH_FAILURE = /fetch|network|load failed|offline/i;
 
 /** FC-08: a request that got no answer - not every TypeError (`undefined.x` inside a screen's load is a TypeError too). */
-export function isNoConnection(err: unknown): boolean {
+function isNoConnection(err: unknown): boolean {
   return err instanceof ApiUnreachable || (err instanceof TypeError && FETCH_FAILURE.test(err.message));
 }
 
