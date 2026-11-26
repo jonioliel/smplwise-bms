@@ -6,6 +6,9 @@ session): a ceiling on simultaneous connections, in total and per client address
 - `DeadlineReader` / `RequestDeadline` - CAST-RELAY-HARDEN-2540 (deep review V-02): `BaseHTTPRequestHandler.timeout` bounds ONE
   socket read, so a client that drips a byte just inside it keeps its thread for as long as it likes. The deadline bounds the
   whole wait for one request (the idle keep-alive gap plus the request line and the headers) instead.
+- LISTENER-DEADLINE-2540: the notice-board listener (services/notices/listener.py) and the Provision-ISR alarm push listener
+  (services/recorders/provision_push.py, whose deadline also covers the request body) use both as well; the push listener's own
+  connection limiter was replaced by `CappedServer`.
 
 No address, path or token is ever logged here."""
 from __future__ import annotations

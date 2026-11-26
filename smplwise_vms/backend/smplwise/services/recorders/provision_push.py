@@ -23,10 +23,11 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from typing import Any
 
 from ..events_ingest import ParsedAlert
+from ..lan_listener import CappedServer, RequestDeadline
 from . import provision_isr_xml as px
 from .provision_isr import AlarmTracker
 
@@ -35,7 +36,11 @@ log = logging.getLogger("smplwise.provision_push")
 MAX_BODY = 512 * 1024  # an alarm-status document is a few KB; feature data with images is ignored above this
 # security review M1 (2026-10-04): bounded resources for a port open on the LAN
 HANDLER_TIMEOUT_S = 10  # a client that sends its request line / headers / body slower than this is cut off
-MAX_CONNECTIONS = 16  # concurrent connections in total (each is one thread)
+# LISTENER-DEADLINE-2540 (follow-up of CAST-RELAY-HARDEN-2540, deep review V-02): HANDLER_TIMEOUT_S bounds ONE socket read, so a
+# client that drips a byte just inside it kept its thread for as long as it liked. The whole request - request line, headers AND the
+# body (one request per connection, HTTP/1.0) - must now arrive within this deadline (services/lan_listener.RequestDeadline).
+REQUEST_DEADLINE_S = 15.0
+MAX_CONNECTIONS = 16  # concurrent connections in total (each is one thread); read at every connection by the shared CappedServer
 MAX_PER_SOURCE = 4  # concurrent connections from one source address
 RATE_PER_SOURCE = 20  # requests per second per source address (token bucket, burst = the same number)
 DRAIN_MAX = 16 * 1024  # a refused request's body is read up to this size before the answer (no reset on close)
@@ -99,15 +104,16 @@ class PushListener:
         self.refused = 0
         listener = self
 
-        class Handler(BaseHTTPRequestHandler):
+        class Handler(RequestDeadline, BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.0"  # one request per connection: no keep-alive to hold a thread (M1)
             timeout = HANDLER_TIMEOUT_S  # socket timeout for every read (slow headers / body are cut off)
+            request_deadline_s = REQUEST_DEADLINE_S  # the whole request incl. its body (a dripping client is cut off too)
 
             def log_message(self, fmt: str, *args: Any) -> None:  # never log request lines (addresses) or bodies
                 return
 
             def _drain(self) -> None:
-                """A refusal still reads a small body (up to DRAIN_MAX, within the socket timeout): closing with unread
+                """A refusal still reads a small body (up to DRAIN_MAX, within the request deadline): closing with unread
                 bytes makes the OS send a reset, and the device then never sees the answer."""
                 length = self.headers.get("Content-Length", "")
                 n = int(length) if length.isdigit() else 0
@@ -119,7 +125,8 @@ class PushListener:
 
             def _answer(self, code: int) -> None:
                 if code != 200:
-                    self._drain()
+                    self._drain()  # still inside the request deadline
+                self.clear_deadline()  # the request is in: the answer is bounded by the socket timeout alone
                 self.send_response(code)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -130,7 +137,7 @@ class PushListener:
             def do_POST(self) -> None:  # noqa: N802
                 self.close_connection = True
                 if not listener.allow_rate(self.client_address[0]):
-                    listener.limited += 1
+                    listener.rate_limited += 1
                     self._answer(429)
                     return
                 receiver, path = listener.route(self.client_address[0], self.path.split("?", 1)[0])
@@ -148,7 +155,7 @@ class PushListener:
                     self.close_connection = True
                     self._answer(413)
                     return
-                body = self.rfile.read(n)
+                body = self.rfile.read(n)  # under the request deadline: a dripped body raises TimeoutError, the connection closes
                 self._answer(200)
                 try:
                     alerts = receiver.handle(path, body)
@@ -157,50 +164,20 @@ class PushListener:
                 except Exception:  # noqa: BLE001 - one bad message never stops the listener
                     log.exception("provision push: message handling failed (recorder %s)", receiver.recorder_id)
 
-        class BoundedServer(ThreadingHTTPServer):
-            daemon_threads = True
-
-            def process_request(self, request, client_address):  # noqa: ANN001
-                if not listener.acquire(client_address[0]):
-                    listener.limited += 1
-                    try:
-                        request.close()
-                    finally:
-                        return
-                super().process_request(request, client_address)
-
-            def process_request_thread(self, request, client_address):  # noqa: ANN001
-                try:
-                    super().process_request_thread(request, client_address)
-                finally:
-                    listener.release(client_address[0])
-
-        self.limited = 0
-        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
-        self._per_source: dict[str, int] = {}
+        # LISTENER-DEADLINE-2540: the shared limiter of the LAN listeners (services/lan_listener.CappedServer) replaces this module's
+        # own copy; the same caps (MAX_CONNECTIONS in total, MAX_PER_SOURCE per source address, read at every connection), over a
+        # cap the socket is closed without a thread.
+        self.rate_limited = 0
         self._buckets: dict[str, tuple[float, float]] = {}  # source -> (tokens, last refill)
         self._lock = threading.Lock()
-        self._server = BoundedServer((host, port), Handler)
+        self._server = CappedServer((host, port), Handler, caps=lambda: (MAX_CONNECTIONS, MAX_PER_SOURCE),
+                                    max_connections=MAX_CONNECTIONS, max_per_address=MAX_PER_SOURCE)
         self._thread: threading.Thread | None = None
 
-    def acquire(self, source: str) -> bool:
-        if not self._slots.acquire(blocking=False):
-            return False
-        with self._lock:
-            if self._per_source.get(source, 0) >= MAX_PER_SOURCE:
-                self._slots.release()
-                return False
-            self._per_source[source] = self._per_source.get(source, 0) + 1
-        return True
-
-    def release(self, source: str) -> None:
-        with self._lock:
-            n = self._per_source.get(source, 1) - 1
-            if n <= 0:
-                self._per_source.pop(source, None)
-            else:
-                self._per_source[source] = n
-        self._slots.release()
+    @property
+    def limited(self) -> int:
+        """Refusals for load: requests over the per-source rate plus connections closed over a cap (counts only, never who)."""
+        return self.rate_limited + self._server.refused
 
     def allow_rate(self, source: str) -> bool:
         now = time.monotonic()
