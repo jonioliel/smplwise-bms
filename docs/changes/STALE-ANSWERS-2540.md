@@ -98,15 +98,27 @@ Run on the workstation (Node unit specs only, one file at a time, as the PC rule
 | `unit-inv-playback-2440` / `unit-home-v3-p1` / `unit-modal-stack-guard-2442` / `unit-home-v3-p3-logic` | branch | 0 each | 9 / 8 / 5 / 6 passed |
 | `unit-poll-screens-b-2440` / `unit-playback-scrub` / `unit-home-lazy-2440` / `unit-screens-fix-b-2520` | branch | 0 each | 10 / 12 / 6 / 3 passed |
 
-ruff was not available on the workstation venv: it runs in the runner job.
+On the runner (`~/work/p2520_stale2540_run.sh`, then `p2520_stale2540_ev.sh` after two spec fixes; Linux, TZ Asia/Jerusalem):
 
-NOT_RUN (queued on the runner as `~/work/p2520_stale2540_run.sh`, output `~/work/p2520_stale2540_run.out`; it waits for a slot
-behind the 2.53 L gate that started 12:24 UTC): `tsc` (app and tests), eslint on the touched files, `scripts/design_ratchet.py`, the
-wider unit list, `vite build`, `tests/evidence-stale-answers-2540.spec.ts` on the branch and on the base (the fail-before of the
-browser races), ruff and `test_home_ticket_note_idem_2540.py` / `test_home_v3_p2.py` on the runner (and the new backend test on the
-base), and the neighbouring browser specs (`home-v3-p1/p2/p3`, `home-favorites-2500`, `evidence-playback-stall`,
-`evidence-switch-light-dimmer-2331`, the resident part of `evidence-calendars-settings-2310` on the phone project).
-Pixel baselines: not needed (no look change) - NOT_RUN.
+| Check | Code | Exit | Result |
+| --- | --- | --- | --- |
+| ruff on `routers/home_family.py` and the new backend test | e45542b2f | 0 | all checks passed |
+| pytest `test_home_ticket_note_idem_2540.py` / `test_home_v3_p2.py` (one process each) | e45542b2f | 0 / 0 | 3 passed / 42 passed |
+| pytest `test_home_ticket_note_idem_2540.py` | base aeb05ad3d | 1 | 2 failed, 1 passed |
+| `tsc --noEmit -p tsconfig.json` | e45542b2f | 0 | - |
+| `tsc --noEmit -p tsconfig.tests.json` | e45542b2f -> 90f25f540 | 2 -> 0 | a lost quote in one spec title, fixed |
+| eslint (touched sources, then both specs) | e45542b2f / 6bf3af174 | 0 / 0 | - |
+| `scripts/design_ratchet.py` | e45542b2f | 0 | no count above the baseline |
+| unit list (17 files incl. the new one) | e45542b2f | 0 | 127 passed |
+| `vite build` | branch / base | 0 / 0 | - |
+| `evidence-stale-answers-2540.spec.ts` --project=desktop | 2f71fa758 (+ SCR-35 at 6bf3af174) | 0 | 11 passed (SCR-35 rerun: 1 passed) |
+| the same spec on the base build | aeb05ad3d | 1 | 11 failed (10 in the full run + SCR-35 after its fix) |
+| neighbours: `home-v3-p1`, `home-v3-p2`, `home-v3-p3`, `home-favorites-2500`, `evidence-playback-stall`, `evidence-switch-light-dimmer-2331` (desktop) | e45542b2f | 0 | 69 passed |
+| `evidence-calendars-settings-2310.spec.ts -g resident` --project=mobile | e45542b2f | 0 | 10 passed |
+
+The resident browser test makes the second day pick on the element itself (dayIdx + loadDay, the strip's own handler): the strip is
+hidden while a day loads, so a second tap there is not possible; an overlapping read still happens through a retry or the refresh after
+a booking. Pixel baselines: NOT_RUN (no look change).
 
 ## Open questions
 
