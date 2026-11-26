@@ -27,7 +27,9 @@ export class WiskeyStationPermissions extends LitElement {
 
   @state() private phase: Phase = 'loading';
   @state() private data: SpPerson | null = null;
-  @state() private busy = '';
+  /** LOWS-FRONTEND-2550 (review SCR-51): the stations with a change on its way - one slot per station (a second station's change no
+   * longer frees the first one's buttons while it is still on its way). */
+  @state() private busy: ReadonlySet<string> = new Set();
   @state() private confirming = '';
   @state() private line: { ok: boolean; text: string } | null = null;
   @state() private pick = '';
@@ -169,19 +171,24 @@ export class WiskeyStationPermissions extends LitElement {
       return;
     }
     this.confirming = '';
-    this.busy = st.station_id;
+    if (this.busy.has(st.station_id)) return; // a change of this station is still on its way
+    this.busy = new Set([...this.busy, st.station_id]);
     this.line = null;
     const id = this.personId;
+    // SCR-51: the result line belongs to the person it was sent for - not written under another person opened meanwhile
+    const say = (line: { ok: boolean; text: string }) => {
+      if (this.personId === id) this.line = line;
+    };
     try {
       const r = action === 'approve' ? await approveStation(id, st.station_id, st.revision)
         : action === 'refuse' ? await refuseStation(id, st.station_id, st.revision)
           : action === 'sync' ? await syncStation(id, st.station_id, st.revision)
             : await decideStation(id, st.station_id, action, st.revision, action === 'allow' ? (relays ?? (st.relays.length ? st.relays : [1])) : undefined);
-      this.line = { ok: true, text: spt(outcomeKey(r.outcome)) };
+      say({ ok: true, text: spt(outcomeKey(r.outcome)) });
     } catch (err) {
-      this.line = { ok: false, text: err instanceof ApiError ? err.message : spt('error') };
+      say({ ok: false, text: err instanceof ApiError ? err.message : spt('error') });
     } finally {
-      this.busy = '';
+      this.busy = new Set([...this.busy].filter((s) => s !== st.station_id));
       await this.load();
     }
   }
@@ -202,7 +209,7 @@ export class WiskeyStationPermissions extends LitElement {
     const sync = st.record && st.record.sync_state !== 'applied' ? syncBadge(st.record.sync_state) : null;
     const label = stationLabel(st, this.stationNames);
     const doors = doorsText(st.relays);
-    const busy = this.busy === st.station_id;
+    const busy = this.busy.has(st.station_id);
     return html`<li data-sp-station=${st.station_id}>
       <span class="name">${label}</span>
       ${doors ? html`<span class="sub">${doors}</span>` : nothing}
@@ -246,7 +253,7 @@ export class WiskeyStationPermissions extends LitElement {
             <sw-dropdown label=${spt('addPick')} data-sp-add-pick .value=${this.pick}
               .items=${[{ id: '', label: spt('addPick') }, ...choices.map((c) => ({ id: c.station_id, label: c.name || this.stationNames[c.station_id] || c.station_id }))]}
               @change=${(e: CustomEvent<DropdownChange>) => (this.pick = e.detail.id)}></sw-dropdown>
-            <sw-button size="sm" icon="plus" data-sp-add ?disabled=${!this.pick || !!this.busy} @click=${() => this.addStation()}>${spt('add')}</sw-button>
+            <sw-button size="sm" icon="plus" data-sp-add ?disabled=${!this.pick || this.busy.size > 0} @click=${() => this.addStation()}>${spt('add')}</sw-button>
           </div>`
         : nothing}
     </section>`;

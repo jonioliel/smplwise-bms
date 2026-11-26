@@ -10,6 +10,7 @@ import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError } from '../api/client';
+import { physicalOutcome } from '../api/physical-outcome';
 import type { DisplayZone } from '../api/intercom';
 import {
   adoptStationUser,
@@ -85,6 +86,8 @@ export class WiskeyStationPeople extends LitElement {
   @state() private typed = '';
   @state() private reply: StationWriteReply | null = null;
   @state() private failure = '';
+  /** SCR-50: the failure left the outcome unknown (no answer, a time-out, a 5xx) - not a refusal. */
+  @state() private failureUnknown = false;
   private generation = 0;
 
   connectedCallback() {
@@ -172,13 +175,18 @@ export class WiskeyStationPeople extends LitElement {
     const first = actionStations(row, 'adopt')[0];
     if (!first) return;
     this.step = 'checking';
+    // LOWS-FRONTEND-2550 (review SCR-50): the check belongs to the dialog it was asked for - a late answer for person A is never applied
+    // to person B's adopt dialog opened meanwhile (its duplicate warning would be A's)
+    const acting = this.acting;
     try {
-      this.check = await checkStationUser(first.station_id, row.employee_no);
-      this.checkFailed = !this.check.checked;
+      const check = await checkStationUser(first.station_id, row.employee_no);
+      if (this.acting !== acting) return;
+      this.check = check;
+      this.checkFailed = !check.checked;
     } catch {
-      this.checkFailed = true;
+      if (this.acting === acting) this.checkFailed = true;
     } finally {
-      if (this.step === 'checking') this.step = 'ask';
+      if (this.acting === acting && this.step === 'checking') this.step = 'ask';
     }
   }
 
@@ -203,16 +211,20 @@ export class WiskeyStationPeople extends LitElement {
     const ids = actionStations(a.row, a.action).map((s) => s.station_id);
     this.step = 'working';
     this.failure = '';
+    this.failureUnknown = false;
     try {
       if (a.action === 'adopt') this.reply = await adoptStationUser(a.row.employee_no, ids, this.acceptDuplicate);
       else if (a.action === 'delete') this.reply = await deleteStationUser(a.row.employee_no, ids, this.typed.trim());
       else this.reply = await ignoreStationUser(a.row.employee_no, ids, a.action === 'ignore');
     } catch (err) {
-      this.failure = err instanceof ApiError ? err.body.user_message || err.code : st('res_failed');
+      // LOWS-FRONTEND-2550 (review SCR-50): only a refusal (4xx) is "not performed"; a dropped connection, a time-out or a 5xx after the
+      // request left may have written some stations - amber "some stations have no clear outcome, refresh and check" (never "failed")
+      this.failureUnknown = physicalOutcome(err) === 'unknown';
+      this.failure = this.failureUnknown ? st('res_unknown_all') : err instanceof ApiError ? err.body.user_message || err.code : st('res_failed');
       this.reply = null;
     }
     this.step = 'done';
-    if (this.reply && this.reply.summary.ok + this.reply.summary.unknown > 0) this.dispatchEvent(new CustomEvent('changed'));
+    if (this.failureUnknown || (this.reply && this.reply.summary.ok + this.reply.summary.unknown > 0)) this.dispatchEvent(new CustomEvent('changed'));
     for (const id of ids) void this.readStation(id, a.action === 'adopt' || a.action === 'delete');
   }
 
@@ -366,6 +378,7 @@ export class WiskeyStationPeople extends LitElement {
   }
 
   private renderResult(action: StationAction): TemplateResult {
+    if (this.failure && this.failureUnknown) return html`<p class="result unknown" role="status" data-station-result="unknown">${this.failure}</p>`;
     if (this.failure || !this.reply) return html`<p class="result failed" role="status" data-station-result="failed">${this.failure || st('res_failed')}</p>`;
     const tone = resultTone(this.reply.results);
     const head: StationPeopleKey = tone === 'ok' ? (action === 'delete' ? 'res_pending' : 'res_all_ok') : tone === 'partial' ? 'res_partial' : tone === 'unknown' ? 'res_unknown_all' : 'res_failed';
