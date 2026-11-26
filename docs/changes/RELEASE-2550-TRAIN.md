@@ -29,13 +29,18 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | train fix | - | `1c389ba73` | - | - | section 2 |
 | - | train note / registry | - | `4909a656e` / `51e390f86` | - | - | this note; section 4 |
 | - | train fix | - | `8d6ce1665` | - | - | section 2 (found by runner run A, section 3.5) |
+| - | train note | - | `5aa03829b` | - | - | section 3.5 |
+| 5 | `pilot/LOWS-BACKEND-2550` | `9c0387c7f` | `7b068500b` | `f9217db8a` (release/2540-train) | none | `error_text_en.json` (still valid, its sorted format), `routers/notifications.py`, `wire/notifications.py`, `services/backup.py` merged cleanly with rows 1 and 4; billing golden `tests/fixtures/bill_ledger_b_sql_golden.json` refreshed in the row on purpose (D-08); no migration; Q1-Q6 = a |
+| 6 | `pilot/LOWS-BRIDGE-GATE-2550` | `c68386d35` | `7a62d226c` | `f9217db8a` (release/2540-train) | none | **bridge 0.10.10** in both copies, byte-identical (section 1.3); `scripts/gate/*` and `nightly_tests.sh` are repo copies only, nothing installed; all questions = a |
+| - | changelog | - | `a8f8acecf` | - | - | draft lines for rows 5-6, the bridge install note |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
   (generated on the 2.52 base, 1951 routes). Resolved by regenerating with `scripts/api_inventory.py`: 1959 -> 1962 routes (the three
   `GET /migration/legacy`, `POST /migration/legacy/dry-run`, `POST /migration/legacy/apply`).
 
-No other conflict. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
+No other conflict (rows 5-6 included). More rows to come when the lead says: LOWS-FRONTEND-2550, DATA-RULES-2-2550,
+HOME-FIT-FOLLOWUPS-2550, HOME-PERMS-WARN-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
 touches `routers/settings.py`, `services/ha_sync.py`, `services/settings_store.py`, DOCS / DOCS_HE and its own test). 2.54 fixes made on
 `release/2540-train` after its gate are merged in when the lead says.
 
@@ -56,7 +61,23 @@ contiguous: 227 files, last 0227_mobile_unifiedpush.sql".
 (`release_check.changelog_head()` reads 2.55.0 as the head). Draft lines for rows 1-4 and the Install note (migration 0227, the new
 option `unifiedpush_servers`, rollback = the `auto-pre-upgrade` copy whose note reads "before upgrade 2.54.0 -> 2.55.0"), bilingual
 per line. `frontend/package.json` keeps `0.1.0`; the demo version in `system-diagnostics.ts` is a demo constant (neither is bumped by a
-train). Bridge unchanged (0.10.9).
+train). Bridge: 0.10.10 from row 6 (section 1.3).
+
+### 1.3 Bridge 0.10.10 (row 6)
+
+LOWS-BRIDGE-GATE-2550 bumps the bridge 0.10.9 -> 0.10.10 (WB-06: `keyset.Persister.control` holds the lock for the whole rotation step;
+a rollback leaves the set dirty) in `custom_components/smplwise_bridge/` and the add-on mirror `smplwise_vms/integration/smplwise_bridge/`.
+After the merge the two copies are **byte-identical**: `diff -r` empty, the 35 git blob ids equal, `scripts/sync_integration.py --check`
+"up to date", `release_check.py` "bridge integration copies identical" and "manifest = const: 0.10.10". `wiskey_media_v2.BRIDGE_REQUIRED`
+stays 0.10.9 (a minimum).
+
+**Correction of the row's note** (`docs/changes/LOWS-BRIDGE-GATE-2550.md`, "Restart"): it says the lab's active bridge stayed 0.10.8.
+It is **0.10.9, active since 26.11** (the lead). So 0.10.10 does NOT ride on a pending restart: loading it in the lab needs **one more
+owner-approved Home Assistant restart** after 2.55.0 is installed. The row's note is left as written (the row's record); this note and
+the CHANGELOG Install line carry the correct state.
+
+The row's runner install steps (`engine_sync.py install ... nightly_tests.sh`, the crontab line `--local-hour=02`) are NOT done - the
+lead's, outside a gate / nightly.
 
 ## 2. Train fixes
 
@@ -139,6 +160,24 @@ main checkout), one process at a time, at `1c389ba73` (the train fixes included)
 | `pixel-legacy-import-2550` with `--grep pixel-stable` (as the gate), 1 worker | 0 | **6 passed** |
 | `pixel-legacy-import-2550`, all cases, against the committed baselines | 0 | **6 passed** - the 2.52-based Linux baselines still match the 2.54-based tree; **no baseline refreshed, 0 PNG changed** (the job would have refreshed and re-checked them twice only on a mismatch) |
 
+### 3.6 PC re-run after rows 5-6 (at `a8f8acecf`, one process at a time)
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` / `api_inventory.py` / `error_contract_inventory --check` / `i18n_backend_errors` | 0 each | match / 1962 routes (unchanged) / 0 legacy 422 sites / 0 without English, 0 run-time |
+| `lint_spec_waits --new-since f9217db8a` / `design_ratchet` / `wire_ratchet` / `request_strict_ratchet --check` / `build_guide --check` | 0 each | 0 findings in 4 files / no count above the baseline / 897 = baseline / 144 / up to date |
+| **bridge mirror**: `sync_integration.py --check`, `diff -r`, git blob ids; `test_bridge_install` 5, `test_mirror_deep_compare_2550` 3 | 0 each | up to date / identical / 35 equal / passed |
+| `lint_backend --strict` / `ruff check smplwise` | 0 / 0 | 0 findings / clean |
+| `release_check.py` | 1 | ok: bridge copies identical, manifest = const 0.10.10, covers the allow-list, migrations contiguous (227, last 0227), downgrade-safe; FAIL only the expected two UI bundle rows and the tag |
+| `migration_downgrade_check.py --from origin/release/2540-train` | 0 | PASS (rows 5-6 add no migration; 0227 the only one) |
+| `unused-exports.mjs --enforce` | 0 | OK, no export outside the baseline |
+| `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` | 0 each | 0 errors / 0 errors / clean / built |
+| unit: `unit-pw-server-reuse-2550` (row 6), `unit-no-ha-branding-2443`, `unit-legacy-import-2550` | 0 | 13 passed |
+| backend, one process each: `test_lows_backend_2550_security` 7, `_video` 6, `_core` 9, `_domain` 8, `test_janitor` 12, `test_bill_ledger_lifecycle_b` 25 (the refreshed golden), `test_bridge_install` 5, `test_mirror_deep_compare_2550` 3, `test_bridge_install_leftovers_2550` 2 (+1 skipped: no link right on Windows), `test_bridge_persister_rollback_2550` 2, `test_wiskey_service_grant_observe_2550` 4, `test_run_sh_sandbox_2550` 4, `test_coverage_lane_2550` 4, `test_nightly_local_hour_2550` 0 (7 skipped: Git Bash has no zone data - the row ran it on the runner), `test_wiskey_s4_core_observer` 30 (+1), `test_bridge_080` 3, `test_bridge_runnable` 110 (+1), `test_capmap_295` 65, `test_gate_addon_build` 6 (+6), `test_lovelace_card` 5, `test_bridge_config_drift` 13, `test_version` 1, `test_i18n_errors_en_2520` 9 | 0 each | **333 passed**, 16 skipped, 0 failed in 23 files |
+
+Not re-run on the runner after rows 5-6: the Node unit suite (row 6's TR-10 moves `unit-mfa-passkeys-2490` out of the node-only run, so
+its 3 known failures should be gone there), the Playwright / pixel specs, and the rows' wider backend areas.
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -153,7 +192,10 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 
 1. **The UI rebuild** (`npm run build:addon`, the build stamp) - NOT done; after the last 2.54 fix and HA-STATE-RECONCILE-2550. Until
    then `release_check.py` fails on "shipped UI bundle built for this version" and "built from these sources" (both say 2.54.0).
-2. **HA-STATE-RECONCILE-2550** - not merged (still running); no migration in it. When it lands: merge, its CHANGELOG line, registry card.
+2. **Rows still to come** (the lead says when each is ready): LOWS-FRONTEND-2550, DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550,
+   HOME-PERMS-WARN-2550, HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
+7. **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
+   row's runner install steps (nightly script, crontab) are the lead's.
 3. **2.54 gate fixes** - any commit added to `release/2540-train` after `f9217db8a` is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
 4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,

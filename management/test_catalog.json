@@ -22901,5 +22901,55 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-LOWS-BACKEND-2550-1",
+    "requirement_ids": [
+      "R-LOWS-BACKEND-2550-1"
+    ],
+    "task_ids": [
+      "LOWS-BACKEND-2550"
+    ],
+    "title": "The open LOW backend findings of the 2.52 deep review: security, video, core, domain modules",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The deep review's low backend findings SEC-6..8, V-06..10, CORE-06..09 and CORE-11, D-06..10 and D-12 are fixed with a test each that fails on the base; CORE-10 and D-11 are deferred to later rows by the owner.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LOWS-BRIDGE-GATE-2550-1",
+    "requirement_ids": [
+      "R-LOWS-BRIDGE-GATE-2550-1"
+    ],
+    "task_ids": [
+      "LOWS-BRIDGE-GATE-2550"
+    ],
+    "title": "The open low findings of the bridge (WB-) and the gate tooling (TR-) of the 2.52 deep review; bridge 0.10.10",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Bridge 0.10.10 (Persister.control rollback, rate-limited service-grant read, leftover swap folders swept) in both byte-identical copies; the gate tooling fixes TR-10, TR-12, TR-13, TR-14 and TR-08 (part) in the repository copies, installed on the runner only by the lead.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

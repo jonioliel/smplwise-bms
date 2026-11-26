@@ -14855,5 +14855,37 @@
     "test_ids": [
       "AT-RELEASE-2550-TRAIN-1"
     ]
+  },
+  {
+    "id": "R-LOWS-BACKEND-2550-1",
+    "title": "The open LOW backend findings of the 2.52 deep review: security, video, core, domain modules",
+    "statement": "The deep review's low backend findings SEC-6..8, V-06..10, CORE-06..09 and CORE-11, D-06..10 and D-12 are fixed with a test each that fails on the base; CORE-10 and D-11 are deferred to later rows by the owner.",
+    "task_ids": [
+      "LOWS-BACKEND-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LOWS-BACKEND-2550-1"
+    ]
+  },
+  {
+    "id": "R-LOWS-BRIDGE-GATE-2550-1",
+    "title": "The open low findings of the bridge (WB-) and the gate tooling (TR-) of the 2.52 deep review; bridge 0.10.10",
+    "statement": "Bridge 0.10.10 (Persister.control rollback, rate-limited service-grant read, leftover swap folders swept) in both byte-identical copies; the gate tooling fixes TR-10, TR-12, TR-13, TR-14 and TR-08 (part) in the repository copies, installed on the runner only by the lead.",
+    "task_ids": [
+      "LOWS-BRIDGE-GATE-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LOWS-BRIDGE-GATE-2550-1"
+    ]
   }
 ]

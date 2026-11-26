@@ -32484,10 +32484,87 @@
     "evidence": [
       "2026-11-26 (RELEASE-2550-TRAIN): release/2550-train cut from origin/release/2540-train f9217db8a (2.54.0 not released yet; its gate running). Merged: LEGACY-MIGRATION-2550 ba41fdfb6, LEGACY-IMPORT-UI-2550 3e1ab2e35, PILOT-ROLLBACK-2550 49d1ffffb, ANDROID-PUSH-2550 599398f73 (migration 0227, no renumbering); doc fix 6943fcfba; version bump 32a3432bc (2.55.0, draft changelog, API inventory 1962 routes); train fix 3f31dd97d (two file-local exports). HA-STATE-RECONCILE-2550 still to come. UI NOT rebuilt (2.54 may still change). Gate NOT_RUN; nothing released.",
       "2026-11-26 (RELEASE-2550-TRAIN): registry d74a31247 (rows 1-4); train fix 1c389ba73 (English for ANDROID-PUSH-2550's five refusals; test_i18n_errors_en_2520 1 failed -> 9 passed); train note 4909a656e (docs/changes/RELEASE-2550-TRAIN.md: PC checks - generators and ratchets green, tsc / typecheck / eslint / build 0, 22 backend files 332 passed, test_release_check fails only on the not-rebuilt UI bundle, migration 0227 applied on an empty and on a 2.54 database, downgrade check PASS). UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): runner run A at 51e390f86 (~/work/p2520_t2550_a.sh, slot B, after the 2.54 gate): 37 backend files 1338 passed; tsc / build 0; Node unit suite 5465 passed, 4 failed (unit-mfa-passkeys-2490 x3 known harness; unit-no-ha-branding-2443 -> train fix 8d6ce1665); legacy-import-ui-2550 16 passed; backup-tab neighbours 29 passed; pixel-legacy-import-2550 6 passed (gate grep and all cases), no baseline refreshed. UI NOT rebuilt; gate NOT_RUN; nothing released."
+      "2026-11-27 (RELEASE-2550-TRAIN): runner run A at 51e390f86 (~/work/p2520_t2550_a.sh, slot B, after the 2.54 gate): 37 backend files 1338 passed; tsc / build 0; Node unit suite 5465 passed, 4 failed (unit-mfa-passkeys-2490 x3 known harness; unit-no-ha-branding-2443 -> train fix 8d6ce1665); legacy-import-ui-2550 16 passed; backup-tab neighbours 29 passed; pixel-legacy-import-2550 6 passed (gate grep and all cases), no baseline refreshed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
+      "2026-11-27 (RELEASE-2550-TRAIN): LOWS-BACKEND-2550 7b068500b (row 5), LOWS-BRIDGE-GATE-2550 7a62d226c (row 6, bridge 0.10.10, both copies byte-identical; the lab's active bridge is 0.10.9 since 26.11, so 0.10.10 needs one more owner-approved HA restart); changelog a8f8acecf. PC re-run: generators / ratchets / mirror / release_check rows green except the not-rebuilt UI bundle and the tag; unused-exports OK; tsc / typecheck / lint / build 0; 23 backend files 333 passed. UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LOWS-BACKEND-2550",
+    "title": "The open LOW backend findings of the 2.52 deep review: security, video, core, domain modules",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The deep review's low backend findings SEC-6..8, V-06..10, CORE-06..09 and CORE-11, D-06..10 and D-12 are fixed with a test each that fails on the base; CORE-10 and D-11 are deferred to later rows by the owner."
+    ],
+    "requirement_ids": [
+      "R-LOWS-BACKEND-2550-1"
+    ],
+    "test_ids": [
+      "AT-LOWS-BACKEND-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LOWS-BACKEND-2550, change note docs/changes/LOWS-BACKEND-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/LOWS-BACKEND-2550 head 9c0387c7f merged 7b068500b into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 5; cut from release/2540-train f9217db8a); change note docs/changes/LOWS-BACKEND-2550.md. Decisions all = a (Q1, Q4, Q6 built in the row; Q2, Q3 deferred; Q5 kept). The billing golden file refreshed in the row on purpose (D-08). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "9c0387c7f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LOWS-BRIDGE-GATE-2550",
+    "title": "The open low findings of the bridge (WB-) and the gate tooling (TR-) of the 2.52 deep review; bridge 0.10.10",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge 0.10.10 (Persister.control rollback, rate-limited service-grant read, leftover swap folders swept) in both byte-identical copies; the gate tooling fixes TR-10, TR-12, TR-13, TR-14 and TR-08 (part) in the repository copies, installed on the runner only by the lead."
+    ],
+    "requirement_ids": [
+      "R-LOWS-BRIDGE-GATE-2550-1"
+    ],
+    "test_ids": [
+      "AT-LOWS-BRIDGE-GATE-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LOWS-BRIDGE-GATE-2550, change note docs/changes/LOWS-BRIDGE-GATE-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/LOWS-BRIDGE-GATE-2550 head c68386d35 merged 7a62d226c into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 6; cut from release/2540-train f9217db8a); change note docs/changes/LOWS-BRIDGE-GATE-2550.md. Decisions all = a. Note: the lab's active bridge is 0.10.9 since 26.11 (the row's note says 0.10.8). Repo copies of scripts/gate and nightly_tests.sh only; nothing installed. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "c68386d35",
     "actual_cost_usd": null
   }
 ]

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T22:47:22.567744+00:00
+Generated: 2026-11-26T23:47:42.076823+00:00
 
-Tasks: 750 | Requirements: 864 | Tests: 881 | Screens: 32
+Tasks: 752 | Requirements: 866 | Tests: 883 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 189
+- REVIEW: 191
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 655
+- V1: 657
 - V2: 29
 - V3: 3
 
@@ -805,3 +805,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [PILOT-ROLLBACK-2550](tasks/PILOT-ROLLBACK-2550.md) | V1 | REVIEW | Safe rollback of an add-on version: downgrade-safety check of migrations, pilot runbook, commit-time disk-full and clock-jump fixes (T035, T036) | — |
 | [ANDROID-PUSH-2550](tasks/ANDROID-PUSH-2550.md) | V1 | REVIEW | Android push without Google (UnifiedPush), server side, off by default (CR-012 4C, T096) | — |
 | [RELEASE-2550-TRAIN](tasks/RELEASE-2550-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2550-TRAIN - the 2.55.0 train | — |
+| [LOWS-BACKEND-2550](tasks/LOWS-BACKEND-2550.md) | V1 | REVIEW | The open LOW backend findings of the 2.52 deep review: security, video, core, domain modules | — |
+| [LOWS-BRIDGE-GATE-2550](tasks/LOWS-BRIDGE-GATE-2550.md) | V1 | REVIEW | The open low findings of the bridge (WB-) and the gate tooling (TR-) of the 2.52 deep review; bridge 0.10.10 | — |
