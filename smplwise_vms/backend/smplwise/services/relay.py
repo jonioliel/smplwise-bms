@@ -12,6 +12,33 @@ from typing import Any, Awaitable, Callable
 
 from fastapi import WebSocket
 
+# VIDEO-SECFIX-2520 (deep review V-01): the fixed code a viewer receives in place of go2rtc's own error text
+UPSTREAM_ERROR = "upstream_error"
+
+
+def sanitize_upstream_frame(text: str, *, error_value: str = UPSTREAM_ERROR, on_error: Callable[[], None] | None = None) -> str | None:
+    """VIDEO-SECFIX-2520 (deep review V-01): the ONE rule for a go2rtc text frame on its way to a viewer, on every relay route -
+    a recorder camera's and a manual-source camera's live socket, the playback socket, a Home Assistant camera
+    (ha_camera_streams.sanitize_frame) and an intercom station (routers/intercom_media).
+
+    go2rtc's `error` frames carry go2rtc's own error text: a failed dial names the device's address and port, and the stderr of
+    an `ffmpeg:` source can name its whole RTSP URL with the recorder's user name and password. Such a frame becomes the fixed
+    `{"type":"error","value":<error_value>}` (`on_error` runs first); its text is never forwarded - the server keeps only the
+    sanitized, classified form (services/live_diag.py). A text frame that is not a JSON object is dropped: go2rtc's signalling
+    is JSON objects, anything else is text nobody vetted. Every other frame passes unchanged. Never raises."""
+    try:
+        msg = json.loads(text)
+    except (ValueError, TypeError, RecursionError):
+        return None
+    if not isinstance(msg, dict):
+        return None
+    if msg.get("type") == "error":
+        if on_error is not None:
+            with contextlib.suppress(Exception):
+                on_error()
+        return json.dumps({"type": "error", "value": error_value})
+    return text
+
 
 async def close_with_error(websocket: WebSocket, frame: str | dict[str, Any], code: int | None, *, close_apart: bool = False) -> None:
     """CR-LIVE-SOCKET-CAPS (03:F19): the one "tell the socket why, then close it" step - accept the socket if it is still
@@ -34,8 +61,9 @@ async def close_with_error(websocket: WebSocket, frame: str | dict[str, Any], co
 async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, str], on_down: Callable[[int], None], should_stop: Callable[[], bool] | None = None,
                    on_text: Callable[[str], str | None] | None = None, stop_event: asyncio.Event | None = None,
                    close_timeout: float | None = None) -> str:
-    """`on_text`: sees every text frame from go2rtc before it reaches the browser and returns the text to send (None drops it) -
-    a source that must not leak its own error texts (a Home Assistant camera's, ha_camera_streams.sanitize_frame) rewrites here.
+    """`on_text`: sees every text frame from go2rtc before it reaches the browser and returns the text to send (None drops it).
+    VIDEO-SECFIX-2520: None means `sanitize_upstream_frame` - go2rtc's error texts never reach a viewer on any route (a caller
+    that needs its own code or side effect passes a function built on that same sanitizer).
     `stop_event` (PLAYBACK-SCRUB-2341): set from another thread (loop.call_soon_threadsafe) to stop at once - a seek waits for this
     relay to return, i.e. for its upstream socket to be closed by the `async with` below, before it deletes the go2rtc stream.
     `close_timeout`: how long the close handshake with go2rtc may take before the connection is dropped (None = the library's 10 s);
@@ -51,7 +79,7 @@ async def relay_ws(websocket: WebSocket, upstream_url: str, headers: dict[str, s
                     on_down(len(msg))
                     await websocket.send_bytes(bytes(msg))
                 else:
-                    text = on_text(msg) if on_text else msg
+                    text = (on_text or sanitize_upstream_frame)(msg)
                     if text is not None:
                         await websocket.send_text(text)
             return "upstream_closed"

@@ -8,6 +8,11 @@
   `confirmed: true`, CAS on `expected_revision` (stale -> 409 `revision_conflict`, nothing written), a typed `confirm_text` when a
   change touches a door with a door automation (422 `confirm_required`), audited `wiskey.relay_map.approved` (station, before / after,
   revisions, affected doors).
+- `GET /wiskey/relay-map/inventory/{station_id}` - WISKEY-RELAY-INV-2520 (plan WISKEY-RESYNC-2520 row R3): WisKey's
+  `stations/relay_inventory_v1` READ of one station (services/wiskey_relay_inventory.py): the API outputs the station profile reported,
+  WisKey's saved mapping, physical count null and every role unknown, `relay_test_unsupported_v1`. The card's own permission
+  (`system.configure` or `access.admin.read` at the installation) and the same permission on the station's chain (audited 403); only a
+  station of the served copy is named to WisKey (else 404, nothing sent). It never writes Arx's map and never tests or pulses a relay.
 
 Nothing here is sent to a station or a door: the map is the information WisKey grants are built from
 (services/wiskey_feature_exec.py `relay_row`, `relay_row_for_door`). WISKEY-RC7-ADOPT-2331: after an approval is committed, the map
@@ -26,6 +31,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, STATION, Principal, authorize, require
 from ..services import intercom_doors, intercom_sync
+from ..services import wiskey_relay_inventory as ri
 from ..services import wiskey_relay_map as rm
 from ..services import wiskey_relay_map_export as rmx
 from ._common import rid as _rid
@@ -104,6 +110,22 @@ def relay_map_export_record(seq: int = Path(ge=1, le=9007199254740991), principa
         return rmx.get(conn, seq).full()
     except rmx.RelayMapExportError as e:
         raise ApiError(404, e.code, "הייצוא לא נמצא.") from None
+
+
+@router.get("/wiskey/relay-map/inventory/{station_id}", **wire(W.WiskeyRelayMapRelayInventory))
+def relay_inventory(request: Request, station_id: str = Path(min_length=1, max_length=MAX_ID), principal: Principal = Depends(current_principal_ro),
+                    conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """WISKEY-RELAY-INV-2520: what WisKey knows about one station's relays (`stations/relay_inventory_v1`, READ only) as
+    `{state, reason, wiskey_code, fetched_at, data}`; unknown counts and roles stay unknown, no relay test exists, nothing is written."""
+    permission = CONFIGURE if authorize(conn, principal, CONFIGURE, INSTALLATION).allowed else READ
+    if permission == READ:
+        require(conn, principal, READ, INSTALLATION)  # the relay map card's own permission (audited 403)
+    if any(ord(c) < 32 for c in station_id):
+        raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה.")
+    require(conn, principal, permission, (STATION, station_id))  # and on the station's chain: a deny there is an audited 403
+    if intercom_sync.SYNC.station(station_id) is None:  # only a station of the served copy is ever named to WisKey
+        raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה.")
+    return {"station_id": station_id, **ri.read(settings_of(request), station_id, principal.user_id)}
 
 
 class RowBody(BaseModel):

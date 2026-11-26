@@ -37,15 +37,37 @@ What is sent: ids, the window, the doors, the status (`approved` / `ended`), the
 the visitor's name or number, a code, a PIN or a card. What is read is projected into a closed shape: never WisKey's actor ids (HA user ids
 of the requester / approver / decider), the employee number, the responsible person, the purpose text, or credential flags.
 
-Pure helpers + the flows; the HTTP side is routers/access_wiskey_visits.py. Tests: tests/test_wiskey_visits_2407.py (fake WisKey only)."""
+WISKEY-R6-2520 (WisKey rc.19 contract `external-visits-v1`, docs/changes/WISKEY-R6-2520.md):
+- RECORD ONLY. The command stores visit metadata next to a person WisKey already has; it creates no person, credential, activation or
+  grant, and Arx sends nothing else with it (the grant engine still owns the person and its access).
+- The record is contract-valid or it is not sent: `record_problems` checks the closed shape (the nine keys, exact references, a lowercase
+  UUID person, explicit-offset instants with from < until inside 1970..2037, 1..100 stations of unique locks 1/2, an approval with
+  kind / instant / approver, `end_reason` null for `approved` and non-empty for `ended`). A record Arx cannot make valid is refused in Arx
+  (409 `wiskey_visits_record_invalid`, audited, field names only) - nothing is invented to fill a gap.
+- The answer is read with a closed code table (RECORD_REFUSED / RECORD_UNKNOWN): only the contract's pre-write refusals are `refused`;
+  `visit_record_outcome_unknown`, `bridge_outcome_unknown` and every code the table does not know are `unknown`, settled only by a read
+  (never by sending again). A success whose result is not exactly the sent `external_ref`'s revision and status is `unknown` too.
+- The reconcile reads the one row by the exact `filters.external_ref` (rc.19 B8) and compares WisKey's `arx_revision` with the sent one.
+- WISKEY-VISITS-ENDED-FILTER-2520: the list's `filters.status=ended` (an Arx record that ended) is offered only when WisKey lists the
+  record command - WisKey added the `ended` list filter in the same change as the command (its access/visit_requests.py `list_requests`
+  at rc.19 / rc.20; rc.10 refuses `ended` with `invalid_fields`). `list_statuses` is that decision; the router refuses `ended` before
+  any call when it is not offered (409 `wiskey_visits_unsupported`, feature `ended_filter`), and the panel shows the option only then.
+- Rollback boundary (WisKey's, documented for the operator): WisKey's first stored record migrates its visits store to schema 2, which the
+  older WisKey code refuses - there is no code-only downgrade to rc.17 after it; WisKey's users / visits backup taken at that moment is
+  not a full Home Assistant / Arx backup.
+
+Pure helpers + the flows; the HTTP side is routers/access_wiskey_visits.py. Tests: tests/test_wiskey_visits_2407.py,
+tests/test_wiskey_visits_b8_2520.py (fake WisKey only)."""
 from __future__ import annotations
 
 import json
 import re
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any
 
 from ..db import Database, get_setting, set_setting
+from ..error_text import tpl
 from ..errors import ApiError
 from ..rbac import Principal
 from . import access_grants as ag
@@ -58,7 +80,7 @@ LANE = "config"  # the people-write lane of intercom_sync (one slot, never queue
 
 LIST = "visits/list"
 TEMPLATES = "guest_templates/get"
-RECORD = "visits/record_external_v1"  # THE ASK (doc section 4): not in WisKey rc.10
+RECORD = "visits/record_external_v1"  # WisKey rc.19 contract external-visits-v1 (B8); not in rc.10
 READS = frozenset({LIST, TEMPLATES})
 # WisKey's own visit writes Arx deliberately never sends (see the module note); tests check no channel carries them
 NEVER = frozenset({"visits/create", "visits/request", "visits/decide", "visits/operators", "guest_templates/upsert", "guest_templates/delete"})
@@ -72,8 +94,31 @@ AUDIT_SETTINGS = "access.visitor.wiskey_settings"
 PAGE = 200  # WisKey's page cap for visits/list
 RECONCILE_PAGES = 5
 
-STATUSES = frozenset({"pending", "approved", "rejected", "cancelled", "superseded"})
+# `ended` is an Arx record's status in the rc.19 list (external rows keep `approved` / `ended`)
+STATUSES = frozenset({"pending", "approved", "rejected", "cancelled", "superseded", "ended"})
 ARX_STATUSES = ("approved", "ended")
+# the list's status filter values every WisKey version accepts (rc.10 access/visit_requests.py `STATUSES | {"all"}`); `ended` only with
+# the record command (WISKEY-VISITS-ENDED-FILTER-2520, `list_statuses`)
+LIST_STATUSES = ("all", "pending", "approved", "rejected", "cancelled", "superseded")
+ENDED_FILTER = "ended"
+
+# ---- external-visits-v1 (WisKey rc.19 docs/contracts/external-visits-v1, record.v1 / result.v1 / error.v1)
+RECORD_FIELDS = ("external_ref", "arx_revision", "user_id", "status", "valid_from", "valid_until", "doors", "approval", "end_reason")
+APPROVAL_FIELDS = ("kind", "approved_at", "approver_ref")
+MAX_REVISION = 9_007_199_254_740_991
+EARLIEST = datetime(1970, 1, 1, tzinfo=timezone.utc)
+LATEST = datetime(2037, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+_REF = re.compile(r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$")
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})$")
+# The answer's closed code table. `refused` = the contract's refusals before the authoritative write (CONTRACT.txt "Known refusals
+# before authoritative write": the seven named codes, the original validation, limit, permission and transport errors). `unknown` = the
+# two UNKNOWN codes. A code on neither list is read as `unknown` too (fail toward unknown, never toward refused).
+RECORD_REFUSED = (intercom_client.PRE_EFFECT.get(RECORD, frozenset()) | intercom_client.PRE_DISPATCH
+                  | frozenset({"installation_unavailable", "writes_disabled", "visit_record_stale", "revision_conflict", "user_not_found",
+                               "visit_user_not_temporary", "storage_stopping", "invalid_text", "invalid_id", "invalid_validity",
+                               "visit_request_limit"}))
+RECORD_UNKNOWN = frozenset({"visit_record_outcome_unknown", "bridge_outcome_unknown"})
 CATEGORIES = frozenset({"visitor", "contractor"})
 REASON_CODES = frozenset({"approved", "visit_rejected", "visit_cancelled", "replaced"})
 PUSHABLE = {"approved": "approved", "provisioning": "approved", "active": "approved", "revoking": "ended", "ended": "ended", "revoked": "ended"}
@@ -86,6 +131,7 @@ REASON_HE: dict[str, str] = {
     "api_incompatible": "הגרסה המותקנת של מערכת בקרת הכניסה אינה תואמת לגרסה הזו של Arx.",
     "no_copy": "עדיין אין חיבור פעיל למערכת בקרת הכניסה.",
     "push_off": "רישום הביקורים במערכת בקרת הכניסה כבוי בהגדרות (מנהל מערכת).",
+    "ended_filter_not_offered": "מערכת בקרת הכניסה המותקנת אינה מציעה סינון של ביקורים שהסתיימו. לא נשלח דבר.",
     "installation_unavailable": "ההתקנה המנוהלת של מערכת בקרת הכניסה אינה זמינה, ולכן שום דבר לא נשלח.",
     "writes_disabled": "הכתיבה כבויה בצד מערכת בקרת הכניסה, ולכן שום דבר לא נשלח.",
     "unauthorized": "מערכת בקרת הכניסה אינה מרשה לזהות של Arx לבצע את הפעולה.",
@@ -141,7 +187,15 @@ def capabilities(conn: sqlite3.Connection, api: dict[str, Any] | None) -> dict[s
         out[name] = {"available": available, "reason": reason, "message": reason_text(reason)}
     out["push"]["switch"] = "on" if switch_on(conn) else "off"
     out["push"]["offered"] = feature_state(api, "push")[0]
+    out["visits"]["statuses"] = list_statuses(api)
     return out
+
+
+def list_statuses(api: dict[str, Any] | None) -> list[str]:
+    """WISKEY-VISITS-ENDED-FILTER-2520: the `filters.status` values the connected WisKey accepts on `visits/list`. `ended` only when WisKey
+    lists the record command for the add-on's identity (`overview.api.commands`) - the list filter came with that command in WisKey's
+    source; no version label is read. No copy, unknown commands or rc.10: the six statuses every version takes (fail closed)."""
+    return [*LIST_STATUSES, ENDED_FILTER] if feature_state(api, "push")[0] else list(LIST_STATUSES)
 
 
 # ---------------------------------------------------------------- the frames
@@ -155,12 +209,28 @@ def _result(frame: Any, command: str) -> Any:
     raise IntercomError("invalid_response", command)
 
 
+def record_answer(frame: Any) -> Any:
+    """The record command's answer through the closed code table: a success returns its result (the projection judges it); a failure
+    is a refusal (IntercomError) only for a RECORD_REFUSED code; RECORD_UNKNOWN, any other code and a frame that is neither are
+    `UnclearAnswer` - outcome unknown, settled only by reading WisKey's list."""
+    if isinstance(frame, dict) and frame.get("success") is True:
+        return frame.get("result")
+    if isinstance(frame, dict) and frame.get("success") is False:
+        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
+        code = str(error.get("code") or "")
+        if code in RECORD_REFUSED and code not in RECORD_UNKNOWN:
+            raise IntercomError(code, RECORD)
+        raise intercom_client.UnclearAnswer(RECORD, code or "action_failed")
+    raise intercom_client.UnclearAnswer(RECORD, "invalid_response")
+
+
 async def ask(call: intercom_client.Call, command: str, **fields: Any) -> Any:
     """One frame with exactly the catalog's keys. The two reads are READ commands (no `api_contract`); the record is a write and carries it."""
     if command not in READS and command != RECORD:
         raise IntercomError("not_allowed_on_channel", command)
     if command == RECORD:
         fields["api_contract"] = intercom_client.API_CONTRACT
+        return record_answer(await call(intercom_client.command_type(command), **fields))
     return _result(await call(intercom_client.command_type(command), **fields), command)
 
 
@@ -179,21 +249,40 @@ async def record_external(call: intercom_client.Call, record: dict[str, Any]) ->
     return await ask(call, RECORD, record=record)
 
 
-async def find_external(call: intercom_client.Call, external_ref: str) -> dict[str, Any]:
-    """Every page of WisKey's list (at most RECONCILE_PAGES) searched for the record of `external_ref`. `complete` says the whole list was read."""
+def _hit(row: Any, external_ref: str) -> dict[str, Any] | None:
+    if isinstance(row, dict) and row.get("source") == "arx" and row.get("external_ref") == external_ref:
+        projected = project_visit(row)
+        if projected is not None:
+            return {"found": projected, "arx_revision": _rev(row.get("arx_revision")), "complete": True}
+    return None
+
+
+async def find_external(call: intercom_client.Call, external_ref: str, *, exact: bool = False) -> dict[str, Any]:
+    """The record of `external_ref` in WisKey's list. `exact` (the producer offers the record command, rc.19 B8): ONE read with the exact,
+    case-sensitive `filters.external_ref` (native rows excluded) - more than one row for the key is ambiguity, answered `complete: False`
+    (undecided, nothing settled). Otherwise every page (at most RECONCILE_PAGES) is searched. `complete` says the answer is conclusive;
+    `arx_revision` is the revision WisKey holds (None when WisKey did not say)."""
+    if exact:
+        page = await ask(call, LIST, offset=0, limit=PAGE, filters={"status": "all", "scope": "all", "external_ref": external_ref})
+        if not isinstance(page, dict) or not isinstance(page.get("items"), list):
+            raise IntercomError("invalid_response", LIST)
+        hits = [h for row in page["items"] if (h := _hit(row, external_ref)) is not None]
+        if len(hits) > 1:
+            return {"found": None, "arx_revision": None, "complete": False}
+        return hits[0] if hits else {"found": None, "arx_revision": None, "complete": True}
     offset = 0
     for _ in range(RECONCILE_PAGES):
         page = await list_visits(call, offset=offset, limit=PAGE)
         if not isinstance(page, dict):
             raise IntercomError("invalid_response", LIST)
         for row in page.get("items") or []:
-            if isinstance(row, dict) and row.get("external_ref") == external_ref and row.get("source") == "arx":
-                return {"found": project_visit(row), "complete": True}
+            if (hit := _hit(row, external_ref)) is not None:
+                return hit
         nxt = page.get("next_offset")
         if not isinstance(nxt, int) or nxt <= offset:
-            return {"found": None, "complete": True}
+            return {"found": None, "arx_revision": None, "complete": True}
         offset = nxt
-    return {"found": None, "complete": False}
+    return {"found": None, "arx_revision": None, "complete": False}
 
 
 # ---------------------------------------------------------------- projections (closed shapes)
@@ -228,6 +317,11 @@ def _doors(v: Any) -> dict[str, list[int]]:
 
 def _int(v: Any) -> int | None:
     return v if type(v) is int and v >= 0 else None
+
+
+def _rev(v: Any) -> int | None:
+    """A contract revision: a strict JSON integer in [1, MAX_REVISION] (a boolean or a float is not one)."""
+    return v if type(v) is int and 1 <= v <= MAX_REVISION else None
 
 
 def project_visit(raw: Any) -> dict[str, Any] | None:
@@ -277,12 +371,19 @@ def project_templates(raw: Any) -> dict[str, Any]:
     return {"items": items, "revision": _int(raw.get("revision"))}
 
 
-def project_record(raw: Any) -> dict[str, Any]:
-    """The record command's answer (the ask's shape): `{visit_id, revision, arx_revision, status}`."""
-    if not isinstance(raw, dict) or not _id(raw.get("visit_id")):
+RESULT_FIELDS = frozenset({"visit_id", "revision", "arx_revision", "status"})
+
+
+def project_record(raw: Any, expect: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The record command's answer, result.v1 exactly: `{visit_id (lowercase UUID), revision, arx_revision, status}`, closed. With
+    `expect` (the record sent) the answer must name the sent `arx_revision` and `status` - WisKey answers the stored revision, so a
+    different one is not a receipt of this record. Anything else raises: after a success frame that is "outcome unknown", never ok."""
+    if (not isinstance(raw, dict) or set(raw) != RESULT_FIELDS or not isinstance(raw.get("visit_id"), str) or not _UUID.match(raw["visit_id"])
+            or _rev(raw.get("revision")) is None or _rev(raw.get("arx_revision")) is None or raw.get("status") not in ARX_STATUSES):
         raise ValueError("unexpected visits/record_external_v1 answer")
-    return {"visit_id": raw["visit_id"], "revision": _int(raw.get("revision")), "arx_revision": _int(raw.get("arx_revision")),
-            "status": raw.get("status") if raw.get("status") in ARX_STATUSES else "unknown"}
+    if expect is not None and (raw["arx_revision"] != expect.get("arx_revision") or raw["status"] != expect.get("status")):
+        raise ValueError("visits/record_external_v1 answer is not the sent revision")
+    return {"visit_id": raw["visit_id"], "revision": raw["revision"], "arx_revision": raw["arx_revision"], "status": raw["status"]}
 
 
 # ---------------------------------------------------------------- Arx's side: origin, eligibility, the record
@@ -343,32 +444,105 @@ def wiskey_person(conn: sqlite3.Connection, g: dict[str, Any]) -> str | None:
 
 
 def record_of(conn: sqlite3.Connection, inv: dict[str, Any], g: dict[str, Any]) -> dict[str, Any] | None:
-    """The record Arx hands WisKey (None = not pushable: not decided in Arx, or no WisKey person yet). Ids, window, doors, status only."""
+    """The record Arx hands WisKey (None = not pushable: not decided in Arx, or no WisKey person yet). Ids, window, doors, status only -
+    exactly the nine RECORD_FIELDS, values as Arx holds them (nothing invented; `record_problems` says whether they make a valid record).
+    `end_reason` of an ended record: the invitation's reason, else the grant's (both Arx's own words, e.g. `host_cancelled`, `ended`)."""
     status = PUSHABLE.get(g["state"])
     person = wiskey_person(conn, g)
     if status is None or person is None:
         return None
+    try:
+        doors: Any = json.loads(g.get("doors_json") or "{}")
+    except ValueError:
+        doors = None
     return {"external_ref": inv["id"], "arx_revision": arx_revision(inv, g), "user_id": person, "status": status,
-            "valid_from": g["valid_from"], "valid_until": g["valid_until"], "doors": json.loads(g.get("doors_json") or "{}"),
-            "approval": {"kind": inv["approval_kind"], "approved_at": g.get("approved_at"), "approver_ref": g.get("approved_by")},
-            "end_reason": inv.get("end_reason") if status == "ended" else None}
+            "valid_from": g.get("valid_from"), "valid_until": g.get("valid_until"), "doors": doors,
+            "approval": {"kind": inv.get("approval_kind"), "approved_at": g.get("approved_at"), "approver_ref": g.get("approved_by")},
+            "end_reason": (inv.get("end_reason") or g.get("end_reason")) if status == "ended" else None}
+
+
+def _ref_ok(v: Any, limit: int) -> bool:
+    return isinstance(v, str) and 1 <= len(v) <= limit and _REF.match(v) is not None
+
+
+def _instant(v: Any) -> datetime | None:
+    """An explicit-offset RFC 3339 instant (the contract's pattern, at most 40 characters) as an aware UTC datetime; None otherwise."""
+    if not isinstance(v, str) or len(v) > 40 or not _INSTANT.match(v):
+        return None
+    try:
+        when = datetime.fromisoformat(v)
+    except ValueError:
+        return None
+    return when.astimezone(timezone.utc) if when.tzinfo is not None else None
+
+
+def record_problems(record: Any) -> list[str]:
+    """The record.v1 rules (and the producer's business parser) the record breaks, as field paths - empty = contract-valid. Field names
+    only, never values: the list goes to the audit row and the screen."""
+    if not isinstance(record, dict):
+        return ["record"]
+    out: list[str] = []
+    if set(record) != set(RECORD_FIELDS):
+        out.append("record.keys")
+    if not _ref_ok(record.get("external_ref"), 128):
+        out.append("external_ref")
+    if _rev(record.get("arx_revision")) is None:
+        out.append("arx_revision")
+    if not isinstance(record.get("user_id"), str) or not _UUID.match(record["user_id"]):
+        out.append("user_id")
+    status = record.get("status")
+    if status not in ARX_STATUSES:
+        out.append("status")
+    start, end = _instant(record.get("valid_from")), _instant(record.get("valid_until"))
+    if start is None:
+        out.append("valid_from")
+    if end is None:
+        out.append("valid_until")
+    if start is not None and end is not None and not (EARLIEST <= start < end <= LATEST):
+        out.append("validity")
+    doors = record.get("doors")
+    if not isinstance(doors, dict) or not 1 <= len(doors) <= 100:
+        out.append("doors")
+    else:
+        for station, locks in doors.items():
+            if (not _ref_ok(station, 64) or not isinstance(locks, list) or not 1 <= len(locks) <= 2
+                    or any(type(lock) is not int or lock not in (1, 2) for lock in locks) or len(set(locks)) != len(locks)):
+                out.append("doors")
+                break
+    approval = record.get("approval")
+    if not isinstance(approval, dict) or set(approval) != set(APPROVAL_FIELDS):
+        out.append("approval")
+    else:
+        if not _ref_ok(approval.get("kind"), 64):
+            out.append("approval.kind")
+        if _instant(approval.get("approved_at")) is None:
+            out.append("approval.approved_at")
+        if not _ref_ok(approval.get("approver_ref"), 128):
+            out.append("approval.approver_ref")
+    reason = record.get("end_reason")
+    if status == "approved" and reason is not None:
+        out.append("end_reason")
+    if status == "ended" and not _ref_ok(reason, 128):
+        out.append("end_reason")
+    return out
 
 
 def link_view(conn: sqlite3.Connection, inv: dict[str, Any], g: dict[str, Any]) -> dict[str, Any]:
-    """The invitation's WisKey record state as the screen shows it. `in_sync`: WisKey confirmed the current Arx revision."""
+    """The invitation's WisKey record state as the screen shows it. `in_sync`: WisKey confirmed the current Arx revision. `pushable`:
+    decided in Arx, the person exists in WisKey, and the record is contract-valid."""
     link = link_row(conn, inv["id"]) or {}
     record = record_of(conn, inv, g)
     current = arx_revision(inv, g)
     return {"invite_id": inv["id"], "state": link.get("state") or "never", "pushed_revision": link.get("pushed_revision"),
             "current_revision": current, "in_sync": link.get("state") == "pushed" and link.get("pushed_revision") == current,
-            "pushable": record is not None, "wiskey_visit_id": link.get("wiskey_visit_id"), "last_code": link.get("last_code"),
-            "attempted_at": link.get("attempted_at")}
+            "pushable": record is not None and not record_problems(record), "wiskey_visit_id": link.get("wiskey_visit_id"),
+            "last_code": link.get("last_code"), "attempted_at": link.get("attempted_at")}
 
 
 # ---------------------------------------------------------------- the push
 
-def _deny(conn: sqlite3.Connection, principal: Principal, invite_id: str, reason: str, request_id: str | None, exc: ApiError) -> ApiError:
-    ag._audit(conn, principal, AUDIT_PUSH, invite_id, decision="denied", reason=reason, resource_type="access_visitor_invite", request_id=request_id)
+def _deny(conn: sqlite3.Connection, principal: Principal, invite_id: str, reason: str, request_id: str | None, exc: ApiError, **extra: Any) -> ApiError:
+    ag._audit(conn, principal, AUDIT_PUSH, invite_id, decision="denied", reason=reason, resource_type="access_visitor_invite", request_id=request_id, **extra)
     return exc
 
 
@@ -395,6 +569,14 @@ def claim(db: Database, principal: Principal, invite_id: str, api: dict[str, Any
             raise _deny(conn, principal, invite_id, "not_pushable", request_id,
                         ApiError(409, "wiskey_visits_not_ready", "ההזמנה עדיין לא אושרה ב-Arx או שהמבקר עוד לא נוצר במערכת בקרת הכניסה. נסו שוב אחרי שההזמנה פעילה.",
                                  details={"state": g["state"]}))
+        problems = record_problems(record)
+        if problems:  # WISKEY-R6-2520: a record Arx cannot make contract-valid is never sent (and nothing is filled in to make it valid)
+            raise _deny(conn, principal, invite_id, "record_invalid", request_id,
+                        ApiError(409, "wiskey_visits_record_invalid",
+                                 "לא ניתן לבנות רישום תקין של ההזמנה עבור מערכת בקרת הכניסה (חסרים או לא תקינים: " + ", ".join(problems) + "). לא נשלח דבר.",
+                                 details={"problems": problems,
+                                          "message_en": "The invitation cannot be turned into a valid record for the access control system (missing or invalid: "
+                                                        + ", ".join(problems) + "). Nothing was sent."}), problems=problems)
         link = link_row(conn, invite_id)
         if link and link["state"] == "sending":
             raise _deny(conn, principal, invite_id, "in_flight", request_id,
@@ -435,9 +617,38 @@ def settle(db: Database, principal: Principal | None, invite_id: str, outcome: s
                   code=safe_code, arx_revision=revision, wiskey_visit_id=(reply or {}).get("visit_id"))
 
 
+# The refusal table (WisKey's closed error.v1 codes that mean "not written"): Hebrew text as raised, English in `details.message_en`.
+REFUSAL_TEXT: dict[str, tuple[int, str, str, str]] = {
+    "installation_unavailable": (409, "wiskey_visits_installation_unavailable", REASON_HE["installation_unavailable"],
+                                 "The managed access control installation is not available, so nothing was sent."),
+    "writes_disabled": (409, "wiskey_visits_writes_disabled", REASON_HE["writes_disabled"],
+                        "Writing is switched off on the access control side, so nothing was sent."),
+    "unauthorized": (403, "wiskey_visits_unauthorized", REASON_HE["unauthorized"],
+                     "The access control system does not allow Arx's identity to do this."),
+    "visit_record_stale": (409, "wiskey_visits_stale", "במערכת בקרת הכניסה יש גרסה חדשה יותר של הרישום. טענו מחדש ובדקו.",
+                           "The access control system holds a newer version of this record. Reload and check."),
+    "revision_conflict": (409, "wiskey_visits_revision_conflict",
+                          "במערכת בקרת הכניסה רשומה אותה גרסה של ההזמנה עם פרטים אחרים, או שהרישום שייך לאדם אחר. לא נרשם דבר.",
+                          "The access control system holds the same revision of this invitation with other details, or the record belongs to another person. Nothing was recorded."),
+    "visit_request_limit": (409, "wiskey_visits_limit", "מאגר הביקורים במערכת בקרת הכניסה מלא, ולכן ביקור חדש לא נרשם. לא נרשם דבר.",
+                            "The access control system's visit store is full, so a new visit cannot be recorded. Nothing was recorded."),
+    "user_not_found": (409, "wiskey_visits_person_missing", "המבקר לא נמצא במערכת בקרת הכניסה. לא נרשם דבר.",
+                       "The visitor was not found in the access control system. Nothing was recorded."),
+    "visit_user_not_temporary": (409, "wiskey_visits_person_not_temporary", "האדם במערכת בקרת הכניסה אינו מסומן כמבקר או כקבלן. לא נרשם דבר.",
+                                 "The person in the access control system is not marked as a visitor or contractor. Nothing was recorded."),
+    "storage_stopping": (409, "wiskey_visits_storage_stopping", "מערכת בקרת הכניסה בעצירה או בהפעלה מחדש. לא נרשם דבר - נסו שוב מאוחר יותר.",
+                         "The access control system is stopping or restarting. Nothing was recorded - try again later."),
+    "rate_limited": (409, "wiskey_visits_rate_limited", "מערכת בקרת הכניסה עמוסה כרגע. לא נרשם דבר - נסו שוב בעוד רגע.",
+                     "The access control system is busy right now. Nothing was recorded - try again in a moment."),
+}
+RETRYABLE = frozenset({"storage_stopping", "rate_limited"})
+
+
 def wiskey_refusal(code: str) -> ApiError:
-    if code in ("installation_unavailable", "writes_disabled", "unauthorized"):
-        return ApiError(409 if code != "unauthorized" else 403, f"wiskey_visits_{code}", REASON_HE[code], details={"wiskey_code": code})
-    if code in ("revision_conflict", "visit_record_stale"):
-        return ApiError(409, "wiskey_visits_stale", "במערכת בקרת הכניסה יש גרסה חדשה יותר של הרישום. טענו מחדש ובדקו.", details={"wiskey_code": code})
-    return ApiError(409, "wiskey_visits_refused", f"מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.", details={"wiskey_code": code})
+    """A proven refusal (RECORD_REFUSED) as the screen says it. Validation codes (`invalid_*`, `request_too_large`, `api_incompatible`)
+    and any other refusal keep the generic text with the code."""
+    if code in REFUSAL_TEXT:
+        status, api_code, he, en = REFUSAL_TEXT[code]
+        return ApiError(status, api_code, he, retryable=code in RETRYABLE, details={"wiskey_code": code, "message_en": en})
+    return ApiError(409, "wiskey_visits_refused", tpl("מערכת בקרת הכניסה דחתה את רישום הביקור ({code}). לא נרשם דבר.", code=code),
+                    details={"wiskey_code": code, "message_en": f"The access control system refused the visit record ({code}). Nothing was recorded."})

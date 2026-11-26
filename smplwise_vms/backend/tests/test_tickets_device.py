@@ -160,7 +160,7 @@ def test_a_device_the_creator_cannot_read_is_unknown_and_the_place_decides_ticke
     assert device_ticket(w, "tom", "light.nope").status_code == 422
     # fred: operator on floor 2 only - the lobby sensor sits on floor 3 (not his), the air conditioner on floor 2 (his)
     r = device_ticket(w, "fred", "sensor.lobby_temp")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "entity_id", "code": "unknown"}, "a hidden device does not leak"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "entity_id", "code": "unknown"}, "a hidden device does not leak"
     assert device_ticket(w, "fred", "climate.ac_102").status_code == 201
     # a viewer may read the lock but does not operate it: the lock is "unknown" to them in the module (the activity route's rule)
     bind(w.c, settings, "vera", "viewer", "installation", "*")

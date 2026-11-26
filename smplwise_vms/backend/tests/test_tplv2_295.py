@@ -155,6 +155,8 @@ def test_settings_are_validated_and_nothing_is_stored_on_a_problem(v2, body, pat
     r = req(c, "PUT", "/messaging/template-send", json=body)
     assert r.status_code == 422 and r.json()["code"] == "template_send_invalid", r.text
     assert path in json.dumps(r.json())
+    d = r.json()["details"]  # ADR-019 (ADR019-FAMILY45-2520): `problems` mirror the legacy `errors`, `fields` name them
+    assert [{"field": e["path"], "code": e["code"]} for e in d["errors"]] == d["problems"] and path in d["fields"]
     assert req(c, "GET", "/messaging/template-send").json()["templates"] == []
 
 

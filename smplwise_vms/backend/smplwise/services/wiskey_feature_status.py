@@ -43,7 +43,14 @@ R: dict[str, tuple[str, str, str]] = {  # code -> (kind, text, how to turn it on
     "media_off": ("SET", "המתג \"מדיה של העמדות\" כבוי.", "בהגדרות › מתגי מסכי כניסה: מדיה של העמדות - וידאו (או וידאו ודיבור)."),
     "media_no_talk": ("SET", "המתג \"מדיה של העמדות\" מוגדר לווידאו בלבד.", "בהגדרות › מתגי מסכי כניסה: מדיה של העמדות - וידאו ודיבור."),
     "listen_off": ("SET", "המתג \"האזנה לעמדה\" כבוי.", "בהגדרות › מתגי מסכי כניסה: האזנה לעמדה."),
-    "listen_no_downlink": ("WK", "WisKey לא מפרסם פקודת האזנה בלי שיחה (אין ערוץ שמע מהעמדה מחוץ לשיחה).", "ממתין ל־WisKey. בינתיים צליל העמדה זמין בתוך שיחה."),
+    # WISKEY-LISTEN-GATE-2520 (R5, WisKey C4): listening is the opt-in `media/talk_open.parameters.listen` of `station_talk_audio`
+    # (arx.station_talk_audio.v1, default false). The row follows the LAST NEGOTIATED signed discovery, never a version label.
+    "listen_no_downlink": ("WK", "הגילוי החתום האחרון של WisKey לא מציע האזנה לעמדה (station_talk_audio עם הבחירה media/talk_open.parameters.listen).",
+                           "עדכון WisKey לגרסה שמציעה אותה (בהתקנה ידנית - בעל המערכת), ואז \"בדוק חיבור חתום\"."),
+    "listen_offer_rejected": ("WK", "WisKey מציע את station_talk_audio בצורה אחרת מזו ש־Arx קורא (arx.station_talk_audio.v1, בחירה, ברירת מחדל כבויה), ולכן Arx לא משתמש בה.",
+                              "פריט פתוח מול WisKey; לא פעולה של בעל המערכת."),
+    "listen_unknown": ("PAIR", "עוד לא ידוע אם WisKey מציע האזנה לעמדה: אין גילוי חתום (לא מהחיבור הישיר ולא מבדיקה).",
+                       "\"בדוק חיבור חתום\" בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
     "policy_b": ("POL", "מדיניות B: Arx לא מתקין ולא מנהל את WisKey, והתכונה זמינה רק בהתקנה מנוהלת.",
                  "ממתין להתקנה מנוהלת (בעבודה, צוות ההתקנה המנוהלת). לא מפעילים את wiskey.auto_install ידנית."),
     "owner_on_not_permitted": ("POL", "הפעלת ההתקנה המנוהלת חסומה בגרסה הזו (OWNER_ON_PERMITTED).", "ממתין לגרסה עם ההתקנה המנוהלת ואישור בעל המערכת."),
@@ -64,8 +71,12 @@ R: dict[str, tuple[str, str, str]] = {  # code -> (kind, text, how to turn it on
 
 
 def _reason(code: str, **fmt: Any) -> dict[str, Any]:
+    """One reason. `text` / `fix` are the Hebrew sentences (unchanged); `params` (WISKEY-STATUS-I18N-2520, additive) carries the values
+    the sentence was filled with, so a page in another language says the same thing from the stable `code` (frontend
+    i18n/wiskey-feature-status.ts); {} when the sentence has none."""
     kind, text, fix = R[code]
-    return {"code": code, "kind": kind, "text": text.format(**fmt) if fmt else text, "fix": fix}
+    return {"code": code, "kind": kind, "text": text.format(**fmt) if fmt else text, "fix": fix,
+            "params": {k: v if isinstance(v, (int, float)) and not isinstance(v, bool) else str(v) for k, v in fmt.items()}}
 
 
 def _join_live() -> dict[str, Any]:
@@ -113,7 +124,7 @@ class Facts:
         if not out:  # WISKEY-JOIN-LIVE-2382: the join starts / stops at runtime - say where it is now
             live = self.live.get("state")
             if live in ("starting", "connecting", "stopping"):
-                out.append(_reason("join_starting", what={"starting": "מופעל", "connecting": "מתחבר", "stopping": "נעצר"}[live]))
+                out.append(_reason("join_starting", what={"starting": "מופעל", "connecting": "מתחבר", "stopping": "נעצר"}[live], state=live))
             elif live == "error":
                 out.append(_reason("join_error", error=self.live.get("last_error") or "unknown"))
             elif not self.join:
@@ -203,8 +214,65 @@ def _lock(_f: Facts) -> list[dict[str, Any]]:
     return [] if supported else [_reason("lock_unsupported")]
 
 
+LISTEN_BLOCK = "station_talk_audio"
+LISTEN_COMMANDS = (w10.DESCRIBE, w10.TALK_OPEN, w10.TALK_CLOSE)  # listening is a talk opened with `listen: true`, no floor and no uplink
+# codes that say "not known yet": the row is `unknown` (never `on`, never a definite "blocked") unless a definite blocker is there too
+UNKNOWN_CODES = frozenset({"listen_unknown"})
+
+
+def _listen_offer(f: Facts) -> dict[str, Any] | None:
+    """The listen opt-in as the LAST NEGOTIATED signed discovery states it: {offered: bool, rejected: bool, commands: [...], source}.
+
+    1. the direct join's CURRENT connection, when it is up and its document is bound to that connection (no I/O, as
+       services/wiskey_media_caps.py `_from_join` reads it);
+    2. else the last pairing probe ("בדוק חיבור חתום"), when WisKey accepted it and its discovery was read;
+    3. else None: not known (the row stays `unknown`; nothing is assumed from a version or from the media contract).
+    `offered` is True only for the EXACT closed block (wiskey_direct_discovery.TALK_AUDIO_CAP); another shape is `rejected`."""
+    try:
+        from . import wiskey_direct_join
+
+        join = wiskey_direct_join.installed()
+        if join is not None and join.configured():
+            session = join.session
+            link = session._link  # noqa: SLF001 - read only: the connection the document is bound to
+            cap = session.discovery.capabilities
+            if (session.transport_refusal(None) is None and link is not None and cap is not None
+                    and cap.connection_ref == link.connection_ref):
+                return {"offered": cap.talk_audio is True, "rejected": LISTEN_BLOCK in cap.rejected_blocks,
+                        "commands": sorted(cap.commands), "source": "join"}
+    except Exception:  # noqa: BLE001 - the join is a shortcut only; the probe (or unknown) answers
+        pass
+    caps = f.caps if f.accepted is True else None
+    if not isinstance(caps, dict):
+        return None
+    return {"offered": caps.get("talk_audio") is True, "rejected": LISTEN_BLOCK in (caps.get("rejected_blocks") or []),
+            "commands": list(caps.get("commands") or []), "source": "probe"}
+
+
 def _listen(f: Facts) -> list[dict[str, Any]]:
-    return ([] if f.setting("access.station_listen") in ("on", "probe") else [_reason("listen_off")]) + [_reason("listen_no_downlink")]
+    """Fail closed: `on` only when the setting is on, the signed path is usable and the last negotiated discovery carries the exact opt-in
+    together with the commands a listen uses. No discovery = `unknown` with its reason; the setting value `probe` never proves anything."""
+    out = ([] if f.setting("access.station_listen") in ("on", "probe") else [_reason("listen_off")]) + f.direct()
+    offer = _listen_offer(f)
+    if offer is None:
+        return out + [_reason("listen_unknown")]
+    if offer["rejected"]:
+        return out + [_reason("listen_offer_rejected")]
+    if not offer["offered"]:
+        return out + [_reason("listen_no_downlink")]
+    prefix = w10.DOMAIN + "/"  # the signed document may name a command with WisKey's domain (as wiskey_media_caps.listed_in reads it)
+    names = {c[len(prefix):] if isinstance(c, str) and c.startswith(prefix) else c for c in offer["commands"]}
+    missing = [c for c in LISTEN_COMMANDS if c not in names]
+    return out + ([_reason("direct_no_media", missing=", ".join(missing))] if missing else [])
+
+
+def _state(reasons: list[dict[str, Any]]) -> str:
+    if not reasons:
+        return ON
+    definite = [r for r in reasons if r["code"] not in UNKNOWN_CODES]
+    if any(r["kind"] in ("PAIR", "WK", "POL") for r in definite):
+        return BLOCKED
+    return UNKNOWN if len(definite) < len(reasons) else OFF
 
 
 def _template(f: Facts) -> list[dict[str, Any]]:
@@ -250,9 +318,10 @@ def rows(conn: Any, settings: Any) -> list[dict[str, Any]]:
     for num, key, group, label, check, link in ROWS:
         try:
             reasons = check(f)
-            state = ON if not reasons else (BLOCKED if any(r["kind"] in ("PAIR", "WK", "POL") for r in reasons) else OFF)
+            state = _state(reasons)
         except Exception as exc:  # noqa: BLE001 - one broken check never hides the others
-            reasons = [{"code": "check_failed", "kind": "RUN", "text": f"לא ניתן לבדוק כרגע ({type(exc).__name__}).", "fix": None}]
+            reasons = [{"code": "check_failed", "kind": "RUN", "text": f"לא ניתן לבדוק כרגע ({type(exc).__name__}).", "fix": None,
+                        "params": {"error": type(exc).__name__}}]
             state = UNKNOWN
         out.append({"row": num, "key": key, "group": group, "label": label, "state": state, "reasons": reasons, "link": link})
     return out

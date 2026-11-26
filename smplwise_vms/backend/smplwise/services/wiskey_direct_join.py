@@ -34,6 +34,21 @@ no lineage file, no anchor row, no transport object, no thread.
 
 Status (honest): implemented and tested against the in-memory fake direct server of tests/w10_fake_direct.py (tests/test_wkjoin_295.py).
 NOT run against a real WisKey, Home Assistant or station; nothing installed or live on any installation.
+
+WISKEY-DIRECT-V2-2520 (row R7): part (2) of the rule also admits a ROTATED key, which signs direct v2 (wiskey_media_bridge
+`protocol_for_key`, the v2 socket path); the plain pairing secret and `g0-legacy` keep v1 exactly as before. On a v2 connection discovery
+also proves the ONE current pairing (`direct/pairing_status_v2`, wiskey_direct_discovery). A v2 key / pairing refusal is final for the
+request: it is never followed by v1, and a people write never goes over the classic channel after it (`fallback_permitted`: codes
+prefixed `direct_v2_refused:` and the v2-only codes in `V2_NO_FALLBACK`). `direct_status()` is the no-I/O view for the bridge-key status.
+
+WISKEY-NOFALLBACK-FIX-2520 (deep review WB-01 / WB-03): the same rule now also holds when the v2 refusal comes BEFORE the write - at the
+connect or the discovery of the connection (`DirectJoin.v2_refusal`, the one decision point). With a rotated (v2) key, a people write
+whose direct path is not selected because the v2 connect, discovery or pairing proof was refused (or its outcome is unknown) is refused
+`not_sent` with that code and audited on the direct path - it is never sent over the classic channel. Not affected: a v1 key (the
+pairing secret / `g0-legacy`, WisKey rc10, the lab) keeps "not selected -> the existing path" exactly, and so does a v2 key whose socket
+is merely unreachable, not yet tried, or whose discovery does not list the command / whose clock window does not admit Arx (none of
+those is a refusal of a v2 attempt). A failed discovery is asked again after a bounded back-off instead of latching the connection off
+(wiskey_direct_discovery WB-03).
 """
 from __future__ import annotations
 
@@ -49,7 +64,7 @@ from . import wiskey_direct_catalog as catalog
 from . import wiskey_media_bridge as bridge
 from .wiskey_capture_port import PortError, PortIdentity
 from .wiskey_command_port import NOT_SENT, REFUSED, UNKNOWN, WiskeyCommandError
-from .wiskey_direct_discovery import CAPABILITIES, TIME, DirectDiscovery
+from .wiskey_direct_discovery import CAPABILITIES, CAPABILITIES_V3, PAIRING_STATUS_V2, TIME, DirectDiscovery
 
 log = logging.getLogger("smplwise.wiskey.direct_join")
 
@@ -58,7 +73,10 @@ RUN_MARGIN_S = 5.0  # the sync wait above the request's own timeout (the request
 MEDIA_PATH_PREFIX = "/api/hikvision_intercom/arx_bridge/v1/media/"
 MEDIA_INGRESS_COMMAND = "features/media_ingress_v1"
 DISCOVERY_TIMEOUT_S = 6.0
-DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME})
+DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME, CAPABILITIES_V3, PAIRING_STATUS_V2})
+# WISKEY-DIRECT-V2-2520: a v2 connection that could not be opened / authenticated / proven (anything but "unreachable") is a key or
+# pairing refusal: its code carries this prefix and no people write falls back after it
+V2_REFUSED_PREFIX = "direct_v2_refused:"
 STOPPED_CODE = "join_stopped"  # WISKEY-JOIN-LIVE-2382: a request after the runtime stop began (not_sent: nothing was written)
 
 
@@ -75,6 +93,14 @@ def envelope_kind(command: str) -> str:
     """WKR5-295: the signed bridge.kind per command from the catalog row (W5-API-01), never from capabilities' `envelope`. A command
     whose catalog wire is not the direct envelope never gets here (`catalog.direct_refusal`)."""
     return catalog.envelope_for(command) or bridge.KIND
+
+
+def _v2_code(link: Any, refusal: str) -> str:
+    """On a v2 connection a discovery refusal other than the clock / the command list is a key or pairing refusal (prefixed, final)."""
+    if getattr(link, "protocol_version", 1) != 2 or refusal in ("clock_skew", "ttl_exceeds_server_max", "command_not_discovered") \
+            or refusal in V2_NO_FALLBACK or refusal.startswith(V2_REFUSED_PREFIX):
+        return refusal
+    return (V2_REFUSED_PREFIX + refusal)[:96]
 
 
 # ---------------------------------------------------------------- the shared session
@@ -137,10 +163,13 @@ class DirectCommandSession:
             try:
                 new = await self.transport.connect(bridge.PURPOSE_COMMAND)
             except bridge.MediaBridgeError as exc:
-                self.last_error = exc.code
-                if exc.code not in ("bridge_not_paired", "bridge_key_rotated"):
+                code = exc.code
+                if getattr(self.transport, "last_attempt_version", None) == 2 and code != "direct_unreachable":
+                    code = (V2_REFUSED_PREFIX + code)[:96]
+                self.last_error = code
+                if exc.code not in ("bridge_not_paired", "bridge_key_rotated", "bridge_key_unversioned"):
                     self._down_until = self._clock() + self.RETRY_DIRECT_S
-                raise bridge.MediaBridgeError(exc.code, "not_sent") from None
+                raise bridge.MediaBridgeError(code, "not_sent") from None
             if not isinstance(new, bridge.DirectLink):  # the join needs the direct link's generic command (never a media fallback)
                 await new.close()
                 raise bridge.MediaBridgeError("wiskey_direct_not_connected", "not_sent")
@@ -169,7 +198,7 @@ class DirectCommandSession:
             await self.discover(link)
             refusal = self.discovery.transport_refusal(link.connection_ref, command)
             if refusal is not None:
-                raise bridge.MediaBridgeError(refusal, "not_sent")
+                raise bridge.MediaBridgeError(_v2_code(link, refusal), "not_sent")
         from . import wiskey_call_budget as budget
         timeout = budget.remaining(timeout) if budget.active() else timeout
         try:
@@ -198,7 +227,8 @@ class DirectCommandSession:
             async def read(command: str, parameters: Mapping[str, Any]) -> Any:
                 return await link.call_command(command, dict(parameters), kind=bridge.KIND, timeout=DISCOVERY_TIMEOUT_S)
 
-            await self.discovery.refresh(link.connection_ref, read)
+            await self.discovery.refresh(link.connection_ref, read, protocol_version=getattr(link, "protocol_version", 1),
+                                         kid=getattr(link, "kid", None))
 
     def transport_refusal(self, command: str | None = None) -> str | None:
         """Why the direct path may not carry `command` on the current connection now (None = it may). No I/O."""
@@ -211,7 +241,15 @@ class DirectCommandSession:
             return catalog.direct_refusal(command)
         if not self.require_discovery:
             return None
-        return self.discovery.transport_refusal(link.connection_ref, command)
+        refusal = self.discovery.transport_refusal(link.connection_ref, command)
+        return None if refusal is None else _v2_code(link, refusal)
+
+    def selection_refusal(self, command: str | None = None) -> str | None:
+        """WISKEY-NOFALLBACK-FIX-2520: why the direct path is not selected now, including the latest connect attempt's own code while
+        no socket is open (`transport_refusal` says only `wiskey_direct_not_connected` then). No I/O; never raises."""
+        if not self._closing and not self.connected and self.last_error:
+            return self.last_error
+        return self.transport_refusal(command)
 
     # -- bridging --------------------------------------------------------------------------------------------------------------------
     async def run_async(self, coro: Awaitable[Any]) -> Any:
@@ -297,6 +335,12 @@ class DirectCommandSession:
                 if self.on_loop():
                     return False
                 self.run_sync(self.link(), timeout + RUN_MARGIN_S)
+            except bridge.MediaBridgeError as exc:  # any failure is "not selected"
+                # WISKEY-NOFALLBACK-FIX-2520: a v2 connect that did not end within the wait (outcome unknown, cancelled: `link()` recorded
+                # nothing) is kept as a v2 code, so no people write treats it as "not connected -> classic". v1 is unchanged.
+                if exc.outcome == "unknown" and getattr(self.transport, "last_attempt_version", None) == 2:
+                    self.last_error = V2_REFUSED_PREFIX + "connect_unknown"
+                return False
             except Exception:  # noqa: BLE001 - any failure is "not selected"
                 return False
             if not self.connected:
@@ -316,7 +360,7 @@ class DirectCommandSession:
             return False
         d = self.discovery
         if d.failed_ref == link.connection_ref:
-            return False
+            return d.retry_due(link.connection_ref)  # WISKEY-NOFALLBACK-FIX-2520 (WB-03): asked again after the bounded back-off
         if d.capabilities is None or d.time is None or d.capabilities.connection_ref != link.connection_ref:
             return True
         return d.stale()
@@ -555,6 +599,35 @@ class DirectJoin:
         except Exception:  # noqa: BLE001
             return False
         return self.session.connect_ready(command=command)
+
+    def v2_key(self) -> bool:
+        """WISKEY-NOFALLBACK-FIX-2520: the key the direct transport signs with NOW is a rotated (v2) key. Read from the transport's own key
+        provider (the cached key reader; no socket); when that cannot be read, from the latest attempt / the open link. Never raises."""
+        transport = self.session.transport
+        provider = getattr(transport, "_key_provider", None)
+        if provider is not None and getattr(transport, "v2_enabled", False):
+            try:
+                return bridge.protocol_for_key(provider()) == 2
+            except Exception:  # noqa: BLE001 - unreadable: the evidence of the connection below
+                pass
+        link = self.session._link
+        return getattr(transport, "last_attempt_version", None) == 2 or (link is not None and getattr(link, "protocol_version", 1) == 2)
+
+    def v2_refusal(self, command: str | None = None) -> str | None:
+        """WISKEY-NOFALLBACK-FIX-2520 (WB-01): THE decision point. With a v2 key, the code of a v2 refusal that keeps the direct path from
+        being selected now - a connect / identity / reply refusal (`direct_v2_refused:<code>`), a discovery or pairing refusal or failure
+        on the v2 connection (prefixed by `_v2_code`, or one of `V2_NO_FALLBACK`), an unknown connect outcome. Such a write is refused,
+        never re-routed. None otherwise: a v1 key (unchanged), unreachable / not yet tried / back-off with no refusal, the command not
+        discovered, the clock window. No I/O beyond the cached key read; never raises."""
+        try:
+            if not self.v2_key():
+                return None
+            code = self.session.selection_refusal(command)
+        except Exception:  # noqa: BLE001
+            return None
+        if code and (code.startswith(V2_REFUSED_PREFIX) or code in V2_NO_FALLBACK):
+            return code
+        return None
 
     def configured(self) -> bool:
         """DOORLIVE-2310: the CONFIG half of the selection rule only - (1) the provider is `auto` and (2) the key signs. No socket, no discovery,
@@ -800,7 +873,10 @@ def janitor() -> int | None:
 #   - the native outcome `not_sent` (no byte of the mutation frame was written - the WKWRITE contract), whatever its code;
 #   - a refusal of the native writer BEFORE its intent for a transport / availability reason (the codes and prefixes below): the source
 #     read failed or WisKey's source does not offer the action, the lineage is closed / missing / stale, another holder has the scope;
-#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer).
+#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer) - ON A V1
+#     CONNECTION ONLY. WISKEY-R8-2520 (lead decision 25.11): on a v2 direct connection WisKey rc19's R2 rule applies
+#     (`transports.selection`: "never downgrade or switch transport automatically after refusal or UNKNOWN") - a verified refusal is
+#     FINAL there, shown with its code and never re-sent classic. A v1 connection (WisKey rc10, the lab today) keeps this rule unchanged.
 # Never: an `unknown` outcome (timeout after the write, a lost answer, a refused signature - WisKey's `Unauthorized` may follow a commit,
 # so the writer settles it unknown), a business refusal (invalid_fields, revision_conflict, user_not_found, ...), an Arx authority or
 # actor refusal (rbac_denied, actor_session_inactive, ...), or a lineage answer that names an earlier native write of this person or
@@ -809,25 +885,38 @@ def janitor() -> int | None:
 FALLBACK_NATIVE_ERRORS = frozenset({"action_not_offered", "lineage_unavailable", "lineage_closed", "lineage_missing", "lineage_stale",
                                     "writer_busy", "writer_fenced", STOPPED_CODE})
 FALLBACK_NATIVE_PREFIXES = ("source_unavailable:", "source_invalid:")
-FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})
+FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})  # v1 only
 NO_FALLBACK = frozenset({"create_origin_already_used", "person_write_in_flight", "duplicate_operation"})
+# WISKEY-DIRECT-V2-2520: v2 key / pairing refusals (WisKey `fallback_after_key_refusal: false`): never a classic write after them
+V2_NO_FALLBACK = frozenset({"bridge_key_changed", "pairing_ambiguous", "pairing_mismatch", "pairing_unverified", "pairing_stale",
+                            "pairing_status_invalid", "direct_kid_mismatch", "transport_auth_mismatch", "timeout_exceeds_abi"})
 PATH_DIRECT = "wiskey_direct"
 PATH_CLASSIC = "classic"
 PATH_CLASSIC_AFTER_DIRECT = "classic_after_direct"
 
 
-def fallback_permitted(state: str, code: str | None) -> bool:
-    """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure."""
+def fallback_permitted(state: str, code: str | None, *, protocol_version: int = 1) -> bool:
+    """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure.
+    `protocol_version`: the direct connection the write went to (WISKEY-R8-2520: on 2 a verified refusal is final)."""
     c = code or ""
-    if c in NO_FALLBACK:
+    if c in NO_FALLBACK or c in V2_NO_FALLBACK or c.startswith(V2_REFUSED_PREFIX):
         return False
     if state == "not_sent":
         return True
     if state == "native_error":
         return c in FALLBACK_NATIVE_ERRORS or c.startswith(FALLBACK_NATIVE_PREFIXES)
     if state == "refused":
-        return c in FALLBACK_REFUSALS
+        return protocol_version != 2 and c in FALLBACK_REFUSALS
     return False  # unknown, committed, anything else
+
+
+def _protocol_version(join: Any) -> int | None:
+    """WISKEY-R8-2520: the protocol of the join's current direct connection (1 | 2), or None when there is none. No I/O."""
+    try:
+        link = join.session._link
+        return None if link is None else int(getattr(link, "protocol_version", 1))
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, Any], *, targets: list[tuple[str, str]],
@@ -843,8 +932,13 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     `record(**fields)` receives the path actually used (`transport`, and on a fallback `direct_state` / `direct_code`) for the route's
     audit row."""
     join = JOIN
-    if join is None or join.lineage is None or not join.selected(command):
+    if join is None or join.lineage is None:
         return None
+    if not join.selected(command):
+        # WISKEY-NOFALLBACK-FIX-2520 (WB-01): a v2 refusal at connect / discovery time is final - the write is refused with that code,
+        # never handed to the classic channel. Everything else that is "not selected" keeps the existing path (None), as before.
+        v2_code = _v2_refusal_of(join, command)
+        return None if v2_code is None else _v2_refused_send(command, v2_code, record)
     from . import intercom_client, intercom_sync
     from . import intercom_writes as iw
     from .trusted_door import actor_name
@@ -885,6 +979,7 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
         if refusal is not None:
             note(transport=PATH_DIRECT, direct_state="native_error", direct_code=refusal)
             raise intercom_sync.NotSent(refusal)
+        before = _protocol_version(join)
         try:
             outcome, raw = await join.native_write(command, business, actor=actor, decision=decision, create_origin_ref=create_origin_ref,
                                                    audit_sink=audit_sink)
@@ -906,7 +1001,9 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
             if command == "users/delete":
                 return {"accepted": True}
             return raw
-        if fallback is not None and fallback_permitted(outcome.state, outcome.code):
+        # WISKEY-R8-2520: the connection that carried it - v2 when either side of the write saw a v2 connection (refusal final there)
+        version = 2 if 2 in (before, _protocol_version(join)) else 1
+        if fallback is not None and fallback_permitted(outcome.state, outcome.code, protocol_version=version):
             return await classic(call, outcome.state, outcome.code)
         note(transport=PATH_DIRECT, direct_state=outcome.state, direct_code=outcome.code)
         if outcome.state == "not_sent":
@@ -918,11 +1015,42 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     return send
 
 
+def _v2_refusal_of(join: Any, command: str) -> str | None:
+    """WISKEY-NOFALLBACK-FIX-2520: `DirectJoin.v2_refusal` of a configured join (None for anything else, never raises)."""
+    try:
+        check = getattr(join, "v2_refusal", None)
+        if check is None or not join.configured():
+            return None
+        return check(command)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _v2_refused_send(command: str, code: str, record: Callable[..., None] | None) -> Callable[[Any], Awaitable[Any]]:
+    """WISKEY-NOFALLBACK-FIX-2520 (WB-01): the send of a people write refused because the v2 direct path was refused before it. Nothing is
+    sent on any channel: `intercom_sync.NotSent(code)`; the audit row says the direct path, `not_sent` and the v2 code."""
+
+    async def send(call: Any) -> Any:  # noqa: ARG001 - the feed's call is never used: no classic write
+        from . import intercom_sync
+
+        if record is not None:
+            try:
+                record(transport=PATH_DIRECT, transport_reason=code, direct_state="not_sent", direct_code=code)
+            except Exception:  # noqa: BLE001 - the record is the audit's; it never changes the write
+                log.warning("wiskey people write: the path could not be recorded")
+        log.info("wiskey people write: %s refused before the write, the v2 direct path was refused (%s); not sent on any channel",
+                 command, code)
+        raise intercom_sync.NotSent(code)
+
+    return send
+
+
 def people_path(command: str = "users/update") -> dict[str, Any]:
     """WISKEY-JOIN-LIVE-2382: which channel a people write would take NOW and why - no I/O, never raises. `path`: `direct` | `classic`;
     `reason`: None for direct, else a closed code (`not_installed`, `lineage_unavailable`, `lineage_<status>`, `not_configured`, or the
     session's transport refusal: `wiskey_direct_not_connected`, `join_stopped`, a discovery code). A selected direct write that WisKey
-    then does not carry may still go classic per write (`fallback_permitted`)."""
+    then does not carry may still go classic per write (`fallback_permitted`). WISKEY-NOFALLBACK-FIX-2520: `path` `refused` (v2 key
+    only) - the v2 direct path was refused and a people write is refused with `reason`, never sent classic (`DirectJoin.v2_refusal`)."""
     join = JOIN
     try:
         if join is None:
@@ -934,6 +1062,9 @@ def people_path(command: str = "users/update") -> dict[str, Any]:
             return {"path": "classic", "reason": f"lineage_{lin.status}" if lin.status in ("missing", "stale", "closed") else "lineage_unavailable"}
         if not join.configured():
             return {"path": "classic", "reason": "not_configured"}
+        v2_code = _v2_refusal_of(join, command)
+        if v2_code is not None:
+            return {"path": "refused", "reason": v2_code}
         refusal = join.session.transport_refusal(command)
         if refusal is not None:
             return {"path": "classic", "reason": refusal}
@@ -956,17 +1087,22 @@ def _cached(fn: Callable[[], Any], ttl: float) -> Callable[[], Any]:
 
 
 def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | None = None, open_lineage: bool = True,
-            provider_reader: Callable[[], bool] | None = None, key_reader: Callable[[], Any] | None = None) -> DirectJoin | None:
+            provider_reader: Callable[[], bool] | None = None, key_reader: Callable[[], Any] | None = None,
+            opener_v2: Callable[[], Awaitable[Any]] | None = None) -> DirectJoin | None:
     """Install the join when (1) `auto` and (2) the key signs hold NOW; else install nothing and return None. Opens ONE lineage for
-    this process and tries `recover(scope)` once (deferred to the first write of the scope when the socket is not up)."""
+    this process and tries `recover(scope)` once (deferred to the first write of the scope when the socket is not up).
+    WISKEY-DIRECT-V2-2520: `opener_v2` is the v2 socket (default: WisKey's v2 path; a test that injects only `opener` gets no v2, so a
+    rotated key installs nothing there, as before)."""
     with LIFECYCLE:
         if JOIN is not None:  # WISKEY-JOIN-LIVE-2382: never a second join (the installed one stays; nothing is opened twice)
             return JOIN
-        return _startup(db, settings, opener=opener, open_lineage=open_lineage, provider_reader=provider_reader, key_reader=key_reader)
+        return _startup(db, settings, opener=opener, open_lineage=open_lineage, provider_reader=provider_reader, key_reader=key_reader,
+                        opener_v2=opener_v2)
 
 
 def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | None, open_lineage: bool,
-             provider_reader: Callable[[], bool] | None, key_reader: Callable[[], Any] | None) -> DirectJoin | None:
+             provider_reader: Callable[[], bool] | None, key_reader: Callable[[], Any] | None,
+             opener_v2: Callable[[], Awaitable[Any]] | None = None) -> DirectJoin | None:
     global JOIN
     from . import ha_bridge, lease_events
     from . import wa_template_send as wts
@@ -981,8 +1117,12 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
         with db.connection(mode="read", label="wiskey join key") as c:
             return ha_bridge.signing_key(c)
 
+    v2_opener = opener_v2 if opener is not None else (opener_v2 or bridge.websocket_opener(settings, version=2))
+
     def key_signs(key: Any) -> bool:
         try:
+            if bridge.protocol_for_key(key) == 2:
+                return v2_opener is not None  # a rotated key signs only the v2 transport
             bridge._key_text(key)
         except bridge.MediaBridgeError:
             return False
@@ -996,7 +1136,7 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
     except Exception:  # noqa: BLE001 - an unreadable state installs nothing
         return None
     key_provider = _cached(read_key, 30.0)
-    transport = bridge.DirectApiTransport(opener or bridge.websocket_opener(settings), key_provider)
+    transport = bridge.DirectApiTransport(opener or bridge.websocket_opener(settings), key_provider, opener_v2=v2_opener)
     session = DirectCommandSession(transport, media_opener=websocket_media_opener(settings))
     lineage = None
     if open_lineage:
@@ -1030,6 +1170,44 @@ def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | N
     # call, re-checks `selected("features/start")` and delegates to the same `emergency_engine()` (now over the rc.4 SelectedFeaturePort).
     log.info("wiskey direct join installed (%s = auto, key signs); the direct path is used while its socket authenticates", PROVIDER_KEY)
     return join
+
+
+def direct_status(key: Any) -> dict[str, Any]:
+    """WISKEY-DIRECT-V2-2520: the direct transport as the bridge-key status shows it - NO I/O, never raises, never material.
+    `protocol_version` / `kid` follow the key set's current key (`protocol_for_key`); `pairing` is the last `direct/pairing_status_v2`
+    observation of the CURRENT v2 connection, or None (unknown: not read, not connected, or a v1 connection - shown as unknown, never as
+    verified). `revoke_in` is fixed: a pairing is revoked only by the owner in WisKey's own screen (PAIRING-Q2 = a)."""
+    out: dict[str, Any] = {"protocol_version": None, "kid": None, "selection": "not_paired", "installed": False, "connected": False,
+                           "pairing": None, "pairing_state": "unknown", "refusal": None, "revoke_in": "wiskey_owner_screen"}
+    try:
+        version = bridge.protocol_for_key(key)
+        out["protocol_version"] = version
+        out["kid"] = getattr(key, "kid", None) if version == 2 else None
+        out["selection"] = "v2_rotated_key" if version == 2 else "v1_pairing_key"
+    except bridge.MediaBridgeError as exc:
+        out["selection"] = exc.code if exc.code in ("bridge_not_paired", "bridge_key_unversioned") else "not_paired"
+        return out
+    except Exception:  # noqa: BLE001
+        return out
+    join = JOIN
+    if join is None:
+        return out
+    out["installed"] = True
+    try:
+        session = join.session
+        link = session._link
+        out["connected"] = link is not None and not link.closed
+        out["refusal"] = session.last_error if not out["connected"] else session.transport_refusal()
+        disc = session.discovery
+        p = disc.pairing
+        if out["connected"] and getattr(link, "protocol_version", 1) == 2 and p is not None and p.connection_ref == link.connection_ref:
+            out["pairing"] = p.view()
+            out["pairing_state"] = "verified" if p.binding_refusal(2, link.kid) is None else "mismatch"
+        elif disc.last_error in V2_NO_FALLBACK or (disc.last_error or "").startswith("pairing_"):
+            out["pairing_state"] = "mismatch" if disc.last_error == "pairing_mismatch" else "unknown"
+    except Exception:  # noqa: BLE001 - a status view never fails the page
+        pass
+    return out
 
 
 def shutdown(drain_s: float = 0.0) -> bool | None:

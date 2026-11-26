@@ -760,6 +760,7 @@ def revoke_user_sessions(conn, user_id: str, reason: str, *, keep_chain: str | N
     for c in chains:
         conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE chain_id = ? AND revoked_at IS NULL", (now, reason, c))
     CACHE.drop_chains(chains)
+    _end_browser_push(conn, chains, reason, user_id=user_id)
     return len(chains)
 
 
@@ -773,7 +774,16 @@ def revoke_chain(conn, chain_id: str, reason: str) -> int:
     n = conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE chain_id = ? AND revoked_at IS NULL",
                      (iso(time.time()), reason, chain_id)).rowcount
     CACHE.drop_chains({chain_id})
+    _end_browser_push(conn, {chain_id}, reason, user_id=owner["user_id"] if owner is not None else None)
     return 1 if n else 0
+
+
+def _end_browser_push(conn, chains: set[str], reason: str, *, user_id: str | None) -> int:
+    """FE-SAFETY-FIX-2520 (review FC-02): the browser push subscriptions registered through these local sign-ins end with them
+    (services/push.end_for_sign_ins; audited there). Never raises."""
+    from . import push
+
+    return push.end_for_sign_ins(conn, ["l:" + c for c in chains], reason, user_id=user_id)
 
 
 def revoke_all(conn, reason: str) -> int:
@@ -788,6 +798,7 @@ def revoke_all(conn, reason: str) -> int:
         conn.execute("UPDATE auth_local_sessions SET revoked_at = ?, revoked_reason = ? WHERE revoked_at IS NULL", (iso(time.time()), reason))
     CACHE.drop_chains(chains)  # the ended chains are refused by a late put (services/session_cache.py)
     CACHE.clear()
+    _end_browser_push(conn, chains, reason, user_id=None)  # FE-SAFETY-FIX-2520
     return len(chains)
 
 

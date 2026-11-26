@@ -9,6 +9,8 @@ restore uses (`backup.restore`, mode `replace`, scope `project+access`), and che
 - the migration version: the restored database carries every migration of this build;
 - row counts: every table the archive's manifest lists and a restore brings back holds exactly the archive's rows (minus the
   rows the restore drops on purpose as unsafe, reported by `restore` itself);
+- CORE-01 (SEC-FIX-2520): the same restore once more onto a read-only snapshot COPY of the live database, which must succeed and
+  add no foreign-key violation - the fresh database alone hides rows outside the archive that point into it (a maintenance file);
 - the settings a restore must never take from an archive (`backup.SETTINGS_KEEP` / `SETTINGS_KEEP_PREFIXES`): absent from the
   archive's settings rows, and the scratch database's own values of those keys are unchanged by the restore.
 
@@ -40,6 +42,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .. import __version__
 from ..config import Settings
 from ..db import MIGRATIONS_DIR, Database, get_setting
 from . import backup as svc
@@ -186,6 +189,64 @@ def db_checks(path: Path) -> dict[str, Any]:
     return {"integrity": "ok" if rows == ["ok"] else "; ".join(str(x) for x in rows[:5]), "fk_violations": fk}
 
 
+def _new_fk(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
+    return {t: n - before.get(t, 0) for t, n in after.items() if n > before.get(t, 0)}
+
+
+def live_copy_restore(run: "_Run", settings: Settings, archive: Path, base: Path, started_at: dt.datetime) -> None:
+    """CORE-01 (DEEP-REVIEW-2520-BACKEND-CORE): the fresh scratch database above holds no row outside the archive's tables, so a
+    restore that a REAL installation refuses (a maintenance file pointing at a task) passed there. The same `replace` restore runs
+    again onto a read-only snapshot copy of the live database (sqlite backup API; the live file is never written) and must succeed
+    and leave no foreign-key violation the copy did not already have. Skipped - reported as a warning - when there is no live
+    database (a drill of a bare archive) or not enough disk space for the copy."""
+    live = settings.db_path
+    if not live.exists():
+        run.check("live_copy_restore", True, {"skipped": "no_live_database"}, severity="warn")
+        return
+    size = sum(p.stat().st_size for p in (live, live.with_name(live.name + "-wal")) if p.exists())
+    free = shutil.disk_usage(base).free
+    if free < 2 * size + SPACE_MARGIN_BYTES:
+        run.check("live_copy_restore", False, {"skipped": "disk_space", "needed_bytes": 2 * size + SPACE_MARGIN_BYTES, "free_bytes": free},
+                  severity="warn")
+        return
+    scratch = base / f"scratch-live-{started_at.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+    scratch.mkdir(parents=True)
+    try:
+        copy_settings = dataclasses.replace(settings, data_dir=scratch)
+        src = sqlite3.connect(f"file:{live.as_posix()}?mode=ro", uri=True)
+        try:
+            dst = sqlite3.connect(copy_settings.db_path)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+        cdb = Database(copy_settings.db_path)
+        cdb.migrate()
+        cdb.ensure_migration_objects()
+        before = db_checks(copy_settings.db_path)
+        try:
+            with cdb.connection(label="backup_drill.live_copy_restore") as conn:
+                out = svc.restore(copy_settings, conn, archive, mode="replace", scope="project+access", actor_user_id=None,
+                                  backup_password=None, skip_sensitive=True, process_hooks=False)
+        except Exception as exc:  # noqa: BLE001 - exactly what the drill must report
+            run.check("live_copy_restore", False, f"{type(exc).__name__}: {str(exc)[:200]}")
+            return
+        after = db_checks(copy_settings.db_path)
+        new_fk = _new_fk(before["fk_violations"], after["fk_violations"])
+        ok = after["integrity"] == "ok" and not new_fk
+        detail: dict[str, Any] = {"dependents_dropped": out.get("dependents_dropped") or {}}
+        if not ok:
+            detail |= {"integrity": after["integrity"], "fk_violations": new_fk}
+        run.check("live_copy_restore", ok, detail)
+    finally:
+        from . import energy_store
+
+        energy_store.forget_store(scratch / energy_store.FILE_NAME)
+        shutil.rmtree(scratch, ignore_errors=True)  # a full copy of the live database: never kept, also not with --keep-scratch
+
+
 def _kept_values(conn: sqlite3.Connection) -> dict[str, Any]:
     return {r[0]: r[1] for r in conn.execute("SELECT key, value FROM settings").fetchall() if svc._kept_setting(r[0]) and r[0] not in KEEP_COMPARE_EXCLUDED}
 
@@ -312,7 +373,12 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
         archive_schema = int(manifest.get("schema_version") or 0)
         run.check("archive_schema_supported", archive_schema <= code_schema, {"archive": archive_schema, "code": code_schema})
         carried = sorted({r.get("key") for r in archive_settings if isinstance(r, dict) and svc._kept_setting(r.get("key"))})
-        run.check("archive_without_kept_settings", not carried, {"carried": carried[:20]} if carried else None)
+        # SEC-FIX-2520 SEC-3: an archive written by an OLDER build may carry a key that was put on the keep list since (the restore
+        # ignores it); only an archive of this very build carrying one is an export fault
+        own_build = manifest.get("app_version") == __version__
+        run.check("archive_without_kept_settings", not carried,
+                  ({"carried": carried[:20]} | ({} if own_build else {"older_build": True})) if carried else None,
+                  severity="fail" if own_build else "warn")
         free = shutil.disk_usage(base).free
         run.check("disk_space", free >= needed, {"needed_bytes": needed, "free_bytes": free})
         run.timed("archive_check", t)
@@ -378,6 +444,8 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
                 else:
                     have = int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
                 want = int(n) - skipped
+                if table == "settings" and carried:  # SEC-FIX-2520 SEC-3: a kept key an (older) archive carries is never restored
+                    want -= sum(1 for r in archive_settings if isinstance(r, dict) and svc._kept_setting(r.get("key")))
                 ok = have == want or (table in AUTO_ROW_TABLES and want == 0 and have == AUTO_ROW_TABLES[table])
                 result["tables"][table] = {"archive": int(n), "restored": have, "skipped_unsafe": skipped, "ok": ok, "key": table in KEY_TABLES}
                 if not ok:
@@ -390,6 +458,10 @@ def _run_locked(settings: Settings, archive: Path | None, *, trigger: str, keep_
         run.check("files_restored", int(restored.get("files") or 0) == files_expected,
                   {"archive": files_expected, "restored": restored.get("files"), "skipped": restored.get("files_skipped")}, severity="warn")
         run.timed("verify", t)
+        # ---- CORE-01: the same restore onto a copy of the live database (rows outside the archive that point into it)
+        t = time.monotonic()
+        live_copy_restore(run, settings, path, base, started_at)
+        run.timed("live_copy_restore", t)
         if all(c["ok"] for c in run.checks if c["severity"] == "fail"):
             result["result"] = "PASS"
         return result

@@ -258,13 +258,17 @@ def list_own(conn: sqlite3.Connection, user_id: str) -> list[dict[str, Any]]:
     return [row_out(r) for r in conn.execute("SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY created_at", (user_id,)).fetchall()]
 
 
-def upsert(conn: sqlite3.Connection, principal: Principal, endpoint: str, p256dh: str, auth: str, user_agent: str | None, old_endpoint: str | None = None) -> tuple[dict[str, Any], str | None, bool]:
+def upsert(conn: sqlite3.Connection, principal: Principal, endpoint: str, p256dh: str, auth: str, user_agent: str | None, old_endpoint: str | None = None,
+           sign_in: str | None = None) -> tuple[dict[str, Any], str | None, bool]:
     """Create or refresh the caller's subscription for this browser. Returns (row, previous owner, created) - an endpoint belongs
     to one browser profile, so when another HA user signs in there and subscribes, the subscription moves to them
-    (the previous user's alerts must not keep arriving on a browser someone else now uses)."""
+    (the previous user's alerts must not keep arriving on a browser someone else now uses).
+    `sign_in` (FE-SAFETY-FIX-2520): the remote sign-in the request runs under (`RemoteSession.sign_in()` and its local / app
+    equivalents), stored as its public id so the end of that sign-in removes the row (end_for_sign_ins); None inside Home Assistant."""
     validate(endpoint, p256dh, auth)
     now = now_iso()
     ua = (user_agent or "")[:300] or None
+    ref = sign_in_ref(sign_in)
     if old_endpoint and old_endpoint != endpoint:  # pushsubscriptionchange: the browser replaced it; only our own is removed
         conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", (old_endpoint, principal.user_id))
     existing = conn.execute("SELECT * FROM push_subscriptions WHERE endpoint = ?", (endpoint,)).fetchone()
@@ -272,22 +276,92 @@ def upsert(conn: sqlite3.Connection, principal: Principal, endpoint: str, p256dh
     if existing:
         previous = existing["user_id"] if existing["user_id"] != principal.user_id else None
         conn.execute(
-            "UPDATE push_subscriptions SET user_id = ?, p256dh = ?, auth = ?, user_agent = COALESCE(?, user_agent), channel = ?, last_seen_at = ?, failures = 0, last_error = NULL"
-            + (", created_at = ?" if previous else "") + " WHERE id = ?",
-            (principal.user_id, p256dh, auth, ua, principal.source, now, *((now,) if previous else ()), existing["id"]),
+            "UPDATE push_subscriptions SET user_id = ?, p256dh = ?, auth = ?, user_agent = COALESCE(?, user_agent), channel = ?, sign_in = ?, last_seen_at = ?,"
+            " failures = 0, last_error = NULL" + (", created_at = ?" if previous else "") + " WHERE id = ?",
+            (principal.user_id, p256dh, auth, ua, principal.source, ref, now, *((now,) if previous else ()), existing["id"]),
         )
         sid = existing["id"]
     else:
         sid = new_id()
         conn.execute(
-            "INSERT INTO push_subscriptions(id, user_id, endpoint, p256dh, auth, user_agent, channel, created_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (sid, principal.user_id, endpoint, p256dh, auth, ua, principal.source, now, now),
+            "INSERT INTO push_subscriptions(id, user_id, endpoint, p256dh, auth, user_agent, channel, sign_in, created_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (sid, principal.user_id, endpoint, p256dh, auth, ua, principal.source, ref, now, now),
         )
     # a user keeps at most MAX_SUBSCRIPTIONS_PER_USER browsers: the ones not seen for the longest go first
     extra = conn.execute("SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY last_seen_at DESC, created_at DESC LIMIT -1 OFFSET ?", (principal.user_id, MAX_SUBSCRIPTIONS_PER_USER)).fetchall()
     for r in extra:
         conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (r["id"],))
     return row_out(conn.execute("SELECT * FROM push_subscriptions WHERE id = ?", (sid,)).fetchone()), previous, existing is None
+
+
+# ---------------------------------------------------------------- the end of a sign-in (FE-SAFETY-FIX-2520, review FC-02)
+
+def sign_in_ref(sign_in: str | None) -> str | None:
+    """What a subscription row keeps of the sign-in that registered it: the sessions list's public id of that sign-in
+    (services/ha_user_auth.public_id: a hash - a cookie chain's key is the cookie value and is never stored). None without one."""
+    if not sign_in:
+        return None
+    from .ha_user_auth import public_id
+
+    return public_id(sign_in)
+
+
+def _drop_rows(conn: sqlite3.Connection, rows: list[sqlite3.Row], reason: str, scope: str, actor: Principal | None, request_id: str | None) -> int:
+    """Delete these subscription rows; one audit row per user (`push.subscriptions.ended`, the hosts only - never an endpoint)."""
+    if not rows:
+        return 0
+    from ..audit import audit
+
+    by_user: dict[str, list[sqlite3.Row]] = {}
+    for r in rows:
+        conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (r["id"],))
+        by_user.setdefault(r["user_id"], []).append(r)
+    for uid, mine in by_user.items():
+        who = actor or Principal(user_id=uid, username="", display_name="", source="internal")
+        audit(conn, actor=who, action="push.subscriptions.ended", decision="allowed", resource_type="user", resource_id=uid, reason=reason,
+              request_id=request_id, details={"scope": scope, "count": len(mine), "subscriptions": [r["id"] for r in mine][:20],
+                                              "endpoint_hosts": sorted({endpoint_host(r["endpoint"]) for r in mine})})
+    return len(rows)
+
+
+def end_for_sign_ins(conn: sqlite3.Connection, sign_ins: Any, reason: str, *, user_id: str | None = None, actor: Principal | None = None,
+                     request_id: str | None = None) -> int:
+    """Sign-ins ended - a sign-out, one sign-in revoked from the sessions list (own or by an administrator), the other sign-ins ended
+    after a password change or a first second factor: the browser subscriptions registered through them are removed, so the
+    signed-out browser stops receiving the user's notifications also when it was closed or offline at that moment. `sign_ins` are
+    raw sign-in keys (`RemoteSession.sign_in()`, `l:<chain>`, `a:<public id>`); `user_id` limits it to that user's rows.
+    Never raises (the sign-out itself stands); returns the rows removed."""
+    refs = sorted({r for r in (sign_in_ref(s) for s in sign_ins or ()) if r})
+    if not refs:
+        return 0
+    try:
+        rows: list[sqlite3.Row] = []
+        for at in range(0, len(refs), 400):  # well under SQLite's bound-parameter limit (revoke_all ends every local sign-in)
+            chunk = refs[at:at + 400]
+            sql = f"SELECT id, user_id, endpoint FROM push_subscriptions WHERE sign_in IN ({','.join('?' * len(chunk))})"
+            args: list[Any] = list(chunk)
+            if user_id:
+                sql += " AND user_id = ?"
+                args.append(user_id)
+            rows.extend(conn.execute(sql, args).fetchall())
+        return _drop_rows(conn, rows, reason, "sign_in", actor, request_id)
+    except Exception:  # noqa: BLE001 - e.g. before migration 0226: nothing is matched, the sign-out stands
+        log.warning("push: could not remove the subscriptions of an ended sign-in", exc_info=True)
+        return 0
+
+
+def end_for_user(conn: sqlite3.Connection, user_id: str, reason: str, *, actor: Principal | None = None, request_id: str | None = None) -> int:
+    """"Sign out everywhere" (own or an administrator's), every sign-in of the user ended, the user disabled or reset, the remote
+    access removed: EVERY browser subscription of the user goes (also rows written before migration 0226, which name no sign-in). A
+    browser the user is still signed in on re-registers on its next start (push.ts syncSubscription). Never raises."""
+    if not user_id:
+        return 0
+    try:
+        rows = conn.execute("SELECT id, user_id, endpoint FROM push_subscriptions WHERE user_id = ?", (user_id,)).fetchall()
+        return _drop_rows(conn, rows, reason, "user", actor, request_id)
+    except Exception:  # noqa: BLE001
+        log.warning("push: could not remove the subscriptions of a signed-out user", exc_info=True)
+        return 0
 
 
 def prune(db: Database, days: int = STALE_DAYS) -> int:
@@ -603,12 +677,15 @@ def _log_delivery(conn: sqlite3.Connection, job: Job, result: str, outcome: Outc
 def send_test(db: Database, user_id: str) -> list[dict[str, Any]]:
     """The settings tab's test button: one notification to each of the caller's own subscriptions, once, now (the caller
     has already been rate limited). Runs outside any request transaction."""
+    from .notify_delivery_lang import user_langs, word
+
     with db.connection(mode="read") as conn:
         key = signing_key(conn)
         subs = conn.execute("SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY created_at", (user_id,)).fetchall()
+        lang = user_langs(conn, [user_id]).get(user_id, "he")  # NOTIFY-RECIPIENT-LANG-2520: the caller's own language
     if key is None:
         return []
-    payload = encode_payload({"v": 1, "title": "Arx · התראת בדיקה", "body": "ההתראות פועלות במכשיר הזה.", "url": "#/system/notifications", "event_id": None,
+    payload = encode_payload({"v": 1, "title": word("Arx · התראת בדיקה", lang), "body": word("ההתראות פועלות במכשיר הזה.", lang), "url": "#/system/notifications", "event_id": None,
                               "alert_id": None, "tag": "arx-test", "category": "test", "severity": "info", "ts": now_iso()})
     out = []
     for s in subs:

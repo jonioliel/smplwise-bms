@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, Stric
 
 from . import schedule_policy as policy
 from .timeutil import UTC, iso_utc, parse_utc, zone
+from ..error_text import tpl
 
 DAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
 DAY_TOKENS = frozenset(DAY_ORDER) | {"daily", "workday", "weekend"}
@@ -693,7 +694,7 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
     warnings: list[dict[str, str]] = []
     name = (draft.get("name") or "").strip()
     if len(name) > MAX_NAME or any(ord(c) < 32 or ord(c) == 127 for c in name):
-        errors.append(_problem("validation", f"שם: עד {MAX_NAME} תווים, בלי תווי בקרה.", "name"))
+        errors.append(_problem("validation", tpl("שם: עד {max_name} תווים, בלי תווי בקרה.", max_name=MAX_NAME), "name"))
     if creating and not name:
         errors.append(_problem("validation", "שם התזמון חובה.", "name"))
     elif not creating and not name and old is not None and (old["name"] or ""):
@@ -712,14 +713,14 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
         warnings.append(_problem("single_deletes", "תזמון חד־פעמי נמחק מהרכיב לאחר ההרצה.", "repeat"))
     tags = draft.get("tags") or []
     if len(tags) > MAX_TAGS or any((not t.strip()) or len(t) > MAX_TAG or any(ord(c) < 32 for c in t) for t in tags):
-        errors.append(_problem("validation", f"תגיות: עד {MAX_TAGS}, באורך 1–{MAX_TAG} תווים.", "tags"))
+        errors.append(_problem("validation", tpl("תגיות: עד {max_tags}, באורך 1–{max_tag} תווים.", max_tags=MAX_TAGS, max_tag=MAX_TAG), "tags"))
     if not policy.CAPABILITIES["tags"] and list(tags) != (old["tags"] if old is not None else []):
         errors.append(_problem("tags_not_supported", "רכיב התזמונים בגרסה זו אינו שומר תגיות.", "tags"))
     slots = draft.get("slots") or []
     if not slots:
         errors.append(_problem("validation", "לתזמון חייבת להיות לפחות משבצת אחת.", "slots"))
     if len(slots) > MAX_SLOTS:
-        errors.append(_problem("validation", f"עד {MAX_SLOTS} משבצות.", "slots"))
+        errors.append(_problem("validation", tpl("עד {max_slots} משבצות.", max_slots=MAX_SLOTS), "slots"))
     enabled_classes = ctx.enabled_classes()
     entities_seen: list[str] = []
     old_actions = _old_action_keys(old)
@@ -740,12 +741,12 @@ def validate_draft(draft: dict[str, Any], ctx: DraftContext, *, old: dict[str, A
         if not acts:
             errors.append(_problem("validation", "למשבצת חייבת להיות לפחות פעולה אחת.", f"{sp}.actions"))
         if len(acts) > MAX_ACTIONS:
-            errors.append(_problem("validation", f"עד {MAX_ACTIONS} פעולות במשבצת.", f"{sp}.actions"))
+            errors.append(_problem("validation", tpl("עד {max_actions} פעולות במשבצת.", max_actions=MAX_ACTIONS), f"{sp}.actions"))
         for ai, act in enumerate(acts[: MAX_ACTIONS + 1]):
             ap = f"{sp}.actions[{ai}]"
             errors.extend(_check_action(act, ap, ctx, enabled_classes, old_actions.get((si, ai)), warnings, entities_seen))
     if len(entities_seen) > MAX_ENTITIES:
-        errors.append(_problem("validation", f"עד {MAX_ENTITIES} התקנים שונים בתזמון.", "slots"))
+        errors.append(_problem("validation", tpl("עד {max_entities} התקנים שונים בתזמון.", max_entities=MAX_ENTITIES), "slots"))
     errors.extend(_overlaps(slots, ctx))
     warnings.extend(sun_overlap_warnings(slots, ctx))
     _check_conditions(draft, ctx, old, errors, warnings)
@@ -770,7 +771,7 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
     if policy.contains_code(data) or policy.contains_code(service):
         return [_problem("code_not_allowed", "אסור לשמור קוד בתוך תזמון.", f"{path}.data")]
     if len(data) > MAX_DATA:
-        return [_problem("validation", f"עד {MAX_DATA} ארגומנטים בפעולה.", f"{path}.data")]
+        return [_problem("validation", tpl("עד {max_data} ארגומנטים בפעולה.", max_data=MAX_DATA), f"{path}.data")]
     if not eid:
         return [_problem("action_not_allowed", "פעולה חייבת להצביע על התקן.", f"{path}.entity_id")]
     if not ENTITY_ID.match(eid):
@@ -904,7 +905,7 @@ def _check_conditions(draft: dict[str, Any], ctx: DraftContext, old: dict[str, A
     block = draft.get("conditions") or {}
     items = block.get("items") or []
     if len(items) > MAX_CONDITIONS:
-        errors.append(_problem("validation", f"עד {MAX_CONDITIONS} תנאים.", "conditions.items"))
+        errors.append(_problem("validation", tpl("עד {max_conditions} תנאים.", max_conditions=MAX_CONDITIONS), "conditions.items"))
         items = items[:MAX_CONDITIONS]
     old_keys = {canonical(c) for c in (old["conditions"]["items"] if old else [])}
     cond_entity = getattr(ctx, "condition_entity", ctx.entity)  # a scoped context answers only for what the caller may read

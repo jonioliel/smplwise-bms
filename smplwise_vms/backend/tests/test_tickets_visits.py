@@ -167,7 +167,7 @@ def test_window_validation(s4):
                        (now(), now() + dt.timedelta(days=20), "too_long"),
                        (now() - dt.timedelta(days=5), now() - dt.timedelta(days=4), "past")):
         r = plan(s4, t["id"], a, b)
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == code, r.text
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == code, r.text
 
 
 # ---------------------------------------------------------------- planning, moving, one planned per assignment

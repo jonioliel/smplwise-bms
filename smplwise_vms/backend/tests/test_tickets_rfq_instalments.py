@@ -106,7 +106,7 @@ def test_a_move_is_refused_for_an_undated_past_out_of_order_or_stale_instalment(
              (0, _day(400), 422, "range"), (0, _day(9), 422, "order"), (1, _day(5), 422, "order"), (5, _day(7), 404, "instalment_not_found")]
     for index, day, status, code in cases:
         r = move(s4, d["id"], a["id"], index, day, revision=rev)
-        got = r.json()["details"]["fields"][0]["code"] if status == 422 else r.json()["code"]
+        got = r.json()["details"]["problems"][0]["code"] if status == 422 else r.json()["code"]
         assert (r.status_code, got) == (status, code), (index, day, r.text)
     r = move(s4, d["id"], a["id"], 0, _day(7), revision=rev + 5)
     assert r.status_code == 409 and r.json()["code"] == "rfq_stale"
@@ -331,18 +331,18 @@ def test_an_arrival_move_is_refused_for_the_wrong_person_a_bad_window_a_stale_re
     assert move_arrival(s4, d["id"], a["id"], _at(9), user="cleo", revision=rev).status_code == 404
     for body, code in ((_at(-2), "range"), (_at(400), "range"), ("nonsense", None)):
         r = move_arrival(s4, d["id"], a["id"], body, revision=rev)
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "work_from", (body, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "work_from", (body, r.text)
         if code:
-            assert r.json()["details"]["fields"][0]["code"] == code
+            assert r.json()["details"]["problems"][0]["code"] == code
     r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, work_to=_at(8))
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "work_to", "code": "order"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "work_to", "code": "order"}], r.text
     r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev + 3)
     assert r.status_code == 409 and r.json()["code"] == "rfq_stale"
     r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, message="שלום")  # a text without the tick would be dropped silently
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "message", "code": "not_allowed"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "message", "code": "not_allowed"}], r.text
     _own(s4, d["id"])
     r = move_arrival(s4, d["id"], a["id"], _at(9), revision=rev, notify_vendor=True, message="   ")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "message", r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "message", r.text
     t = terms_of(s4, d["id"])
     assert t["revision"] == rev and not t["arrival"]["changed_at"]  # nothing was written
     # the work was marked done: the arrival is history
@@ -422,7 +422,7 @@ def test_an_instalment_move_tells_the_vendor_only_when_chosen_and_only_by_a_mana
     notice = t["notice"]
     assert notice["instalment"] and t["can"]["notify_vendor"] is True
     r = move(s4, d["id"], a["id"], 0, _day(6), notify_vendor=True, message="   ")  # the edited text is a real message (all or nothing)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "message", r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "message", r.text
     assert terms_of(s4, d["id"])["schedule"]["items"][0]["date"] == _day(7)
     r = move(s4, d["id"], a["id"], 1, _day(9), notify_vendor=True, message=notice["instalment"])
     assert r.status_code == 200, r.text

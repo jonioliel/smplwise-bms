@@ -36,7 +36,7 @@ import logging
 from typing import Any
 
 from ...audit import audit
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from ...rbac import INSTALLATION, require
 from .. import redact
 from . import access, codes as codes_mod, handler_links, model, notify_bridge, phone_verify, settings_doc, store, store_links
@@ -314,7 +314,7 @@ def my_view(conn, user_id: str) -> dict[str, Any]:
 
 
 def _bad(conn, field: str, code: str) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field, "code": code}]})
+    return field_error(text(conn, "ערך לא תקין."), problems=[{"field": field, "code": code}])
 
 
 def set_mine(conn, viewer: Viewer, body: dict[str, Any], rid: str | None = None) -> dict[str, Any]:

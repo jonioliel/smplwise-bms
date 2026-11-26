@@ -61,7 +61,7 @@ def test_an_inactive_or_unknown_location_is_refused_and_nothing_changes(s4):
     assert patch(s4, b, active=False).status_code == 200
     for bad in (b, "unknown00000"):
         r = edit(s4, t["id"], location_id=bad)
-        assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "location_id", "code": "unknown"}], r.text
+        assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "location_id", "code": "unknown"}], r.text
     assert s4.w.detail(t["id"])["location"]["id"] == a and edited_events(s4, t["id"]) == []
 
 
@@ -75,7 +75,7 @@ def test_a_stale_revision_is_refused(s4):
 def test_a_too_long_free_text_place_is_refused(s4):
     t = s4.ticket()
     r = edit(s4, t["id"], place_text="ח" * 201)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "place_text", "code": "too_long"}]
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "place_text", "code": "too_long"}]
 
 
 # ---------------------------------------------------------------- the change, the new snapshot, the history

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..remote_channel import is_remote
 from ..services import tickets_admin_settings_store
@@ -371,7 +371,8 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
         # security review 2026-10-14 (2.5.1): the handler page's public address, trusted proxies and client-address header decide who
         # the listener believes - changed from a local session only (like the address probe). 2.5.3: only these keys are refused (the
         # whole PUT, no partial write); every other tickets setting saves normally through the remote channel.
-        raise ApiError(403, "local_only", text(conn, "שינוי כתובת הדף הציבורי אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית"), details={"field": "public"})
+        raise field_error(text(conn, "שינוי כתובת הדף הציבורי אפשרי רק בגישה מקומית: פתחו את המערכת מתוך Home Assistant או ברשת המקומית"),
+                          ["public"], code="local_only", status=403, legacy={"field": "public"})
     current = settings_doc.read(conn)
     if body.revision != current["revision"]:
         raise ApiError(409, "settings_stale", text(conn, "ההגדרות השתנו בינתיים. טענו מחדש."), details={"revision": current["revision"]})

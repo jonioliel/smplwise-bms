@@ -39,6 +39,7 @@ from . import access_grants as ag
 from . import access_station_permissions as sp
 from . import intercom_authority as ia
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 FLAG_KEY = "access.compliance_export"
 KEYS = (FLAG_KEY,)
@@ -105,7 +106,7 @@ class Window:
         if end <= start:
             raise ApiError(422, "compliance_period_invalid", "סוף התקופה חייב להיות אחרי תחילתה.")
         if end - start > timedelta(days=MAX_PERIOD_DAYS):
-            raise ApiError(422, "compliance_period_too_long", f"אפשר לייצא תקופה של עד {MAX_PERIOD_DAYS} ימים.", details={"max_days": MAX_PERIOD_DAYS})
+            raise ApiError(422, "compliance_period_too_long", tpl("אפשר לייצא תקופה של עד {max_period_days} ימים.", max_period_days=MAX_PERIOD_DAYS), details={"max_days": MAX_PERIOD_DAYS})
         return cls(start, end, False)
 
 

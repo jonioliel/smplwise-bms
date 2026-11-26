@@ -157,7 +157,11 @@ def test_the_inventory_runs_on_the_real_code():
     rep = m.build()
     s = rep["summary"]
     assert s["sites_422"] > 100 and s["request_models"] > 100
-    assert {"fields", "field", "none"} <= set(s["shapes_422"]), "the shapes ADR-019 migrates away from are still present"
+    # RELEASE-2520-TRAIN: ADR-019 Step 1 is complete on the 2.52 train (error_contract_ratchet.json: 0 legacy 422 sites since
+    # ADR019-FAMILY45 / FAMILY678 and the train's schedule-reads fix), so the legacy `field` shape is gone - the inventory still sees the
+    # canonical `fields` shape and the detail-less `none`, and reports no legacy shape any more
+    assert {"fields", "none"} <= set(s["shapes_422"]), "the inventory sees the canonical shape and the detail-less 422s"
+    assert "field" not in set(s["shapes_422"]), "no legacy `details.field` 422 left (ADR-019 Step 1 done; the ratchet is 0)"
     assert "forbid" in s["request_models_by_extra"]
     assert "phone_app" in s["request_models_by_client"]
     assert any(d["path"] == "/api/v1/ha/bridge/directory" for d in rep["dict_bodies"]), "the bridge push stays a signed dict body"

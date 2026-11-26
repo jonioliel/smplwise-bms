@@ -391,7 +391,7 @@ def test_document_confirm_is_for_an_outside_contact_only(s4):
                   headers=s4.h("joni"))
     assert r.status_code in (422, 404), r.text
     if r.status_code == 422:
-        assert r.json()["details"]["fields"][0]["field"] == "document_confirm"
+        assert r.json()["details"]["problems"][0]["field"] == "document_confirm"
 
 
 def test_the_new_settings_keys_are_audited_and_validated(s4):

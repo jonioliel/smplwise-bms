@@ -129,11 +129,12 @@ def test_idempotent_by_client_request_id(w):
 def test_the_typed_number_and_the_reason(w):
     t = w.create("joni")
     r = delete(w.c, t, number=t["number"] + 1)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "confirm_number"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "confirm_number"
+    assert r.json()["details"]["fields"] == ["confirm_number"]  # ADR-019 (ADR019-FAMILY45-2520): `fields` = names
     r = delete(w.c, t, reason="   ")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "reason", "code": "required"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "reason", "code": "required"}
     r = delete(w.c, t, reason="א" * 301)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "reason"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "reason"
     assert w.get("joni", t["id"]).status_code == 200, "nothing deleted"
     assert delete(w.c, t, reason="א" * 300).status_code == 200
 
@@ -252,7 +253,7 @@ def test_bulk_delete_answers_per_ticket(w):
         payload = {"ids": ids, "reason": "ניקוי כפילויות", "confirm_count": len(ids), "client_request_id": crid(), **body}
         return w.c.post(f"{API}/tickets/bulk-delete", json=payload, headers=as_user(user))
 
-    assert bulk(confirm_count=3).json()["details"]["fields"][0] == {"field": "confirm_count", "code": "mismatch"}
+    assert bulk(confirm_count=3).json()["details"]["problems"][0] == {"field": "confirm_count", "code": "mismatch"}
     assert bulk(ids=[f"t{i:03d}xxxx" for i in range(51)], confirm_count=51).status_code == 422
     assert bulk("tom").status_code == 403, "no tickets.delete anywhere"
     r = bulk()

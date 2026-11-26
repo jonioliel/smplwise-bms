@@ -20,6 +20,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from ..error_text import tpl
 
 def _builtin_ids() -> tuple[str, ...]:
     """The ready palettes' ids: read from smplwise/palettes.json, a copy of docs/design/palettes/palettes.json (a test keeps the copies identical),
@@ -317,7 +318,7 @@ def validate_custom(pal: Any) -> dict[str, Any]:
     A palette that only fails contrast checks is accepted (warn-only, owner decision 2026-10-02)."""
     if isinstance(pal, dict) and (pal.get("id") == BASE_ID or pal.get("id") in BUILTIN_IDS):
         # the base palette and the ten ready ones are protected: a custom palette can never take their id (owner decision 2026-10-03)
-        raise ValueError(f"המזהה {pal['id']} שמור לערכה מובנית ולא ניתן לדרוס אותה; ערכה מותאמת חייבת מזהה חדש שמתחיל ב־custom-")
+        raise ValueError(tpl("המזהה {id} שמור לערכה מובנית ולא ניתן לדרוס אותה; ערכה מותאמת חייבת מזהה חדש שמתחיל ב־custom-", id=pal['id']))
     errs = schema_errors(pal)
     if errs:
         raise ValueError("ערכת הצבעים אינה תקינה: " + errs[0])
@@ -335,7 +336,7 @@ def normalize_customs(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         raise ValueError("ערכות צבעים מותאמות: רשימה")
     if len(value) > MAX_CUSTOM:
-        raise ValueError(f"ערכות צבעים מותאמות: עד {MAX_CUSTOM}")
+        raise ValueError(tpl("ערכות צבעים מותאמות: עד {max_custom}", max_custom=MAX_CUSTOM))
     out = [validate_custom(p) for p in value]
     ids = [p["id"] for p in out]
     if len(set(ids)) != len(ids):

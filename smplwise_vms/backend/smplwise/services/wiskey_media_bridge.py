@@ -26,6 +26,34 @@ connection per talk (descriptor, `talk_open`, floor, frames, close - one actor, 
 Rules: a reply is untrusted input (`verify_result` is total and never carries the offending value), a failed or doubtful request is
 never retried (a signed request spends a single-use nonce; a batch of audio must never replay), the pairing key and the lease
 `source` are never logged, repr'd or put into an error.
+
+WISKEY-DIRECT-V2-2520 (row R7): direct transport v2 with the key id (`kid`) of the bridge KeySet, beside v1 (WisKey rc19
+`direct_bridge_api.py`, contracts `full-management-v1/direct-*.v2`). Public surface (R5 / R8 build on it; nothing else is public):
+
+    protocol_for_key(key) -> 1 | 2             the protocol a key can sign: 2 only for a rotated KeySet key (kid != g0-legacy)
+    DirectApiTransport(opener, key_provider, *, opener_v2=None)
+                                                v2 is attempted ONLY when the key is rotated AND an `opener_v2` was given; a rotated
+                                                key without `opener_v2` keeps today's refusal `bridge_key_rotated`
+    DirectLink.protocol_version / .kid          the connection's protocol and key id (public facts, never material)
+    DirectLink.call_command(...)                unchanged contract (not_sent | refused | unknown); on v2 the signed kind is the v2
+                                                one (`wiskey-bridge-command.v2` / `wiskey-peer-query.v2`), the timeout must be
+                                                0 < t <= MAX_CALL_TIMEOUT_S (B2-ABI: each signed read under Arx's 58 s)
+    sign_connect / reply_mac / open_reply / read_identity(..., version=2)   the v2 wire recipes (below)
+
+v2 recipes. Request (connect and every command): the EXISTING KeySet v2 signature `bridge_keys.sign_with` - HMAC-SHA256(material,
+"v2.<kid>.<ts>.<nonce>.<sha256 canonical body>"), wire = body + kid + ts + nonce (32 hex) + sig. Reply: `{kind:
+"wiskey-direct-reply.v2", connection_ref, kid, frame, sig}`, sig = HMAC-SHA256(material, "wiskey-direct-reply.v2." +
+canonical({connection_ref, frame, kid})). WisKey does not compute the reply MAC itself: it hands the canonical bytes to the Arx bridge's
+`smplwise_bridge.native_keyset` binding (`sign_reply`), so this reply recipe is ARX-DEFINED and must be implemented identically by that
+bridge module - which bridge 0.10.8 does not have (recorded in docs/changes/WISKEY-DIRECT-V2-2520.md; nothing here is verified against
+a real WisKey or bridge).
+
+v2 rules: a key refusal ends the attempt - no second attempt on v1 (which cannot sign a rotated key anyway), no Home Assistant path for
+that request (`AutoTransport` never falls back after a v2 attempt), no retry. PAIRING-Q2 = a: Arx addresses ONE current pairing - the
+key set's single current key; a v2 identity whose kid is not that key's, or a second service subject for the same kid (two pairings
+answering for one key), refuses the connection (`direct_kid_mismatch` / `pairing_ambiguous`); nothing is selected silently and nothing
+is revoked or deleted over the wire (revoke stays in WisKey's own screen). A key that changes under an open v2 connection is never used
+on it (`bridge_key_changed`, the link closes; the next request opens a new connection).
 """
 from __future__ import annotations
 
@@ -58,6 +86,25 @@ PURPOSE_TALK = "talk"
 PURPOSE_COMMAND = "command"
 PEER_QUERY_KIND = "wiskey-peer-query.v1"  # DIRECT_API_V1.md: peer query commands keep the existing signed peer-query envelope
 ERROR_CODE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+# WISKEY-DIRECT-V2-2520: the v2 signed kinds (WisKey `bridge_command_auth.bridge_kind`: a proof that carries a kid must name v2)
+KIND_V2 = "wiskey-bridge-command.v2"
+PEER_QUERY_KIND_V2 = "wiskey-peer-query.v2"
+_KINDS_BY_VERSION: dict[int, dict[str, str]] = {
+    1: {KIND: KIND, PEER_QUERY_KIND: PEER_QUERY_KIND},
+    2: {KIND: KIND_V2, PEER_QUERY_KIND: PEER_QUERY_KIND_V2, KIND_V2: KIND_V2, PEER_QUERY_KIND_V2: PEER_QUERY_KIND_V2},
+}
+# B2-ABI (lead decision 2.52): a signed request is short (window <= 15 s) and every signed read on a v2 connection waits at most 58 s
+# (under Home Assistant's 60 s); an UNKNOWN outcome is settled only by a later status read, never by sending the request again.
+MAX_CALL_TIMEOUT_S = 58.0
+
+
+def signed_kind(kind: str, version: int) -> str:
+    """The signed envelope kind for `kind` on a connection of `version` (a v1 name maps to its v2 counterpart on v2). Anything else is
+    `proof_invalid` (not_sent)."""
+    try:
+        return _KINDS_BY_VERSION[version][kind]
+    except (KeyError, TypeError):
+        raise MediaBridgeError("proof_invalid", "not_sent") from None
 
 
 class MediaBridgeError(Exception):
@@ -99,29 +146,32 @@ class BridgeSigner:
     canonical JSON of the body, HMAC-SHA256 over `ts.nonce.sha256(body)`). `key_provider()` returns the key at the moment of signing
     (a plain secret or `ha_bridge.BridgeKey`); it is never stored, logged or repr'd here.
 
-    A rotated key (a `BridgeKey` whose kid is not the legacy one) is REFUSED, not signed: it would add a `kid` to the wire, which
-    WisKey's closed key set rejects (decision pending on WisKey's side)."""
+    A rotated key (a `BridgeKey` whose kid is not the legacy one) is REFUSED by the v1 signer, not signed: v1 has no kid on the wire.
+    WISKEY-DIRECT-V2-2520: `protocol_version=2` signs with the KeySet v2 recipe (`bridge_keys.sign_with`, the kid on the wire) and the
+    v2 kinds; it needs a `BridgeKey` with a valid kid (`bridge_key_unversioned` otherwise) and never signs kid-less."""
 
-    def __init__(self, key_provider: Callable[[], Any], *, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, key_provider: Callable[[], Any], *, clock: Callable[[], float] = time.time, protocol_version: int = 1) -> None:
+        if protocol_version not in (1, 2):
+            raise ValueError("protocol_version")
         self._key_provider = key_provider
         self._clock = clock
+        self.protocol_version = protocol_version
 
     def __repr__(self) -> str:
-        return "BridgeSigner()"
+        return f"BridgeSigner(v{self.protocol_version})"
 
-    def _key(self) -> str:
-        from . import bridge_keys as bk
-        from . import ha_bridge
-
+    def _key(self) -> Any:
         try:
             key = self._key_provider()
         except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
             key = None
-        if not key:
-            raise MediaBridgeError("bridge_not_paired")
-        if isinstance(key, ha_bridge.BridgeKey) and key.kid != bk.LEGACY_KID:
-            raise MediaBridgeError("bridge_key_rotated")
-        return str(key)
+        if self.protocol_version == 2:
+            _key_v2(key)
+            return key
+        return _key_text(key)
+
+    def _sign(self, body: dict[str, Any], ts: int, nonce: str | None) -> dict[str, Any]:
+        return _sign_body(self._key(), body, ts, nonce, self.protocol_version)
 
     def ready(self) -> bool:
         """Whether a command could be signed now (a key that is present, readable and not rotated). Sends nothing."""
@@ -132,9 +182,7 @@ class BridgeSigner:
         return True
 
     def proof(self, command: str, query_owner_id: str, parameters: dict[str, Any], *, window_s: int = WINDOW_S, nonce: str | None = None) -> dict[str, Any]:
-        """The `bridge` object: kind, command, query_owner_id, issued_at, expires_at, parameters, ts, nonce, sig."""
-        from . import ha_bridge
-
+        """The `bridge` object: kind, command, query_owner_id, issued_at, expires_at, parameters, [kid,] ts, nonce, sig."""
         if command not in w10.COMMANDS:
             raise MediaBridgeError("unknown_command")
         if not isinstance(query_owner_id, str) or not 1 <= len(query_owner_id) <= 128:
@@ -147,9 +195,9 @@ class BridgeSigner:
             raise MediaBridgeError(exc.code) from None
         _strict(parameters)
         now = int(self._clock())
-        body = {"kind": KIND, "command": command, "query_owner_id": query_owner_id, "issued_at": _iso(now),
-                "expires_at": _iso(now + window_s), "parameters": parameters}
-        signed = ha_bridge.sign(self._key(), body, ts=now, nonce=nonce)
+        body = {"kind": KIND if self.protocol_version == 1 else KIND_V2, "command": command, "query_owner_id": query_owner_id,
+                "issued_at": _iso(now), "expires_at": _iso(now + window_s), "parameters": parameters}
+        signed = self._sign(body, now, nonce)
         if len(json.dumps(signed, separators=(",", ":"), ensure_ascii=False).encode("utf-8")) > MAX_SIGNED_BYTES:
             raise MediaBridgeError("proof_invalid")
         return signed
@@ -157,28 +205,30 @@ class BridgeSigner:
 
     def command_proof(self, command: str, query_owner_id: str, parameters: dict[str, Any], *,
                       kind: str = KIND, window_s: int = WINDOW_S) -> dict[str, Any]:
-        """Original generic command encoder, shared by direct and Native metadata reads."""
-        from . import ha_bridge
-        if (kind not in (KIND, PEER_QUERY_KIND) or not isinstance(command, str)
+        """Original generic command encoder, shared by direct and Native metadata reads. On v2 a v1 kind name is signed as its v2
+        counterpart (the kind always matches the key's protocol; WisKey refuses any other pairing)."""
+        if (not isinstance(kind, str) or not isinstance(command, str)
                 or command.startswith(TYPE_PREFIX) or not _PRINTABLE_RE.fullmatch(command)
                 or not isinstance(query_owner_id, str) or not 1 <= len(query_owner_id) <= 128
                 or type(window_s) is not int or not 0 < window_s <= MAX_WINDOW_S
                 or not isinstance(parameters, dict)):
             raise MediaBridgeError("proof_invalid", "not_sent")
+        kind = signed_kind(kind, self.protocol_version)
         _strict_ns(parameters)
         now = int(self._clock())
         body = {"kind": kind, "command": command, "query_owner_id": query_owner_id,
                 "issued_at": _iso(now), "expires_at": _iso(now + window_s), "parameters": parameters}
         try:
-            return ha_bridge.sign(self._key(), body, ts=now)
+            return self._sign(body, now, None)
         except MediaBridgeError as exc:
             raise MediaBridgeError(exc.code, "not_sent") from None
 
 
-def verify_result(message: Any) -> dict[str, Any]:
+def verify_result(message: Any, schemas: frozenset[str] = frozenset({KIND})) -> dict[str, Any]:
     """The answer to one command, total: `{id, type: "result", success: true, [bridge_schema], result: {...}}` -> `result`.
     A refusal `{success: false, error: {code, ...}}` -> `MediaBridgeError(code)` (WisKey's text is dropped). Any other shape is
-    `invalid_response`. `bridge_schema`, when present, must be the bridge kind (its presence is not proven)."""
+    `invalid_response`. `bridge_schema`, when present, must be one of `schemas` (the bridge kind; on v2 also the v2 kind) - its
+    presence is not proven."""
     if not isinstance(message, dict) or message.get("type") != "result" or not isinstance(message.get("success"), bool):
         raise MediaBridgeError("invalid_response")
     if message["success"] is False:
@@ -186,7 +236,7 @@ def verify_result(message: Any) -> dict[str, Any]:
         code = error.get("code") if isinstance(error, dict) else None
         raise MediaBridgeError(code if isinstance(code, str) and ERROR_CODE_RE.fullmatch(code) else "provider_error")
     schema = message.get("bridge_schema")
-    if schema is not None and schema != KIND:
+    if schema is not None and schema not in schemas:
         raise MediaBridgeError("invalid_response")
     result = message.get("result")
     if not isinstance(result, dict):
@@ -210,7 +260,9 @@ def _strict_ns(value: Any) -> None:
 def verify_command_result(message: Any, kind: str = KIND) -> dict[str, Any]:
     """WKINT-295: the answer to one generic command (an already MAC-verified, id-correlated frame) -> its `result`. A verified
     `{success: false, error: {code}}` is `refused` with WisKey's code (a code outside the closed alphabet is `provider_error`); any
-    other shape - and a `bridge_schema` naming another envelope than the one sent - is `invalid_response`, outcome `unknown`."""
+    other shape - and a `bridge_schema` naming another envelope than the one sent - is `invalid_response`, outcome `unknown`.
+    WISKEY-DIRECT-V2-2520: for a v2 kind the reply may name the v1 bridge schema (WisKey's signed-reply.v2 contracts pin
+    `bridge_schema: wiskey-bridge-command.v1`); nothing else is accepted."""
     if not isinstance(message, dict) or message.get("type") != "result" or not isinstance(message.get("success"), bool):
         raise MediaBridgeError("invalid_response", "unknown")
     if message["success"] is False:
@@ -218,7 +270,7 @@ def verify_command_result(message: Any, kind: str = KIND) -> dict[str, Any]:
         code = error.get("code") if isinstance(error, dict) else None
         raise MediaBridgeError(code if isinstance(code, str) and ERROR_CODE_RE.fullmatch(code) else "provider_error", "refused")
     schema = message.get("bridge_schema")
-    if schema is not None and schema != kind:
+    if schema is not None and schema != kind and not (kind in (KIND_V2, PEER_QUERY_KIND_V2) and schema == KIND):
         raise MediaBridgeError("invalid_response", "unknown")
     result = message.get("result")
     if not isinstance(result, dict):
@@ -358,6 +410,23 @@ DIRECT_MAX_ID = 2**53 - 1
 CHALLENGE_RE = re.compile(r"^[0-9a-f]{32}$")
 SIG_RE = re.compile(r"^[0-9a-f]{64}$")
 _PRINTABLE_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,128}$")
+# WISKEY-DIRECT-V2-2520: direct v2 (WisKey rc19 `DirectBridgeViewV2`, contracts full-management-v1/direct-*.v2.schema.json)
+DIRECT_PATH_V2 = "/api/hikvision_intercom/arx_bridge/v2/ws"
+DIRECT_PROTOCOL_V2 = "wiskey-direct-ws.v2"
+DIRECT_CONNECT_KIND_V2 = "wiskey-direct-connect.v2"
+DIRECT_REPLY_KIND_V2 = "wiskey-direct-reply.v2"
+_SERVICE_V2_RE = re.compile(r"^arx-service:[A-Za-z0-9_-]{1,128}$")  # direct-identity.v2: query_owner_id
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+_PROTOCOLS = {1: DIRECT_PROTOCOL, 2: DIRECT_PROTOCOL_V2}
+_PATHS = {1: DIRECT_PATH, 2: DIRECT_PATH_V2}
+_CONNECT_KINDS = {1: DIRECT_CONNECT_KIND, 2: DIRECT_CONNECT_KIND_V2}
+_REPLY_KINDS = {1: DIRECT_REPLY_KIND, 2: DIRECT_REPLY_KIND_V2}
+
+
+def _version(version: Any) -> int:
+    if version not in (1, 2) or type(version) is not int:
+        raise MediaBridgeError("proof_invalid", "not_sent")
+    return version
 
 
 def canonical_json(value: Any) -> bytes:
@@ -379,41 +448,99 @@ def _key_text(key: Any) -> str:
     return str(key)
 
 
-def connect_body(challenge: str, now: int, *, window_s: int = WINDOW_S) -> dict[str, Any]:
-    """The exact six-field `direct/connect` body (before ts/nonce/sig)."""
+def _key_v2(key: Any) -> tuple[str, str]:
+    """(material, kid) of a v2 signing key: a KeySet `BridgeKey` with a valid kid. A plain pairing secret has no kid and never signs v2
+    (`bridge_key_unversioned`); no key is `bridge_not_paired`."""
+    from . import bridge_keys as bk
+    from . import ha_bridge
+
+    if not key:
+        raise MediaBridgeError("bridge_not_paired")
+    if not isinstance(key, ha_bridge.BridgeKey) or not isinstance(key.kid, str) or not bk.KID_RE.fullmatch(key.kid):
+        raise MediaBridgeError("bridge_key_unversioned")
+    return str(key), key.kid
+
+
+def protocol_for_key(key: Any) -> int:
+    """WISKEY-DIRECT-V2-2520: which direct protocol `key` signs - 2 for a rotated KeySet key (its kid is not `g0-legacy`: v1 cannot carry
+    it, WisKey refuses a kid on v1), else 1 (the plain pairing secret and `g0-legacy` keep the v1 recipe, unchanged). Raises
+    MediaBridgeError `bridge_not_paired` (no key) / `bridge_key_unversioned` (a rotated key whose kid is not a valid key id). Pure."""
+    from . import bridge_keys as bk
+    from . import ha_bridge
+
+    if not key:
+        raise MediaBridgeError("bridge_not_paired")
+    if isinstance(key, ha_bridge.BridgeKey) and key.kid != bk.LEGACY_KID:
+        _key_v2(key)
+        return 2
+    return 1
+
+
+def _sign_body(key: Any, body: dict[str, Any], ts: int, nonce: str | None, version: int) -> dict[str, Any]:
+    """v1: the existing pairing recipe (`ha_bridge.sign` with the kid-less material). v2: the KeySet v2 recipe (`bridge_keys.sign_with`:
+    `v2.<kid>.<ts>.<nonce>.<sha256 body>`, a 32-hex nonce, the kid on the wire). Nothing new is invented here."""
+    from . import bridge_keys as bk
+    from . import ha_bridge
+
+    if _version(version) == 1:
+        return ha_bridge.sign(_key_text(key), body, ts=ts, nonce=nonce)
+    material, kid = _key_v2(key)
+    try:
+        return bk.sign_with(kid, material, body, ts, nonce)
+    except ValueError:
+        raise MediaBridgeError("proof_invalid") from None
+
+
+def connect_body(challenge: str, now: int, *, window_s: int = WINDOW_S, version: int = 1) -> dict[str, Any]:
+    """The exact six-field `direct/connect` body (before [kid/]ts/nonce/sig)."""
     if not isinstance(challenge, str) or not CHALLENGE_RE.fullmatch(challenge) or not 0 < window_s <= MAX_WINDOW_S:
         raise MediaBridgeError("proof_invalid")
-    return {"kind": DIRECT_CONNECT_KIND, "command": DIRECT_CONNECT_COMMAND, "query_owner_id": DIRECT_CONNECT_OWNER,
+    return {"kind": _CONNECT_KINDS[_version(version)], "command": DIRECT_CONNECT_COMMAND, "query_owner_id": DIRECT_CONNECT_OWNER,
             "issued_at": _iso(now), "expires_at": _iso(now + window_s), "parameters": {"challenge": challenge}}
 
 
-def sign_connect(key: Any, challenge: str, *, now: int, nonce: str | None = None, window_s: int = WINDOW_S) -> dict[str, Any]:
-    """The signed `bridge` object of `direct/connect` - the existing recipe (`ha_bridge.sign`), nothing new: HMAC-SHA256 with the UTF-8
-    pairing code over UTF-8 `ts.nonce.sha256(canonical(body)).hexdigest()`."""
-    from . import ha_bridge
-
-    body = connect_body(challenge, int(now), window_s=window_s)
+def sign_connect(key: Any, challenge: str, *, now: int, nonce: str | None = None, window_s: int = WINDOW_S, version: int = 1) -> dict[str, Any]:
+    """The signed `bridge` object of `direct/connect`. v1: the existing recipe (`ha_bridge.sign`) - HMAC-SHA256 with the UTF-8 pairing
+    code over UTF-8 `ts.nonce.sha256(canonical(body)).hexdigest()`. v2: kind `wiskey-direct-connect.v2` signed by the KeySet v2 recipe
+    (direct-connect-request.v2: kid, 32-hex nonce)."""
+    body = connect_body(challenge, int(now), window_s=window_s, version=version)
     _strict(body)
-    return ha_bridge.sign(_key_text(key), body, ts=int(now), nonce=nonce)
+    return _sign_body(key, body, int(now), nonce, version)
 
 
-def reply_mac(key: Any, connection_ref: str, frame: Any) -> str:
-    """WisKey's reply signature: HMAC-SHA256(pairing, UTF-8 "wiskey-direct-reply.v1." + canonical({connection_ref, frame}))."""
-    payload = DIRECT_REPLY_KIND.encode("utf-8") + b"." + canonical_json({"connection_ref": connection_ref, "frame": frame})
-    return hmac.new(_key_text(key).encode("utf-8"), payload, hashlib.sha256).hexdigest()
+def reply_mac(key: Any, connection_ref: str, frame: Any, *, version: int = 1, kid: str | None = None) -> str:
+    """The reply signature. v1 (WisKey's): HMAC-SHA256(pairing, UTF-8 "wiskey-direct-reply.v1." + canonical({connection_ref, frame})).
+    v2 (ARX-DEFINED, see the module note): HMAC-SHA256(material of `kid`, UTF-8 "wiskey-direct-reply.v2." + canonical({connection_ref,
+    frame, kid})); `kid` defaults to the key's own."""
+    if _version(version) == 1:
+        payload = DIRECT_REPLY_KIND.encode("utf-8") + b"." + canonical_json({"connection_ref": connection_ref, "frame": frame})
+        return hmac.new(_key_text(key).encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    material, own = _key_v2(key)
+    payload = DIRECT_REPLY_KIND_V2.encode("utf-8") + b"." + canonical_json({"connection_ref": connection_ref, "frame": frame,
+                                                                           "kid": own if kid is None else kid})
+    return hmac.new(material.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
-def open_reply(key: Any, connection_ref: str, message: Any) -> dict[str, Any]:
-    """The `frame` of one `wiskey-direct-reply.v1` message, ONLY after its MAC and its connection_ref are verified; nothing of the frame
-    is read before. Any other shape, a foreign connection_ref or a wrong MAC is `reply_unauthenticated` (a marker alone proves nothing)."""
-    if (not isinstance(message, dict) or set(message) != {"kind", "connection_ref", "frame", "sig"} or message["kind"] != DIRECT_REPLY_KIND
+def open_reply(key: Any, connection_ref: str, message: Any, *, version: int = 1) -> dict[str, Any]:
+    """The `frame` of one `wiskey-direct-reply.v1|v2` message, ONLY after its MAC and its connection_ref (v2: and its kid = the key's
+    own) are verified; nothing of the frame is read before. Any other shape, a foreign connection_ref or kid, a reply of the other
+    protocol version or a wrong MAC is `reply_unauthenticated` (a marker alone proves nothing)."""
+    version = _version(version)
+    fields = {"kind", "connection_ref", "frame", "sig"} | ({"kid"} if version == 2 else set())
+    if (not isinstance(message, dict) or set(message) != fields or message["kind"] != _REPLY_KINDS[version]
             or not isinstance(message["connection_ref"], str) or not isinstance(message["sig"], str) or not SIG_RE.fullmatch(message["sig"])):
         raise MediaBridgeError("reply_unauthenticated")
     if not hmac.compare_digest(message["connection_ref"].encode("utf-8"), connection_ref.encode("utf-8")):
         raise MediaBridgeError("reply_unauthenticated")
     try:
-        expected = reply_mac(key, connection_ref, message["frame"])
+        if version == 2:
+            _material, own = _key_v2(key)
+            if not isinstance(message["kid"], str) or not hmac.compare_digest(message["kid"].encode("utf-8"), own.encode("utf-8")):
+                raise MediaBridgeError("reply_unauthenticated")
+        expected = reply_mac(key, connection_ref, message["frame"], version=version)
     except (TypeError, ValueError):
+        raise MediaBridgeError("reply_unauthenticated") from None
+    except MediaBridgeError:
         raise MediaBridgeError("reply_unauthenticated") from None
     if not hmac.compare_digest(expected, message["sig"]):
         raise MediaBridgeError("reply_unauthenticated")
@@ -423,17 +550,28 @@ def open_reply(key: Any, connection_ref: str, message: Any) -> dict[str, Any]:
     return frame
 
 
-def read_identity(result: dict[str, Any], challenge: str) -> dict[str, Any]:
+def read_identity(result: dict[str, Any], challenge: str, *, version: int = 1, kid: str | None = None) -> dict[str, Any]:
     """The connect result: exactly protocol, query_owner_id (`arx-service:<entry>`), principal_kind `pairing_service`, connection_ref (=
-    the challenge) and repository_id (a string, or null when WisKey has no peer registry). Anything else refuses the connection."""
-    if set(result) != {"protocol", "query_owner_id", "principal_kind", "connection_ref", "repository_id"}:
+    the challenge) and repository_id (a string, or null when WisKey has no peer registry). Anything else refuses the connection.
+    v2 (direct-identity.v2): also `kid`, which must be exactly the kid Arx signed with (`direct_kid_mismatch` otherwise - one current
+    pairing, never another one silently); repository_id is a UUID string and the subject `arx-service:[A-Za-z0-9_-]{1,128}`."""
+    version = _version(version)
+    keys = {"protocol", "query_owner_id", "principal_kind", "connection_ref", "repository_id"} | ({"kid"} if version == 2 else set())
+    if not isinstance(result, dict) or set(result) != keys:
         raise MediaBridgeError("direct_identity_invalid")
     owner, repo = result["query_owner_id"], result["repository_id"]
-    if (result["protocol"] != DIRECT_PROTOCOL or result["principal_kind"] != DIRECT_PRINCIPAL_KIND or result["connection_ref"] != challenge
+    if (result["protocol"] != _PROTOCOLS[version] or result["principal_kind"] != DIRECT_PRINCIPAL_KIND or result["connection_ref"] != challenge
             or not isinstance(owner, str) or not owner.startswith(DIRECT_SERVICE_PREFIX) or not _PRINTABLE_RE.fullmatch(owner)
             or len(owner) <= len(DIRECT_SERVICE_PREFIX) or not (repo is None or (isinstance(repo, str) and _PRINTABLE_RE.fullmatch(repo)))):
         raise MediaBridgeError("direct_identity_invalid")
-    return {"query_owner_id": owner, "repository_id": repo, "connection_ref": challenge, "principal_kind": DIRECT_PRINCIPAL_KIND}
+    identity = {"query_owner_id": owner, "repository_id": repo, "connection_ref": challenge, "principal_kind": DIRECT_PRINCIPAL_KIND}
+    if version == 1:
+        return identity
+    if not _SERVICE_V2_RE.fullmatch(owner) or not (isinstance(repo, str) and _UUID_RE.fullmatch(repo)):
+        raise MediaBridgeError("direct_identity_invalid")
+    if not isinstance(kid, str) or not isinstance(result["kid"], str) or result["kid"] != kid:
+        raise MediaBridgeError("direct_kid_mismatch")
+    return {**identity, "protocol_version": 2, "kid": kid}
 
 
 class DirectSocket(Protocol):
@@ -465,11 +603,18 @@ class DirectLink:
     were sent; nothing is retried). The pairing key lives in this object for the MAC only, never in repr, a log or an error."""
 
     def __init__(self, socket: DirectSocket, key: Any, identity: dict[str, Any], purpose: str, generation: int, *,
-                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S) -> None:
+                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S,
+                 key_provider: Callable[[], Any] | None = None) -> None:
         self._socket = socket
         self._window_s = window_s
         self._key = key
-        self.signer = BridgeSigner(lambda: key, clock=clock)
+        # WISKEY-DIRECT-V2-2520: the connection's protocol and key id (v2 only); `key_provider` lets a v2 link notice that the key set's
+        # current key changed under it - it then never signs on this connection again (`bridge_key_changed`)
+        self.protocol_version: int = identity.get("protocol_version", 1)
+        self.kid: str | None = identity.get("kid") if self.protocol_version == 2 else None
+        self._key_provider = key_provider
+        self.signer = BridgeSigner(lambda: key, clock=clock, protocol_version=self.protocol_version)
+        self._schemas = frozenset({KIND, KIND_V2}) if self.protocol_version == 2 else frozenset({KIND})
         self.query_owner_id: str = identity["query_owner_id"]
         self.repository_id: str | None = identity["repository_id"]
         self.connection_ref: str = identity["connection_ref"]
@@ -491,6 +636,26 @@ class DirectLink:
     def __repr__(self) -> str:  # never the key, the connection_ref or the service subject
         return f"DirectLink(purpose={self.purpose!r}, generation={self.generation}, closed={self._closed})"
 
+    async def _v2_guard(self, timeout: Any) -> None:
+        """v2 only, before anything is signed: the timeout fits B2-ABI (0 < t <= 58 s) and the key set's current key is still this
+        connection's key. Raises MediaBridgeError outcome `not_sent`; a changed key also closes the link (it is never used again)."""
+        if self.protocol_version != 2:
+            return
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= MAX_CALL_TIMEOUT_S:
+            raise MediaBridgeError("timeout_exceeds_abi", "not_sent")
+        if self._key_provider is None:
+            return
+        try:
+            current = self._key_provider()
+            _material, kid = _key_v2(current)
+            same = kid == self.kid and hmac.compare_digest(str(current).encode("utf-8"), str(self._key).encode("utf-8"))
+        except Exception:  # noqa: BLE001 - an unreadable / absent / unversioned key is not this connection's key
+            same = False
+        if not same:
+            if not self._closed:
+                await self._shutdown("bridge_key_changed")
+            raise MediaBridgeError("bridge_key_changed", "not_sent")
+
     @property
     def closed(self) -> bool:
         return self._closed
@@ -507,7 +672,7 @@ class DirectLink:
         try:
             while not self._closed:
                 raw = await self._socket.recv()
-                frame = open_reply(self._key, self.connection_ref, _load(raw, DIRECT_MAX_FRAME_BYTES))
+                frame = open_reply(self._key, self.connection_ref, _load(raw, DIRECT_MAX_FRAME_BYTES), version=self.protocol_version)
                 self._dispatch(frame)
         except asyncio.CancelledError:
             raise
@@ -585,6 +750,7 @@ class DirectLink:
             raise MediaBridgeError("direct_output_capacity")  # refused before anything is signed or sent
         if self._next_id > DIRECT_MAX_ID:
             raise MediaBridgeError("connection_exhausted", "closed")
+        await self._v2_guard(timeout)
         proof = self.signer.proof(command, self.query_owner_id, parameters, window_s=self._window_s)
         mid = self._next_id
         self._next_id += 1
@@ -610,7 +776,7 @@ class DirectLink:
             raise
         if frame.get("id") != mid:  # the reader correlates by id; checked again here (defence in depth)
             raise MediaBridgeError("invalid_response", "unknown")
-        return verify_result(frame)
+        return verify_result(frame, self._schemas)
 
     # -- WKINT-295: one generic signed command on this connection (services/wiskey_direct_join.py) -------------------------------------
     def signed_body(self, command: str, parameters: dict[str, Any], *, kind: str = KIND) -> dict[str, Any]:
@@ -634,6 +800,8 @@ class DirectLink:
             raise MediaBridgeError("direct_output_capacity", "not_sent")
         if self._next_id > DIRECT_MAX_ID:
             raise MediaBridgeError("connection_exhausted", "not_sent")
+        await self._v2_guard(timeout)
+        kind = signed_kind(kind, self.protocol_version)
         proof = self.signed_body(command, parameters, kind=kind)
         mid = self._next_id
         text = json.dumps({"id": mid, "type": TYPE_PREFIX + command, "bridge": proof}, separators=(",", ":"), ensure_ascii=False)
@@ -700,48 +868,77 @@ class DirectApiTransport:
     """The direct Arx <-> WisKey API (DIRECT_API_V1.md; owner decision 24.10: no new Home Assistant user, no admin, no panel). Each
     `connect` opens a NEW socket, authenticates it with a fresh challenge and returns a `DirectLink` that owns nothing of an earlier
     connection (no session, talk, job or carrier is adopted: those belong to the socket that made them). Nothing is sent before the key
-    is known to sign (`bridge_not_paired` / `bridge_key_rotated` open no socket)."""
+    is known to sign (`bridge_not_paired` / `bridge_key_rotated` open no socket).
+
+    WISKEY-DIRECT-V2-2520: the protocol is chosen per connection from the key alone (`protocol_for_key`), BEFORE any socket: a rotated
+    KeySet key -> v2 on `opener_v2` (WisKey's v2 path), else v1 exactly as before. Without `opener_v2` a rotated key keeps the old
+    refusal `bridge_key_rotated` (callers that did not opt in are unchanged). A v2 attempt that fails is final for that request - this
+    transport never tries v1 after it (v1 cannot carry the kid) and `AutoTransport` never falls back to Home Assistant after it
+    (`last_attempt_version`). PAIRING-Q2: the first v2 service subject seen for a kid is pinned for this transport's life; another
+    subject for the same kid is two pairings answering for one key and refuses (`pairing_ambiguous`, nothing selected)."""
 
     kind = "direct_api"
     HELLO_TIMEOUT_S = 10.0
     CONNECT_TIMEOUT_S = 10.0
 
     def __init__(self, opener: Callable[[], Awaitable[DirectSocket]], key_provider: Callable[[], Any], *,
-                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S) -> None:
+                 clock: Callable[[], float] = time.time, window_s: int = WINDOW_S,
+                 opener_v2: Callable[[], Awaitable[DirectSocket]] | None = None) -> None:
         if not 0 < window_s <= MAX_WINDOW_S:
             raise ValueError("window_s")
         self._window_s = window_s  # each command's validity window (WisKey: 0 < TTL <= 15 s); its principal expires with it
-        self._opener = opener
+        self._openers: dict[int, Callable[[], Awaitable[DirectSocket]] | None] = {1: opener, 2: opener_v2}
         self._key_provider = key_provider
         self._clock = clock
         self._generation = 0
         self._lock = threading.Lock()
+        self._v2_subjects: dict[str, str] = {}  # kid -> the service subject first authenticated for it (PAIRING-Q2)
         self.last_identity: dict[str, Any] | None = None  # public facts of the latest connection (no key, no challenge)
+        self.last_attempt_version: int | None = None  # the protocol of the latest attempt (None: refused before choosing one)
 
     def __repr__(self) -> str:
         return "DirectApiTransport()"
 
-    def _key(self) -> Any:
+    @property
+    def v2_enabled(self) -> bool:
+        return self._openers[2] is not None
+
+    def _key(self) -> tuple[Any, int]:
         try:
             key = self._key_provider()
         except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
             key = None
-        _key_text(key)  # raises bridge_not_paired / bridge_key_rotated
-        return key
+        try:
+            version = protocol_for_key(key)  # raises bridge_not_paired / bridge_key_unversioned
+        except MediaBridgeError as exc:
+            if exc.code == "bridge_key_unversioned" and not self.v2_enabled:
+                raise MediaBridgeError("bridge_key_rotated") from None  # unchanged for a caller that did not opt in to v2
+            raise
+        if version == 2 and not self.v2_enabled:
+            raise MediaBridgeError("bridge_key_rotated")  # unchanged for a caller that did not opt in to v2
+        if version == 1:
+            _key_text(key)
+        return key, version
 
     async def connect(self, purpose: str) -> MediaLink:
         if purpose not in (PURPOSE_VIDEO, PURPOSE_TALK, PURPOSE_COMMAND):
             raise MediaBridgeError("purpose_invalid")
-        key = self._key()
+        self.last_attempt_version = None
+        key, version = self._key()
+        self.last_attempt_version = version
+        opener = self._openers[version]
+        assert opener is not None
         try:
-            socket = await self._opener()
+            socket = await opener()
         except MediaBridgeError:
             raise
         except Exception as exc:  # noqa: BLE001 - unreachable, refused upgrade, TLS: the type only
             log.info("station media: direct socket not opened (%s)", type(exc).__name__)
             raise MediaBridgeError("direct_unreachable", "closed") from None
         try:
-            identity = await self._authenticate(socket, key)
+            identity = await self._authenticate(socket, key, version)
+            if version == 2:
+                self._pin_subject(identity)
         except BaseException as exc:
             try:
                 await socket.close()
@@ -754,22 +951,34 @@ class DirectApiTransport:
         with self._lock:
             self._generation += 1
             generation = self._generation
-        link = DirectLink(socket, key, identity, purpose, generation, clock=self._clock, window_s=self._window_s)
+        link = DirectLink(socket, key, identity, purpose, generation, clock=self._clock, window_s=self._window_s,
+                          key_provider=self._key_provider if version == 2 else None)
         link.start()
         self.last_identity = {"query_owner_id": identity["query_owner_id"], "repository_id": identity["repository_id"],
                               "principal_kind": identity["principal_kind"]}
+        if version == 2:  # the v1 shape stays byte-identical
+            self.last_identity.update(protocol_version=2, kid=identity["kid"])
         return link
 
-    async def _authenticate(self, socket: DirectSocket, key: Any) -> dict[str, Any]:
+    def _pin_subject(self, identity: dict[str, Any]) -> None:
+        kid, owner = identity["kid"], identity["query_owner_id"]
+        with self._lock:
+            pinned = self._v2_subjects.setdefault(kid, owner)
+        if pinned != owner:
+            log.warning("wiskey direct v2: a second pairing answered for the current key; the connection is refused")
+            raise MediaBridgeError("pairing_ambiguous", "closed")
+
+    async def _authenticate(self, socket: DirectSocket, key: Any, version: int = 1) -> dict[str, Any]:
         try:
             hello = _load(await asyncio.wait_for(socket.recv(), self.HELLO_TIMEOUT_S), DIRECT_MAX_CONNECT_BYTES)
         except asyncio.TimeoutError:
             raise MediaBridgeError("direct_hello_timeout", "closed") from None
         if (not isinstance(hello, dict) or set(hello) != {"type", "protocol", "challenge"} or hello["type"] != "hello"
-                or hello["protocol"] != DIRECT_PROTOCOL or not isinstance(hello["challenge"], str) or not CHALLENGE_RE.fullmatch(hello["challenge"])):
+                or hello["protocol"] != _PROTOCOLS[version] or not isinstance(hello["challenge"], str)
+                or not CHALLENGE_RE.fullmatch(hello["challenge"])):
             raise MediaBridgeError("direct_hello_invalid", "closed")
         challenge = hello["challenge"]
-        proof = sign_connect(key, challenge, now=int(self._clock()))
+        proof = sign_connect(key, challenge, now=int(self._clock()), version=version)
         await socket.send(json.dumps({"id": 1, "type": TYPE_PREFIX + DIRECT_CONNECT_COMMAND, "bridge": proof}, separators=(",", ":"), ensure_ascii=False))
         try:
             raw = await asyncio.wait_for(socket.recv(), self.CONNECT_TIMEOUT_S)
@@ -777,34 +986,42 @@ class DirectApiTransport:
             raise MediaBridgeError("direct_connect_timeout", "closed") from None
         except Exception:  # noqa: BLE001 - WisKey closes a refused connect without a word (it never echoes unauthenticated input)
             raise MediaBridgeError("direct_connect_refused", "closed") from None
-        frame = open_reply(key, challenge, _load(raw, DIRECT_MAX_CONNECT_BYTES))
+        frame = open_reply(key, challenge, _load(raw, DIRECT_MAX_CONNECT_BYTES), version=version)
         if frame["id"] != 1 or frame["type"] != "result":
             raise MediaBridgeError("direct_connect_refused", "closed")
         try:
             result = verify_result(frame)
         except MediaBridgeError as exc:
             raise MediaBridgeError(exc.code, "closed") from None
-        return read_identity(result, challenge)
+        if version == 1:
+            return read_identity(result, challenge)
+        _material, kid = _key_v2(key)
+        try:
+            return read_identity(result, challenge, version=2, kid=kid)
+        except MediaBridgeError as exc:
+            raise MediaBridgeError(exc.code, "closed") from None
 
 
-def direct_ws_url(settings: Any) -> str:
+def direct_ws_url(settings: Any, *, version: int = 1) -> str:
     """The direct socket on Home Assistant core itself (the Supervisor proxy carries no anonymous upgrade): the same core address the
-    other core sockets use (`ha_user_auth.core_ws_url`), with WisKey's path instead of `/api/websocket`."""
+    other core sockets use (`ha_user_auth.core_ws_url`), with WisKey's path (v1 or v2) instead of `/api/websocket`."""
     from .ha_user_auth import core_ws_url
 
+    path = _PATHS[_version(version)]
     base = core_ws_url(settings)
-    return base[: -len("/api/websocket")] + DIRECT_PATH if base.endswith("/api/websocket") else base.rstrip("/") + DIRECT_PATH
+    return base[: -len("/api/websocket")] + path if base.endswith("/api/websocket") else base.rstrip("/") + path
 
 
-def websocket_opener(settings: Any) -> Callable[[], Awaitable[DirectSocket]]:
+def websocket_opener(settings: Any, *, version: int = 1) -> Callable[[], Awaitable[DirectSocket]]:
     """Opens the direct socket with `websockets` on the existing private network: no Authorization header, no token, no query string.
     HA's TLS on the internal network is accepted without a name check, exactly as Arx's other core sockets do (ha_user_auth._dial).
     NOT exercised against a real Home Assistant (tests use in-memory sockets)."""
+    _version(version)
 
     async def open_socket() -> DirectSocket:
         import websockets
 
-        url = await asyncio.to_thread(direct_ws_url, settings)
+        url = await asyncio.to_thread(direct_ws_url, settings, version=version)
         kw: dict[str, Any] = {"open_timeout": 10, "close_timeout": 2, "max_size": DIRECT_MAX_FRAME_BYTES}
         if url.startswith("wss://"):
             import ssl
@@ -829,7 +1046,7 @@ class AutoTransport:
 
     kind = "auto"
     RETRY_DIRECT_S = 60.0
-    NO_FALLBACK = frozenset({"bridge_not_paired", "bridge_key_rotated", "purpose_invalid"})
+    NO_FALLBACK = frozenset({"bridge_not_paired", "bridge_key_rotated", "bridge_key_unversioned", "purpose_invalid"})
 
     def __init__(self, direct: MediaTransport, fallback: MediaTransport, *, clock: Callable[[], float] = time.monotonic) -> None:
         self.direct = direct
@@ -844,7 +1061,8 @@ class AutoTransport:
             try:
                 link = await self.direct.connect(purpose)
             except MediaBridgeError as exc:
-                if exc.code in self.NO_FALLBACK:
+                # WISKEY-DIRECT-V2-2520: a v2 attempt never falls back (WisKey `fallback_after_key_refusal: false`)
+                if exc.code in self.NO_FALLBACK or getattr(self.direct, "last_attempt_version", None) == 2:
                     raise
                 self.last_direct_error = exc.code
                 self._direct_down_until = self._clock() + self.RETRY_DIRECT_S

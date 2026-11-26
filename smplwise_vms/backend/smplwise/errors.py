@@ -7,14 +7,19 @@ machine word a screen keys on; the words are chosen when the envelope is answere
   1. a `Msg` user_message (a catalogue key + params; this module's helpers, the setup wizard, the readiness report, capabilities)
      is rendered in the user's language;
   2. otherwise an English user gets `details.message_en` when the raising code put one there (elevators, temperature, insights, ...);
-  3. otherwise the Hebrew message as raised. No requesting user (a refusal before sign-in, a background job) = Hebrew.
+  3. (I18N-REST-2520) otherwise the English of a constant Hebrew text from the table of smplwise/error_text.py (keyed by the Hebrew);
+  4. otherwise the Hebrew message as raised. No requesting user (a refusal before sign-in, a background job) = Hebrew.
+I18N-RUNTIME-ERRORS-2520: a text built at run time is a `Tpl` (smplwise/error_text.py: a Hebrew template + params, English template
+from a table) and is rendered as any `Msg` (step 1); a `Msg` inside `details` (a per-field `problems[].message`, a family's own
+message list) is rendered in the same language, so a refusal's details never mix Hebrew into an English answer.
 The Hebrew answer is byte for byte what it was before."""
 from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Any
 
-from .i18n import DEFAULT_LANG, Msg, register, t
+from .error_text import english as _table_english
+from .i18n import DEFAULT_LANG, Msg, localize, register, t
 
 register("error", {
     "forbidden": ("אין הרשאה לפעולה זו בהיקף המבוקש.", "You do not have permission for this action in the requested scope."),
@@ -39,7 +44,8 @@ class ApiError(Exception):
     def translatable(self) -> bool:
         """True when the message has words in another language (a `Msg`, or `details.message_en`): only then is the requester's
         language worth reading."""
-        return isinstance(self.user_message, Msg) or isinstance((self.details or {}).get("message_en"), str)
+        return (isinstance(self.user_message, Msg) or isinstance((self.details or {}).get("message_en"), str)
+                or _table_english(self.user_message) is not None or _has_msg(self.details))
 
     def message_in(self, lang: str) -> Any:
         """`user_message` in `lang` (I18N-BACKEND-2490, the order in this module's docstring)."""
@@ -49,6 +55,9 @@ class ApiError(Exception):
             en = (self.details or {}).get("message_en")
             if isinstance(en, str) and en:
                 return en
+            en = _table_english(self.user_message)
+            if en:
+                return en
         return self.user_message
 
     def payload(self, correlation_id: str, lang: str = DEFAULT_LANG) -> dict[str, Any]:
@@ -57,8 +66,21 @@ class ApiError(Exception):
             "user_message": self.message_in(lang),
             "retryable": self.retryable,
             "correlation_id": correlation_id,
-            "details": self.details,
+            "details": self.details if lang == DEFAULT_LANG or not _has_msg(self.details) else localize(self.details, lang),
         }
+
+
+def _has_msg(value: Any, depth: int = 0) -> bool:
+    """True when a `Msg` is somewhere inside `value` (dict values, list / tuple items; a few levels deep)."""
+    if isinstance(value, Msg):
+        return True
+    if depth > 4:
+        return False
+    if isinstance(value, dict):
+        return any(_has_msg(v, depth + 1) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_msg(v, depth + 1) for v in value)
+    return False
 
 
 def reason_of(exc: BaseException) -> str:
@@ -164,6 +186,25 @@ def validation(message: str, **details: Any) -> ApiError:
     return ApiError(422, "validation", message, details=details)
 
 
+# ADR019-FAMILY678-2520: the field of an issue that is about the submitted item as a whole (an issue list's empty `path`); D1 names a
+# field in every problem, and `body` is the ADR's name for the request as a whole. The web UI maps it back to the empty path
+# (`issuesOf` in frontend/src/api/client.ts).
+WHOLE_BODY = "body"
+
+
+def issue_problems(issues: Iterable[dict[str, Any]], *, key: str = "path", prefix: str = "") -> list[dict[str, Any]]:
+    """ADR-019 D1 (ADR019-FAMILY678-2520): a domain issue list (`[{path, code, message}]` - automations, schedules, scenarios,
+    blueprints (`param`), billing) as `problems`: `field` = `prefix` + the issue's `key` (an empty one is the whole item:
+    `prefix` without its dot, or `body`), `code` and `message` as they were. The list itself is still sent as the legacy
+    `details.errors` until its readers moved (ADR-019 Step 1 (d))."""
+    out: list[dict[str, Any]] = []
+    for i in issues:
+        name = str(i.get(key) or "")
+        field = f"{prefix}{name}" if name else (prefix.rstrip(".") or WHOLE_BODY)
+        out.append({"field": field, "code": str(i.get("code") or "invalid"), "message": i.get("message")})
+    return out
+
+
 def _unique(names: Iterable[Any]) -> list[str]:
     """Each name once, in first-seen order."""
     return list(dict.fromkeys(str(n) for n in names))
@@ -175,7 +216,8 @@ def _problems(problems: Iterable[dict[str, Any]] | None) -> list[dict[str, str]]
     for p in problems or ():
         one = {"field": str(p["field"]), "code": str(p["code"])}
         if p.get("message") is not None:
-            one["message"] = str(p["message"])
+            # a Msg stays one (its value is the same Hebrew; the envelope renders it in the reader's language)
+            one["message"] = p["message"] if isinstance(p["message"], Msg) else str(p["message"])
         out.append(one)
     return out
 
@@ -199,6 +241,19 @@ def field_error(message: str, fields: Iterable[str] = (), *, problems: Iterable[
     if probs:
         details["problems"] = probs
     return cls(status, code, message, details=details)
+
+
+def named_field_error(status: int, code: str, message: str, details: dict[str, Any] | None = None, *, retryable: bool = False) -> ApiError:
+    """ADR-019 (ADR019-FAMILY45-2520): a service refusal translated by a router (`ApiError(exc.status, exc.code, exc.message,
+    details=exc.details)`) whose details name ONE field the legacy way (`details.field`) also answers the canonical `details.fields`;
+    the legacy key and every other detail stay. Details that already carry `fields` / `problems`, or name no field, pass unchanged."""
+    d = dict(details or {})
+    name = d.get("field")
+    if not isinstance(name, str) or not name or {"fields", "problems"} & set(d):
+        return ApiError(status, code, message, retryable=retryable, details=d)
+    err = field_error(message, [name], code=code, status=status, legacy={"field": d.pop("field")}, extra=d)
+    err.retryable = retryable
+    return err
 
 
 class ServiceInvalid(ValueError):
@@ -231,6 +286,13 @@ class ServiceInvalid(ValueError):
         self.details = dict(details) if details else {}
         if status is not None:
             self.status = status
+
+    def __str__(self) -> str:
+        """As before (the message the error was raised with); a `Msg` message stays a `Msg` (the same Hebrew value), so a router that
+        answers `str(exc)` keeps its English (I18N-RUNTIME-ERRORS-2520)."""
+        if len(self.args) == 1 and isinstance(self.args[0], Msg):
+            return self.args[0]
+        return super().__str__()
 
     def field_problems(self) -> list[dict[str, str]]:
         """ADR-019 D1 `details.problems`: one `{field, code}` per named field when the class carries a per-field reason

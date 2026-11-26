@@ -32,7 +32,14 @@ any factor (the code, a passkey, a phone key - `enrolled`). While it is set and 
 * the user's own `GET auth/second-factor` answers `must_enroll` (and `must_enroll_enforced` when the policy requires it) for the
   account screen.
 
-Owner Q14 stays: a sign-in with a RECOVERY code never sets this flag (only an administrator's reset does)."""
+Owner Q14 stays: a sign-in with a RECOVERY code never sets this flag (only an administrator's reset does).
+
+MFA-PASSKEY-ADMIN-REMOVE-2520 (review MFA-REVIEW-2520 N-2, the rest of it): an administrator's removal of ONE passkey of an Arx-only
+identity (`DELETE identity/local-users/{id}/passkeys/{pk}`, routers/local_passkeys.admin_remove) resets one of that user's
+authentication methods, so it meets the same rules through the same code paths: never oneself, the channel setting, the fresh sign-in
+from outside, the typed username, the last-administrator rule (only when that passkey is the user's LAST sign-in factor -
+`passkey_last_admin_blocks`), a SHARE of the administrator's 3-per-hour budget (`RATE_ACTIONS`: a removal counts as a reset), the
+managers' notice, and `must_enroll` when the last factor goes. Its preflight is `check(..., passkey_id=...)`."""
 from __future__ import annotations
 
 import datetime as dt
@@ -48,6 +55,11 @@ DEFAULT_CHANNEL = CHANNEL_ANY  # owner Q53 (2026-11-22): from anywhere - the des
 RATE_MAX = 3
 RATE_WINDOW_S = 3600
 ACTION = "auth.second_factor.reset"
+# MFA-PASSKEY-ADMIN-REMOVE-2520: an administrator's removal of an Arx-only identity's passkey (its allowed audit row) - one budget with the
+# reset; the once-action of that removal (services/step_up.ONCE_PASSKEY)
+PASSKEY_ACTION = "identity.local.user.passkey_removed"
+PASSKEY_ONCE_ACTION = "auth.local.passkey.removed"
+RATE_ACTIONS = (ACTION, PASSKEY_ACTION)
 
 LOCAL_ONLY_HE = "איפוס דרכי אימות של משתמש אחר מותר רק מהרשת המקומית (לפי ההגדרה ״איפוס דרכי אימות״)."
 CONFIRM_REQUIRED_HE = "כדי לאשר את האיפוס יש להקליד את שם המשתמש של החשבון."
@@ -65,6 +77,17 @@ def channel(conn: sqlite3.Connection) -> str:
 
     value = get_setting(conn, CHANNEL_KEY, DEFAULT_CHANNEL) or DEFAULT_CHANNEL
     return value if value in CHANNELS else DEFAULT_CHANNEL
+
+
+def reauth_refuses(request: Any) -> bool:
+    """MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-5, owner-approved): resetting another user's authentication methods from
+    outside needs a sign-in of the administrator's own session within 5 minutes - the rule a first factor has (MFA-SECFIX-2500 SR-3,
+    `step_up.recent_sign_in`; a re-sign-in, not a code prompt). It comes on top of the administrator's once-proof (which an
+    administrator with no factor of their own cannot give), so a stolen old administrator session resets nobody. The local channel
+    always passes (the break-glass path)."""
+    from . import step_up
+
+    return not step_up.recent_sign_in(request)
 
 
 def channel_refuses(conn: sqlite3.Connection, request: Any) -> bool:
@@ -111,10 +134,12 @@ def _cutoff(now: dt.datetime | None = None) -> str:
 
 
 def resets_in_window(conn: sqlite3.Connection, admin_id: str) -> int:
-    """How many resets this administrator made in the last hour: the allowed `auth.second_factor.reset` audit rows (index
-    idx_audit_action_at). Durable across a restart, exact, and the rows already exist."""
-    return int(conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = ? AND decision = 'allowed' AND actor_user_id = ? AND at > ?",
-                            (ACTION, admin_id, _cutoff())).fetchone()[0])
+    """How many resets this administrator made in the last hour: the allowed `auth.second_factor.reset` audit rows and (MFA-PASSKEY-
+    ADMIN-REMOVE-2520) the allowed removals of an Arx-only identity's passkey - one budget (index idx_audit_action_at). Durable across a
+    restart, exact, and the rows already exist."""
+    marks = ", ".join("?" for _ in RATE_ACTIONS)
+    return int(conn.execute(f"SELECT COUNT(*) FROM audit_log WHERE action IN ({marks}) AND decision = 'allowed' AND actor_user_id = ? AND at > ?",
+                            (*RATE_ACTIONS, admin_id, _cutoff())).fetchone()[0])
 
 
 def resets_left(conn: sqlite3.Connection, admin_id: str) -> int:
@@ -184,14 +209,29 @@ def _internal(user_id: str) -> Any:
     return Principal(user_id=user_id, username="", display_name="", source="internal")
 
 
+def sign_in_factor(conn: sqlite3.Connection, user_id: str) -> bool:
+    """MFA-REVIEW-DOCS-2520 (finding N-3): does the user hold a factor that answers a NEW remote sign-in - not merely a step-up method?
+    A Home Assistant user: the authenticator code (a recovery code rides on it) or an active phone key (owner Q51; ha_user_auth
+    .second_factor_need). An Arx-only identity: the code or a usable passkey (local_identity.has_factor - its passkey sign-in step).
+    A Home Assistant user's passkey is a step-up method only (step_up.methods_of): it never answers the remote sign-in, so under a
+    policy that requires a factor such a user goes to enrolment and cannot sign in from outside."""
+    from . import device_keys, local_passkeys, user_passkeys
+    from . import second_factor as sf
+
+    if user_passkeys.is_local_user(conn, user_id):
+        return local_passkeys.has_factor(conn, user_id)
+    return sf.is_enrolled(conn, user_id) or device_keys.has_active(conn, user_id)
+
+
 def signs_in_remotely(conn: sqlite3.Connection, user_id: str, *, remote_on: bool, after_reset: bool = False) -> bool:
     """Could this user complete a NEW remote sign-in (as far as Arx decides it, without asking Home Assistant)? The remote channel is on,
     the user is active and not a wall-only user, the remote policy admits them, and the second factor does not stop them: they hold a
-    factor, or their policy does not require one, or (the enforced sign-in policy's `ha_mfa` path) Home Assistant's own MFA was seen
-    for them and no `must_enroll` is pending. `after_reset`: as if every factor of the user were gone and `must_enroll` set."""
+    sign-in factor (`sign_in_factor` - a Home Assistant user's passkey is not one), or their policy does not require one, or (the
+    enforced sign-in policy's `ha_mfa` path) Home Assistant's own MFA was seen for them and no `must_enroll` is pending. `after_reset`:
+    as if every factor of the user were gone and `must_enroll` set."""
     if not remote_on:
         return False
-    from . import active_users, mfa_provenance, step_up
+    from . import active_users, mfa_provenance
     from . import ha_user_auth as hua
     from . import second_factor as sf
     from . import wall
@@ -200,7 +240,7 @@ def signs_in_remotely(conn: sqlite3.Connection, user_id: str, *, remote_on: bool
         return False
     if hua.remote_basis(conn, user_id) is None:
         return False
-    if not after_reset and step_up.methods_of(conn, user_id):
+    if not after_reset and sign_in_factor(conn, user_id):
         return True
     value, source = sf.effective_policy(conn, _internal(user_id), hua.ADMIN_PERMISSIONS)
     if value != "required":
@@ -238,6 +278,26 @@ def last_admin_blocks(conn: sqlite3.Connection, target: str, *, remote_on: bool)
     return not any(signs_in_remotely(conn, uid, remote_on=remote_on) for uid in system_admins(conn) if uid != target)
 
 
+def passkey_removal_leaves_no_factor(conn: sqlite3.Connection, user_id: str, pk_id: str) -> bool:
+    """MFA-PASSKEY-ADMIN-REMOVE-2520: removing this one passkey takes the Arx-only identity's LAST sign-in factor - it has one now (this
+    usable passkey; local_passkeys.has_factor) and none after it (no authenticator code, no other usable passkey). Then the removal is a
+    reset in effect: the last-administrator rule applies and the user must enrol again."""
+    from . import local_passkeys
+    from . import second_factor as sf
+
+    if sf.is_enrolled(conn, user_id):
+        return False
+    usable = [r["id"] for r in local_passkeys.usable_rows(conn, user_id)]
+    return usable == [pk_id]
+
+
+def passkey_last_admin_blocks(conn: sqlite3.Connection, user_id: str, pk_id: str, *, remote_on: bool) -> bool:
+    """`last_admin_blocks` for the removal of one passkey: only a removal that leaves the user with no sign-in factor can take away a
+    remote sign-in (`signs_in_remotely(after_reset=True)` is then exact). Today never true in practice - an Arx-only identity is never a
+    system administrator (rbac.is_system_admin) - but the rule is the reset's, so it holds should that ever change."""
+    return passkey_removal_leaves_no_factor(conn, user_id, pk_id) and last_admin_blocks(conn, user_id, remote_on=remote_on)
+
+
 def remote_on(request: Any) -> bool:
     settings = getattr(getattr(getattr(request, "app", None), "state", None), "settings", None)
     return bool(getattr(settings, "remote_access", False))
@@ -245,11 +305,16 @@ def remote_on(request: Any) -> bool:
 
 # ---------------------------------------------------------------- the preflight (for the screens)
 
-def check(conn: sqlite3.Connection, request: Any, principal: Any, target: str) -> dict[str, Any]:
+def check(conn: sqlite3.Connection, request: Any, principal: Any, target: str, *, passkey_id: str | None = None) -> dict[str, Any]:
     """`GET auth/second-factor/users/{user_id}/reset-check`: everything the reset dialog needs BEFORE the administrator confirms -
     whether the reset may go ahead now and, if not, the first refusal it would meet (the route checks in the same order); the text to
     type; the channel setting and this request's channel; the resets left this hour; what would be removed; whether the user would
-    have to enrol again at their next remote sign-in; the once-action details for the step-up dialog. Reads only; nothing is spent."""
+    have to enrol again at their next remote sign-in; the once-action details for the step-up dialog. Reads only; nothing is spent.
+
+    MFA-PASSKEY-ADMIN-REMOVE-2520: with `passkey_id`, the preflight of removing that ONE passkey of an Arx-only identity
+    (`GET identity/local-users/{id}/passkeys/{pk}/remove-check`): the same refusals in the removal's order, the last-administrator rule
+    only when it is the user's last sign-in factor, `factors` = that one passkey, `must_enroll_after` only when it is the last factor,
+    the removal's own once-action."""
     from ..remote_channel import is_remote
     from . import step_up
     from . import second_factor as sf
@@ -264,17 +329,25 @@ def check(conn: sqlite3.Connection, request: Any, principal: Any, target: str) -
         reason = "user_unknown"
     elif channel_refuses(conn, request):
         reason = "local_only"
-    elif last_admin_blocks(conn, target, remote_on=remote_on(request)):
+    elif reauth_refuses(request):
+        reason = "reauth"
+    elif (last_admin_blocks(conn, target, remote_on=remote_on(request)) if passkey_id is None
+          else passkey_last_admin_blocks(conn, target, passkey_id, remote_on=remote_on(request))):
         reason = "last_admin"
     elif left <= 0:
         reason = "rate_limited"
-    factors = {"totp": sf.is_enrolled(conn, target), "passkeys": _count(conn, "SELECT COUNT(*) FROM auth_webauthn_credentials WHERE user_id = ?", target),
-               "device_keys": _count(conn, "SELECT COUNT(*) FROM auth_device_keys WHERE user_id = ? AND revoked_at IS NULL", target),
-               "recovery_codes": _count(conn, "SELECT COUNT(*) FROM auth_recovery_codes WHERE user_id = ? AND used_at IS NULL", target)}
     policy_required = sf.effective_policy(conn, _internal(target), _admin_permissions())[0] == "required" if text is not None else False
+    if passkey_id is None:
+        factors = {"totp": sf.is_enrolled(conn, target), "passkeys": _count(conn, "SELECT COUNT(*) FROM auth_webauthn_credentials WHERE user_id = ?", target),
+                   "device_keys": _count(conn, "SELECT COUNT(*) FROM auth_device_keys WHERE user_id = ? AND revoked_at IS NULL", target),
+                   "recovery_codes": _count(conn, "SELECT COUNT(*) FROM auth_recovery_codes WHERE user_id = ? AND used_at IS NULL", target)}
+        after, once = policy_required, ACTION
+    else:
+        factors = {"totp": False, "passkeys": 1, "device_keys": 0, "recovery_codes": 0}
+        after, once = policy_required and passkey_removal_leaves_no_factor(conn, target, passkey_id), PASSKEY_ONCE_ACTION
     return {"user_id": target, "allowed": reason is None, "reason": reason, "confirm_text": text or "", "channel": channel(conn),
-            "remote": remote, "resets_left": left, "rate_max": RATE_MAX, "factors": factors, "must_enroll_after": policy_required,
-            "step_up": step_up.once_details(conn, principal, ACTION)}
+            "remote": remote, "resets_left": left, "rate_max": RATE_MAX, "factors": factors, "must_enroll_after": after,
+            "step_up": step_up.once_details(conn, principal, once)}
 
 
 def _admin_permissions() -> frozenset[str]:

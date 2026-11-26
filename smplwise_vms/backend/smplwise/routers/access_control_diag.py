@@ -59,6 +59,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
 from ..wire import access_control_diag as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 API = "/access-control/diag"
@@ -390,7 +391,7 @@ def diag_permission_audit(request: Request, auth: ia.Authority = Depends(_people
     _require_feature(request, "permission_audit")
     station = _station_known(request, station_id)
     if station is not None and not station["online"]:
-        raise ApiError(409, "intercom_station_offline", f"העמדה {station['name']} אינה מחוברת כרגע, ולכן לא נבדקה.")
+        raise ApiError(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת כרגע, ולכן לא נבדקה.", name=station['name']))
     limited = diag.AUDIT_GATE.admit(station_id)
     if limited is not None:
         code, retry = limited

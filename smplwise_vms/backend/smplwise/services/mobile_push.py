@@ -36,6 +36,7 @@ from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, field_error
 from ..relay_url import check_relay_url
 from . import notify, notify_channels, notify_settings, push
+from .notify_delivery_lang import user_langs, word
 from .notify_policy import CATEGORIES
 from .notify_visibility import Reach, principal_of
 from .presence import _json, get_device, iso, now_utc
@@ -436,19 +437,24 @@ class AppPushChannel(notify_channels.Channel):
                 push.STATS["rate_limited"] += 1
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "rate_limited"))
                 continue
+            lang = d.lang(uid)  # NOTIFY-RECIPIENT-LANG-2520: the stored message speaks this recipient's language
             for dev in devices:
                 if d.n["category"] in _json(dev["push_muted_json"], []) and d.n["category"] not in CRITICAL_CATEGORIES and d.severity != "critical" and d.mode != "escalate":
                     out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "skipped", "muted", {"device": dev}))
                     continue
-                out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "queued", None, {"device": dev}))
+                out.append(notify_channels.Target(self.name, uid, f"app:{dev['name'][:24]}", "queued", None, {"device": dev, "lang": lang}))
         return out
 
     def prepare(self, d: notify_channels.Dispatch, targets: list[notify_channels.Target], conn: Any) -> None:
-        text = notify_channels.payload_v2(d.n, d.settings["lockscreen"], tokens=None, door=None, tz_name=d.tz, mode=d.mode, now=d.now)
+        texts: dict[str, dict[str, Any]] = {}  # one text per language of this dispatch's recipients
         d.scratch["app_server"] = server_id(conn)
         for t in targets:
             if t.status != "queued":
                 continue
+            lang = t.data.get("lang") or "he"
+            if lang not in texts:
+                texts[lang] = notify_channels.payload_v2(d.note(lang), d.settings["lockscreen"], tokens=None, door=None, tz_name=d.tz, mode=d.mode, now=d.now, lang=lang)
+            text = texts[lang]
             t.data["message_id"] = _store_message(conn, t.data["device"], notification_id=d.nid, delivery_id=t.delivery_id or None, mode=d.mode, category=d.n["category"], severity=d.severity,
                                                   title=text["title"], body=text["body"], deep_link=text["url"], at=d.now)
 
@@ -490,7 +496,9 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
         dev = get_device(conn, device_id)
         if dev is None or not dev["push_relay_token"]:
             raise ApiError(409, "push_not_registered", "המכשיר הזה עדיין לא נרשם להתראות.")
-        mid = _store_message(conn, dev, notification_id=None, delivery_id=None, mode="test", category="system", severity="info", title="Arx · התראת בדיקה", body="ההתראות פועלות במכשיר הזה.",
+        lang = user_langs(conn, [dev["user_id"]]).get(dev["user_id"], "he")  # NOTIFY-RECIPIENT-LANG-2520: the device owner's language
+        mid = _store_message(conn, dev, notification_id=None, delivery_id=None, mode="test", category="system", severity="info", title=word("Arx · התראת בדיקה", lang),
+                             body=word("ההתראות פועלות במכשיר הזה.", lang),
                              deep_link="#/system/notifications", at=now_utc())
         sid = server_id(conn)
         token = dev["push_relay_token"]

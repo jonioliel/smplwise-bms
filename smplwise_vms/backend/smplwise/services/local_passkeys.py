@@ -228,7 +228,7 @@ def recent_auth(conn: Any, s: Any) -> bool:
 @dataclass
 class _Challenge:
     value: bytes
-    purpose: str  # register | second_factor | passwordless | step_up (MFA-PASSKEYS-2490)
+    purpose: str  # register | second_factor | passwordless | step_up (MFA-PASSKEYS-2490) | remote_factor (MFA-HA-PASSKEY-2520)
     user_id: str | None
     bind: str | None  # session chain id | pending id | None
     rp_id: str
@@ -245,7 +245,9 @@ _lock = threading.Lock()
 # second step.
 # MFA-PASSKEYS-2490: `step_up` - the step-up challenges of every user kind (services/user_passkeys), bound to the user, the session
 # and the action; the same 60 s, single use, one open ceremony per user, MAX_CHALLENGES ceiling.
-_pools: dict[str, dict[bytes, _Challenge]] = {"register": {}, "second_factor": {}, "passwordless": {}, "step_up": {}}
+# MFA-HA-PASSKEY-2520: `remote_factor` - the remote sign-in step of a home-system user (services/passkey_sign_in), bound to the user and
+# the caller's Home Assistant sign-in; the same rules.
+_pools: dict[str, dict[bytes, _Challenge]] = {"register": {}, "second_factor": {}, "passwordless": {}, "step_up": {}, "remote_factor": {}}
 MAX_PASSWORDLESS = 2000
 PASSWORDLESS_PER_ADDRESS = 3
 

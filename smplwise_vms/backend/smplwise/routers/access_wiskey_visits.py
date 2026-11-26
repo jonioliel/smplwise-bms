@@ -7,11 +7,15 @@ Every route answers 404 while Arx's visitors are off (`access.visitors`, service
                                                    do. No WisKey call. Anyone holding `access.visitor.invite` or `access.people.read` somewhere.
 - GET  /access/wiskey-visits/visits?status=&query=&offset=&limit=   WisKey's visit list, read only, each row marked `origin` arx | wiskey.
                                                    `access.people.read` UNRESTRICTED (WisKey answers installation-wide; audited 403 otherwise).
+                                                   WISKEY-VISITS-ENDED-FILTER-2520: `status=ended` only when `capabilities.visits.statuses`
+                                                   lists it (WisKey offers the record command); otherwise 409 `wiskey_visits_unsupported`.
 - GET  /access/wiskey-visits/templates             WisKey's guest templates as invite presets (no person data): invite or people-read somewhere.
 - GET  /access/wiskey-visits/links                 the WisKey record state of every invitation the caller sees (no WisKey call).
 - POST /access/wiskey-visits/{invite_id}/push      `{confirmed: true}`: record the invitation's current state in WisKey. The host or a manager of one
                                                    of its stations. Sent once, never retried (services/wiskey_visits.py "The push").
 - POST /access/wiskey-visits/{invite_id}/reconcile settle an `unknown` (or check a `pushed`) by reading WisKey's list; nothing is written to WisKey.
+                                                   WISKEY-R6-2520: one exact `filters.external_ref` read when WisKey offers the record
+                                                   command (rc.19 B8), and the verdict compares WisKey's `arx_revision` with the sent one.
 - PUT  /access/wiskey-visits/settings              `{push: "on"|"off"}` - system administrator; audited before / after."""
 from __future__ import annotations
 
@@ -84,15 +88,18 @@ def home(request: Request, principal: Principal = Depends(current_principal_ro),
 
 @router.get(f"{API}/visits", **wire(W.AccessWiskeyVisitsVisits))
 def visits(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
-           status: Literal["all", "pending", "approved", "rejected", "cancelled", "superseded"] = "all", query: str = Query("", max_length=64),
+           status: Literal["all", "pending", "approved", "rejected", "cancelled", "superseded", "ended"] = "all", query: str = Query("", max_length=64),
            offset: int = Query(0, ge=0, le=100_000), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     _on_or_404(conn)
     auth = ia.Authority(conn, principal)
     if not auth.unrestricted(ia.PEOPLE_READ):
         raise _refuse(conn, principal, ia.PEOPLE_READ, request, "station_scoped" if auth.anywhere(ia.PEOPLE_READ) else "no_binding")
-    available, reason = wv.feature_state(_api(request), "visits")
+    api = _api(request)
+    available, reason = wv.feature_state(api, "visits")
     if not available:
         raise _unavailable("visits", reason)
+    if status not in wv.list_statuses(api):  # WISKEY-VISITS-ENDED-FILTER-2520: `ended` only when WisKey offers it; refused before any call
+        raise _unavailable("ended_filter", "ended_filter_not_offered")
     needle = " ".join(query.split())
     reply = intercom_sync.SYNC.command(settings_of(request), "visits", lambda call: wv.list_visits(call, offset=offset, limit=limit, status=status, query=needle),
                                        wv.project_visit_page, who=principal.user_id, channel=wv.READ_CHANNEL)
@@ -136,7 +143,8 @@ def push(body: PushIn, request: Request, invite_id: str = Path(..., pattern=_ID)
     record = wv.claim(db, principal, invite_id, _api(request), rid)
     revision = record["arx_revision"]
     try:
-        reply = intercom_sync.SYNC.action(settings_of(request), "record", lambda call: wv.record_external(call, record), wv.project_record,
+        reply = intercom_sync.SYNC.action(settings_of(request), "record", lambda call: wv.record_external(call, record),
+                                          lambda raw: wv.project_record(raw, expect=record),
                                           who=principal.user_id, lane=wv.LANE, channel=wv.PUSH_CHANNEL, target=f"visit:{invite_id}")
     except ApiError as exc:
         details = dict(exc.details or {})
@@ -148,7 +156,8 @@ def push(body: PushIn, request: Request, invite_id: str = Path(..., pattern=_ID)
             raise wv.wiskey_refusal(code) from None
         if state == "unknown":
             raise ApiError(504, "wiskey_visits_outcome_unknown", "הרישום נשלח למערכת בקרת הכניסה, אך לא התקבלה תשובה ברורה. לא נשלח שוב - יש לבצע \"בדיקה מול מערכת בקרת הכניסה\".",
-                           details=details) from None
+                           details={**details, "message_en": "The record was sent to the access control system, but no clear answer came back. It is not sent "
+                                                             "again - run \"Check against the access control system\"."}) from None
         raise
     except BaseException:
         wv.settle(db, principal, invite_id, "unknown", code="arx_error", revision=revision, request_id=rid)
@@ -173,24 +182,34 @@ def reconcile(request: Request, invite_id: str = Path(..., pattern=_ID), princip
         link = wv.link_row(conn, invite_id)
     if link is None or link["state"] not in ("unknown", "pushed"):
         raise ApiError(409, "wiskey_visits_nothing_to_check", "אין שליחה לבדוק עבור ההזמנה הזו.")
-    available, reason = wv.feature_state(_api(request), "visits")
+    api = _api(request)
+    available, reason = wv.feature_state(api, "visits")
     if not available:
         raise _unavailable("visits", reason)
-    reply = intercom_sync.SYNC.command(settings_of(request), "found", lambda call: wv.find_external(call, invite_id), lambda raw: raw,
+    exact = wv.feature_state(api, "push")[0]  # the exact `filters.external_ref` came with the record command (rc.19 B8); chosen before sending
+    reply = intercom_sync.SYNC.command(settings_of(request), "found", lambda call: wv.find_external(call, invite_id, exact=exact), lambda raw: raw,
                                        who=principal.user_id, channel=wv.READ_CHANNEL, target=f"visit:{invite_id}")
     found = reply.get("found")
     if reply.get("state") != "ready" or found is None:
         raise ApiError(503, "wiskey_visits_unavailable", "מערכת בקרת הכניסה אינה זמינה כרגע. לא שונה דבר - נסו שוב.", retryable=True,
                        details={"state": reply.get("state"), "last_error": reply.get("last_error")})
     row = found.get("found")
-    if row is not None:
-        wv.settle(db, principal, invite_id, "pushed", reply={"visit_id": row["id"]}, revision=link["sent_revision"], request_id=rid, action=wv.AUDIT_RECONCILE)
+    held = found.get("arx_revision")
+    sent_revision = link["sent_revision"]
+    if row is not None and held is not None and held == sent_revision:  # WisKey holds exactly the revision that was sent
+        wv.settle(db, principal, invite_id, "pushed", reply={"visit_id": row["id"]}, revision=sent_revision, request_id=rid, action=wv.AUDIT_RECONCILE)
         verdict = "recorded"
-    elif found.get("complete"):  # the whole list was read and the record is not there: it provably was not recorded
-        wv.settle(db, principal, invite_id, "not_sent", code="not_in_wiskey", revision=link["sent_revision"], request_id=rid, action=wv.AUDIT_RECONCILE)
+    elif row is not None and held is not None and isinstance(sent_revision, int) and held < sent_revision:
+        # WisKey keeps the highest revision it saw: an older one there means the sent revision was not stored
+        wv.settle(db, principal, invite_id, "not_sent", code="older_revision_in_wiskey", revision=sent_revision, request_id=rid, action=wv.AUDIT_RECONCILE)
+        verdict = "absent"
+    elif row is None and found.get("complete"):  # the whole list (or the exact key) was read and the record is not there: not recorded
+        wv.settle(db, principal, invite_id, "not_sent", code="not_in_wiskey", revision=sent_revision, request_id=rid, action=wv.AUDIT_RECONCILE)
         verdict = "absent"
     else:
-        verdict = "undecided"  # the list was longer than the reconcile reads: the state stays as it was
+        # the list was longer than the reconcile reads, the key was ambiguous, WisKey did not say which revision it holds, or it holds a
+        # newer one than Arx ever sent: the state stays as it was
+        verdict = "undecided"
     with db.connection(mode="read", label="wiskey_visits.view") as conn:
         pair = wv._invite_and_grant(conn, invite_id)
         view = wv.link_view(conn, *pair) if pair else None

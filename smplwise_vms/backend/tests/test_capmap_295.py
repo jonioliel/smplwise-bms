@@ -179,6 +179,28 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "gains grant='alarm.bypass' (+ a comment), so the generic device route asks for that grant at the entity (403 grant_required). "
      "Only the authorisation of that one route changed; the row's domain, service, label, expect and risk, every other row, the signing "
      "and verify paths and the capability projection these vectors pin are unchanged (the projection tests below pass)."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "2193b0d7e40f3eb96649abceb20f1352583ef425b1de5091a630c74800344ccb",
+     "dddf12a30b36ced1e9ab2e434b7c6d2e737627bc2642e848af60b704fd4d040a",
+     "WISKEY-BRIDGE-KEYSET-2520 (bridge 0.10.9): only the Persister changed - persist() runs under an asyncio lock (one save at a "
+     "time) and records the saved high-water marks, saved_through(kid, ts) reads them, and control(msg) is the rotation service's "
+     "write-ahead step moved from __init__.rotate unchanged. KeySet, sign(), verify() / _check(), the v1/v2 recipes and "
+     "handle_control() - the path lease_contract.validate takes for these vectors - are byte-for-byte unchanged."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "dddf12a30b36ced1e9ab2e434b7c6d2e737627bc2642e848af60b704fd4d040a",
+     "05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4",
+     "BRIDGE-REPAIR-LEGACY-2520 (deep review 2.52 WB-02 / WB-07, bridge 0.10.9): KeySet.__init__'s K-02 re-pair rule also takes a "
+     "retired state WITHOUT the pairing tag (the 2.11.0 - 2.14.0 store format) plus a code in the entry as a new pairing; "
+     "Persister.clean_entry blanks only the retired code recognised by its saved tag; a new PairingFence class (the 'same pairing' "
+     "gate of the bridge's own services) in front of KeySet.verify. A fresh KeySet (no stored state, the vectors' case) takes exactly "
+     "the old path; sign(), verify() / _check(), the v1/v2 recipes and handle_control() are byte-for-byte unchanged."),
+    ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
+     "58cfc9139623f4184e427950a0f03569db04c27ab18f1cdf9e8a25272a7caa74",
+     "3a7ee1f8a6501407c9a28746f605817ab7b523659f198b16217698131a99f886",
+     "I18N-RUNTIME-ERRORS-2520, reviewed in RELEASE-2520-TRAIN (lead decision Q3 = a): only the argument-check refusal texts of the "
+     "generic device route changed - ten f-strings became tpl(...) with the same Hebrew (Hebrew output byte-identical; English via "
+     "error_text_tpl_en.json) - and `from ..error_text import tpl` was added. The ACTIONS rows, the signing and verify paths and the "
+     "capability projection these vectors pin are unchanged (git diff a7ba23483 33e121b63 -- services/ha_bridge.py)."),
 )
 
 

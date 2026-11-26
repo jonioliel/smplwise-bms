@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services.access import camera_scope, floor_reach
 from ..services.tickets import access, map_element, model
@@ -105,7 +105,7 @@ def put_element(body: AttachBody, request: Request, ticket_id: str = Path(..., p
     seen = access.require_visible(viewer, ticket_id)
     rid = _rid(request)
     if (body.element is None) == (body.resource is None):
-        raise ApiError(422, "validation", "ערך לא תקין.", details={"fields": [{"field": "element", "code": "one_of_element_or_resource"}]})
+        raise field_error("ערך לא תקין.", problems=[{"field": "element", "code": "one_of_element_or_resource"}])
     _need_editor(conn, viewer, seen, rid)
     if body.element is not None:
         el = map_element.find(conn, body.element.floor_id, body.element.kind, body.element.id)

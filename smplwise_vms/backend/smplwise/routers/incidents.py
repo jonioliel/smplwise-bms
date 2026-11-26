@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import default_names as dn
 from ..services import incidents as svc
@@ -80,7 +80,7 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         changes = svc.validate_patch(body.settings)
     except ValueError as exc:
         key = str(exc)
-        raise ApiError(422, "validation", "ערך לא תקין בהגדרות מצב אירוע חי.", details={"field": key, "bounds": svc.bounds().get(key)}) from None
+        raise field_error("ערך לא תקין בהגדרות מצב אירוע חי.", [key], legacy={"field": key}, extra={"bounds": svc.bounds().get(key)}) from None
     diff = svc.write_settings(conn, changes)
     if svc.ENABLED in diff:
         audit(conn, actor=principal, action="incident.module.enable" if diff[svc.ENABLED]["to"] else "incident.module.disable", decision="allowed",
@@ -192,13 +192,13 @@ def open_incident(body: OpenIn, request: Request, principal: Principal = Depends
             raise _off() from None
     else:
         if not body.floor_id:
-            raise ApiError(422, "validation", "יש לבחור קומה או אירוע.", details={"field": "floor_id"})
+            raise field_error("יש לבחור קומה או אירוע.", ["floor_id"], legacy={"field": "floor_id"})
         fl = svc.floor_info(conn, body.floor_id)
         if fl is None:
             raise ApiError(404, "not_found", "הקומה לא נמצאה.")
         require(conn, principal, ACK, ("floor", fl["id"]))
         if (body.x is None) != (body.y is None):
-            raise ApiError(422, "validation", "נקודה על התוכנית: x ו־y יחד.", details={"field": "x"})
+            raise field_error("נקודה על התוכנית: x ו־y יחד.", ["x"], legacy={"field": "x"})
         try:
             row, merged = svc.open_incident(conn, source="manual", title=(body.title or "").strip() or dn.name("incident.manual", lang), floor_id=fl["id"], x=body.x, y=body.y,
                                             actor=principal, request_id=_rid(request))
@@ -257,7 +257,7 @@ def note_incident(incident_id: str, body: NoteIn, request: Request, principal: P
     _gate(conn)
     row = _incident(conn, principal, incident_id, ACK)
     if not body.text.strip():
-        raise ApiError(422, "validation", "ההערה ריקה.", details={"field": "text"})
+        raise field_error("ההערה ריקה.", ["text"], legacy={"field": "text"})
     if row["status"] != "open":
         raise ApiError(409, "incident_closed", "האירוע כבר נסגר.")
     svc.note(conn, row, principal, body.text, _rid(request))

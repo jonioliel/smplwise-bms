@@ -44,6 +44,7 @@ from ..services.timeutil import parse_utc
 from ..wire import water as W, wire
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 router = APIRouter()
 API = "/infra/water"
@@ -112,12 +113,12 @@ def _iso(ts: int | None) -> str | None:
 def _instant(value: str | None, name: str, default: int | None = None) -> int:
     if value is None:
         if default is None:
-            raise _err(422, "validation", f"חסר {name}.", f"Missing {name}.", fields=[name])
+            raise _err(422, "validation", tpl("חסר {name}.", name=name), f"Missing {name}.", fields=[name])
         return default
     try:
         return int(parse_utc(value).timestamp())
     except ValueError:
-        raise _err(422, "validation", f"{name} חייב להיות זמן UTC (ISO 8601).", f"{name} must be a UTC instant (ISO 8601).", fields=[name]) from None
+        raise _err(422, "validation", tpl("{name} חייב להיות זמן UTC (ISO 8601).", name=name), f"{name} must be a UTC instant (ISO 8601).", fields=[name]) from None
 
 
 def _range(frm: str | None, to: str | None, default_span_s: int) -> tuple[int, int]:

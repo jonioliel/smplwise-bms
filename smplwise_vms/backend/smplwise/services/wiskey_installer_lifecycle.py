@@ -40,6 +40,7 @@ from ..errors import ApiError
 from . import confirm_words, ha_client
 from . import intercom_adapter as ad
 from .wiskey_installer import WRITE_TIMEOUT_S, Op
+from ..error_text import tpl
 
 HANDLER = "hikvision_intercom"
 FLOW_TTL_S = 15 * 60.0
@@ -304,10 +305,10 @@ FLOWS = Flows()
 def flow_error(what: str, exc: FlowError) -> ApiError:
     details = {"outcome": exc.outcome, "wiskey_code": exc.code}
     if exc.outcome == "not_sent":
-        return ApiError(503, "installer_unavailable", f"{what}: הבקשה לא נשלחה ({exc.code}).", retryable=True, details=details)
+        return ApiError(503, "installer_unavailable", tpl("{what}: הבקשה לא נשלחה ({code}).", what=what, code=exc.code), retryable=True, details=details)
     if exc.outcome == "refused":
-        return ApiError(502, "installer_refused", f"{what} - נדחה ({exc.code}). לא בוצע שינוי.", details=details)
-    return ApiError(504, "installer_outcome_unknown", f"{what} נשלח, אך לא התקבלה תשובה ברורה ({exc.code}). בדקו את רשימת העמדות לפני שמנסים שוב.", details=details)
+        return ApiError(502, "installer_refused", tpl("{what} - נדחה ({code}). לא בוצע שינוי.", what=what, code=exc.code), details=details)
+    return ApiError(504, "installer_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). בדקו את רשימת העמדות לפני שמנסים שוב.", what=what, code=exc.code), details=details)
 
 
 # ---------------------------------------------------------------- removal / replacement (WisKey platform/lifecycle_*)

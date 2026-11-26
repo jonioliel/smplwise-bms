@@ -27,6 +27,7 @@ from ._common import rid as _rid
 from .catalog import get_floor
 from ..wire import plans as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -215,7 +216,7 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
                         break
                     size += len(chunk)
                     if size > settings.max_upload_bytes:
-                        raise ApiError(413, "payload_too_large", f"הקובץ גדול מ־{settings.max_upload_bytes // (1024 * 1024)} MB.")
+                        raise ApiError(413, "payload_too_large", tpl("הקובץ גדול מ־{max_mb} MB.", max_mb=settings.max_upload_bytes // (1024 * 1024)))
                     out.write(chunk)
             page_count = 1
             if mime == "application/pdf":
@@ -224,7 +225,7 @@ def upload_asset(floor_id: str, request: Request, file: UploadFile = File(...), 
                 except Exception as exc:  # noqa: BLE001 - poppler / pypdf refuse the file: the upload is the problem
                     raise ApiError(422, "corrupt_pdf", "ה־PDF לא ניתן לקריאה.", details={"error": type(exc).__name__})
                 if page_count < 1 or page_count > settings.max_pdf_pages:
-                    raise ApiError(422, "too_many_pages", f"ה־PDF חייב להכיל 1–{settings.max_pdf_pages} עמודים.", details={"pages": page_count})
+                    raise ApiError(422, "too_many_pages", tpl("ה־PDF חייב להכיל 1–{max_pdf_pages} עמודים.", max_pdf_pages=settings.max_pdf_pages), details={"pages": page_count})
             elif mime == "image/vnd.dxf":
                 try:
                     info = plan_dxf.inspect(dest)

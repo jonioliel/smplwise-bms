@@ -1,0 +1,16 @@
+{
+  "id": 1,
+  "type": "hikvision_intercom/direct/pairing_status_v2",
+  "bridge": {
+    "kind": "wiskey-bridge-command.v2",
+    "command": "direct/pairing_status_v2",
+    "query_owner_id": "synthetic",
+    "issued_at": "2026-01-01T00:00:00+00:00",
+    "expires_at": "2026-01-01T00:00:00+00:00",
+    "parameters": {},
+    "kid": "g0-legacy",
+    "ts": 1,
+    "nonce": "00000000000000000000000000000000",
+    "sig": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

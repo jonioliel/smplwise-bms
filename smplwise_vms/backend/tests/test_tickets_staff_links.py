@@ -98,7 +98,7 @@ def code_session(env, client, token: str, link: dict) -> str:
 
 def test_the_mobile_of_a_staff_member_is_e164_validated_configure_only_and_never_audited(env):
     r = set_mobile(env, "tom", "12ab")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "phone", "code": "format"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "phone", "code": "format"}
     r = set_mobile(env, "tom", TOM_PHONE, caller="mona")
     assert r.status_code == 403, "the directory phone is edited with tickets.configure only (contacts.py, spec 8)"
     r = set_mobile(env, "nobody", TOM_PHONE)
@@ -606,7 +606,7 @@ def test_f4_the_whatsapp_switch_is_the_employees_own(env):
     assert env.s4.w.assign("joni", t["id"], "tom").status_code == 200
     assert env.rows(t["id"]) == []
     r = set_mobile(env, "tom", TOM_PHONE, notify_whatsapp=True)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "notify_whatsapp", "code": "user_only"}, "a configurer may only turn it off"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "notify_whatsapp", "code": "user_only"}, "a configurer may only turn it off"
     r = env.c.put(f"{API}/tickets/me/staff-mobile", json={"notify_whatsapp": True}, headers=env.h("tom"))
     assert r.status_code == 200 and r.json()["notify_whatsapp"] is True
     assert set_mobile(env, "tom", TOM_PHONE, notify_whatsapp=False).status_code == 200

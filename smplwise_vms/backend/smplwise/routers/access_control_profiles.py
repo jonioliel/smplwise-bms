@@ -45,7 +45,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
@@ -55,6 +55,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
 from ..wire import access_control_profiles as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 PERMISSION = ia.PEOPLE_MANAGE
@@ -116,10 +117,10 @@ def _stations(request: Request) -> list[dict[str, Any]]:
 def _read_error(reply: dict[str, Any], what: str) -> ApiError:
     state, code = reply.get("state"), reply.get("last_error")
     if state == "forbidden":
-        return ApiError(403, "profiles_forbidden", f"מערכת בקרת הכניסה אינה מתירה לשירות לקרוא {what}.", details={"state": state, "wiskey_code": code})
+        return ApiError(403, "profiles_forbidden", tpl("מערכת בקרת הכניסה אינה מתירה לשירות לקרוא {what}.", what=what), details={"state": state, "wiskey_code": code})
     if state == "unsupported":
         return ApiError(409, "profiles_unsupported", "מערכת בקרת הכניסה אינה מציעה את הקריאה הזו.", details={"state": state, "wiskey_code": code})
-    return ApiError(503, "profiles_unavailable", f"לא ניתן לקרוא כעת {what} ממערכת בקרת הכניסה ({code or state}).", retryable=True, details={"state": state, "wiskey_code": code})
+    return ApiError(503, "profiles_unavailable", tpl("לא ניתן לקרוא כעת {what} ממערכת בקרת הכניסה ({code}).", what=what, code=code or state), retryable=True, details={"state": state, "wiskey_code": code})
 
 
 # ---------------------------------------------------------------- access (no 403: the entry buttons ask it)
@@ -192,7 +193,9 @@ def profiles_preview(request: Request, principal: Principal = Depends(_editor_ro
     try:
         values = wp.normalize_draft(body.values, known)
     except wp.DraftError as exc:
-        raise act.refuse(ApiError(422, "profiles_invalid_draft", "הטיוטה אינה תקינה. תקנו את השדות המסומנים - לא נשלח דבר.", details={"problems": exc.problems})) from None
+        # ADR-019 (ADR019-FAMILY45-2520): the draft's `{path, code}` problems in the one envelope - `problems` `{field, code}` + `fields`
+        raise act.refuse(field_error("הטיוטה אינה תקינה. תקנו את השדות המסומנים - לא נשלח דבר.", code="profiles_invalid_draft",
+                                     problems=[{"field": p["path"], "code": p["code"]} for p in exc.problems])) from None
     if body.revision != current["revision"]:
         act.details.update(base_revision=body.revision, current_revision=current["revision"])
         raise act.refuse(ApiError(409, "profiles_revision_conflict", "ההגדרות השתנו מאז שהטיוטה נפתחה. טענו מחדש את הגרסה הנוכחית - לא נשלח דבר.",
@@ -253,7 +256,7 @@ def _wiskey_error(exc: ApiError, phase: str) -> ApiError:
             status, own, message = known[code]
             return ApiError(status, own, message, details=details)
         what = "התצוגה המקדימה" if phase == "preview" else "השמירה"
-        return ApiError(502, "profiles_refused", f"{what} נדחתה על ידי מערכת בקרת הכניסה ({code}). לא נשמר דבר.", details=details)
+        return ApiError(502, "profiles_refused", tpl("{what} נדחתה על ידי מערכת בקרת הכניסה ({code}). לא נשמר דבר.", what=what, code=code), details=details)
     if phase == "preview":
         return ApiError(504, "profiles_preview_unknown", "לא התקבלה תשובה ברורה לתצוגה המקדימה. לא נשמר דבר - נסו שוב.", retryable=True, details=details)
     return ApiError(504, "profiles_outcome_unknown", "השמירה נשלחה אך לא התקבלה תשובה ברורה. ייתכן שנשמרה וייתכן שלא - בדקו את המצב לפני כל ניסיון נוסף.",
@@ -434,7 +437,7 @@ def profiles_suggestions(request: Request, auth: ia.Authority = Depends(_editor)
                          field: list[str] | None = Query(None)) -> dict[str, Any]:
     fields = list(field or [])
     if len(fields) > wp.SUGGEST_FIELDS_MAX or len(set(fields)) != len(fields) or any(not isinstance(f, str) or not wp.ID.fullmatch(f) for f in fields):
-        raise ApiError(422, "validation", f"אפשר לבחור עד {wp.SUGGEST_FIELDS_MAX} שדות שונים.", details={"fields": ["field"]})
+        raise ApiError(422, "validation", tpl("אפשר לבחור עד {suggest_fields_max} שדות שונים.", suggest_fields_max=wp.SUGGEST_FIELDS_MAX), details={"fields": ["field"]})
     if (exc := _unsupported(settings_of(request), "suggestions")) is not None:
         raise exc
     try:

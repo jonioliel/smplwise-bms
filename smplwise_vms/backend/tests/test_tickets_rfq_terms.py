@@ -245,11 +245,11 @@ def test_with_the_switch_off_every_new_field_is_refused_and_nothing_is_stored(s4
     r = pquote(c, tok, payment=fresh_plan())
     assert r.status_code == 422 and r.json()["fields"] == [{"field": "payment", "code": "disabled"}], r.text
     r = s4.c.post(f"{API}/tickets/rfqs/{d['id']}/vendors/{v1}/quotes", json={"lines": QUOTE, "payment": fresh_plan()}, headers=s4.h("joni"))
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "disabled", r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == "disabled", r.text
     assert pquote(c, tok).status_code == 201
     for body in ({"payment": fresh_plan()}, {"arrival": {"work_from": _at(6)}}, {"payment_source": "vendor"}):
         r = award(s4, d["id"], v1, **body)
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["code"] == "disabled", r.text
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["code"] == "disabled", r.text
     meta = s4.c.get(f"{API}/tickets/rfqs/meta", headers=s4.h("mona")).json()
     assert meta["schedule_arrival"] is False and meta["settings"]["schedule_arrival"] is False
     r = award(s4, d["id"], v1)
@@ -323,9 +323,9 @@ def test_the_award_approves_an_edited_schedule_and_the_vendor_confirms_the_plann
     # refusals before any write: a fixed instalment above the APPROVED (partial: labour only = 300.00 + VAT) total
     too_much = {"items": [{"kind": "advance", "amount": "5000", "due": "date", "date": _day(6)}, {"kind": "final", "due": "completion"}]}
     r = award(s4, d["id"], v1, kinds=["labor"], payment=too_much)
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment.items", "code": "exceeds_total"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment.items", "code": "exceeds_total"}], r.text
     r = award(s4, d["id"], v1, kinds=["labor"], payment_source="vendor", arrival={"work_from": _at(6), "work_to": _at(5)})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "arrival.work_to", "code": "order"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "arrival.work_to", "code": "order"}
     assert terms_rows(s4) == 0 and not detail(s4, d["id"])["awards"]
     edited = {"items": [{"kind": "advance", "percent": "33.33", "due": "date", "date": _day(6)}, {"kind": "final", "due": "completion"}]}
     r = award(s4, d["id"], v1, kinds=["labor"], payment=edited)
@@ -501,13 +501,13 @@ def test_f1_an_award_over_a_proposal_must_carry_an_explicit_payment_choice(s4):
     assert pquote(c, token(s4, v1), payment=fresh_plan()).status_code == 201
     assert pquote(c, token(s4, v2)).status_code == 201  # no proposal
     r = award(s4, d["id"], v1)  # a stale tab / an old client: no explicit choice
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment", "code": "required"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment", "code": "required"}], r.text
     r = award(s4, d["id"], v1, payment=fresh_plan(), payment_source="vendor")
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment_source", "code": "conflict"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment_source", "code": "conflict"}], r.text
     r = award(s4, d["id"], v1, payment_source="proposal")
     assert r.status_code == 422, r.text  # the router's strict literal
     r = award(s4, d["id"], v2, payment_source="vendor")
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment_source", "code": "no_proposal"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment_source", "code": "no_proposal"}], r.text
     assert terms_rows(s4) == 0 and not detail(s4, d["id"])["awards"]
     r = award(s4, d["id"], v1, payment_source="default")
     assert r.status_code == 201, r.text
@@ -535,18 +535,18 @@ def test_f3_f4_a_proposal_that_no_longer_fits_is_refused_with_a_specific_code(s4
     big = {"items": [{"kind": "advance", "amount": "5000", "due": "date", "date": _day(6)}, {"kind": "final", "due": "completion"}]}
     assert pquote(pub(s4), token(s4, v1), payment=big).status_code == 201
     r = award(s4, d["id"], v1, kinds=["labor"], payment_source="vendor")  # partial: labour only, below the fixed advance
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment.items", "code": "proposal_exceeds_total"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment.items", "code": "proposal_exceeds_total"}], r.text
     with s4.db.connection() as conn:
         qid = conn.execute("SELECT id FROM ticket_quotes WHERE rfq_vendor_id = ? AND state = 'submitted'", (v1,)).fetchone()[0]
         past = {"items": [{"kind": "advance", "percent_bp": 1000, "due": "date", "date": _day(-2)}, {"kind": "final", "due": "completion"}]}
         conn.execute("UPDATE ticket_quotes SET payment_plan_json = ? WHERE id = ?", (json.dumps(past), qid))
     r = award(s4, d["id"], v1, payment_source="vendor")
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment.items.0.date", "code": "proposal_date_passed"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment.items.0.date", "code": "proposal_date_passed"}], r.text
     with s4.db.connection() as conn:
         late_final = {"items": [{"kind": "final", "due": "date", "date": _day(-1)}]}
         conn.execute("UPDATE ticket_quotes SET payment_plan_json = ? WHERE id = ?", (json.dumps(late_final), qid))
     r = award(s4, d["id"], v1, payment_source="vendor")
-    assert r.status_code == 422 and r.json()["details"]["fields"] == [{"field": "payment.items.0.date", "code": "proposal_date_passed"}], r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"] == [{"field": "payment.items.0.date", "code": "proposal_date_passed"}], r.text
     assert terms_rows(s4) == 0 and not detail(s4, d["id"])["awards"]
 
 

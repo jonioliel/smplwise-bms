@@ -1,0 +1,29 @@
+{
+  "schemas": [
+    {
+      "path": "record.v1.schema.json",
+      "version": 1,
+      "id": "https://wiskey.local/contracts/external-visits-v1/record.v1.schema.json",
+      "sha256": "ba98457cbd596853a255bc14a2865b91ee74846189e0b6165aa9a4955255c6cf"
+    },
+    {
+      "path": "request.v1.schema.json",
+      "version": 1,
+      "id": "https://wiskey.local/contracts/external-visits-v1/request.v1.schema.json",
+      "sha256": "9ec76955a37dd9b86cf794cd1584b903f47b92265c2acb598126eb9c115b1e5f"
+    },
+    {
+      "path": "result.v1.schema.json",
+      "version": 1,
+      "id": "https://wiskey.local/contracts/external-visits-v1/result.v1.schema.json",
+      "sha256": "ba34ffaddc2c491a590761762f8c03db8def29878a9a9174a46643aa88177980"
+    },
+    {
+      "path": "error.v1.schema.json",
+      "version": 1,
+      "id": "https://wiskey.local/contracts/external-visits-v1/error.v1.schema.json",
+      "sha256": "056acbca598a913308253cf73d9e4cc2022facafad6b570c25299a085497025b"
+    }
+  ],
+  "hash_scope": "SHA256 of schema bytes"
+}

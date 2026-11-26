@@ -243,10 +243,11 @@ def _name(cn: str) -> x509.Name:
     return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
 
 
-def _cert(subject, issuer, pub, signer, *, ext=None, days=(-1, 3650)):
+def _cert(subject, issuer, pub, signer, *, ext=None, days=(-1, 3650), ca=False):
     now = dt.datetime.now(dt.timezone.utc)
     b = (x509.CertificateBuilder().subject_name(_name(subject)).issuer_name(_name(issuer)).public_key(pub).serial_number(x509.random_serial_number())
-         .not_valid_before(now + dt.timedelta(days=days[0])).not_valid_after(now + dt.timedelta(days=days[1])))
+         .not_valid_before(now + dt.timedelta(days=days[0])).not_valid_after(now + dt.timedelta(days=days[1]))
+         .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True))  # SEC-FIX-2520 SEC-2: the issuers must be CAs
     if ext is not None:
         b = b.add_extension(x509.UnrecognizedExtension(x509.ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17"), ext), critical=False)
     return b.sign(signer, hashes.SHA256())
@@ -263,8 +264,8 @@ def b64(c):
 class Pki:
     def __init__(self):
         self.root_k, self.mid_k = ec.generate_private_key(ec.SECP256R1()), ec.generate_private_key(ec.SECP256R1())
-        self.root = _cert("root", "root", self.root_k.public_key(), self.root_k)
-        self.mid = _cert("mid", "root", self.mid_k.public_key(), self.root_k)
+        self.root = _cert("root", "root", self.root_k.public_key(), self.root_k, ca=True)
+        self.mid = _cert("mid", "root", self.mid_k.public_key(), self.root_k, ca=True)
 
     def chain(self, key: Key, challenge: bytes, level: int = 2, leaf_days=(-1, 3650)):
         leaf = _cert("leaf", "mid", key.k.public_key(), self.mid_k, ext=key_description(level, challenge), days=leaf_days)

@@ -40,6 +40,7 @@ from ._common import is_json as _is_json, rid as _rid
 from ..wire import access_groups as W
 from ..wire import wire
 from .access import BindingBody, active_user_ids, keep_an_admin, _binding_dict, _ensure_user_row, _group_members, _scope_exists, rendered_labels, _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority, delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -76,12 +77,12 @@ async def _capped_body(request: Request) -> bytes:
     """The raw body, read only after the permission dependency, never more than BULK_MAX_BYTES."""
     declared = request.headers.get("content-length") or ""
     if declared.isdigit() and int(declared) > BULK_MAX_BYTES:
-        raise ApiError(413, "payload_too_large", f"הבקשה גדולה מ־{BULK_MAX_BYTES // 1024} KB.")
+        raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{max_kb} KB.", max_kb=BULK_MAX_BYTES // 1024))
     data = bytearray()
     async for chunk in request.stream():
         data += chunk
         if len(data) > BULK_MAX_BYTES:
-            raise ApiError(413, "payload_too_large", f"הבקשה גדולה מ־{BULK_MAX_BYTES // 1024} KB.")
+            raise ApiError(413, "payload_too_large", tpl("הבקשה גדולה מ־{max_kb} KB.", max_kb=BULK_MAX_BYTES // 1024))
     return bytes(data)
 
 

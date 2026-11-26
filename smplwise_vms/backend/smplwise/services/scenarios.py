@@ -18,7 +18,7 @@ from typing import Any, Iterable, Mapping
 
 from ..audit import audit
 from ..db import new_id, now_iso
-from ..errors import ApiError
+from ..errors import ApiError, field_error, issue_problems
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, role_name
 from . import scenario_model as m
 from . import scenario_settings as cfg
@@ -69,7 +69,8 @@ def _err(status: int, code: str, details: dict[str, Any] | None = None) -> ApiEr
 
 
 def _validation(errors: list[dict[str, str]]) -> ApiError:
-    return ApiError(422, "validation", "התרחיש אינו תקין.", details={"errors": errors})
+    """ADR019-FAMILY678-2520: the issue list as D1 `fields` / `problems`, the list itself still sent as `errors`."""
+    return field_error("התרחיש אינו תקין.", problems=issue_problems(errors), legacy={"errors": errors})
 
 
 def module_on(conn: sqlite3.Connection) -> bool:

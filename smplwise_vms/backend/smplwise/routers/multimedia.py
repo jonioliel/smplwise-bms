@@ -40,6 +40,7 @@ from ..services import multimedia_store as rstore
 from ..services import service_identity
 from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 from .devices import _envelope
+from ..error_text import tpl
 
 router = APIRouter()
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
@@ -779,7 +780,7 @@ def test_ma_connection(request: Request, principal: Principal = Depends(_configu
     if wait:
         audit(conn, actor=principal, action="media.ma_connection", decision="denied", resource_type="installation", resource_id="*", reason="rate_limited",
               request_id=_rid(request), details={"op": "test", "outcome": "rate_limited"})
-        raise ApiError(429, "rate_limited", f"יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+        raise ApiError(429, "rate_limited", tpl("יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), retryable=True, details={"retry_after_s": wait})
     with unlocked(conn):
         out = ma_direct.probe(conn)
     ma_direct.save_test(conn, out)

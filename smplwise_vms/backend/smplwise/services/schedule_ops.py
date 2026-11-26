@@ -21,7 +21,7 @@ from typing import Any, Iterator
 
 from ..audit import audit
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error, issue_problems
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import default_names as dn
 from . import door_path_guard as guard
@@ -31,6 +31,7 @@ from . import schedule_policy as policy
 from . import schedule_view as view
 from . import schedules as store
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 WRITES_PER_MIN = 30
 PREVIEWS_PER_MIN = 60
@@ -171,9 +172,9 @@ def problem_error(errors: list[dict[str, str]]) -> ApiError:
     for p in errors:
         if p["code"] in PROMOTED:
             status, msg = PROMOTED[p["code"]]
-            return ApiError(status, p["code"], msg, details={"errors": errors, "path": p["path"]})
+            return field_error(msg, problems=issue_problems(errors), code=p["code"], status=status, legacy={"errors": errors}, extra={"path": p["path"]})
     first = errors[0]
-    return ApiError(422, "validation", f"ערך לא תקין — {first['path']}: {first['message']}", details={"errors": errors})
+    return field_error(tpl("ערך לא תקין — {path}: {message}", path=first['path'], message=first['message']), problems=issue_problems(errors), legacy={"errors": errors})
 
 
 # ---------------------------------------------------------------- draft evaluation
@@ -276,7 +277,7 @@ def condition_lock(ctx: view.Ctx, old_core: dict[str, Any] | None, draft: dict[s
     if locked is not None and added and (block.get("type") or "or") != "and":
         # review L7: with "any of them" a readable condition that is always true (the sun) would defeat the locked one
         name = ctx.name_of(locked["entity_id"])
-        return ApiError(403, "condition_locked", f"התנאי \"{name}\" מחוץ להרשאתך ואי אפשר לשנות או להסיר אותו.", details={"entity_id": locked["entity_id"]})
+        return ApiError(403, "condition_locked", tpl("התנאי \"{name}\" מחוץ להרשאתך ואי אפשר לשנות או להסיר אותו.", name=name), details={"entity_id": locked["entity_id"]})
     return None
 
 
@@ -833,7 +834,7 @@ def _no_locked_conditions(w: W, core: dict[str, Any], verb: str) -> None:
     for c in core["conditions"]["items"]:
         eid = c.get("entity_id")
         if eid and not (eid == w.ctx.shabbat_sensor or w.ctx.access.can_read_state(eid)):
-            raise ApiError(403, "condition_locked", f"התנאי \"{w.ctx.name_of(eid)}\" מחוץ להרשאתך, ולכן אי אפשר {verb} את התזמון. פנו למי שמורשה לקרוא אותו.", details={"entity_id": eid})
+            raise ApiError(403, "condition_locked", tpl("התנאי \"{name_of}\" מחוץ להרשאתך, ולכן אי אפשר {verb} את התזמון. פנו למי שמורשה לקרוא אותו.", name_of=w.ctx.name_of(eid), verb=verb), details={"entity_id": eid})
 
 
 def _same_op(prev: sqlite3.Row, op: str, schedule_id: str | None) -> None:
@@ -1006,7 +1007,7 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
         old_rights(w, core, cls)
         name = (name or "").strip()
         if not name or len(name) > model.MAX_NAME or any(ord(c) < 32 for c in name):
-            raise ApiError(422, "validation", f"שם: 1–{model.MAX_NAME} תווים, בלי תווי בקרה.", details={"path": "name"})
+            raise ApiError(422, "validation", tpl("שם: 1–{max_name} תווים, בלי תווי בקרה.", max_name=model.MAX_NAME), details={"path": "name"})
         # the copy is a CREATE: judged as a new schedule, with the creator's confirmation and code (review M1) - a legacy
         # disarm on a panel that needs a code cannot be copied into a new one
         _no_locked_conditions(w, core, "להעתיק")

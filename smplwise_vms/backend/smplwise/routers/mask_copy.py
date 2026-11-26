@@ -10,7 +10,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
@@ -26,7 +26,14 @@ from .nvr_privacy import _camera, _name
 router = APIRouter()
 
 
-class CopyPlanIn(BaseModel):
+class _Body(BaseModel):
+    """ADR-019 D2 (ADR019-L14-STRICT-F123-2520): a web-UI body refuses an unknown key (422 `extra_forbidden`, the D1 envelope
+    `details.fields` / `problems`) instead of dropping it silently; every screen that sends it builds the body from named keys."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CopyPlanIn(_Body):
     source_camera_id: str = Field(min_length=1, max_length=64)
     target_camera_ids: list[str] = Field(min_length=1, max_length=mask_copy.MAX_TARGETS)
     mode: str = Field(default="add", pattern="^(add|replace)$")

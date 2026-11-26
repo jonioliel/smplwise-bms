@@ -1111,10 +1111,11 @@ def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: s
 SECOND_FACTOR_HEADER = "x-arx-second-factor"
 
 
-def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
+def second_factor_need(conn, principal: Principal, replaces: str | None, *, passkey: bool = False) -> str:
     """What a NEW remote sign-in must still show: `code` (the user enrolled a TOTP), `enroll` (the policy requires one - the
     user's own override, their roles' or `security.second_factor_policy = admins` for an administrator - and they have none), else `none`. The rotation of the caller's own live session (same user, cookie)
-    is not a new sign-in: the factor was shown when that session began."""
+    is not a new sign-in: the factor was shown when that session began. `passkey` (the browser sign-in only, MFA-HA-PASSKEY-2520): a
+    passkey that counts is a factor too while `security.passkey_remote_factor` is on - asked like the code, and it satisfies the policy."""
     from . import second_factor as sf
 
     old = STORE.get(replaces) if replaces else None
@@ -1122,6 +1123,11 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
         return "none"
     if sf.is_enrolled(conn, principal.user_id):
         return "code"
+    if passkey:
+        from . import passkey_sign_in
+
+        if passkey_sign_in.counts(conn, principal.user_id):
+            return "code"
     # TFA2: the per-user / per-role override on top of the global policy; `required` and no factor = the enrolment-required answer
     value, source = sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)
     if value == "required":
@@ -1225,27 +1231,111 @@ def bearer_factor_enforced(conn) -> bool:
         return True
 
 
-def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
+def _passkey_offer(db: Any, principal: Principal, token: str | None) -> dict[str, Any] | None:
+    """MFA-HA-PASSKEY-2520: the `details` of the browser sign-in's 401 `second_factor_required` - None (the answer of before) unless
+    `security.passkey_remote_factor` is on and the user has a passkey that counts. Never breaks the answer: a failure offers nothing."""
+    if token is None:
+        return None
+    try:
+        from . import passkey_sign_in
+
+        with db.connection(mode="read", label="auth/session passkey offer") as conn:
+            return passkey_sign_in.offer(conn, principal.user_id, token)
+    except ApiError:
+        return None  # the challenge pool is full (429): the code still works
+    except Exception:  # noqa: BLE001
+        log.warning("could not offer the passkey sign-in step", exc_info=True)
+        return None
+
+
+def _enrolment_gate(gate: ApiError) -> bool:
+    """MFA-RESET-CHANNEL-UI-2520: is this provenance refusal an "enrol first" (not Home Assistant's "sign in again" answer, not the
+    long-lived-token refusal)?"""
+    from . import mfa_provenance as prov
+
+    return gate.code == "second_factor_enrollment_required" and (gate.details or {}).get("provenance") != prov.BEFORE_MFA_SEEN
+
+
+async def _passkey_enrolment(app_state: Any, conn_like: Any, principal: Principal, meta: dict[str, Any], token: str,
+                             refusal: ApiError, reason: str) -> str:
+    """MFA-RESET-CHANNEL-UI-2520: a NEW browser sign-in that must enrol first (`refusal`, 403 `second_factor_enrollment_required`).
+    With a `pkr1:` answer in X-Arx-Second-Factor: register that passkey as the enrolment (services/passkey_sign_in_enrol) and return the
+    method that answered (the caller completes the sign-in); a refused answer is 401 `second_factor_invalid` (the page keeps the step).
+    Otherwise the refusal - audited as before - and, while the switch is on and the sign-in is eligible, with `details.passkey_enrol`
+    (the creation options). Off / not eligible = byte-identical to the answer of before."""
+    from starlette.concurrency import run_in_threadpool
+
+    from . import passkey_sign_in_enrol as pke
+
+    from . import passkey_sign_in
+
+    db = app_state.db
+    answer = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
+
+    def switch_on() -> bool:
+        with db.connection(mode="read", label="auth/session passkey enrolment switch") as conn:
+            return passkey_sign_in.enabled(conn)
+
+    # the switch off: whatever the header says, the answer of before (an enrolment answer is simply not read)
+    if pke.is_answer(answer) and await run_in_threadpool(switch_on):
+        def work() -> str:
+            with db.connection(label="auth/session passkey enrolment") as conn:
+                return pke.enrol(conn, principal, answer, token)
+
+        try:
+            await run_in_threadpool(work)
+            return pke.METHOD
+        except pke.EnrolError as err:
+            why, message = f"enrol_{err.reason}", err.message
+        await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason="second_factor_invalid", action="auth.second_factor.failed",
+                                                       meta={**meta, "method": pke.METHOD, "why": why}, subject=principal.user_id))
+        raise ApiError(401, "second_factor_invalid", message)
+
+    def make_offer() -> dict[str, Any] | None:
+        try:
+            with db.connection(mode="read", label="auth/session passkey enrolment offer") as conn:
+                return pke.offer(conn, principal, token)
+        except ApiError:
+            return None  # the challenge pool is full (429): the refusal of before
+        except Exception:  # noqa: BLE001 - never breaks the answer
+            log.warning("could not offer the passkey enrolment", exc_info=True)
+            return None
+
+    offered = await run_in_threadpool(make_offer)
+    await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **({"passkey_enrol": "offered"} if offered else {})}))
+    if offered is None:
+        raise refusal
+    raise ApiError(refusal.status, refusal.code, refusal.user_message, retryable=refusal.retryable, details={**refusal.details, "passkey_enrol": offered})
+
+
+def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any],
+                              token: str | None = None) -> str:
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
     `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
     Failures are audited (the method and the reason only, never the code). Blocking (the database). Returns the method that
-    answered (`totp` / `device_key` / `recovery_code`; MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only)."""
+    answered (`totp` / `device_key` / `recovery_code` / `passkey`; MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only).
+    `token` (the browser exchange only, MFA-HA-PASSKEY-2520): the caller's Home Assistant token - a passkey challenge is offered in the
+    401's details and a `pk1:` answer is checked against it; without it (the bearer path) a passkey answer is refused."""
     from . import recovery_codes as rc
     from . import second_factor as sf
 
     from . import device_keys
+    from . import passkey_sign_in
 
     code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
     if not code:
-        raise ApiError(401, "second_factor_required", sf.REQUIRED_HE)
+        raise ApiError(401, "second_factor_required", sf.REQUIRED_HE, details=_passkey_offer(db, principal, token))
     # MFA-DEVICEKEY-2490 (owner Q51: in the app, password + phone key counts as two-factor): `dk1:<challenge_id>:<signature>` is the
     # phone key's signature of a sign-in challenge (POST auth/device-keys/sign-in/challenge) instead of the authenticator code
-    method = device_keys.METHOD if device_keys.is_answer(code) else "totp"
+    # MFA-HA-PASSKEY-2520: `pk1:...` is a passkey assertion on the challenge of the 401's details (services/passkey_sign_in)
+    method = device_keys.METHOD if device_keys.is_answer(code) else passkey_sign_in.METHOD if passkey_sign_in.is_answer(code) else "totp"
     err: sf.SecondFactorError | None = None
     with db.connection(label="auth/session second factor") as conn:
         try:
             if method == device_keys.METHOD:
                 device_keys.check_sign_in_answer(conn, principal.user_id, code, device_keys.origin_of(settings, conn_like))
+            elif method == passkey_sign_in.METHOD:
+                passkey_sign_in.check_answer(conn, principal, code, token)
             # MFA-RECOVERY-CODES-2490: a one-time recovery code is accepted in place of the authenticator code (spent on success)
             elif rc.verify_factor(conn, settings, principal.user_id, code, "sign_in") == rc.METHOD:
                 rc.audit_use(conn, principal, "sign_in")
@@ -1256,17 +1346,20 @@ def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, princ
         return method
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
-    if method != device_keys.METHOD and rc.canonical(code) is not None:
+    if method == "totp" and rc.canonical(code) is not None:
         method = rc.METHOD
     extra = {"why": err.reason} if isinstance(err, device_keys.DeviceKeyError) else {}
+    if isinstance(err, passkey_sign_in.PasskeyFactorError):
+        extra = {"why": f"passkey_{err.reason}"}
     _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": method, **extra}, action="auth.second_factor.failed", subject=principal.user_id)
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
 
 
-async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> str:
+async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any],
+                               token: str | None = None) -> str:
     from starlette.concurrency import run_in_threadpool
 
-    return await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta)
+    return await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta, token)
 
 
 # ---------------------------------------------------------------- the exchange (POST / DELETE auth/session)
@@ -1309,7 +1402,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             refusal = policy_refusal(conn, principal, ha_user)
             if refusal:
                 return principal, refusal, None, "none", False
-            return (principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces),
+            return (principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces, passkey=True),
                     long_lived_check_needed(conn, principal, replaces))
 
     principal, refusal, basis, factor, need_llat = await run_in_threadpool(decide)
@@ -1318,28 +1411,37 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
             _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
     factor_meta: dict[str, Any] = {}
+    answered: str | None = None
     if factor == "ha_mfa" or need_llat:  # MFA-POLICY-2490 (both off by default)
         gate, reason, factor_meta = await provenance_gate(settings, db, token, arx_client_id(settings, conn_like), ha_user,
                                                           need_mfa=factor == "ha_mfa", need_llat=need_llat)
         if gate is not None:
             if gate.status == 503:
                 raise gate
-            await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **factor_meta}))
-            raise gate
+            if factor == "ha_mfa" and _enrolment_gate(gate):
+                # MFA-RESET-CHANNEL-UI-2520: "enrol first" - a passkey registered in this sign-in may be that enrolment (switch on)
+                answered = await _passkey_enrolment(app_state, conn_like, principal, {**meta, **factor_meta}, token, gate, reason)
+                factor_meta = {**factor_meta, "second_factor": "passkey_enrol"}
+            else:
+                await run_in_threadpool(lambda: _audit_refusal(db, actor=principal, reason=reason, meta={**meta, **factor_meta}))
+                raise gate
         if factor == "ha_mfa":
             factor = "none"
-    if factor in ("enroll", FACTOR_ENROLL_AFTER_RESET):
+    if factor == "enroll":  # MFA-RESET-CHANNEL-UI-2520: as above (never after an administrator's reset: FACTOR_ENROLL_AFTER_RESET)
+        answered = await _passkey_enrolment(app_state, conn_like, principal, meta, token, enrollment_required(factor),
+                                            "second_factor_enrollment_required")
+        factor, factor_meta = "none", {**factor_meta, "second_factor": "passkey_enrol"}
+    if factor == FACTOR_ENROLL_AFTER_RESET:
         raise await rejected("second_factor_enrollment_required", enrollment_required(factor), principal)
-    answered: str | None = None
     if factor == "code":
-        answered = await _check_second_factor(app_state, settings, conn_like, principal, meta)
+        answered = await _check_second_factor(app_state, settings, conn_like, principal, meta, token)
     try:
         session = STORE.create(principal, ha_user, token, exp, ip, replaces=replaces, meta=meta,
                                client_id=arx_client_id(settings, conn_like))
     except ChainRevoked:  # review M2: a revoke of this sign-in landed while the token was being validated
         _remember_rejected(token)
         raise await rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
-    if factor == "code":  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - the session starts with a fresh step-up proof
+    if factor == "code" or answered is not None:  # MFA-STEPUP-TRAIN-2490: the code was shown moments ago - a fresh step-up proof
         from . import step_up
 
         step_up.note_sign_in_factor(session, answered)  # MFA-SECFIX-2500 SR-4: a recovery-code sign-in is a window proof only
@@ -1388,8 +1490,9 @@ def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
     if s is not None:
         _audit(app_state.db, actor=s.principal, action="auth.remote_session.logout", decision="allowed", reason=None, meta=request_meta(conn_like))
         # XSECFIX-297 (review M2 / L1): a sign-out inside the phone app ends the app's device token and push registration too
+        # FE-SAFETY-FIX-2520 (review FC-02): and the browser push subscriptions registered through this sign-in
         _end_device_credentials(app_state.db, s.principal.user_id, "logout", user_agents=(s.user_agent, request_meta(conn_like).get("user_agent", "")),
-                                actor=s.principal)
+                                actor=s.principal, sign_ins=(s.sign_in(),))
     return s is not None
 
 
@@ -1514,9 +1617,13 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         s.factor_checked = False
     elif factor in ("code", "ha_mfa_ok"):
         STORE.mark_factor_verified(s.iss_hash, principal.user_id)
-        from . import step_up
+        if factor == "code":
+            from . import step_up
 
-        step_up.note_sign_in_factor(s, answered if factor == "code" else None)  # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too
+            # MFA-TOKENS-2490: a bearer sign-in that just showed the code starts with a step-up proof too. MFA-REVIEW-DOCS-2520 N-4: never
+            # for `ha_mfa_ok` - Home Assistant's MFA was shown when the refresh token was made (possibly long ago), not now; the cookie
+            # exchange makes no proof for it either
+            step_up.note_sign_in_factor(s, answered)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None,
@@ -1859,9 +1966,11 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             # administrator's - the lost-phone kill switch), and with one ended sign-in that came from inside the app
             from . import presence
 
+            # FE-SAFETY-FIX-2520 (review FC-02): the browser push subscriptions of the ended sign-ins (all of the user's when everywhere)
             presence.end_on_sign_out(conn, target_user, reason, everywhere=reason in ("signed_out_everywhere", "revoked_all_by_admin"),
                                      user_agents=tuple(s.user_agent for s in dropped if s.principal.user_id == target_user),
-                                     actor=actor, request_id=request_id)
+                                     actor=actor, request_id=request_id,
+                                     sign_ins=tuple(s.sign_in() for s in dropped if s.principal.user_id == target_user))
             # review L4: the channel is the ACTOR's (an administrator may revoke from inside the system); what was ended
             # is `ended_via` (cookie / bearer)
             audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=target_user,
@@ -1914,6 +2023,10 @@ def revoke_user_sign_ins(conn: Any, user_id: str, *, actor: Principal, reason: s
     for s in dropped:
         _remember_rejected(s.token)
     sign_ins = {s.sign_in() for s in dropped}
+    # FE-SAFETY-FIX-2520 (review FC-02): the browser push subscriptions registered through the ended sign-ins go with them
+    from . import push
+
+    push.end_for_sign_ins(conn, sign_ins, reason, user_id=user_id, actor=actor, request_id=request_id)
     now = now_iso()
     try:
         for h in {s.iss_hash for s in dropped if s.iss_hash}:

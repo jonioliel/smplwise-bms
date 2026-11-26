@@ -28,7 +28,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from ...db import new_id
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from .. import default_names
 from . import access, create, intake_rules as rules, model, naming, settings_doc, store
 from .access import Viewer, text
@@ -148,7 +148,7 @@ def require_list_manager(conn: sqlite3.Connection, viewer: Viewer, rid: str | No
 
 
 def _invalid(conn: sqlite3.Connection, field: str, code: str) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field, "code": code}]})
+    return field_error(text(conn, "ערך לא תקין."), problems=[{"field": field, "code": code}])
 
 
 # ---------------------------------------------------------------- the lexicon of this installation

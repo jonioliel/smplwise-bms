@@ -763,6 +763,32 @@ def device_key_added(conn: sqlite3.Connection, user_id: str) -> None:
                                          initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "device_key"}))
 
 
+# MFA-FACTOR-HARDEN-2520 N-6: what `security.second_factor_changed` says happened - nothing else
+FACTOR_CHANGES_HE = {
+    "removed:totp": "אפליקציית האימות הוסרה מהחשבון שלך",
+    "removed:passkey": "מפתח גישה הוסר מהחשבון שלך",
+    "removed:device_key": "מפתח טלפון הוסר מהחשבון שלך",
+    "recovery_batch": "נוצרו לחשבון שלך קודי שחזור חדשים, והקודים הקודמים כבר לא עובדים",
+    "recovery_sign_in": "בוצעה כניסה לחשבון שלך עם קוד שחזור",
+}
+
+
+@safe
+def second_factor_changed(conn: sqlite3.Connection, user_id: str, change: str) -> None:
+    """MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-6): one of the account's factors was removed (`removed:totp` /
+    `removed:passkey` / `removed:device_key`), a new batch of recovery codes was made (`recovery_batch`) or a sign-in was answered with a
+    recovery code (`recovery_sign_in`) - inside the caller's transaction, the ACCOUNT'S OWN user gets `security.second_factor_changed`
+    on every device, so a change a stolen session made (or a leaked recovery code used) does not go unseen. Content-free: the kind of
+    change only - never a code, a label, a key, an address or the actor (the audit row carries them). An unknown `change` sends nothing."""
+    text = FACTOR_CHANGES_HE.get(change)
+    if text is None:
+        return
+    notify.emit_full(conn, notify.Signal("security.second_factor_changed", "session", user_id,
+                                         dedupe_key=f"security.second_factor_changed:session:{user_id}:{notify.new_id()}",
+                                         params={"change": text}, initiator_user_id=user_id, link="#/system/notifications",
+                                         origin={"kind": change.split(":")[0]}))
+
+
 def _reset_all_for_tests() -> None:
     """Test seam: the module's existing reset, then the remaining module-level tables back to a fresh process (smplwise.test_reset; product code never calls it)."""
     reset()

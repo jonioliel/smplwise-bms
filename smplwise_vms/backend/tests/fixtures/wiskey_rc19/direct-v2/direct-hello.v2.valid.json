@@ -1,0 +1,5 @@
+{
+  "type": "hello",
+  "protocol": "wiskey-direct-ws.v2",
+  "challenge": "00000000000000000000000000000000"
+}

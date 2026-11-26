@@ -1,6 +1,13 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.8"
+VERSION = "0.10.9"
+# 0.10.9 (WISKEY-BRIDGE-KEYSET-2520, WisKey adoption plan 2.52): new module native_keyset.py - the key-set binding WisKey rc19's direct
+# transport v2 imports (`verify` -> a binding with `check()` / `sign_reply()`, `Unavailable`, `legacy_allowed`, `source_fingerprint`,
+# `attach`). It verifies a kid-signed frame with this setup's own KeySet (v2 only, never the kid-less recipe; `g0-legacy` refused on v2;
+# unknown, retired or ambiguous kids refused), saves the high-water mark before admitting it, and signs WisKey's v2 reply with the Arx
+# recipe HMAC(material, "wiskey-direct-reply.v2." + canonical({connection_ref, frame, kid})). keyset.Persister: one save at a time
+# (a lock), `saved_through`, and `control` (the rotation service's write-ahead step, moved from __init__ unchanged). No other answer,
+# refusal code or signature byte changes. Needs one Home Assistant restart (by the owner) to load.
 # 0.10.8 (CR-BRIDGE-BUMP-RATCHETS-2460, owner decision N38 of 19.11): the version label of what already shipped after 0.10.7 without
 # a bump - CR-BRIDGE-GAPS-2438 (indexed entity lookup, the announced cast origin ages out after 600 s, `no_signing_key` push reason,
 # `sync_directory` coalesced to one trailing push per 2 s, named POST timeouts, a control message carrying `reply_to` / `ok` refused

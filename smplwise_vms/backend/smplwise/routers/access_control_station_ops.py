@@ -24,7 +24,21 @@ failure - `details.wiskey_code` is its reason) or `unknown` (sent, no clear answ
 or run by itself; the screens never repeat a command on their own.
 
 Audit rows: the real Arx actor, the request ids, the station (resource), the action, the outcome and WisKey's code - never a host, a
-credential or a person."""
+credential or a person.
+
+WISKEY-R4-2520 (plan row R4, master id B7): the `sync` action's numbered form, `sync/station_v1` (services/wiskey_station_ops.py, module
+note). Same route, body, permission (`access.stations.manage` on the station), confirmation, limits and audit action
+(`intercom.station_sync`); the audit rows add `sync_mode` (`request_id` | `classic`) and, on an acceptance, WisKey's `request_id`.
+- The mode is chosen from WisKey's discovery BEFORE sending; a refusal of the numbered form is final (the classic command is never sent
+  after it). The reply's `data` carries `request_id`, `scope: current_attached_runtime_only` and `effect_proven: false` - accepted, not
+  done.
+- An UNKNOWN numbered sync holds the station's sync: the next `sync` (numbered or classic) is refused before sending (409
+  `station_sync_unsettled`, `details.outcome` `not_sent`, `details.gate`) until a status read settles it.
+- `GET /access-control/stations/{id}/maintenance/sync-request` - that status read: ONE `system/status_v1` (READ, on the `system_status`
+  channel, only when WisKey lists it) projected to this station's sync observation, matched against Arx's own last request id from the
+  audit rows (`running` / `queued` / `finished` / `not_observed`). A read that answered and started after the unknown call was over settles
+  the hold; nothing is sent again by it. Gate: the maintenance read's (`access.admin.read` or `access.stations.manage` somewhere), the
+  station's `access.read`, and on the station `access.stations.manage` or the status page's rule (else 404, as an unseen station)."""
 from __future__ import annotations
 
 import json
@@ -36,12 +50,14 @@ from fastapi import APIRouter, Depends, Path, Request
 from pydantic import ConfigDict
 
 from ..auth import current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
+from ..error_text import tpl
 from ..errors import ApiError
 from ..rbac import Principal
 from ..services import access_control_station_ops_store as store
 from ..services import intercom_authority as ia
 from ..services import intercom_sync, savepoints
 from ..services import wiskey_station_ops as ops
+from ..services import wiskey_system_status as ss
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import MAX_STATION_ID, CommandEnvelope, _Action, _envelope, _parse, _station
 from ..wire import access_control_station_ops as W
@@ -143,7 +159,30 @@ def _last_runs(conn: sqlite3.Connection, station_id: str) -> dict[str, Any]:
         else:
             status = outcome if outcome in ("not_sent", "unknown") else "unknown"
         out[op.action] = {"status": status, "at": r["at"], "code": r["reason"] if status not in ("sent", op.result) else None}
+        if op.action == "sync":  # WISKEY-R4-2520: the form used, and the numbered form's WisKey request id (accepted, not done)
+            result = details.get("result") if isinstance(details.get("result"), dict) else {}
+            out["sync"]["mode"] = details.get("sync_mode") if details.get("sync_mode") in (ops.MODE_V1, ops.MODE_CLASSIC) else None
+            out["sync"]["request_id"] = result.get("request_id") if status == op.result and isinstance(result.get("request_id"), str) else None
     return out
+
+
+def _last_sync_request(conn: sqlite3.Connection, station_id: str) -> dict[str, Any] | None:
+    """WISKEY-R4-2520: Arx's newest numbered sync of this station that reached WisKey (an outcome row, any actor, the last HISTORY_DAYS):
+    `{status, request_id, at, code}` - `acknowledged` with WisKey's request id, or `unknown` / `failed` without one. None when none."""
+    since = (datetime.now(timezone.utc) - timedelta(days=HISTORY_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for r in store.station_op_rows(conn, since, (ops.OPS["sync"].audit,), station_id):
+        try:
+            details = json.loads(r["details_json"] or "{}")
+        except ValueError:
+            continue
+        if details.get("sync_mode") != ops.MODE_V1 or details.get("phase") != "outcome" or details.get("outcome") == "not_sent":
+            continue
+        result = details.get("result") if isinstance(details.get("result"), dict) else {}
+        outcome = details.get("outcome")
+        status = "acknowledged" if outcome == "ok" else "failed" if outcome == "refused" else "unknown"
+        rid = result.get("request_id") if outcome == "ok" and isinstance(result.get("request_id"), str) else None
+        return {"status": status, "request_id": rid, "at": r["at"], "code": r["reason"] if status != "acknowledged" else None}
+    return None
 
 
 @router.get("/access-control/stations/{station_id}/maintenance", **wire(W.AccessControlStationOpsMaintenanceView))
@@ -169,6 +208,7 @@ def maintenance_view(request: Request, auth: ia.Authority = Depends(_viewer), st
         for name, op in ops.OPS.items()
     }
     conn = auth.conn
+    mode, _why = ops.sync_mode(intercom_sync.SYNC.api_facts(settings_of(request)))
     return {
         "station_id": station_id,
         "online": None if station is None else bool(station.get("online")),
@@ -179,6 +219,9 @@ def maintenance_view(request: Request, auth: ia.Authority = Depends(_viewer), st
         "auth_seen": ops.SEEN.get(station_id) if show_health else None,
         "actions": actions,
         "last_runs": _last_runs(conn, station_id) if (show_health or manage) else None,
+        # WISKEY-R4-2520: which sync form the next `sync` uses, and whether an unknown numbered sync holds it (until a status read)
+        "sync_mode": mode,
+        "sync_gate": intercom_sync.SYNC.write_gate(ops.sync_target(station_id)) if (show_health or manage) else None,
     }
 
 
@@ -190,12 +233,26 @@ def _error(op: ops.Op, exc: ApiError) -> ApiError:
     outcome = str(details.get("outcome") or "unknown")
     code = str(details.get("wiskey_code") or exc.code)
     what = MESSAGES[op.action]
+    if outcome == "not_sent" and exc.code == "intercom_outcome_pending":  # the feed's own gate (a race past the route's check)
+        return _unsettled(str(details.get("wiskey_code") or "readback_required"), details)
+    if outcome == "unknown" and op.command == ops.SYNC_V1:
+        return ApiError(504, "station_ops_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהבקשה נקלטה - "
+                            "סנכרון נוסף לעמדה לא יישלח עד שבדיקת מצב הסנכרון תענה.", what=what, code=code), details={**details, "gate": "readback_required"})
     if outcome == "not_sent":
         return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=details)
     if outcome == "refused":
-        return ApiError(502, "station_ops_failed", f"{what} נכשל לפי WisKey ({code}).", details=details)
-    return ApiError(504, "station_ops_outcome_unknown", f"{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - אל תשלחו שוב לפני שבודקים את מצב העמדה.",
+        return ApiError(502, "station_ops_failed", tpl("{what} נכשל לפי WisKey ({code}).", what=what, code=code), details=details)
+    return ApiError(504, "station_ops_outcome_unknown", tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שבוצע - אל תשלחו שוב לפני שבודקים את מצב העמדה.", what=what, code=code),
                     details=details)
+
+
+def _unsettled(gate: str, details: dict[str, Any] | None = None) -> ApiError:
+    """WISKEY-R4-2520: the station's previous numbered sync has no clear outcome yet - nothing is sent until a status read settles it."""
+    if gate == "outcome_pending":
+        message = "לבקשת הסנכרון הקודמת של העמדה עדיין אין תשובה. הפקודה לא נשלחה - בדקו את מצב הסנכרון בעוד רגע."
+    else:
+        message = "לבקשת הסנכרון הקודמת של העמדה אין תוצאה ברורה. הפקודה לא נשלחה - בדקו קודם את מצב הסנכרון."
+    return ApiError(409, "station_sync_unsettled", message, details={**(details or {}), "outcome": "not_sent", "gate": gate})
 
 
 @router.post("/access-control/stations/{station_id}/maintenance/{action}")
@@ -216,6 +273,15 @@ def maintenance_run(request: Request, station_id: str, action: str, principal: P
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולת תחזוקה דורשת אישור מפורש.", details={"action": action}))
     _station(act, require_online=op.needs_online)
+    if action == "sync":  # WISKEY-R4-2520: the form is chosen from discovery before sending; an unsettled numbered sync holds both forms
+        mode, why = ops.sync_mode(intercom_sync.SYNC.api_facts(settings_of(request)))
+        act.details["sync_mode"] = mode
+        if why:
+            act.details["sync_mode_reason"] = why
+        gate = intercom_sync.SYNC.write_gate(ops.sync_target(station_id))
+        if gate is not None:
+            raise act.refuse(_unsettled(gate))
+        op = ops.op_for(action, mode, station_id)
     limited = ops.LIMITS.admit(principal.user_id, station_id, action)
     if limited is not None:
         code, retry = limited
@@ -235,9 +301,11 @@ def _perform(act: _Action, op: ops.Op, station_id: str, not_after: datetime) -> 
     """The attempt row (committed), the command sent once on the maintenance channel, the outcome row - routers/access_control.py
     `_perform`'s order, on this module's own channel."""
     act.attempt()
+    numbered = op.command == ops.SYNC_V1  # WISKEY-R4-2520: its own channel, and the station's sync gate (an unknown outcome holds it)
     try:
-        reply = intercom_sync.SYNC.action(settings_of(act.request), "maintenance", lambda call: ops.send(call, op, station_id), op.project,
-                                          who=act.principal.user_id, not_after=not_after, lane=ops.LANE, channel=ops.CHANNEL)
+        reply = intercom_sync.SYNC.action(settings_of(act.request), "maintenance", lambda call: ops.send_op(call, op, station_id), op.project,
+                                          who=act.principal.user_id, not_after=not_after, lane=ops.LANE, channel=ops.CHANNEL_V1 if numbered else ops.CHANNEL,
+                                          target=ops.sync_target(station_id) if numbered else None)
     except ApiError as exc:
         outcome = str(exc.details.get("outcome") or "unknown")
         code = str(exc.details.get("wiskey_code") or exc.code)
@@ -267,3 +335,67 @@ def _perform(act: _Action, op: ops.Op, station_id: str, not_after: datetime) -> 
         "at": reply.get("fetched_at"),
         "data": data,
     }
+
+
+# ---------------------------------------------------------------- WISKEY-R4-2520: the status read of a numbered sync
+
+def _settle_state(reply: dict[str, Any], mismatch: bool) -> tuple[str, str | None, str | None]:
+    """The feed's reply of the status read in wiskey_system_status.read's words: (state, reason, WisKey's code)."""
+    state, code = str(reply.get("state") or "error"), reply.get("last_error")
+    code = code if isinstance(code, str) and code else None
+    if mismatch:
+        return "error", "contract_mismatch", None
+    if state == "forbidden" or code == "unauthorized":
+        return "forbidden", "wiskey_refused", code
+    if state == "unsupported" or code in ("unknown_command", "not_listed"):
+        return "unsupported", "wiskey_unknown_command", code
+    if state == "rate_limited" or code in ("rate_limited", "busy"):
+        return "busy", code or state, code
+    if state in ss.NOT_READY:
+        return "unavailable", state, code
+    return "error", code or state, code
+
+
+@router.get("/access-control/stations/{station_id}/maintenance/sync-request", **wire(W.AccessControlStationOpsSyncRequest))
+def sync_request_status(request: Request, auth: ia.Authority = Depends(_viewer),
+                        station_id: str = Path(min_length=1, max_length=MAX_STATION_ID, pattern=ID_PATTERN)) -> dict[str, Any]:
+    """The station's numbered sync as WisKey shows it now (one `system/status_v1` READ), and the read that settles an unknown one.
+    `state` `ready` (with `observation`), `unsupported` (WisKey does not list the read: nothing sent), `forbidden`, `unavailable`,
+    `busy` or `error`. `gate` is the station's sync hold AFTER this read (null = a sync may be sent); `gate_before` before it."""
+    if not auth.station(ia.READ, station_id):
+        raise _not_found()
+    if not (auth.station(ia.STATIONS_MANAGE, station_id) or ia.status_station(auth, station_id)):
+        raise _not_found()
+    _copy_station(request, station_id)
+    settings = settings_of(request)
+    target = ops.sync_target(station_id)
+    before = intercom_sync.SYNC.write_gate(target)
+    last = _last_sync_request(auth.conn, station_id)
+    out: dict[str, Any] = {"station_id": station_id, "state": "unsupported", "reason": None, "wiskey_code": None, "fetched_at": None,
+                           "gate_before": before, "gate": before, "last_request": last, "match": None, "observation": None}
+    listed, why = ss.availability(settings, "system")
+    if not listed:
+        out["reason"] = why
+        return out
+    mismatch: list[bool] = []
+    project_station = ops.project_settle(station_id)
+
+    def project(raw: Any) -> dict[str, Any]:
+        try:
+            return project_station(raw)
+        except ss.ContractMismatch:
+            mismatch.append(True)
+            raise
+
+    reply = intercom_sync.SYNC.command(settings, "sync_request", ops.send_status, project, who=auth.principal.user_id, timeout=ss.READ_TIMEOUT_S,
+                                       channel=ss.CHANNEL, target=target)
+    data = reply.get("sync_request")
+    if reply.get("state") == "ready" and data is not None:
+        observation = data.get("observation")
+        out.update(state="ready", fetched_at=reply.get("fetched_at"), observation=observation,
+                   match=ops.match((last or {}).get("request_id"), observation))
+    else:
+        state, reason, code = _settle_state(reply, bool(mismatch))
+        out.update(state=state, reason=reason, wiskey_code=code)
+    out["gate"] = intercom_sync.SYNC.write_gate(target)
+    return out

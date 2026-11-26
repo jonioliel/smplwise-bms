@@ -112,7 +112,7 @@ def test_the_phone_is_stored_as_digits_with_a_keyed_index(s4):
 ])
 def test_invalid_rows_are_422_with_the_field(s4, body, field):
     r = s4.add_contact(**body)
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == field, r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == field, r.text
 
 
 def test_a_vendor_and_its_person(s4):

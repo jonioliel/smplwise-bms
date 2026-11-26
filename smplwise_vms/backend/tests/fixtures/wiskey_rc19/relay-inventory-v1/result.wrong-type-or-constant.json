@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "station_id": "synthetic-station",
+  "api_outputs": {
+    "ids": [
+      1,
+      2
+    ],
+    "count": 2,
+    "evidence": "device_capability_at_load",
+    "roles": [
+      {
+        "api_id": 1,
+        "role": "unknown"
+      },
+      {
+        "api_id": 2,
+        "role": "unknown"
+      }
+    ]
+  },
+  "configured_mapping": [
+    {
+      "physical_index": 1,
+      "api_id": 1,
+      "confirmation": "saved_configuration",
+      "role": "unknown"
+    }
+  ],
+  "physical_relay_count": null,
+  "physical_verified": "false",
+  "non_actuating_test": {
+    "supported": false,
+    "reason": "relay_test_unsupported_v1"
+  }
+}

@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error, issue_problems
 from ..rbac import INSTALLATION, Principal, require
 from ..services import scenario_settings as cfg
 from ..services import scenario_signals as sig
@@ -85,14 +85,21 @@ def _gate(conn: sqlite3.Connection, principal: Principal, permission: str) -> No
     svc.require_on(conn)
 
 
+def _bad_overrides() -> ApiError:
+    """ADR019-FAMILY678-2520: the refused simulation values name the body's `overrides` (D1 `fields` / `problems`); the issue list is
+    still sent as `errors`."""
+    issues = [{"path": "overrides", "code": "bad_value", "message": "ערכי הדמיה לא תקינים."}]
+    return field_error("ערכי הדמיה לא תקינים.", problems=issue_problems(issues), legacy={"errors": issues})
+
+
 def _overrides(v: dict[str, Any] | None) -> dict[str, Any] | None:
     if v is None:
         return None
     if len(v) > 12 or not all(isinstance(k, str) and len(k) <= 80 for k in v):
-        raise ApiError(422, "validation", "ערכי הדמיה לא תקינים.", details={"errors": [{"path": "overrides", "code": "bad_value", "message": "ערכי הדמיה לא תקינים."}]})
+        raise _bad_overrides()
     for val in v.values():
         if not (val is None or isinstance(val, (bool, int, float))):
-            raise ApiError(422, "validation", "ערכי הדמיה לא תקינים.", details={"errors": [{"path": "overrides", "code": "bad_value", "message": "ערכי הדמיה לא תקינים."}]})
+            raise _bad_overrides()
     return v
 
 

@@ -1,0 +1,18 @@
+{
+  "id": 1,
+  "type": "hikvision_intercom/direct/connect",
+  "bridge": {
+    "kind": "wiskey-direct-connect.v2",
+    "command": "direct/connect",
+    "query_owner_id": "pairing",
+    "issued_at": "2026-01-01T00:00:00+00:00",
+    "expires_at": "2026-01-01T00:00:00+00:00",
+    "parameters": {
+      "challenge": "00000000000000000000000000000000"
+    },
+    "kid": "g0-legacy",
+    "ts": 1,
+    "nonce": "00000000000000000000000000000000",
+    "sig": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

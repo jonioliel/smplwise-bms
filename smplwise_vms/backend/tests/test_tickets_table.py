@@ -88,7 +88,7 @@ def test_the_routes_are_not_shadowed_by_ticket_id_and_follow_the_module_switch(w
 ])
 def test_values_outside_the_whitelist_are_422_naming_the_field(w, query, field):
     r = w.c.get(f"{API}/tickets/table{query}")
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == field, r.text
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == field, r.text
 
 
 def test_server_side_sort_by_every_key_and_the_id_tiebreak(w):
@@ -244,7 +244,7 @@ def test_bulk_close_is_per_ticket_not_all_or_nothing(w):
     assert {(a["resource_id"], a["decision"]) for a in closes} >= {(ok1["id"], "allowed"), (ok2["id"], "allowed"), (other["id"], "denied"), (closed["id"], "denied")}
     # a note is required for a bulk close
     r = _bulk(w, "mona", "close", [w.create("tom")], {})
-    assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == "params.note"
+    assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == "params.note"
 
 
 def test_bulk_needs_manager_rights_per_ticket(w):
@@ -285,10 +285,10 @@ def test_bulk_assign_priority_and_remind(w):
 def test_bulk_caps_duplicates_and_idempotency(w):
     t = w.create("tom")
     body = lambda n, key=None: {"action": "remind", "items": [{"id": t["id"], "revision": 1}] * n, "params": {}, "client_request_id": key or rid()}  # noqa: E731
-    assert w.c.post(f"{API}/tickets/bulk", json=body(2), headers=w.h("mona")).json()["details"]["fields"][0] == {"field": "items", "code": "duplicate"}
+    assert w.c.post(f"{API}/tickets/bulk", json=body(2), headers=w.h("mona")).json()["details"]["problems"][0] == {"field": "items", "code": "duplicate"}
     many = {"action": "close", "items": [{"id": f"x{i:015d}", "revision": 1} for i in range(51)], "params": {"note": "x"}, "client_request_id": rid()}
     r = w.c.post(f"{API}/tickets/bulk", json=many, headers=w.h("mona"))
-    assert r.status_code == 422 and r.json()["details"]["fields"][0] == {"field": "items", "code": "too_many"}
+    assert r.status_code == 422 and r.json()["details"]["problems"][0] == {"field": "items", "code": "too_many"}
     assert w.c.post(f"{API}/tickets/bulk", json={**many, "action": "delete"}, headers=w.h("mona")).status_code == 422
     key = rid()
     once = _bulk(w, "mona", "close", [t], {"note": "x"}, rid_=key)
@@ -392,7 +392,7 @@ def test_saved_views_are_private_validated_and_capped(w):
     r = w.c.patch(f"{API}/tickets/views/{v['id']}", json={"name": "  שם‮ חדש ", "view": {"density": "comfortable"}}, headers=w.h("mona"))
     assert r.status_code == 200 and r.json()["name"] == "שם חדש" and r.json()["view"]["density"] == "comfortable"
     bad = w.c.post(f"{API}/tickets/views", json={"name": "x", "view": {"filters": {"phone": "1"}}}, headers=w.h("mona"))
-    assert bad.status_code == 422 and bad.json()["details"]["fields"][0]["field"] == "view.filters.phone"
+    assert bad.status_code == 422 and bad.json()["details"]["problems"][0]["field"] == "view.filters.phone"
     assert w.c.post(f"{API}/tickets/views", json={"name": "   ", "view": {}}, headers=w.h("mona")).status_code == 422
     for i in range(19):
         assert w.c.post(f"{API}/tickets/views", json={"name": f"תצוגה {i}", "view": {}}, headers=w.h("mona")).status_code == 201

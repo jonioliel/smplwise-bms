@@ -141,6 +141,32 @@ EVENT_GAP_WHY = {"first_start": "Arx התחיל בלי נקודת המשך", "so
                  "source_mismatch": "מאגר האירועים של WisKey התחלף", "cursor_ahead": "ההיסטוריה של WisKey חזרה אחורה (שחזור)",
                  "retention_gap": "נקודת ההמשך ישנה מדי: WisKey כבר מחק את האירועים שאחריה", "cursor_invalid": "WisKey לא זיהה את נקודת ההמשך"}
 
+# WISKEY-PAIRING-I18N-2520: the steps outside Arx (status `owner_steps`, the repair's `steps`) by stable code; the answer carries the codes
+# next to the Hebrew (`owner_step_codes`, `step_codes`) so a page in another language says them from the code (frontend
+# i18n/wiskey-pairing-status.ts). `{url}` is the answer's `addon_url`.
+STEP = {
+    "entry_single": "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge - ודאו שיש רשומה אחת בלבד ושהיא טעונה.",
+    "restart_infra": "הפעילו מחדש את תשתית המערכת (WisKey קורא את קוד הצימוד מהגשר כשהוא נטען).",
+    "check_again": "חזרו לכאן ולחצו \"בדיקה מול WisKey\".",
+    "update_wiskey": "עדכון WisKey הוא פעולה של בעל המערכת (התקנה ידנית, מדיניות B): התקינו את גרסת WisKey המאושרת (2.0.1 ומעלה) והפעילו מחדש את תשתית המערכת.",
+    "provider_choose": "בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: \"WisKey (וידאו ודיבור)\".",
+    "announced_sent": "הקוד החדש נשלח לגשר הקיים: הגשר בודק אותו מול Arx ומחליף אותו בעצמו, בלי אישור. אם הגשר עוד לא הוגדר - בתשתית המערכת תופיע בקשה להוסיף את SMPLWISE Bridge; אשרו אותה.",
+    "announced_wait": "המתינו דקה עד שהגשר ישלח עדכון חתום (השורה \"גשר Arx\" תהפוך לתקינה).",
+    "announced_check": "לחצו \"בדיקה מול WisKey\".",
+    "manual_delete": "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge › שלוש הנקודות › מחיקה. "
+                     "לפני כן רשמו את האפשרויות שהוגדרו בה (משתמש שירות, האצלת שמירה, הרשאות להפעלה): הן נמחקות עם הרשומה.",
+    "manual_add": "הוספת אינטגרציה › SMPLWISE Bridge.",
+    "manual_url": "כתובת: {url} · קוד הצימוד: הקוד שמוצג כאן.",
+}
+ANNOUNCED_STEPS = ("announced_sent", "announced_wait", "announced_check")
+MANUAL_STEPS = ("manual_delete", "manual_add", "manual_url", "check_again")
+
+
+def step_texts(codes: Any, **fmt: Any) -> list[str]:
+    """The Hebrew of step codes (STEP), filled with `fmt`."""
+    return [STEP[c].format(**fmt) if fmt else STEP[c] for c in codes]
+
+
 ERROR_TEXT = {
     "direct_connect_refused": "WisKey סגר את החיבור בלי תשובה - החתימה לא אומתה אצלו.",
     "reply_unauthenticated": "התשובה של WisKey לא חתומה במפתח של Arx.",
@@ -175,10 +201,17 @@ def set_opener_for_tests(opener: Callable[[], Awaitable[Any]] | None) -> None:
     _OPENER_FOR_TESTS = opener
 
 
-def _line(key: str, state: str, reason: str, fix: str | None = None, facts: dict[str, Any] | None = None, **fmt: Any) -> dict[str, Any]:
+def _line(key: str, state: str, reason: str, fix: str | None = None, facts: dict[str, Any] | None = None,
+          codes: dict[str, str] | None = None, **fmt: Any) -> dict[str, Any]:
+    """One line. `text` / `fix` are Hebrew (unchanged). WISKEY-PAIRING-I18N-2520 (additive): `params` = the values `text` was filled with,
+    plus `<name>_code` for a value that is itself a word (`codes`: the stable code of that word, e.g. `video_code: yes`), and `fix_code` = the
+    FIX key of `fix` (None when there is no fix), so a page in another language says the line from `reason` (i18n/wiskey-pairing-status.ts)."""
     text = TEXT[reason].format(**fmt) if fmt else TEXT[reason]
+    fix_code = (fix or reason) if state != OK and FIX.get(fix or reason) else None
+    params: dict[str, Any] = {k: v if isinstance(v, (int, float)) and not isinstance(v, bool) else ("" if v is None else str(v)) for k, v in fmt.items()}
+    params.update({f"{k}_code": v for k, v in (codes or {}).items()})
     return {"key": key, "label": LABEL[key], "state": state, "reason": reason, "text": text,
-            "fix": (FIX.get(fix or reason) if state != OK else None), "facts": facts or {}}
+            "fix": FIX[fix_code] if fix_code else None, "fix_code": fix_code, "params": params, "facts": facts or {}}
 
 
 def fingerprint(material: str) -> str:
@@ -228,7 +261,7 @@ def _bridge_line(conn: Any, now: float) -> dict[str, Any]:
     if not paired_at:
         return _line("bridge", BLOCKED, "bridge_not_paired", facts=facts)
     if last is None or now - last > BRIDGE_SILENT_S:
-        return _line("bridge", WARN, "bridge_silent", facts=facts, since=directory_at or "הצימוד")
+        return _line("bridge", WARN, "bridge_silent", facts=facts, codes=None if directory_at else {"since": "pairing"}, since=directory_at or "הצימוד")
     if installed and active and installed != active:
         return _line("bridge", WARN, "bridge_update_pending", facts=facts, active=active, installed=installed)
     return _line("bridge", OK, "bridge_ok", facts=facts, version=active or installed or "?")
@@ -289,6 +322,7 @@ def _discovery_line(settings: Any, p: dict[str, Any] | None) -> dict[str, Any]:
         facts = {"source": "feed", "feed_video": video, "feed_talk": talk, "feed_reason": why, "listed": {}}
         if video or talk:
             return _line("discovery", OK if talk else WARN, "discovery_feed", fix="discovery_talk_missing", facts=facts,
+                         codes={"video": "yes" if video else "no", "talk": "yes" if talk else "no"},
                          video="כן" if video else "לא", talk="כן" if talk else "לא")
         return _line("discovery", UNKNOWN, "discovery_unknown", facts=facts)
     listed = {c: c in cap["commands"] for c in w10.COMMANDS}
@@ -398,7 +432,8 @@ def _events_line(conn: Any) -> dict[str, Any]:
         return _line("events", WARN, "events_off", facts=f)
     if f["gap"]:
         g = f["gap"]
-        return _line("events", WARN, "events_gap", facts=f, start=g["from"] or "לא ידוע", end=g["to"],
+        codes = {**({} if g["from"] else {"start": "unknown"}), **({"why": g["reason"]} if g["reason"] in EVENT_GAP_WHY else {})}
+        return _line("events", WARN, "events_gap", facts=f, codes=codes, start=g["from"] or "לא ידוע", end=g["to"],
                      why=EVENT_GAP_WHY.get(g["reason"], g["reason"]))
     if not last:
         return _line("events", UNKNOWN, "events_not_run", facts=f)
@@ -406,8 +441,8 @@ def _events_line(conn: Any) -> dict[str, Any]:
         return _line("events", WARN, "events_unsupported", facts=f)
     if last.get("state") in ("page", "busy", "superseded"):
         caught = f"Arx מעודכן עד {f['caught_up_at']}." if f["caught_up_at"] else "עוד לא הגיע לסוף הרשימה של WisKey."
-        return _line("events", OK, "events_ok", facts=f, at=last.get("at"), delivered=last.get("delivered", 0),
-                     duplicates=last.get("duplicates", 0), caught=caught)
+        return _line("events", OK, "events_ok", facts=f, codes={"caught": "until" if f["caught_up_at"] else "not_yet"}, at=last.get("at"),
+                     delivered=last.get("delivered", 0), duplicates=last.get("duplicates", 0), caught=caught, caught_at=f["caught_up_at"] or "")
     return _line("events", WARN, "events_failed", facts=f, at=last.get("at"), code=last.get("code") or last.get("state"))
 
 
@@ -420,7 +455,8 @@ def _error_line(p: dict[str, Any] | None) -> dict[str, Any]:
     if not code:
         return _line("last_error", OK, "no_error", facts=facts)
     base = code.split(":")[-1]
-    return _line("last_error", WARN, "error", facts={**facts, "code": code}, code=ERROR_TEXT.get(base, code))
+    return _line("last_error", WARN, "error", facts={**facts, "code": code}, codes={"code": base} if base in ERROR_TEXT else None,
+                 code=ERROR_TEXT.get(base, code))
 
 
 def status(conn: Any, settings: Any, *, now: float | None = None) -> dict[str, Any]:
@@ -446,6 +482,7 @@ def status(conn: Any, settings: Any, *, now: float | None = None) -> dict[str, A
     if repair_reason is None and by["bridge"]["reason"] == "bridge_rejected":
         repair_reason = "bridge_rejected"  # BRIDGE-STALE-DISCOVERY-2383: a new code is the fix when the bridge holds another one
     discovery_path = _discovery_path_open(conn)
+    steps = owner_step_codes(by, k)
     return {
         "generated_at": now_iso(),
         "verdict": "paired" if paired else "not_paired" if paired is False else "unknown",
@@ -455,7 +492,8 @@ def status(conn: Any, settings: Any, *, now: float | None = None) -> dict[str, A
         "probe": p,
         "repair": {"available": repair_reason is not None, "reason": repair_reason, "announce": discovery_path,
                    "addon_url": bridge_install.addon_url()},
-        "owner_steps": owner_steps(by, k),
+        "owner_steps": step_texts(steps),
+        "owner_step_codes": steps,  # WISKEY-PAIRING-I18N-2520 (additive): the codes of `owner_steps` (STEP)
         "features": _features(conn, settings),
     }
 
@@ -480,20 +518,22 @@ def _discovery_path_open(conn: Any) -> bool:
     return bridge_discovery.path_open(conn)
 
 
-def owner_steps(by: dict[str, dict[str, Any]], k: dict[str, Any]) -> list[str]:
-    """The exact steps outside Arx, in order, for the state shown. Empty when nothing waits on the owner."""
+def owner_step_codes(by: dict[str, dict[str, Any]], k: dict[str, Any]) -> list[str]:
+    """The exact steps outside Arx, in order, for the state shown, as STEP codes. Empty when nothing waits on the owner."""
     steps: list[str] = []
     if by["acceptance"]["reason"] == "refused" and k["state"] == "ok" and by["bridge"]["state"] == OK:
-        steps += ["בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge - ודאו שיש רשומה אחת בלבד ושהיא טעונה.",
-                  "הפעילו מחדש את תשתית המערכת (WisKey קורא את קוד הצימוד מהגשר כשהוא נטען).",
-                  "חזרו לכאן ולחצו \"בדיקה מול WisKey\"."]
+        steps += ["entry_single", "restart_infra", "check_again"]
     if by["acceptance"]["reason"] == "unreachable" or by["discovery"]["reason"] in ("discovery_media_missing", "discovery_talk_missing"):
         if by["component"]["facts"].get("mode") == "manual":
-            steps += ["עדכון WisKey הוא פעולה של בעל המערכת (התקנה ידנית, מדיניות B): התקינו את גרסת WisKey המאושרת (2.0.1 ומעלה) והפעילו מחדש את תשתית המערכת.",
-                      "חזרו לכאן ולחצו \"בדיקה מול WisKey\"."]
+            steps += ["update_wiskey", "check_again"]
     if by["provider"]["reason"] == "provider_local":
-        steps.append("בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: \"WisKey (וידאו ודיבור)\".")
+        steps.append("provider_choose")
     return steps
+
+
+def owner_steps(by: dict[str, dict[str, Any]], k: dict[str, Any]) -> list[str]:
+    """The exact steps outside Arx, in order, for the state shown (Hebrew). Empty when nothing waits on the owner."""
+    return step_texts(owner_step_codes(by, k))
 
 
 # ---------------------------------------------------------------- the probe (one signed read; nothing is written)
@@ -519,6 +559,8 @@ async def _probe_async(opener: Callable[[], Awaitable[Any]], key_provider: Calla
         if cap is not None:
             out["capabilities"] = {"schema_version": 1, "protocol": bridge.DIRECT_PROTOCOL, "commands": sorted(cap.commands),
                                    "families": list(cap.families), "talk_audio": cap.talk_audio, "stations": cap.stations,
+                                   # WISKEY-LISTEN-GATE-2520: optional blocks present but not read (another shape): their feature stays off
+                                   "rejected_blocks": sorted(cap.rejected_blocks),
                                    "clock": t.admits(bridge.WINDOW_S) if t is not None else None,
                                    "skew_s": round(t.skew_s, 2) if t is not None else None}
         out["discovery_error"] = disc.last_error

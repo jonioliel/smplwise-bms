@@ -143,7 +143,7 @@ def test_the_daily_loop_pushes_after_its_backup(world):
     w.c.post(f"{URL}/targets", json={"name": "USB", "kind": "local", "enabled": True, "config": {"path": str(w.share)}})
 
     async def run() -> None:
-        task = asyncio.create_task(backup_svc.daily_loop(w.db, w.settings, interval_s=0))
+        task = asyncio.create_task(backup_svc.daily_loop(w.db, w.settings, interval_s=0, start_delay_s=0))  # CORE-02: no start-up delay here
         try:
             end = time.monotonic() + 30
             while time.monotonic() < end and not list(w.share.glob("auto-daily-*.zip.swxb")):

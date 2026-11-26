@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services.tickets import access, policy, settings_doc, sla, store, templates
 from ..services.tickets.access import Viewer, text
@@ -223,7 +223,7 @@ def create_department(body: DepartmentBody, request: Request, principal: Princip
     if not fields.get("key"):
         fields["key"] = department_key_for(conn, fields["name"])
     if store.department_key_taken(conn, fields["key"]):
-        raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": fields["key"]})
+        raise field_error(text(conn, "כבר קיימת מחלקה עם המזהה הזה."), ["key"], code="department_key_taken", status=409, legacy={"key": fields["key"]})
     dept_id = store.insert_department(conn, fields)
     first_manager = None
     if not viewer.holds_installation(access.ALL_DEPARTMENTS):
@@ -252,7 +252,7 @@ def patch_department(body: DepartmentBody, request: Request, dept_id: str = Path
         raise invalid(conn, "revision", "required")
     fields = _department_fields(conn, body, creating=False, current=d)
     if "key" in fields and store.department_key_taken(conn, fields["key"], except_id=dept_id):
-        raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": fields["key"]})
+        raise field_error(text(conn, "כבר קיימת מחלקה עם המזהה הזה."), ["key"], code="department_key_taken", status=409, legacy={"key": fields["key"]})
     if not store.update_department(conn, dept_id, fields, body.revision):
         raise ApiError(409, "department_stale", text(conn, "המחלקה השתנתה בינתיים. טענו מחדש."), details={"revision": d["revision"]})
     changed = sorted(k for k in fields if d.get(k) != fields[k])
@@ -302,7 +302,7 @@ def restore_department(request: Request, body: RestoreBody | None = None, dept_i
     key = (body.key if body else None) or d["key"]
     if store.department_key_taken(conn, key, except_id=dept_id):
         if body and body.key:
-            raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": key})
+            raise field_error(text(conn, "כבר קיימת מחלקה עם המזהה הזה."), ["key"], code="department_key_taken", status=409, legacy={"key": key})
         key = department_key_for(conn, d["name"], except_id=dept_id)
     store.restore_department(conn, dept_id, key)
     audit(conn, actor=principal, action="ticket.department.restore", decision="allowed", resource_type="ticket_department", resource_id=dept_id,

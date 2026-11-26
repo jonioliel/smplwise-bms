@@ -25,6 +25,18 @@ token or group grants anything here.
   re-authentication, owner decision 2). Any system administrator; answers the new pairing code for the manual entry in the bridge, only
   while the revocation waits for the re-pair. Every reveal and every refused attempt is audited (`bridge.key.code_revealed`).
 
+WISKEY-DIRECT-V2-2520 (row R7): `GET /system/bridge-key` also carries `direct_transport` - which direct protocol the current key
+signs (v1 / v2 with its kid), whether the direct join is installed / connected, and on a v2 connection the last
+`direct/pairing_status_v2` observation (or `unknown`). Status only: no I/O, no new route, no new permission, never key material. Revoking
+a pairing is not offered here: it is the owner's action in WisKey's own screen (`revoke_in`).
+
+WISKEY-R8-2520 (row R8, owner decisions 25.11): `GET /system/bridge-key/service-grant` - the manual service grant v3 AS WISKEY REPORTS IT
+for this pairing: ONE signed direct READ `service_grants/current_v3` (services/wiskey_service_grants_v3.py), sent only when the current
+v2 connection lists it and offered the v3 block; otherwise nothing is sent and the reason is answered. Same gate as the other routes
+(`system.configure` + system administrator, local sessions only). Status only: the owner gives and withdraws the grant in WisKey's own
+screen (`owner_actions_in`, panel tab `owner_screen_tab`) - Arx offers no grant, preview, commit or revoke action, and a WisKey refusal
+of the read is shown with its code, never followed by another command. No grant reference or key material is ever answered.
+
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
 
@@ -105,11 +117,11 @@ def _refused(exc: br.RotationRefused) -> ApiError:
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
     if not (br.mode(conn) == "on" and br.go_live_permitted()) or bkr.is_revoked(conn):
-        return _with_step_up(conn, principal, br.view(conn, request.app.state.settings.data_dir, _peer(request)))
+        return _with_direct(conn, _with_step_up(conn, principal, br.view(conn, request.app.state.settings.data_dir, _peer(request))))
     engine = _engine(request, conn, principal)
     engine.tick()
     with engine.db.connection(mode="read") as fresh:  # the request's snapshot predates the tick
-        return _with_step_up(fresh, principal, br.view(fresh, request.app.state.settings.data_dir, _peer(request)))
+        return _with_direct(fresh, _with_step_up(fresh, principal, br.view(fresh, request.app.state.settings.data_dir, _peer(request))))
 
 
 def _with_step_up(conn: sqlite3.Connection, principal: Principal, view: dict[str, Any]) -> dict[str, Any]:
@@ -118,6 +130,33 @@ def _with_step_up(conn: sqlite3.Connection, principal: Principal, view: dict[str
     if isinstance(rev, dict):
         view["revocation"] = {**rev, "step_up_ready": sf.is_enrolled(conn, principal.user_id)}
     return view
+
+
+def _with_direct(conn: sqlite3.Connection, view: dict[str, Any]) -> dict[str, Any]:
+    """WISKEY-DIRECT-V2-2520: the GET view only (the other routes' answers keep their own closed models)."""
+    view["direct_transport"] = _direct_transport(conn)
+    return view
+
+
+def _direct_transport(conn: sqlite3.Connection) -> dict[str, Any]:
+    from ..services import ha_bridge
+    from ..services import wiskey_direct_join
+
+    try:
+        key = ha_bridge.signing_key(conn)
+    except Exception:  # noqa: BLE001 - an unreadable key set is "not paired" here too
+        key = None
+    return wiskey_direct_join.direct_status(key)
+
+
+@router.get("/system/bridge-key/service-grant", **wire(W.BridgeKeyServiceGrant))
+def get_service_grant(request: Request, principal: Principal = Depends(current_principal_ro),
+                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """WISKEY-R8-2520: what WisKey reports about the owner's manual service grant v3 (one READ, or the reason none was sent)."""
+    _gate(conn, request, principal, "bridge.key.read")
+    from ..services import wiskey_service_grants_v3 as v3
+
+    return v3.view(v3.SOURCE.refresh())
 
 
 class SettingsBody(BaseModel):

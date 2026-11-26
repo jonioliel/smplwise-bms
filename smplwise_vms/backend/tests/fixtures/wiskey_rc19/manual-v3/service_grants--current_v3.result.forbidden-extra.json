@@ -1,0 +1,7 @@
+{
+  "format": "wiskey-manual-service-grants.v3",
+  "revision": 0,
+  "status": "absent_or_revoked",
+  "grant": null,
+  "unrecognized_synthetic_field": true
+}

@@ -24,17 +24,37 @@ takes a read slot and the read buckets there (no edit of the shared feed module)
 burst can never starve the screens' reads or touch the physical-action lane of door releases.
 
 Everything here is pure (projections, the limits, the observed-failure memo); the HTTP side is routers/access_control_station_ops.py.
-Tests drive it with tests/fake_wiskey.py (tests/test_wiskey_station_ops.py); nothing contacts a device."""
+Tests drive it with tests/fake_wiskey.py (tests/test_wiskey_station_ops.py); nothing contacts a device.
+
+WISKEY-R4-2520 (plan docs/changes/WISKEY-RESYNC-2520.md row R4, master id B7; WisKey PRODUCT 2.0.1-rc.19 contract
+`station-sync-request-v1`): the `sync` action's numbered form. `sync/station_v1 {station_id, api_contract: 1}` queues the SAME
+reconciliation as `sync/station` (WisKey's original worker, `stations: manage`, the same station restriction) and answers
+`{contract: wiskey-station-sync-request.v1, request_id, station_id, accepted: true, scope: current_attached_runtime_only,
+effect_proven: false}`. The request id is WisKey's in-memory id of the pending batch of the CURRENT attached runtime (requests for the
+same pending batch share it; one made while a batch runs gets the next batch's id); `system/status_v1` shows it as the station's
+`sync.request` pending / active id and the last result. `accepted` is not a sync, a convergence or a device proof.
+- Selection, BEFORE anything is sent (`sync_mode`): the numbered form only when WisKey's discovery (`overview.api.commands` for the
+  add-on's identity) lists BOTH `sync/station_v1` and `system/status_v1` (the request id means nothing without the status read that
+  shows it) and does not need a newer client; otherwise the classic `sync/station` on `maintenance`, unchanged. A refusal of the numbered
+  form is final for that request: the classic command is never sent after it (no fallback to an older command).
+- Its own channel `station_sync_v1` (services/wiskey_channels.py, registered by slice 1): exactly that one command.
+- UNKNOWN (sent, no clear answer): the station's sync is held (`sync_target`, the feed's per-target gate and its durable journal) - no
+  further sync to the station is sent, numbered or classic, until a `system/status_v1` read that started after the call was over has
+  answered (`settle_read`). Nothing is replayed; the operator decides after reading the status.
+- A non-conforming answer after `success: true` (wrong contract, another station, `effect_proven` not false, no UUID) is not an
+  acceptance: the outcome is unknown, never "done"."""
 from __future__ import annotations
 
+import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import intercom_adapter as ad
 from . import intercom_client
+from . import wiskey_system_status as ss
 from . import wiskey_write_limits as wl
 from ..test_reset import register_reset
 
@@ -154,6 +174,144 @@ OPS: dict[str, Op] = {
 }
 COMMANDS = frozenset(op.command for op in OPS.values())
 AUDIT_ACTIONS = tuple(op.audit for op in OPS.values())
+
+
+# ---------------------------------------------------------------- WISKEY-R4-2520: sync/station_v1 (see the module note)
+
+CHANNEL_V1 = "station_sync_v1"  # services/wiskey_channels.py STATION_SYNC_V1
+SYNC_V1 = "sync/station_v1"
+SYNC_V1_CONTRACT = "wiskey-station-sync-request.v1"
+SYNC_V1_SCOPE = "current_attached_runtime_only"
+SYNC_V1_API_CONTRACT = 1  # the contract's request schema: `api_contract` const 1 (WisKey refuses anything else `api_incompatible`)
+STATUS_READ = ss.OPS["system"].command  # `system/status_v1`, the only read that settles an unknown numbered sync
+COMMANDS_V1 = frozenset({SYNC_V1})
+MODE_V1 = "request_id"
+MODE_CLASSIC = "classic"
+UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+
+def sync_target(station_id: str) -> str:
+    """The feed's per-target gate key of a station's sync (intercom_sync `target`; never a person's `person:<id>`)."""
+    return f"station_sync:{station_id}"
+
+
+def sync_mode(facts: dict[str, Any] | None) -> tuple[str, str | None]:
+    """(`request_id`, None) when the numbered form may be sent; else (`classic`, why): `no_copy`, `commands_unknown`, `api_incompatible`,
+    `not_listed` (this WisKey lacks `sync/station_v1`) or `status_not_listed` (it lacks the `system/status_v1` read that shows the id).
+    Decided before anything is sent, never after a refusal."""
+    if facts is None:
+        return MODE_CLASSIC, "no_copy"
+    min_client = facts.get("min_client")
+    if isinstance(min_client, int) and not isinstance(min_client, bool) and min_client > intercom_client.API_CONTRACT:
+        return MODE_CLASSIC, "api_incompatible"
+    names = facts.get("commands")
+    if not isinstance(names, (list, set, frozenset, tuple)):
+        return MODE_CLASSIC, "commands_unknown"
+    if SYNC_V1 not in names:
+        return MODE_CLASSIC, "not_listed"
+    if STATUS_READ not in names:
+        return MODE_CLASSIC, "status_not_listed"
+    return MODE_V1, None
+
+
+def project_sync_v1(station_id: str) -> Callable[[Any], dict[str, Any]]:
+    """The answer of `sync/station_v1` for `station_id`, checked against the contract's constants (closed construction: only the four
+    kept keys; an extra key is dropped). Anything else - another contract, another station, `accepted` not true, `effect_proven` not
+    false, a request id that is not a UUID - is NOT an acceptance (ValueError: the feed reads the outcome as unknown)."""
+
+    def project(raw: Any) -> dict[str, Any]:
+        if not isinstance(raw, dict):
+            raise ValueError("unexpected sync/station_v1 answer")
+        rid = raw.get("request_id")
+        if (raw.get("contract") != SYNC_V1_CONTRACT or raw.get("accepted") is not True or raw.get("scope") != SYNC_V1_SCOPE
+                or raw.get("effect_proven") is not False or raw.get("station_id") != station_id
+                or not (isinstance(rid, str) and UUID.fullmatch(rid))):
+            raise ValueError("sync/station_v1 answer outside its contract")
+        return {"accepted": True, "request_id": rid.lower(), "scope": SYNC_V1_SCOPE, "effect_proven": False}
+
+    return project
+
+
+def _summary_sync_v1(p: dict[str, Any]) -> dict[str, Any]:
+    return {"accepted": bool(p.get("accepted")), "request_id": p.get("request_id")}
+
+
+async def send_sync_v1(call: intercom_client.Call, station_id: str) -> Any:
+    """`hikvision_intercom/sync/station_v1 {station_id, api_contract: 1}` - exactly the contract's request keys, once."""
+    frame = await call(intercom_client.command_type(SYNC_V1), station_id=station_id, api_contract=SYNC_V1_API_CONTRACT)
+    return result_of(frame, SYNC_V1)
+
+
+def op_for(action: str, mode: str, station_id: str) -> Op:
+    """The Op an action runs: the numbered sync (its own command and projection; the same audit action, cool-down and result word) or
+    the action's own Op."""
+    op = OPS[action]
+    if action == "sync" and mode == MODE_V1:
+        return replace(op, command=SYNC_V1, project=project_sync_v1(station_id), summary=_summary_sync_v1)
+    return op
+
+
+async def send_op(call: intercom_client.Call, op: Op, station_id: str) -> Any:
+    if op.command == SYNC_V1:
+        return await send_sync_v1(call, station_id)
+    return await send(call, op, station_id)
+
+
+# the status read that settles (and shows) a numbered sync
+
+def sync_observation(doc: dict[str, Any], station_id: str) -> dict[str, Any] | None:
+    """The station's sync part of a projected `system/status_v1` document (wiskey_system_status.project_system): its connection, sync
+    state, last reconcile and WisKey's in-memory `request` observation. None when WisKey's document has no such station (not loaded in
+    WisKey's runtime: unknown, never "no sync")."""
+    row = next((s for s in doc.get("stations") or [] if s.get("station_id") == station_id), None)
+    if row is None:
+        return None
+    sync = row.get("sync") or {}
+    return {
+        "connection": row.get("connection"),
+        "loaded": row.get("loaded"),
+        "sync_state": sync.get("state"),
+        "last_reconciled_at": sync.get("last_reconciled_at"),
+        "request": sync.get("request"),  # {scope, pending_request_id, active_request_id, last_result{request_id, state, observed_at, code, effect_proven}}
+    }
+
+
+def project_settle(station_id: str) -> Callable[[Any], dict[str, Any]]:
+    """`system/status_v1` -> `{observation}` for one station. A document that breaks its contract raises (ContractMismatch, a
+    ValueError): the read did not answer, so it settles nothing."""
+
+    def project(raw: Any) -> dict[str, Any]:
+        return {"observation": sync_observation(ss.project_system(raw), station_id)}
+
+    return project
+
+
+async def send_status(call: intercom_client.Call) -> Any:
+    return await ss.send(call, ss.OPS["system"])
+
+
+def match(request_id: str | None, observation: dict[str, Any] | None) -> str | None:
+    """Where Arx's own request id stands in WisKey's observation: `running` (the active batch), `queued` (the pending batch), `finished`
+    (the last result is that batch's - its state is WisKey's; `effect_proven` stays false), `not_observed` (WisKey shows another or no id:
+    a newer batch replaced it, or WisKey's runtime restarted - unknown, never a failure). None without a known request id or observation."""
+    if not request_id or observation is None:
+        return None
+    request = observation.get("request")
+    if not isinstance(request, dict):
+        return "not_observed"
+    mine = request_id.lower()
+
+    def same(v: Any) -> bool:
+        return isinstance(v, str) and v.lower() == mine
+
+    if same(request.get("active_request_id")):
+        return "running"
+    if same(request.get("pending_request_id")):
+        return "queued"
+    last = request.get("last_result")
+    if isinstance(last, dict) and same(last.get("request_id")):
+        return "finished"
+    return "not_observed"
 
 
 # ---------------------------------------------------------------- the frame and its answer

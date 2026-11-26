@@ -18,6 +18,7 @@ from typing import Any
 
 from ..db import get_setting, set_setting
 from ..errors import ApiError
+from ..error_text import tpl
 
 VIEW, BILLS, MANAGE, CONFIGURE, BACKUP = "energy.view", "energy.bills", "energy.manage", "system.configure", "backup.manage"
 
@@ -96,18 +97,18 @@ def validate(key: str, raw: Any) -> str:
     """The stored text of a new value, or 422 with a Hebrew message."""
     spec = SPECS.get(key)
     if spec is None or spec.own_route is not None:
-        raise ApiError(422, "validation", f"הגדרה לא מוכרת: {key}", details={"fields": [key]})
+        raise ApiError(422, "validation", tpl("הגדרה לא מוכרת: {key}", key=key), details={"fields": [key]})
     return validate_spec(spec, key, raw)
 
 
 def validate_spec(spec: SettingSpec, key: str, raw: Any) -> str:
     """The value check of one spec (shared with the water module's own registry, services/water_settings.py)."""
-    bad = ApiError(422, "validation", f"ערך לא תקין עבור {spec.label_he or key}", details={"fields": [key]})
+    bad = ApiError(422, "validation", tpl("ערך לא תקין עבור {label_he}", label_he=spec.label_he or key), details={"fields": [key]})
     if spec.kind == "int":
         if isinstance(raw, bool) or not isinstance(raw, int):
             raise bad
         if (spec.minimum is not None and raw < spec.minimum) or (spec.maximum is not None and raw > spec.maximum):
-            raise ApiError(422, "validation", f"{spec.label_he or key}: בין {spec.minimum} ל־{spec.maximum}", details={"fields": [key], "min": spec.minimum, "max": spec.maximum})
+            raise ApiError(422, "validation", tpl("{label_he}: בין {minimum} ל־{maximum}", label_he=spec.label_he or key, minimum=spec.minimum, maximum=spec.maximum), details={"fields": [key], "min": spec.minimum, "max": spec.maximum})
         return str(raw)
     if spec.kind == "bool":
         if not isinstance(raw, bool):

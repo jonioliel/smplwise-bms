@@ -41,6 +41,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import intercom_client, intercom_sync
 from .intercom_client import IntercomError, UnclearAnswer
+from ..error_text import tpl
 
 CHANNEL = "operations"  # services/wiskey_channels.py OPERATIONS
 READ_TIMEOUT_S = 25.0
@@ -548,7 +549,7 @@ def run_read(settings: Settings, name: str, values: dict[str, Any], who: str) ->
         raise ApiError(501, "ops_unsupported", "גרסת מערכת האינטרקום המותקנת אינה מציעה את התצוגה הזו.", details=details)
     if state in NOT_READY:
         raise ApiError(503, "ops_unavailable", "החיבור למערכת האינטרקום אינו זמין כרגע.", retryable=True, details=details)
-    raise ApiError(502, "ops_read_failed", f"מערכת האינטרקום לא החזירה את הנתונים ({code or state}).", details=details)
+    raise ApiError(502, "ops_read_failed", tpl("מערכת האינטרקום לא החזירה את הנתונים ({code}).", code=code or state), details=details)
 
 
 def run_cancel(settings: Settings, job_id: str, revision: int, who: str, not_after: datetime) -> dict[str, Any]:

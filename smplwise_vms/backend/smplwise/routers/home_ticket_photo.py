@@ -25,6 +25,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from . import home_family as hfr
 from ._common import rid as _rid
+from ..error_text import tpl
 
 router = APIRouter()
 PHOTO_WINDOW_S = 30 * 60
@@ -46,7 +47,7 @@ def _check_new(conn: sqlite3.Connection, viewer: Any, seen: Any, now: dt.datetim
         raise ApiError(409, "ticket_not_new", "אפשר לצרף תמונה רק לפנייה חדשה. כדי לעדכן את המטפל, הוסיפו הערה.")
     mine = sum(1 for a in store.attachments(conn, row["id"]) if a.get("uploaded_by_kind") == "user" and a.get("uploaded_by") == viewer.uid)
     if mine >= PHOTOS_MAX:
-        raise ApiError(409, "too_many_photos", f"אפשר לצרף עד {PHOTOS_MAX} תמונות לפנייה.", details={"max": PHOTOS_MAX})
+        raise ApiError(409, "too_many_photos", tpl("אפשר לצרף עד {photos_max} תמונות לפנייה.", photos_max=PHOTOS_MAX), details={"max": PHOTOS_MAX})
 
 
 @router.post("/home/tickets/{ticket_id}/photos", status_code=201)

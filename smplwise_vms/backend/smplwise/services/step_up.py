@@ -65,6 +65,8 @@ LOCAL_KEY = "security.step_up_local"
 # passkey removal of an Arx-only identity) keep asking. The proofs the slices added (passkey add / remove, a new batch of recovery
 # codes, phone-key add / revoke, a code enrolment next to another factor, the physical gates) apply only while it is on - see
 # `factor_change_proof_on`. SR-3's recent sign-in for a FIRST factor stays (a re-sign-in, not a code prompt).
+# MFA-FACTOR-HARDEN-2520 (review N-1, owner-approved): with step-up off, EVERY factor added from outside (a code enrolment, a
+# passkey, a phone key, a new batch of recovery codes) asks that same recent sign-in - `require_first_factor_freshness`.
 DEFAULT_ON = "off"  # the name is kept for the importers; the value is the default of `security.step_up`
 DEFAULT_MINUTES = 5
 MAX_MINUTES = 30
@@ -515,19 +517,34 @@ def factor_change_proof_on(conn: sqlite3.Connection) -> bool:
     return enabled(conn)
 
 
+def reauth_error(action: str) -> ApiError:
+    """403 `reauth_required`: sign in again, then retry within RECENT_SIGN_IN_S (a re-sign-in, not a code prompt)."""
+    return ApiError(403, "reauth_required", REAUTH_HE, details={"action": action, "within_s": int(RECENT_SIGN_IN_S)})
+
+
+def require_recent_sign_in(request: Any, action: str) -> None:
+    """SR-3's rule on its own (MFA-FACTOR-HARDEN-2520): a remote request needs a sign-in of this session within RECENT_SIGN_IN_S, else
+    403 `reauth_required`; the local channel always passes (`recent_sign_in`)."""
+    if not recent_sign_in(request):
+        raise reauth_error(action)
+
+
 def require_first_factor_freshness(conn: sqlite3.Connection, request: Any, principal: Any, action: str) -> None:
     """MFA-SECFIX-2500 SR-3: enrolling a factor - the authenticator code, a passkey, a phone key. A user who has a step-up method
-    already needs a proof that counts for a factor change (`fresh_proof`, never a recovery code); a user with NO method (a first
-    factor) needs a recent sign-in of this session - else 403 `reauth_required` (sign in again). A stolen session long after its
-    sign-in therefore cannot take the account's first factor."""
+    already needs, while step-up is on, a proof that counts for a factor change (`fresh_proof`, never a recovery code); a user with NO
+    method (a first factor) needs a recent sign-in of this session - else 403 `reauth_required` (sign in again). A stolen session long
+    after its sign-in therefore cannot take the account's first factor.
+    MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-1, owner-approved): with step-up off, a factor ADDED next to an existing one gets
+    the SAME rule as a first factor - a sign-in of this session within 5 minutes on the remote channel - so a stolen old session cannot
+    plant a factor of its own either. The local channel stays the break-glass path; with step-up on the proof applies as before."""
     if methods_of(conn, principal.user_id):
-        if not _is_remote(request) or not factor_change_proof_on(conn):
-            return  # the local channel stays the break-glass path; with step-up off (owner Q2 = b) no proof is asked
-        if not fresh_proof(conn, request, principal):
-            raise required_error(conn, principal, action)
-        return
-    if not recent_sign_in(request):
-        raise ApiError(403, "reauth_required", REAUTH_HE, details={"action": action, "within_s": int(RECENT_SIGN_IN_S)})
+        if not _is_remote(request):
+            return  # the local channel stays the break-glass path
+        if factor_change_proof_on(conn):
+            if not fresh_proof(conn, request, principal):
+                raise required_error(conn, principal, action)
+            return
+    require_recent_sign_in(request, action)
 
 
 def recovery_allowed(action: str | None) -> bool:
@@ -637,13 +654,15 @@ def guard(conn: sqlite3.Connection, request: Any, principal: Any, permission: st
 
 
 def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: str, *, once: bool = False, reason: str = "step_up_required",
-            error: ApiError | None = None) -> None:
+            error: ApiError | None = None, wrong_code: Any = None) -> None:
     from .. import correlation_id
     from ..audit import audit
     from ..db import read_mode, rollback_and_restart
 
     if not read_mode(conn) and conn.in_transaction:
         rollback_and_restart(conn)  # nothing the request wrote before the gate stays (an ApiError commits)
+        if wrong_code is not None:  # SEC-FIX-2520 SEC-1: the rollback took the wrong-code count with it - count it again
+            reason, error = _recount_wrong_code(conn, principal, wrong_code)
     details = {"permission": permission, "method": request.scope.get("method") or "", "route": _route(request), **({"once": True} if once else {})}
     audit(conn, actor=principal, action="auth.step_up.required" if error is None else "auth.step_up.failed", decision="denied",
           resource_type="step_up", resource_id=permission, reason=reason, request_id=correlation_id.of(request), details=details)
@@ -652,6 +671,30 @@ def _refuse(conn: sqlite3.Connection, request: Any, principal: Any, permission: 
     if once:
         raise ApiError(403, "step_up_required", ONCE_REQUIRED_HE, details=once_details(conn, principal, permission))
     raise required_error(conn, principal, permission)
+
+
+def _wrong_code_error(exc: Any) -> ApiError:
+    status = 429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409
+    return ApiError(status, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked")
+
+
+def _recount_wrong_code(conn: sqlite3.Connection, principal: Any, exc: Any) -> tuple[str, ApiError]:
+    """SEC-FIX-2520 SEC-1 (DEEP-REVIEW-2520-SECURITY): second_factor.verify counted a wrong inline code on the request's
+    transaction, and _refuse rolled that transaction back - the lockout of the conditional once-actions (a new system
+    administrator, a restore) never engaged. Count it again on the fresh transaction (which commits with the refusal, like its
+    audit row): the same FAILURES rule, limits and lockout as every other wrong-code path. A lockout that already ran before
+    this request is left as it is (never re-counted into an unlock); `unreadable` is not a guess and is not counted."""
+    from . import second_factor as sf
+
+    if exc.code not in ("invalid", "locked"):
+        return f"step_up_{exc.code}", _wrong_code_error(exc)
+    if sf.FAILURES.locked(conn, principal.user_id):
+        out = sf.SecondFactorError("locked", sf.LOCKED_HE)
+    elif sf.FAILURES.fail(conn, principal.user_id):
+        out = sf.SecondFactorError("locked", sf.LOCKED_HE)
+    else:
+        out = sf.SecondFactorError("invalid", sf.INVALID_HE)
+    return f"step_up_{out.code}", _wrong_code_error(out)
 
 
 ONCE_REQUIRED_HE = "לפעולה הזו צריך לאשר שוב את הזהות בכל פעם: בקוד הנוכחי מאפליקציית האימות, במפתח גישה או במפתח הטלפון."
@@ -686,9 +729,8 @@ def require_once_when_on(conn: sqlite3.Connection, request: Any, principal: Any,
         except OnceProofMissing:
             _refuse(conn, request, principal, action, once=True)
         except sf.SecondFactorError as exc:
-            status = 429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409
-            _refuse(conn, request, principal, action, once=True, reason=f"step_up_{exc.code}",
-                    error=ApiError(status, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked"))
+            _refuse(conn, request, principal, action, once=True, reason=f"step_up_{exc.code}", error=_wrong_code_error(exc),
+                    wrong_code=exc)
     if state is not None:
         setattr(state, ONCE_DONE_ATTR, action)
         setattr(state, STATE_ATTR, "ok")

@@ -117,10 +117,12 @@ VERIFY_FAILED = "verify_failed"  # BACKEND-SAFETY-2435: the device accepted the 
 
 
 def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None,
-                 stream_visible: Callable[[str | None], bool] | None = None, recorder_id: str | None = None) -> list[dict[str, Any]]:
+                 stream_visible: Callable[[str | None], bool] | None = None, recorder_id: str | None = None,
+                 row_visible: Callable[[sqlite3.Row], bool] | None = None) -> list[dict[str, Any]]:
     """The newest changes. A `stream_encoding` row is listed only when `stream_visible(camera_id)` says so (CR-020 S2 review
     M1: the caller's nvr.configure camera scope); without that predicate no stream change is listed at all. CR-024:
-    `recorder_id` keeps one recorder's changes."""
+    `recorder_id` keeps one recorder's changes. VIDEO-SECFIX-2520 (deep review V-04): `row_visible` - any other row is listed
+    only when it says so (the caller's camera scope over the row's cameras, change_cameras); None = every such row."""
     conds, args = [], []
     if camera_id:
         conds.append("camera_id = ?")
@@ -132,14 +134,21 @@ def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | Non
     if stream_visible is None:
         where = (where + " AND" if where else "WHERE") + " kind != ?"
         args.append(STREAM_KIND)
-        return [_row(r) for r in conn.execute(f"SELECT * FROM nvr_changes {where} ORDER BY created_at DESC LIMIT ?", (*args, limit)).fetchall()]
+        if row_visible is None:
+            return [_row(r) for r in conn.execute(f"SELECT * FROM nvr_changes {where} ORDER BY created_at DESC LIMIT ?", (*args, limit)).fetchall()]
+
+    def visible(r: sqlite3.Row) -> bool:
+        if r["kind"] == STREAM_KIND:
+            return stream_visible is not None and stream_visible(r["camera_id"])
+        return row_visible is None or row_visible(r)
+
     out: list[dict[str, Any]] = []
     cur = conn.execute(f"SELECT * FROM nvr_changes {where} ORDER BY created_at DESC", args)
     while len(out) < limit:
         batch = cur.fetchmany(200)
         if not batch:
             break
-        out.extend(_row(r) for r in batch if r["kind"] != STREAM_KIND or stream_visible(r["camera_id"]))
+        out.extend(_row(r) for r in batch if visible(r))
     return out[:limit]
 
 
@@ -148,25 +157,64 @@ def get_change(conn: sqlite3.Connection, change_id: str) -> sqlite3.Row | None:
 
 
 def _record(conn: sqlite3.Connection, principal: Any, *, kind: str, permission: str, target: str, path: str, before: str | None, after: str | None,
-            status: str, error: str | None = None, rollback_of: str | None = None, note: str = "", recorder_id: str = PRIMARY) -> dict[str, Any]:
+            status: str, error: str | None = None, rollback_of: str | None = None, note: str = "", recorder_id: str = PRIMARY,
+            camera_id: str | None = None) -> dict[str, Any]:
+    """CR-024: the row knows its recorder, so the undo reaches the same device. VIDEO-SECFIX-2520 (deep review V-04): and the
+    camera whose settings it changed (None for an installation-level change), so its detail and its undo keep the camera scope
+    of the write; both are part of the one INSERT (no window in which the row names the wrong recorder)."""
     cid = new_id()
     conn.execute(
-        "INSERT INTO nvr_changes(id, kind, permission, target, path, before_xml, after_xml, status, error, rollback_of, note, actor_id, actor_username, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (cid, kind, permission, target, path, before, after, status, error, rollback_of, note, getattr(principal, "user_id", None), getattr(principal, "username", None), now_iso()),
+        "INSERT INTO nvr_changes(id, kind, permission, target, path, before_xml, after_xml, status, error, rollback_of, note, actor_id, actor_username, created_at,"
+        " recorder_id, camera_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (cid, kind, permission, target, path, before, after, status, error, rollback_of, note, getattr(principal, "user_id", None), getattr(principal, "username", None), now_iso(),
+         recorder_id or PRIMARY, camera_id),
     )
-    if recorder_id != PRIMARY:  # CR-024: the change log knows its recorder, so the undo reaches the same device
-        conn.execute("UPDATE nvr_changes SET recorder_id = ? WHERE id = ?", (recorder_id, cid))
     return _row(get_change(conn, cid))  # type: ignore[arg-type]
 
 
+# VIDEO-SECFIX-2520 (deep review V-04): the change kinds that are a recorder's own settings (clock / NTP, the recorder's reboot,
+# an alarm output, a disk test). Every other kind - a kind added later included - is a camera's setting (fail closed).
+INSTALLATION_KINDS = frozenset({"time", "reboot", "alarm_output", "storage_test"})
+_TARGET_NUMBER = re.compile(r"-(\d{1,6})$")
+
+
+def change_cameras(conn: sqlite3.Connection, r: sqlite3.Row) -> tuple[bool, frozenset[str]]:
+    """VIDEO-SECFIX-2520 (deep review V-04): `(camera_level, camera ids)` of a change row - which cameras' scope its detail and
+    its undo must respect. An installation-level kind: `(False, {})`. Otherwise the row's own `camera_id` (written since 2.52)
+    and the camera its target names on its recorder NOW (`track-<n>`: the camera whose main track it is; `<anything>-<n>`: the
+    camera on channel n) - the undo writes to that channel, so its camera counts too. A row written before 2.52 has only its
+    target; when no camera can be found the set is empty and the caller fails closed (the unrestricted permission)."""
+    if r["kind"] in INSTALLATION_KINDS:
+        return False, frozenset()
+    keys = r.keys()
+    ids: set[str] = set()
+    stored = r["camera_id"] if "camera_id" in keys else None
+    if stored:
+        ids.add(str(stored))
+    target = str(r["target"] or "")
+    m = _TARGET_NUMBER.search(target)
+    if m:
+        rec_id = (r["recorder_id"] if "recorder_id" in keys else None) or PRIMARY
+        n = int(m.group(1))
+        if target.startswith("track-"):  # routers/nvr_write._track_of: the main track, or `<channel>01` when none is recorded
+            sql, args = "SELECT id FROM cameras WHERE recorder_id = ? AND (main_track = ? OR (main_track IS NULL AND channel * 100 + 1 = ?))", (rec_id, n, n)
+        else:
+            sql, args = "SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (rec_id, n)
+        ids.update(str(x[0]) for x in conn.execute(sql, args).fetchall())
+    return True, frozenset(ids)
+
+
 def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *, kind: str, permission: str, target: str, path: str,
-                 mutate: Callable[[str], str], note: str = "", request_id: str | None = None, client: httpx.Client | None = None, keep_before: bool = True) -> dict[str, Any]:
+                 mutate: Callable[[str], str], note: str = "", request_id: str | None = None, client: httpx.Client | None = None, keep_before: bool = True,
+                 camera_id: str | None = None) -> dict[str, Any]:
     """GET → mutate → PUT → GET-verify → record + audit. `unchanged` when the document already says what was asked.
     The caller holds the request's connection; NVR I/O happens on `client` (opened here unless given).
     CR-024: `settings` is the TARGET recorder's settings (recorder_scope.camera_settings / settings_for); the change log row
     records that recorder.
     keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one).
-    CR-NVR-GUARD-2438: refused (409 nvr_writes_off, audited, nothing sent) while the recorder's settings switch is off."""
+    CR-NVR-GUARD-2438: refused (409 nvr_writes_off, audited, nothing sent) while the recorder's settings switch is off.
+    VIDEO-SECFIX-2520 (deep review V-04): `camera_id` - the camera whose setting this is (None for a recorder-level change); the
+    row keeps it so the change's detail and undo apply the same camera scope as this write."""
     nvr_write_guard.guard(settings, conn, principal, kind, request_id=request_id, target=target)
     own = client is None
     c = client or _client(settings)
@@ -174,11 +222,11 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
         before = _get(c, path)
         after = mutate(before)
         if after == before or _normalize(after) == _normalize(before):  # a rebuilt document may differ only in whitespace
-            return _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after, status="unchanged", note=note, recorder_id=settings.nvr_recorder_id)
+            return _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after, status="unchanged", note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
         try:
             _put(c, path, after)
         except ApiError as exc:
-            rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="failed", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id)
+            rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="failed", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
             audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
             raise
         try:
@@ -188,7 +236,7 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
             # recorded (status applied, error verify_failed, the document sent as `after`, the previous one kept for the
             # undo) and audited as unverified; the caller still receives the same error.
             rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after,
-                          status="applied", error=VERIFY_FAILED, note=note, recorder_id=settings.nvr_recorder_id)
+                          status="applied", error=VERIFY_FAILED, note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
             audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
                   details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note, "verified": False, "verify_error": exc.code})
             raise
@@ -197,10 +245,10 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
             c.close()
     if _normalize(verify) == _normalize(before) and keep_before:
         # the device answered OK but kept its old document (e.g. a sensitivity outside the values it accepts)
-        rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="no_effect", note=note, recorder_id=settings.nvr_recorder_id)
+        rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=verify, status="no_effect", note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
         audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason="no_effect", request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
         raise ApiError(409, "nvr_no_effect", "ה־NVR אישר את הכתיבה אבל לא שינה את ההגדרה (ערך מחוץ לטווח שהמכשיר מקבל?).", details={"path": path, "change_id": rec["id"]})
-    rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=verify, status="applied", note=note, recorder_id=settings.nvr_recorder_id)
+    rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=verify, status="applied", note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
     audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
           details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note})
     return rec
@@ -238,7 +286,7 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
             # is recorded as such (the document sent as `after`) and audited as unverified, then the same error is raised.
             conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
             rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"],
-                          after=orig["before_xml"], status="applied", error=VERIFY_FAILED, rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id)
+                          after=orig["before_xml"], status="applied", error=VERIFY_FAILED, rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id, camera_id=orig["camera_id"] if "camera_id" in orig.keys() else None)
             audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
                   details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, "verified": False, "verify_error": exc.code})
             raise
@@ -247,7 +295,7 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
             c.close()
     conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
     rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"], after=verify,
-                  status="applied", rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id)
+                  status="applied", rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id, camera_id=orig["camera_id"] if "camera_id" in orig.keys() else None)
     audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
           details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id})
     return rec

@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from ..errors import ApiError
+from ..error_text import tpl
 
 WINDOW_S = 60.0
 RECOMPUTE_PER_USER, RECOMPUTE_TOTAL = 10, 30
@@ -81,7 +82,7 @@ def take_pdf(app: Any, user_key: str) -> None:
     """Count one PDF render; 429 `rate_limited` when this user (or the installation) rendered too many in the last minute."""
     wait, scope = guards(app).pdf.take(user_key)
     if wait:
-        raise _refuse("rate_limited", f"יותר מדי הפקות PDF בזמן קצר; אפשר לנסות שוב בעוד {wait} שניות.", wait, scope or "user")
+        raise _refuse("rate_limited", tpl("יותר מדי הפקות PDF בזמן קצר; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), wait, scope or "user")
 
 
 @contextmanager
@@ -94,7 +95,7 @@ def recompute(app: Any, user_key: str, bill_key: str) -> Iterator[None]:
             raise _refuse("recompute_in_progress", "החישוב של החיוב הזה כבר רץ. אפשר לנסות שוב בעוד רגע.", IN_PROGRESS_RETRY_S, "bill")
         wait, scope = g.recompute.take(user_key)
         if wait:
-            raise _refuse("rate_limited", f"יותר מדי חישובים מחדש בזמן קצר; אפשר לנסות שוב בעוד {wait} שניות.", wait, scope or "user")
+            raise _refuse("rate_limited", tpl("יותר מדי חישובים מחדש בזמן קצר; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), wait, scope or "user")
         g.running.add(bill_key)
     try:
         yield

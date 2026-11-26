@@ -92,7 +92,7 @@ def test_validation_and_one_row_per_scope_period_currency(s4):
                         ({"currency": "XXX"}, "currency"), ({"scope_id": "no-such-dept"}, "scope_id"), ({"amount_minor": 0}, "amount_minor"),
                         ({"warn_bp": 20000}, "warn_bp"), ({"scope_kind": "planet"}, "scope_kind")):
         r = create(s4, **body)
-        assert r.status_code == 422 and r.json()["details"]["fields"][0]["field"] == field, (body, r.text)
+        assert r.status_code == 422 and r.json()["details"]["problems"][0]["field"] == field, (body, r.text)
     assert create(s4).status_code == 201
     r = create(s4)
     assert r.status_code == 409 and r.json()["code"] == "budget_exists"

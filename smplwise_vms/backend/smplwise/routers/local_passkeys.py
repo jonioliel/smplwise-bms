@@ -34,8 +34,12 @@ Step-up (MFA-PASSKEYS-2490, every user kind):
 Administration:
 `PUT    identity/local-users/{id}/passkey-only {on}`  identity.local.manage; the same mode for a user (off = the recovery); audited
 `GET    identity/local-users/{id}/passkeys`           identity.directory.read
-`DELETE identity/local-users/{id}/passkeys/{pk}`      identity.local.manage; an administrator who has a TOTP factor shows their own code
-                                                      (CR-011 M1, routers/second_factor.require_step_up); every session of the user ends
+`DELETE identity/local-users/{id}/passkeys/{pk} {confirm, code?}`  identity.local.manage; an administrator who has a TOTP factor shows
+                                                      their own code (CR-011 M1, routers/second_factor.require_step_up); every session of
+                                                      the user ends; MFA-PASSKEY-ADMIN-REMOVE-2520: the factor reset's rules
+                                                      (services/factor_reset.py - typed username, channel, fresh sign-in, last administrator,
+                                                      one 3 / h budget with the reset, managers told, must_enroll after the last factor)
+`GET    identity/local-users/{id}/passkeys/{pk}/remove-check`  identity.local.manage; that removal's preflight (factor_reset.check)
 
 `GET /.well-known/assetlinks.json` (registered in main.py, outside /api/v1): the Android app association for passkeys in the app's
 WebView (CR-011 §2.3) - only while the feature is on and `security.local_passkey_android` names an app; 404 otherwise.
@@ -56,6 +60,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
+from ..services import factor_reset, notify_sources
 from ..services import ha_user_auth as hua
 from ..services import local_identity as li
 from ..services import local_passkeys as lpk
@@ -67,6 +72,7 @@ from .. import guarded_route
 from ._common import rid as _rid
 from .local_identity import _error, _public_guard, _success, _user_row
 from ..wire import local_passkeys as W
+from ..wire import second_factor as SW
 from ..wire import wire
 from ..wire.local_identity import LocalSignInSession
 
@@ -240,8 +246,10 @@ def remove_own(pk_id: str, request: Request, body: RemoveBody | None = None, pri
     proof = upk.removal_proof(conn, request, principal, code, local_session=s)
     if s is None:
         out = upk.remove(conn, principal, pk_id, proof=proof, request_id=_rid(request))
+        notify_sources.second_factor_changed(conn, principal.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
         return {**out, **upk.summary(conn, principal.user_id)}
     out = lpk.remove(conn, s.user_id, pk_id, actor=principal, by="self", keep_chain=s.chain_id, request_id=_rid(request))
+    notify_sources.second_factor_changed(conn, s.user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6
     if not upk.has_factor(conn, s.user_id):
         step_up.forget_user(s.user_id)  # MFA-PASSKEYS-2490: no step-up proof outlives the last factor
     if out["sessions_ended"]:
@@ -324,26 +332,98 @@ def user_passkeys(user_id: str, principal: Principal = Depends(current_principal
     return {"user_id": user_id, **lpk.summary(conn, user_id)}
 
 
+class AdminRemoveBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str | None = Field(default=None, max_length=16)
+    # MFA-PASSKEY-ADMIN-REMOVE-2520: the user's username, typed by the administrator (services/factor_reset.confirm_text), as the reset
+    confirm: str | None = Field(default=None, max_length=200)
+
+
+SELF_REMOVE_HE = "את מפתחות הגישה שלך מסירים בחשבון שלך (אבטחה), לא ממסך המשתמשים."
+
+
+def _remove_refused(conn: sqlite3.Connection, request: Request, principal: Principal, user_id: str, reason: str, status: int, code: str,
+                    message: str, **details: Any) -> ApiError:
+    """One audited refusal of the administrator's passkey removal (`identity.local.user.passkey_removed`, denied, the reason; never a
+    typed value or a code) - the reset's `_reset_refused` on this route's own audit action. An ApiError commits, so the row survives."""
+    audit(conn, actor=principal, action=factor_reset.PASSKEY_ACTION, decision="denied", resource_type="user", resource_id=user_id, reason=reason,
+          request_id=_rid(request), details=details)
+    return ApiError(status, code, message, details=details or None)
+
+
+@router.get("/identity/local-users/{user_id}/passkeys/{pk_id}/remove-check", **wire(SW.FactorResetCheck))
+def admin_remove_check(user_id: str, pk_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
+                       conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """MFA-PASSKEY-ADMIN-REMOVE-2520: the preflight of `DELETE identity/local-users/{id}/passkeys/{pk}` for the removal dialog - the
+    reset's preflight (services/factor_reset.check) for one passkey: may it go ahead now (else the first refusal), the username to type,
+    the channel, the removals left this hour, whether the user must enrol again, the once-action details. Reads only."""
+    require(conn, principal, "identity.local.manage", INSTALLATION)
+    _user_row(conn, user_id, include_deleted=True)
+    if store.passkey_row(conn, pk_id[:40], user_id) is None:
+        raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
+    return factor_reset.check(conn, request, principal, user_id, passkey_id=pk_id[:40])
+
+
 @router.delete("/identity/local-users/{user_id}/passkeys/{pk_id}", **wire(W.UserPasskeyRemoved))
-def admin_remove(user_id: str, pk_id: str, request: Request, body: RemoveBody | None = None, principal: Principal = Depends(current_principal),
+def admin_remove(user_id: str, pk_id: str, request: Request, body: AdminRemoveBody | None = None, principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A lost / suspected passkey (the CR-011 administrator reset, for one passkey): every local session of the user ends, a pending
-    second step ends, the last passkey switches the user's passkey-first mode off. The password is never touched."""
+    second step ends, the last passkey switches the user's passkey-first mode off. The password is never touched.
+
+    MFA-PASSKEY-ADMIN-REMOVE-2520 (review N-2): the factor reset's rules (services/factor_reset.py), in the reset's order, each refusal
+    audited, all before the proof is read - never oneself (409 `second_factor_self_reset`), the channel setting (403
+    `factor_reset_local_only`), from outside a sign-in within 5 minutes (403 `reauth_required`), the typed username (`{"confirm"}`, 422
+    `factor_reset_confirm_required` / `_mismatch`), the last administrator who can sign in remotely when this is the user's last factor
+    (409 `factor_reset_last_admin`), one 3-per-hour budget with the reset (429 `factor_reset_rate_limited`); then the administrator's
+    once-proof. After it: the user and the managers are told; `must_enroll` when the user's last sign-in factor went."""
+    from ..services.step_up import reauth_error
     from .second_factor import require_step_up
 
     require(conn, principal, "identity.local.manage", INSTALLATION)
     _user_row(conn, user_id, include_deleted=True)
+    if user_id == principal.user_id:
+        raise _remove_refused(conn, request, principal, user_id, "self", 409, "second_factor_self_reset", SELF_REMOVE_HE)
+    # MFA-REVIEW-DOCS-2520 N-2: removing another user's passkey resets one of their authentication methods, so the owner's
+    # `security.factor_reset_channel = local` (MFA-RESET-HARDENING-2510) applies here too - refused from outside, audited
+    if factor_reset.channel_refuses(conn, request):
+        raise _remove_refused(conn, request, principal, user_id, "local_only", 403, "factor_reset_local_only", factor_reset.LOCAL_ONLY_HE,
+                              channel=factor_reset.CHANNEL_LOCAL)
+    if factor_reset.reauth_refuses(request):  # MFA-FACTOR-HARDEN-2520 N-5: from outside, a sign-in within 5 minutes (as the reset)
+        audit(conn, actor=principal, action=factor_reset.PASSKEY_ACTION, decision="denied", resource_type="user", resource_id=user_id,
+              reason="reauth_required", request_id=_rid(request))
+        raise reauth_error(factor_reset.PASSKEY_ONCE_ACTION)
     if not hua.LIMITER.hit(f"factor:{principal.user_id}", SELF_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
-    if store.passkey_row(conn, pk_id[:40], user_id) is None:
+    pk_id = pk_id[:40]
+    if store.passkey_row(conn, pk_id, user_id) is None:
         raise ApiError(404, "passkey_not_found", lpk.NOT_FOUND_HE)
-    step_up = require_step_up(conn, request, principal, body.code if body else None, action="auth.local.passkey.removed", target=user_id)
+    typed = body.confirm if body else None
+    if not (typed or "").strip():
+        raise _remove_refused(conn, request, principal, user_id, "confirm_required", 422, "factor_reset_confirm_required",
+                              factor_reset.CONFIRM_REQUIRED_HE, field="confirm")
+    if not factor_reset.confirm_matches(factor_reset.confirm_text(conn, user_id) or user_id, typed):
+        raise _remove_refused(conn, request, principal, user_id, "confirm_mismatch", 422, "factor_reset_confirm_mismatch",
+                              factor_reset.CONFIRM_MISMATCH_HE, field="confirm")
+    if factor_reset.passkey_last_admin_blocks(conn, user_id, pk_id, remote_on=factor_reset.remote_on(request)):
+        raise _remove_refused(conn, request, principal, user_id, "last_admin", 409, "factor_reset_last_admin", factor_reset.LAST_ADMIN_HE)
+    if factor_reset.resets_left(conn, principal.user_id) <= 0:
+        raise _remove_refused(conn, request, principal, user_id, "rate_limited", 429, "factor_reset_rate_limited", factor_reset.RATE_LIMITED_HE,
+                              limit=factor_reset.RATE_MAX, window_s=factor_reset.RATE_WINDOW_S)
+    proof = require_step_up(conn, request, principal, body.code if body else None, action=factor_reset.PASSKEY_ONCE_ACTION, target=user_id)
+    last = factor_reset.passkey_removal_leaves_no_factor(conn, user_id, pk_id)
     out = lpk.remove(conn, user_id, pk_id, actor=principal, by="admin", keep_chain=None, request_id=_rid(request))
-    audit(conn, actor=principal, action="identity.local.user.passkey_removed", decision="allowed", resource_type="user", resource_id=user_id,
-          request_id=_rid(request), details={"passkey": pk_id, "step_up": step_up, "sessions_ended": out["sessions_ended"]})
+    if last:  # the user's last sign-in factor went: as after a reset, the next sign-in enrols again (cleared by any new factor)
+        factor_reset.mark_must_enroll(conn, user_id, by=principal.user_id)
+        step_up.forget_user(user_id)  # no step-up proof outlives the last factor (as the reset and the own removal)
+    notify_sources.second_factor_changed(conn, user_id, "removed:passkey")  # MFA-FACTOR-HARDEN-2520 N-6: the user is told
+    notify_sources.second_factor_reset_by_admin(conn, user_id, remote=bool(is_remote(request)))  # and so are the managers (as the reset)
+    left = max(factor_reset.resets_left(conn, principal.user_id) - 1, 0)  # this removal's own audit row is written just below
+    audit(conn, actor=principal, action=factor_reset.PASSKEY_ACTION, decision="allowed", resource_type="user", resource_id=user_id,
+          request_id=_rid(request), details={"passkey": pk_id, "step_up": proof, "sessions_ended": out["sessions_ended"], "must_enroll": last,
+                                             "managers_notified": True, "reset_channel": factor_reset.channel(conn), "resets_left": left})
     if out["sessions_ended"]:
         li.close_sockets_from_thread()
-    return {"user_id": user_id, **out, **lpk.summary(conn, user_id)}
+    return {"user_id": user_id, **out, "must_enroll": last, "resets_left": left, **lpk.summary(conn, user_id)}
 
 
 # ---------------------------------------------------------------- Digital Asset Links (registered at the root in main.py)
@@ -354,5 +434,5 @@ def assetlinks(request: Request) -> Response:
     with request.app.state.db.connection(mode="read", label="assetlinks") as conn:
         statements = lpk.assetlinks(conn)
     if statements is None:
-        return JSONResponse({"code": "not_found", "user_message": "Not found", "retryable": False, "correlation_id": _rid(request) or "", "details": {}}, status_code=404)
+        return JSONResponse(ApiError(404, "not_found", "Not found").payload(_rid(request) or ""), status_code=404)  # ADR019-FAMILY678-2520: the one envelope
     return JSONResponse(statements, headers={"Cache-Control": "public, max-age=300"})

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..errors import ApiError, not_found
+from ..errors import ApiError, field_error, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..db import set_setting
 from ..services import backup as svc
@@ -24,6 +24,7 @@ from ..services import restore_safety
 from ._common import rid as _rid
 from ..wire import backup as W
 from ..wire import wire
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -63,13 +64,13 @@ def _sensitive_error(exc: sens.SensitiveError) -> ApiError:
     can_skip = exc.code in ("backup_password_required", "backup_password_wrong", "backup_sensitive_damaged")
     if exc.code == "backup_password_weak":  # the minimum in force (setting `backup.password_min`) is named in the message
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
-        return ApiError(422, exc.code, f"סיסמת הגיבוי צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n})
+        return ApiError(422, exc.code, tpl("סיסמת הגיבוי צריכה לפחות {n} תווים.", n=n), details={"can_skip": False, "min_chars": n})
     # OFFBOX-RESTORE-2300: the password of the pre-restore safety archive (refused before anything is written)
     if exc.code == "safety_password_weak":
         n = exc.min_chars or sens.PASSWORD_MIN_CHARS
-        return ApiError(422, exc.code, f"הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", details={"can_skip": False, "min_chars": n, "field": "safety_backup_password"})
+        return field_error(tpl("הסיסמה לגיבוי הביטחון צריכה לפחות {n} תווים.", n=n), ["safety_backup_password"], code=exc.code, legacy={"field": "safety_backup_password"}, extra={"can_skip": False, "min_chars": n})
     if exc.code == "safety_password_too_long":
-        return ApiError(422, exc.code, "הסיסמה לגיבוי הביטחון ארוכה מדי.", details={"can_skip": False, "field": "safety_backup_password"})
+        return field_error("הסיסמה לגיבוי הביטחון ארוכה מדי.", ["safety_backup_password"], code=exc.code, legacy={"field": "safety_backup_password"}, extra={"can_skip": False})
     return ApiError(422 if exc.code == "backup_password_too_long" else 409, exc.code,
                     SENSITIVE_MESSAGES.get(exc.code, "השחזור נדחה."), details={"can_skip": can_skip})
 
@@ -235,14 +236,20 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
             raise
     except sens.SensitiveError as exc:
         raise _sensitive_error(exc) from None
-    except ValueError as exc:
-        raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
+    except (ValueError, sqlite3.IntegrityError) as exc:
+        # CORE-01: a refused restore may have written rows already - an ApiError commits, so roll them back first (nothing restored)
+        from ..db import rollback_and_restart
+
+        rollback_and_restart(conn)
+        raise ApiError(409, "restore_refused", tpl("השחזור נדחה: {exc}", exc=exc))
     if safety:
         svc.prune(st)
     audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": scope, "tables": result["tables"], "files": result["files"],
+                   **({"dependents_dropped": result["dependents_dropped"]} if result.get("dependents_dropped") else {}),  # CORE-01
                    "safety": safety["name"] if safety else None,
                    **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {}),
                    "sensitive": {k: result["sensitive"][k] for k in ("state", "restored", "skipped", "plaintext_ignored")},
+                   **({"settings_invalid": result["settings_invalid"]} if result.get("settings_invalid") else {}),  # CORE-04
                    **({"passwords": {k: result["passwords"][k] for k in ("restored", "kept_current", "need_reset_count", "legacy_plaintext")}} if result.get("passwords") else {})})
     switch = result.get("update_apply_enabled") or {}
     # SEC246 L4: the self-update switch is never taken from an archive; its own audit row records what was kept and what the archive held

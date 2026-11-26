@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error, named_field_error
 from ..i18n import lang_of, localize, t
 from ..rbac import INSTALLATION, Principal, require
 from ..services import notifications_store as store
@@ -70,7 +70,7 @@ def _expected_revision(if_match: str | None, body_revision: Any) -> int | None:
         raw = raw.strip('"')
         if raw.isdigit():
             return int(raw)
-        raise ApiError(422, "validation", "If-Match חייב להיות מספר מהדורה.", details={"field": "If-Match"})
+        raise field_error("If-Match חייב להיות מספר מהדורה.", ["If-Match"], legacy={"field": "If-Match"})
     if isinstance(body_revision, int) and not isinstance(body_revision, bool):
         return body_revision
     return None
@@ -84,12 +84,12 @@ def list_notifications(request: Request, principal: Principal = Depends(current_
                        unread: bool = False, before: str | None = Query(None, max_length=40), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     """The caller's inbox, newest first (open critical safety rows pinned on top). `state=open` hides resolved rows."""
     if category and category not in policies.CATEGORIES:
-        raise ApiError(422, "validation", "קטגוריה לא מוכרת.", details={"field": "category"})
+        raise field_error("קטגוריה לא מוכרת.", ["category"], legacy={"field": "category"})
     if before:
         try:
             parse_utc(before)
         except ValueError:
-            raise ApiError(422, "validation", "before חייב להיות זמן UTC.", details={"field": "before"}) from None
+            raise field_error("before חייב להיות זמן UTC.", ["before"], legacy={"field": "before"}) from None
     return notify.list_for(conn, principal, state=state, category=category, severity_min=severity_min, unread=unread, before=before, limit=limit, data_dir=settings_of(request).data_dir)
 
 
@@ -313,7 +313,7 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), if_match: s
     try:
         stored, changed = nsettings.update(conn, body, principal.user_id, _expected_revision(if_match, body.get("base_revision", body.get("revision"))))
     except nsettings.SettingsInvalid as exc:
-        raise ApiError(exc.status, exc.code, exc.message, details=exc.details) from None
+        raise named_field_error(exc.status, exc.code, exc.message, exc.details) from None
     audit(conn, actor=principal, action="notify.settings.update", decision="allowed", resource_type="installation", resource_id="notify", request_id=_rid(request), details={"changed": changed})
     return nsettings.load(conn, settings_of(request))
 
@@ -359,7 +359,7 @@ def put_policy(source: str, request: Request, body: dict[str, Any] = Body(...), 
     try:
         cols = policies.validate_update(source, {k: v for k, v in body.items() if k not in ("source", "revision", "base_revision", "label", "subject_kind", "resolves")})
     except policies.PolicyInvalid as exc:
-        raise ApiError(422, exc.code, exc.message, details=exc.details) from None
+        raise named_field_error(422, exc.code, exc.message, exc.details) from None
     if cols:
         if not store.policy_exists(conn, source):
             policies.ensure_defaults(conn)
@@ -385,7 +385,7 @@ def put_email(request: Request, body: dict[str, Any] = Body(...), principal: Pri
     try:
         view, changed, pw = email_svc.update_email(conn, settings_of(request).data_dir, body, principal.user_id)
     except nsettings.SettingsInvalid as exc:
-        raise ApiError(exc.status, exc.code, exc.message, details=exc.details) from None
+        raise named_field_error(exc.status, exc.code, exc.message, exc.details) from None
     audit(conn, actor=principal, action="notify.email.update", decision="allowed", resource_type="installation", resource_id="notify.email", request_id=_rid(request),
           details={"changed": changed, "password_changed": pw})
     return view
@@ -415,10 +415,11 @@ def test_email(request: Request, body: dict[str, Any] | None = Body(None), princ
         raise ApiError(409, "channel_unavailable", "הדואר היוצא עדיין לא הוגדר.")
     to = (body or {}).get("to")
     if to is not None and (not isinstance(to, str) or to.lower() not in [a.lower() for a in cfg.recipients]):
-        raise ApiError(422, "email_invalid", "הבדיקה נשלחת רק לאחת מכתובות הנמענים שהוגדרו.", details={"field": "to"})
+        raise field_error("הבדיקה נשלחת רק לאחת מכתובות הנמענים שהוגדרו.", ["to"], code="email_invalid", legacy={"field": "to"})
     tz_name = _tz(conn)
+    langs = email_svc.address_langs(conn, cfg.recipients)  # NOTIFY-RECIPIENT-LANG-2520: each address in its matching user's language
     with unlocked(conn):  # the SMTP server is called without the request's write lock
-        ok, detail, delivered, total = email_svc.send_test(cfg, tz_name, to)
+        ok, detail, delivered, total = email_svc.send_test(cfg, tz_name, to, langs)
     nsettings.store_last_test(conn, ok, detail)
     audit(conn, actor=principal, action="notify.email.test", decision="allowed", resource_type="installation", resource_id="notify.email", request_id=_rid(request),
           details={"ok": ok, "detail": detail})
@@ -431,12 +432,12 @@ def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: s
     """Everyone's delivery log (masked targets): `status=failed` (or `failures`: failed and gone) for the failures panel."""
     _manager(conn, principal)
     if status is not None and status not in ("queued", "sent", "retry", "failed", "gone", "skipped", "failures"):
-        raise ApiError(422, "validation", "סטטוס לא מוכר.", details={"field": "status"})
+        raise field_error("סטטוס לא מוכר.", ["status"], legacy={"field": "status"})
     if since:
         try:
             parse_utc(since)
         except ValueError:
-            raise ApiError(422, "validation", "since חייב להיות זמן UTC.", details={"field": "since"}) from None
+            raise field_error("since חייב להיות זמן UTC.", ["since"], legacy={"field": "since"}) from None
     rows = store.all_deliveries(conn, status, channel, since, limit)
     return {"deliveries": [_delivery(conn, r) for r in rows]}
 

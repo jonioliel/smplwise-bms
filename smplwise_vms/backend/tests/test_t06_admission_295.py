@@ -229,7 +229,13 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
                        # feed's socket, pinned in test_wiskey_event_cursor_2400.py::test_the_signed_sender_carries_only_the_resume_command_with_cursor_and_limit;
                        # WISKEY-WA-QUEUE-2400 - the template registry / send_v3 over the direct join's signed port, only while the join selects
                        # the command (wiskey_wa_queue.DIRECT_COMMANDS), pinned in test_wiskey_wa_queue_2400.py
-                       "wiskey_event_resume.py", "wiskey_wa_queue.py"}, callers
+                       "wiskey_event_resume.py", "wiskey_wa_queue.py",
+                       # 2.52.0 train (RELEASE-2520-TRAIN, reviewed at the merge of VIDEO-SECFIX-2520 on the lead's request):
+                       # WISKEY-SCHED-READS-2520 - only through the installed direct join's own session (JoinPort.call ->
+                       # join.session.call, the reviewed direct-transport path), and port.call carries only its two pinned READS
+                       # COMMANDS = (schedules/read_start_v1, schedules/read_status_v1), each only when discovery declares the
+                       # wiskey-schedule-reads.v1 contract for it (JoinPort.support)
+                       "wiskey_schedule_reads.py"}, callers
 
 
 def test_the_2400_signing_callers_send_only_their_pinned_commands():

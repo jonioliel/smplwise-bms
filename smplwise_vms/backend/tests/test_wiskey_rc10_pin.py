@@ -178,6 +178,16 @@ ASKED_NOT_IN_RC10: dict[str, tuple[str, str]] = {
     "visits/record_external_v1": ("visits_push", "WISKEY-VISITS-2407: the record of an Arx invitation in WisKey - the ask in "
                                   "docs/changes/WISKEY-VISITS-2407.md section 4; off by default (access.visitors.wiskey_push) and "
                                   "offered only when WisKey's discovery lists the command"),
+    # WISKEY-RESYNC-2520: numbered wires WisKey delivered in 2.0.1-rc.19 (PRODUCT 3e7bfc585, not in rc.10). Each sits on its own unpinned
+    # channel and is sent only when WisKey's discovery lists it (an rc.10 install answers `unsupported`, nothing is sent).
+    "system/status_v1": ("system_status", "WISKEY-RESYNC-2520: rc.19 contract docs/contracts/system-status-v1 (wiskey-system-status.v1), "
+                         "READ; services/wiskey_system_status.py, discovery-gated"),
+    "jobs/status_v1": ("system_status", "WISKEY-RESYNC-2520: rc.19 contract docs/contracts/checkpoint-jobs-status-v1 "
+                       "(wiskey-checkpoint-jobs-status.v1), READ; services/wiskey_system_status.py, discovery-gated"),
+    "stations/relay_inventory_v1": ("relay_inventory", "WISKEY-RESYNC-2520: rc.19 relay inventory READ (stations: view); channel reserved "
+                                    "for WISKEY-RELAY-INV-2520, no module sends on it yet"),
+    "sync/station_v1": ("station_sync_v1", "WISKEY-RESYNC-2520: rc.19 contract docs/contracts/station-sync-request-v1; channel reserved "
+                        "for WISKEY-SYNC-V1-2520, no module sends on it yet"),
 }
 
 

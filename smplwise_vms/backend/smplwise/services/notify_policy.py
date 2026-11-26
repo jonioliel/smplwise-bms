@@ -236,6 +236,13 @@ SOURCES: tuple[Source, ...] = (
     # (inbox, web push, the app); never the secret, the passkey or its label. The phone key has its own notice above.
     _s("security.second_factor_added", "דרך אימות נוספה לחשבון", "security", "alert", "דרך אימות נוספה לחשבון", "נוספה לחשבון שלך דרך אימות: {name}. אם לא אתה הוספת אותה - הסר אותה ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
     _s("security.device_key_added", "מפתח טלפון נוסף לחשבון", "security", "alert", "מפתח טלפון נוסף לחשבון", "נוסף לחשבון שלך מפתח טלפון לאימות. אם לא אתה הוספת אותו - הסר אותו ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session", resolves=False, app=True),
+    # MFA-FACTOR-HARDEN-2520 (review MFA-REVIEW-2520 N-6, owner-approved): a factor of the account was removed, a new batch of recovery
+    # codes was made, or someone signed in with a recovery code - the account's own user is told on every device (inbox, web push, the
+    # app), as for a factor added. Content-free: what happened only (notify_sources.FACTOR_CHANGES_HE) - never a code, a label, a key or
+    # who did it (the audit row says that).
+    _s("security.second_factor_changed", "שינוי בדרכי האימות של החשבון", "security", "alert", "שינוי בדרכי האימות של החשבון",
+       "{change}. אם זה לא היה אתה - בדוק את דרכי האימות ב״החשבון שלי״ ופנה למנהל המערכת.", window_s=3600, who="initiator", subject="session",
+       resolves=False, app=True),
     # APPREFRESH3-295 (owner Q297): an administrator approved a reset of the user's phone-app device key - the device's own user is told in
     # the app and on the phone; the title / body are the wording kept in the Settings (security.app_refresh_key_reset_notice_*), rendered
     # by services/app_refresh before the signal (never the administrator, the reason or key material)
@@ -335,7 +342,8 @@ from .tickets import notify_sources as _ticket_sources  # noqa: E402 - CR-038 sl
 SOURCES = SOURCES + tuple(Source(**kw) for kw in _ticket_sources.source_kwargs())
 # I18N-BACKEND-2490: a source's settings label is a `Msg` (smplwise/i18n.py; services/notify_policy_text.py) - its string value is the
 # Hebrew label declared above, byte for byte, and the policy screens (routers/notifications.py) render it in the reader's interface
-# language. Titles, bodies and resolve texts stay plain Hebrew: they are written into the notification and sent (push, e-mail, app).
+# language. Titles, bodies and resolve texts stay plain Hebrew in the stored row; the centre and the push / e-mail / app deliveries render
+# them in the reader's or recipient's language from the stored params (I18N-REST-2520, NOTIFY-RECIPIENT-LANG-2520).
 SOURCES = tuple(replace(s, label=msg(f"notify.label.{s.key}")) if f"notify.label.{s.key}" in CATALOGUE and CATALOGUE[f"notify.label.{s.key}"]["he"] == s.label else s
                 for s in SOURCES)
 class _ByKey(dict):  # type: ignore[type-arg]
@@ -362,22 +370,57 @@ class _ByKey(dict):  # type: ignore[type-arg]
 BY_KEY: dict[str, Source] = _ByKey({s.key: s for s in SOURCES})
 
 
+def base_key(source: Any) -> Any:
+    """The catalogue key of a source: a per-generator `generator.<type>@<generator id>` is its type's key; any other key is itself."""
+    return _ByKey._base(source)
+
+
 class _Safe(dict):
     def __missing__(self, key: str) -> str:
         return ""
 
 
-def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
-    """(title, body) of a source from its template and the signal's params; each clipped to the contract's lengths."""
+# NOTIFY-LANG-SENDERS-2520: a reserved param holding, per language, the values of other params that are wording rather than names (a
+# calendar entry's day and time: "יום ב׳ 03.12" / "Mon 03.12"), e.g. {"_i18n": {"en": {"when": "Mon 03.12 10:00–11:00"}}}. Used only when
+# rendering in that language and only for a param the signal also has; the Hebrew render never reads it (the stored row is as before).
+I18N_PARAM = "_i18n"
+
+
+def _overlay(p: _Safe, params: dict[str, Any], lang: str) -> None:
+    over = params.get(I18N_PARAM)
+    over = over.get(lang) if isinstance(over, dict) else None
+    if isinstance(over, dict):
+        p.update({k: str(v) for k, v in over.items() if k in params and k != I18N_PARAM and isinstance(v, (str, int, float))})
+
+
+def render(source: str, params: dict[str, Any], lang: str = "he") -> tuple[str, str]:
+    """(title, body) of a source from its template and the signal's params; each clipped to the contract's lengths.
+    I18N-REST-2520: `lang="en"` renders with the English templates of services/notify_policy_en.py (a source without them, or a body
+    built from the signal's own `_template`, stays Hebrew); the default is the Hebrew the row stores and every channel sends.
+    NOTIFY-LANG-SENDERS-2520: in another language a param's own value in that language (`I18N_PARAM`) replaces the Hebrew one."""
     s = BY_KEY.get(source)
     p = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
     if s is None:
         return _clip(str(params.get("title") or source), 80), _clip(str(params.get("body") or ""), 180)
+    title_t, body_t, label = s.title, s.body, s.label
+    if lang != "he":
+        from .notify_policy_en import PARAM_VALUES_EN, TEMPLATES_EN
+
+        en = TEMPLATES_EN.get(base_key(source))  # NOTIFY-RECIPIENT-LANG-2520: a per-generator source reads its alert type's English
+        if en is not None:
+            _overlay(p, params, lang)  # only with the language's own template: never an English value inside a Hebrew sentence
+            title_t, label = en[0], en[0]
+            if not params.get("_template"):
+                body_t = en[1]
+            # RELEASE-2520-TRAIN: a fixed Hebrew phrase the source itself put in a placeholder gets its English (names stay as written)
+            for k, values in PARAM_VALUES_EN.get(base_key(source), {}).items():
+                if p.get(k) in values:
+                    p[k] = values[p[k]]
     try:
-        body = (str(params.get("_template")) if params.get("_template") else s.body).format_map(p)  # CR-031: a generator alert may carry its own body template
+        body = (str(params.get("_template")) if params.get("_template") else body_t).format_map(p)  # CR-031: a generator alert may carry its own body template
     except (ValueError, IndexError, KeyError):
-        body = s.body.format_map(p)
-    return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
+        body = body_t.format_map(p)
+    return _clip(title_t.format_map(p) or label, 80), _clip(body, 180)
 
 
 _clip = values.clip  # CR-BE-SMALL-UNIFY-2440 (review 04:F24): was a word-for-word copy

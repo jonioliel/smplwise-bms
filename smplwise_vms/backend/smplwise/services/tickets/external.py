@@ -28,7 +28,7 @@ import datetime as dt
 from typing import Any, Protocol
 
 from ...audit import audit
-from ...errors import ApiError
+from ...errors import ApiError, field_error
 from . import access, assignees, codes as codes_mod, device_context, handler_links, links, model, naming, notify_bridge, org_locations, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
@@ -182,7 +182,7 @@ def _check_location_nav(conn, ticket: dict[str, Any], wanted: bool | None) -> bo
     if not wanted:
         return False
     if not org_locations.has_coordinates(org_locations.parse_snapshot(ticket.get("location_snapshot"))):
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "location_nav", "code": "no_coordinates"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "location_nav", "code": "no_coordinates"}])
     return True
 
 
@@ -281,7 +281,7 @@ def set_access_needed(conn, viewer: Viewer, seen: Seen, *, value: bool, revision
     link_row = _current_link(conn, seen)
     aid = link_row["assignment_id"]
     contact = store_links.contact(conn, link_row["contact_id"]) or {}
-    bad = ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
+    bad = field_error(text(conn, "ערך לא תקין."), problems=[{"field": "access_needed", "code": "not_allowed"}])
     if link_row.get("kind") == "staff" or access_arrival.is_rfq_order(conn, aid) or not _access_needed_available(conn, contact):
         raise bad
     now_dt = handler_links.now_utc()
@@ -377,22 +377,22 @@ def assign_contact(conn, viewer: Viewer, seen: Seen, contact_id: str, *, note: s
     _code_check(conn, contact, req)
     hist = history_option(conn, row, contact, vendor)
     if share_history and not hist["available"]:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "share_history", "code": "not_allowed"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "share_history", "code": "not_allowed"}])
     share = hist["default"] if share_history is None else bool(share_history)
     nav = _check_location_nav(conn, row, location_nav)  # CR-ORG-LOCATIONS: after the permission gates, before any write
     if access_needed and not _access_needed_available(conn, contact):  # GRANTS3-295: before any write
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "access_needed", "code": "not_allowed"}])
     from . import costs  # S9 (D32): the cost claim requirement of THIS assignment, preselected vendor -> department -> installation
 
     if cost_claim is not None and cost_claim not in costs.MODES:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "cost_claim", "code": "unknown"}]})
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": "cost_claim", "code": "unknown"}])
     claim_mode = cost_claim or costs.preselected_mode(conn, contact=contact, vendor=vendor, department=dept)[0]
     if assignees.is_staff(contact):
         claim_mode = "off"  # 2.5.8 review F4 (lead decision, fail closed): no cost claim / quote for a staff contact, whatever was sent
     try:
         note_text = model.text_field(note, "note", required=False, max_len=model.NOTE_MAX, multiline=True)
     except model.Invalid as exc:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]}) from None
+        raise field_error(text(conn, "ערך לא תקין."), problems=[{"field": p.field, "code": p.code} for p in exc.problems]) from None
     now_dt = handler_links.now_utc()
     now = handler_links.iso(now_dt)
     channel = DISPATCH.channel(conn, contact)

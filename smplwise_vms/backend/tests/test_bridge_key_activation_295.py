@@ -317,7 +317,7 @@ def test_hkdf_matches_the_add_on_and_the_bridge_files_are_mirrored():
     assert keyset_mod.derive_next("k-cur", salt, "g1-0000abcd", 1) == bk.derive_next("k-cur", salt, "g1-0000abcd", 1)
     mirror = ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"
     assert (mirror / "keyset.py").read_bytes() == (BRIDGE / "keyset.py").read_bytes()
-    assert json.loads((BRIDGE / "manifest.json").read_text())["version"] == "0.10.8"
+    assert json.loads((BRIDGE / "manifest.json").read_text())["version"] == "0.10.9"
 
 
 def test_bridge_cap_hard_cut_and_restart_cap():
@@ -636,11 +636,19 @@ def test_ha06_the_retired_pairing_code_is_blanked_with_the_save_and_at_setup():
     import asyncio
 
     clock = Clock()
-    # a restart between the key save and the entry update: the saved state has retired the code, the entry still holds it
+    # a restart between the key save and the entry update: the saved state has retired the code (with its one-way tag, K-02), the entry
+    # still holds it
     entry = _Entry("L")
-    saver = entry.persister(keyset_mod.KeySet("L", RETIRED, now=clock, mono=clock))
+    saver = entry.persister(keyset_mod.KeySet("L", {**RETIRED, "legacy_fp": keyset_mod.legacy_fingerprint("L")}, now=clock, mono=clock))
     assert saver.clean_entry() is True and entry.code == "" and entry.wipes == 1
     assert saver.clean_entry() is False and entry.wipes == 1, "idempotent"
+    # BRIDGE-REPAIR-LEGACY-2520 (WB-02): a state WITHOUT the tag (Arx 2.11.0 - 2.14.0 wrote it so) cannot recognise its retired code: a
+    # code in the entry is a re-pair (a fresh key set on it), and nothing is blanked - blanking it used to undo the re-pair
+    entry = _Entry("L")
+    ks = keyset_mod.KeySet("L", RETIRED, now=clock, mono=clock)
+    saver = entry.persister(ks)
+    assert ks.repaired and ks.keys == {} and ks.legacy == "L" and not ks.legacy_retired
+    assert saver.clean_entry() is False and entry.code == "L" and entry.wipes == 0
     # a live retirement: never blanked before the save succeeded, blanked right after it
     ks = keyset_mod.KeySet("L", {**RETIRED, "keys": {"g1-0badc0de": "K1"}, "old": "g0-legacy", "legacy_retired": False}, now=clock, mono=clock)
     entry = _Entry("L", fail_saves=1)

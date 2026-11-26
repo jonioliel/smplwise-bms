@@ -19,6 +19,7 @@ from ..config import Settings
 from ..errors import ApiError
 from .nvr import _client, _get
 from .nvr_write import _put, _record, apply_change
+from ..error_text import tpl
 
 TIME_PATH = "/ISAPI/System/time"
 NTP_PATH = "/ISAPI/System/time/ntpServers/1"
@@ -159,7 +160,7 @@ def sync_clock(settings: Settings, conn: sqlite3.Connection, principal: Any, *, 
                          mutate=lambda x: time_document(x, mode=final, at=None), note=f"מצב שעון: {final}", request_id=request_id, client=c, keep_before=False)
         if drift is not None and abs(drift) > CLOCK_VERIFY_S:
             audit(conn, actor=principal, action="nvr.clock.verify_failed", decision="denied", resource_type="nvr", resource_id="clock", request_id=request_id, details={"drift_s": drift})
-            raise ApiError(502, "clock_verify_failed", f"אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", details={"drift_s": drift})
+            raise ApiError(502, "clock_verify_failed", tpl("אחרי הסנכרון שעון ה־NVR סוטה ב־{drift} שניות. בדקו את השעון במסך המערכת; במצב NTP הוא יתוקן בסנכרון הבא.", drift=drift), details={"drift_s": drift})
     finally:
         if own:
             c.close()
@@ -239,10 +240,11 @@ def osd_document(xml: str, *, name_enabled: bool | None, datetime_enabled: bool 
 
 
 def set_channel_name(settings: Settings, conn: sqlite3.Connection, principal: Any, channel: int, name: str, *, request_id: str | None = None,
-                     client: httpx.Client | None = None) -> dict[str, Any]:
-    """The camera's name on the NVR (and so on its OSD) becomes the VMS name; the InputProxy document is written back as read."""
+                     client: httpx.Client | None = None, camera_id: str | None = None) -> dict[str, Any]:
+    """The camera's name on the NVR (and so on its OSD) becomes the VMS name; the InputProxy document is written back as read.
+    `camera_id` (VIDEO-SECFIX-2520): recorded on the change row, so its undo keeps the camera scope."""
     return apply_change(settings, conn, principal, kind="osd", permission="nvr.config.osd", target=f"name-{channel}", path=proxy_channel_path(channel),
-                        mutate=lambda x: set_tag(x, "name", name), note=f"שם ערוץ {channel}: {name}", request_id=request_id, client=client)
+                        mutate=lambda x: set_tag(x, "name", name), note=f"שם ערוץ {channel}: {name}", request_id=request_id, client=client, camera_id=camera_id)
 
 
 # ---------------------------------------------------------------- A3: alarm outputs

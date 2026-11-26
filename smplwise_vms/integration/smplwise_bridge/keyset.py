@@ -116,10 +116,18 @@ class KeySet:
         self.legacy_fp: str | None = fp if isinstance(fp, str) and FP_RE.fullmatch(fp) else None
         self.repaired = False
         stored_keys = st.get("keys") if isinstance(st.get("keys"), dict) else {}
-        if (st.get("legacy_retired") and legacy and self.legacy_fp is not None
-                and not hmac.compare_digest(legacy_fingerprint(legacy), self.legacy_fp) and legacy not in stored_keys.values()):
+        code = legacy if isinstance(legacy, str) and legacy else None
+        if st.get("legacy_retired") and code is not None and code not in stored_keys.values() and (
+                self.legacy_fp is None or not hmac.compare_digest(legacy_fingerprint(code), self.legacy_fp)):
             # K-02: the entry holds a pairing code that is neither the retired one nor a key of the set - a NEW pairing (Supervisor discovery
             # wrote the regenerated code into this same entry). The old key set belongs to the old pairing: start a fresh one on the new code.
+            # BRIDGE-REPAIR-LEGACY-2520 (WB-02): a retired state WITHOUT the one-way tag of its retired code - the store format Arx 2.11.0 -
+            # 2.14.0 wrote (the tag exists since 2.15.0, KEYROT-FIX-295), or a damaged tag - cannot recognise its retired code, so any code
+            # in the entry is taken as a new pairing too (fail closed: the old keys never verify again). The one case this gives up is the
+            # retired code left in the entry by a restart between the key save and the entry update (HA-06) of such an old state: every
+            # setup on a bridge of 2.12.2 or later blanked it (`Persister.clean_entry`); a bridge that jumps from 2.12.1 or older straight
+            # to this rule with it still in the entry starts on that code - the add-on signs with the rotated key, so it must be paired
+            # again (availability only, never an old key).
             st, self.legacy_fp, self.repaired = {}, None, True
         self.legacy_retired = bool(st.get("legacy_retired"))
         self.legacy = None if self.legacy_retired or not legacy else legacy
@@ -373,6 +381,42 @@ class KeySet:
         return self._answer("status", msg, True, rotation=state, active_kid=self.signing, old_key_present=self.old is not None)
 
 
+PAIRING_CHANGED = "pairing_changed"
+
+
+class PairingFence:
+    """BRIDGE-REPAIR-LEGACY-2520 (WB-07): the verifier of the bridge's OWN signed services (execute, schedule, config_item, the cast
+    origin, the lease services) and the gate of `rotate`. The same "same pairing" rule as WisKey's native path (`native_keyset`,
+    `bridge_pairing_changed`), read live on every call through `same_pairing`: once the entry carries another pairing than this setup's key
+    set belongs to (a re-pair written into the entry, before the update listener's reload replaced the setup), nothing of the old key set
+    verifies - refused BEFORE the key set's check, so no nonce is cached and no high-water mark moves. Stateless: the same pairing written
+    back is current again. A predicate that raises counts as changed (fail closed). The key set's own verify is untouched."""
+
+    __slots__ = ("_keyset", "_same")
+
+    def __init__(self, keyset: KeySet, same_pairing: Callable[[], bool]) -> None:
+        self._keyset, self._same = keyset, same_pairing
+
+    def __repr__(self) -> str:  # never the key set
+        return "<keyset pairing fence>"
+
+    def current(self) -> bool:
+        try:
+            return self._same() is True
+        except Exception:  # noqa: BLE001 - an entry that cannot be read is not the same pairing
+            return False
+
+    def verify(self, message: dict[str, Any], now: float | None = None) -> str | None:
+        """The `Verifier.verify` interface: `pairing_changed` for a voided pairing, else the key set's own verdict."""
+        if not self.current():
+            return PAIRING_CHANGED
+        return self._keyset.verify(message, now)
+
+    def verifiable(self) -> set[str]:
+        """The key ids the key set accepts (none for a voided pairing); the lease contract tries them for a kid-less lease message."""
+        return self._keyset.verifiable() if self.current() else set()
+
+
 class Persister:
     """Saving the key set (the Home Assistant glue in `__init__.py` hands in the Store's save and the config entry's pairing-code copy).
 
@@ -381,7 +425,13 @@ class Persister:
       delayed save leaves the set dirty and the next message or the periodic housekeeping retries it (it used to be marked clean at once).
     - HA-06: the config entry's copy of the pairing code is blanked right after the save that retired it AND, idempotently, whenever the
       saved state says the pairing secret is retired but the entry still holds it (`clean_entry()`, also called at setup) - so a restart
-      between the two writes no longer leaves the retired code in the entry."""
+      between the two writes no longer leaves the retired code in the entry. BRIDGE-REPAIR-LEGACY-2520 (WB-02): only that retired code,
+      recognised by its saved one-way tag, is blanked - never a new pairing code (a re-pair) and never anything without a tag.
+    - WISKEY-BRIDGE-KEYSET-2520 (bridge 0.10.9): one save at a time (an asyncio lock: a second `persist()` used to return at once while
+      the first save was still running, so "persist returned" did not mean "saved"); `saved_through(kid, ts)` tells whether the STORE
+      holds a high-water mark of at least `ts` for `kid` (native_keyset admits a WisKey v2 message only then); `control(msg)` is the
+      rotation service's write-ahead step (handle the op, save, go back to the saved state if the save fails), moved here from
+      `__init__.rotate` unchanged so that path and native_keyset share one lock."""
 
     def __init__(self, keyset: KeySet, save: Callable[[dict[str, Any]], Awaitable[None]], entry_code: Callable[[], str],
                  wipe_entry_code: Callable[[], None], spawn: Callable[[Awaitable[None]], Any], *, delay_s: float = SAVE_DELAY_S,
@@ -390,27 +440,66 @@ class Persister:
         self._spawn, self._delay, self._sleep, self._on_error = spawn, delay_s, sleep, on_error
         self._pending = False
         self._saved_retired = keyset.legacy_retired  # what the store holds (loaded at setup, then every successful save)
+        self._saved_fp = keyset.legacy_fp  # the same for the retired code's one-way tag (BRIDGE-REPAIR-LEGACY-2520)
+        self._saved_hw: dict[str, int] = {} if keyset.dirty else dict(keyset.hw)  # the same for the high-water marks
+        self._lock: asyncio.Lock | None = None
+        self._lock_loop: Any = None
 
     def clean_entry(self) -> bool:
-        """Blank the entry's pairing-code copy when the SAVED state has retired the pairing secret. True when it blanked it."""
+        """Blank the entry's pairing-code copy when the SAVED state has retired the pairing secret AND the entry still holds that retired
+        code. True when it blanked it.
+
+        BRIDGE-REPAIR-LEGACY-2520 (WB-02): only the retired code itself, recognised by the key set's one-way tag (`legacy_fp`), is ever
+        blanked. Any other value - a new pairing code written by a re-pair, or anything when the key set has no tag (the 2.11.0 - 2.14.0
+        format) - stays: blanking it used to undo the re-pair (the reloaded setup then saw a blank entry and kept the old key set). That
+        happened at setup for a tag-less state, and for every state when a save (the delayed high-water save, the unload's flush) ran
+        between the re-pair's entry write and the reload."""
         self.keyset.legacy_wiped = False
-        if self._saved_retired and self._entry_code():
+        code, tag = self._entry_code(), self._saved_fp
+        if (self._saved_retired and isinstance(code, str) and code and isinstance(tag, str) and FP_RE.fullmatch(tag)
+                and hmac.compare_digest(legacy_fingerprint(code), tag)):
             self._wipe()
             return True
         return False
 
+    def _guard(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:  # one lock per event loop (Home Assistant has one; unit tests make several)
+            self._lock, self._lock_loop = asyncio.Lock(), loop
+        return self._lock
+
     async def persist(self) -> None:
-        if not self.keyset.dirty:
-            return
-        self.keyset.dirty = False
-        state = self.keyset.state()
+        async with self._guard():
+            if not self.keyset.dirty:
+                return
+            self.keyset.dirty = False
+            state = self.keyset.state()
+            try:
+                await self._save(state)
+            except BaseException:
+                self.keyset.dirty = True
+                raise
+            self._saved_retired = bool(state.get("legacy_retired"))
+            self._saved_fp = state.get("legacy_fp")
+            self._saved_hw = dict(state.get("hw") or {})
+            self.clean_entry()
+
+    def saved_through(self, kid: str, ts: int) -> bool:
+        """The last successful save holds a high-water mark >= `ts` for `kid` (a restart then refuses every message of `kid` up to `ts`)."""
+        mark = self._saved_hw.get(kid)
+        return isinstance(mark, int) and not isinstance(ts, bool) and isinstance(ts, int) and mark >= ts
+
+    async def control(self, msg: Any, now: float | None = None) -> dict[str, Any]:
+        """One signed key-rotation control message -> the signed answer, saved BEFORE the answer leaves (write-ahead); if the save fails
+        the in-memory state goes back to the saved one and the error propagates (the add-on asks `status` and recovers)."""
+        saved = self.keyset.state()
+        answer = self.keyset.handle_control(msg, now)
         try:
-            await self._save(state)
-        except BaseException:
-            self.keyset.dirty = True
+            await self.persist()
+        except Exception:  # the step did not happen as far as the add-on can tell
+            self.keyset.reload(saved)
             raise
-        self._saved_retired = bool(state.get("legacy_retired"))
-        self.clean_entry()
+        return answer
 
     def save_soon(self) -> None:
         if not self.keyset.dirty or self._pending:

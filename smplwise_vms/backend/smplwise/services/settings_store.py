@@ -14,6 +14,7 @@ from typing import Any
 from ..db import get_setting, get_settings_many
 from ..errors import ApiError
 from . import app_download, area_row, automation_settings, brand_colors, home_screen, home_screen_options, intercom_authority, look, media_layout, mobile_options, nav_size, dd_style, palettes, plan_bakes, plan_view, tabs_mode, timeline_colors, xs_options
+from ..error_text import tpl
 
 DEFAULTS: dict[str, str] = {
     # auto | webrtc | mse. Automatic by default (owner decision 2026-10-05, supersedes the MSE default of 2026-09-14):
@@ -424,6 +425,10 @@ DEFAULTS: dict[str, str] = {
     # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not
     # count). System administrators only; audited; never restored from a backup.
     "security.passkeys_all_users": "on",
+    # MFA-HA-PASSKEY-2520 (services/passkey_sign_in.py): on = a home-system user's passkey that counts is a remote sign-in factor in the
+    # browser (asked like the authenticator code at every new remote sign-in, and it satisfies the sign-in factor policy); off (default)
+    # = the behaviour of before (the passkey is a step-up method only). system.configure; audited `settings.update`; never restored.
+    "security.passkey_remote_factor": "off",
     # MFA-POLICY-2490 (services/factor_policy.py; design full-2fa-t095 4.1): WHO must show a second factor at a remote sign-in -
     # optional (nobody by this policy) | admins | sensitive | all; mode report (default: evaluated and shown in the compliance view,
     # never refuses - the owner: nobody without a factor is locked out until he switches it on) | enforce; wall-panel users exempt
@@ -621,6 +626,15 @@ PRIVATE_KEYS = ("site.latitude", "site.longitude",  # SEC247 I3: the manual site
                 "cameras.discovery_allowed_ranges")  # ONVIF-API-2500: the camera-scan ranges describe the site's network
 
 
+def _int_or_default(value: Any, default: str) -> int:
+    """DEEP-REVIEW-2520-BACKEND-CORE CORE-04: an integer setting whose stored text does not parse (a damaged or hand-edited row)
+    reads as its default - never a ValueError that breaks GET /settings and every housekeeping pass."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[str, Any]:
     """Every setting with its stored value read back. `private` keeps PRIVATE_KEYS in the answer - only for a caller that
     holds system.configure (the settings screen); every other listing (GET /settings of a viewer, GET /cameras `media`,
@@ -629,7 +643,7 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     stored = get_settings_many(conn, DEFAULTS)  # PERF-HOME-DEVICES-2342: one read for every key, not one SELECT per key
     for key, default in DEFAULTS.items():
         value = stored.get(key, default) or default
-        out[key] = int(value) if key in INT_KEYS else value
+        out[key] = _int_or_default(value, default) if key in INT_KEYS else value
     if out.get("access.external.placement") not in ("access", "tickets", "both"):  # SHAREDID-293: a corrupt value never moves the screen
         out["access.external.placement"] = "access"
     if out.get("access.settings_layout") not in ("cards", "accordion", "tabs", "list"):  # SETTINGS-INTERCOM-CARDS-2401 / -ACCORDION-2402: a corrupt value reads as the default
@@ -818,12 +832,12 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
     422 for a non-object, unknown keys, non-slug ids, non-list / non-string entries, a style outside the allow-list or a
     size over the caps."""
     def bad(msg: str) -> ApiError:
-        return ApiError(422, "validation", f"סדר הלשוניות: {msg}", details={"ui.tabs": msg})
+        return ApiError(422, "validation", tpl("סדר הלשוניות: {msg}", msg=msg), details={"ui.tabs": msg})
 
     if not isinstance(value, dict):
         raise bad("חייב להיות אובייקט של מקטעים.")
     if len(value) > TABS_MAX_SECTIONS:
-        raise bad(f"עד {TABS_MAX_SECTIONS} מקטעים.")
+        raise bad(tpl("עד {tabs_max_sections} מקטעים.", tabs_max_sections=TABS_MAX_SECTIONS))
     out: dict[str, Any] = {}
     for section, cfg in value.items():
         if not isinstance(section, str) or not TABS_SLUG.fullmatch(section):
@@ -849,7 +863,7 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
         for name in ("order", "hidden"):
             items = cfg.get(name, [])
             if not isinstance(items, list) or len(items) > TABS_MAX_PER_LIST:
-                raise bad(f"{name} חייב להיות רשימה של עד {TABS_MAX_PER_LIST} מזהים.")
+                raise bad(tpl("{name} חייב להיות רשימה של עד {tabs_max_per_list} מזהים.", name=name, tabs_max_per_list=TABS_MAX_PER_LIST))
             seen: list[str] = []
             for tab in items:
                 if not isinstance(tab, str) or not TABS_SLUG.fullmatch(tab):
@@ -889,4 +903,4 @@ def setting_value(conn: sqlite3.Connection, key: str) -> Any:
         raise KeyError(key)
     default = DEFAULTS[key]
     value = get_setting(conn, key, default) or default
-    return int(value) if key in INT_KEYS else value
+    return _int_or_default(value, default) if key in INT_KEYS else value

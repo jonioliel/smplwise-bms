@@ -29,6 +29,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import confirm_words
 from ..services import wiskey_installer as wi
 from .access_control import CommandEnvelope, _Action, _envelope, _parse
+from ..error_text import tpl
 
 PERMISSION = "system.configure"
 INSTALLATION_TARGET = "*"
@@ -65,9 +66,9 @@ def error_for(op: wi.Op, what: str, exc: ApiError) -> ApiError:
     if outcome == "not_sent":
         return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=details)
     if outcome == "refused":
-        return ApiError(502, "installer_refused", f"{what} - WisKey דחה את הפעולה ({code}). לא בוצע שינוי.", details=details)
+        return ApiError(502, "installer_refused", tpl("{what} - WisKey דחה את הפעולה ({code}). לא בוצע שינוי.", what=what, code=code), details=details)
     return ApiError(504, "installer_outcome_unknown",
-                    f"{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהשינוי בוצע - טענו מחדש את המצב ובדקו אותו לפני שמנסים שוב.", details=details)
+                    tpl("{what} נשלח, אך לא התקבלה תשובה ברורה ({code}). ייתכן שהשינוי בוצע - טענו מחדש את המצב ובדקו אותו לפני שמנסים שוב.", what=what, code=code), details=details)
 
 
 class Write:
@@ -83,7 +84,7 @@ class Write:
         body = _parse(self.act, model, raw)
         self.not_after = _envelope(self.act, body)
         if body.confirmed is not True:
-            raise self.refuse(409, "confirmation_required", f"{self.what} דורש אישור מפורש.")
+            raise self.refuse(409, "confirmation_required", tpl("{what} דורש אישור מפורש.", what=self.what))
         return body
 
     def refuse(self, status: int, code: str, message: str, **details: Any) -> ApiError:
@@ -102,7 +103,7 @@ class Write:
                 self.act.details["confirm_word"] = lang
                 return
         if not wi.typed_ok(expected, body.typed_confirmation):
-            raise self.refuse(409, "typed_confirmation_required", f"כדי לבצע {self.what} יש להקליד בדיוק: {expected}", expected=expected)
+            raise self.refuse(409, "typed_confirmation_required", tpl("כדי לבצע {what} יש להקליד בדיוק: {expected}", what=self.what, expected=expected), expected=expected)
 
     def _admit(self) -> None:
         limited = wi.LIMITS.admit(self.act.principal.user_id, self.op, self.target)
@@ -198,7 +199,7 @@ def station_for_write(w: Write, station_id: str, require_online: bool = True) ->
         raise w.refuse(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey.")
     w.act.details["station_name"] = station.get("name")
     if require_online and not station.get("online"):
-        raise w.refuse(409, "intercom_station_offline", f"העמדה {station.get('name')} אינה מחוברת כרגע, ולכן הפעולה לא נשלחה.")
+        raise w.refuse(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת כרגע, ולכן הפעולה לא נשלחה.", name=station.get('name')))
     return station
 
 

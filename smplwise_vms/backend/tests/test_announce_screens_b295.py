@@ -241,12 +241,22 @@ def test_a_media_screen_linked_to_a_board_is_addressed_by_its_device_key(world):
 
 # ---------------------------------------------------------------------------------------------------- quiet hours, emergency, rate limit, audit
 
+def _quiet_around(now: dt.datetime) -> tuple[str, str]:
+    """GATE-HARDEN-2520 (TR-11): a quiet window that surely holds the test clock - two hours either side of it in the installation
+    zone (it may cross midnight). The fixed 00:00-23:59 left 23:59 local outside the window (`start <= hm < end`)."""
+    from zoneinfo import ZoneInfo
+
+    loc = now.astimezone(ZoneInfo("Asia/Jerusalem"))
+    return (loc - dt.timedelta(hours=2)).strftime("%H:%M"), (loc + dt.timedelta(hours=2)).strftime("%H:%M")
+
+
 def test_quiet_hours_apply_to_the_screens_too(world):
     w = world
     enable(w)
     bid, token = make_board(w)
     allow(w, {"key": f"board:{bid}"})
-    w.c.put(f"{API}/config", json={"quiet": {"enabled": True, "from": "00:00", "to": "23:59", "mode": "suppress"}})
+    qf, qt = _quiet_around(w.clock["now"])
+    w.c.put(f"{API}/config", json={"quiet": {"enabled": True, "from": qf, "to": qt, "mode": "suppress"}})
     r = say(w)
     assert r.status_code == 409 and r.json()["code"] == "quiet_hours" and "announcement" not in feed(w, "lobby", token).json()
     w.c.put(f"{API}/config", json={"quiet": {"mode": "queue"}})

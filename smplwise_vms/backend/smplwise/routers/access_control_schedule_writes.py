@@ -53,7 +53,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, read_gate, settings_of
 from ..db import Database
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import INSTALLATION, Principal, authorize, note_grant
 from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
@@ -61,6 +61,7 @@ from ..services import intercom_sync
 from ..services import wiskey_schedule_writes as sw
 from ._common import raw_body as _raw_body, rid as _rid
 from .access_control import CommandEnvelope, _envelope, _parse
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.intercom")
 router = APIRouter()
@@ -308,7 +309,7 @@ VALIDATION_PREFIXES = ("schedule_invalid", "schedule_overlap", "schedule_period"
 def refused(code: str, what: str) -> ApiError:
     """WisKey answered with a refusal: "WisKey סירב: <reason>" - nothing was stored."""
     status = REFUSED_STATUS.get(code) or (422 if code.startswith(VALIDATION_PREFIXES) else 502)
-    return ApiError(status, "schedule_refused", f"{what}: WisKey סירב - {sw.reason(code)} ({code}). לא נשמר דבר.",
+    return ApiError(status, "schedule_refused", tpl("{what}: WisKey סירב - {reason} ({code}). לא נשמר דבר.", what=what, reason=sw.reason(code), code=code),
                     retryable=status == 429, details={"outcome": "refused", "wiskey_code": code, "reason": sw.reason(code)})
 
 
@@ -322,9 +323,9 @@ def _failure(op: sw.Op, reply: dict[str, Any], outcome: str, what: str) -> ApiEr
         return ApiError(exc.status, exc.code, f"{what}: {exc.user_message}", retryable=exc.retryable, details=exc.details)
     details = {"outcome": "unknown", "wiskey_code": code or None, "state": reply.get("state")}
     if op.kind == "device":
-        return ApiError(504, "schedule_outcome_unknown", f"{what}: העמדה עדיין נקראת או שלא התקבלה תשובה ברורה ({code or 'timeout'}). קריאת עמדה יכולה להימשך עד שתי דקות - לא נשמר דבר; נסו שוב בעוד דקה.",
+        return ApiError(504, "schedule_outcome_unknown", tpl("{what}: העמדה עדיין נקראת או שלא התקבלה תשובה ברורה ({code}). קריאת עמדה יכולה להימשך עד שתי דקות - לא נשמר דבר; נסו שוב בעוד דקה.", what=what, code=code or 'timeout'),
                         details=details)
-    return ApiError(504, "schedule_outcome_unknown", f"{what}: הפקודה נשלחה אך לא התקבלה תשובה ברורה ({code or 'timeout'}). ייתכן שנשמרה וייתכן שלא - רעננו ובדקו לפני שמנסים שוב.",
+    return ApiError(504, "schedule_outcome_unknown", tpl("{what}: הפקודה נשלחה אך לא התקבלה תשובה ברורה ({code}). ייתכן שנשמרה וייתכן שלא - רעננו ובדקו לפני שמנסים שוב.", what=what, code=code or 'timeout'),
                     details=details)
 
 
@@ -369,7 +370,7 @@ def _require_station(station_id: str) -> dict[str, Any] | None:
     if s is None and intercom_sync.SYNC.has_copy():
         raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה.", details={"outcome": "not_sent"})
     if s is not None and not s.get("online"):
-        raise ApiError(409, "intercom_station_offline", f"העמדה {s.get('name') or station_id} אינה מחוברת, ולכן לא נקראה.", details={"outcome": "not_sent"})
+        raise ApiError(409, "intercom_station_offline", tpl("העמדה {name} אינה מחוברת, ולכן לא נקראה.", name=s.get('name') or station_id), details={"outcome": "not_sent"})
     return s
 
 
@@ -379,7 +380,10 @@ def _draft(where: str, data: BaseModel, *, act: _Act | None = None) -> dict[str,
     try:
         sw.normalize(raw)
     except sw.DraftError as exc:
-        err = ApiError(422, "schedule_invalid_draft", f"{where}: {sw.reason(exc.code)}.", details={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code), "field": exc.where})
+        # ADR-019 (ADR019-FAMILY45-2520): `fields` / `problems` name the draft path; the legacy `field` and the outcome keys stay
+        err = field_error(f"{where}: {sw.reason(exc.code)}.", problems=[{"field": exc.where, "code": exc.code}] if exc.where else None,
+                          code="schedule_invalid_draft", legacy={"field": exc.where},
+                          extra={"outcome": "not_sent", "wiskey_code": exc.code, "reason": sw.reason(exc.code)})
         raise (act.refuse(err) if act is not None else err) from None
     return raw
 

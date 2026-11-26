@@ -18,6 +18,7 @@ from ...db import new_id, now_iso
 from ...db import update as db_update
 from ..bill_pdf_logo import LogoError, sanitize_image
 from .model import Invalid
+from ...error_text import tpl
 
 TITLE_MAX, TEXT_MAX = 80, 300
 SECONDS_MIN, SECONDS_MAX = 6, 120
@@ -124,7 +125,7 @@ def clean_text(value: Any, field: str, limit: int, *, required: bool = False) ->
     if any(ord(c) < 32 and c not in "\n\t" for c in v):
         raise Invalid(field, "ערך לא תקין.")
     if len(v) > limit:
-        raise Invalid(field, f"עד {limit} תווים.")
+        raise Invalid(field, tpl("עד {limit} תווים.", limit=limit))
     if required and not v:
         raise Invalid(field, "שדה חובה.")
     return v
@@ -134,7 +135,7 @@ def clean_seconds(value: Any) -> int | None:
     if value in (None, 0):
         return None
     if isinstance(value, bool) or not isinstance(value, int) or not SECONDS_MIN <= value <= SECONDS_MAX:
-        raise Invalid("seconds", f"{SECONDS_MIN}-{SECONDS_MAX} שניות.")
+        raise Invalid("seconds", tpl("{seconds_min}-{seconds_max} שניות.", seconds_min=SECONDS_MIN, seconds_max=SECONDS_MAX))
     return value
 
 
@@ -161,7 +162,7 @@ def _check_link(conn: sqlite3.Connection, slide_id: str | None, board_ids: list[
               if slide_id else set())
     for b in ids:
         if b not in before and count_on(conn, b) >= SLIDES_PER_BOARD:
-            raise Invalid("board_ids", f"עד {SLIDES_PER_BOARD} שקופיות בלוח.")
+            raise Invalid("board_ids", tpl("עד {slides_per_board} שקופיות בלוח.", slides_per_board=SLIDES_PER_BOARD))
     return ids, before
 
 

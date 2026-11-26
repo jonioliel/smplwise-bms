@@ -34,6 +34,7 @@ from ..services import addon_restart, confirm_words, connection_probe, connectio
 from ..services import default_names as dn
 from ..services.recorders import registry
 from ._common import raw_body as _raw_body, rid as _rid
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.nvr_connection")
 router = APIRouter()
@@ -314,7 +315,7 @@ def _limit(request: Request, conn: sqlite3.Connection, principal: Principal, act
     wait = request.app.state.connection_probe_limiter.take(principal.user_id or principal.username or "?")
     if wait:
         audit(conn, actor=principal, action=action, decision="denied", resource_type="nvr", resource_id=_res(rid), reason="rate_limited", request_id=_rid(request))
-        raise ApiError(429, "rate_limited", f"יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+        raise ApiError(429, "rate_limited", tpl("יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), retryable=True, details={"retry_after_s": wait})
 
 
 def _deny(request: Request, conn: sqlite3.Connection, principal: Principal, action: str, reason: str, vendor: str, rid: str = PRIMARY) -> None:
@@ -466,7 +467,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
         if code in UNTESTED_OK and body.save_untested:
             confirm_word = confirm_words.typed_lang("nvr_save_untested", body.confirm_text)
             if confirm_word is None:
-                raise field_error(f"כדי לשמור בלי בדיקה יש להקליד \"{SAVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
+                raise field_error(tpl("כדי לשמור בלי בדיקה יש להקליד \"{save_word}\".", save_word=SAVE_WORD), ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
             untested = True
         else:
             messages = {"source_forbidden": "ה־NVR דחה את שם המשתמש או הסיסמה.", "source_unavailable": "לא ניתן להתחבר ל־NVR.", "timeout": "ה־NVR לא ענה בזמן.",
@@ -528,7 +529,7 @@ def remove_connection(request: Request, background: BackgroundTasks, principal: 
     body: RemoveIn = _parse(request, raw, RemoveIn)
     confirm_word = confirm_words.typed_lang("nvr_remove", body.confirm_text)
     if confirm_word is None:
-        raise field_error(f"כדי להסיר את ה־NVR יש להקליד \"{REMOVE_WORD}\".", ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
+        raise field_error(tpl("כדי להסיר את ה־NVR יש להקליד \"{remove_word}\".", remove_word=REMOVE_WORD), ["confirm_text"], code="confirm_required", legacy={"field": "confirm_text"})
     _require_revision(body.if_revision, conn)  # the request holds the write lock from here to the commit
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id)
     audit(conn, actor=principal, action="nvr.connection.remove", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
@@ -566,7 +567,7 @@ def restart_system(request: Request, background: BackgroundTasks, principal: Pri
     wait = addon_restart.wait_seconds(conn)  # review F6: persisted, so a restart loop cannot reset it
     if wait:
         audit(conn, actor=principal, action="system.restart", decision="denied", resource_type="system", resource_id="addon", reason="rate_limited", request_id=_rid(request))
-        raise ApiError(429, "rate_limited", f"המערכת הופעלה מחדש לפני רגע; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
+        raise ApiError(429, "rate_limited", tpl("המערכת הופעלה מחדש לפני רגע; אפשר לנסות שוב בעוד {wait} שניות.", wait=wait), retryable=True, details={"retry_after_s": wait})
     audit(conn, actor=principal, action="system.restart", decision="allowed", resource_type="system", resource_id="addon", request_id=_rid(request),
           details={"pending_connection": connection_store.pending_restart(conn, settings)})
     addon_restart.mark(conn)

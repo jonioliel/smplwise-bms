@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services.tickets import access, bulk, export, model, monthly_report, present, store, table, table_present, views
 from ..services.tickets.access import Viewer, text
@@ -187,7 +187,7 @@ def monthly_report_csv(
     try:
         d_from, d_to, start, end = monthly_report.parse_range(date_from, date_to, get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
     except monthly_report.RangeError as exc:
-        raise ApiError(422, "validation", text(conn, "טווח תאריכים לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]}) from None
+        raise field_error(text(conn, "טווח תאריכים לא תקין."), problems=[{"field": exc.field, "code": exc.code}]) from None
     key = monthly_report.RATE_PREFIX + principal.user_id
     wait = export.rate_check(key)
     if wait > 0:

@@ -42,6 +42,7 @@ from ..recorder_scope import PRIMARY, settings_for
 from . import nvr, nvr_write_guard
 from .nvr import _client, _get
 from .nvr_write import _probe, _put, _record, get_change, response_status
+from ..error_text import tpl
 
 KIND = "privacy_mask"
 PERMISSION = "nvr.config.privacy"
@@ -111,7 +112,7 @@ def validate(enabled: bool, regions: list[list[list[int]]], normalized: dict[str
     points inside the device's normalized frame, a convex non-degenerate quadrilateral at least MIN_SIDE wide and high."""
     width, height = int(normalized.get("width") or 704), int(normalized.get("height") or 576)
     if len(regions) > max_regions:
-        raise ApiError(422, "validation", f"המצלמה מקבלת עד {max_regions} אזורי מסכה.", details={"max_regions": max_regions, "got": len(regions)})
+        raise ApiError(422, "validation", tpl("המצלמה מקבלת עד {max_regions} אזורי מסכה.", max_regions=max_regions), details={"max_regions": max_regions, "got": len(regions)})
     if enabled and not regions:
         raise ApiError(422, "validation", "מסכה פעילה צריכה לפחות אזור אחד.", details={"reason": "enabled_without_regions"})
     out: list[list[list[int]]] = []

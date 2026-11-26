@@ -58,7 +58,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..db import set_setting
-from ..errors import ApiError, forbidden
+from ..errors import ApiError, field_error, forbidden
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require, require_system_admin
 from ..services import access_external as ax
 from ..services import access_grants_store as store
@@ -228,7 +228,7 @@ def approvers(request: Request, principal: Principal = Depends(current_principal
     _requester_or_403(conn, principal, request)
     ids = [s for s in dict.fromkeys(x.strip() for x in stations.split(",")) if s]
     if not ids or len(ids) > ag.MAX_DOORS_CAP or not all(ia_valid(s) for s in ids):
-        raise ApiError(422, "access_grant_invalid", "יש לבחור עמדות.", details={"field": "stations", "code": "format"})
+        raise field_error("יש לבחור עמדות.", problems=[{"field": "stations", "code": "format"}], code="access_grant_invalid", legacy={"field": "stations", "code": "format"})
     return ar.approvers(conn, principal, sorted(ids), credential)
 
 

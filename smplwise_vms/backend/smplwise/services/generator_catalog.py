@@ -63,6 +63,67 @@ ROLES: dict[str, tuple[str, str, str]] = {
     "alarm_charger_fail": ("bool", "", "אזעקת כשל מטען"),
     "alarm_ats_fail": ("bool", "", "אזעקת כשל מתג העברה"),
 }
+# GEN-SENSOR-NAMES-EN-2520: the English name of every role, sent beside the Hebrew label (`label_en`, `needs_en`) so an English page names the
+# sensors in English (the alert routing's "requires sensor" and the sensor-mapping tab). Additive: the Hebrew label above is unchanged.
+ROLE_NAMES_EN: dict[str, str] = {
+    "engine_state": "Engine state",
+    "controller_mode": "Controller mode",
+    "ats_position": "Transfer switch",
+    "mains_available": "Mains available",
+    "on_load": "Generator on load",
+    "load_on_mains": "Load on mains",
+    "supply_source": "Supply source",
+    "generator_running": "Generator running",
+    "mains_breaker_closed": "Mains breaker closed",
+    "generator_breaker_closed": "Generator breaker closed",
+    "warning_active": "Controller warning active",
+    "shutdown_active": "Controller shutdown active",
+    "trip_active": "Electrical trip active",
+    "any_fault": "Any controller fault",
+    "monitoring_status": "Controller monitoring status",
+    "last_poll_at": "Last controller poll",
+    "rpm": "RPM",
+    "run_hours": "Run hours",
+    "starts": "Number of starts",
+    "coolant_temp": "Coolant temperature",
+    "oil_pressure": "Oil pressure",
+    "battery_v": "Battery voltage",
+    "charger_v": "Charger voltage",
+    "fuel_pct": "Fuel level",
+    "fuel_l": "Fuel in litres",
+    "gen_v_l1": "Generator voltage L1", "gen_v_l2": "Generator voltage L2", "gen_v_l3": "Generator voltage L3",
+    "gen_a_l1": "Current L1", "gen_a_l2": "Current L2", "gen_a_l3": "Current L3",
+    "gen_kw": "Power",
+    "gen_kva": "Apparent power",
+    "pf": "Power factor",
+    "gen_hz": "Generator frequency",
+    "load_pct": "Load",
+    "mains_v_l1": "Mains voltage L1", "mains_v_l2": "Mains voltage L2", "mains_v_l3": "Mains voltage L3",
+    "mains_hz": "Mains frequency",
+    "last_start_at": "Last start",
+    "last_start_reason": "Last start reason",
+    "last_test_at": "Last test",
+    "last_test_result": "Last test result",
+    "next_test_at": "Next test (per controller)",
+    "service_hours_left": "Hours to next service",
+    "alarm_fail_to_start": "Fail-to-start alarm",
+    "alarm_low_oil": "Low oil pressure alarm",
+    "alarm_high_temp": "High temperature alarm",
+    "alarm_overspeed": "Overspeed alarm",
+    "alarm_emergency_stop": "Emergency stop alarm",
+    "alarm_low_fuel": "Low fuel alarm",
+    "alarm_charger_fail": "Charger failure alarm",
+    "alarm_ats_fail": "Transfer switch failure alarm",
+}
+
+
+def role_label(role: str, lang: str = "he") -> str:
+    """A role's display name: the Hebrew label, or with lang="en" the English name (the Hebrew when a role has none)."""
+    if lang == "en":
+        return ROLE_NAMES_EN.get(role) or ROLES[role][2]
+    return ROLES[role][2]
+
+
 GEN_V = ("gen_v_l1", "gen_v_l2", "gen_v_l3")
 GEN_A = ("gen_a_l1", "gen_a_l2", "gen_a_l3")
 MAINS_V = ("mains_v_l1", "mains_v_l2", "mains_v_l3")
@@ -278,10 +339,11 @@ def type_available(t: AlertType, roles: set[str]) -> bool:
     return not t.needs or any(r in roles for r in t.needs)
 
 
-def needs_label(t: AlertType) -> str:
-    """Hebrew 'requires sensor' text: the value sensors first, the controller alarm outputs only when no value sensor can do it."""
-    value = [ROLES[r][2] for r in t.needs if not r.startswith("alarm_")]
-    return ", ".join(value or [ROLES[r][2] for r in t.needs])
+def needs_label(t: AlertType, lang: str = "he") -> str:
+    """'requires sensor' text (Hebrew; lang="en": English, GEN-SENSOR-NAMES-EN-2520): the value sensors first, the controller alarm outputs
+    only when no value sensor can do it."""
+    value = [role_label(r, lang) for r in t.needs if not r.startswith("alarm_")]
+    return ", ".join(value or [role_label(r, lang) for r in t.needs])
 
 
 DEFAULT_THRESHOLDS: dict[str, float] = {

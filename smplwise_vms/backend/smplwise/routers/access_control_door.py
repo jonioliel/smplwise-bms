@@ -21,6 +21,7 @@ from ..services.timeutil import parse_utc
 from ._common import raw_body as _raw_body
 from .access_control_base import log
 from .access_control_command import ORIGIN_RE, RELAYS, ReleaseBody, SEND_WITHIN_S, _Action, _door_gate_ro, _envelope, _parse, _perform, _relay_of, _station
+from ..error_text import tpl
 
 router = APIRouter()
 
@@ -93,7 +94,7 @@ def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_af
     entry = RELAYS.acquire((station_id, lock))
     if entry is None:
         wait = RELAYS.remaining((station_id, lock))
-        raise act.refuse(ApiError(409, "intercom_release_in_progress", f"פקודה קודמת עדיין בטיפול. המתינו עד {int(wait) + 1} שניות ובדקו במצלמה לפני שמנסים שוב.", details={"retry_after_s": round(wait, 1)}))
+        raise act.refuse(ApiError(409, "intercom_release_in_progress", tpl("פקודה קודמת עדיין בטיפול. המתינו עד {wait} שניות ובדקו במצלמה לפני שמנסים שוב.", wait=int(wait) + 1), details={"retry_after_s": round(wait, 1)}))
     if before_attempt is not None:
         try:
             before_attempt(act.conn)

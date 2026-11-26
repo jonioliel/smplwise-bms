@@ -64,6 +64,9 @@ VENDOR_MISS_MESSAGE: Callable[[Any, str, dict[str, Any], dt.datetime], bool] | N
 
 
 class VisitRefused(Exception):
+    """A refused visit action: `status` + `code` (+ small extras). A 422 carries `problems=[{field, code}]`, which the tickets router
+    answers in the one field-error envelope (ADR-019, ADR019-FAMILY45-2520: `details.fields` + `details.problems`)."""
+
     def __init__(self, status: int, code: str, **extra: Any) -> None:
         super().__init__(code)
         self.status, self.code, self.extra = status, code, extra
@@ -124,15 +127,15 @@ def due_at(v: dict[str, Any]) -> dt.datetime | None:
 def parse_window(conn, raw_from: Any, raw_to: Any, now: dt.datetime, *, field: str = "planned_from") -> tuple[dt.datetime, dt.datetime]:
     a, b = parse(raw_from), parse(raw_to)
     if a is None:
-        raise VisitRefused(422, "invalid", fields=[{"field": field, "code": "format"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": field, "code": "format"}])
     if b is None:
-        raise VisitRefused(422, "invalid", fields=[{"field": "planned_to", "code": "format"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": "planned_to", "code": "format"}])
     if b < a:
-        raise VisitRefused(422, "invalid", fields=[{"field": "planned_to", "code": "order"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": "planned_to", "code": "order"}])
     if b - a > MAX_SPAN:
-        raise VisitRefused(422, "invalid", fields=[{"field": "planned_to", "code": "too_long"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": "planned_to", "code": "too_long"}])
     if b < now - dt.timedelta(days=1):
-        raise VisitRefused(422, "invalid", fields=[{"field": "planned_to", "code": "past"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": "planned_to", "code": "past"}])
     return a, b
 
 
@@ -160,7 +163,7 @@ def plan(conn, ticket: dict[str, Any], assignment: dict[str, Any] | None, *, pla
         raise VisitRefused(409, "no_vendor_assignment")
     g = grace if grace is not None else grace_for(conn, ticket["department_id"])
     if not 0 <= int(g) <= 240:
-        raise VisitRefused(422, "invalid", fields=[{"field": "grace_min", "code": "range"}])
+        raise VisitRefused(422, "invalid", problems=[{"field": "grace_min", "code": "range"}])
     via = "link" if by_kind == "contact" else ("system" if by_kind == "system" else "app")
     existing = store_visits.planned_for_assignment(conn, assignment["id"])
     if existing is not None:
@@ -199,7 +202,7 @@ def move(conn, ticket: dict[str, Any], visit: dict[str, Any], *, planned_from: d
     fields: dict[str, Any] = {"planned_from": iso(planned_from), "planned_to": iso(planned_to)}
     if grace is not None:
         if not 0 <= int(grace) <= 240:
-            raise VisitRefused(422, "invalid", fields=[{"field": "grace_min", "code": "range"}])
+            raise VisitRefused(422, "invalid", problems=[{"field": "grace_min", "code": "range"}])
         fields["grace_min"] = int(grace)
     if not store_visits.update_visit(conn, visit["id"], fields, expect_revision=revision):
         raise VisitRefused(409, "visit_stale", revision=visit["revision"])

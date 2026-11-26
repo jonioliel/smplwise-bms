@@ -14,7 +14,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
@@ -33,18 +33,25 @@ router = APIRouter()
 SKIP_CODES = ("stale", "validation", "nvr_not_supported", "source_forbidden", "nvr_writes_off")
 
 
-class RegionIn(BaseModel):
+class _Body(BaseModel):
+    """ADR-019 D2 (ADR019-L14-STRICT-F123-2520): a web-UI body refuses an unknown key (422 `extra_forbidden`, the D1 envelope
+    `details.fields` / `problems`) instead of dropping it silently; every screen that sends it builds the body from named keys."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RegionIn(_Body):
     points: list[list[int]] = Field(min_length=1, max_length=8)
 
 
-class MaskItemIn(BaseModel):
+class MaskItemIn(_Body):
     camera_id: str = Field(min_length=1, max_length=64)
     enabled: bool
     regions: list[RegionIn] = Field(default_factory=list, max_length=16)
     etag: str | None = Field(default=None, max_length=64)
 
 
-class PreviewIn(BaseModel):
+class PreviewIn(_Body):
     items: list[MaskItemIn] = Field(min_length=1, max_length=nvr_privacy.MAX_ITEMS)
 
 

@@ -32,6 +32,7 @@ from ..services import wiskey_installer as wi
 from ..services import wiskey_installer_lifecycle as wl
 from ._common import raw_body as _raw_body
 from .wiskey_installer_common import STATION_TYPE, Write, WriteBody, installer_gate, installer_reader, read
+from ..error_text import tpl
 
 router = APIRouter()
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
@@ -55,7 +56,7 @@ def _flow_error(what: str):
         if isinstance(exc, wl.FlowError):
             return wl.flow_error(what, exc)
         if isinstance(exc, ValueError):  # an answer the projection does not accept: sent, unclear
-            return ApiError(504, "installer_outcome_unknown", f"{what} נשלח, אך התשובה אינה בפורמט המוכר. בדקו את רשימת העמדות.",
+            return ApiError(504, "installer_outcome_unknown", tpl("{what} נשלח, אך התשובה אינה בפורמט המוכר. בדקו את רשימת העמדות.", what=what),
                             details={"outcome": "unknown", "wiskey_code": "invalid_response"})
         return None
 

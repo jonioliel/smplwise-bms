@@ -34,7 +34,7 @@ from ..services import go2rtc as g2
 from ..services import live_codec as lc
 from ..services.access import camera_decision, require_camera
 from ..services.leases import CameraLease
-from ..services.relay import close_with_error, relay_ws
+from ..services.relay import close_with_error, relay_ws, sanitize_upstream_frame
 from .settings import read_settings
 from ..services.settings_store import setting_value
 from ._common import rid as _rid
@@ -573,7 +573,9 @@ async def _live_relay(
             diag.down_text(text)
         except Exception:  # noqa: BLE001 - an observer never breaks the relay
             pass
-        return on_text(text) if on_text is not None else text
+        # VIDEO-SECFIX-2520 (deep review V-01): no route forwards go2rtc's error text - a recorder or manual-source camera gets
+        # the shared fixed code (services/relay.sanitize_upstream_frame); a route with its own rule passes one built on it
+        return (on_text or sanitize_upstream_frame)(text)
 
     reason = "ended"
     try:

@@ -355,7 +355,7 @@ def formula_preset(request: Request, principal: Principal = Depends(_view), raw:
     try:
         ast = fx.preset(body.preset, body.meter_ids, body.main_meter_id, body.percent)
     except fx.FormulaError as e:
-        raise eb.formula_error(e) from None
+        raise eb.formula_error(e, "preset") from None
     api = eb.formula_api(_provider(conn, request), ast)
     return {"ast": ast, "text": api["text"], "sentence_he": api["sentence_he"]}
 

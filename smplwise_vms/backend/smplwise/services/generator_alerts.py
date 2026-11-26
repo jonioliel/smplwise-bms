@@ -36,6 +36,7 @@ from . import notify_recipients
 from .notify_visibility import principal_of
 from .timeutil import iso_utc, parse_utc
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.generator")
 
@@ -555,7 +556,7 @@ def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
     for t in cat.ALERT_TYPES:
         ok = cat.type_available(t, roles)
         items.append({"key": t.key, "group": t.group, "title": t.title_he, "title_en": t.title_en, "default_severity": t.severity, "event": t.event, "available": ok,
-                      "needs": None if ok else cat.needs_label(t), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
+                      "needs": None if ok else cat.needs_label(t), "needs_en": None if ok else cat.needs_label(t, "en"), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
     return {"groups": [{"key": k, "title": v} for k, v in cat.GROUPS], "items": items, "available": sum(1 for i in items if i["available"]), "total": len(items),
             "severity_defaults": severity_defaults(conn, device_id), "severity_channels": list(SEVERITY_CHANNELS), "critical_escalate_after_min": critical_escalate_after_min(conn),
             "channels": list(CHANNELS), "channels_reserved": list(CHANNELS_RESERVED), "quiet_modes": list(QUIET),
@@ -574,7 +575,7 @@ def validate_template(value: Any) -> str | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     if not isinstance(value, str) or len(value) > TEMPLATE_MAX:
-        raise RoutingInvalid("template_invalid", f"התבנית חייבת להיות טקסט עד {TEMPLATE_MAX} תווים.", {"field": "template_he"})
+        raise RoutingInvalid("template_invalid", tpl("התבנית חייבת להיות טקסט עד {template_max} תווים.", template_max=TEMPLATE_MAX), {"field": "template_he"})
     try:
         parts = list(string.Formatter().parse(value))
     except ValueError:

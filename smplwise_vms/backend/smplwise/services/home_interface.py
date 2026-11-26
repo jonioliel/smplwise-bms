@@ -30,6 +30,7 @@ from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, is_system_admin
 from ..test_reset import register_reset
+from ..error_text import tpl
 
 INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
@@ -341,11 +342,11 @@ def _clean_list(v: Any, allowed: tuple[str, ...] | None, what: str) -> list[str]
     if v is None:
         return None
     if not isinstance(v, list) or len(v) > MAX_ROOM_LIST:
-        raise HomeInterfaceError(422, "validation", f"רשימת {what} אינה תקינה.")
+        raise HomeInterfaceError(422, "validation", tpl("רשימת {what} אינה תקינה.", what=what))
     out: list[str] = []
     for x in v:
         if not isinstance(x, str) or not ROOM_KEY_RE.match(x) or (allowed is not None and x not in allowed):
-            raise HomeInterfaceError(422, "validation", f"ערך לא מוכר ברשימת {what}.")
+            raise HomeInterfaceError(422, "validation", tpl("ערך לא מוכר ברשימת {what}.", what=what))
         if x not in out:
             out.append(x)
     return out
@@ -664,7 +665,7 @@ def clean_layout(v: Any) -> dict[str, Any]:
     for k, allowed, what in (("motion", LAYOUT_MOTION, "התנועה"), ("cal_week", LAYOUT_CAL_WEEK, "תצוגת השבוע")):
         if k in v:
             if v[k] not in allowed:
-                raise HomeInterfaceError(422, "validation", f"{what} אינה מוכרת.")
+                raise HomeInterfaceError(422, "validation", tpl("{what} אינה מוכרת.", what=what))
             out[k] = v[k]
     if "wallpapers" in v:  # HOME-SIMPLE-2421: {room_key: "g:<gallery name>" | "img"}; an empty value = no wallpaper
         w = v["wallpapers"]

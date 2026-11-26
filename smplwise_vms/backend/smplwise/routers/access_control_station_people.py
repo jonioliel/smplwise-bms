@@ -48,6 +48,7 @@ from ._common import db_of as _db, is_json as _is_json, raw_body as _raw_body, r
 from .access_control import COMMAND_ID, DEDUPE_WINDOW_S, EXPIRY_MAX_S, SEND_WITHIN_S, people_writer
 from ..wire import access_control_station_people as W
 from ..wire import wire
+from ..error_text import tpl
 
 log = logging.getLogger("smplwise.intercom")
 router = APIRouter()
@@ -399,7 +400,7 @@ def _begin(request: Request, auth: ia.Authority, action: str, raw: bytes, model:
     if expires <= now:
         raise refuse(ApiError(409, "expired", "הבקשה פגה לפני שהגיעה לשרת, ולכן לא נשלחה."), env)
     if expires > now + timedelta(seconds=EXPIRY_MAX_S):
-        raise refuse(ApiError(422, "expires_too_far", f"תוקף הבקשה חייב להסתיים תוך {int(EXPIRY_MAX_S)} שניות."), env)
+        raise refuse(ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(EXPIRY_MAX_S))), env)
     since = (now - timedelta(seconds=DEDUPE_WINDOW_S)).strftime("%Y-%m-%dT%H:%M:%SZ")
     seen = store.attempt_seen(auth.conn, action, auth.principal.user_id, since, f'%"client_request_id": "{body.client_request_id}"%', '%"phase": "attempt"%')
     if seen:

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -549,6 +550,8 @@ def test_a_draft_wiskey_would_refuse_is_refused_first_with_wiskeys_code_and_noth
     bad = {**OFFICE, "weekly": week(Monday=[("08:00", "12:00"), ("11:00", "14:00")])}
     r = read(c, "check", data=bad, date="2026-11-03", time="08:00")
     assert r.status_code == 422 and r.json()["details"]["wiskey_code"] == "schedule_overlap" and r.json()["details"]["field"] == "weekly.Monday"
+    # ADR-019 (ADR019-FAMILY45-2520): the canonical keys beside the legacy `field` and the outcome keys
+    assert (r.json()["details"]["fields"], r.json()["details"]["problems"]) == (["weekly.Monday"], [{"field": "weekly.Monday", "code": "schedule_overlap"}])
     for broken, code in ((week(Monday=[("12:00", "08:00")]), "schedule_invalid_time"), ({**week(), "Funday": []}, "schedule_invalid_week"),
                          (week(Monday=[("08:00", "08:30")] * 9), "schedule_period_limit")):
         r = read(c, "check", data={**OFFICE, "weekly": broken}, date="2026-11-03", time="08:00")
@@ -831,6 +834,9 @@ def test_audit_rows_name_the_actor_and_resource_and_never_a_token_or_a_window(wx
     text = json.dumps(all_rows)
     for t in fake.tokens_issued:
         assert t not in text
-    assert "07:00" not in text and "Office hours" not in text
+    # RELEASE-2520-TRAIN (lead decision 2.52 Q4 = a): the draft window "07:00" must not reach the audit; the rows' own ISO instants
+    # (an envelope's expires_at such as ...T13:07:00Z) are left out first, so the check no longer depends on the minute it runs in
+    no_instants = re.sub(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?", "", text)
+    assert "07:00" not in no_instants and "Office hours" not in text
     create_rows = [r for r in all_rows if r["action"] == "intercom.schedule_create"]
     assert create_rows[0]["actor_user_id"] == "dev-sched" and json.loads(create_rows[-1]["details_json"])["result"]["id"] == item["id"]

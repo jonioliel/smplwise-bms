@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
 from ..rbac import Principal
 from ..services import device_activity
 from ..services.tickets import access, attachments, contacts, create, device_context, model, naming, place, present, service, settings_doc, store
@@ -525,8 +525,8 @@ def delete_ticket(body: DeleteBody, request: Request, ticket_id: str = Path(...,
     if chk.result != "ok":
         raise deletion.refuse(conn, viewer, seen, chk, rid)
     if body.confirm_number != int(seen.row["number"]):
-        raise ApiError(422, "validation", text(conn, "המספר שהוקלד אינו תואם את מספר {the_ticket}."),
-                       details={"fields": [{"field": "confirm_number", "code": "mismatch"}]})
+        raise field_error(text(conn, "המספר שהוקלד אינו תואם את מספר {the_ticket}."),
+                          problems=[{"field": "confirm_number", "code": "mismatch"}])
     reason = deletion.clean_reason(conn, body.reason)
     deletion.require_rate(conn, viewer, 1, rid)
     done = deletion.delete(conn, viewer, seen, chk, reason, rid)

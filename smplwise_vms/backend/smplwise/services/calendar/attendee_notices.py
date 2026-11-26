@@ -45,6 +45,10 @@ MAX_ATTEMPTS = 3
 PENDING_RECHECK_S = 120
 LINK = "#/calendars/cal"
 DAY = ("ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳", "א׳")  # Monday .. Sunday
+# NOTIFY-LANG-SENDERS-2520: the same notices in English for a recipient whose language is English (an Arx user's `ui.lang`, a resident's
+# directory language); Hebrew stays the default and byte for byte as before.
+DAY_EN = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+RECURRING = {"he": " · חוזר", "en": " · recurring"}
 
 
 def utcnow() -> dt.datetime:
@@ -239,7 +243,8 @@ def _local(ts: str, tz: str) -> dt.datetime:
     return model.parse_utc(ts, "t").astimezone(ZoneInfo(tz))
 
 
-def when_text(ev: sqlite3.Row, occurrence_start: str | None = None) -> str:
+def when_text(ev: sqlite3.Row, occurrence_start: str | None = None, lang: str = "he") -> str:
+    """The entry's day and time ("יום ב׳ 03.12 10:00–11:00"); `lang="en"` gives "Mon 03.12 10:00–11:00" (NOTIFY-LANG-SENDERS-2520)."""
     tz = ev["tz"]
     if occurrence_start:
         from .recurrence import LOCAL_FMT  # noqa: PLC0415
@@ -249,10 +254,12 @@ def when_text(ev: sqlite3.Row, occurrence_start: str | None = None) -> str:
         e = s + dur
     else:
         s, e = _local(ev["starts_at"], tz), _local(ev["ends_at"], tz)
-    day = f"יום {DAY[s.weekday()]} {s:%d.%m}"
+    en = lang == "en"
+    day = f"{DAY_EN[s.weekday()]} {s:%d.%m}" if en else f"יום {DAY[s.weekday()]} {s:%d.%m}"
+    again = RECURRING["en" if en else "he"] if ev["rrule"] and not occurrence_start else ""
     if ev["all_day"]:
-        return day + (" · חוזר" if ev["rrule"] and not occurrence_start else "")
-    return f"{day} {s:%H:%M}–{e:%H:%M}" + (" · חוזר" if ev["rrule"] and not occurrence_start else "")
+        return day + again
+    return f"{day} {s:%H:%M}–{e:%H:%M}" + again
 
 
 def place_text(conn: sqlite3.Connection, ev: sqlite3.Row) -> str:
@@ -264,14 +271,17 @@ def place_text(conn: sqlite3.Connection, ev: sqlite3.Row) -> str:
     return ", ".join(rooms)
 
 
-def message_text(conn: sqlite3.Connection, kind: str, ev: sqlite3.Row, occurrence_start: str | None) -> str:
-    """The external message: one line, cleaned like every message of the notification channel (no markup, no link-looking token)."""
+def message_text(conn: sqlite3.Connection, kind: str, ev: sqlite3.Row, occurrence_start: str | None, lang: str = "he") -> str:
+    """The external message: one line, cleaned like every message of the notification channel (no markup, no link-looking token).
+    NOTIFY-LANG-SENDERS-2520: in the recipient's language (`external_lang`); the entry's title, the rooms and the organizer's name are data."""
     from ..notify_whatsapp import clean  # noqa: PLC0415
 
-    title, when, place = clean(ev["title"], 80), clean(when_text(ev, occurrence_start), 60), clean(place_text(conn, ev), 80)
+    title, when, place = clean(ev["title"], 80), clean(when_text(ev, occurrence_start, lang), 60), clean(place_text(conn, ev), 80)
     at = f" · {place}" if place else ""
     org = conn.execute("SELECT display_name, username FROM users WHERE id = ?", (ev["organizer_user_id"],)).fetchone()
     by = clean((org["display_name"] or org["username"]) if org else "", 40)
+    if lang == "en":
+        return _message_en(kind, title, when, at, by)
     if kind == "invite":
         return f"הוזמנת ל{title}: {when}{at}." + (f" מזמין/ה: {by}." if by else "")
     if kind == "change":
@@ -279,6 +289,34 @@ def message_text(conn: sqlite3.Connection, kind: str, ev: sqlite3.Row, occurrenc
     if kind == "cancel":
         return f"{title} ({when}) בוטל."
     return f"ההזמנה ל{title} ({when}) בוטלה עבורך."
+
+
+def _message_en(kind: str, title: str, when: str, at: str, by: str) -> str:
+    if kind == "invite":
+        return f"You are invited to {title}: {when}{at}." + (f" Invited by: {by}." if by else "")
+    if kind == "change":
+        return f"Update to {title}: the new time is {when}{at}."
+    if kind == "cancel":
+        return f"{title} ({when}) was cancelled."
+    return f"Your invitation to {title} ({when}) was cancelled."
+
+
+def external_lang(conn: sqlite3.Connection, a: sqlite3.Row) -> str:
+    """The language of an attendee without an Arx account (NOTIFY-LANG-SENDERS-2520): a resident's directory language (`ticket_contacts.lang`,
+    the one the tickets and visitor messages use) when Arx offers it; a guest's only when his invitation records one (none does today: the
+    guest form takes a name, a phone and an e-mail). Anything else - no value, a language Arx does not offer, an unreadable row - is Hebrew."""
+    from ..default_names import DEFAULT_LANG, LANGS  # noqa: PLC0415
+
+    value: Any = None
+    try:
+        if a["kind"] == "guest":
+            value = a["lang"] if "lang" in a.keys() else None
+        elif a["kind"] == "resident":
+            c = conn.execute("SELECT * FROM ticket_contacts WHERE id = ?", (a["ref_id"],)).fetchone()
+            value = c["lang"] if c is not None and "lang" in c.keys() else None
+    except sqlite3.Error:
+        return DEFAULT_LANG
+    return value if isinstance(value, str) and value in LANGS else DEFAULT_LANG
 
 
 # ---------------------------------------------------------------- dispatch (after the commit)
@@ -371,10 +409,15 @@ def _external_address(conn: sqlite3.Connection, data_dir: Any, a: sqlite3.Row) -
 
 def _inapp(conn: sqlite3.Connection, n: sqlite3.Row, ev: sqlite3.Row, uid: str) -> tuple[str, str | None]:
     from .. import notify  # noqa: PLC0415
+    from ..notify_policy import I18N_PARAM  # noqa: PLC0415
 
-    params = {"name": ev["title"], "when": when_text(ev, n["occurrence_start"]), "place": place_text(conn, ev) or None}
+    params: dict[str, Any] = {"name": ev["title"], "when": when_text(ev, n["occurrence_start"]), "place": place_text(conn, ev) or None}
+    params = {k: v for k, v in params.items() if v}
+    # NOTIFY-LANG-SENDERS-2520: the day and time are wording, not a name - an English recipient's push / app / centre row reads them in English
+    # (notify_policy.I18N_PARAM); the Hebrew title and body the row stores are as before.
+    params[I18N_PARAM] = {"en": {"when": when_text(ev, n["occurrence_start"], "en")}}
     res = notify.emit_full(conn, notify.Signal(source=SOURCES[n["kind"]], subject_kind=SUBJECT, subject_id=ev["id"], dedupe_key=f"cal_att:{n['id']}",
-                                               params={k: v for k, v in params.items() if v}, origin={"attendee_user_id": uid, "cal_event_id": ev["id"]},
+                                               params=params, origin={"attendee_user_id": uid, "cal_event_id": ev["id"]},
                                                link=LINK, category="building"))
     if res.action in ("created", "folded", "renotified"):
         return "sent", None
@@ -440,7 +483,7 @@ def dispatch(db: Database, data_dir: Any, now: dt.datetime | None = None) -> dic
                 out["skipped"] += 1
                 continue
             conn.execute("UPDATE cal_attendee_notices SET attempts = attempts + 1, channel = ? WHERE id = ?", (key, n["id"]))
-            jobs.append(_Job(n["id"], a["id"], ev["id"], key, addr[CHANNELS[key].address], message_text(conn, n["kind"], ev, n["occurrence_start"])))
+            jobs.append(_Job(n["id"], a["id"], ev["id"], key, addr[CHANNELS[key].address], message_text(conn, n["kind"], ev, n["occurrence_start"], external_lang(conn, a))))
     results: list[tuple[_Job, str, str | None]] = []
     for j in jobs:
         try:

@@ -238,7 +238,8 @@ def test_v2_metadata_carries_the_manifest_grant_and_contract() -> None:
     meta = sw.Metadata("arx-service:synthetic-entry", _grant(), "p-1", 1, "req-1", "op-1", sw.CONTRACT_V2)
     wire = meta.wire()
     assert wire["contract"] == "wiskey-native-service-write.v2" and set(wire) == sw.META_KEYS and sw.check_metadata(wire)
-    assert sw.check_metadata({**wire, "contract": "wiskey-native-service-write.v3"}) is False
+    # WISKEY-R8-2520: v3 is now a known contract (the owner's manual grant, services/wiskey_service_grants_v3.py); an unknown one is refused
+    assert sw.check_metadata({**wire, "contract": "wiskey-native-service-write.v4"}) is False
     assert sw.Metadata("arx-service:x", _grant(), "p", 1, "r", "o").wire()["contract"] == sw.CONTRACT  # v1 unchanged
 
 
