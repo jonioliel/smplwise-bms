@@ -103,6 +103,24 @@ export function deepActive(): HTMLElement | null {
   return a as HTMLElement | null;
 }
 
+/** A11Y-NEW-2550: the focus fell back to the page - nothing, the body, a removed or disabled control, or a bare <dialog> holds it. */
+export function focusLost(): boolean {
+  const a = deepActive();
+  return !a || a === document.body || a === document.documentElement || !a.isConnected || a instanceof HTMLDialogElement || (a as HTMLButtonElement).disabled === true;
+}
+
+/**
+ * A11Y-NEW-2550: put the focus on `el` - the outcome line of an action, or the control the person was on - only when the focus fell back
+ * to the page (the control that had it went away or was disabled with the outcome: an un-mute button gone with the mute, a dialog closed
+ * by its own result). A keyboard or screen-reader user then lands on what happened instead of the top of the page. An element that is not
+ * focusable by itself gets `tabindex="-1"` (reachable by script, not by Tab). Nothing moves while the focus is anywhere else.
+ */
+export function focusIfLost(el: HTMLElement | null | undefined): void {
+  if (!el?.isConnected || !focusLost()) return;
+  if (el.tabIndex < 0 && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+  el.focus();
+}
+
 /**
  * Whether the focus is somewhere inside `host` - a light child or a part of its shadow tree, at any shadow depth - and not on `host`
  * itself. The walk the 2.43.7 gate fix wrote into sw-dialog (a field focused in the frame before the dialog's own first focus keeps

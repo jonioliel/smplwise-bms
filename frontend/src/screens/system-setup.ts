@@ -20,6 +20,7 @@ import { healthReport, type HealthReport } from '../api/health';
 import { listNvrChanges, notifyStatus, nvrSystemApi, rollbackNvrChange, setNotify, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
 import { physicalOutcome } from '../api/physical-outcome';
 import { confirmDialog } from '../components/confirm-dialog';
+import { focusIfLost } from '../components/modal-stack';
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -273,6 +274,8 @@ export class SystemSetup extends LitElement {
       }
     } finally {
       this.sysBusy = false;
+      // A11Y-NEW-2550: the button waited disabled - a focus that fell back to the page goes to the outcome line (role status / alert)
+      void this.updateComplete.then(() => focusIfLost(this.renderRoot.querySelector<HTMLElement>('[data-nvr-system-msg]')));
     }
   }
 
@@ -520,7 +523,14 @@ export class SystemSetup extends LitElement {
     } finally {
       this.notifyBusy = false;
     }
-    if (reason === null) return;
+    // A11Y-NEW-2550: the revert button waited disabled and, once reverted, leaves the list - a focus that fell back to the page goes to the
+    // outcome line; before "revert anyway" is asked it goes back to the button, so the question returns the focus there on cancel
+    await this.updateComplete;
+    if (reason === null) {
+      focusIfLost(this.renderRoot.querySelector<HTMLElement>('[data-nvr-result]'));
+      return;
+    }
+    focusIfLost(this.renderRoot.querySelector(`[data-nvr-rollback="${CSS.escape(c.id)}"]`)?.shadowRoot?.querySelector<HTMLElement>('button'));
     const ok = await confirmDialog({
       heading: tr('החזרת שינוי ב־NVR'),
       body: [

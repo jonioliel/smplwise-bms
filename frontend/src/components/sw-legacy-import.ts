@@ -11,6 +11,7 @@ import './sw-table';
 import type { TableColumn } from './sw-table';
 import type { StateKind } from './sw-badge';
 import { ApiError, describeError } from '../api/client';
+import { focusIfLost } from './modal-stack';
 import { fmtBytes } from '../api/backup';
 import { dayMonthTimeText } from '../api/day-format';
 import {
@@ -216,6 +217,8 @@ export class SwLegacyImport extends LitElement {
     } finally {
       this.busy = '';
       this.confirm = '';
+      // A11Y-NEW-2550: the dialog (and the focus in it) closed with the outcome - the result line or the refusal takes the focus
+      void this.updateComplete.then(() => focusIfLost(this.renderRoot.querySelector<HTMLElement>('[data-legacy-result], [data-legacy-error], [data-legacy-dialog-error]')));
     }
   }
 
