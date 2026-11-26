@@ -11,6 +11,7 @@ import path from 'node:path';
 // removing the last factor warns and needs the proof, and cancel sends nothing.
 // The page must run at http://localhost:<port>/ (WebAuthn needs a secure context and a domain RP id):
 //   SW_BASE_URL=http://localhost:5295/ npx playwright test tests/unit-mfa-passkeys-2490.spec.ts --project=desktop --project=mobile --workers=2
+// @unit-page-spec - a page spec (LOWS-BRIDGE-GATE-2550, TR-10): kept out of playwright.unit.config.ts's node-only run.
 // SW_SHOTS=<dir>: also writes the compare-page screenshots (light + dark). SW_PK_BEFORE=1: the server of before (403 for this user).
 
 const phone = (page: Page) => (page.viewportSize()?.width ?? 1440) <= 860;

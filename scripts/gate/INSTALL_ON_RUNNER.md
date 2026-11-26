@@ -91,11 +91,18 @@ The same three files carry an opt-in faster schedule (see `docs/release/GATE_SPE
 
 ## Nightly run (cron 02:00 Asia/Jerusalem)
 
-`nightly_tests.sh` (installed as `~/nightly_tests.sh`, cron line `0 2 * * * /home/sw/nightly_tests.sh >> ~/smplwise-results/cron.log 2>&1`)
+`nightly_tests.sh` (installed as `~/nightly_tests.sh`, cron line
+`0 23,0 * * * /home/sw/nightly_tests.sh --local-hour=02 >> ~/smplwise-results/cron.log 2>&1`)
 drives THIS engine, tier L without the visual step, from its own copy in `~/nightly-gate/` so that installing a new nightly never
 changes the release gate (and the reverse). Since 2026-10-09 (NIGHTLY-speed): the old script ran every spec on the dist preview on
 all three projects with `--workers=2`, dev-server specs included, and hit its 150 min limit; the engine's classification and
 parallel groups finish the same suite in about 60 min.
+
+LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-14): the runner's cron does NOT honour `CRON_TZ=Asia/Jerusalem` (the runner is Etc/UTC), so the
+old line `0 2 * * *` started at 02:00 UTC = 04:00 local in winter. The line fires at both UTC hours that can be 02:00 local (00:00 UTC in
+winter, 23:00 UTC in summer) and `--local-hour=02` makes the wrong one exit at once (no lock, nothing written). Keep the date guards of
+the existing line (`[ "$(date +\%Y\%m\%d)" ... ] &&`) in front of it when they still apply; note that at 23:00 UTC `date` is still the
+previous UTC day. Check: `~/nightly_tests.sh --local-hour=02 --dry-run` prints the branches only at 02:xx local.
 
 ```
 ssh runner 'mkdir -p ~/nightly-gate && cp ~/nightly_tests.sh ~/nightly_tests.sh.bak-$(date +%Y%m%d)'

@@ -57,8 +57,9 @@ def dir_identical(a: Path, b: Path) -> tuple[bool, list[str]]:
         cmp = filecmp.dircmp(x, y, ignore=["__pycache__"])
         for name in cmp.left_only + cmp.right_only:
             diffs.append(f"{rel}{name} (only on one side)")
-        for name in cmp.diff_files:
-            diffs.append(f"{rel}{name} (differs)")
+        for name in sorted(cmp.common_files):  # LOWS-BRIDGE-GATE-2550 (TR-13): by bytes - dircmp's diff_files is shallow (size + mtime)
+            if (x / name).read_bytes() != (y / name).read_bytes():
+                diffs.append(f"{rel}{name} (differs)")
         for name, sub in cmp.subdirs.items():
             walk(Path(sub.left), Path(sub.right), f"{rel}{name}/")
 

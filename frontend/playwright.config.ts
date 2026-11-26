@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
 import { installCaptureGuard } from './tests/helpers/capture-guard';
+import { reuseServer } from './tests/helpers/server-reuse';
 
 // Screenshot harness for design review (DESIGN_CONTRACT): reference desktop / tablet / mobile widths,
 // RTL shell, deterministic fixtures. Run `npm run build` first; the preview server serves dist/.
@@ -46,7 +47,10 @@ export default defineConfig({
   webServer: {
     command: `npm run preview -- --port ${new URL(BASE).port || '4173'}`,
     url: BASE,
-    reuseExistingServer: true,
+    // LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-10): a server already on the port is reused only when the run names it (SW_BASE_URL,
+    // as the release gate does with its own free port) or asks for it (SW_REUSE_SERVER=1). A bare run on the default 4173 used to test
+    // whatever served that port - another worktree's preview or an orphan one - and report it for this checkout; now it stops at once.
+    reuseExistingServer: reuseServer(process.env),
     timeout: 30_000,
   },
   projects: [

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Test run for SmplWise Arx - nightly (cron 02:00 Asia/Jerusalem) AND on demand. Installed on the runner as ~/nightly_tests.sh;
+# Test run for SmplWise Arx - nightly (cron 02:00 Asia/Jerusalem, via --local-hour=02) AND on demand. Installed on the runner as ~/nightly_tests.sh;
 # the engine it drives is installed next to it as ~/nightly-gate/{release_gate.py,gate_baselines.json} (see INSTALL_ON_RUNNER.md).
-# Usage: nightly_tests.sh [--backend-only] [--frontend-only] [--no-dev] [branch ...]   [--dry-run]   (default: origin/main only)
+# Usage: nightly_tests.sh [--backend-only] [--frontend-only] [--no-dev] [--local-hour=HH] [branch ...]   [--dry-run]   (default: origin/main only)
 #   --backend-only  only the backend (two shards, the old quick path)
 #   --frontend-only tsc + build + every Playwright phase, no backend (engine: GATE_SKIP_BACKEND=1)
 #   --no-dev        skip the dev-server Playwright phase (engine: GATE_SKIP_DEV=1)
@@ -28,9 +28,22 @@
 # One run at a time (flock): a second start waits or exits. Never kills processes by name (only the PIDs/process groups it started).
 # Writes a summary per branch to ~/smplwise-results/<date>_<branch>.md (the dashboard reads the newest 20*.md).
 set -uo pipefail
-BO=0; FO=0; ND=0; DRY=0; ARGS=(); ORIG=("$@")
-for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; --dry-run) DRY=1;; *) ARGS+=("$a");; esac; done
+BO=0; FO=0; ND=0; DRY=0; LOCAL_HOUR=""; ARGS=(); ORIG=("$@")
+for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; --dry-run) DRY=1;; --local-hour=*) LOCAL_HOUR="${a#--local-hour=}";; *) ARGS+=("$a");; esac; done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
+# LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-14): the runner's cron ignores CRON_TZ=Asia/Jerusalem, so `0 2 * * *` started at 02:00 UTC
+# (04:00 local in winter) and held the tests lock into the morning. --local-hour=HH runs only when it IS HH:xx in Asia/Jerusalem and
+# otherwise exits 0 at once (no lock, no fetch, nothing written): the cron line fires at both UTC hours that can be 02:00 local
+# (`0 23,0 * * *`: 00:00 UTC in winter, 23:00 UTC in summer) and the wrong one of the two does nothing - DST handled by the zone data, not
+# by editing the crontab twice a year. SW_NIGHTLY_NOW=<epoch> replaces "now" (tests only). The inner run (SW_NIGHTLY_INNER) never checks.
+if [ -n "$LOCAL_HOUR" ] && [ -z "${SW_NIGHTLY_INNER:-}" ]; then
+  case "$LOCAL_HOUR" in [01][0-9]|2[0-3]) ;; *) echo "nightly: --local-hour needs two digits 00-23, got '$LOCAL_HOUR'"; exit 2;; esac
+  HOUR_IL=$(TZ=Asia/Jerusalem date -d "@${SW_NIGHTLY_NOW:-$(date +%s)}" +%H)
+  if [ "$HOUR_IL" != "$LOCAL_HOUR" ]; then
+    echo "$(date -Is) nightly: it is ${HOUR_IL}:xx in Asia/Jerusalem, not ${LOCAL_HOUR}:xx - the other daylight-saving slot of the cron line; nothing run"
+    exit 0
+  fi
+fi
 DIR="$HOME/smplwisebms"; RESULTS="$HOME/smplwise-results"; NRES="$RESULTS/nightly"
 ENGINE="${SW_NIGHTLY_ENGINE:-$HOME/nightly-gate/release_gate.py}"
 MAX_MIN="${SW_NIGHTLY_MAX_MIN:-240}"
