@@ -496,8 +496,9 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       const error = field(page, 'error');
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
       await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_unknown');
-      await expect(error).toContainText('לא ידוע אם השינוי נשמר');
-      await expect(error).toContainText('storage_write_failed');
+      // the shared unknown-outcome wording (CR-036 S11); WisKey's own code stays in the attribute, never on an operator screen
+      await expect(error).toContainText('לא ידוע אם בוצע');
+      await expect(error).not.toContainText('storage_write_failed');
       await expect(error).toContainText('טענו מחדש');
       await expect(error).not.toContainText('לא בוצעה');
       await expect(field(page, 'reload')).toBeVisible();
@@ -507,8 +508,8 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
       expect((await control.post('/mode', { data: { people: 'unexpected' } })).status()).toBe(200);
       await field(page, 'save').click();
       await expect(error).toHaveAttribute('data-wiskey-editor-outcome', 'unknown', { timeout: 15000 });
-      await expect(error).toContainText('לא התקבלה מ־WisKey תשובה ברורה'); // success: true with an unexpected shape reads the same as no answer
-      await expect(error).not.toContainText('storage_write_failed');
+      await expect(error).toContainText('לא ידוע אם בוצע'); // success: true with an unexpected shape reads the same as no answer
+      await expect(error).toHaveAttribute('data-wiskey-editor-error-code', 'intercom_outcome_unknown');
       expect((await sent('users/update')).filter((m) => m.user_id === 'u003')).toHaveLength(2); // one frame per attempt, never a retry
     } finally {
       expect((await control.post('/mode', { data: { people: 'accept' } })).status()).toBe(200);
