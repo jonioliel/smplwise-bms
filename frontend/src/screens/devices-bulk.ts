@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { Latest } from '../api/latest';
 import type { DeviceCounts } from '../api/devices';
 import { ALARM_HE, alarmKnown } from '../api/devices';
 import { alarmsUnknown, lockUnknown } from '../api/area-row';
@@ -534,7 +535,12 @@ export class DevicesBulkDialog extends LitElement {
   @state() private preview: BulkPreview | null = null;
   @state() private record: BulkRecord | null = null;
   @state() private error = '';
-  private follow: { stopped: boolean } | null = null;
+  /** Every run still being followed (a run left behind by a close goes on until it ends); all stop when the dialog leaves the page. */
+  private follows = new Set<{ stopped: boolean }>();
+  /** STALE-ANSWERS-2540 (SCR-19): the run this dialog still shows. Closing the dialog while it runs, or opening it for another request,
+   * makes the earlier run's progress and result stale: the run goes on (on the server, and here only to tell the screen to reload), but
+   * it never rewrites or reopens the dialog. */
+  private runs = new Latest();
 
   static styles = css`
     /* R5-DEVICES-297: the dialog answers "what will happen" at a glance - the headline is a display line, the domains are filled
@@ -643,6 +649,7 @@ export class DevicesBulkDialog extends LitElement {
     if (this.phase === 'sending' || this.phase === 'running') return; // one at a time from this screen
     // BUILDING-SCOPE-CONTROL-2351: the screen's building (set while it shows one building of a multi-building site) unless the request names its own
     const req: BulkRequest = ask.building === undefined && this.building ? { ...ask, building: this.building } : ask;
+    this.runs.cancel(); // SCR-19: a run left behind by an earlier close no longer owns the dialog
     this.req = req;
     this.preview = null;
     this.record = null;
@@ -666,6 +673,7 @@ export class DevicesBulkDialog extends LitElement {
 
   private close = () => {
     if (this.phase === 'sending') return; // the request is on its way: the dialog stays until the server answered
+    if (this.phase === 'running') this.runs.cancel(); // SCR-19: "you may close this window" - the run's result no longer reopens it
     this.phase = 'closed';
   };
 
@@ -674,15 +682,26 @@ export class DevicesBulkDialog extends LitElement {
     const p = this.preview;
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
+    const current = this.runs.begin();
     try {
       const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only, req.switches, req.building);
       this.phase = 'running';
-      this.follow = { stopped: false };
-      const done = await followBulk(first, (r) => (this.record = r), this.follow);
+      const follow = { stopped: false };
+      this.follows.add(follow);
+      const done = await followBulk(first, (r) => { if (current()) this.record = r; }, follow).finally(() => this.follows.delete(follow));
+      if (!current()) {
+        // SCR-19: the dialog was closed (or shows another request) - the screen still reloads, the dialog stays as it is
+        this.dispatchEvent(new CustomEvent('bulk-done', { detail: done, bubbles: true, composed: true }));
+        return;
+      }
       this.record = done;
       this.phase = 'result';
       this.dispatchEvent(new CustomEvent('bulk-done', { detail: done, bubbles: true, composed: true }));
     } catch (err) {
+      if (!current()) {
+        this.dispatchEvent(new CustomEvent('bulk-done', { detail: null, bubbles: true, composed: true }));
+        return;
+      }
       this.error = err instanceof ApiError && err.code === 'target_changed'
         ? tr('רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן לא נשלח דבר. פתחו את הפעולה מחדש.')
         : describeError(err);
@@ -693,7 +712,7 @@ export class DevicesBulkDialog extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this.follow) this.follow.stopped = true;
+    for (const f of this.follows) f.stopped = true;
   }
 
   /** Focus starts on Cancel whenever the dialog shows a new step (sw-dialog itself focuses only when it opens, and

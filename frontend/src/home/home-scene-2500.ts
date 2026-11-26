@@ -20,6 +20,7 @@ import { CODE_ERROR_LABEL, panelAction, type AlarmPanel } from '../api/alarm';
 import { httpAutomations, type ItemDetail, type SceneDraft } from '../api/automations';
 import { ApiError, describeError } from '../api/client';
 import { canAnywhere } from '../api/session';
+import { Latest } from '../api/latest';
 import { tr } from '../i18n/msg/home';
 
 type Next = Suggestion<AlarmPanel, HDoor>;
@@ -52,6 +53,17 @@ function step(h: HomeHost) {
 }
 
 // ---------------------------------------------------------------- Q75: the scene sheet
+
+/** STALE-ANSWERS-2540 (SCR-33): one token per opening of the sheet. The scene's detail, a save and a delete apply only to the sheet
+ * they were started from: a slow detail of scene A never lands in the sheet opened since for scene B (whose "save" would write A's draft
+ * onto B and whose "to the bin" would remove B), and a late save of A never closes B's sheet or shows its error there. */
+const opens = new Latest();
+
+/** The scene sheet this save / delete was started from is still the one open. */
+function sheetOpen(h: HomeHost, open: () => boolean): boolean {
+  const o = h.ovl as unknown as { type?: string; mod?: string; kind?: string } | null;
+  return open() && o?.type === 'ext' && o.mod === 'scene2500' && o.kind === 'edit';
+}
 
 const ed: { id: string; d: ItemDetail | null; name: string; now: boolean; busy: boolean; err: string; confirm: boolean; del: boolean } = { id: '', d: null, name: '', now: false, busy: false, err: '', confirm: false, del: false };
 
@@ -120,7 +132,14 @@ registerScreen((h: HomeHost) => ({
     scEdit: (el) => {
       Object.assign(ed, { id: el.dataset.id ?? '', d: null, name: '', now: false, busy: false, err: '', confirm: false, del: false });
       h.ovl = { type: 'ext', mod: 'scene2500', kind: 'edit' } as ExtOvl;
-      void httpAutomations.get('scene', ed.id).then((d) => { ed.d = d; ed.name = (d.draft as SceneDraft).name; h.requestUpdate(); }).catch((err) => fail(h, err));
+      const open = opens.begin();
+      const id = ed.id;
+      void httpAutomations.get('scene', id).then((d) => {
+        if (!open() || ed.id !== id) return; // SCR-33: the sheet now shows another scene (or was opened again)
+        ed.d = d;
+        ed.name = (d.draft as SceneDraft).name;
+        h.requestUpdate();
+      }).catch((err) => { if (open()) fail(h, err); });
     },
     scEditNow: () => { ed.now = !ed.now; h.requestUpdate(); },
     scEditSave: () => {
@@ -129,26 +148,30 @@ registerScreen((h: HomeHost) => ({
       const name = ed.name.trim();
       if (!name) { ed.err = tr('תנו לסצנה שם.'); h.requestUpdate(); return; }
       const old = d.draft as SceneDraft;
+      const id = ed.id; // SCR-33: the scene this sheet's detail belongs to, read once (not again after the capture)
+      const confirm = ed.confirm || undefined;
+      const open = opens.begin();
       ed.busy = true;
       ed.err = '';
       h.requestUpdate();
       const members = ed.now ? httpAutomations.capture({ entity_ids: old.members.map((m) => m.entity_id) }).then((c) => c.members) : Promise.resolve(old.members);
       void members
-        .then((m) => httpAutomations.replace('scene', ed.id, { draft: { ...old, name, members: m }, base_revision: d.revision, confirm: ed.confirm || undefined, client_request_id: rid() }))
-        .then(() => { h.ovl = null; h.toast(tr('הסצנה "{name}" נשמרה', { name })); return reload(h); })
-        .catch((err) => fail(h, err));
+        .then((m) => httpAutomations.replace('scene', id, { draft: { ...old, name, members: m }, base_revision: d.revision, confirm, client_request_id: rid() }))
+        .then(() => { if (sheetOpen(h, open)) h.ovl = null; h.toast(tr('הסצנה "{name}" נשמרה', { name })); return reload(h); })
+        .catch((err) => { if (open()) fail(h, err); });
     },
     scDelAsk: () => { ed.del = true; h.requestUpdate(); },
     scDelNo: () => { ed.del = false; h.requestUpdate(); },
     scDelYes: () => {
       const d = ed.d;
       if (!d) return;
+      const open = opens.begin();
       ed.busy = true;
       h.requestUpdate();
       // the sheet's own question was the confirmation the server asks for on every delete
       void httpAutomations.remove('scene', ed.id, { base_revision: d.revision, confirm: true, client_request_id: rid() })
-        .then(() => { h.ovl = null; h.toast(tr('הסצנה הועברה לסל')); return reload(h); })
-        .catch((err) => { ed.del = false; fail(h, err); });
+        .then(() => { if (sheetOpen(h, open)) h.ovl = null; h.toast(tr('הסצנה הועברה לסל')); return reload(h); })
+        .catch((err) => { if (!open()) return; ed.del = false; fail(h, err); });
     },
   },
 }));
