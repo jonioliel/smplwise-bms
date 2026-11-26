@@ -1075,6 +1075,22 @@ export const homeWidgetsStyles = [css`
     :host([layout='hero'][data-fit='2']) .q-x {
       display: none;
     }
+    /* HOME-SCROLL-3-2530: the home screen's last fit step (devices-building data-squeeze: fit 2 still scrolls on a short screen) folds
+       the band of large cards the way direction b's column folds - the headings go, the clock reads at the display size, each card takes
+       its content's height - and the band keeps one row where its cards fit at four fifths of their resting width (the owner's five
+       cards at 1366 / 1280, four on a landscape tablet; a longer band still wraps). The resting look never reaches this step. */
+    :host([layout='hero'][data-squeeze]) .wrap {
+      gap: var(--sw-s-2);
+    }
+    :host([layout='hero'][data-squeeze]) .wg[data-size] {
+      flex-basis: calc(var(--wb) * 0.8);
+      min-block-size: auto;
+      padding-block: var(--sw-s-2);
+      --hm: var(--sw-fs-4xl);
+    }
+    :host([layout='hero'][data-squeeze]) .wg-h {
+      display: none;
+    }
     :host([layout='hero']) .wg-weather[data-size='l'] .wg-b,
     :host([layout='side']) .wg-weather[data-size='l'] .wg-b {
       display: grid;

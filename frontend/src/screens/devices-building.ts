@@ -452,7 +452,8 @@ export class DevicesBuilding extends LitElement {
   @state() private fitFold = false;
   /** HOME-SCROLL-2-2530: the last step, for every direction - the tightest packing (and b's fold) still scrolls on a short screen (the
    * tiles view at 1366x768, a landscape tablet): the top bar (the page title, the page's own block spacing) and the floor tiles
-   * compress (`data-squeeze` on sw-page and .page-body; devices-building-css.ts). Tokens only; a screen that fits never gets here. */
+   * compress (`data-squeeze` on sw-page and .page-body; devices-building-css.ts). Tokens only; a screen that fits never gets here.
+   * HOME-SCROLL-3-2530: direction a's band of large cards (the cards info style) folds on the same step (home-widgets `data-squeeze`). */
   @state() private fitSqueeze = false;
   /** HOME-SCROLL-2-2530: the settled packing's re-measures (scheduleFitRecheck): how many were booked for this fit key, and the pending one. */
   private fitRechecks = 0;
@@ -1095,7 +1096,7 @@ export class DevicesBuilding extends LitElement {
     const areas = this.scopeAreas;
     const elevators = areas ? (this.elevators ?? []).filter((e) => e.area_id !== null && areas.has(e.area_id)) : this.elevators ?? [];
     const data = areas && t.building.alarm && h.data.alarm ? { ...h.data, alarm: { ...h.data.alarm, state: t.building.alarm } } : h.data;
-    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?data-fold=${this.fitFold && layout === 'side'} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
+    return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?data-fold=${this.fitFold && layout === 'side'} ?data-squeeze=${this.fitSqueeze && layout === 'hero'} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
       .elevators=${elevators} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
       .xsMini=${items.some((i) => i.id === 'xsection' && i.avail === 'ok') ? this.xsMiniModel(items.find((i) => i.id === 'xsection')!.size) : null} .xsLightsOk=${this.xsLightsOk}
       @home-xs-floor=${(e: CustomEvent<{ id: string }>) => navigate(`/explore/floors/${encodeURIComponent(e.detail.id)}`)} @home-xs-all=${this.onXsAll} @home-xs-lights=${this.onXsLights}
