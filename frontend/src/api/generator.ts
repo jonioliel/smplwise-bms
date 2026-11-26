@@ -4,7 +4,7 @@
  * Live values come by polling `/live` (no websocket). Entity ids are returned only by the two manage routes of the sensor mapping; the operator
  * screens speak in display names and role keys.
  */
-import { get, post, put } from './client';
+import { api, get, post, put } from './client';
 import type * as Wire from './generated/wire-generator';
 
 export type Availability = 'online' | 'offline' | 'stale';
@@ -134,6 +134,8 @@ export const listAlerts = (o: AlertsQuery = {}) => get<AlertsResponse>(`generato
 export const getAlert = (id: string) => get<GenAlertDetail>(`generator/alerts/${encodeURIComponent(id)}`);
 export const ackAlert = (id: string, note?: string) => post<GenAlertDetail>(`generator/alerts/${encodeURIComponent(id)}/ack`, note ? { note } : {});
 export const muteAlert = (id: string, hours = 24) => post<Wire.GeneratorMuted>(`generator/alerts/${encodeURIComponent(id)}/mute`, { hours });
+/** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): end the mute of the alert's type now (generator.view; idempotent); answers the alert detail. */
+export const unmuteAlert = (id: string) => api<GenAlertDetail>(`generator/alerts/${encodeURIComponent(id)}/mute`, { method: 'DELETE' });
 export const ackAll = (deviceId: string) => post<Wire.GeneratorAcknowledged>(`generator/devices/${encodeURIComponent(deviceId)}/alerts/ack-all`);
 
 export const getPolicies = (id: string) => get<PoliciesResponse>(`generator/devices/${encodeURIComponent(id)}/policies`);

@@ -8,8 +8,9 @@ import '../components/sw-drawer';
 import '../components/sw-state-panel';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
-import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
-import { describeError } from '../api/client';
+import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, unmuteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
+import { ApiError, describeError } from '../api/client';
+import { confirmDialog } from '../components/confirm-dialog';
 import { PollController } from '../components/poll-controller';
 import { navigate } from '../router';
 import { he } from '../i18n/he';
@@ -35,6 +36,9 @@ const durText = (a: GenAlert) => {
  * תשתיות › גנרטור › התראות פעילות / היסטוריה (CR-031 GEN1): the open alerts (acknowledge one or all), the history with its filters (window, severity, type,
  * acknowledgement, state, free text) and the alert detail in a drawer (a bottom sheet on the phone) with snapshot, timeline, acknowledge with a note and a 24 h
  * mute. The list polls every 15 s. Acknowledge and mute need generator.view only.
+ * RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): a CRITICAL alert's mute needs generator.manage and is capped by the server - a refusal says
+ * so in the drawer, a shortened mute names its real end; a running mute can be ended ("ביטול ההשתקה", behind its own confirmation with
+ * the focus on cancel, as PHYSICAL-CONFIRM-2540's dialogs).
  */
 @customElement('gen-alerts-page')
 export class GenAlertsPage extends LitElement {
@@ -52,6 +56,8 @@ export class GenAlertsPage extends LitElement {
   @state() private note = '';
   @state() private busy = false;
   @state() private notice = '';
+  /** RELEASE-2540-TRAIN: the result line of a mute / un-mute that worked (the refusals stay in `notice`) */
+  @state() private info = '';
   @state() private retention = 0;
   /** CR-POLL-FEATURES-2439: the open-alerts re-read every 15 s (alerts mode only) - paused while the tab is hidden, never two at once, caught up on resume. */
   private poll = new PollController(this);
@@ -89,6 +95,7 @@ export class GenAlertsPage extends LitElement {
   private async loadDetail() {
     this.note = '';
     this.notice = '';
+    this.info = '';
     if (!this.alertId) {
       this.detail = null;
       return;
@@ -115,6 +122,43 @@ export class GenAlertsPage extends LitElement {
     try {
       await fn();
       await Promise.all([this.load(true), this.alertId ? this.loadDetail() : Promise.resolve()]);
+      this.dispatchEvent(new CustomEvent('alerts-changed', { bubbles: true, composed: true }));
+    } catch (e) {
+      this.notice = describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): mute for 24 h. The server refuses a critical alert without generator.manage (403) and
+   * shortens a critical mute; both are said in the drawer, never a silent no-op. */
+  private async mute(a: GenAlertDetail) {
+    this.busy = true;
+    this.notice = '';
+    this.info = '';
+    const asked = Date.now() + 24 * 3600_000;
+    try {
+      const r = await muteAlert(a.id, 24);
+      await Promise.all([this.load(true), this.loadDetail()]);
+      const until = Date.parse(r.muted_until);
+      if (Number.isFinite(until) && until < asked - 3600_000) this.info = fill(G.detail.mutedShort, { t: fmtDateTime(r.muted_until) });
+      this.dispatchEvent(new CustomEvent('alerts-changed', { bubbles: true, composed: true }));
+    } catch (e) {
+      this.notice = e instanceof ApiError && e.status === 403 ? G.detail.muteForbidden : describeError(e);
+    } finally {
+      this.busy = false;
+    }
+  }
+  /** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): end a running mute now - only after its own confirmation (focus on cancel). */
+  private async unmute(a: GenAlertDetail) {
+    if (!(await confirmDialog({ heading: G.detail.unmuteTitle, body: G.detail.unmuteBody, confirmLabel: G.detail.unmuteOk, focusCancel: true }))) return;
+    this.busy = true;
+    this.notice = '';
+    this.info = '';
+    try {
+      await unmuteAlert(a.id);
+      await Promise.all([this.load(true), this.loadDetail()]);
+      this.info = G.detail.unmuted;
       this.dispatchEvent(new CustomEvent('alerts-changed', { bubbles: true, composed: true }));
     } catch (e) {
       this.notice = describeError(e);
@@ -190,12 +234,14 @@ export class GenAlertsPage extends LitElement {
         <div class="row">${sev(a.severity)}<span class="mut">${G.detail.title}: <span class="num">${fmtDateTime(a.raised_at)}</span> · ${durText(a)}</span>${a.state === 'closed' ? html`<span class="sev cleared">${G.alerts.cleared}</span>` : nothing}</div>
         ${snap.length ? html`<span class="h3">${G.detail.snapshot}</span><div class="snap">${snap.map(([k, v]) => html`<div><span>${(G.snap as Record<string, string>)[k]}</span><b class="num">${fmtNum(v as number, k === 'battery_v' || k === 'oil_pressure' ? 1 : 0)} ${SNAP_UNITS[k]}</b></div>`)}</div>` : nothing}
         <span class="h3">${G.detail.timeline}</span><div class="tl">${a.timeline.map(tl)}</div>
-        ${a.muted_until ? html`<div class="notice">${fill(G.detail.muted, { t: fmtDateTime(a.muted_until) })}</div>` : nothing}
+        ${a.muted_until ? html`<div class="notice" data-muted>${fill(G.detail.muted, { t: fmtDateTime(a.muted_until) })}</div>` : nothing}
         ${a.acknowledged ? html`<div class="notice" data-acked><sw-icon name="check" size="18"></sw-icon><span>${G.detail.acked} <span class="num">${fmtDateTime(a.acked_at)}</span>${a.ack_note ? ` · ${a.ack_note}` : ''}</span></div>`
           : html`<div class="fld"><label for="ack-note">${G.detail.note}</label><textarea id="ack-note" class="note" placeholder=${G.detail.notePh} .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)}></textarea></div>`}
-        ${this.notice ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.notice}</div></div>` : nothing}
+        ${this.notice ? html`<div class="alert err" role="alert" data-notice><span class="x">!</span><div>${this.notice}</div></div>` : nothing}
+        ${this.info ? html`<div class="notice" role="status" data-mute-info>${this.info}</div>` : nothing}
         <div class="row">${a.acknowledged ? nothing : html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.act(() => ackAlert(a.id, this.note.trim()))} data-ack-detail>${G.detail.ack}</sw-button>`}
-          ${a.state === 'open' ? html`<sw-button ?disabled=${this.busy} @click=${() => this.act(() => muteAlert(a.id, 24))} data-mute>${G.detail.mute}</sw-button>` : nothing}</div>
+          ${a.state === 'open' ? html`<sw-button ?disabled=${this.busy} @click=${() => void this.mute(a)} data-mute>${G.detail.mute}</sw-button>` : nothing}
+          ${a.muted_until && Date.parse(a.muted_until) > Date.now() ? html`<sw-button variant="ghost" icon="bell" ?disabled=${this.busy} @click=${() => void this.unmute(a)} data-unmute>${G.detail.unmute}</sw-button>` : nothing}</div>
       </div>` : this.notice ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.notice}</div></div>` : html`<div class="skl" style="block-size:120px"></div>`}
     </sw-drawer>`;
   }

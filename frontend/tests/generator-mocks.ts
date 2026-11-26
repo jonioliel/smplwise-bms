@@ -25,6 +25,10 @@ export interface GenMockOptions {
   viewMode?: 'gauges' | 'charts';
   /** GENLOG092-295: the run-log switch (absent = off, like the server's default) */
   log?: boolean;
+  /** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): the server's mute rules - an open critical alert al5; muting a critical alert needs
+   * generator.manage (403 `forbidden` otherwise) and lasts at most 4 h; the detail carries the running mute; DELETE ends it.
+   * Absent = the old fixed answers (the existing specs unchanged). */
+  muteRules?: boolean;
 }
 export interface GenMock {
   calls: { method: string; path: string; body: unknown }[];
@@ -73,6 +77,8 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
   const count = o.count ?? 1;
   const st: GenMock = { calls: [], viewMode: o.viewMode ?? 'gauges' };
   const alerts = alertsFor('g1', o.alerts === 'none');
+  if (o.muteRules && o.alerts !== 'none') alerts.push({ ...alerts[0], id: 'al5', key: 'oil_pressure_low', title: 'לחץ שמן נמוך', severity: 'critical', raised_at: '2026-10-05T10:40:00Z', last_at: '2026-10-05T10:40:00Z', acknowledged: false, acked_by: null, acked_at: null });
+  const muted = new Map<string, string>();
   const open = alerts.filter((a) => a.state === 'open').length;
   const devs = Array.from({ length: count }, (_, i) => deviceFor(`g${i + 1}`, NAMES[i % NAMES.length] + (i >= NAMES.length ? ` ${i + 1}` : ''), level, sc, i === 0 ? open : 0, false));
   const policies = new Map<string, unknown>();
@@ -179,8 +185,18 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
         row.acknowledged = true;
         row.acked_at = NOW;
       }
-      if (a[2] === 'mute') return json(route, { muted_until: '2026-10-06T11:00:00Z' });
-      return json(route, { ...row, snapshot: { battery_v: 23.1, fuel_pct: 58, coolant_temp: 84, load_pct: 62 }, timeline: [{ at: row.raised_at, kind: 'raised' }, ...(row.acknowledged ? [{ at: NOW, kind: 'acknowledged', by: 'u1', note: null }] : [])], muted_until: null });
+      if (a[2] === 'mute' && o.muteRules) {
+        if (method === 'DELETE') muted.delete(row.id);
+        else {
+          const critical = row.severity === 'critical';
+          if (critical && !perms.includes('generator.manage')) return json(route, { code: 'forbidden', user_message: 'אין לך הרשאה לפעולה הזו.', retryable: false, correlation_id: 'mock', details: { permission: 'generator.manage' } }, 403);
+          const asked = Number((body as { hours?: number } | null)?.hours ?? 24);
+          const until = new Date(Date.now() + (critical ? Math.min(asked, 4) : asked) * 3600_000).toISOString();
+          muted.set(row.id, until);
+          return json(route, { muted_until: until });
+        }
+      } else if (a[2] === 'mute') return json(route, { muted_until: '2026-10-06T11:00:00Z' });
+      return json(route, { ...row, snapshot: { battery_v: 23.1, fuel_pct: 58, coolant_temp: 84, load_pct: 62 }, timeline: [{ at: row.raised_at, kind: 'raised' }, ...(row.acknowledged ? [{ at: NOW, kind: 'acknowledged', by: 'u1', note: null }] : [])], muted_until: muted.get(row.id) ?? null });
     }
     return err(route, 404, 'not_found', 'לא נמצא');
   });
