@@ -1,0 +1,16 @@
+{
+  "nvr_ip": "nvr.example.invalid",
+  "nvr_port": 90,
+  "nvr_rtsp_port": 554,
+  "nvr_user": "viewer",
+  "nvr_password": "Synthetic-NVR-Secret-1",
+  "app_pin": "97531",
+  "technician_pin": "86420",
+  "pin_length": 5,
+  "session_minutes": 60,
+  "snapshot_seconds": 2,
+  "go2rtc_url": "http://go2rtc.example.invalid:1984",
+  "go2rtc_ingress_path": "/api/hassio_ingress/SYNTHETIC-INGRESS-TOKEN",
+  "log_level": "INFO",
+  "event_search_debug": false
+}

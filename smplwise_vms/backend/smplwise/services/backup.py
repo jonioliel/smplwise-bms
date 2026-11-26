@@ -152,7 +152,7 @@ if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES[
     raise RuntimeError("a never-exported table is listed for backup")
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], "plan_bakes": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
-KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7, "auto-pre-restore": 3}  # OFFBOX-RESTORE-2300: the safety archive written before a restore from an off-box copy
+KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7, "auto-pre-restore": 3, "auto-pre-legacy-import": 5}  # OFFBOX-RESTORE-2300: the safety archive written before a restore from an off-box copy
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
                  # BRIDGE-STALE-DISCOVERY-2383: which Supervisor discovery messages THIS installation posted - local infrastructure state
                  "bridge.discovery_messages", "bridge.discovery_swept_at",

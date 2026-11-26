@@ -37,6 +37,7 @@ export const CONFIRM_WORDS = {
   managed_enabled: { he: 'מאשר ניהול התקנה', en: 'approve managed install' },
   managed_core_risk: { he: 'מאשר סיכון סביבה', en: 'approve environment risk' },
   managed_adopt: { he: 'מאשר העברה לניהול', en: 'approve move to managed' },
+  legacy_import_apply: { he: 'ייבוא מהמערכת הישנה', en: 'import legacy' },
   door_code: { he: 'קוד {slot}', en: 'code {slot}' },
 } as const satisfies Record<string, Record<ConfirmWordLang, string>>;
 

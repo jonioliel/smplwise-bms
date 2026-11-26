@@ -198,6 +198,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("search", "search"),
     Mount("backup_offbox", "backup"),  # DATASTORE-295 phase 2: before /backups/{name}
     Mount("backup", "backup"),
+    Mount("legacy_migration", "migration"),  # LEGACY-MIGRATION-2550 (T070): import from the legacy NVR add-on (system administrators)
     Mount("system_update", "system-update"),  # CR-021 S1: self-update check and settings (system.update)
     Mount("frames", "recordings"),
     Mount("cases", "cases"),

@@ -97,3 +97,43 @@ def test_apply_aliases_writes_only_empty_vms_aliases(monkeypatch):
     assert sent[0][0] == "PATCH" and sent[0][1].endswith("/api/v1/cameras/c1") and json.loads(sent[0][2])["alias"] == "כניסה ראשית"
     done_force = ml.apply_aliases([{**r, "action": "keep_vms_alias", "legacy_alias": "x"} if r["channel"] == 2 else r for r in rows], "http://vms.local:8099", None, force=True)
     assert sorted(d["channel"] for d in done_force) == [1, 2]
+
+
+def test_backup_export_writes_a_secret_free_document_arx_reads_back(tmp_path, capsys):
+    """LEGACY-MIGRATION-2550: --backup reads a Home Assistant backup with Arx's own reader; --export writes the secret-free document."""
+    import io
+    import tarfile
+
+    def tar(files: dict[str, bytes], gz: bool) -> bytes:
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz" if gz else "w") as t:
+            for name, data in files.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                t.addfile(info, io.BytesIO(data))
+        return buf.getvalue()
+
+    addon = tar({"./addon.json": json.dumps({"version": "1.5.27", "user": {"options": OPTIONS}}).encode(), "./data/options.json": json.dumps(OPTIONS).encode()}, True)
+    config = tar({"./data/legacy_override_copy.json": json.dumps(OVERRIDE, ensure_ascii=False).encode("utf-8")}, True)
+    meta = {"slug": "s1", "protected": False, "addons": [{"slug": "local_hikvision_nvr", "version": "1.5.27"}]}
+    backup = tmp_path / "backup.tar"
+    backup.write_bytes(tar({"./backup.json": json.dumps(meta).encode(), "./local_hikvision_nvr.tar.gz": addon, "./homeassistant.tar.gz": config}, False))
+    out = tmp_path / "export.json"
+    assert ml.main(["--backup", str(backup), "--export", str(out)]) == 0
+    import re
+
+    hexes = re.compile(r"[0-9a-f]{16,64}")  # digests (the file's SHA-256, the host digests) may hold any digit run
+    printed = hexes.sub("#", capsys.readouterr().out)
+    text = hexes.sub("#", out.read_text(encoding="utf-8"))
+    for secret in ("TopSecret!", "1234", "2468", "203.0.113.40", "203.0.113.41"):
+        assert secret not in text and secret not in printed
+    doc = json.loads(text)
+    assert doc["format"] == "smplwise-legacy-export/1" and doc["legacy_version"] == "1.5.27"
+    assert doc["override"]["camera_names"]["1"] == "כניסה ראשית" and doc["secrets_present"]["options.nvr_password"] is True
+    reader = ml.legacy_reader()
+    again = reader.read_bytes(out.read_bytes())
+    assert again.container == "export" and again.override["camera_names"] == doc["override"]["camera_names"]
+    # a protected backup is refused with its reason
+    meta["protected"] = True
+    backup.write_bytes(tar({"./backup.json": json.dumps(meta).encode()}, False))
+    assert ml.main(["--backup", str(backup)]) == 2

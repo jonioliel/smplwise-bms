@@ -1,0 +1,18 @@
+{
+  "nvr_password": "Synthetic-Override-Secret-2",
+  "camera_names": {
+    "1": "כניסה ראשית",
+    "2": "לובי",
+    "3": "חניה",
+    "7": "מחסן",
+    "x": "לא תקין"
+  },
+  "recording_display_offset_mode": "auto_plus_manual",
+  "recording_display_offset_direction": "subtract",
+  "recording_display_offset_minutes": 120,
+  "manual_recording": [
+    {"trackID": "201", "channelID": "2", "startedAt": 1790000000.0, "startedAtIso": "2026-09-21T13:33:20Z", "durationSeconds": 0, "until": null, "untilIso": null},
+    {"trackID": "301", "channelID": "3", "startedAt": 1790000000.0, "startedAtIso": "2026-09-21T13:33:20Z", "durationSeconds": 300, "until": 1790000300.0, "untilIso": "2026-09-21T13:38:20Z"}
+  ],
+  "legacy_extra_flag": true
+}
