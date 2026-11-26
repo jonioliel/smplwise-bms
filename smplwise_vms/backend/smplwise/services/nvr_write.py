@@ -265,7 +265,10 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     change left: the document is read first and compared (whitespace aside) with the change's `after`; when it differs the undo is
     refused (409 `changed_since`, audited, nothing written) - a later change, or an edit in the recorder's own screens, would be
     overwritten. A change already undone is refused too (409 `already_rolled_back`). `force=True` (the caller's explicit
-    confirmation, body `{"force": true}`) skips both checks and writes the old document anyway."""
+    confirmation, body `{"force": true}`) skips both checks and writes the old document anyway.
+    LISTENER-DEADLINE-2540: the document is read in every case, and the undo records what it actually overwrote as its `before`
+    (as a write does), so a forced undo over a newer device state can itself be undone back to that state; its audit row says
+    `overwrote_device_change: true`."""
     orig = get_change(conn, change_id)
     if not orig:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
@@ -292,12 +295,12 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     own = client is None
     c = client or _client(settings)
     try:
-        if not force:
-            current = _get(c, orig["path"])
-            if not orig["after_xml"] or _normalize(current) != _normalize(orig["after_xml"]):
-                audit(conn, actor=principal, action="nvr.rollback", decision="denied", resource_type="nvr", resource_id=orig["target"], reason="changed_since",
-                      request_id=request_id, details={"kind": orig["kind"], "path": orig["path"], "rollback_of": change_id})
-                raise ApiError(409, "changed_since", CHANGED_SINCE_TEXT, details={"change_id": change_id, "force_allowed": True})
+        current = _get(c, orig["path"])  # LISTENER-DEADLINE-2540: read even when forced - the undo's `before` is what it overwrites
+        changed = not orig["after_xml"] or _normalize(current) != _normalize(orig["after_xml"])
+        if changed and not force:
+            audit(conn, actor=principal, action="nvr.rollback", decision="denied", resource_type="nvr", resource_id=orig["target"], reason="changed_since",
+                  request_id=request_id, details={"kind": orig["kind"], "path": orig["path"], "rollback_of": change_id})
+            raise ApiError(409, "changed_since", CHANGED_SINCE_TEXT, details={"change_id": change_id, "force_allowed": True})
         _put(c, orig["path"], orig["before_xml"])
         try:
             verify = _get(c, orig["path"])
@@ -305,7 +308,7 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
             # BACKEND-SAFETY-2435 (review 03 F01): the device accepted the old document; only its read-back failed. The undo
             # is recorded as such (the document sent as `after`) and audited as unverified, then the same error is raised.
             conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
-            rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"],
+            rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=current,
                           after=orig["before_xml"], status="applied", error=VERIFY_FAILED, rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id, camera_id=orig["camera_id"] if "camera_id" in orig.keys() else None)
             audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
                   details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, "verified": False, "verify_error": exc.code})
@@ -314,10 +317,11 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         if own:
             c.close()
     conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
-    rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"], after=verify,
+    rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=current, after=verify,
                   status="applied", rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id, camera_id=orig["camera_id"] if "camera_id" in orig.keys() else None)
     audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
-          details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, **({"forced": True} if force else {})})
+          details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, **({"forced": True} if force else {}),
+                   **({"overwrote_device_change": True} if force and changed else {})})
     return rec
 
 
