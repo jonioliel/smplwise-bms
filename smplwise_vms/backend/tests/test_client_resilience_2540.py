@@ -12,7 +12,8 @@ from smplwise import __version__
 
 
 @pytest.fixture()
-def w(settings, fake_push) -> World:
+def w(settings, request) -> World:
+    request.getfixturevalue("fake_push")  # no real push service is ever contacted
     return World(settings)
 
 

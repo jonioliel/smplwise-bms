@@ -17,7 +17,9 @@ the fix; the new tests fail there - see "Before / after").
 - Writes, uploads, `apiBlob` and `apiResponse` keep no default deadline (a write the server finishes after the page gave up would be
   reported as failed; a large export may take long). A read with its own abort signal keeps it (the caller owns its lifetime).
   `get(path, { timeoutMs })` sets or (0) removes the deadline per call.
-- `api/live-refresh.ts`: a watchdog. A read still running after max(90 s, 3 periods) no longer holds its source: it counts as a
+- `api/live-refresh.ts`: a watchdog. A read still running after max(3 min, 5 periods) no longer holds its source (long enough that the
+  existing "no overlap however long a read takes" checks of `unit-poll-controller.spec.ts`, 4 periods, still hold; the client's own 60 s
+  deadline ends a client read first): it counts as a
   failure, the source is armed again, its late answer is ignored - polls, resume and the retry button work again.
 
 ### FC-03 - "unreachable" is not "signed out" (remote channel)

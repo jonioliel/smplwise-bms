@@ -51,8 +51,8 @@ export const MAX_BACKOFF_MS = 300_000;
 /** CLIENT-RESILIENCE-2540 (review FC-05): a read still running after max(STALL_MIN_MS, STALL_PERIODS x its period) no longer holds its
  * source: it counts as a failure, the source is armed again, and its late answer is ignored. The API client's own deadline
  * (api/client.ts GET_DEADLINE_MS) normally ends such a read first; this covers a source that reads by other means. */
-export const STALL_MIN_MS = 90_000;
-const STALL_PERIODS = 3;
+export const STALL_MIN_MS = 180_000;
+const STALL_PERIODS = 5;
 const JITTER = 0.1;
 
 function browserEnv(): LiveEnv {

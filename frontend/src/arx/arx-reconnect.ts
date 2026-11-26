@@ -21,8 +21,10 @@ export class ArxReconnect extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      padding: max(var(--sw-s-4), env(safe-area-inset-top, 0px)) max(var(--sw-s-4), env(safe-area-inset-right, 0px))
-        max(var(--sw-s-4), env(safe-area-inset-bottom, 0px)) max(var(--sw-s-4), env(safe-area-inset-left, 0px));
+      padding: var(--sw-s-4);
+      /* an installed app: clear of the notch, the status bar and the home indicator (a browser without env() keeps the line above) */
+      padding: max(var(--sw-s-4), env(safe-area-inset-top)) max(var(--sw-s-4), env(safe-area-inset-right))
+        max(var(--sw-s-4), env(safe-area-inset-bottom)) max(var(--sw-s-4), env(safe-area-inset-left));
       box-sizing: border-box;
       font-family: var(--sw-font);
       color: var(--sw-text);

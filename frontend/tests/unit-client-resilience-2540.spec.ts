@@ -296,7 +296,7 @@ test.describe('FC-05: a live source whose read never settles', () => {
     c.refreshOne('gen'); // still running: nothing (as before)
     await f.advance(1);
     expect(n).toBe(1);
-    await f.advance(3 * 1_000_000 + 1); // stall time = 3 periods for a long period
+    await f.advance(5 * 1_000_000 + 1); // stall time = 5 periods for a long period
     c.refreshOne('gen');
     await f.advance(1);
     expect(n).toBe(2);
