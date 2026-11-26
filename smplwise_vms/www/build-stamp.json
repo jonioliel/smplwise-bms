@@ -1,0 +1,21 @@
+{
+ "schema": 1,
+ "version": "2.54.0",
+ "inputs_sha256": "9ab35df02da198abc0290b2d3d80c55cddc6021fde7f1d20077ce946dc595088",
+ "files": 2126,
+ "inputs": [
+  "frontend/src",
+  "frontend/public",
+  "frontend/index.html",
+  "frontend/notice-tv.html",
+  "frontend/public-ticket.html",
+  "frontend/vite.config.ts",
+  "frontend/vite.public.config.ts",
+  "frontend/package.json",
+  "frontend/package-lock.json",
+  "frontend/tsconfig.json"
+ ],
+ "source_commit": "7524b85de5db277ed6e229756f3939eb5e21497e",
+ "built_at": "2026-11-26T16:44:18.218Z",
+ "tool": "frontend/scripts/build-stamp.mjs"
+}
