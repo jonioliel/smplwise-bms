@@ -162,8 +162,8 @@ export function wallRange(o: Pick<Occurrence, 'start' | 'end'>, day: Date): [num
 /** DST-TIMELINE-2540: what the clock does in hour `h` (0-23) of `day`: 'missing' = the clock jumps over it (spring: 02:00 -> 03:00),
  * 'repeated' = it is lived twice (autumn: 02:00 -> 01:00), else 'plain'. Read from the zone itself (the browser runs in the installation's
  * zone), so any zone and year works; JS resolves a skipped clock time forward and a repeated one to its first pass. */
-export type HourKind = 'plain' | 'missing' | 'repeated';
-export function hourKind(day: Date, h: number): HourKind {
+type HourKind = 'plain' | 'missing' | 'repeated';
+function hourKind(day: Date, h: number): HourKind {
   if (h < 0 || h > 23) return 'plain';
   const a = atMinute(day, h * 60);
   if (a.getHours() !== h || !sameDay(a, day)) return 'missing';
@@ -172,7 +172,7 @@ export function hourKind(day: Date, h: number): HourKind {
 }
 /** The hour labels of a wall-clock axis from `from` to `to` (k = 0..to-from): the missing hour has no label (it is skipped), the repeated
  * hour keeps its one place on the axis and is marked (the screens add "×2" and say why). */
-export interface AxisHour { k: number; h: number; kind: HourKind }
+interface AxisHour { k: number; h: number; kind: HourKind }
 export function axisHours(day: Date, from: number, to: number): AxisHour[] {
   return Array.from({ length: to - from + 1 }, (_, k) => ({ k, h: (from + k) % 24, kind: from + k < 24 ? hourKind(day, from + k) : 'plain' }));
 }
