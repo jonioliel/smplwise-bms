@@ -59,6 +59,7 @@ import {
   type PreviewTab,
 } from './nvr-encoding-logic';
 import { tr } from '../i18n/msg/media';
+import { changeArrow } from '../i18n/bidi';
 
 type Phase = 'closed' | 'select' | 'settings' | 'preview' | 'confirm';
 
@@ -458,7 +459,7 @@ export class NvrEncodingBatch extends NvrBatchShell {
       const kept = keptNotes(it);
       const title = [...ds.filter((x) => x.adjusted).map((x) => `${x.label}: ${x.why}`), ...kept.map((k) => `${k.label}: ${k.why}`)].join('\n');
       line = html`<span class="ln" data-nvr-enc-delta title=${title}>${ds.map(
-        (x, i) => html`${i ? ' · ' : ''}${x.label} <bdi class="ltr">${x.from}</bdi> <span class="arrow" aria-hidden="true">←</span> <bdi class="ltr ${x.adjusted ? 'adj' : ''}" data-adjusted=${x.adjusted ? 'true' : 'false'}>${x.to}${x.adjusted ? '*' : ''}</bdi>`,
+        (x, i) => html`${i ? ' · ' : ''}${x.label} <bdi class="ltr">${x.from}</bdi> <span class="arrow" aria-hidden="true">${changeArrow()}</span> <bdi class="ltr ${x.adjusted ? 'adj' : ''}" data-adjusted=${x.adjusted ? 'true' : 'false'}>${x.to}${x.adjusted ? '*' : ''}</bdi>`,
       )}${kept.length ? html` · <span class="muted" data-nvr-enc-kept>${kept.map((k) => k.label).join(', ')} ${tr('ללא שינוי')}</span>` : nothing}</span>`;
     }
     return html`<div class="row" role="listitem" data-nvr-enc-item=${it.index} data-status=${it.status}><span class="nm">${this.nameOf(it)}</span>${line}</div>`;

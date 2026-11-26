@@ -21,6 +21,7 @@ import {
   type FavWorld,
 } from './home-logic';
 import * as act from './home-actions';
+import { PushRefresh, PUSH_QUIET_MS, homeDraws, keepLocal } from './home-refresh';
 import { api, apiUrl, post, describeError } from '../api/client';
 import type * as HiWire from '../api/generated/wire-home-interface';
 import { GALLERY, galleryCss, switchUserMode } from './home-wall';
@@ -194,7 +195,10 @@ export class SwHome extends LitElement implements P3Host {
   @state() private price: number | null = null;
 
   private stopHa: (() => void) | null = null;
-  private refreshT = 0;
+  /** MEDIUM-REST-2540 (SCR-30): the overview refresh after a push or a command - a quiet period with a maximum wait (home-refresh.ts) */
+  private refresher = new PushRefresh(() => this.loadOverview());
+  /** SCR-30: the newest overview read only (a push, a command's follow-up and the first load overlap) */
+  private ovSeq = 0;
   private armT = 0;
   private clockT = 0;
   private holdT = 0;
@@ -249,7 +253,8 @@ export class SwHome extends LitElement implements P3Host {
     void this.load();
     this.wall.connect();
     this.stopHa = subscribeHa((m) => {
-      if (m.type === 'entity_state_changed' || m.type === 'structure_changed') this.scheduleRefresh();
+      // SCR-30: only a change of something the home draws asks for a refresh (a power meter's every second no longer holds it back)
+      if (m.type === 'structure_changed' || (m.type === 'entity_state_changed' && homeDraws(m.entity))) this.scheduleRefresh();
       if (m.type === 'entity_state_changed') this.alarmPushed(m.entity.entity_id);
     });
   }
@@ -268,8 +273,9 @@ export class SwHome extends LitElement implements P3Host {
     this.p3.dispose();
     this.wall.disconnect();
     this.modal.release();
-    for (const t of [this.refreshT, this.armT, this.holdT]) window.clearTimeout(t);
-    this.refreshT = this.armT = this.holdT = this.clockT = 0;
+    for (const t of [this.armT, this.holdT]) window.clearTimeout(t);
+    this.refresher.cancel();
+    this.armT = this.holdT = this.clockT = 0;
     this.flushFavs();
   }
 
@@ -280,9 +286,8 @@ export class SwHome extends LitElement implements P3Host {
     if (t !== this.tab4) this.tab4 = t;
   };
 
-  private scheduleRefresh(ms = 600) {
-    window.clearTimeout(this.refreshT);
-    this.refreshT = window.setTimeout(() => void this.loadOverview(), ms);
+  private scheduleRefresh(ms = PUSH_QUIET_MS) {
+    this.refresher.poke(ms);
   }
 
   private async load() {
@@ -372,9 +377,14 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   private async loadOverview() {
+    const seq = ++this.ovSeq;
+    const since = Date.now();
     try {
       const [ov, cameras] = await Promise.all([getOverview(), this.data ? Promise.resolve(this.data.cameras) : loadCameras()]);
+      if (seq !== this.ovSeq) return; // SCR-30: a newer read is on its way
       const base = adaptOverview(ov, ov.modules.includes('cameras') ? cameras : []);
+      // SCR-30: a device with this person's command in flight (or sent after this read started) keeps what the screen shows
+      base.rooms = keepLocal(this.data?.rooms, base.rooms, act.localIds(since));
       this.data = { scenes: [], alerts: [], energy: null, ...(this.data ?? {}), ...base, cameras: ov.modules.includes('cameras') ? cameras : [] };
       // MULTI-BUILDING-HOME-2500 (Q65): open on the wall panel's / the person's building, else the device's last choice, else the first
       const bs = base.buildings ?? [];
@@ -382,7 +392,7 @@ export class SwHome extends LitElement implements P3Host {
       if (!this.floor && base.floors[0]) this.floor = base.floors[0].id;
       this.error = '';
     } catch (err) {
-      if (!this.data) this.error = describeError(err);
+      if (seq === this.ovSeq && !this.data) this.error = describeError(err);
     }
   }
 
@@ -701,13 +711,17 @@ export class SwHome extends LitElement implements P3Host {
   private offLights(rs: HRoom[], withClimate: boolean, label: string) {
     const n = onCount(rs);
     const snap = this.snapshotLights(rs);
+    // MEDIUM-REST-2540: what is on is read BEFORE the screen shows it off (the per-light path and the climate sent nothing: they read
+    // the optimistic "off" and found nothing to turn off)
+    const lit = rs.flatMap((r) => r.lights.filter((l) => l.on && l.can));
+    const zonesOn = withClimate ? this.zonesOf(rs).filter((z) => z.mode !== 'off' && z.can) : [];
     for (const r of rs) {
       r.lights.forEach((l) => { if (l.can) l.on = false; });
       if (withClimate) r.zones.forEach((z) => { if (z.can) z.mode = 'off'; });
     }
     this.requestUpdate();
-    const tasks: Promise<act.Outcome>[] = [act.lightsOff(rs, this.bulkScope(rs))];
-    if (withClimate) tasks.push(act.climateOff(this.zonesOf(rs)));
+    const tasks: Promise<act.Outcome>[] = [act.lightsOff(rs, this.bulkScope(rs), lit)];
+    if (withClimate) tasks.push(act.climateOff(zonesOn));
     void Promise.all(tasks).then((res) => {
       const bad = res.find((o) => !o.ok);
       if (bad) this.toast(bad.note || tr('חלק מהכיבוי לא הצליח.'));
@@ -976,11 +990,17 @@ export class SwHome extends LitElement implements P3Host {
   a_temp(el: HTMLElement) {
     const z = this.findIn((r) => r.zones, el.dataset.zone ?? '');
     if (!z || !z.can) return this.toast(tr('אין הרשאה לכוון את המזגן הזה.'));
+    // MEDIUM-REST-2540 (SCR-31): +/- on a zone that is off turns it on with the new target (cool, else its first other mode); the
+    // "off" is read before the screen shows it on - setTarget used to see the optimistic mode and sent the setpoint only. A unit that
+    // offers no mode but off says so and changes nothing.
+    const wasOff = z.mode === 'off';
+    const mode = wasOff ? act.onModeFor(z) : null;
+    if (wasOff && !mode) return this.toast(tr('{name} כבוי ואי אפשר להדליק אותו מכאן.', { name: z.name }));
     const base = z.target ?? z.temp ?? 23;
     z.target = Math.max(z.min, Math.min(z.max, base + (+(el.dataset.d ?? 0)) * (z.step || 1)));
-    if (z.mode === 'off') z.mode = z.modes.includes('cool') ? 'cool' : 'auto';
+    if (mode) z.mode = mode;
     this.requestUpdate();
-    void this.outcome(act.setTarget(z, z.target));
+    void this.outcome(act.setTarget(z, z.target, wasOff));
   }
   a_preset(el: HTMLElement) {
     const z = this.findIn((r) => r.zones, el.dataset.zone ?? '');

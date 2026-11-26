@@ -283,6 +283,9 @@ export const en = {
   'פעיל': 'Active',
   'חלקי': 'Partial',
   'מצב מערכת · גשר לא רענן': 'System state · bridge not fresh',
+  // MEDIUM-REST-2540 (SCR-26): the kiosk's system tile follows the health summary
+  'מצב מערכת': 'System status',
+  'אין קשר': 'No connection',
   // mapping-assistant.ts
   'צורת הסימון': 'Marking style',
   'סימון ← בניין': 'Mark → building',

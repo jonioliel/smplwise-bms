@@ -247,8 +247,8 @@ export const en = {
   'הכללים נכתבו למקליט ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מהמקליט).':
     'The rules were written to the recorder and logged (they can be reverted). "Person" / "vehicle" alerts arrive only when the channel notifies Arx (Settings \u203a Connections \u203a Alerts from the recorder).',
   'שני הכיוונים': 'Both directions',
-  'שמאל → ימין': 'Left → right',
-  'ימין → שמאל': 'Right → left',
+  'משמאל לימין': 'Left to right',
+  'מימין לשמאל': 'Right to left',
   'בחר כלל ולחץ על התמונה כדי לצייר: קו =': 'Choose a rule and click the picture to draw: line =',
   'שתי': 'two',
   'לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה =': 'clicks (start and end — another click moves the end); intrusion area =',
@@ -321,8 +321,6 @@ export const en = {
   'רגישות:': 'Sensitivity:',
   'ללא שינוי': 'unchanged',
   'זיהוי:': 'Detection:',
-  'כבוי → פעיל': 'Off → On',
-  'פעיל → כבוי': 'On → Off',
   'המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.':
     'The before and after documents are kept, the change is written to the audit log and can be reverted. Recordings are not affected; an unmarked area will not trigger motion recording.',
   'קורא את הגדרות הזיהוי מהמקליט…': 'Reading the detection settings from the recorder…',

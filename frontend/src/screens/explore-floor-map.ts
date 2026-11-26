@@ -89,6 +89,7 @@ import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T4): the m
 import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { tr } from '../i18n/msg/plan-editor';
+import { argKey, argsToSend } from './map-action-args';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: tr('כבוי'), heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר בלבד') };
@@ -1671,6 +1672,11 @@ export class ExploreFloorMap extends LitElement {
   /** 06:MAP-1 a: a notice belongs to the card it was written on - another selection (or none) starts without it. */
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('selectedId') && this.notice) this.notice = '';
+    // MEDIUM-REST-2540 (SCR-17): values typed for one device do not wait for the next card (a pending confirmation keeps its own)
+    if (changed.has('selectedId') && Object.keys(this.actionArgs).length) {
+      const keep = this.confirmSpec ? `${this.confirmSpec.entityId}|` : null;
+      this.actionArgs = keep ? Object.fromEntries(Object.entries(this.actionArgs).filter(([k]) => k.startsWith(keep))) : {};
+    }
   }
 
   // ---- M043: the selection and the view survive a jump to the wall / playback and come back with Back ----
@@ -2487,7 +2493,7 @@ export class ExploreFloorMap extends LitElement {
   /** A control of the room card: the floor map's own path (trigger: the sensitive-action confirmation, permission, audit). With
    * `map.room_card_confirm` = bulk, closing a shutter asks first too. */
   private onRoomAction(d: RoomCardActionDetail): void {
-    if (d.args) for (const [k, v] of Object.entries(d.args)) this.actionArgs = { ...this.actionArgs, [`${d.spec.id}:${k}`]: String(v) };
+    if (d.args) for (const [k, v] of Object.entries(d.args)) this.actionArgs = { ...this.actionArgs, [argKey(d.entityId, d.spec.id, k)]: String(v) }; // SCR-17: this entity's own value
     if (!d.spec.sensitive && this.r28?.['map.room_card_confirm'] === 'bulk' && d.spec.id.endsWith('.close_cover')) {
       this.roomConfirm = { label: d.spec.label, items: [{ entityId: d.entityId, spec: d.spec }] };
       return;
@@ -2946,7 +2952,8 @@ export class ExploreFloorMap extends LitElement {
 
   // ---- HA actions (through the bridge integration, in the user's own HA identity) ----
 
-  /** Values typed for actions with arguments (T040), keyed by action id; defaults come from the entity's attributes. */
+  /** Values typed for actions with arguments (T040), keyed by entity + action + argument (SCR-17, map-action-args.ts); defaults come from
+   * the entity's attributes; cleared when the selection changes. */
   @state() private actionArgs: Record<string, string> = {};
 
   private argDefault(e: HaEntity, arg: HaActionArgSpec): string {
@@ -2961,18 +2968,10 @@ export class ExploreFloorMap extends LitElement {
     return String(arg.choices?.[0] ?? arg.min ?? '');
   }
 
-  /** The argument values to send: numbers as numbers (volume back to a fraction), enums / text as typed. */
+  /** The argument values to send (SCR-17): this entity's typed values, a required argument's default, never an untyped optional one (a
+   * light turned on keeps its own level). Numbers as numbers (volume back to a fraction), enums / text as typed. */
   private argsFor(e: HaEntity, spec: HaActionSpec): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const a of spec.argument_specs ?? []) {
-      const raw = this.actionArgs[`${spec.id}:${a.name}`] ?? this.argDefault(e, a);
-      if (a.type === 'int' || a.type === 'float') {
-        const n = Number(raw);
-        if (!Number.isFinite(n)) continue;
-        out[a.name] = a.name === 'volume_level' ? Math.min(1, Math.max(0, n / 100)) : n;
-      } else out[a.name] = raw;
-    }
-    return out;
+    return argsToSend(e.entity_id, spec, this.actionArgs, (a) => this.argDefault(e, a));
   }
 
   private argChoices(e: HaEntity, arg: HaActionArgSpec): string[] {
@@ -2984,8 +2983,9 @@ export class ExploreFloorMap extends LitElement {
 
   private renderArg(e: HaEntity, spec: HaActionSpec, arg: HaActionArgSpec) {
     const key = `${spec.id}:${arg.name}`;
-    const value = this.actionArgs[key] ?? this.argDefault(e, arg);
-    const set = (v: string) => (this.actionArgs = { ...this.actionArgs, [key]: v });
+    const own = argKey(e.entity_id, spec.id, arg.name); // SCR-17: the value belongs to this entity only
+    const value = this.actionArgs[own] ?? this.argDefault(e, arg);
+    const set = (v: string) => (this.actionArgs = { ...this.actionArgs, [own]: v });
     const at = e.attributes as Record<string, unknown>;
     const choices = this.argChoices(e, arg);
     if (choices.length) return html`<select class="arg" data-action-arg=${key} aria-label=${arg.name} @change=${(ev: Event) => set((ev.target as HTMLSelectElement).value)}>${choices.map((c) => html`<option value=${c} ?selected=${c === value}>${ARG_CHOICE_HE[c] ?? c}</option>`)}</select>`;

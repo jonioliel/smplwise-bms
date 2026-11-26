@@ -1258,4 +1258,6 @@ export const en = {
   // TIME-CORRECT-2540 (SCR-34)
   'נדחקה בגלל תחזוקה': 'Displaced by maintenance',
   'מצב לא ידוע': 'Unknown state',
+  // MEDIUM-REST-2540 (SCR-31): +/- on a unit that is off and offers no other mode
+  '{name} כבוי ואי אפשר להדליק אותו מכאן.': '{name} is off and cannot be turned on from here.',
 };

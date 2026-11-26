@@ -17,6 +17,8 @@ import { isOnWall } from './wall-arrangement';
 import { timeText } from '../api/day-format';
 import '../components/sw-brand';
 import { tr } from '../i18n/msg/media';
+import { PollController } from '../components/poll-controller';
+import { CAMERA_REFRESH_MS, mergeById, systemTile } from './wall-refresh';
 
 /** Saved view = the URL: #/kiosk/all?cameras=a,b,c&cols=3&rows=2&rotate=30 (seconds per page; 0 = no rotation).
  * Default 3×2: with nine sub streams at once the lab NVR / relay let the last tiles stall (live review F15). */
@@ -76,6 +78,8 @@ export class KioskWall extends LitElement {
   private healthTimer: number | undefined;
   private failures = 0;
   private unsubscribe: (() => void) | undefined;
+  /** MEDIUM-REST-2540 (SCR-26): the kiosk runs for days - the camera list is re-read through the shared poll (visible page only) */
+  private poller = new PollController(this);
   private onHash = () => {
     this.view = viewParams();
     this.page = this.restorePage();
@@ -570,6 +574,7 @@ export class KioskWall extends LitElement {
     this.startRotation();
     void this.pollHealth();
     this.healthTimer = window.setInterval(() => void this.pollHealth(), 15000);
+    this.poller.every('cameras', CAMERA_REFRESH_MS, () => this.refreshCameras(), { when: () => this.cams !== null && !this.disconnected });
   }
 
   disconnectedCallback() {
@@ -661,6 +666,26 @@ export class KioskWall extends LitElement {
     }
   }
 
+  /** SCR-26: a camera that came back (or went down) since the kiosk opened gets its player (or its offline tile) without a reload; an
+   * unchanged camera keeps its object, so its tile and its stream are left alone. A failed read keeps what is shown. */
+  private async refreshCameras(): Promise<void> {
+    if (!isApi()) return;
+    try {
+      const list = await listCameras();
+      if (!this.isConnected) return;
+      this.cams = mergeById(this.cams, list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false));
+    } catch {
+      /* the next tick tries again; the health poll shows a lost server */
+    }
+  }
+
+  /** SCR-26: the system tile follows the health summary (it said "active" whatever the header said, and named vendor components). */
+  private renderSystemTile() {
+    const t = systemTile(this.health?.status ?? null, this.disconnected);
+    const word = t.key === 'offline' ? tr('אין קשר') : t.key === 'unknown' ? '—' : STATUS_LABEL[t.key];
+    return html`<div class="stat" data-kiosk-system=${t.key}><div class=${`ic ${t.tone}`}><sw-icon name=${t.icon} size=${16}></sw-icon></div><div><b data-word>${word}</b><span>${tr('מצב מערכת')}</span></div></div>`;
+  }
+
   render() {
     const api = isApi();
     const pageIndex = this.page % this.pages;
@@ -693,7 +718,7 @@ export class KioskWall extends LitElement {
         <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>${tr('מצלמות מחוברות')}</span></div></div>
         <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${api ? real.filter((c) => c.status === 'offline').length : 3}</b><span>${api ? tr('מצלמות מנותקות') : tr('התראות פתוחות')}</span></div></div>
         <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? tr('זרמים חיים במקביל') : tr('מבנים')}</span></div></div>
-        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b data-word>${api ? tr('פעיל') : tr('חלקי')}</b><span>${api ? 'go2rtc + NVR' : tr('מצב מערכת · גשר לא רענן')}</span></div></div>
+        ${api ? this.renderSystemTile() : html`<div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b data-word>${tr('חלקי')}</b><span>${tr('מצב מערכת · גשר לא רענן')}</span></div></div>`}
       </div>
     `;
   }
