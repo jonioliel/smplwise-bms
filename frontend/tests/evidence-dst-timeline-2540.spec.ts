@@ -100,6 +100,7 @@ test('resident time bar, spring night: no "02", the hatch, the note, entries and
   expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} .axis span:text-is("04")`)))).toBeLessThan(4);
   // a tap under "05" with one hour centres 04:30-05:30 (elapsed time made it 05:30-06:30)
   await page.locator(`${R} [data-res-dur="60"]`).click();
+  await settle(page); // RELEASE-2540-TRAIN: the gate's settle lint - the bar is measured after the click's animations
   const bar = await page.locator(`${T} [data-res-bar]`).boundingBox();
   if (!bar) throw new Error('no bar');
   await page.mouse.click(await cx(page, `${T} .axis span:text-is("05")`), bar.y + bar.height / 2);
@@ -117,6 +118,7 @@ test('resident time bar, autumn night: "01 ×2" once, the note, the tap by the c
   await expect(page.locator(`${T} [data-res-gap]`)).toHaveCount(0);
   expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} .axis span:text-is("04")`)))).toBeLessThan(4);
   await page.locator(`${R} [data-res-dur="60"]`).click();
+  await settle(page); // RELEASE-2540-TRAIN: the gate's settle lint - the bar is measured after the click's animations
   const bar = await page.locator(`${T} [data-res-bar]`).boundingBox();
   if (!bar) throw new Error('no bar');
   // a tap under "03" with one hour centres 02:30-03:30 (elapsed time made it the second 01:30)
