@@ -1,4 +1,6 @@
 import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 import { installAccessMock, NOW, url as accessUrl } from './access-control-mocks';
 import { installSchedWritesMock, newSchedMock } from './schedule-writes-mocks';
 import { installExecMock, newExecMock } from './schedule-exec-mocks';
@@ -21,6 +23,20 @@ import { installWaInstalled, newWaInstalled } from './wa-installed-mock';
 async function expectSwitch(sw: Locator, on: boolean): Promise<void> {
   await expect(sw.locator('button[role="switch"]')).toHaveAttribute('aria-checked', String(on));
   await expect(sw).toHaveJSProperty('checked', on);
+}
+
+/** SW_SHOTS_DIR (the compare page only): the switch's row right after a refused save, named by SW_SHOTS_PHASE (before / after). */
+async function refusedShot(page: Page, sw: Locator, name: string): Promise<void> {
+  const dir = process.env.SW_SHOTS_DIR;
+  if (!dir) return;
+  await page.waitForTimeout(400); // the switch's own transition
+  const box = await sw.boundingBox();
+  const vp = page.viewportSize();
+  if (!box || !vp) return;
+  const x = Math.max(0, box.x - 40);
+  const y = Math.max(0, box.y - 70);
+  fs.mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: path.join(dir, `${name}-${process.env.SW_SHOTS_PHASE ?? 'run'}.png`), clip: { x, y, width: Math.min(820, vp.width - x), height: 170 } });
 }
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -56,6 +72,7 @@ test.describe('schedules: the WisKey schedule "status in WisKey" switch', () => 
     await sw.locator('button').click();
     await expect.poll(() => m.calls.filter((c) => c.method === 'PUT').length).toBe(1);
     await expect(page.locator(`${BLOCK} [data-sx-note]`)).toContainText('לא שמר');
+    await refusedShot(page, sw, 'schedules-wiskey-exec');
     await expectSwitch(sw, false);
     await expect(page.locator(`${BLOCK} [data-sx]`)).toHaveAttribute('data-sx-state', 'off');
 
@@ -106,6 +123,7 @@ test.describe('tickets settings: the installation and department switches', () =
     await expect.poll(() => st.puts.length).toBe(1);
     expect(st.puts[0]).toEqual({ revision: 1, urgent_is_critical: false });
     await expect(sw).not.toHaveAttribute('disabled', '');
+    await refusedShot(page, sw, 'tickets-urgent');
     await expectSwitch(sw, true);
 
     st.refuse = false;
@@ -123,6 +141,7 @@ test.describe('tickets settings: the installation and department switches', () =
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).toEqual({ share_history_external: false, revision: 2 });
     await expect(sw).not.toHaveAttribute('disabled', '');
+    await refusedShot(page, sw, 'tickets-dept-history');
     await expectSwitch(sw, true);
   });
 });
@@ -157,6 +176,7 @@ test.describe('module settings: the maintenance switches', () => {
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).toEqual({ [REMINDERS]: 'false' });
     await expect(page.locator(`${M} .alert.err`)).toBeVisible();
+    await refusedShot(page, sw, 'maintenance-reminders');
     await expectSwitch(sw, true);
 
     st.refuse = false;
@@ -190,6 +210,7 @@ test.describe('system settings: the cast to screens switches', () => {
     await expect.poll(() => st.puts.length).toBe(1);
     expect(st.puts[0]).toEqual({ enabled: false });
     await expect(page.locator(`${C} [data-cast-err]`)).toBeVisible();
+    await refusedShot(page, sw, 'cast-enabled');
     await expectSwitch(sw, true);
     expect(m.config.enabled).toBe(true);
 
@@ -227,6 +248,7 @@ test.describe('integration cards: the installed messaging client', () => {
     await sw.locator('button').click();
     await expect.poll(() => st.puts).toBe(1);
     await expect(sw).not.toHaveAttribute('disabled', '');
+    await refusedShot(page, sw, 'wa-paced');
     await expectSwitch(sw, false);
     expect(wa.view.settings.send_pacing_v1).toBe(false);
 
