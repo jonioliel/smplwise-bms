@@ -131,9 +131,9 @@ export class TicketsDeptEditor extends LitElement {
         <span class="end"><input class="in" maxlength="200" data-dept-description .value=${desc} @input=${(e: Event) => this.set({ description: (e.target as HTMLInputElement).value })} />
           <sw-button size="sm" ?disabled=${this.busy || desc.trim() === d.description} data-dept-description-save @click=${() => void this.patchDept({ description: desc.trim() }, () => this.set({ description: undefined }))}>${tt('save')}</sw-button></span></div>
       <div class="row"><span class="lbl">${tt('depActive')}</span>
-        <sw-toggle label=${tt('depActive')} labelHidden .checked=${d.active} ?disabled=${this.busy} data-dept-active @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ active: e.detail.checked })}></sw-toggle></div>
+        <sw-toggle controlled label=${tt('depActive')} labelHidden .checked=${d.active} ?disabled=${this.busy} data-dept-active @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ active: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tt('depOpenToAll')}<span class="muted">${tt('depOpenToAllSub')}</span></span>
-        <sw-toggle label=${tt('depOpenToAll')} labelHidden .checked=${d.open_to_all} ?disabled=${this.busy} data-dept-open @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ open_to_all: e.detail.checked })}></sw-toggle></div>
+        <sw-toggle controlled label=${tt('depOpenToAll')} labelHidden .checked=${d.open_to_all} ?disabled=${this.busy} data-dept-open @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ open_to_all: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tt('depReopenDays')}</span>
         <span class="end"><input class="in num" type="number" min="1" max="90" data-dept-reopen .value=${days} @input=${(e: Event) => this.set({ reopen_days: (e.target as HTMLInputElement).value })} />
           <sw-button size="sm" ?disabled=${this.busy || Number(days) === d.reopen_days || Number.isNaN(intIn(days, 1, 90))} @click=${() => void this.patchDept({ reopen_days: Number(days) }, () => this.set({ reopen_days: undefined }))}>${tt('save')}</sw-button></span></div>
@@ -224,7 +224,7 @@ export class TicketsDeptEditor extends LitElement {
         <sw-segmented radio label=${m.name} value=${m.role} ?disabled=${this.busy || !d.can_edit_members}
         @change=${(e: CustomEvent<SegmentedChange>) => { const r = e.detail.value as 'manager' | 'member'; if (r !== m.role) void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r)); }}
         .options=${(['manager', 'member'] as const).map((r) => ({ value: r, label: r === 'manager' ? tt('depManager') : tt('depMember'), disabled: m.role === r, attrs: { 'data-member-role': r } }))}></sw-segmented>
-        ${m.role === 'manager' && d.can_edit_members ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
+        ${m.role === 'manager' && d.can_edit_members ? html`<sw-toggle controlled label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
         ${d.can_edit_members ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
       </div>`) : html`<span class="muted">${tt('depNoMembers')}</span>`}</div>
@@ -257,7 +257,7 @@ export class TicketsDeptEditor extends LitElement {
         <span class="end">
           ${p.is_default ? html`<span class="tag ok" data-prio-default=${p.key}>${tt('depDefault')}</span>`
             : html`<button type="button" class="rc" data-prio-make-default=${p.key} ?disabled=${this.busy || !p.active} @click=${() => void this.act(() => ticketsApi().patchPriority(p.id, { is_default: true }))}>${tt('depMakeDefault')}</button>`}
-          <sw-toggle label=${tt('depPrioActive')} .checked=${p.active} ?disabled=${this.busy || p.is_default} data-prio-active=${p.key}
+          <sw-toggle controlled label=${tt('depPrioActive')} .checked=${p.active} ?disabled=${this.busy || p.is_default} data-prio-active=${p.key}
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().patchPriority(p.id, { active: e.detail.checked }))}></sw-toggle>
         </span></div>`)}
     </sw-card>`;
@@ -284,7 +284,7 @@ export class TicketsDeptEditor extends LitElement {
     const urgent = o.urgent_is_critical;
     return html`<sw-card heading=${tt('depPolicy')} data-card="dept-policy">
       <div class="row"><span class="lbl">${tt('depHistory')}<span class="muted">${tt('depHistorySub')}</span></span>
-        <sw-toggle label=${tt('depHistory')} labelHidden .checked=${d.share_history_external} ?disabled=${this.busy} data-dept-history
+        <sw-toggle controlled label=${tt('depHistory')} labelHidden .checked=${d.share_history_external} ?disabled=${this.busy} data-dept-history
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ share_history_external: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">${tt('depAutoClose')}<span class="muted">${tt('depAutoCloseSub')}</span></span>
         <span class="end">${auto !== null ? html`<span class="unit"><span class="muted">${tt('depAutoCloseDays')}</span>
@@ -292,14 +292,14 @@ export class TicketsDeptEditor extends LitElement {
               @input=${(e: Event) => this.set({ autoDays: (e.target as HTMLInputElement).value })} />
             <sw-button size="sm" ?disabled=${this.busy || Number(autoDays) === auto || Number.isNaN(intIn(autoDays, 1, 30))} data-dept-autoclose-save
               @click=${() => void this.patchDept({ auto_close_after_days: Number(autoDays) }, () => this.set({ autoDays: undefined }))}>${tt('save')}</sw-button></span>` : nothing}
-          <sw-toggle label=${tt('depAutoClose')} labelHidden .checked=${auto !== null} ?disabled=${this.busy} data-dept-autoclose
+          <sw-toggle controlled label=${tt('depAutoClose')} labelHidden .checked=${auto !== null} ?disabled=${this.busy} data-dept-autoclose
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDept({ auto_close_after_days: e.detail.checked ? (Number.isNaN(intIn(autoDays, 1, 30)) ? 3 : Number(autoDays)) : null }, () => this.set({ autoDays: undefined }))}></sw-toggle></span></div>
       <div class="row"><span class="lbl">${tt('depUrgent')}</span>
         <sw-segmented radio label=${tt('depUrgent')} value=${urgent === null ? 'inherit' : String(urgent)} ?disabled=${this.busy}
           @change=${(e: CustomEvent<SegmentedChange>) => { const v = e.detail.value === 'inherit' ? null : e.detail.value === 'true'; if (urgent !== v) void this.patchDept({ urgent_is_critical: v }); }}
           .options=${([null, true, false] as (boolean | null)[]).map((v) => ({ value: v === null ? 'inherit' : String(v), label: v === null ? tt('depUrgentInherit', { v: inst.urgent_is_critical ? tt('yes') : tt('no') }) : v ? tt('yes') : tt('no'), attrs: { 'data-dept-urgent': v === null ? 'inherit' : String(v) } }))}></sw-segmented></div>
       <div class="row stack" data-dept-links-row><span class="lbl">${tt('depLinks')}<span class="muted">${tt('depLinksSub', { s: inst.links.sliding_days, c: inst.links.cap_days, g: inst.links.grace_hours })}</span></span>
-        <div class="add"><sw-toggle label=${tt('depOwn')} .checked=${linksOwn} ?disabled=${this.busy} data-dept-links-own
+        <div class="add"><sw-toggle controlled label=${tt('depOwn')} .checked=${linksOwn} ?disabled=${this.busy} data-dept-links-own
           @change=${(e: CustomEvent<{ checked: boolean }>) => {
             if (e.detail.checked) this.set({ links: { sliding: String(eff.sliding_days), cap: String(eff.cap_days), grace: String(eff.grace_hours) } });
             else void this.patchDept({ link_sliding_days: null, link_cap_days: null, link_grace_hours: null }, () => this.set({ links: undefined }));
@@ -314,7 +314,7 @@ export class TicketsDeptEditor extends LitElement {
           ${linkErr && this.dr.links ? html`<span class="field-error">${tt(`err_${linkErr}` as TicketTextKey)}</span>` : nothing}</div>` : nothing}
       </div>
       <div class="row stack" data-dept-hours-row><span class="lbl">${tt('depHours')}<span class="muted">${tt('depHoursSub', { from: inst.send_hours.from, to: inst.send_hours.to })}</span></span>
-        <div class="add"><sw-toggle label=${tt('depOwn')} .checked=${hoursOwn} ?disabled=${this.busy} data-dept-hours-own
+        <div class="add"><sw-toggle controlled label=${tt('depOwn')} .checked=${hoursOwn} ?disabled=${this.busy} data-dept-hours-own
           @change=${(e: CustomEvent<{ checked: boolean }>) => {
             if (e.detail.checked) this.set({ hours: { ...(o.send_hours ?? inst.send_hours) } });
             else void this.patchDept({ send_hours: null }, () => this.set({ hours: undefined }));
@@ -373,7 +373,7 @@ export class TicketsDeptEditor extends LitElement {
       <div class="stack">
         ${list.length ? list.map((t) => html`<div class="tpl" data-tpl=${t.id}>
           <div class="tplhead"><span class="nm">${bidi(t.name)}</span>
-            <span class="end"><sw-toggle label=${tt('tplActive')} .checked=${t.active} ?disabled=${this.busy} data-tpl-active
+            <span class="end"><sw-toggle controlled label=${tt('tplActive')} .checked=${t.active} ?disabled=${this.busy} data-tpl-active
               @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().patchTemplate(t.id, { active: e.detail.checked, revision: t.revision }))}></sw-toggle>
               <sw-button size="sm" variant="ghost" data-tpl-edit @click=${() => this.openTpl(t)}>${tt('depEdit')}</sw-button></span></div>
           ${this.tplOpen === t.id && this.tplDraft ? this.tplForm(t) : t.title ? html`<span class="muted">${t.title}</span>` : nothing}

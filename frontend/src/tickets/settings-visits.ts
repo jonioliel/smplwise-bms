@@ -87,7 +87,7 @@ export class TicketVisitsSettings extends LitElement {
     const dirty = nums.some((n) => n.v !== c[n.key]);
     return html`
       ${FLAGS.map((f) => html`<div class="row"><span class="lbl">${vst(f.label)}<span class="muted">${vst(f.sub)}</span></span>
-        <sw-toggle label=${vst(f.label)} labelHidden .checked=${c[f.key]} ?disabled=${this.off} data-vs=${f.key}
+        <sw-toggle controlled label=${vst(f.label)} labelHidden .checked=${c[f.key]} ?disabled=${this.off} data-vs=${f.key}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [f.key]: e.detail.checked })}></sw-toggle></div>`)}
       ${nums.map((n) => html`<div class="row"><span class="lbl">${vst(n.label)}<span class="muted">${vst(n.sub)}</span></span>
         <span class="unit"><input class="in num" type="number" min=${n.lo} max=${n.hi} data-vs-num=${n.key} aria-label=${vst(n.label)} aria-invalid=${String(Number.isNaN(n.v))}

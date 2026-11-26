@@ -78,7 +78,7 @@ export class TicketNotifyMatrix extends LitElement {
 
   private toggle(label: string, sub: string, checked: boolean, attr: string, key: string): TemplateResult {
     return html`<div class="row"><span class="lbl">${label}<span class="muted">${sub}</span></span>
-      <sw-toggle label=${label} labelHidden .checked=${checked} ?disabled=${this.off} data-notify=${attr}
+      <sw-toggle controlled label=${label} labelHidden .checked=${checked} ?disabled=${this.off} data-notify=${attr}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [key]: e.detail.checked })}></sw-toggle></div>`;
   }
 
@@ -134,7 +134,7 @@ export class TicketNotifyMatrix extends LitElement {
           ${this.dept !== '*' && !eff.recipientsInherited ? html`<sw-button size="sm" variant="ghost" data-notify-rec-inherit ?disabled=${this.off}
             @click=${() => void this.save({ departments: setDeptField(n.departments, this.dept, 'recipients', undefined) })}>${nmt('backToStar')}</sw-button>` : nothing}</div>
         <div class="row"><span class="lbl">${nmt('recManagers')}</span>
-          <sw-toggle label=${nmt('recManagers')} labelHidden .checked=${rec.managers} ?disabled=${this.off} data-notify-rec-managers
+          <sw-toggle controlled label=${nmt('recManagers')} labelHidden .checked=${rec.managers} ?disabled=${this.off} data-notify-rec-managers
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ departments: setDeptField(n.departments, this.dept, 'recipients', { ...rec, managers: e.detail.checked }) })}></sw-toggle></div>
         ${this.chips('users', rec, n)}
         ${this.chips('roles', rec, n)}` : nothing}

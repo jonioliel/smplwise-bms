@@ -261,11 +261,11 @@ export class TicketsHandlersMembers extends LitElement {
       <sw-button size="sm" ?disabled=${this.busy || !dirty} data-member-mobile-save
         @click=${() => void this.saveStaff(m, { phone: dr.phone.trim() || null, lang: dr.lang })}>${tt('hdMobileSave')}</sw-button>
       ${m.mobile && m.mobile_confirmed === false ? html`<span class="chip warn" data-member-mobile-pending>${tt('hdMobilePending')}</span>` : nothing}
-      ${m.mobile ? html`<sw-toggle label=${tt('hdMobileWhatsapp')} .checked=${m.notify_whatsapp !== false} ?disabled=${this.busy || m.notify_whatsapp === false} data-member-whatsapp
+      ${m.mobile ? html`<sw-toggle controlled label=${tt('hdMobileWhatsapp')} .checked=${m.notify_whatsapp !== false} ?disabled=${this.busy || m.notify_whatsapp === false} data-member-whatsapp
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveStaff(m, { notify_whatsapp: e.detail.checked })}></sw-toggle>` : nothing}
     </div>
     ${m.mobile ? html`<div class="line" data-member-phone-verify=${m.id}>
-      <sw-toggle label=${tt('otpRowSwitch')} .checked=${!!m.phone_verify} ?disabled=${this.busy} data-member-phone-verify-switch
+      <sw-toggle controlled label=${tt('otpRowSwitch')} .checked=${!!m.phone_verify} ?disabled=${this.busy} data-member-phone-verify-switch
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveStaff(m, { phone_verify: e.detail.checked })}></sw-toggle>
       <tickets-phone-verify .contactId=${m.contact_id ?? null} hasPhone userLinked ?required=${!!m.verify_required} ?confirmed=${!!m.mobile_confirmed}
         .confirmToken=${m.mobile_confirm ?? null} @changed=${() => void this.load()}></tickets-phone-verify>
@@ -313,7 +313,7 @@ export class TicketsHandlersMembers extends LitElement {
       <sw-segmented radio label=${`${m.name} · ${d.name}`} value=${m.role} ?disabled=${this.busy || !edit}
         @change=${(e: CustomEvent<SegmentedChange>) => { const r = e.detail.value as 'manager' | 'member'; if (r !== m.role) void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, r)); }}
         .options=${(['manager', 'member'] as const).map((r) => ({ value: r, label: r === 'manager' ? tt('hdRole_manager') : tt('hdRole_member'), disabled: m.role === r, attrs: { 'data-member-role': r } }))}></sw-segmented>
-      ${m.role === 'manager' && edit ? html`<sw-toggle label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
+      ${m.role === 'manager' && edit ? html`<sw-toggle controlled label=${tt('depNotifyNew')} .checked=${m.notify_new} ?disabled=${this.busy} data-member-notify
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => ticketsApi().putMember(d.id, m.kind, m.id, m.role, e.detail.checked))}></sw-toggle>` : nothing}
       ${edit ? html`<button type="button" class="rm" data-member-remove ?disabled=${this.busy} @click=${() => void this.act(() => ticketsApi().deleteMember(d.id, m.kind, m.id))}>${tt('depRemove')}</button>` : nothing}
     </div>`;

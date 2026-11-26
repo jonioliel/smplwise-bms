@@ -43,3 +43,18 @@ guard('schedules', {
   'components/wk-schedule-exec.ts': 1, // the "status in WisKey" switch (PUT schedules/execution/settings)
   'components/device-activity.ts': 1, // a schedule's enable switch in the device sheet
 });
+
+guard('tickets settings', {
+  'tickets/settings-channel.ts': 5, // the message channel: on, buttons, e-mail fallback, phone check, managers' full numbers
+  'tickets/settings-costs.ts': 1,
+  'tickets/settings-dept.ts': 9, // active, open to all, member notify, priority active, history, auto close, own links / hours, template active
+  'tickets/settings-message-templates.ts': 1,
+  'tickets/settings-rules.ts': 1, // the rules' master switch (a rule's own switch is a draft)
+  'tickets/settings-visits.ts': 1,
+  'tickets/reports-settings.ts': 1,
+  'tickets/intake-settings.ts': 2,
+  'tickets/notify-matrix.ts': 2,
+  'tickets/handlers-members.ts': 3,
+  'tickets/staff-mine.ts': 1,
+  'screens/system-tickets.ts': 5, // the module switch, urgent is critical, arrival schedule, question badge, vendor uploads
+});

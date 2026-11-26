@@ -128,7 +128,7 @@ export class TicketsStaffMine extends LitElement {
         ${this.codeSent ? html`<div class="row"><input inputmode="numeric" autocomplete="one-time-code" maxlength="9" aria-label=${tt('otpCodeLabel')} placeholder="000000"
             .value=${this.code} data-staff-mine-code @input=${(e: Event) => { this.code = (e.target as HTMLInputElement).value; }}>
           <button type="button" ?disabled=${this.busy || !codeLooksComplete(this.code)} data-staff-mine-check @click=${() => void this.checkCode()}>${tt('otpVerify')}</button></div>` : nothing}` : nothing}
-      <div class="row"><sw-toggle label=${tt('hdMobileWhatsapp')} .checked=${v.notify_whatsapp} ?disabled=${this.busy} data-staff-mine-whatsapp
+      <div class="row"><sw-toggle controlled label=${tt('hdMobileWhatsapp')} .checked=${v.notify_whatsapp} ?disabled=${this.busy} data-staff-mine-whatsapp
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ notify_whatsapp: e.detail.checked })}></sw-toggle></div>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}`;
   }

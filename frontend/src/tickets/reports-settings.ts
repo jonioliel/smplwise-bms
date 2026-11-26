@@ -76,7 +76,7 @@ export class TicketsReportsSettings extends LitElement {
 
   private toggle(label: 'toContacts' | 'email' | 'documents', key: 'to_contacts' | 'email' | 'documents', checked: boolean, off: boolean, attr: string) {
     return html`<div class="row"><span class="lbl">${vrt(label)}</span>
-      <sw-toggle label=${vrt(label)} labelHidden .checked=${checked} ?disabled=${this.busy || off} data-reports=${attr}
+      <sw-toggle controlled label=${vrt(label)} labelHidden .checked=${checked} ?disabled=${this.busy || off} data-reports=${attr}
         @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ [key]: e.detail.checked })}></sw-toggle></div>`;
   }
 

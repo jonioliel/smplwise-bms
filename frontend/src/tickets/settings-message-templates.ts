@@ -232,7 +232,7 @@ export class TicketsMessageTemplates extends LitElement {
     return html`<sw-card heading=${`${purposeLabel(this.purpose)} · ${mtt(`lang_${this.tplLang}` as MessageTextKey)}`} data-card="template-editor"
         data-template-state=${cur ? (cur.active ? 'custom' : 'inactive') : 'starter'}>
       <div class="row"><span class="lbl"><span class="badge">${cur ? (cur.active ? mtt('tplCustom') : mtt('tplInactive')) : mtt('tplStarter')}</span></span>
-        ${cur && !editing ? html`<sw-toggle label=${mtt('tplCustom')} labelHidden .checked=${cur.active} ?disabled=${this.busy} data-template-active
+        ${cur && !editing ? html`<sw-toggle controlled label=${mtt('tplCustom')} labelHidden .checked=${cur.active} ?disabled=${this.busy} data-template-active
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.act(() => messagesApi().patchTemplate(cur.id, { active: e.detail.checked, revision: cur.revision }))}></sw-toggle>` : nothing}</div>
       ${editing ? html`<textarea class="in" dir=${dir} maxlength="1500" data-template-body .value=${text}
             @input=${(e: Event) => this.onDraft((e.target as HTMLTextAreaElement).value)}></textarea>
