@@ -15,6 +15,7 @@ import '../components/sw-live-player';
 import { tr } from '../i18n/msg/home';
 import { isoZ } from '../api/day-format';
 import { SeekCoalescer } from '../api/seek-coalescer';
+import { playerMinute } from './home-playback-clock';
 
 interface PbEvent { at: number; text: string; icon: string }
 
@@ -120,9 +121,15 @@ async function runPlay(h: HomeHost, minute: number) {
     if (real && dateInZone(new Date(real), st.tz) === dateOf(st.back)) st.t = minuteInZone(new Date(real), st.tz);
     st.play = true;
     window.clearInterval(tick);
+    const answeredAt = Date.now();
+    // STALE-ANSWERS-2540 (SCR-28): the position is the player's own media clock (as the investigate screen reads it), not a wall-clock
+    // counter - it stops with the picture in a stall and never runs past the recording
     tick = window.setInterval(() => {
-      if (!st.play) return;
-      st.t = Math.min(1439.99, st.t + 1 / 60);
+      if (!st.play || !st.session) return;
+      const p = h.shadowRoot?.querySelector<HTMLElement & { mediaTime?: number }>('[data-home-playback] sw-live-player');
+      const m = playerMinute(st.session, p?.mediaTime, st.tz, dateOf(st.back), (Date.now() - answeredAt) / 1000);
+      if (m === null || Math.abs(m - st.t) < 1 / 600) return;
+      st.t = m;
       h.requestUpdate();
     }, 1000);
   } catch (err) {

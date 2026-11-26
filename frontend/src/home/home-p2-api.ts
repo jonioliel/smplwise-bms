@@ -94,7 +94,9 @@ export interface TicketCat { department_id: string; category_id: string | null; 
 export const myTickets = (state: 'open' | 'all') => get<{ items: Ticket[]; categories: TicketCat[]; can_create: boolean; can_view: boolean }>(`home/tickets?state=${state}`);
 export const newTicket = (body: { department_id: string; category_id: string | null; title: string; where: string; text: string; client_request_id: string }) =>
   post<{ id: string }>('home/tickets', body);
-export const ticketNote = (id: string, text: string) => post<{ ticket: Ticket }>(`home/tickets/${encodeURIComponent(id)}/notes`, { text });
+/** STALE-ANSWERS-2540 (SCR-39): `client_request_id` makes the note idempotent on the server (the same id again adds no second note). */
+export const ticketNote = (id: string, text: string, clientRequestId: string) =>
+  post<{ ticket: Ticket }>(`home/tickets/${encodeURIComponent(id)}/notes`, { text, client_request_id: clientRequestId });
 
 // ---------------------------------------------------------------- scene schedules
 export interface SceneSchedule {

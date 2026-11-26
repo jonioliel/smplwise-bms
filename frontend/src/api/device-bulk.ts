@@ -8,7 +8,7 @@
  * confirmation dialog shows, sends the request with `confirmed: true` - called ONLY from that dialog's own confirm
  * button - and follows the record to its end.
  */
-import { get, post } from './client';
+import { ApiError, get, post } from './client';
 import { tr } from '../i18n/msg/api-devices';
 import { isoZ } from './day-format';
 import type * as Wire from './generated/wire-devices';
@@ -193,14 +193,37 @@ export function bulkBody(scope: BulkScope, id: string, kind: BulkKind, previewDi
 
 export const getBulk = (bulkId: string) => get<BulkRecord>(`devices/actions/${encodeURIComponent(bulkId)}`);
 
-/** Follow a bulk record until the server says `done` (every entity confirmed or its window passed), reporting each read. */
-export async function followBulk(first: BulkRecord, onUpdate: (r: BulkRecord) => void, signal?: { stopped: boolean }): Promise<BulkRecord> {
+/** STALE-ANSWERS-2540 (review SCR-19, last sentence): a status read that never reached the server or came back from a proxy that
+ * could not reach it (no connection, 502 / 503 / 504, or an answer the server marks retryable). The bulk run itself goes on on the server,
+ * so such a miss is no reason to call the run failed: the next read is tried as usual. */
+function pollMissed(err: unknown): boolean {
+  if (err instanceof TypeError) return true; // fetch: no connection
+  return err instanceof ApiError && (err.status === 502 || err.status === 503 || err.status === 504 || err.body.retryable === true);
+}
+
+/** The clock and the read followBulk uses (the unit spec drives them by hand). */
+interface FollowDeps {
+  read: (id: string) => Promise<BulkRecord>;
+  wait: (ms: number) => Promise<void>;
+  now: () => number;
+}
+const followDeps: FollowDeps = { read: (id) => getBulk(id), wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now: () => Date.now() };
+
+/** Follow a bulk record until the server says `done` (every entity confirmed or its window passed), reporting each read.
+ * STALE-ANSWERS-2540: a missed read (`pollMissed`) keeps the last record - the dialog still says "running" - and polling goes on until
+ * the same deadline; any other refusal (403, 404...) ends the follow with that error, as before. */
+export async function followBulk(first: BulkRecord, onUpdate: (r: BulkRecord) => void, signal?: { stopped: boolean }, deps: FollowDeps = followDeps): Promise<BulkRecord> {
   let r = first;
   onUpdate(r);
-  const deadline = Date.now() + 120_000;
-  while (!r.done && !signal?.stopped && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    r = await getBulk(r.id);
+  const deadline = deps.now() + 120_000;
+  while (!r.done && !signal?.stopped && deps.now() < deadline) {
+    await deps.wait(700);
+    try {
+      r = await deps.read(r.id);
+    } catch (err) {
+      if (!pollMissed(err)) throw err;
+      continue; // the run goes on on the server: read again at the next round
+    }
     onUpdate(r);
   }
   return r;

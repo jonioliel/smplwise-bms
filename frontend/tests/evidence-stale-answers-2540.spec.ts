@@ -45,9 +45,11 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
   test('SCR-39: a double tap on "send note" sends ONE note, and the button is disabled while it is on its way', async ({ page }) => {
     await mockP2(page);
     let notes = 0;
+    const keys: unknown[] = [];
     const hold = gate();
     await page.route('**/api/v1/home/tickets/*/notes', async (r) => {
       notes += 1;
+      keys.push((r.request().postDataJSON() as { client_request_id?: unknown }).client_request_id);
       await hold.held;
       return r.fallback();
     });
@@ -62,6 +64,9 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     hold.open();
     await expect(home(page).locator('[data-act="p2TkNoteSend"]')).toHaveCount(0); // sent: the sheet closed
     expect(notes).toBe(1);
+    // Q1a: the note carries its own request id (the server answers a repeat with the first result and adds no second note)
+    expect(keys).toHaveLength(1);
+    expect(String(keys[0])).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
   });
 
   // ---------------------------------------------------------------- SCR-32
@@ -194,6 +199,31 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     expect(Date.parse(rec.st.seeks[1]) - Date.parse(rec.st.seeks[0])).toBeGreaterThanOrEqual(19_000);
   });
 
+  test('Q3a (SCR-28): the playing position follows the player's own clock - it stops with the picture and moves with it', async ({ page }) => {
+    await mockHome(page, { perms: ['devices.read', 'video.live', 'video.playback', 'events.read', 'map.read'] });
+    const rec = await recordingsRoutes(page);
+    await page.routeWebSocket(/playback/, () => undefined); // the relay socket: held open, nothing plays
+    await openHome(page, 'playback/cam1');
+    await expect(home(page).locator('.tl .tl-seg')).toHaveCount(1);
+    await home(page).locator('[data-act="pbPlay"]').click();
+    await expect.poll(() => rec.holds.length).toBe(1);
+    rec.holds.shift()!();
+    const player = home(page).locator('[data-home-playback] sw-live-player');
+    await expect(player).toHaveCount(1);
+    // the player's media clock comes from window.__mt (a stalled picture: it does not move)
+    await page.evaluate(() => void ((window as unknown as { __mt: number }).__mt = 0));
+    await player.evaluate((el) => Object.defineProperty(el, 'mediaTime', { configurable: true, get: () => (window as unknown as { __mt: number }).__mt }));
+    const stamp = home(page).locator('.pb-pic .rec-st .num');
+    await page.waitForTimeout(1500);
+    const t0 = await stamp.textContent();
+    await page.waitForTimeout(3200);
+    expect(await stamp.textContent(), 'a stalled picture: the clock does not run on').toBe(t0);
+    await page.evaluate(() => void ((window as unknown as { __mt: number }).__mt = 3));
+    await page.waitForTimeout(1500);
+    const sec = (s: string | null) => { const [h, m, x] = (s ?? '0:0:0').split(':').map(Number); return h * 3600 + m * 60 + x; };
+    expect(sec(await stamp.textContent()) - sec(t0)).toBe(3);
+  });
+
   // ---------------------------------------------------------------- SCR-35
   test('SCR-35: the resident room list shows the day selected last, even when an earlier day answers last', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -255,7 +285,7 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
 
   // ---------------------------------------------------------------- SCR-19
   async function bulkRoutes(page: Page) {
-    const st = { done: false, runs: 0 };
+    const st = { done: false, runs: 0, polls: 0, dropPolls: 0 };
     const target = (kind: string) => (kind === 'covers_close' ? { entity_id: 'cover.c1', name: 'תריס', domain: 'cover', area_name: 'סלון', action_id: 'cover.close_cover' } : { entity_id: 'light.l1', name: 'אור', domain: 'light', area_name: 'סלון', action_id: 'light.turn_off' });
     await page.route('**/api/v1/devices/actions/preview?**', (r) => {
       const q = new URL(r.request().url()).searchParams;
@@ -274,7 +304,14 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
       st.runs += 1;
       return json(r, record(false), 202);
     });
-    await page.route('**/api/v1/devices/actions/bk1', (r) => json(r, record(st.done)));
+    await page.route('**/api/v1/devices/actions/bk1', (r) => {
+      st.polls += 1;
+      if (st.dropPolls > 0) {
+        st.dropPolls -= 1;
+        return r.abort('failed'); // no connection for this read
+      }
+      return json(r, record(st.done));
+    });
     return st;
   }
 
@@ -314,5 +351,26 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     await page.waitForTimeout(2000);
     await expect(dlg.locator('sw-dialog[data-bulk-dialog="closed"]')).toHaveCount(1);
     await expect(dlg.locator('sw-dialog[open]')).toHaveCount(0);
+  });
+
+  test('Q2a (SCR-19): a status read lost to the network keeps the dialog on "running" and polling goes on; the result comes as the server says', async ({ page }) => {
+    await mockHome(page);
+    const st = await bulkRoutes(page);
+    await openHome(page, '');
+    await page.evaluate(() => {
+      const el = document.createElement('devices-bulk-dialog') as HTMLElement & { show: (r: unknown) => Promise<void> };
+      document.body.append(el);
+      void el.show({ scope: 'area', id: 'living', kind: 'lights_off', name: 'סלון' });
+    });
+    const dlg = page.locator('body > devices-bulk-dialog');
+    st.dropPolls = 2;
+    await dlg.locator('sw-button[data-bulk-confirm]').click();
+    await expect(dlg.locator('[data-bulk-result="running"]')).toBeVisible();
+    await expect.poll(() => st.dropPolls, { timeout: 10_000 }).toBe(0); // two reads failed
+    await expect(dlg.locator('sw-dialog[data-bulk-dialog="error"]')).toHaveCount(0);
+    await expect(dlg.locator('[data-bulk-result="running"]')).toBeVisible();
+    st.done = true;
+    await expect(dlg.locator('[data-bulk-result="ok"]')).toBeVisible({ timeout: 10_000 });
+    expect(st.runs).toBe(1);
   });
 });

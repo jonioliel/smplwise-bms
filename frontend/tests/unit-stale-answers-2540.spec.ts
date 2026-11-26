@@ -251,3 +251,71 @@ test('SCR-39: "send note" returns while a note is on its way and redraws the dis
   expect(send).toMatch(/^p2TkNoteSend: \(el\) => \{\s*if \(st\.busy\) return;/);
   expect(send).toMatch(/st\.busy = true;\s*h\.requestUpdate\(\);\s*void ticketNote/);
 });
+
+// ---------------------------------------------------------------- owner answers (unanswered = recommendation): Q1a, Q2a, Q3a
+
+test('Q1a (SCR-39): the note carries its own request id - one per opening of the sheet, cleared once the note was sent', () => {
+  const api = code('home/home-p2-api.ts');
+  expect(api).toMatch(/export const ticketNote = \(id: string, text: string, clientRequestId: string\) =>\s*post<\{ ticket: Ticket \}>\(`home\/tickets\/\$\{encodeURIComponent\(id\)\}\/notes`, \{ text, client_request_id: clientRequestId \}\);/);
+  const s = code('home/home-tickets.ts');
+  expect(s).toMatch(/p2TkNote: \(el\) => \{ st\.draft\.note = ''; st\.draft\.noteCrid = rid\(\);/);
+  expect(s).toMatch(/void ticketNote\(el\.dataset\.id \?\? '', text, st\.draft\.noteCrid \|\| rid\(\)\)\.then\(\(\) => \{ st\.draft\.noteCrid = '';/);
+});
+
+/** A bulk record with only what followBulk reads. */
+const bulk = (done: boolean) => ({ id: 'bk1', done, counts: { total: 1, confirmed: done ? 1 : 0 } }) as never;
+
+test('Q2a (SCR-19): a status read that misses (no connection, 502/503/504, retryable) keeps polling; the run ends as the server says', async () => {
+  const { followBulk } = await import('../src/api/device-bulk');
+  const { ApiError } = await import('../src/api/client');
+  let t = 0;
+  const answers: unknown[] = [new TypeError('Failed to fetch'), new ApiError(502, { code: 'http_502', user_message: '', retryable: false, correlation_id: '', details: {} }),
+    new ApiError(503, { code: 'upstream_unavailable', user_message: '', retryable: true, correlation_id: '', details: {} }), bulk(false), new TypeError('Failed to fetch'), bulk(true)];
+  const seen: boolean[] = [];
+  const deps = { read: async () => { const a = answers.shift(); if (a instanceof Error) throw a; return a as never; }, wait: async (ms: number) => void (t += ms), now: () => t };
+  const out = (await followBulk(bulk(false), (r) => seen.push((r as unknown as { done: boolean }).done), undefined, deps)) as unknown as { done: boolean };
+  expect(out.done).toBe(true);
+  expect(seen).toEqual([false, false, true]); // the misses drew nothing new: the dialog kept saying "running"
+  expect(answers).toEqual([]);
+});
+
+test('Q2a (SCR-19): misses only - polling goes on until the deadline and ends with the last record (still running), never an error', async () => {
+  const { followBulk } = await import('../src/api/device-bulk');
+  let t = 0;
+  let reads = 0;
+  const deps = { read: async () => { reads += 1; throw new TypeError('Failed to fetch'); }, wait: async (ms: number) => void (t += ms), now: () => t };
+  const out = (await followBulk(bulk(false), () => undefined, undefined, deps)) as unknown as { done: boolean };
+  expect(out.done).toBe(false);
+  expect(reads).toBe(Math.ceil(120_000 / 700));
+});
+
+test('Q2a (SCR-19): a real refusal (403 / 404) still ends the follow with that error', async () => {
+  const { followBulk } = await import('../src/api/device-bulk');
+  const { ApiError } = await import('../src/api/client');
+  let t = 0;
+  const deps = { read: async () => { throw new ApiError(404, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: '', details: {} }); }, wait: async (ms: number) => void (t += ms), now: () => t };
+  await expect(followBulk(bulk(false), () => undefined, undefined, deps)).rejects.toMatchObject({ status: 404 });
+});
+
+test('Q3a (SCR-28): the home recordings position is the session start plus the player\'s media clock, in the site zone', async () => {
+  const { playerMinute } = await import('../src/home/home-playback-clock');
+  const TZ = 'Asia/Jerusalem';
+  const s = { requested_at: '2026-11-26T08:00:00Z', actual_start_at: '2026-11-26T07:59:58Z' }; // 10:00 local (UTC+2)
+  expect(playerMinute(s, 0, TZ, '2026-11-26')).toBe(600);
+  expect(playerMinute(s, 90, TZ, '2026-11-26')).toBeCloseTo(601.5, 6);
+  // a stall: the media clock does not move, neither does the position
+  expect(playerMinute(s, 90, TZ, '2026-11-26')).toBe(playerMinute(s, 90, TZ, '2026-11-26'));
+  // no media clock / no start: unknown (the position stays where the seek put it)
+  expect(playerMinute(s, undefined, TZ, '2026-11-26')).toBeNull();
+  expect(playerMinute(s, Number.NaN, TZ, '2026-11-26')).toBeNull();
+  expect(playerMinute({ requested_at: '', actual_start_at: null }, 5, TZ, '2026-11-26')).toBeNull();
+  expect(playerMinute({ requested_at: '', actual_start_at: '2026-11-26T08:00:00Z' }, 60, TZ, '2026-11-26')).toBe(601); // the start the answer has
+  // past midnight: the end of the day the timeline draws
+  expect(playerMinute({ requested_at: '2026-11-26T21:59:00Z' }, 120, TZ, '2026-11-26')).toBe(1439.99);
+  // the previous generation's clock right after a seek is not read
+  expect(playerMinute(s, 30, TZ, '2026-11-26', 1)).toBeNull();
+  expect(playerMinute(s, 2, TZ, '2026-11-26', 1)).toBeCloseTo(600 + 2 / 60, 6);
+  const rec = code('home/home-recordings.ts');
+  expect(rec).not.toMatch(/st\.t = Math\.min\(1439\.99, st\.t \+ 1 \/ 60\)/);
+  expect(rec).toMatch(/const m = playerMinute\(st\.session, p\?\.mediaTime, st\.tz, dateOf\(st\.back\), \(Date\.now\(\) - answeredAt\) \/ 1000\);/);
+});
