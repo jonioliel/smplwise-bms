@@ -5,6 +5,8 @@ app signed in, minted its saved sign-in, and then the web view never opened ("en
 
 Now the web session asks the remote sign-in's own rule (ha_user_auth.factor_owed). Still fail closed: no factor, an administrator's
 reset, a family without an HA MFA record, and any unknown answer refuse. Fakes only: no Home Assistant, no phone."""
+# the shared fixture imported from its module is the test functions' argument (pytest injects it):
+# ruff: noqa: F811
 from __future__ import annotations
 
 import os

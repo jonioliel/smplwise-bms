@@ -5,6 +5,8 @@ snapshot is stored - an event older than what the snapshot stored is skipped.
 
 The real HaSync session runs against a fake Home Assistant that, like the real one, delivers a `state_changed` event only
 to a session that has subscribed to it."""
+# the shared fixture imported from its module is the test functions' argument (pytest injects it):
+# ruff: noqa: F811
 from __future__ import annotations
 
 import asyncio

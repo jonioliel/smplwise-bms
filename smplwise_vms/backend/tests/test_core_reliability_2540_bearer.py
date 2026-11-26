@@ -6,6 +6,8 @@ while HA was away, every request was a failed (and billed) validation and the cl
 Now: the sign-in limit counts only tokens Arx does not know yet; an existing session's re-validation is bounded by its own cache;
 while HA cannot be asked, the existing session is served and re-checked after the back-off (the cookie path's rule); a session is
 never dropped for a rate limit. A NEW token is still limited exactly as before."""
+# the shared fixture imported from its module is the test functions' argument (pytest injects it):
+# ruff: noqa: F811
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
