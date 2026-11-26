@@ -92,17 +92,17 @@ test('resident time bar, spring night: no "02", the hatch, the note, entries and
   await openResidentBar(page, '2026-03-27', 'spring', (date) => [{ id: 'n4', start: localIso(date, 4), end: localIso(date, 5) }]);
   const T = `${R} [data-res-timeline]`;
   await settle(page);
-  const hours = await page.locator(`${T} [data-res-hour]`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+  const hours = await page.locator(`${T} .axis span`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
   expect(hours).toEqual(['00', '01', '03', '04', '05', '06']);
   await expect(page.locator(`${T} [data-res-gap="2"]`)).toHaveCount(1);
   await expect(page.locator(`${T} [data-res-dst="missing"]`)).toHaveText('השעה 02:00 לא קיימת ביום הזה (השעון זז שעה קדימה)');
   // the busy 04:00-05:00 starts under "04"
-  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} [data-res-hour="4"]`)))).toBeLessThan(4);
+  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} .axis span:text-is("04")`)))).toBeLessThan(4);
   // a tap under "05" with one hour centres 04:30-05:30 (elapsed time made it 05:30-06:30)
   await page.locator(`${R} [data-res-dur="60"]`).click();
   const bar = await page.locator(`${T} [data-res-bar]`).boundingBox();
   if (!bar) throw new Error('no bar');
-  await page.mouse.click(await cx(page, `${T} [data-res-hour="5"]`), bar.y + bar.height / 2);
+  await page.mouse.click(await cx(page, `${T} .axis span:text-is("05")`), bar.y + bar.height / 2);
   await expect(page.locator(`${T} [data-res-tlsel]`)).toContainText('04:30–05:30');
 });
 
@@ -111,16 +111,16 @@ test('resident time bar, autumn night: "01 ×2" once, the note, the tap by the c
   await openResidentBar(page, '2026-10-25', 'autumn', (date) => [{ id: 'n4', start: localIso(date, 4), end: localIso(date, 5) }]);
   const T = `${R} [data-res-timeline]`;
   await settle(page);
-  const hours = await page.locator(`${T} [data-res-hour]`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+  const hours = await page.locator(`${T} .axis span`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
   expect(hours).toEqual(['00', '01 ×2', '02', '03', '04', '05', '06']);
   await expect(page.locator(`${T} [data-res-dst="repeated"]`)).toHaveText('השעה 01:00 עוברת פעמיים ביום הזה (השעון זז שעה אחורה)');
   await expect(page.locator(`${T} [data-res-gap]`)).toHaveCount(0);
-  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} [data-res-hour="4"]`)))).toBeLessThan(4);
+  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} .axis span:text-is("04")`)))).toBeLessThan(4);
   await page.locator(`${R} [data-res-dur="60"]`).click();
   const bar = await page.locator(`${T} [data-res-bar]`).boundingBox();
   if (!bar) throw new Error('no bar');
   // a tap under "03" with one hour centres 02:30-03:30 (elapsed time made it the second 01:30)
-  await page.mouse.click(await cx(page, `${T} [data-res-hour="3"]`), bar.y + bar.height / 2);
+  await page.mouse.click(await cx(page, `${T} .axis span:text-is("03")`), bar.y + bar.height / 2);
   await expect(page.locator(`${T} [data-res-tlsel]`)).toContainText('02:30–03:30');
 });
 
@@ -128,9 +128,9 @@ test('an ordinary day is unchanged: 24 plain hours, no hatch, no note', async ({
   test.skip(proj() !== 'mobile', 'the resident flow is the phone layout');
   await openResidentBar(page, '2026-06-11', 'autumn', (date) => [{ id: 'n4', start: localIso(date, 4), end: localIso(date, 5) }]);
   const T = `${R} [data-res-timeline]`;
-  const hours = await page.locator(`${T} [data-res-hour]`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+  const hours = await page.locator(`${T} .axis span`).evaluateAll((els) => els.map((e) => e.textContent?.trim()));
   expect(hours).toEqual(['00', '01', '02', '03', '04', '05', '06']);
   await expect(page.locator(`${T} [data-res-gap]`)).toHaveCount(0);
   await expect(page.locator(`${T} [data-res-dst]`)).toHaveCount(0);
-  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} [data-res-hour="4"]`)))).toBeLessThan(4);
+  expect(Math.abs((await left(page, `${T} .bar .e`)) - (await cx(page, `${T} .axis span:text-is("04")`)))).toBeLessThan(4);
 });
