@@ -124,7 +124,30 @@ PC, one pytest process per file (`.venv\Scripts\python.exe -m pytest <file> -p n
 | SEC-4 | `test_core_reliability_2540_app_factor.py` (12) | exit 1: 11 failed, 1 passed. The behavioural failure is the phone-key administrator (403 `second_factor_enrollment_required`); the 10 rule-table / source tests fail at the base because `factor_owed` does not exist there | exit 0: 12 passed |
 | V-03 | (dropped from this branch, see 1.) | written and run here: exit 1, 4 failed | exit 0, 4 passed - not committed |
 
-Full backend suite and ruff: on the runner, see RUNNER_RESULTS.
+Runner (`~/work/p2520_corerel_targeted.sh` through `slotb.sh`, head `e2b96cbe6`, Linux, `-m "not timing_lane"`, `SW_WIRE_STRICT=1`):
+
+- ruff on the five touched modules and the four new test files: exit 0, "All checks passed!" (the first commit `47443bb85` had 12
+  F811 findings in the new test files - the imported shared fixtures; fixed in `e2b96cbe6` with a file-level `# ruff: noqa: F811`).
+- 44 backend files of the touched areas (the 4 new files; HA sync / mirror: `test_ha_structure_refresh`, `test_ha_sync_1000`,
+  `test_live_review_fixes`, `test_media_sync`, `test_soak_edges_2450`, `test_soak_edges2_2450`, `test_followups_2406`,
+  `test_device_activity`, `test_correlation`, `test_notify_sensors`; backup / restore: `test_backup`, `test_backup_drill`,
+  `test_backup_offbox`, `test_backup_sensitive`, `test_secfix_daily_backup_2520`, `test_notify_sources`,
+  `test_secfix_restore_settings_2520`, `test_restore_safety`, `test_offbox_restore`, `test_db_gate`; remote sign-in / factors / app
+  session: `test_remote_access`, `test_second_factor`, `test_second_factor_followups`, `test_mfa_devicekey_2490`,
+  `test_mfa_ha_passkey_2520`, `test_mfa_policy_2490`, `test_mfa_reset_hardening_2510`, `test_security_review_220`,
+  `test_app_session_295`, `test_app_session_cache_race_2443`, `test_app_session_fixtures_sx25`, `test_authrevoke_2435`,
+  `test_session_cache_2438`, `test_local_identity`, `test_mfa_tokens_2490`; guards: `test_i18n_errors_en_2520`,
+  `test_singletons_registered`, `test_wire_ratchet_2480`, `test_routers_table_2440`, `test_async_routes_hold_no_write_conn`), nine
+  pytest processes of 5 files, three lanes: **831 passed, 2 failed**.
+  - `test_secfix_restore_settings_2520.py::test_every_security_and_remote_setting_is_classified_keep_or_travel` - fails at the base
+    `aeb05ad3d` too (re-run there: 1 failed, 51 passed; also one of the 3 backend failures of the base's release gate). Not this row.
+  - `test_db_gate.py::test_a_waiting_writer_is_handed_the_lock_on_release_and_times_out_as_locked` - a wall-clock bound (0.84 s against
+    0.5 s) under three parallel lanes; the file re-run alone at the head: 31 passed. Passes at the base too. Timing flake, not this row.
+- `test_ha_sync_1000.py` failed once on the PC (Windows, while other agents ran) and passed on the runner; it carries CPU / wall-time
+  bounds.
+- Full backend suite (1,124 files, about 46,000 tests): NOT_RUN. A single-lane sharded run was started and stopped after 20 minutes:
+  at the observed rate it would have needed more than a day on the shared runner (the release gate runs it with its own parallelism).
+  It is left to the 2.54 train gate.
 
 ## 4. Open questions
 
