@@ -2,8 +2,8 @@
 
 Branch `release/2550-train`, worktree `C:\cloude\smplwise-2550train`, cut from `origin/release/2540-train` at `f9217db8a` (the 2.54.0
 train's note commit; 2.54.0 is NOT released yet - its gate runs on that branch). Coordinator: the 2.55 pre-train agent (merges, version
-bump, train checks on the PC). No release gate was started, nothing was installed, no runner job, no lab, no Home Assistant, no device,
-no WisKey contact. `main`, the tags, the `addon` branch and `release/2540-train` are untouched.
+bump, train checks on the PC, one runner check job in slot B - section 3.5). No release gate was started, nothing was installed, no
+lab, no Home Assistant, no device, no WisKey contact. `main`, the tags, the `addon` branch and `release/2540-train` are untouched.
 
 **The UI bundle (`smplwise_vms/www`, `www-public`) is NOT rebuilt.** It is still the 2.54.0 build of `bdae0aaaa` (stamp version 2.54.0,
 source `7e2c937aa`). 2.54 may still change after its gate; the 2.55 rebuild (`npm run build:addon` on the runner, the 2.54 way, section
@@ -27,6 +27,8 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | train fix | - | `3f31dd97d` | - | - | section 2 |
 | - | registry | - | `d74a31247` | - | - | section 4 |
 | - | train fix | - | `1c389ba73` | - | - | section 2 |
+| - | train note / registry | - | `4909a656e` / `51e390f86` | - | - | this note; section 4 |
+| - | train fix | - | `8d6ce1665` | - | - | section 2 (found by runner run A, section 3.5) |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -63,6 +65,7 @@ train). Bridge unchanged (0.10.9).
 | `6943fcfba` | `docs/operations/MIGRATION_FROM_LEGACY_HE.md` section 2א names the import screen (Settings > Backup and restore > "ייבוא מהמערכת הישנה", `#/system/diagnostics?tab=backup`) before the script / API steps | LEGACY-IMPORT-UI-2550 open question 1 = a (it named the train as the place) |
 | `3f31dd97d` | `export` dropped from LEGACY-IMPORT-UI-2550's `LEGACY_WRITES` and `LegacyRun` (`api/legacy-migration.ts`, used only inside the file) | PC `unused-exports.mjs --enforce` (2 new file-local) -> OK |
 | `1c389ba73` | English for ANDROID-PUSH-2550's five constant Hebrew refusals in `error_text_en.json` (`invalid_push_kind`, `unifiedpush_off`, the non-Android `invalid_platform`, `unifiedpush_endpoint_refused`, `push_keys_invalid`) | PC `i18n_backend_errors.py` "without English: 5" (the ratchet is 0); `test_i18n_errors_en_2520.py` before 1 failed + 8 passed, after 9 passed |
+| `8d6ce1665` | LEGACY-IMPORT-UI-2550's card (`components/sw-legacy-import.ts`) had its own file-local table named `ACTION_LABEL`, the name of `api/access.ts`'s allow-listed table that only settings screens may read; the branding guard matches readers by name, so it reported "api/access.ts ACTION_LABEL <- components/sw-legacy-import.ts" although nothing of `api/access.ts` is read. The card's table is renamed `LEGACY_ACTION_LABEL` (no behaviour change) | runner run A: Node unit `unit-no-ha-branding-2443` 1 failed; PC after: `unit-no-ha-branding-2443` + `unit-legacy-import-2550` 10 passed, eslint 0, tsc app 0 |
 
 ## 3. Checks
 
@@ -121,6 +124,21 @@ main checkout), one process at a time, at `1c389ba73` (the train fixes included)
 | backward compatibility: 2.54's migration set on the 2.55 database | 0 | applies nothing, no error; every 2.54 `mobile_devices` column kept (2.54 code never reads the new nullable columns; the downgrade check found no positional `INSERT INTO mobile_devices VALUES`) |
 | `test_migrations.py` / `test_migration_downgrade_check.py` | 0 / 0 | 4 / 28 passed (above) |
 
+### 3.5 Runner run A at `51e390f86` (`~/work/p2520_t2550_a.sh 51e390f86`, slot B, queued during the 2.54 gate; started 21:12 UTC after it, done 22:40 UTC; results `~/work/p2550a-out`)
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` / `i18n_backend_errors` / `lint_backend --strict` / `ruff check smplwise` | 0 each | match / 0 without English, 0 run-time / 0 findings / clean |
+| `release_check.py` | 1 | NOT ready - only the expected rows (the UI bundle is the 2.54.0 build; the v2.55.0 tag) |
+| backend, one process each, rows 1-4 and neighbours: `test_legacy_import_2550` 16, `test_migrate_legacy` 4, `test_legacy_parity_t070` 10, `test_confirm_words_2442` 52, `test_body_limit` 12, `test_backup` 8, `test_cameras` 8, `test_wire_consumption_2450` 13, `test_plan_routes_unique` 1, `test_raw_body_order` 16, `test_get_routes_read_conn` 744, `test_migration_downgrade_check` 28, `test_pilot_safety_2550` 6, `test_soak_edges_2450` 12, `test_health_summary` 1, `test_commit_release_limiter` 2, `test_android_push_2550` 34, `test_mobile_push` 53, `test_notices_push_295` 15, `test_tickets_app_push` 8, `test_notify_recipient_lang_2520` 13, `test_xsecfix_297` 48, `test_presence` 21, `test_presence_contract_v22` 63, `test_docs_config_consistency` 7, `test_fleet_report_215` 51, `test_frigate_addon_option` 3, `test_self_update_s3_fixes` 25, `test_push` 12, `test_local_privacy` 18, `test_no_ip_literals` 2, `test_migrations` 4, `test_singletons_registered` 4, `test_wire_ratchet_2480` 7, `test_error_contract_inventory_2490` 7, `test_i18n_errors_en_2520` 9, `test_version` 1 | 0 each | **1338 passed** in 37 files |
+| `test_release_check` | 1 | 1 failed + 2 passed - `test_repository_is_release_consistent` (`res["ok"]`), the UI bundle before the rebuild, as on the PC |
+| `tsc` app / `npm run build` | 0 / 0 | 0 errors / built |
+| **Node unit suite** (2 workers) | 1 | **5465 passed, 4 failed**, 17 skipped: `unit-mfa-passkeys-2490` x3 (the known node-only harness, as on every train) and **`unit-no-ha-branding-2443` "the texts allowed outside the settings area are read by settings screens only"** -> train fix `8d6ce1665` (section 2) |
+| `legacy-import-ui-2550.spec.ts` (mocks) desktop + mobile, 2 workers | 0 | **16 passed**, 4 skipped (the SW_SHOTS-only evidence cases) |
+| backup-tab neighbours `offbox-backup-ui`, `evidence-diagnostics-defects`, `evidence-backup`, `evidence-backup-meters`, desktop + mobile | 0 | **29 passed**, 15 skipped (their own skips) |
+| `pixel-legacy-import-2550` with `--grep pixel-stable` (as the gate), 1 worker | 0 | **6 passed** |
+| `pixel-legacy-import-2550`, all cases, against the committed baselines | 0 | **6 passed** - the 2.52-based Linux baselines still match the 2.54-based tree; **no baseline refreshed, 0 PNG changed** (the job would have refreshed and re-checked them twice only on a mismatch) |
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -138,14 +156,14 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 2. **HA-STATE-RECONCILE-2550** - not merged (still running); no migration in it. When it lands: merge, its CHANGELOG line, registry card.
 3. **2.54 gate fixes** - any commit added to `release/2540-train` after `f9217db8a` is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
-4. **Runner checks before the 2.55 gate** (NOT run here, the PC only): LEGACY-IMPORT-UI-2550's pixel baselines (12 Linux PNGs made on
-   the 2.52 base) and its evidence spec against the 2.54 look of the backup tab; the Node unit suite; the backend area files of the rows
-   beyond the ones in section 3. Recommendation: a) one runner run like the 2.54 train's run A once the runner is free (recommended);
-   b) leave them to the gate.
+4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,
+   fixed in `8d6ce1665`); the pixel baselines still match (none refreshed). `8d6ce1665` changes one frontend file after run A: the
+   Node unit file that failed passed on the PC after the fix; the full Node unit suite was not re-run on the runner after it.
 5. **Design ratchet** says `px-literal` can be lowered (25512 against 25513); left for the release step (`--update` only lowers).
 6. The rows' open questions: all answered by the owner's standing rule (unanswered = the recommendation, "a" everywhere), as listed in
    the merge commits. ANDROID-PUSH-2550's owner checklist (pick a push server, set `unifiedpush_servers`) and the app team's connector
    are outside the release; the option stays empty = off.
 
-NOT_RUN on the train: the release gate (the lead's), the UI rebuild, every runner job (pixel, evidence / Playwright, the Node unit suite,
-the full backend suite), tablet, every lab / Home Assistant / device / WisKey / push-server / phone check.
+NOT_RUN on the train: the release gate (the lead's), the UI rebuild, the full backend suite in one sweep (the rows' areas only, sections
+3.3 and 3.5), the full Playwright suites beyond the specs named, the Node unit suite after `8d6ce1665`, tablet, every lab / Home
+Assistant / device / WisKey / push-server / phone check.
