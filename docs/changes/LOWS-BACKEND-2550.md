@@ -5,9 +5,9 @@ Finding ids: `docs/review/DEEP-REVIEW-2520-INDEX.md` (rows `| <ID> | low |` with
 per-area reviews `docs/review/DEEP-REVIEW-2520-{SECURITY,VIDEO,BACKEND-CORE,DOMAIN-MODULES}.md` (branches `origin/review/DEEP-2520-*`).
 Every finding was re-read in the code at the base before the fix: all 21 were still present (no commit since 25.11 names any of them).
 
-**No migration.** **No frontend file changed.** API changes are additive (ADR-015): the notification inbox cursor became an opaque
+**No migration.** Frontend: one small change in three device-screen files (CORE-06 follow-up, owner Q4a; see below). API changes are additive (ADR-015): the notification inbox cursor became an opaque
 two-part string (the old one-part cursor is still accepted), and `/ha/ws` may now send a `structure_changed` frame with reason `resync`.
-Permissions only get stricter (SEC-6), never wider.
+Permissions only get stricter (SEC-6, SEC-8, D-12), never wider.
 
 ## Summary
 
@@ -15,27 +15,29 @@ Permissions only get stricter (SEC-6), never wider.
 |---|---|---|---|
 | SEC-6 | low | fixed | security |
 | SEC-7 | low | fixed | security |
-| SEC-8 | low | **question** (owner decision named by the review) | - |
+| SEC-8 | low | fixed (owner Q1a, after the first report) | security |
 | V-06 | low | fixed (see limits) | video |
 | V-07 | low | fixed | video |
 | V-08 | low | fixed | video |
 | V-09 | low | fixed | video |
 | V-10 | low (PLAUSIBLE) | fixed (guard widened; go2rtc's own matching not re-verified) | video |
-| CORE-06 | low | fixed (server side; see question 4) | core |
+| CORE-06 | low | fixed (server side + the follow-up Q4a in the device screens) | core |
 | CORE-07 | low | fixed | core |
 | CORE-08 | low | fixed | core |
 | CORE-09 | low | fixed (caps; the list cache of the review's suggestion not done) | core |
-| CORE-10 | low | **question** (threading change of the HA feed - risky for a low) | - |
+| CORE-10 | low | **open**: owner Q2a - deferred to a 2.56 row | - |
 | CORE-11 | low | fixed | core |
 | D-06 | low | fixed | domain |
 | D-07 | low | fixed | domain |
 | D-08 | low | fixed (back-off + audit once; no new status - question 5) | domain |
 | D-09 | low | fixed | domain |
 | D-10 | low | fixed | domain |
-| D-11 | low (design) | **question** (product design: per-person billing scope) | - |
-| D-12 | low (PLAUSIBLE) | **question** (rule change of building reach) | - |
+| D-11 | low (design) | **open**: owner Q3a - the warning goes to a later frontend row; the binding later | - |
+| D-12 | low (PLAUSIBLE) | fixed (owner Q6a, after the first report) | security |
 
-17 fixed, 4 left as open questions (SEC-8, CORE-10, D-11, D-12), plus 2 follow-up questions on fixed items (CORE-06, D-08).
+19 fixed, 2 deferred by the owner (CORE-10 -> a 2.56 row, D-11 -> a later frontend row). The owner answered every question with the
+recommendation (owner rule: unanswered = the recommendation): Q1a and Q6a and Q4a were built in this row after the first report, Q5a keeps
+D-08 as built.
 
 ## Security
 
@@ -59,9 +61,21 @@ THEN failed_count + 1 ELSE 1 END ... RETURNING failed_count` inside the write tr
 returned count. Before: the count read before the password hash (on a read connection) + 1 was written back, so failures that overlapped
 inside the hashing time were booked as one.
 
-### SEC-8 - question 1 (not fixed)
+### SEC-8 - off-box administration is local-only (owner Q1a)
 
-The review names this as an owner decision; see Open questions.
+`routers/backup_offbox.py`: target create (`POST /backups/offbox/targets`), update (`PUT .../targets/{id}`), the connection test
+(`POST .../targets/{id}/test`) and the one-time key export (`POST /backups/offbox/key/export`) call `_local_only` right after the
+permission check: on the remote channel (`remote_channel.is_remote`, the check the factor reset's "local only" setting uses) they answer
+403 `offbox_local_only` (Hebrew text + its English entry in `error_text_en.json`) and write a denied audit row with reason `local_only`.
+Listing, enable / disable, delete, a push to an existing target, the key rotation / import and the restore stay as they were. A route
+refused here never reaches the store, the network or the key file.
+
+### D-12 - mapping an unmapped area into a building (owner Q6a)
+
+`services/building_scope.RemapGuard.check`: besides the round-14 rule (an area leaving its building needs that building's edit), an area that
+resolved to NO building before the write and resolves to one after it needs the route's permission at installation scope; otherwise the
+writes are rolled back and `require` raises its audited 403 (`resource_type = installation`). Only while the mapping counts for reach (the
+guard does nothing otherwise, as before).
 
 ## Video
 
@@ -110,7 +124,9 @@ change only refuses more, so it is safe either way.
 the heartbeat document). The `/ha/ws` handler checks the mark before each read (`ha_sync.take_overflow`): it discards the queued frames
 (they are older than the refetch the client is about to make) and sends one `structure_changed` frame with `reason: "resync"`. Every
 screen that keeps state from this socket already refetches on `structure_changed` (home, the device screens, the entity explorer, the alarm,
-the tiles panel, the alarm presence watch). No client change; see question 4 for the "structure updated" hint some device screens show.
+the tiles panel, the alarm presence watch). Follow-up (owner Q4a): the device-building and device-area screens skip their "מבנה עודכן"
+hint for `reason === "resync"` (still refetching) - `frontend/src/screens/devices-shared.ts` passes the push's reason to the `structure`
+handler, `devices-building.ts` and `devices-area.ts` check it (one line each).
 
 ### CORE-07 - attributes over the budget
 
@@ -131,7 +147,7 @@ meaning. `GET /notifications?before=` accepts up to 120 characters and validates
 `files/` at 512 MB) at upload and before a restore deletes anything. File members are copied streamed (`shutil.copyfileobj`), never read
 whole. Not done: caching the list entries by (name, size, mtime) - the capped manifest read makes it a performance question only.
 
-### CORE-10 - question 2 (not fixed)
+### CORE-10 - deferred (owner Q2a: its own row in 2.56)
 
 ### CORE-11 - `remote_token_uses` pruned
 
@@ -171,6 +187,8 @@ failing feed (one fetch per TTL instead of one per board poll). The health line 
 
 - `smplwise_vms/backend/smplwise/routers/media.py`, `services/home_interface.py` (SEC-6)
 - `smplwise_vms/backend/smplwise/services/local_identity.py` (SEC-7)
+- `smplwise_vms/backend/smplwise/routers/backup_offbox.py`, `smplwise/error_text_en.json` (SEC-8); `services/building_scope.py` (D-12)
+- `frontend/src/screens/devices-shared.ts`, `devices-building.ts`, `devices-area.ts` (CORE-06 follow-up Q4a)
 - `smplwise_vms/backend/smplwise/services/autosync.py`, `services/leases.py` (V-06); `services/nvr_write.py` (V-07);
   `services/playback.py`, `services/playback_groups.py`, `services/recorder_live.py`, `routers/playback.py`, `routers/playback_groups.py`
   (V-08); `routers/cameras.py` (V-09); `services/go2rtc.py` (V-10)
@@ -227,38 +245,25 @@ against `f9217db8a`, the tests kept, then re-applied):
 
 19 files, 296 passed, 0 failed. `ruff check` on every changed Python file: clean (ruff 0.17.5).
 
-**Runner: NOT_RUN at the time of writing.** The touched-area job (65 test files, one process each, on the branch head) is queued as
-`~/work/p2520_lowsb_run.sh` through `~/work/slotb.sh`, waiting for slot B while the 2.54 release gate runs; results will be in
-`~/work/p2520_lowsb_results/summary.txt`. Not run anywhere: the full backend suite, Playwright (no frontend file changed), the lab.
+**After the owner's answers (SEC-8, D-12, CORE-06 follow-up).** Before: `-k "sec8 or d12"` on the two source files reversed - 2 failed.
+Re-run on the PC of 24 files (the 19 above, plus `test_i18n_errors_en_2520.py` 9, `test_building_reach_round14.py` 8,
+`test_offbox_api.py` 9, `test_backup_offbox.py` 25, `test_mfa_reset_hardening_2510.py` 22; the security file now has 7): 371 passed,
+0 failed, exit 0 for every file.
 
-## Open questions
+**Runner (Linux, `~/work/p2520_lowsb_run.sh` through `~/work/slotb.sh`, branch head `d65bbfd93`, one pytest process per file).**
+74 backend test files of the touched areas (every file named above plus the cameras, playback, multi-recorder, camera sources, devices,
+building scope / reach, home interface, notify, backup / off-box, billing, water, generator, notices, i18n and MFA files): exit 0 for
+all 74, 1,252 passed, 0 failed. Frontend: `tsc --noEmit -p tsconfig.json` exit 0, `tsc --noEmit -p tsconfig.tests.json` exit 0, and
+`playwright test -c playwright.unit.config.ts` of `unit-g1-home-area-2440`, `unit-home-reload-2436`, `unit-fe-nits-2442`: 49 passed.
+Not run anywhere: the full backend suite, the full frontend unit / Playwright suites and pixel baselines (the screen change hides a
+badge in one rare case only - no layout change), the lab.
 
-1. **SEC-8 - off-box backup administration from the remote channel.** With step-up off (the default) a stolen remote administrator session
-   can add an off-box target pointing at its own server, push the archive there, rotate the key and read it from the one-time export.
-   a. Make the key export (`/backups/offbox/key`) and target create / update / test local-only, like the bridge key and the other connection
-      tests; listing, push to an existing target and restore stay remote **(recommended)**.
-   b. Only the key export local-only.
-   c. Keep as is (rely on step-up when the owner turns it on).
-2. **CORE-10 - blocking calls on the Home Assistant feed's own loop** (a database write that may wait 10 s, rule notifications and
-   announcements on the reader). The fix moves state handling to a worker thread and the rule delivery to the notifier thread - a threading
-   change of the most central feed, too risky for a low inside this row.
-   a. Its own row in 2.56 (worker thread with a bounded queue, order kept, a soak run on the runner before merge) **(recommended)**.
-   b. Only move `deliver_pending` (the HTTP calls) to the notifier thread now, the database write stays.
-   c. Leave it.
-3. **D-11 - billing has no per-person / per-building scope** (a home-only person with `energy.bills` sees every customer). Design limit, the
-   owner approved installation-wide billing for one family.
-   a. Now: a warning in the home-interface policy page when "bills" is on for a home-only person on a site with more than one customer
-      (frontend row); later, when tenants are a target, an optional person -> customer binding **(recommended)**.
-   b. Build the person -> customer binding now.
-   c. Leave it documented only.
-4. **CORE-06 follow-up - the "structure updated" hint.** After a resync the device-building and device-area screens show their "מבנה עודכן"
-   hint for a few seconds (they show it on every `structure_changed`). One-line client change in the frontend lows row.
-   a. The two screens skip the hint when `reason === "resync"` (frontend row) **(recommended)**.
-   b. Keep the hint (a resync is rare: a client that stopped reading for a long time).
-5. **D-08 follow-up - a final status for a permanently failing period.**
-   a. Keep the back-off (at most daily) and the one audit row; no new status **(recommended)**.
-   b. Add `failed_final` after N attempts (a migration for the CHECK constraint, the bills screen shows it, reset on account change).
-6. **D-12 - mapping an unmapped area INTO a building** (`RemapGuard` checks moves out only; PLAUSIBLE).
-   a. Require the route's permission at installation scope (or `system.configure`) for an area that had no building - no silent widening of
-      a building-scoped editor's reach **(recommended)**.
-   b. Record it as an accepted limit in `docs/changes/BUILDING-SCOPE-CONTROL-2351.md`.
+## Owner decisions (answers to the first report's questions, all = the recommendation)
+
+1. SEC-8 -> a: built (above).
+2. CORE-10 -> a: its own row in 2.56 (a worker thread with a bounded queue, order kept, a soak run before merge). Not built here.
+3. D-11 -> a: the warning in the home-interface policy page belongs to a later frontend row; the person -> customer binding when tenants
+   are a target. Not built here.
+4. CORE-06 follow-up -> a: built (the hint skipped for `resync`).
+5. D-08 follow-up -> a: kept as built (back-off, one audit row; no new status).
+6. D-12 -> a: built (above).
