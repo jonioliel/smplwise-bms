@@ -28,7 +28,7 @@ test('the words: lights, rooms, doors, shutters', () => {
   expect(roomLights(R('a', { lights: [L('x', false)] }))).toBe('חשוך');
   expect(activeText(R('a', { lights: [L('x', true), L('y', true)], zones: [Z('cool', 22)] }))).toBe('2 אורות · מיזוג 22°');
   expect(activeText(R('a', { zones: [Z('off')] }))).toBe('הכל כבוי');
-  const d = (name: string, locked: boolean, kind: 'door' | 'gate' = 'door'): HDoor => ({ id: name, name, locked, can: true, ok: true, wiskey: false, room: 'r1', kind, noOpen: null });
+  const d = (name: string, locked: boolean, kind: 'door' | 'gate' = 'door'): HDoor => ({ id: name, name, locked, known: true, can: true, ok: true, wiskey: false, room: 'r1', kind, noOpen: null });
   expect(doorsText([])).toBe('אין דלתות מחוברות');
   expect(doorsText([d('דלת הכניסה', true)])).toBe('כל הדלתות נעולות');
   expect(doorsText([d('שער החניה', false, 'gate')])).toBe('שער החניה פתוח');

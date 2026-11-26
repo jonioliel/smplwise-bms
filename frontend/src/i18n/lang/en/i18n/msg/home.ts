@@ -1249,4 +1249,10 @@ export const en = {
   'החשבון שלי': 'My account',
   'הכניסות שלי': 'My sign-ins',
   'שפה': 'Language',
+  // HONEST-STATES-2540: a lock or an alarm panel the home interface cannot read says so (never "open" / "armed")
+  'לא זמין': 'Not available',
+  'מצב המערכת לא ידוע כרגע.': "The system's state is unknown right now.",
+  'מצב {name} לא ידוע': '{name}: state unknown',
+  'מצב הדלתות לא ידוע': "The doors' state is unknown",
+  'מצב {length} דלתות לא ידוע': '{length} doors: state unknown',
 };

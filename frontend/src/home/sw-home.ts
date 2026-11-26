@@ -16,7 +16,7 @@ import {
   type HScene, type HShade, type HZone, type InterfacePolicy,
 } from './home-api';
 import {
-  MODES, PRESETS, activeRooms, activeText, defaultFavs, doorState, doorsText, favHeight, favOk, favWidth, floorName, greeting, homeBarText,
+  MODES, PRESETS, activeRooms, activeText, defaultFavs, doorNotLocked, doorOpen, doorState, doorTone, doorsText, doorsTone, favHeight, favOk, favWidth, floorName, greeting, homeBarText,
   doorNoOpenText, homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, paged, roomLights, sameFav, shadeText, zoneOn,
   type FavWorld,
 } from './home-logic';
@@ -27,7 +27,7 @@ import { GALLERY, galleryCss, switchUserMode } from './home-wall';
 import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
 import { stillIntervalMs } from '../api/frigate';
-import { callResult } from './home-v3-words';
+import { callResult, securityChip } from './home-v3-words';
 import { followAlarmAction } from './home-alarm-follow';
 import { diffWords, fixedTariffPrice, num1 } from './home-p3-logic';
 import type { EnergyTariffList } from '../api/generated/wire-consumption';
@@ -1242,7 +1242,6 @@ export class SwHome extends LitElement implements P3Host {
 
   private strip(name: string) {
     const doors = this.allDoors();
-    const u = doors.filter((d) => !d.locked);
     const a = this.d.alerts.filter((x) => x.open).length;
     const r = this.ctx();
     const sub = name !== 'r';
@@ -1258,7 +1257,7 @@ export class SwHome extends LitElement implements P3Host {
       <div class="hs-now"><span class="time num">${HE_TIME.format(this.now)}</span><span class="date">${HE_WEEKDAY.format(this.now)}</span>${this.d.weather && this.d.weather.t != null ? (this.extFor('weather') ? html`<a class="wx" href=${this.href('weather')} aria-label="${tr('מזג האוויר בחוץ')}">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></a>` : html`<span class="wx" title="${tr('מזג האוויר בחוץ')}">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></span>`) : nothing}</div>
       <div class="hs-status">
         ${this.calls.waiting ? html`<button class="st-pill call" data-act="ring">${hi('bell')}<span>${tr('מחכים בדלת')}</span></button>` : nothing}
-        ${this.d.modules.has('doors') ? html`<a class="st-pill" href=${this.href('doors')} data-tone=${!doors.length ? 'neutral' : u.length ? 'warn' : 'ok'}><i class="dot"></i><span>${doorsText(doors)}</span></a>` : nothing}
+        ${this.d.modules.has('doors') ? html`<a class="st-pill" href=${this.href('doors')} data-tone=${doorsTone(doors)}><i class="dot"></i><span>${doorsText(doors)}</span></a>` : nothing}
         ${this.d.modules.has('alerts') ? html`<a class="st-btn" href=${this.href('alerts')} aria-label=${tr('התראות') + (a ? ': ' + a + tr(' דורשות טיפול') : '')}>${hi('bell')}${a ? html`<b class="count num">${a}</b>` : nothing}</a>` : nothing}
         <button class="st-me" data-act="menu" aria-haspopup="dialog" aria-label=${tr('התפריט של ') + this.userName}><span class="av">${(this.userName || '?').slice(0, 1)}</span></button>
       </div></header>`;
@@ -1303,15 +1302,20 @@ export class SwHome extends LitElement implements P3Host {
     const sh = rs.flatMap((x) => x.shades);
     if (sh.length && mods.has('shades')) { const o = sh.filter((s) => (s.pos ?? 0) > 0).length; out.push(['shades', tr('תריסים'), 'shade', o === 0 ? tr('סגורים') : o === 1 ? tr('אחד פתוח') : o + tr(' פתוחים'), '']); }
     const dh = rs.flatMap((x) => x.doors);
-    if (dh.length && mods.has('doors')) { const u = dh.filter((d) => !d.locked).length; out.push(['doors', tr('דלתות'), u ? 'unlock' : 'lock', u ? (u === 1 ? tr('אחת פתוחה') : u + tr(' פתוחות')) : tr('נעול'), u ? 'warn' : 'ok']); }
+    if (dh.length && mods.has('doors')) {
+      // HONEST-STATES-2540 (SCR-10): an offline / unknown lock is "לא ידוע", never an open door and never "נעול"
+      const u = dh.filter(doorOpen).length;
+      const k = dh.filter((d) => !d.known).length;
+      out.push(['doors', tr('דלתות'), u ? 'unlock' : k ? 'door' : 'lock', u ? (u === 1 ? tr('אחת פתוחה') : u + tr(' פתוחות')) : k ? tr('לא ידוע') : tr('נעול'), u ? 'warn' : k ? '' : 'ok']);
+    }
     const cams = r ? this.d.cameras.filter((c) => r.cams.includes(c.id)) : this.d.cameras;
     if (cams.length && mods.has('cameras')) { const bad = cams.filter((c) => !c.ok).length; out.push(['cameras', tr('מצלמות'), 'cam', r ? (bad ? tr('לא זמינה') : tr('חי')) : bad ? tr('{v1} מתוך {length}', { v1: cams.length - bad, length: cams.length }) : cams.length + tr(' פועלות'), '']); }
     if (!r && mods.has('intercom') && this.visitors.length) out.push(['doors', tr('אינטרקום'), 'phone', tr('{length} ביקורים', { length: this.visitors.length }), '', 'intercom']);
     if (!r && this.d.energy && this.d.energy.today.length && mods.has('energy')) out.push(['energy', tr('חשמל'), 'bolt', html`<span class="num">${num1(this.d.energy.today.reduce((a, b) => a + b, 0))}</span> ${tr('קוט״ש')}`, '']);
     if (!r && this.panels.length && mods.has('security')) {
-      const armed = this.panels.some((p) => p.state && p.state !== 'disarmed');
-      const alarm = this.panels.some((p) => p.state === 'triggered');
-      out.push(['security', tr('אבטחה'), 'shield', alarm ? tr('אזעקה!') : armed ? tr('דרוך') : tr('לא דרוך'), alarm ? 'warn' : armed ? 'ok' : '']);
+      // HONEST-STATES-2540 (SCR-09): an unavailable / unknown panel is never "דרוך" (green); home-v3-words.securityChip says why
+      const c = securityChip(this.panels);
+      out.push(['security', tr('אבטחה'), 'shield', c.text, c.tone]);
     }
     const sc = r ? this.d.scenes.filter((s) => s.rooms.includes(r.id)) : this.d.scenes;
     if (mods.has('scenes') && this.d.scenes.length) out.push(['scenes', tr('סצנות'), 'scenes', r ? (sc.length ? sc.length + tr(' בחדר') : tr('של הבית')) : this.d.scenes.length + tr(' בבית'), '']);
@@ -1372,7 +1376,9 @@ export class SwHome extends LitElement implements P3Host {
   }
 
   private doorBody(d: HDoor, withStar: boolean) {
-    return html`<span class="di" data-tone=${d.locked ? 'ok' : 'warn'}>${hi(d.locked ? 'lock' : 'unlock')}</span><span class="dn"><b class="clamp2">${d.name}</b><span class="dst" data-tone=${d.locked ? 'ok' : 'warn'}><i class="dot"></i>${d.ok ? doorState(d) : tr('לא זמינה כרגע')}</span></span>${(d.locked || d.wiskey) && d.noOpen ? html`<span class="dno clamp2" data-door-reason=${d.noOpen}>${doorNoOpenText(d.noOpen)}</span>` : d.locked || d.wiskey ? html`<button class="hbtn" data-act="doorAsk" data-door=${d.id} ?disabled=${!d.can}>${tr('פתח')}</button>` : html`<button class="hbtn" data-act="doorLock" data-door=${d.id} ?disabled=${!d.can}>${tr('נעל')}</button>`}${withStar ? this.star({ t: 'door', id: d.id }) : nothing}`;
+    // HONEST-STATES-2540 (SCR-10): an offline / unknown lock draws neutral with the door icon and says so (doorState), never "פתוחה"
+    const tone = doorTone(d);
+    return html`<span class="di" data-tone=${tone}>${hi(!d.known ? 'door' : d.locked ? 'lock' : 'unlock')}</span><span class="dn"><b class="clamp2">${d.name}</b><span class="dst" data-tone=${tone} data-door-known=${d.known ? 'yes' : 'no'}><i class="dot"></i>${doorState(d)}</span></span>${(d.locked || d.wiskey) && d.noOpen ? html`<span class="dno clamp2" data-door-reason=${d.noOpen}>${doorNoOpenText(d.noOpen)}</span>` : d.locked || d.wiskey ? html`<button class="hbtn" data-act="doorAsk" data-door=${d.id} ?disabled=${!d.can}>${tr('פתח')}</button>` : html`<button class="hbtn" data-act="doorLock" data-door=${d.id} ?disabled=${!d.can}>${tr('נעל')}</button>`}${withStar ? this.star({ t: 'door', id: d.id }) : nothing}`;
   }
 
   private loadIcon(x: HLoad): string {
@@ -1529,7 +1535,7 @@ export class SwHome extends LitElement implements P3Host {
 
   private sDoors() {
     const all = this.allDoors();
-    const doors = this.doorsOnly ? all.filter((d) => !d.locked) : all;
+    const doors = this.doorsOnly ? all.filter(doorNotLocked) : all;
     const pgD = paged(doors, this.phone ? 3 : 4, this.pg('doors'));
     const pgV = paged(this.visitors, this.phone ? 2 : 4, this.pg('visitors'));
     const vis = (v: CallLogRow) => {

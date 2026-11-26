@@ -12,7 +12,7 @@ import { registerMoreTile } from './more-registry';
 import { ApiError, describeError } from '../api/client';
 import { CODE_ERROR_LABEL, alarmMe, panelAction, setMyPin, zoneState, type AlarmAction, type AlarmPanel } from '../api/alarm';
 import { canAnywhere } from '../api/session';
-import { ARM_WORD, alarmWord } from './home-v3-words';
+import { ARM_WORD, alarmLook, alarmWord } from './home-v3-words';
 import { tr } from '../i18n/msg/home';
 import { followAlarmAction } from './home-alarm-follow';
 
@@ -134,17 +134,20 @@ registerScreen((h: HomeHost) => {
       if (alarmOk(h) && !p && h.panelsRead === 'none') return html`${h.head(tr('אזעקה'), '')}${h.empty('shield', tr('קוראים את מצב האזעקה…'), '')}`;
       if (!alarmOk(h) || !p) return html`${h.head(tr('אזעקה'), '')}${h.empty('shield', tr('אין מערכת אזעקה מחוברת'), tr('כשתחובר מערכת אזעקה, אפשר יהיה לדרוך ולנטרל אותה מכאן.'))}`;
       const w = alarmWord(p.state, p.available);
-      const armed = !!p.state && p.state !== 'disarmed';
+      // HONEST-STATES-2540 (SCR-09): only a state the screen knows decides the buttons; an unknown state offers none (all disabled)
+      const look = alarmLook(p.state, p.available);
+      const armed = look === 'armed' || look === 'triggered';
+      const unknown = look === 'unknown';
       const open = p.ready.open;
       const zones = p.zones.slice().sort((a, b) => Number(!a.open) - Number(!b.open));
       const pg = paged(zones, h.phone ? 3 : 5, h.pg('alz'));
       const modes = (['arm_away', 'arm_home', 'arm_night'] as const).filter((m) => p.arm_modes.includes(m));
-      const line = h.panelsRead === 'error' ? tr('אין קשר כרגע. מוצג המצב האחרון שנקרא.') : !p.available ? tr('המערכת לא זמינה כרגע.') : armed ? (p.code.disarm === 'pin' ? tr('לנטרול צריך את הקוד האישי שלך.') : tr('לנטרול לחצו על נטרול.')) : open.length ? tr('{v1}. כדאי לסגור לפני דריכה.', { v1: open.length === 1 ? tr('פתח אחד פתוח') : open.length + tr(' פתחים פתוחים') }) : tr('כל הפתחים סגורים.');
+      const line = h.panelsRead === 'error' ? tr('אין קשר כרגע. מוצג המצב האחרון שנקרא.') : !p.available ? tr('המערכת לא זמינה כרגע.') : unknown ? tr('מצב המערכת לא ידוע כרגע.') : armed ? (p.code.disarm === 'pin' ? tr('לנטרול צריך את הקוד האישי שלך.') : tr('לנטרול לחצו על נטרול.')) : open.length ? tr('{v1}. כדאי לסגור לפני דריכה.', { v1: open.length === 1 ? tr('פתח אחד פתוח') : open.length + tr(' פתחים פתוחים') }) : tr('כל הפתחים סגורים.');
       const pinBtn = st.pin.known && (canAnywhere('alarm.arm') || canAnywhere('alarm.disarm')) ? html`<button class="hbtn" data-act="almPin" data-home-pin-change>${hi('key')}<span class="bt">${tr('הקוד האישי שלי')}</span></button>` : nothing;
       const pick = h.panels.length > 1 ? h.seg('almPanel', h.panels.slice(0, 4).map((x) => [x.entity_id, x.name] as [string, string]), p.entity_id, tr('מערכת')) : nothing;
       return html`${h.head(tr('אזעקה'), p.last_changed ? tr('{name} · השתנתה {v1}', { name: p.name, v1: new Date(p.last_changed).toLocaleString(uiLocale(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }) }) : p.name, html`${pick}${pinBtn}`)}
         <div class="clim-body alm"><section class="tile pane alm-main" data-tone=${w.tone} aria-label=${p.name} data-home-alarm=${p.state ?? ''} data-home-alarm-read=${h.panelsRead}><span class="alm-ic">${hi('shield')}</span><b class="alm-w">${w.text}</b><span class="muted">${line}</span>
-          <div class="alm-acts">${armed ? html`<button class="hbtn strong xl" data-act="almDisarm" ?disabled=${!p.can.disarm || !p.available}>${hi('unlock')}${tr('נטרול')}</button>` : modes.map((m, i) => html`<button class=${'hbtn xl' + (i === 0 ? ' strong' : '')} data-act="almArm" data-v=${m} ?disabled=${!p.can.arm || !p.available}>${hi(m === 'arm_home' ? 'home' : m === 'arm_night' ? 'night' : 'lock')}${ARM_WORD[m]}</button>`)}</div></section>
+          <div class="alm-acts">${armed ? html`<button class="hbtn strong xl" data-act="almDisarm" ?disabled=${!p.can.disarm || !p.available}>${hi('unlock')}${tr('נטרול')}</button>` : modes.map((m, i) => html`<button class=${'hbtn xl' + (i === 0 ? ' strong' : '')} data-act="almArm" data-v=${m} ?disabled=${!p.can.arm || !p.available || unknown}>${hi(m === 'arm_home' ? 'home' : m === 'arm_night' ? 'night' : 'lock')}${ARM_WORD[m]}</button>`)}</div></section>
           <section class="tile pane" aria-label="${tr('פתחים')}"><div class="bar"><h2>${tr('דלתות, חלונות וגלאים')}</h2>${h.pager('alz', pg.pages)}</div>${pg.items.length ? pg.items.map((z) => { const s = zoneState(z); const tone = s.tone === 'ok' ? 'ok' : s.tone === 'fault' ? 'danger' : s.tone === 'bypassed' ? 'neutral' : 'warn'; return html`<div class="sysr"><b class="clamp1" dir="auto">${z.name}</b><span class="dst" data-tone=${tone}><i class="dot"></i><span class="clamp1">${s.label}</span></span></div>`; }) : h.empty('shield', tr('אין גלאים להצגה'), tr('כשהאזעקה תדווח על דלתות, חלונות או גלאים, הם יופיעו כאן.'))}</section></div>`; // HOME-V3-AUDITFIX-2437 (audit item 26)
     },
   };

@@ -17,6 +17,14 @@ export class SwToggle extends LitElement {
   /** HAND-SWITCH-2480 (owner N13 "smaller toggles are fine"): the attribute `size="sm"` is the compact 32 x 18 track for the rows where a
    * check box stood (styled by the attribute, so set it in the markup). */
   @property() size: 'md' | 'sm' = 'md';
+  /**
+   * HONEST-STATES-2540 (deep review FC-01): a controlled switch. A press does NOT move it: it only asks, through `change` with
+   * `detail.checked` = the value the person asked for, and the switch keeps drawing `checked` until the screen sets it (after the save
+   * was confirmed). A refused or cancelled change (a confirmation dialog closed, a write the server or the device refused) therefore
+   * never leaves the switch on a state that was not saved. Opt-in (the attribute `controlled`, like `<sw-tabs controlled>`), so the
+   * switches that edit a draft keep moving at once. Read the asked value with `toggled(e)` (it reads `detail.checked`).
+   */
+  @property({ type: Boolean }) controlled = false;
 
   static styles = css`
     :host {
@@ -148,8 +156,9 @@ export class SwToggle extends LitElement {
 
   private flip() {
     if (this.disabled) return;
-    this.checked = !this.checked;
-    this.dispatchEvent(new CustomEvent('change', { detail: { checked: this.checked }, bubbles: true, composed: true }));
+    const want = !this.checked;
+    if (!this.controlled) this.checked = want;
+    this.dispatchEvent(new CustomEvent('change', { detail: { checked: want }, bubbles: true, composed: true }));
   }
 
   render() {
