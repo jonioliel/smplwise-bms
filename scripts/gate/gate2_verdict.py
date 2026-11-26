@@ -113,6 +113,34 @@ def classify(report: dict, entries: list[dict]) -> dict:
             "flaky": [i for i in report.get("items", []) if i.get("status") == "FLAKY"]}
 
 
+def side_records(rpath: Path) -> list[str]:
+    """GATE-TRUST-2540: the records release_gate2.sh keeps next to the report - the coverage anchor of a targeted --after run (TR-09,
+    gate_<b>_<sha>.anchor.json) and the backend lint lane of the worktree under test (TR-05, .lint.json) - as summary lines."""
+    out = []
+    stem = rpath.name[:-len(".json")] if rpath.name.endswith(".json") else rpath.name
+    for suffix in (".anchor.json", ".lint.json"):
+        p = rpath.with_name(stem + suffix)
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict):
+            continue
+        if suffix == ".anchor.json":
+            if d.get("accepted"):
+                state = f"NONE, targeted run ACCEPTED anyway ({d['accepted']})"
+            elif d.get("ok"):
+                state = "OK"
+            else:
+                state = "NONE -> this gate ran the FULL tier instead of the targeted --after selection"
+            out.append(f"- coverage anchor of the targeted re-run (TR-09): {state} - {d.get('why', '')}")
+        else:
+            total = d.get("total")
+            what = d.get("state", "?") + (f", {total} finding(s)" if total is not None else "") + (", BLOCKING" if d.get("blocked") else "")
+            out.append(f"- backend lint lane (ruff F, TR-05) on {d.get('root') or '?'}: {what}")
+    return out
+
+
 def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch: str, rpath: Path, second: bool,
                qsection: list[str] | None = None) -> str:
     v = report.get("verdict")
@@ -138,6 +166,7 @@ def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch
             lines.append(f"- selection error (the engine ran the full tier): {sel['error']}")
     else:
         lines.append("- selection: none (full tier)")
+    lines += side_records(rpath)
     lines += ["", f"## Hard failures ({len(c['hard'])})", ""] + [f"- [{i['category']}] {i['id']} {i.get('reason', '')[:160]}" for i in c["hard"]] + ["- (none)"] * (not c["hard"])
     lines += ["", f"## Test failures ({len(c['real'])})", ""] + [f"- [{i['category']}] {i['id'][:160]} - {i.get('reason', '')[:120]}" for i in c["real"]] + ["- (none)"] * (not c["real"])
     lines += ["", f"## Quarantined failures ({len(c['quarantined'])})", ""] + \

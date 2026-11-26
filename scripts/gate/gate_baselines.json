@@ -1,15 +1,22 @@
 {
-  "_comment": "Per-category PASSED counts (pass + flaky) of the previous accepted release gate. The gate fails a category whose passed count is below GATE_DROP_THRESHOLD (default 70 percent) of its value here, unless it was started with --allow-count-drop \"<reason>\". Refresh from \"baseline_candidate\" of a GREEN gate report after each release. Only tier L has a baseline; S and M print a warning (the count-drop check is not applied). A diff-selection gate never checks the ratio (it prints 'selection'), so these values only matter for a full tier-L run (nightly, --full).",
-  "source": "GATELANES-297 (2026-10-27), on top of GATEAUDIT-297 below: pixel 218 -> 175 (the 43 tesla / crystal per-skin pixel cases that ran on desktop + mobile are now structural smoke tests: 48 listed minus 5 the specs skip at run time); preview 14935 -> 14971 (+43 smoke cases, -4 uxfix-rtl and about -3 of the 300-camera case moved to the timing lane); dev 937 -> 935 (the two 3D timing tests moved to the timing lane); backend unchanged (LAT1 idle moved to the lane, its clock-free half added; the door slot-recovery half is new and lane-only); the 12 archived owner-round specs only ever skipped in a gate. Estimates; the next green full tier-L run's baseline_candidate replaces them. A release gate with the visual step leaves visual-matrix out of pixel (about 135 expected), still above 70 percent of 175. GATEAUDIT-297 (2026-10-27):the last FULL tier-L run is the nightly on main @ 011c97d4d (2.23.1, 2026-10-27 02:00): baseline_candidate preview 15086, dev 1038, pixel 221, fixture 15, backend 17611. Adjusted for what changed after it: the bubble freeze (2.23.2) skips 151 preview and 101 dev tests that passed there (whole-file skips + every test titled with the bubble skin); pixel +25 (the visual-matrix baselines re-taken here now pass), -8 (the evidence-design-foundation zero-pixel duplicates removed here), about -20 (bubble pixel cases now skipped). The values are therefore an estimate within a few percent, far inside the 70 percent threshold; replace them with the baseline_candidate of the first green full tier-L run that contains this branch. The previous values (integ/293-rel @ b3788047, 2026-10-20: preview 11935, dev 936, pixel 188, backend 12106) were a week and about 3000 preview / 5500 backend tests behind.",
+  "_comment": "Per-category PASSED counts (pass + flaky) of a green FULL tier-L run: the FLOOR of the count-drop check. GATE-TRUST-2540 (TR-07): the engine raises each category's baseline to its passed count in the newest GREEN FULL tier-L run of the results directories (release gates and nightly, at most GATE_BASELINE_REF_DAYS = 30 days old; release_gate.py reference_baseline()), so this file no longer needs a hand refresh after each release; refresh it only to lift the floor. A category fails when its passed count is below its threshold of the baseline: 'thresholds' here, else the engine's DEFAULT_DROP_THRESHOLDS (backend / preview / dev 0.90, pixel / fixture 0.85), else GATE_DROP_THRESHOLD (default 0.70); GATE_DROP_THRESHOLD and GATE_DROP_THRESHOLD_<CATEGORY> override. --allow-count-drop \"<reason>\" waives the check (the waived run then becomes the new reference). Only tier L has a baseline; a diff-selection gate never checks the ratio (it prints 'selection').",
+  "source": "GATE-TRUST-2540 (2026-11-26): the newest GREEN FULL tier-L run on the runner, the 2.50.0 release gate release/2500-train @ bdf28fc37 (2026-11-24): backend 44902, preview 23818, dev 1126, pixel 390, fixture 28 (its baseline_candidate). The previous values (GATELANES-297, 2026-10-27: preview 14971, backend 17611, pixel 175, dev 935, fixture 15) were a month and 27,000 backend tests behind: a full run could lose 72 percent of the backend and pass (review finding TR-07).",
+  "thresholds": {
+    "backend": 0.9,
+    "preview": 0.9,
+    "dev": 0.9,
+    "pixel": 0.85,
+    "fixture": 0.85
+  },
   "tiers": {
     "L": {
       "tsc": 1,
       "build": 1,
-      "preview": 14971,
-      "pixel": 175,
-      "dev": 935,
-      "fixture": 15,
-      "backend": 17611,
+      "preview": 23818,
+      "pixel": 390,
+      "dev": 1126,
+      "fixture": 28,
+      "backend": 44902,
       "release_check": 1
     }
   }

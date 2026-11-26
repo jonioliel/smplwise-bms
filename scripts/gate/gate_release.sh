@@ -8,7 +8,9 @@
 #     Friday 30.10 full run ended green or with explained failures). Flag absent -> every gate is the FULL tier on the v2 schedule.
 #   * flag present: newest full nightly on main  GREEN -> change-based selection;  RED only through quarantined tests (ticket + expiry)
 #     -> selection, failures listed;  RED with a non-quarantined failure, STALE (> 36 h) or MISSING -> FULL tier, with the reason printed.
-#   * --full always runs the full tier. --after <report> is the targeted re-run after a red gate (unchanged gate-2 behaviour).
+#   * --full always runs the full tier. --after <report> is the targeted re-run after a red gate; release_gate2.sh runs it only with
+#     a coverage anchor behind the head (GATE-TRUST-2540, TR-09: a completed full run or a green nightly at a near ancestor), else FULL.
+#   * the BLOCKING backend lint lane runs in release_gate2.sh on the worktree of the branch under test (GATE-TRUST-2540, TR-05).
 #   * tagging a release additionally needs a FULL green nightly on main <= 7 days old: `python3 gate_entry.py tagcheck` (plan rule 3A).
 # Exit codes are release_gate2.sh's: 0 pass, 1 fail, 2 usage, 3 lock busy.
 # Install: scripts/gate/README_GATE_FAST.md (the lead installs it, never while a gate runs).
@@ -31,14 +33,15 @@ for a in "$@"; do
   esac
 done
 
-# a targeted re-run after a red gate is already the fast path by definition: no nightly decision, gate-2 behaviour unchanged
+# a targeted re-run after a red gate: no nightly decision here; release_gate2.sh checks its coverage anchor (TR-09) and lints (TR-05)
 if [ "$AFTER" = 1 ] && [ "$FULL" = 0 ]; then
-  echo "gate_release: targeted re-run (--after) -> release_gate2.sh as is"
+  echo "gate_release: targeted re-run (--after) -> release_gate2.sh (coverage anchor check, backend lint on its worktree)"
   exec "$G/release_gate2.sh" "${HEAD_ARGS[@]}" ${TAIL_ARGS[@]+-- "${TAIL_ARGS[@]}"}
 fi
 
 DEC="$("$PY3" "$G/gate_entry.py" decide --results "$RES" $([ "$FULL" = 1 ] && echo --full))"; DRC=$?
-# CR-PYFLAKES-ENFORCE-2442: exit 3 = the backend lint lane blocks (ruff F finding in a tree with the blocking marker; listed above on stderr)
+# CR-PYFLAKES-ENFORCE-2442: exit 3 = the backend lint lane blocks. Since GATE-TRUST-2540 (TR-05) `decide` no longer lints (it ran before any
+# worktree existed and linted ~/smplwisebms); release_gate2.sh lints its own worktree. Kept for an older gate_entry.py.
 if [ "$DRC" = 3 ]; then echo "gate_release: RED - the backend lint (ruff F) has findings; nothing was run. Fix them (GATE_BACKEND_LINT=warn reports without blocking)."; exit 1; fi
 [ "$DRC" = 0 ] || { echo "gate_entry.py failed; running the FULL tier"; DEC='{"mode": "full", "state": "entry-error", "why": "gate_entry.py failed"}'; }
 jget() { printf '%s' "$DEC" | "$PY3" -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"; }

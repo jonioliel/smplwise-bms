@@ -6,8 +6,13 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     a single failed test is a FAIL (settle());
   * a pytest shard with no summary, an exit code other than 0/1, zero collected tests, or rc=1 without a parsed failure is a FAIL
     (backend_finish());
-  * each category's passed count is compared with gate_baselines.json (the previous accepted release); below GATE_DROP_THRESHOLD
-    (default 0.70) of the baseline is a FAIL unless the run started with --allow-count-drop "<reason>" (check_baselines());
+  * each category's passed count is compared with its baseline; below the category's drop threshold of the baseline is a FAIL
+    unless the run started with --allow-count-drop "<reason>" (check_baselines()). GATE-TRUST-2540 (TR-07): the baseline of a category
+    is the HIGHER of gate_baselines.json (a tracked floor) and that category's passed count in the newest GREEN FULL tier-L run of the
+    results directories (the release gates' and the nightly's; at most GATE_BASELINE_REF_DAYS = 30 days old; reference_baseline()),
+    so it refreshes itself after every green full run. The threshold is per category (DEFAULT_DROP_THRESHOLDS: backend / preview /
+    dev 0.90, pixel / fixture 0.85, the rest 0.70), overridable by "thresholds" in gate_baselines.json, GATE_DROP_THRESHOLD (all
+    categories) and GATE_DROP_THRESHOLD_<CATEGORY> (one);
   * M074 visual step, ON BY DEFAULT in every tier and BLOCKING since T074 (docs/changes/T074-VISUAL-METRICS-2405.md): runs
     `visual.mjs run --touched` on the dist preview against the committed linux baselines (the matrix spec then leaves the pixel
     group). The flaky-render policy: a case that differs is re-captured ONCE alone after the first run; matching on the retry =
@@ -78,6 +83,13 @@ VISUAL_RERUN_CASES = None  # gate-2 quarantine re-run: the first run's visual FA
 VISUAL_RUN_CAT = "visual-run"   # the visual step could not run in block mode: a hard failure (not a test category, never quarantined)
 ALLOW_DROP = ""           # --allow-count-drop "<reason>": waives the baseline check; the waiver is written into the report
 DROP_THRESHOLD = float(os.environ.get("GATE_DROP_THRESHOLD", "0.70"))
+# GATE-TRUST-2540 (TR-07): per-category ("per lane") thresholds. The green full runs of 13.11-26.11 move by less than 5 percent per
+# category between runs (backend 44,636 / 44,902 / 46,218; preview 23,435-24,447; dev 1,126-1,146; pixel 380-420; fixture 28),
+# so 0.90 catches a lost shard or a lost spec folder; pixel and fixture are small counts that follow the touched screens and stay looser.
+DEFAULT_DROP_THRESHOLDS = {"backend": 0.90, "preview": 0.90, "dev": 0.90, "pixel": 0.85, "fixture": 0.85}
+BASELINE_REF_DAYS = float(os.environ.get("GATE_BASELINE_REF_DAYS", "30"))      # the newest green full run older than this is not used
+BASELINE_REF_WARN_DAYS = 14                                                    # ... and one older than this is used with a warning
+BASELINE_REF_SKIP = (".selection", ".engine", ".anchor", ".lint", ".checkpoint", ".early", ".gate2", "quarantine", "gate_status")
 BASELINE_NAME = "gate_baselines.json"
 DURATIONS_NAME = "gate_durations.json"   # tracked seed of seconds per spec file (lowest priority in prior_costs())
 BASELINE_ROWS = {}        # category -> {baseline, actual, ratio, state}, filled by check_baselines()
@@ -2222,25 +2234,130 @@ def passed_of(cat):
     return v.get("pass", 0) + v.get("flaky", 0)       # flaky = failed once, passed alone: it did run and pass
 
 
+def drop_threshold(cat, baseline=None):
+    """The count-drop threshold of one category: GATE_DROP_THRESHOLD_<CAT> > GATE_DROP_THRESHOLD (all categories) > "thresholds" of
+    the baseline file > DEFAULT_DROP_THRESHOLDS > DROP_THRESHOLD (0.70)."""
+    env = os.environ.get("GATE_DROP_THRESHOLD_" + re.sub(r"[^A-Za-z0-9]", "_", cat).upper())
+    for v in (env, os.environ.get("GATE_DROP_THRESHOLD"), ((baseline or {}).get("thresholds") or {}).get(cat)):
+        try:
+            if v is not None and str(v).strip() != "":
+                return float(v)
+        except (TypeError, ValueError):
+            continue
+    return DEFAULT_DROP_THRESHOLDS.get(cat, DROP_THRESHOLD)
+
+
+def _parse_finished(s):
+    """A report's "finished" (now() format, or without the zone = UTC) as an epoch, or None."""
+    import datetime as _dt
+    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            d = _dt.datetime.strptime(str(s), fmt)
+        except (TypeError, ValueError):
+            continue
+        return (d if d.tzinfo else d.replace(tzinfo=_dt.timezone.utc)).timestamp()
+    return None
+
+
+def baseline_ref_dirs():
+    """Where the green full runs are: GATE_BASELINE_REF_DIRS (os.pathsep list), else RES and RES/nightly (and RES's parent when RES is the
+    nightly's own directory). The timing and fixture lanes keep their own directories and never contribute."""
+    env = os.environ.get("GATE_BASELINE_REF_DIRS")
+    if env:
+        return [Path(x) for x in env.split(os.pathsep) if x.strip()]
+    dirs = [RES, RES / "nightly"]
+    if RES.name == "nightly":
+        dirs.append(RES.parent)
+    return dirs
+
+
+def reference_baseline(tier, dirs=None, now_ts=None, max_days=None):
+    """GATE-TRUST-2540 (TR-07): {category: {"value", "report", "finished", "age_days"}} - per category, the passed count of the newest
+    GREEN FULL run of this tier that really checked that category (its baseline_check row is "ok" or "waived": not a selection, not a
+    skipped category, not a lane). A waived row is the lead's accepted new count, so it is a valid reference."""
+    now_ts = now_ts or time.time()
+    max_days = BASELINE_REF_DAYS if max_days is None else max_days
+    ref = {}
+    seen = set()
+    for d in (dirs if dirs is not None else baseline_ref_dirs()):
+        try:
+            files = sorted(Path(d).glob("gate_*.json"))
+        except OSError:
+            continue
+        for p in files:
+            if any(m in p.name for m in BASELINE_REF_SKIP) or p.resolve() in seen:
+                continue
+            seen.add(p.resolve())
+            try:
+                doc = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(doc, dict) or doc.get("verdict") != "pass" or doc.get("tier") != tier:
+                continue
+            if (doc.get("selection") or {}).get("reduced"):
+                continue
+            fin = _parse_finished(doc.get("finished"))
+            if fin is None or (now_ts - fin) / 86400 > max_days:
+                continue
+            cand, rows = doc.get("baseline_candidate") or {}, doc.get("baseline_check") or {}
+            for cat, row in rows.items():
+                if not isinstance(row, dict) or row.get("state") not in ("ok", "waived") or not isinstance(cand.get(cat), int):
+                    continue
+                if cat not in ref or fin > ref[cat]["_ts"]:
+                    ref[cat] = {"value": cand[cat], "report": p.name, "finished": doc.get("finished"),
+                                "age_days": round((now_ts - fin) / 86400, 1), "_ts": fin}
+    for v in ref.values():
+        v.pop("_ts", None)
+    return ref
+
+
+def effective_baseline(baseline, tier, ref):
+    """The tracked file as a floor, raised per category by the reference run. Returns (baseline doc, warnings); the doc carries
+    "sources" {category: where its value came from}."""
+    baseline = dict(baseline or {})
+    floor = dict(((baseline.get("tiers") or {}).get(tier)) or {})
+    if not floor:
+        return baseline, []
+    eff, src, warns = dict(floor), {c: "gate_baselines.json (floor)" for c in floor}, []
+    for cat, r in (ref or {}).items():
+        if cat in floor and r["value"] > floor[cat]:
+            eff[cat], src[cat] = r["value"], f"{r['report']} ({str(r['finished'])[:10]}, green full run)"
+    used = sorted({r["report"] for c, r in (ref or {}).items() if c in floor and src.get(c, "").startswith(r["report"])})
+    if not ref:
+        warns.append(f"no green full tier-{tier} run in the last {BASELINE_REF_DAYS:g} days: the count-drop check used the tracked floor only "
+                     "(gate_baselines.json), which may be far below today's suite")
+    old = [c for c, r in (ref or {}).items() if c in floor and r["age_days"] > BASELINE_REF_WARN_DAYS]
+    if old:
+        warns.append(f"the newest green full run is more than {BASELINE_REF_WARN_DAYS} days old for {', '.join(sorted(old))}: the baseline may be stale")
+    tiers = dict(baseline.get("tiers") or {})
+    tiers[tier] = eff
+    baseline.update({"tiers": tiers, "sources": src, "reference_reports": used})
+    return baseline, warns
+
+
 def check_baselines(baseline, tier):
-    """Compare every baselined category's passed count with the previous accepted release. Returns warnings (strings)."""
+    """Compare every baselined category's passed count with its baseline (effective_baseline(): the tracked floor raised by the newest
+    green full run) and the category's threshold (drop_threshold()). Returns warnings (strings)."""
     BASELINE_ROWS.clear()
     warns = []
     base = (baseline or {}).get("tiers", {}).get(tier)
     if not base:
         warns.append(f"no baseline for tier {tier}: the count-drop check was NOT applied")
         return warns
+    sources = (baseline or {}).get("sources") or {}
     for cat, exp in base.items():
+        thr = drop_threshold(cat, baseline)
         if cat in SKIPPED_CATS:
             warns.append(f"category {cat} was not run in this partial run (GATE_SKIP_*): its baseline was NOT checked")
             continue
         if cat in REDUCED_CATS:   # --select-base: fewer files on purpose; the per-process zero-test / crash guards still apply
             warns.append(f"category {cat} ran a diff selection ({REDUCED_CATS[cat]}): its baseline ratio was NOT checked")
-            BASELINE_ROWS[cat] = {"baseline": exp, "actual": passed_of(cat), "ratio": round(passed_of(cat) / exp, 3) if exp else 1.0, "state": "selection"}
+            BASELINE_ROWS[cat] = {"baseline": exp, "actual": passed_of(cat), "ratio": round(passed_of(cat) / exp, 3) if exp else 1.0, "state": "selection",
+                                  "threshold": thr, "source": sources.get(cat, "gate_baselines.json")}
             continue
         act = passed_of(cat)
         ratio = (act / exp) if exp else 1.0
-        low = act < DROP_THRESHOLD * exp
+        low = act < thr * exp
         state = "ok"
         if low and ALLOW_DROP:
             state = "waived"
@@ -2248,9 +2365,10 @@ def check_baselines(baseline, tier):
         elif low:
             state = "low"
             count("baseline", "fail")
-            item("baseline", cat, "FAIL", f"{act} passed vs baseline {exp} ({ratio:.0%}), below {DROP_THRESHOLD:.0%}: a suite that lost most of its tests is not a pass "
-                 f"(re-run with --allow-count-drop \"<reason>\" only when the drop is intended)")
-        BASELINE_ROWS[cat] = {"baseline": exp, "actual": act, "ratio": round(ratio, 3), "state": state}
+            item("baseline", cat, "FAIL", f"{act} passed vs baseline {exp} ({ratio:.0%}, from {sources.get(cat, 'gate_baselines.json')}), below the {cat} "
+                 f"threshold {thr:.0%}: a suite that lost tests is not a pass (re-run with --allow-count-drop \"<reason>\" only when the drop is intended)")
+        BASELINE_ROWS[cat] = {"baseline": exp, "actual": act, "ratio": round(ratio, 3), "state": state, "threshold": thr,
+                              "source": sources.get(cat, "gate_baselines.json")}
     for cat in COUNTS:
         if cat not in base and cat != "baseline" and cat not in OPTIONAL_CATS:
             warns.append(f"category {cat} has no baseline entry")
@@ -2264,6 +2382,7 @@ def write_reports(sha, verdict, extra):
     doc = {"branch": BR, "sha": sha, "tier": TIER, "verdict": verdict, "time_dependent_known": len(TIMEDEP), "known_refused": KNOWN_REFUSED,
            "engine_sha256": ENGINE_SHA256, "started": STARTED, "finished": fin, "wall_seconds": dur,
            "counts": COUNTS, "baseline_check": BASELINE_ROWS, "drop_threshold": DROP_THRESHOLD, "count_drop_waiver": ALLOW_DROP,
+           "drop_thresholds": {k: v.get("threshold") for k, v in BASELINE_ROWS.items() if "threshold" in v},
            "baseline_candidate": {k: passed_of(k) for k in COUNTS if k != "baseline"},
            "phases": PHASES, "items": ITEMS, **extra}
     write_json(Path(str(base) + ".json"), doc)
@@ -2285,15 +2404,17 @@ def write_reports(sha, verdict, extra):
                + "; ".join(f"`{r['id']}` ({r['why']})" for r in KNOWN_REFUSED[:10]), ""]
     if ALLOW_DROP:
         md += [f"> **אזהרה:** בדיקת ירידת הספירה נוטרלה ב-`--allow-count-drop`: {ALLOW_DROP}", ""]
-    md += ["## ספירה לפי קטגוריה", "", f"| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (שחרור קודם) | יחס (סף {DROP_THRESHOLD:.0%}) |", "|---|---|---|---|---|---|---|---|"]
+    md += ["## ספירה לפי קטגוריה", "", "| קטגוריה | עבר | נכשל | FLAKY | KNOWN | דולג | בסיס (ריצה מלאה ירוקה אחרונה / רצפה) | יחס (סף) |", "|---|---|---|---|---|---|---|---|"]
     zero = {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
     for k in list(COUNTS) + [c for c in BASELINE_ROWS if c not in COUNTS]:
         v = COUNTS.get(k, zero)
         b = BASELINE_ROWS.get(k)
-        bcols = f"{b['baseline']} | {b['ratio']:.0%} ({b['state']})" if b else "- | -"
+        bcols = (f"{b['baseline']} | {b['ratio']:.0%} ({b['state']}" + (f", סף {b['threshold']:.0%}" if "threshold" in b else "") + ")") if b else "- | -"
         md.append(f"| {k} | {v['pass']} | {v['fail']} | {v['flaky']} | {v['known']} | {v['skipped']} | {bcols} |")
     for w in extra.get("baseline_warnings", []):
         md += ["", f"> אזהרה: {w}"]
+    if extra.get("baseline_sources"):   # GATE-TRUST-2540 (TR-07): where each baseline came from
+        md += ["", "מקור הבסיס: " + "; ".join(f"{k} = {v}" for k, v in extra["baseline_sources"].items())]
     md += ["", "## שלבים", ""] + [f"- {p['name']}: {p['seconds']} שניות" + (f" (תקציב {p['budget_s']}" + (f", איחור {p['late_s']}" if p.get("late_s") else "") + ")" if p.get("budget_s") else "")
                                  for p in PHASES]
     if LATE:
@@ -2645,7 +2766,16 @@ def main():
         if EARLY.get("stopped"):   # the early stage stopped the gate: the other categories never ran, a count drop would only be noise
             extra["baseline_warnings"] = ["early layout stage failed (fail-fast): the gate stopped early, the count-drop check was NOT applied"]
         else:
-            extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
+            if baseline:   # GATE-TRUST-2540 (TR-07): the tracked file is the floor; the newest green full run raises it per category
+                try:
+                    baseline, rwarns = effective_baseline(baseline, TIER, reference_baseline(TIER))
+                except Exception as e:  # noqa: BLE001 - a reference problem leaves the tracked floor in force, said in the report
+                    rwarns = [f"the green-full-run reference could not be read ({type(e).__name__}: {str(e)[:120]}): the tracked floor only"]
+                extra["baseline_sources"] = baseline.get("sources", {})
+                extra["baseline_reference_reports"] = baseline.get("reference_reports", [])
+                extra["baseline_warnings"] = rwarns + check_baselines(baseline, TIER)
+            else:
+                extra["baseline_warnings"] = ["no gate_baselines.json found: the count-drop check was NOT applied"]
     if VISUAL_INFO:   # T074: the visual section in the JSON too (the nightly summary and gate2 read it)
         extra["visual"] = dict(VISUAL_INFO)
     verdict = compute_verdict(hard_fail)
