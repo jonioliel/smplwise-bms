@@ -170,13 +170,18 @@ g.check_baselines(base, "L")
 check("baseline: --allow-count-drop waives it, with the reason on record", g.compute_verdict([]) == "pass" and g.BASELINE_ROWS["preview"]["state"] == "waived"
       and any(i["status"] == "WAIVED" and "intended drop" in i["reason"] for i in g.ITEMS), g.ITEMS)
 reset()
-g.COUNTS["preview"] = {"pass": 2800, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}   # 71 percent: inside the threshold
-g.check_baselines({"tiers": {"L": {"preview": 3917}}}, "L")
-check("baseline: 71 percent of the baseline is still green", g.compute_verdict([]) == "pass", g.BASELINE_ROWS)
+g.COUNTS["preview"] = {"pass": 2800, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}   # 71 percent: inside a 0.70 threshold of the file
+g.check_baselines({"tiers": {"L": {"preview": 3917}}, "thresholds": {"preview": 0.70}}, "L")
+check("baseline: 71 percent of the baseline is still green under a 0.70 threshold of the baseline file", g.compute_verdict([]) == "pass", g.BASELINE_ROWS)
 reset()
 g.COUNTS["preview"] = {"pass": 2600, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}   # 66 percent
-g.check_baselines({"tiers": {"L": {"preview": 3917}}}, "L")
+g.check_baselines({"tiers": {"L": {"preview": 3917}}, "thresholds": {"preview": 0.70}}, "L")
 check("baseline: 66 percent of the baseline is RED", g.compute_verdict([]) == "fail", g.BASELINE_ROWS)
+reset()
+g.COUNTS["preview"] = {"pass": 3485, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}   # 89 percent (GATE-TRUST-2540, TR-07)
+g.check_baselines({"tiers": {"L": {"preview": 3917}}}, "L")
+check("baseline: 89 percent is RED under the engine's preview threshold 0.90 (TR-07)", g.compute_verdict([]) == "fail"
+      and g.BASELINE_ROWS["preview"]["threshold"] == 0.90, g.BASELINE_ROWS)
 reset()
 g.check_baselines({"tiers": {"L": {"dev": 218}}}, "L")
 check("baseline: a category that vanished entirely (0 of 218) is RED", g.compute_verdict([]) == "fail")

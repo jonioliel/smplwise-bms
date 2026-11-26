@@ -53,6 +53,8 @@ INSTALL_MAP: dict[str, list[str]] = {
     "gate2/select_tests.py": ["gate2/select_tests.py"],
     "nightly_tests.sh": ["nightly_tests.sh"],
     "fixture_lane.sh": ["fixture_lane.sh"],   # GATE-FIXTURE-LANE-2530: next to ~/release_gate.py (it runs that engine)
+    "gate_baselines.json": ["gate_baselines.json"],             # GATE-TRUST-2540 (TR-07): the floor; release_gate2.sh copies it to ~/gate2
+    "selftest_gate_trust.py": ["gate2/selftest_gate_trust.py"],  # GATE-TRUST-2540: TR-05 / TR-07 / TR-09 self-test (reads its neighbours)
 }
 ENGINE_GROUP = ["release_gate.py", "release_gate2.sh", "engine_sync.py", "selftest_gate.py"]
 

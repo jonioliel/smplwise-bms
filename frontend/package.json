@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc --noEmit && vite build",
-    "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir && vite build -c vite.public.config.ts --outDir ../smplwise_vms/www-public --emptyOutDir && node scripts/sourcemaps-archive.mjs",
+    "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir && vite build -c vite.public.config.ts --outDir ../smplwise_vms/www-public --emptyOutDir && node scripts/sourcemaps-archive.mjs && node scripts/build-stamp.mjs",
     "build:public": "vite build -c vite.public.config.ts",
     "build:public:addon": "vite build -c vite.public.config.ts --outDir ../smplwise_vms/www-public --emptyOutDir",
     "preview:public": "vite preview -c vite.public.config.ts --host 127.0.0.1 --port 4175",
@@ -28,7 +28,8 @@
     "visual": "node scripts/visual.mjs",
     "visual:test": "node --test scripts/visual.test.mjs",
     "a11y:test": "node --test scripts/a11y-report.test.mjs",
-    "sourcemaps:test": "node --test scripts/sourcemaps-archive.test.mjs"
+    "sourcemaps:test": "node --test scripts/sourcemaps-archive.test.mjs",
+    "build-stamp:test": "node --test scripts/build-stamp.test.mjs"
   },
   "dependencies": {
     "lit": "^3.3.3",

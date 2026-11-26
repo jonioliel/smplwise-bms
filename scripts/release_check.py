@@ -8,7 +8,10 @@ the release package document and the known-limits sources present, the Superviso
 the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), no debug source map in the shipped UI
 (CR-BUILD-GUARDS-2438, 07:F7), the shipped UI bundle built for THIS version (GATE-HARDEN-2520 TR-04: www/arx-sw.js carries the
 service-worker shell cache name `arx-shell-<config.yaml version>`; a mismatch FAILS once the CHANGELOG head is the release - a
-warning while the head is still a DRAFT, i.e. on a train branch before the release rebuild commit), the design-debt ratchet (scripts/design_ratchet.py: no count above its baseline), and whether a git
+warning while the head is still a DRAFT, i.e. on a train branch before the release rebuild commit), the shipped bundle built from THESE sources (GATE-TRUST-2540, TR-04 remainder: www/build-stamp.json, written by
+`npm run build:addon`, carries the digest of the frontend build inputs; the digest is recomputed on this checkout - a frontend change
+committed after the rebuild, or a partial rebuild, fails the release; required from STAMP_REQUIRED_FROM, a warning before the release
+or on an older version), the design-debt ratchet (scripts/design_ratchet.py: no count above its baseline), and whether a git
 tag already exists for the version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
@@ -383,6 +386,89 @@ def shipped_bundle_version(addon: Path, cfg_v: str | None, released: bool) -> di
     return {"ok": False, "warn": False, "shell": shell, "detail": f"{what}, config.yaml says {cfg_v}: the add-on would ship an old UI; {fix}"}
 
 
+# GATE-TRUST-2540 (TR-04 remainder): the build stamp. The digest is the one frontend/scripts/build-stamp.mjs writes (same algorithm).
+STAMP_REQUIRED_FROM = (2, 54, 0)       # the first release built with the stamp; before it a missing stamp is only a warning
+STAMP_INPUTS_FILE = Path("frontend") / "scripts" / "build-stamp-inputs.json"
+
+
+def stamp_input_paths(root: Path) -> list[str]:
+    doc = json.loads(read(root / STAMP_INPUTS_FILE) or "{}")
+    paths = doc.get("paths") if isinstance(doc, dict) else None
+    return [str(x) for x in paths] if isinstance(paths, list) else []
+
+
+def inputs_digest(root: Path, paths: list[str]) -> dict[str, Any] | None:
+    """{digest, files} of the build inputs under `root` (see build-stamp.mjs: the tracked + untracked-not-ignored files under `paths`,
+    sorted by their UTF-8 bytes, each `<path> NUL <sha256 of the bytes with CRLF -> LF> LF`, sha256 of it all). None when git fails."""
+    if not paths:
+        return None
+    try:
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *paths],
+                           capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    names = sorted({n for n in r.stdout.decode("utf-8", "replace").split("\0") if n}, key=lambda n: n.encode("utf-8"))
+    h = hashlib.sha256()
+    for n in names:
+        try:
+            hexd = hashlib.sha256((root / n).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+        except OSError:
+            hexd = "<missing>"
+        h.update(f"{n}\0{hexd}\n".encode("utf-8"))
+    return {"digest": h.hexdigest(), "files": len(names)}
+
+
+def shipped_build_stamp(root: Path, cfg_v: str | None, released: bool) -> dict[str, Any]:
+    """GATE-TRUST-2540 (TR-04 remainder): was the committed bundle (smplwise_vms/www) built from the frontend sources of THIS checkout?
+    www/build-stamp.json (npm run build:addon, last step) carries the digest of the build inputs; it is recomputed here. Returns
+    {ok, warn, detail}. A mismatch or a missing stamp fails once the CHANGELOG head is the release (`released`) and the version is
+    STAMP_REQUIRED_FROM or newer; before that it is a warning (a train ahead of its release rebuild, or a bundle built before the
+    stamp existed)."""
+    sp = root / "smplwise_vms" / "www" / "build-stamp.json"
+    fix = "rebuild the shipped UI (cd frontend && npm run build:addon) from this tree and commit it"
+    as_t = tuple(int(x) for x in re.findall(r"\d+", cfg_v or "")[:3])
+    required = released and as_t >= STAMP_REQUIRED_FROM
+
+    def verdict(ok: bool, what: str) -> dict[str, Any]:
+        if ok:
+            return {"ok": True, "warn": False, "detail": what}
+        if not required:
+            why = "not the release yet: the CHANGELOG head is still a DRAFT" if not released else \
+                f"required from {'.'.join(map(str, STAMP_REQUIRED_FROM))}"
+            return {"ok": True, "warn": True, "detail": f"WARNING ({why}): {what}; {fix}"}
+        return {"ok": False, "warn": False, "detail": f"{what}: the add-on would ship a UI that is not the build of this source; {fix}"}
+
+    try:
+        stamp = json.loads(sp.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return verdict(False, "www/build-stamp.json is missing (a bundle built by hand, before GATE-TRUST-2540, or a build that stopped half way)")
+    except (OSError, ValueError) as exc:
+        return verdict(False, f"www/build-stamp.json is unreadable ({exc.__class__.__name__})")
+    if not isinstance(stamp, dict):
+        return verdict(False, "www/build-stamp.json is not an object")
+    paths = stamp_input_paths(root) or [str(x) for x in stamp.get("inputs") or []]
+    now = inputs_digest(root, paths)
+    if now is None:
+        return verdict(False, "the build inputs could not be hashed on this checkout (git ls-files failed)")
+    if stamp.get("version") != cfg_v:
+        return verdict(False, f"www/build-stamp.json says version {stamp.get('version')}, config.yaml says {cfg_v}")
+    if stamp.get("inputs_sha256") != now["digest"]:
+        changed = ""
+        src = str(stamp.get("source_commit") or "")
+        if re.fullmatch(r"[0-9a-f]{7,40}", src):
+            try:
+                d = subprocess.run(["git", "-C", str(root), "diff", "--name-only", src, "--", *paths], capture_output=True, text=True, timeout=60)
+                names = [x for x in d.stdout.splitlines() if x.strip()] if d.returncode == 0 else []
+                changed = f"; changed since the build commit {src[:9]}: " + (", ".join(names[:6]) + (" ..." if len(names) > 6 else "") if names else "none committed (an uncommitted or untracked input at build time)")
+            except (OSError, subprocess.SubprocessError):
+                pass
+        return verdict(False, f"the frontend sources differ from the ones www was built from (stamp {str(stamp.get('inputs_sha256'))[:12]} over "
+                              f"{stamp.get('files')} files, this checkout {now['digest'][:12]} over {now['files']}){changed}")
+    return verdict(True, f"www/build-stamp.json = this checkout's build inputs ({now['files']} files, sha256 {now['digest'][:12]}..., version {cfg_v})")
+
+
 def design_ratchet(root: Path) -> dict[str, Any]:
     """CR-BUILD-GUARDS-2438 (owner Q-CODE-4 a): scripts/design_ratchet.py of the checkout under test; blocking only when a count
     went up. Cached per root (run_checks + main in one process scan once)."""
@@ -446,6 +532,8 @@ def run_checks(root: Path) -> dict[str, Any]:
     check("handler page bundle present in the add-on (www-public)", pub_built, str(pub))
     bundle = shipped_bundle_version(addon, cfg_v, released=ch_v is not None and ch_v == cfg_v)
     check("shipped UI bundle built for this version (www/arx-sw.js shell cache)", bundle["ok"], bundle["detail"], warn=bundle["warn"])
+    stamp = shipped_build_stamp(root, cfg_v, released=ch_v is not None and ch_v == cfg_v)
+    check("shipped UI bundle built from these sources (www/build-stamp.json)", stamp["ok"], stamp["detail"], warn=stamp["warn"])
     maps = shipped_source_maps(addon)
     check("no debug source map shipped in the add-on (www, www-public)", not maps,
           "none" if not maps else f"{len(maps)}: " + ", ".join(maps[:4]) + (" ..." if len(maps) > 4 else "") + " (run npm run build:addon: it moves them out)")

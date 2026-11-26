@@ -5,7 +5,12 @@
 #     <branch>      pushed branch (the runner sees origin only), e.g. release/2200
 #     --base        the last green release (default: the newest v* tag reachable from origin/<branch>)
 #     --after       targeted re-run after a red gate: the failed tests' files of that report + what the fix touches + the core,
-#                   base = that report's sha (replaces a full re-gate; the rest of the coverage is that report's)
+#                   base = that report's sha (replaces a full re-gate; the rest of the coverage is that report's). GATE-TRUST-2540
+#                   (TR-09): only with a coverage anchor behind the head - a completed FULL run (green, or red on this branch) or a
+#                   green nightly at an ancestor at most GATE2_ANCHOR_MAX_COMMITS (20) commits / GATE2_ANCHOR_MAX_HOURS (36) h /
+#                   GATE2_ANCHOR_MAX_PRODUCT_FILES (40) product files behind (gate_entry.py anchor); without one the FULL tier runs,
+#                   the reason is printed and kept in gate_<b>_<sha>.anchor.json and in the gate-2 summary
+#     --accept-no-anchor "<reason>"  keep the targeted --after run without an anchor; the reason goes on record. Env: GATE2_ACCEPT_NO_ANCHOR
 #     --full        no selection: the full tier L on the v2 schedule (what release_gate.sh --schedule v2 does) - in-place rollback
 #     --keep-heavy  do not defer the heavy unchanged sweeps to the nightly (GATE2_DEFER_HEAVY=0)
 #     --depth N     import-closure depth of the mapping (default 2; 0 = unlimited, the select_tests behaviour)
@@ -22,6 +27,10 @@
 #   2. refreshes ~/gate2/release_gate.py (+ gate_baselines.json, gate_durations.json, select_tests.py as select_tests_v1.py)
 #      from the v1 install (GATE2_V1_DIR, default ~) - the engine is byte-identical to v1's, only select_tests.py is the gate-2 shim
 #   3. checks the nightly safety net (gate2_select.py nightly); not healthy -> full tier, said in the output
+#   3b. GATE-TRUST-2540 (TR-09): an --after run checks its coverage anchor (above); none -> the FULL tier
+#   3c. GATE-TRUST-2540 (TR-05): the BLOCKING backend lint lane (ruff F) on the engine's own worktree, i.e. the branch under test
+#      (gate_entry.py lint --root <worktree>; it used to lint ~/smplwisebms from gate_release.sh); record gate_<b>_<sha>.lint.json.
+#      A blocking finding stops the gate before any test (exit 1); GATE_BACKEND_LINT=warn reports only, =0 switches it off
 #   4. plans the run on the engine's own worktree (~/work/gate-<branch>): selection, GATE_BACKEND_SHARDS / GATE_PW_SLOTS split of
 #      one CPU budget, --no-visual only when the plan says `visual: skip` (T074: no frontend/src, visual harness or baseline change
 #      and no visual failure of an --after report; the visual step is BLOCKING by default, docs/changes/T074-VISUAL-METRICS-2405.md)
@@ -31,16 +40,16 @@
 #   7. gate2_verdict.py: gate_<b>_<sha>.gate2.md (quarantine applied, next step); when EVERY failure is quarantined it re-runs
 #      only those tests on the same sha once (the first report is kept as .gate2-first.json); quarantined VISUAL cases are re-checked
 #      by the engine itself in that re-run (GATE2_RERUN_ONLY overrides the --no-visual below, T074)
-# Exit: 0 pass, 1 fail, 2 usage or engine drift refused (TR-02), 3 lock busy.
+# Exit: 0 pass, 1 fail (also: the backend lint blocks, TR-05), 2 usage or engine drift refused (TR-02), 3 lock busy.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,37p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,44p "$0"; exit 0;; esac
 G2="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 V1="${GATE2_V1_DIR:-$HOME}"
 REPO="${GATE2_REPO:-$HOME/smplwisebms}"
 RES="${GATE_RESULTS_DIR:-$HOME/smplwise-results}"
 PY3="${GATE2_PYTHON:-python3}"
-BR="" BASE="" AFTER="" FULL=0 DRY=0 ROOT="" STALE_OK=0 DEPTH="" PASS=() DRIFT_OK="${GATE2_ENGINE_DRIFT_OK:-}"
+BR="" BASE="" AFTER="" FULL=0 DRY=0 ROOT="" STALE_OK=0 DEPTH="" PASS=() DRIFT_OK="${GATE2_ENGINE_DRIFT_OK:-}" NOANCHOR_OK="${GATE2_ACCEPT_NO_ANCHOR:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) BASE="${2:-}"; shift 2;;
@@ -51,6 +60,7 @@ while [ $# -gt 0 ]; do
     --depth) DEPTH="${2:-}"; shift 2;;
     --accept-stale-nightly) STALE_OK=1; shift;;
     --engine-drift-ok) DRIFT_OK="${2:-}"; [ -n "$DRIFT_OK" ] || { echo "--engine-drift-ok needs a reason"; exit 2; }; shift 2;;
+    --accept-no-anchor) NOANCHOR_OK="${2:-}"; [ -n "$NOANCHOR_OK" ] || { echo "--accept-no-anchor needs a reason"; exit 2; }; shift 2;;
     --dry-run) DRY=1; shift;;
     --root) ROOT="${2:-}"; shift 2;;
     --) shift; PASS=("$@"); break;;
@@ -68,6 +78,26 @@ if [ -n "$AFTER" ]; then
   [ -n "$ASHA" ] || { echo "--after: the report has no sha"; exit 2; }
   BASE="$ASHA"
 fi
+
+# GATE-TRUST-2540: the two checks a real run and the dry run share
+# anchor_check <repo> <head ref> <json out>: rc 0 = the targeted --after run has a coverage anchor (TR-09), else the FULL tier runs
+anchor_check() {
+  "$PY3" "$G2/gate_entry.py" anchor --results "$RES" --repo "$1" --head "$2" --branch "$BR" --after "$AFTER" --json "$3" \
+    ${NOANCHOR_OK:+--accept "$NOANCHOR_OK"} > "$3.out" 2>&1
+  local rc=$?
+  "$PY3" -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); print("  coverage anchor:", "OK" if d.get("ok") else "NONE", "-", d.get("why", ""))' "$3" 2>/dev/null \
+    || { echo "  coverage anchor: the check could not run (rc=$rc):"; tail -n 3 "$3.out" | sed 's/^/    /'; }
+  rm -f "$3.out"
+  return $rc
+}
+# lint_lane <checkout> <json out>: rc 1 = a blocking backend lint finding in THAT checkout (TR-05); NOT_RUN / timeout never blocks
+lint_lane() {
+  [ "${GATE_BACKEND_LINT:-1}" != 0 ] || { echo "  backend lint: off (GATE_BACKEND_LINT=0)"; return 0; }
+  [ -f "$G2/gate_entry.py" ] && [ -f "$G2/lint_backend.py" ] || { echo "  backend lint: NOT_RUN - gate_entry.py / lint_backend.py not installed in $G2 (not blocking)"; return 0; }
+  GATE_LINT_ROOT="$1" timeout -k 5 300 nice -n 10 "$PY3" "$G2/gate_entry.py" lint --root "$1" --json "$2" 2>&1 | sed 's/^/  /'
+  local rc=${PIPESTATUS[0]}
+  case "$rc" in 0|1) return "$rc";; *) echo "  backend lint: NOT_RUN - exit $rc (timeout or crash; not blocking)"; return 0;; esac
+}
 
 # ------------------------------------------------------------------ dry run: no lock, no test, nothing written outside /tmp
 if [ "$DRY" = 1 ]; then
@@ -88,6 +118,11 @@ if [ "$DRY" = 1 ]; then
   echo "gate2 dry-run: branch $BR (head $(git -C "$ROOT" rev-parse --short HEAD)), base $BASE, checkout $ROOT"
   [ -f "$G2/engine_sync.py" ] && "$PY3" "$G2/engine_sync.py" check --repo "$REPO" --ref "origin/$BR" --warn-only
   "$PY3" "$G2/gate2_select.py" nightly --results "$RES" 2>/dev/null | sed -n 's/^ *"\(ok\|why\)": /  nightly safety net: \1 = /p'
+  if [ -n "$AFTER" ]; then
+    anchor_check "$ROOT" "$(git -C "$ROOT" rev-parse HEAD)" "${TMPDIR:-/tmp}/gate2_dry_${TAG}.anchor.json" \
+      || echo "  -> a real run would run the FULL tier instead of the targeted --after selection (TR-09)"
+  fi
+  lint_lane "$ROOT" "${TMPDIR:-/tmp}/gate2_dry_${TAG}.lint.json" || echo "  -> a real run would stop here: the backend lint blocks (TR-05)"
   ARGS=(plan --root "$ROOT" --base "$BASE" --head HEAD --json "${TMPDIR:-/tmp}/gate2_dry_${TAG}.selection.json")
   [ -z "$AFTER" ] || ARGS+=(--after "$AFTER")
   [ "${GATE2_DEFER_HEAVY:-1}" = 0 ] && ARGS+=(--no-defer-heavy)
@@ -135,6 +170,16 @@ if [ -z "$BASE" ]; then
   BASE="$(git -C "$REPO" describe --tags --abbrev=0 --match 'v[0-9]*' "origin/$BR" 2>/dev/null)" || { echo "no v* tag below origin/$BR; pass --base"; exit 2; }
 fi
 
+# GATE-TRUST-2540 (TR-09): a targeted --after run trusts an earlier FULL run for everything it does not select - is there one?
+rm -f "$RES/gate_${TAG}_${HSHA}.anchor.json"      # never let an earlier run's record speak for this one
+if [ -n "$AFTER" ] && [ "$FULL" = 0 ]; then
+  echo "gate2: targeted re-run after $(basename "$AFTER") - checking the coverage anchor (TR-09)"
+  if ! anchor_check "$REPO" "$(git -C "$REPO" rev-parse "origin/$BR")" "$RES/gate_${TAG}_${HSHA}.anchor.json"; then
+    echo "gate2: no coverage anchor behind the head -> FULL tier instead of the targeted selection (--accept-no-anchor \"<reason>\" keeps it)"
+    FULL=1; AFTER=""
+  fi
+fi
+
 if [ "$FULL" = 0 ] && [ -z "$AFTER" ] && [ "$STALE_OK" = 0 ]; then
   NH="$("$PY3" "$G2/gate2_select.py" nightly --results "$RES")"
   if ! printf %s "$NH" | grep -q '"ok": true'; then
@@ -155,6 +200,12 @@ else
   git -C "$WT" checkout -q -f --detach "origin/$BR" || exit 2
 fi
 SHA="$(git -C "$WT" rev-parse --short HEAD)"
+# GATE-TRUST-2540 (TR-05): the blocking backend lint lane on THIS worktree (the branch under test), before any test
+echo "gate2: backend lint lane on $WT"
+if ! lint_lane "$WT" "$RES/gate_${TAG}_${SHA}.lint.json"; then
+  echo "gate2: RED - the backend lint (ruff F) of origin/$BR @ $SHA has findings; nothing was run. Fix them (GATE_BACKEND_LINT=warn reports without blocking)."
+  exit 1
+fi
 ENGINE=("$BR" --tier L --schedule v2)
 if [ "$FULL" = 0 ]; then
   PLAN="$("$PY3" "$G2/gate2_select.py" plan --root "$WT" --base "$BASE" --head HEAD ${AFTER:+--after "$AFTER"} \

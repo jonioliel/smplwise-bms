@@ -1,0 +1,15 @@
+{
+  "_comment": "GATE-TRUST-2540 (TR-04): the source inputs of the shipped UI build (npm run build:addon). scripts/build-stamp.mjs hashes the tracked and untracked (not ignored) files under these paths into smplwise_vms/www/build-stamp.json; scripts/release_check.py recomputes the hash on the checkout under test and fails a release whose shipped bundle was not built from these exact sources. Paths are relative to the repository root. The version (smplwise_vms/config.yaml, read by vite.config.ts) is checked on its own: the stamp records it.",
+  "paths": [
+    "frontend/src",
+    "frontend/public",
+    "frontend/index.html",
+    "frontend/notice-tv.html",
+    "frontend/public-ticket.html",
+    "frontend/vite.config.ts",
+    "frontend/vite.public.config.ts",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/tsconfig.json"
+  ]
+}

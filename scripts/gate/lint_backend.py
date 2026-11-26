@@ -8,7 +8,8 @@ earlier) is only reported, as before, so the switch does not turn older branches
 tree, timeout) is NOT_RUN: printed, never blocking under --gate.
 
   lint_backend.py [--root <checkout>] [--json] [--gate | --strict]
-    --root    the checkout to lint (default: GATE_LINT_ROOT, else the checkout this script sits in, else ~/smplwisebms)
+    --root    the checkout to lint (default: GATE_LINT_ROOT, else the checkout this script sits in, else ~/smplwisebms). A gate always
+              passes the tree under test (GATE-TRUST-2540, TR-05: release_gate2.sh lints its own worktree, branch_check.sh its own)
     --json    print one JSON document instead of the text summary
     --gate    what the gate scripts pass: exit 1 on a finding in a tree that carries the marker, else 0
     --strict  exit 1 on any finding (marker or not), 2 when the lint could not run (for a manual check)
@@ -90,6 +91,14 @@ def summarise(findings: list[dict], backend: Path) -> dict:
 
 
 def run(root: Path) -> dict:
+    """Lint the tree under `root`. Every result names the tree it linted (`root`): GATE-TRUST-2540 (TR-05) - the release gate's lane
+    linted ~/smplwisebms instead of the branch under test, and nothing in its output said which tree it was."""
+    res = _run(root)
+    res["root"] = str(root)
+    return res
+
+
+def _run(root: Path) -> dict:
     backend = root / BACKEND
     if not (backend / "pyproject.toml").is_file() or not (backend / PACKAGE).is_dir():
         return {"state": "NOT_RUN", "why": f"no backend tree under {root}"}
@@ -120,10 +129,11 @@ def blocks(res: dict) -> bool:
 
 
 def text(res: dict) -> str:
+    tree = f" in {res['root']}" if res.get("root") else ""
     if res["state"] == "NOT_RUN":
-        return f"backend lint (ruff F): NOT_RUN - {res['why']} (not blocking: the lint did not run)"
+        return f"backend lint (ruff F){tree}: NOT_RUN - {res['why']} (not blocking: the lint did not run)"
     mode = "blocking" if res.get("blocking") else "non-blocking: this tree has no `ruff-lane: blocking` marker"
-    lines = [f"backend lint (ruff F, {mode}): {res['total']} finding(s) [{res.get('ruff', 'ruff')}]"]
+    lines = [f"backend lint (ruff F, {mode}){tree}: {res['total']} finding(s) [{res.get('ruff', 'ruff')}]"]
     if res["total"]:
         lines.append("  by rule: " + ", ".join(f"{k} {v}" for k, v in res["by_code"].items()))
         lines.append("  by area: " + ", ".join(f"{k} {v}" for k, v in res["by_area"].items()))
