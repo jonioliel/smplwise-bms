@@ -13,7 +13,7 @@ import { ApiError } from './client';
  *
  * Nothing here retries anything (AGENTS.md: never queue or blindly retry physical commands).
  */
-export type PhysicalOutcome = 'refused' | 'unknown';
+type PhysicalOutcome = 'refused' | 'unknown';
 
 /** Error codes of a 5xx answer that still mean "refused, nothing was done" (services/nvr_write.py `_put`). */
 const REFUSED_5XX = new Set(['source_forbidden']);

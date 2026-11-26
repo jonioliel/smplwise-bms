@@ -7,7 +7,7 @@
  * The server read its clock somewhere during the round trip: the middle is assumed (error <= half the round trip, + 0.5 s for a header).
  * Pure module (no DOM, no imports), so client.ts can feed it without an import cycle.
  */
-export type ClockSource = 'body' | 'header';
+type ClockSource = 'body' | 'header';
 
 let offsetMs = 0;
 let source: ClockSource | null = null;
