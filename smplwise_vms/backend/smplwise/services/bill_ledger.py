@@ -435,8 +435,18 @@ class AutoHooks:
     draft_ready: Callable[[sqlite3.Connection, str, dt.date, dt.date], Any] | None = None  # told once per new draft (electricity)
 
 
+AUTO_RETRY_CAP = dt.timedelta(hours=24)  # LOWS-BACKEND-2550 (D-08): the longest wait between two attempts of a failing (account, period)
+
+
+def failure_retry(retry: dt.timedelta, attempts: int) -> dt.timedelta:
+    """LOWS-BACKEND-2550 (D-08): the wait after the `attempts`-th failure in a row - `retry` (6 h), doubled per failure, at most a day (or
+    `retry` itself when that is longer). A permanent error (a retired meter, a tariff without a price for a date) used to be recomputed
+    every 6 h for ever; it is now at most daily, and audited only when it first fails or its error changes."""
+    return min(retry * (2 ** max(0, attempts - 1)), max(retry, AUTO_RETRY_CAP))
+
+
 def _run_row(kind: BillKind, conn: sqlite3.Connection, acc_id: str, p: per.Period) -> sqlite3.Row | None:
-    return conn.execute(f"SELECT status, next_attempt_at FROM {kind.runs_table} WHERE account_id = ? AND period_start = ? AND period_end = ?",
+    return conn.execute(f"SELECT status, next_attempt_at, attempts, error_code FROM {kind.runs_table} WHERE account_id = ? AND period_start = ? AND period_end = ?",
                         (acc_id, p.start.isoformat(), p.end.isoformat())).fetchone()
 
 
@@ -503,16 +513,19 @@ def auto_generate(kind: BillKind, db: Any, now: dt.datetime, hooks: AutoHooks) -
                 hooks.log.warning(f"automatic {kind.log_word}bill computation failed", exc_info=True)
                 comp, error = None, "internal"
             with db.connection(label=f"{kind.name}.auto.write") as conn:
-                if _settled(_run_row(kind, conn, acc["id"], p), now):
+                prev = _run_row(kind, conn, acc["id"], p)
+                if _settled(prev, now):
                     continue  # another pass got here first
                 if error == "exists":
                     record_run(kind, conn, acc["id"], p, "skipped", None, None, now, hooks.retry)
                     out.skipped += 1
                     continue
                 if comp is None:
-                    record_run(kind, conn, acc["id"], p, "failed", None, error, now, hooks.retry)
-                    _audit_row(conn, actor=None, action=f"{kind.audit_prefix}bill.auto_failed", decision="allowed", resource_type=kind.account_resource_type,
-                               resource_id=acc["id"], request_id=None, details={"period": p.as_api(), "error": error})
+                    again = prev is not None and prev["status"] == "failed"
+                    record_run(kind, conn, acc["id"], p, "failed", None, error, now, failure_retry(hooks.retry, int(prev["attempts"] or 0) + 1 if again else 1))
+                    if not again or prev["error_code"] != error:  # D-08: one audit row per failure that is new or whose reason changed
+                        _audit_row(conn, actor=None, action=f"{kind.audit_prefix}bill.auto_failed", decision="allowed", resource_type=kind.account_resource_type,
+                                   resource_id=acc["id"], request_id=None, details={"period": p.as_api(), "error": error})
                     out.failed += 1
                     continue
                 cur = conn.execute(f"SELECT * FROM {kind.accounts_table} WHERE id = ? AND deleted_at IS NULL", (acc["id"],)).fetchone()

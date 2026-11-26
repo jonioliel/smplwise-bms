@@ -400,12 +400,31 @@ def _clear(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, row: sq
         _emit(conn, _signal(dev, t, row["severity"], "", row["id"], resolve=True))
 
 
+def _clear_any(conn: sqlite3.Connection, dev: sqlite3.Row, row: sqlite3.Row, now: str) -> None:
+    """D-09: close an open alert whose type may be unknown to this version (an old key): the row is closed either way, the notification
+    resolved when the type is known."""
+    t = cat.TYPE_BY_KEY.get(row["alert_key"])
+    if t is not None:
+        _clear(conn, dev, t, row, now)
+        return
+    with _lock:
+        _TOLD_LATE.discard(row["id"])
+    conn.execute("UPDATE generator_alerts SET cleared_at = ?, last_at = ? WHERE id = ?", (now, now, row["id"]))
+
+
 def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = True) -> dict[str, int]:
     """One pass over every live generator. Returns {raised, cleared}."""
     now = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     out = {"raised": 0, "cleared": 0}
     stale_s = core.int_setting(conn, "stale_after_s")
     devices = conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed'").fetchall()
+    # LOWS-BACKEND-2550 (D-09): a removed generator's open alerts are closed (they kept counting as open and their notification row was
+    # never resolved); nothing else of a removed generator is judged
+    for dev in conn.execute("SELECT d.* FROM generator_devices d WHERE d.status = 'removed' AND EXISTS "
+                            "(SELECT 1 FROM generator_alerts a WHERE a.device_id = d.id AND a.cleared_at IS NULL)").fetchall():
+        for row in conn.execute("SELECT * FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (dev["id"],)).fetchall():
+            _clear_any(conn, dev, row, now)
+            out["cleared"] += 1
     if not devices:
         return out
     all_values = core.read_values_bulk(conn)
@@ -432,6 +451,11 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
         open_rows = open_all.get(dev["id"], {})
         for t in cat.ALERT_TYPES:
             if not cat.type_available(t, roles):
+                # LOWS-BACKEND-2550 (D-09): its sensor role was unmapped - an open alert of the type can no longer be judged, so it is closed
+                # instead of staying open for ever
+                if t.key in open_rows and not t.event:
+                    _clear(conn, dev, t, open_rows[t.key], now)
+                    out["cleared"] += 1
                 continue
             pol = policies.get((dev["id"], t.key))
             enabled = True if pol is None else bool(pol["enabled"])
