@@ -152,7 +152,11 @@ def test_the_gate_runs_one_pool_job_per_fixture_group():
     cls = gate.classify(ROOT / "frontend", "L")
     assert set(cls["fixture_groups"]) == {k for k, g in GROUPS.items() if any(s.get("gate") for s in g["specs"].values())}
     assert cls["fixture_groups"]["shots_home_edit"] == {"hand-switch-home-edit-2500-shots.spec.ts": ["desktop"]}
-    assert "wiskey" not in cls["fixture_groups"]   # no "gate": true spec in it
+    assert "arx" not in cls["fixture_groups"]   # no "gate": true spec in it
+    # STALE-FIXTURE-SPECS-2530: a spec in two groups runs in each with that group's projects (the people spec: wiskey on desktop, no_ha on
+    # desktop + mobile)
+    assert cls["fixture_groups"]["no_ha"] == {"evidence-wiskey-people.spec.ts": ["desktop", "mobile"]}
+    assert cls["fixture_groups"]["wiskey"]["evidence-wiskey-people.spec.ts"] == ["desktop"]
     jobs = [j for j in gate.v2_jobs(cls, {}, "L", False) if j["kind"] == "fixture"]
     assert sorted(j["group"] for j in jobs) == sorted(cls["fixture_groups"])
     by = {j["group"]: j for j in jobs}
