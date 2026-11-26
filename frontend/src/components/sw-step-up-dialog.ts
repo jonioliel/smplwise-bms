@@ -15,6 +15,30 @@ import { alarmPinStepUp, cancelPushApproval, pushApprovalState, startPushApprova
 
 /** MFA-T095-REST-2530: how often the requesting screen asks whether the phone approved (the request lives 90 s). */
 const PUSH_POLL_MS = 2000;
+
+/** CLIENT-RESILIENCE-2540 (review SCR-23): the dialog answers "not confirmed" by itself this long after it opened (and at once when the
+ * route changes), so a refused request - a door, the alarm - is never sent later because somebody typed a code into a box left open.
+ * As long as a phone approval lives (90 s); the client's own backstop for physical actions is longer (api/client.ts STEP_UP_REPLAY_MS). */
+const STEP_UP_DIALOG_MS = 90_000;
+
+/** SCR-23: what the refused request was, in the person's words (never an internal id on screen); unknown = the dialog of before. */
+const SETTINGS_ACTIONS = ['system.configure', 'sources.configure', 'nvr.configure', 'site.content.configure', 'calendar.configure', 'tickets.configure',
+  'backup.manage', 'system.update', 'bridge.key.rotate', 'partner.manage'];
+const ACTION_TEXT: Record<string, () => string> = {
+  'alarm.disarm': () => trm('נטרול האזעקה'),
+  'alarm.bypass': () => trm('עקיפת חיישן באזעקה'),
+  'door.open': () => trm('פתיחת דלת'),
+  'identity.local.manage': () => trm('שינוי משתמשים'),
+  'users.ha_manage': () => trm('שינוי משתמשים'),
+  'rbac.assign': () => trm('שינוי הרשאות'),
+  'rbac.roles.manage': () => trm('שינוי הרשאות'),
+  'rbac.system_admin.assign': () => trm('מינוי מנהל מערכת'),
+  'backup.restore': () => trm('שחזור מגיבוי'),
+  ...Object.fromEntries(SETTINGS_ACTIONS.map((a) => [a, () => trm('שינוי הגדרות')])),
+};
+function stepUpActionText(action: unknown): string | null {
+  return typeof action === 'string' && Object.prototype.hasOwnProperty.call(ACTION_TEXT, action) ? ACTION_TEXT[action]() : null;
+}
 const PUSH_END_TEXT: Record<string, () => string> = {
   denied: () => trm('הבקשה נדחתה בטלפון.'),
   expired: () => trm('הבקשה פגה לפני שאושרה. נסה שוב.'),
@@ -65,6 +89,11 @@ export class SwStepUpDialog extends LitElement {
 
   /** Set by stepUpDialog(): called once with the answer. */
   resolver: ((ok: boolean) => void) | null = null;
+  /** CLIENT-RESILIENCE-2540 (SCR-23): how long the dialog waits before it answers "not confirmed" by itself. */
+  expiresMs = STEP_UP_DIALOG_MS;
+  private expiryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** SCR-23: another screen was opened - the request belonged to the screen that is gone. */
+  private readonly onRoute = () => this.answer(false);
 
   static styles = css`
     .msg {
@@ -72,6 +101,10 @@ export class SwStepUpDialog extends LitElement {
       color: var(--sw-text);
       line-height: 1.5;
       overflow-wrap: anywhere;
+    }
+    /* CLIENT-RESILIENCE-2540 (SCR-23): the refused action, named above the method sentence */
+    .msg.action {
+      font-weight: var(--sw-fw-semibold);
     }
     .hint {
       margin: 0 0 12px;
@@ -158,6 +191,10 @@ export class SwStepUpDialog extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     if (this.methods.includes('device_key')) void appDeviceKeyId().then((id) => (this.keyId = id));
+    // SCR-23: a short life - expired, the request is cancelled (never replayed); a route change cancels it too
+    if (this.expiryTimer) clearTimeout(this.expiryTimer);
+    this.expiryTimer = setTimeout(() => this.answer(false), this.expiresMs);
+    window.addEventListener('hashchange', this.onRoute);
   }
 
   /** A recovery code may answer this refusal: beside the code, for the normal window only. */
@@ -168,6 +205,13 @@ export class SwStepUpDialog extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.answer(false); // removed without an answer: nothing was confirmed
+    this.stopExpiry();
+  }
+
+  private stopExpiry() {
+    if (this.expiryTimer) clearTimeout(this.expiryTimer);
+    this.expiryTimer = null;
+    window.removeEventListener('hashchange', this.onRoute);
   }
 
   private get action(): string {
@@ -202,6 +246,7 @@ export class SwStepUpDialog extends LitElement {
     const r = this.resolver;
     if (!r) return;
     this.resolver = null;
+    this.stopExpiry();
     this.stopPush(!ok);
     this.open = false;
     r(ok);
@@ -329,18 +374,27 @@ export class SwStepUpDialog extends LitElement {
     const dk = !!this.keyId; // MFA-SCREENS-2510: the phone key, in the app that holds one
     const push = this.pushOffered; // MFA-T095-REST-2530: approve on the phone, from another screen
     const can = code || pk || dk || push;
-    const body = pk && totp ? t('stepUp.bodyBoth') : pk ? t('stepUp.bodyPasskey') : totp ? t('stepUp.body')
+    // CLIENT-RESILIENCE-2540 (SCR-23): the refused action by name (a door is not "settings"); then the method sentence without a purpose
+    const named = stepUpActionText(this.details.action);
+    const body = named
+      ? (pk && totp ? trm('כדי להמשיך, אשר במפתח גישה או הזן את הקוד הנוכחי מאפליקציית האימות.') : pk ? trm('כדי להמשיך, אשר במפתח גישה במכשיר הזה.')
+        : totp ? trm('כדי להמשיך, הזן את הקוד הנוכחי מאפליקציית האימות.') : pinField ? trm('כדי להמשיך, הזן את קוד האזעקה האישי שלך.')
+        : push ? trm('כדי להמשיך, אשר את הפעולה בטלפון שבו מותקנת האפליקציה.') : trm('כדי להמשיך, אשר במפתח הטלפון.'))
+      : pk && totp ? t('stepUp.bodyBoth') : pk ? t('stepUp.bodyPasskey') : totp ? t('stepUp.body')
       : pinField ? trm('כדי להמשיך, הזן את קוד האזעקה האישי שלך.') : push ? trm('כדי להמשיך, אשר את הפעולה בטלפון שבו מותקנת האפליקציה.')
       : trm('כדי לשנות הגדרות, משתמשים או הרשאות, אשר במפתח הטלפון.');
+    const seconds = Math.round(this.expiresMs / 1000);
     // MFA-RESET-CHANNEL-UI-2520: the user HAS a passkey that counts (the server lists it) but this browser cannot use passkeys - the
     // dialog offers the code and says why the passkey is not offered, instead of leaving it out silently
     // (RELEASE-2530-TRAIN: MFA-T095-REST-2530's phone approval is another way too)
     const pkElsewhere = listed && !pk && (code || dk || push);
     return html`<sw-dialog ?open=${this.open} heading=${t('stepUp.heading')} data-step-up-dialog @close=${(e: Event) => { e.stopPropagation(); this.answer(false); }}>
+      ${named ? html`<p class="msg action" data-step-up-action>${trm('הפעולה: {action}', { action: named })}</p>` : nothing}
       ${can
         ? html`<p class="msg" data-step-up-text>${body}</p>
             ${pkElsewhere ? html`<p class="hint" data-step-up-passkey-elsewhere>${trm('למפתח הגישה שלך צריך דפדפן שתומך במפתחות גישה. כאן אפשר לאשר בדרך אחרת.')}</p>` : nothing}
             <p class="hint" data-step-up-window>${minutes > 0 ? tf('stepUp.window', { minutes }) : t('stepUp.once')}</p>
+            <p class="hint" data-step-up-expiry>${trm('אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.', { seconds })}</p>
             ${pk
               ? html`<div class="pk"><sw-button variant=${code ? 'secondary' : 'primary'} data-step-up-passkey ?disabled=${this.busy} @click=${() => void this.byPasskey()}>${this.passkeyBusy ? t('stepUp.passkeyWaiting') : t('stepUp.passkey')}</sw-button></div>`
               : nothing}

@@ -22,9 +22,39 @@ interface PwaState {
   updateReady: boolean;
   installEvent: InstallPromptEvent | null;
   installed: boolean;
+  /** CLIENT-RESILIENCE-2540 (FC-06): the add-on version the server says it runs, when it differs from this page's bundle; else null. */
+  serverBuild: string | null;
 }
 
-export const pwa: PwaState = { registration: null, updateReady: false, installEvent: null, installed: false };
+export const pwa: PwaState = { registration: null, updateReady: false, installEvent: null, installed: false, serverBuild: null };
+
+/** This page's bundle version (vite.config.ts `__ARX_BUILD__`, the add-on version); '' when the build defined none. */
+function ownBuild(): string {
+  try {
+    return typeof __ARX_BUILD__ === 'string' ? __ARX_BUILD__ : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * CLIENT-RESILIENCE-2540 (review FC-06): a page left open across an add-on update (an operator desk, a wall tablet, a kiosk; or a plain
+ * http address with no service worker) kept running the old bundle against the new API for days - nothing compared the two. The
+ * server names its version in the first frame of every `/me/ws` connection (`hello.build`; the socket reconnects on every add-on
+ * restart). Another version than this bundle's raises the SAME quiet notice as a waiting service worker ("גרסה חדשה של Arx זמינה" +
+ * "רענון"); nothing reloads by itself (owner rule: default = today's behaviour). The worker, when there is one, is asked to look for
+ * the new release too, so "רענון" takes the usual hand-over. Absent, empty, `dev`, or the same version: nothing. True = the notice is up.
+ */
+export function noteServerBuild(server: unknown, own: string = ownBuild()): boolean {
+  if (typeof server !== 'string' || !server || server.length > 64 || !own || own === 'dev') return false;
+  if (server === own) return false;
+  if (pwa.serverBuild === server && pwa.updateReady) return true;
+  pwa.serverBuild = server;
+  pwa.updateReady = true;
+  changed();
+  void pwa.registration?.update().catch(() => undefined);
+  return true;
+}
 const listeners = new Set<() => void>();
 
 export function onPwa(fn: () => void): () => void {

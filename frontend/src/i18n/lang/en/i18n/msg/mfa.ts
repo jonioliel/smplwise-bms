@@ -169,4 +169,13 @@ export const en = {
   'ממסך אחר: הקלדת המספר שעל המסך באפליקציה, באישור מפתח הטלפון': 'From another screen: type the on-screen number in the app, confirmed with the phone key',
   'קוד האזעקה האישי כאישור': 'Personal alarm code as confirmation',
   'לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת': 'Alarm disarm and sensor bypass only, one action at a time',
+  // CLIENT-RESILIENCE-2540 (review SCR-23): the step-up dialog names the refused action and closes itself after a short while
+  'מינוי מנהל מערכת': 'Making someone a system administrator',
+  'שחזור מגיבוי': 'Restoring from a backup',
+  'הפעולה: {action}': 'Action: {action}',
+  'כדי להמשיך, אשר במפתח גישה או הזן את הקוד הנוכחי מאפליקציית האימות.': 'To continue, confirm with a passkey or enter the current code from your authenticator app.',
+  'כדי להמשיך, אשר במפתח גישה במכשיר הזה.': 'To continue, confirm with a passkey on this device.',
+  'כדי להמשיך, הזן את הקוד הנוכחי מאפליקציית האימות.': 'To continue, enter the current code from your authenticator app.',
+  'כדי להמשיך, אשר במפתח הטלפון.': 'To continue, confirm with the phone key.',
+  'אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.': 'If you do not confirm within {seconds} seconds, the request is cancelled and not carried out.',
 };

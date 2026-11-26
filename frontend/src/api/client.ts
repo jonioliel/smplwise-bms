@@ -67,12 +67,46 @@ export function resourceUrl(path: string): string {
   return new URL(path.replace(/^\/+/, ''), document.baseURI).toString();
 }
 
-/** CR-008 remote channel: on a 401 the Arx sign-in refreshes its HA token and re-exchanges the session cookie; true =
- * retry the request once. Unset under Ingress (a 401 there is final). */
-let onUnauthorized: (() => Promise<boolean>) | null = null;
-export function setUnauthorizedHandler(fn: (() => Promise<boolean>) | null): void {
+/**
+ * CLIENT-RESILIENCE-2540 (review FC-05, FC-03): a request that got no usable answer - its deadline passed (a half-open connection after
+ * a phone slept or changed network never fails by itself), or the remote channel's sign-in service could not be reached to renew the
+ * session after a 401. A TypeError like the browser's own network failure, so every screen's "no connection" state and
+ * `describeError` treat it the same way; `reason` tells the two apart for whoever needs it.
+ */
+export class ApiUnreachable extends TypeError {
+  constructor(public reason: 'timeout' | 'signin_unreachable') {
+    super(reason === 'timeout' ? 'the request got no answer in time' : 'the sign-in service could not be reached');
+    this.name = 'ApiUnreachable';
+  }
+}
+
+/** CLIENT-RESILIENCE-2540 (FC-05): the default deadline of a plain read (`GET` / `HEAD` through `api()`, the answer read to its end).
+ * Writes, uploads, binary reads (`apiBlob`) and raw answers (`apiResponse`) keep no default deadline: a write that the server finishes
+ * after the page gave up would be reported as failed, and a large export may take long. A call opts out (or sets its own) with
+ * `timeoutMs` (0 = none). */
+export const GET_DEADLINE_MS = 60_000;
+let getDeadlineMs = GET_DEADLINE_MS;
+/** Tests only: another default deadline for plain reads (0 = none). */
+export function setGetDeadline(ms: number): void {
+  getDeadlineMs = ms;
+}
+
+/** CR-008 remote channel: on a 401 the Arx sign-in refreshes its HA token and re-exchanges the session cookie; true = retry the
+ * request once, false = the sign-in has ended (the 401 reaches the caller). Unset under Ingress (a 401 there is final).
+ * CLIENT-RESILIENCE-2540 (FC-03): `'unreachable'` = the sign-in service did not answer (no connection, or "try again"); the sign-in is
+ * kept and the request fails like an offline request (ApiUnreachable), never as "signed out". */
+type UnauthorizedAnswer = boolean | 'unreachable';
+let onUnauthorized: (() => Promise<UnauthorizedAnswer>) | null = null;
+export function setUnauthorizedHandler(fn: (() => Promise<UnauthorizedAnswer>) | null): void {
   onUnauthorized = fn;
 }
+
+/** CLIENT-RESILIENCE-2540 (review SCR-23): the physical-safety actions of the server's step-up gate (services/step_up.py
+ * PHYSICAL_ACTIONS). A refused one of these is re-sent after the confirmation only while the refusal is recent: a door that was asked
+ * to open, then left alone, never opens when somebody types a code minutes later. The shell's dialog closes itself well before
+ * (components/sw-step-up-dialog.ts STEP_UP_DIALOG_MS); this is the client's own backstop for any handler. */
+export const PHYSICAL_STEP_UP_ACTIONS: readonly string[] = ['alarm.disarm', 'alarm.bypass', 'door.open'];
+export const STEP_UP_REPLAY_MS = 120_000;
 
 /** MFA-STEPUP-TRAIN-2490: what the server's central step-up gate says with its 403 `step_up_required` (services/step_up.py). Only an
  * answer that names `verify_path` comes from that gate; the bridge-key reveal's own 403 of the same code asks for its code itself. */
@@ -122,26 +156,104 @@ interface RawReply {
   text: string;
 }
 
+/** CLIENT-RESILIENCE-2540 (FC-05): the deadline of ONE attempt of a request - an abort signal that fires after `ms` (and follows the
+ * caller's own signal), and whether it was the deadline that fired. */
+interface Deadline {
+  signal: AbortSignal;
+  fired(): boolean;
+  clear(): void;
+}
+
+function deadline(ms: number, outer: AbortSignal | null | undefined): Deadline | null {
+  if (!(ms > 0)) return null;
+  const ctl = new AbortController();
+  let fired = false;
+  const timer = setTimeout(() => {
+    fired = true;
+    ctl.abort();
+  }, ms);
+  const follow = () => ctl.abort(outer?.reason);
+  if (outer?.aborted) follow();
+  else outer?.addEventListener('abort', follow, { once: true });
+  return {
+    signal: ctl.signal,
+    fired: () => fired,
+    clear: () => {
+      clearTimeout(timer);
+      outer?.removeEventListener('abort', follow);
+    },
+  };
+}
+
 /** CR-API-BLOB-2436: the one place a request leaves - same-origin credentials, the JSON content type for a non-form body, and the
- * remote channel's 401 refresh-and-retry (once). `path` is API-relative (`tickets/x`) or an absolute address built by `apiUrl`. */
-async function fetchApi(path: string, init: RequestInit): Promise<Response> {
+ * remote channel's 401 refresh-and-retry (once). `path` is API-relative (`tickets/x`) or an absolute address built by `apiUrl`.
+ * CLIENT-RESILIENCE-2540 (FC-05): `ms` > 0 gives every attempt its own deadline (the wait for a confirmation or a token refresh
+ * between two attempts never counts); a deadline that passes rejects with ApiUnreachable('timeout'). Without `hold` the deadline
+ * covers the answer's headers; with it, the caller receives the current attempt's deadline and ends it after reading the body. */
+async function fetchApi(path: string, init: RequestInit, ms = 0, hold?: (d: Deadline | null) => void): Promise<Response> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const inline = headers.has(STEP_UP_INLINE); // MFA-TRAIN-2500: the screen confirms this one itself
   headers.delete(STEP_UP_INLINE);
-  let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
-  if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  let last: Deadline | null = null;
+  const attempt = async (): Promise<Response> => {
+    const d = deadline(ms, init.signal);
+    last = d;
+    hold?.(d);
+    try {
+      const res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin', ...(d ? { signal: d.signal } : {}) });
+      if (!hold) d?.clear();
+      return res;
+    } catch (err) {
+      d?.clear();
+      if (d?.fired()) throw new ApiUnreachable('timeout');
+      throw err;
+    }
+  };
+  // the wait for a token refresh or a confirmation is not the request's: its deadline stops there (the refusal's small body stays readable)
+  const pause = () => (last as Deadline | null)?.clear();
+  let res = await attempt();
+  if (res.status === 401 && onUnauthorized) {
+    pause();
+    const again = await onUnauthorized();
+    if (again === 'unreachable') throw new ApiUnreachable('signin_unreachable'); // FC-03: kept signed in, failed like an offline request
+    if (again) res = await attempt();
+  }
   if (res.status === 403 && onStepUp && !inline) {
     const details = await stepUpRefusal(res);
+    if (details) pause();
+    const refusedAt = Date.now();
     // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
-    if (details && (await onStepUp(details))) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+    // SCR-23: a physical action (a door, the alarm) only while the refusal is recent - never replayed after the confirmation expired
+    if (details && (await onStepUp(details)) && replayAllowed(details, Date.now() - refusedAt)) res = await attempt();
   }
   return res;
 }
 
-async function send(path: string, init: RequestInit): Promise<RawReply> {
-  const res = await fetchApi(path, init);
-  return { status: res.status, ok: res.ok, statusText: res.statusText, text: res.status === 204 ? '' : await res.text() };
+/** SCR-23: may the request refused for `details` be re-sent `waitedMs` after its refusal? */
+function replayAllowed(details: StepUpDetails, waitedMs: number): boolean {
+  return !PHYSICAL_STEP_UP_ACTIONS.includes(details.action ?? '') || waitedMs <= STEP_UP_REPLAY_MS;
+}
+
+async function send(path: string, init: RequestInit, ms = 0): Promise<RawReply> {
+  if (!(ms > 0)) {
+    const res = await fetchApi(path, init);
+    return { status: res.status, ok: res.ok, statusText: res.statusText, text: res.status === 204 ? '' : await res.text() };
+  }
+  // FC-05: the deadline covers the body too - a connection that stalls half-way through the answer fails like one that never answered
+  let held: Deadline | null = null;
+  try {
+    const res = await fetchApi(path, init, ms, (d) => {
+      held?.clear();
+      held = d;
+    });
+    return { status: res.status, ok: res.ok, statusText: res.statusText, text: res.status === 204 ? '' : await res.text() };
+  } catch (err) {
+    if (!(err instanceof ApiUnreachable) && (held as Deadline | null)?.fired()) throw new ApiUnreachable('timeout');
+    throw err;
+  } finally {
+    (held as Deadline | null)?.clear();
+  }
 }
 
 /** CR-API-BLOB-2436 (07:F16): the error body of a failed answer, normalised field by field. A body that carries a string `code` is
@@ -201,18 +313,31 @@ export function inflightGetCount(): number {
   return inflightGets.size;
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** CLIENT-RESILIENCE-2540 (FC-05): the deadline of a request through `api()` - the call's own, else GET_DEADLINE_MS for a plain read
+ * (GET / HEAD without a body) that brings no abort signal of its own (whoever passes a signal owns the request's lifetime), else none. */
+function deadlineOf(init: RequestInit, timeoutMs: number | undefined): number {
+  if (timeoutMs !== undefined) return timeoutMs;
+  if (init.signal) return 0;
+  const method = (init.method ?? 'GET').toUpperCase();
+  return (method === 'GET' || method === 'HEAD') && !init.body ? getDeadlineMs : 0;
+}
+
+/** `timeoutMs`: CLIENT-RESILIENCE-2540 - this call's deadline (0 = none); a GET with its own deadline is never shared. A shared GET has
+ * the default deadline, so a hung request settles (ApiUnreachable) and the next caller asks the server again - never one pending
+ * promise for ever. */
+export async function api<T>(path: string, init: RequestInit = {}, timeoutMs?: number): Promise<T> {
   let res: RawReply;
-  if (shareable(init)) {
+  const ms = deadlineOf(init, timeoutMs);
+  if (shareable(init) && timeoutMs === undefined) {
     const key = apiUrl(path);
     let pending = inflightGets.get(key);
     if (!pending) {
-      pending = send(path, init).finally(() => inflightGets.delete(key));
+      pending = send(path, init, ms).finally(() => inflightGets.delete(key));
       inflightGets.set(key, pending);
     }
     res = await pending;
   } else {
-    res = await send(path, init);
+    res = await send(path, init, ms);
   }
   if (res.status === 204) return undefined as T;
   if (!res.ok) throw new ApiError(res.status, errorBody(res.status, res.statusText, res.text));
@@ -229,10 +354,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** CR-API-BLOB-2436 (07:F16): an optional abort signal for the helpers. A GET with a signal is never shared with another caller. */
 interface CallOptions {
   signal?: AbortSignal;
+  /** CLIENT-RESILIENCE-2540 (FC-05): this read's own deadline in ms (0 = none; default GET_DEADLINE_MS). */
+  timeoutMs?: number;
 }
 const withSignal = (init: RequestInit, opts?: CallOptions): RequestInit => (opts?.signal ? { ...init, signal: opts.signal } : init);
 
-export const get = <T>(path: string, opts?: CallOptions) => api<T>(path, withSignal({}, opts));
+export const get = <T>(path: string, opts?: CallOptions) => api<T>(path, withSignal({}, opts), opts?.timeoutMs);
 export const post = <T>(path: string, body?: unknown, opts?: CallOptions) =>
   api<T>(path, withSignal({ method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }, opts));
 export const patch = <T>(path: string, body: unknown, opts?: CallOptions) => api<T>(path, withSignal({ method: 'PATCH', body: JSON.stringify(body) }, opts));

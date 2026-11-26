@@ -3,8 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
-import { onSession } from '../api/session';
-import { applyUpdate, dismiss, onPwa, promptInstall, pwa, showInstall, showIosHint, startPwa } from './register';
+import { onMeEvent, onSession } from '../api/session';
+import { applyUpdate, dismiss, noteServerBuild, onPwa, promptInstall, pwa, showInstall, showIosHint, startPwa } from './register';
 import { syncSubscription } from './push';
 import { tr } from '../i18n/msg/misc';
 
@@ -202,6 +202,13 @@ export class ArxPwaPrompts extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.stops.push(onPwa(() => this.tick++));
+    // CLIENT-RESILIENCE-2540 (FC-06): the server's version in the hello of every /me/ws connection; another one than this bundle's
+    // shows the update card below (also without a service worker: a plain-http local address, the HA frame)
+    this.stops.push(
+      onMeEvent((env) => {
+        if (env.type === 'hello') noteServerBuild((env.payload as { build?: unknown } | undefined)?.build);
+      }),
+    );
     this.stops.push(
       onSession((s) => {
         if (s.mode === 'api' && !this.synced) {

@@ -10,16 +10,34 @@ import { setStepUpHandler, type StepUpDetails } from '../api/client';
 /** Fired on window after a proof was recorded (the settings line "confirmed until ..." reads it again). */
 export const STEP_UP_VERIFIED = 'sw-step-up-verified';
 
-let pending: Promise<boolean> | null = null;
+/**
+ * CLIENT-RESILIENCE-2540 (review SCR-23 / FC-12): requests refused at the same moment share one dialog only when they were refused for
+ * the SAME action (two saves of settings: one confirmation). A refusal for another action - or any once-action, whose proof is good
+ * for exactly one call - waits for the open dialog to finish and then gets its own, worded for it; it is never answered by a dialog
+ * that named something else.
+ */
+const open = new Map<string, Promise<boolean>>();
+let queue: Promise<unknown> = Promise.resolve();
+let onceSeq = 0;
+
+function keyOf(details: StepUpDetails): string {
+  return details.once ? `once:${++onceSeq}` : `action:${typeof details.action === 'string' ? details.action : ''}`;
+}
 
 function askStepUp(details: StepUpDetails): Promise<boolean> {
-  pending ??= import('../components/sw-step-up-dialog')
+  const key = keyOf(details);
+  const known = open.get(key);
+  if (known) return known;
+  const answer: Promise<boolean> = queue
+    .then(() => import('../components/sw-step-up-dialog'))
     .then((m) => m.stepUpDialog(details))
     .catch(() => false)
     .finally(() => {
-      pending = null;
+      open.delete(key);
     });
-  return pending;
+  open.set(key, answer);
+  queue = answer.catch(() => false);
+  return answer;
 }
 
 export function installStepUp(): void {
