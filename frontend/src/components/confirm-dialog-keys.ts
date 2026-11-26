@@ -13,7 +13,7 @@
 export type EnterTarget = 'confirm' | 'cancel' | 'close' | 'other' | 'none';
 
 /** What the dialog does with that Enter: answer yes, answer no, leave the key to the focused element, or swallow it. */
-export type EnterAnswer = 'confirm' | 'cancel' | 'pass' | 'ignore';
+type EnterAnswer = 'confirm' | 'cancel' | 'pass' | 'ignore';
 
 export function enterAnswer(on: EnterTarget): EnterAnswer {
   if (on === 'confirm') return 'confirm';

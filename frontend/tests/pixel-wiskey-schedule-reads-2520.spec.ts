@@ -46,6 +46,8 @@ function rows() {
   ];
 }
 
+// RELEASE-2520-TRAIN: every case title carries "pixel-stable" - the gate's pixel step runs --grep pixel-stable (gate run 1:
+// pixel_53 "No tests found" for this file)
 test.describe('pixel: the signed schedule reads block', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => {
@@ -53,12 +55,12 @@ test.describe('pixel: the signed schedule reads block', () => {
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`classic ${scheme}: unsupported`, async ({ page }, info) => {
+    test(`classic ${scheme} is pixel-stable: unsupported`, async ({ page }, info) => {
       await open(page, scheme);
       await compare(page, info, `sched-reads-unsupported-${scheme}`);
     });
 
-    test(`classic ${scheme}: supported, one row per state`, async ({ page }, info) => {
+    test(`classic ${scheme} is pixel-stable: supported, one row per state`, async ({ page }, info) => {
       await open(page, scheme, { readsSupport: SUPPORTED, reads: rows() });
       await compare(page, info, `sched-reads-rows-${scheme}`);
     });

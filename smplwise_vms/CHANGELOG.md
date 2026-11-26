@@ -22,37 +22,46 @@
 ### התקנה - Install
 - אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.52.0). - No new migration. The bridge stays 0.10.9 (as in 2.52.0).
 
-## 2.52.0 (pilot) - WisKey rc.19 adoption: intercom system status, relay inventory, numbered station sync, external visits, direct transport v2 and bridge 0.10.9
-
-<!-- RELEASE-2520-TRAIN: the train coordinator's working list (draft), not the final release text - the lead writes the final bilingual text at release. The DRAFT mark left the heading so scripts/release_check.py reads 2.52.0 as the CHANGELOG head (the version files are already 2.52.0). -->
+## 2.52.0 (pilot) - WisKey rc.19/rc.20 adoption and bridge 0.10.9; security and backup fixes from a deep code review; English everywhere; filtering by building in the home interface
 
 ### חדש - New
 - הגדרות › בקרת כניסה › "מערכת האינטרקום": מצב מערכת WisKey כפי ש-WisKey מדווח (גרסה, תחנות, סנכרון, עבודות לפי סוג, תבניות הודעה), לקריאה בלבד ובלי לשאול אף התקן. - Settings › Access control › "Intercom system": the WisKey system state as WisKey reports it (version, stations, sync, jobs by kind, message templates), read only and without asking any device.
 - מיפוי ממסרים: "מה WisKey יודע על הממסרים" לכל תחנה, לפי בקשה בלבד; לא משנה את המיפוי המאושר. - Relay map: "what WisKey knows about the relays" per station, on request only; it never changes the approved mapping.
 - סנכרון תחנה עם מספר בקשה כש-WisKey תומך בו; בלי ניסיון חוזר אוטומטי ובלי מעבר לפקודה הישנה אחרי סירוב. - Station sync with a request id when WisKey supports it; no automatic retry and no fallback to the classic command after a refusal.
-- חיבור ישיר ל-WisKey בגרסה 2 (מזהה מפתח, מצב צימוד v2), עם גשר 0.10.9. - WisKey direct transport v2 (key id, pairing status v2), with bridge 0.10.9.
-
-- מפתח גישה כשלב השני בכניסה מרחוק גם למשתמשי מערכת הבית (כבוי כברירת מחדל; ההגדרה security.passkey_remote_factor). - A passkey as the second step of a remote sign-in for home-system users too (off by default; the security.passkey_remote_factor setting).
+- קריאות לוחות זמנים חתומות מ-WisKey (מוכנות ותלויות של תחנה), לקריאה בלבד; הפעלת לוחות זמנים נשארת ב-WisKey. - Signed schedule reads from WisKey (a station's readiness and dependencies), read only; running schedules stays in WisKey.
+- כרטיס מפתח הגשר: "הרשאת שירות מ-WisKey" כפי ש-WisKey מדווח, לקריאה בלבד; הענקה וביטול רק במסך של WisKey. - Bridge key card: "Service permission from WisKey" as WisKey reports it, read only; granting and revoking stay in WisKey's own screen.
+- רשימת ביקורים חיצוניים: סינון "הסתיים", מוצג רק כש-WisKey תומך בו. - External visits list: an "ended" filter, shown only when WisKey supports it.
+- חיבור ישיר ל-WisKey בגרסה 2 (מזהה מפתח, מצב צימוד v2), עם גשר 0.10.9; כבוי בפועל כל עוד החלפת מפתח הגשר חסומה. - WisKey direct transport v2 (key id, pairing status v2), with bridge 0.10.9; dormant while the bridge-key rotation stays blocked.
+- מפתח גישה כשלב השני בכניסה מרחוק גם למשתמשי מערכת הבית (כבוי כברירת מחדל). - A passkey as the second step of a remote sign-in for home-system users too (off by default).
+- ממשק הבית ולוח השנה של הדייר בטלפון: סינון לפי בניין, כשיש יותר מבניין אחד. - The home interface and the resident's phone calendar: filtering by building, when there is more than one building.
+- הגדרות › אימות דו־שלבי: בחירה מאיפה מותר לאפס דרכי אימות (מכל מקום / רשת מקומית בלבד), ומפתח גישה כהרשמה ראשונה כשנדרשת. - Settings › Second factor: where a factor reset is allowed (anywhere / local network only), and a passkey as the first enrolment when one is required.
 
 ### שופר - Improved
-- סקירת האימות הדו־שלבי של 2.51.0: שלושה תיקוני אבטחה קטנים, ומדריך לבעל המערכת בעברית ובאנגלית. - The second-factor review of 2.51.0: three small security fixes, and an owner guide in Hebrew and English.
-- האזנה לעמדה: מצב התכונה נקבע לפי הגילוי החתום האחרון של WisKey (החיבור הישיר, אחרת הבדיקה החתומה האחרונה שהתקבלה); כל עוד לא ידוע - "לא ידוע"; האזנה שהעמדה לא מציעה נדחית לפני פתיחת שיחה. - Station listening: the feature state follows WisKey's last negotiated signed discovery (the direct connection, else the last accepted signed check); while not known it says "unknown"; a listen the station does not offer is refused before any talk is opened.
-- רישום ביקורים חיצוניים ב-WisKey לפי החוזה של rc.19; ביקור שהסתיים מוצג כ"הסתיים" לאורך כל המסלול. - External visit records in WisKey follow the rc.19 contract; an ended visit is labelled "ended" end to end.
-- אשף גילוי המצלמות: "אותו דבר לכולן" הוא מתג; צבעים ומידות לפי ערכי העיצוב המשותפים. - Camera discovery wizard: "same for all" is a switch; colours and sizes use the shared design tokens.
-- ממשק באנגלית: שאר הטקסטים הקבועים בעברית תורגמו (עורך התוכניות, מפת הקומה, סטודיו התוכניות ומסכים קטנים), וגם הודעות הסירוב של השרת וכותרות ההתראות מוצגות בשפת הקורא. - English interface: the remaining fixed Hebrew texts are translated (the plan editor, the floor map, plan studio and smaller screens), and the server's refusal messages and notification titles are shown in the reader's language.
-- הוספת דרך אימות מבחוץ, ואיפוס של מנהל מבחוץ, דורשים כניסה טרייה; המשתמש מקבל הודעה (בלי פרטים) כשדרך אימות שלו הוסרה, כשהופקו קודי שחזור חדשים או כשנכנסו בקוד שחזור. - Adding a sign-in method from outside, and an administrator's reset from outside, need a fresh sign-in; the user gets a notice (no details) when one of their methods is removed, new recovery codes are made, or a recovery code is used to sign in.
+- הוספת דרך אימות מבחוץ, ואיפוס של מנהל מבחוץ, דורשים כניסה טרייה; הסרת מפתח גישה על ידי מנהל עוברת את אותם כללים כמו איפוס; המשתמש מקבל הודעה (בלי פרטים) כשדרך אימות שלו הוסרה, כשהופקו קודי שחזור חדשים או כשנכנסו בקוד שחזור. - Adding a sign-in method from outside, and an administrator's reset from outside, need a fresh sign-in; an administrator removing a passkey follows the same rules as a reset; the user gets a notice (no details) when one of their methods is removed, new recovery codes are made, or a recovery code is used to sign in.
+- ממשק באנגלית: שאר הטקסטים הקבועים תורגמו, וגם כל הודעות הסירוב של השרת (גם אלה עם שמות ומספרים), כותרות ההתראות, סיבות מצב WisKey, שמות חיישני הגנרטור ועמוד "אין חיבור". - English interface: the remaining fixed texts are translated, and so are all the server's refusal messages (also those with names and numbers), notification titles, WisKey status reasons, generator sensor names and the offline page.
+- התראות דחיפה, דוא"ל, האפליקציה, הודעות לוח השנה ודוח התובנות יוצאים בשפת הנמען; WhatsApp ללא שינוי. - Push, e-mail, app notifications, calendar notices and the insights report go out in the recipient's language; WhatsApp unchanged.
+- האזנה לעמדה: המצב נקבע לפי הגילוי החתום האחרון של WisKey; האזנה שהעמדה לא מציעה נדחית לפני פתיחת שיחה. - Station listening: the state follows WisKey's last signed discovery; a listen the station does not offer is refused before any talk is opened.
+- חלונות, תפריטים וחלוניות נפתחים בלי טקסט דהוי. - Dialogs, menus and sheets open without faded text.
 - שינוי בממשק השרת: בסירובים של כרטיסי השירות, ההודעות וההתראות `details.fields` הוא עכשיו רשימת שמות שדות, והקודים לכל שדה עברו ל-`details.problems`. - API change: `details.fields` in tickets / messaging / notifications refusals is now a list of names; the per-field codes moved to `details.problems`.
-- שינוי בממשק השרת: בקשות כתיבה של המקליט, מסכות הפרטיות והמצלמות דוחות עכשיו שדות לא מוכרים בשגיאה 422 (`details.fields` / `details.problems`). - API change: NVR / privacy-mask / camera write requests now refuse unknown fields with 422 (`details.fields` / `details.problems`).
+- שינוי בממשק השרת: בקשות כתיבה של המקליט, מסכות הפרטיות והמצלמות דוחות שדות לא מוכרים בשגיאה 422. - API change: NVR / privacy-mask / camera write requests refuse unknown fields with 422.
 
 ### תוקן - Fixed
-- חלונות דו־שיח: הטקסטים כבר לא דהויים בזמן הפתיחה. - Dialogs: the texts are no longer faded while the dialog opens.
-- החשבון שלי › אבטחה: ביטול של מפתח טלפון, אסימון או כניסה שנדחה ממשיך להראות את הסיבה גם אחרי הרענון. - My account › Security: a refused revoke of a phone key, token or sign-in keeps showing its reason after the reload.
-- גשר 0.10.9: צימוד מחדש ל-WisKey מבטל מיד את הצימוד הקודם. - Bridge 0.10.9: re-pairing with WisKey refuses the old pairing at once.
+- אבטחה: קוד שגוי באישור חוזר לפעולות מנהל ולשחזור גיבוי נספר עכשיו לנעילה. - Security: a wrong code in the confirmation for administrator actions and backup restores now counts toward the lockout.
+- אבטחה: בדיקת המכשיר דורשת שרשרת אישורים תקינה, כך שמפתח תוכנה לא נחשב למפתח טלפון אמיתי. - Security: the device check requires a proper certificate chain, so a software key is not taken for a real phone key.
+- אבטחה: שחזור גיבוי לא מחזיר הגדרות אבטחה ישנות, וכל הגדרה משוחזרת עוברת את הבדיקה הרגילה. - Security: a backup restore no longer brings back old security settings, and every restored setting goes through the normal validation.
+- אבטחה: הודעות שגיאה של שירות הווידאו כבר לא מגיעות לצופה (ייתכן שהכילו כתובת או סיסמה); חסימת מצלמה למשתמש חלה גם על צפייה בשינויי ההגדרות שלה וביטולם. - Security: video service error messages no longer reach the viewer (they could carry an address or a password); a user's block on a camera also covers viewing and undoing its setting changes.
+- פרטיות: אחרי יציאה, הדפדפן מפסיק לקבל את ההתראות של המשתמש. - Privacy: after signing out, the browser stops receiving that user's notifications.
+- גיבוי: שחזור מלא עובד גם כשיש קובץ תחזוקה; הגיבוי היומי רץ גם כשהמערכת מופעלת מחדש כל יום. - Backup: a full restore works also when a maintenance file exists; the daily backup runs also when the system restarts every day.
+- WisKey: אחרי סירוב בחיבור הישיר לא שולחים את אותה כתיבה בערוץ הישן. - WisKey: after a refusal on the direct connection the same write is not sent on the old channel.
+- גשר 0.10.9: צימוד מחדש ל-WisKey מבטל מיד את הצימוד והמפתח הקודמים, גם בהתקנות ישנות. - Bridge 0.10.9: re-pairing with WisKey refuses the old pairing and key at once, also on older installations.
+- Enter בחלון אישור מאשר רק על כפתור האישור. - Enter in a confirmation dialog confirms only on the confirm button.
+- חלון דלת החירום, מסך האזעקה בממשק הבית, השמעת הקלטות אחרי חצות, ביטול תאריך אחד בהזמנה חוזרת, וכרטיס ציבורי ששלח טיוטה לבד. - The emergency door sheet, the home alarm screen, recordings played past midnight, cancelling one date of a recurring booking, and a public ticket page that sent a draft by itself.
+- לא ניתן למחוק או להשבית את עצמך או את המנהל האחרון של Arx. - You can no longer delete or disable yourself or the last Arx administrator.
 
 ### התקנה - Install
-- גשר חדש (0.10.9): דורש הפעלה אחת מחדש של מערכת הבית (באישור הבעלים). - A new bridge (0.10.9): needs one home system restart (owner-approved).
-- שתי מיגרציות חדשות שמוסיפות בלבד ורצות לבד בהפעלת התוסף: 0225 (קריאות לוחות הזמנים של WisKey) ו-0226 (רישום התראות הדחיפה קשור לכניסה). שתיהן תואמות לאחור: חזרה לגרסה 2.51.0 עובדת עליהן. - Two new additive migrations that run by themselves when the add-on starts: 0225 (WisKey schedule reads) and 0226 (push registrations tied to the sign-in). Both are backward compatible: going back to 2.51.0 works on them.
-- חזרה לגרסה הקודמת: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.51.0 -> 2.52.0", לא את האחרון - הפעלת הגרסה הקודמת יוצרת עותק חדש עם הנתונים של 2.52.0. - Rollback: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.51.0 -> 2.52.0", not the newest one - starting the previous version writes a new copy holding the 2.52.0 data.
+- גשר חדש (0.10.9): נטען רק אחרי הפעלה אחת מחדש של מערכת הבית (באישור הבעלים); עד אז הגשר הקיים ממשיך לעבוד. - A new bridge (0.10.9): loads only after one home system restart (owner-approved); until then the current bridge keeps working.
+- שתי מיגרציות חדשות שמוסיפות בלבד ורצות לבד בהפעלת התוסף: 0225 ו-0226. שתיהן תואמות לאחור: חזרה לגרסה 2.51.0 עובדת עליהן. - Two new additive migrations that run by themselves when the add-on starts: 0225 and 0226. Both are backward compatible: going back to 2.51.0 works on them.
+- חזרה לגרסה הקודמת: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.51.0 -> 2.52.0", לא את האחרון. - Rollback: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.51.0 -> 2.52.0", not the newest one.
 
 ## 2.51.0 (pilot) - two-step verification for everyone: passkeys, recovery codes, the phone key, a sign-in policy, and an optional confirmation before sensitive changes
 

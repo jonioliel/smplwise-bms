@@ -673,7 +673,11 @@ def parse_pytest(text):
         # GATE-HARDEN-2520 (TR-01): the node id runs up to pytest's " - " message separator, NOT to the first blank - a parametrized
         # id may hold spaces (`test_gated[GET /api/v1/x]`); cutting it there made the retry run nothing and every failure FLAKY.
         # An id that itself holds " - " is still cut short: the retry then finds no PASSED line for it and it stays FAIL (fail-safe).
-        m = re.match(r"(FAILED|ERROR) (.+?)(?: - (.*))?$", line.rstrip())
+        # RELEASE-2520-TRAIN (gate run 1 of 2.52): only pytest's short-summary lines - ONE space after the word, then a node id that starts
+        # with a .py path (`tests/x.py::name`, or `tests/x.py` for a collection error). A captured log line also starts with "ERROR",
+        # padded by the logging format ("ERROR    smplwise.events:db.py:386 ...") - taken as an id, it made the alone-retry abort
+        # ("file or directory not found") and every real failure of the shard FAIL without a retry.
+        m = re.match(r"(FAILED|ERROR) ([\w./-]+\.py(?:::.+?)?)(?: - (.*))?$", line.rstrip())
         if m:
             fails.append((m.group(2).strip(), (m.group(3) or "")))
     return c, fails

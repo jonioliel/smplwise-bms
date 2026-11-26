@@ -172,7 +172,7 @@ export function systemView(data: unknown): WkSystem | null {
 
 // ---------------------------------------------------------------- the tiles
 
-export interface WkTiles {
+interface WkTiles {
   version: string | null;
   apiContract: number | null;
   profile: string;
@@ -291,7 +291,7 @@ export function jobKind(s: string): StateKind {
 // ---------------------------------------------------------------- one station's lines
 
 /** What a station's sync request shows: the result WisKey last observed (never a proof of effect), else a pending / running request. */
-export type RequestLine = { kind: 'none' } | { kind: 'pending' } | { kind: 'active' } | { kind: 'result'; state: string; at: string | null; code: string | null };
+type RequestLine = { kind: 'none' } | { kind: 'pending' } | { kind: 'active' } | { kind: 'result'; state: string; at: string | null; code: string | null };
 
 export function requestLine(s: WkStation): RequestLine {
   const r = s.sync.request;
@@ -360,8 +360,3 @@ export function jobsView(data: unknown): WkJobs | null {
 
 /** A job id as the page shows it: the first eight characters (the full id stays in the row's title). */
 export const shortId = (id: string): string => id.slice(0, 8);
-
-/** The row counts of a job, each null when WisKey did not give it (the page writes "unknown", never 0). */
-export function jobCounts(j: WkJob): { saved: number | null; failed: number | null; pending: number | null; total: number | null } {
-  return { saved: j.saved, failed: j.failed, pending: j.pending, total: j.total };
-}

@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settle } from './helpers/settle';
 
 // WISKEY-RELAY-INV-2520: the "מיפוי ממסרים" card (Settings › הגדרת מערכת › WisKey) with WisKey's relay inventory per station
 // (stations/relay_inventory_v1, READ only), mounted alone on the styleguide route with a mocked backend (invented sample data: no real
@@ -93,6 +94,7 @@ test('relay map card with WisKey relay inventory: compare shots', async ({ page 
         await expect(page.locator('sw-wiskey-relay-map [data-relay-inventory-line="count"]')).toHaveText('לא ידוע');
         await expect(page.locator('sw-wiskey-relay-map [data-relay-inventory-line="roles"]')).toHaveText('לא ידוע');
         await shot(page, `inventory-${size}-${scheme}`);
+        await settle(page); // the gate's lint: geometry is read only after the opened lists' animations settled
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
         expect(sideways, 'no sideways scroll').toBeLessThanOrEqual(0);
       }

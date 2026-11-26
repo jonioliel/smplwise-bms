@@ -90,7 +90,7 @@ export function approveQuestion(s: RelayMapStation, d: RelayDraft): string {
 // ---- WISKEY-RELAY-INV-2520: WisKey's relay inventory of one station (READ only), shown under the station's mapping
 
 /** One shown line of the inventory: a label and its value; `unknown` marks a value nobody measured (shown as unknown, never guessed). */
-export interface InventoryLine {
+interface InventoryLine {
   key: 'outputs' | 'saved' | 'count' | 'roles' | 'test';
   label: string;
   value: string;

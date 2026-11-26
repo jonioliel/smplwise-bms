@@ -11,7 +11,7 @@
  * the user's interface language that the app tells the worker (`arx-context`, register.ts / sw.ts); Hebrew when it never said.
  * `OFFLINE_HTML` (the Hebrew page) is byte for byte the page before this change.
  */
-export type OfflineLang = 'he' | 'en';
+type OfflineLang = 'he' | 'en';
 interface OfflineText {
   dir: 'rtl' | 'ltr';
   title: string;

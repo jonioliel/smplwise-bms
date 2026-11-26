@@ -151,7 +151,7 @@ export const getServiceGrant = () => get<BridgeKeyServiceGrant>('system/bridge-k
 export type ServiceGrantState = 'active' | 'absent_or_revoked' | 'refused' | 'unknown' | 'unsupported' | 'unavailable';
 export const SERVICE_GRANT_STATES: readonly ServiceGrantState[] = ['active', 'absent_or_revoked', 'refused', 'unknown', 'unsupported', 'unavailable'];
 /** The four service actions a v3 grant can carry (WisKey's closed list), in the order shown. Cards are never among them. */
-export const SERVICE_GRANT_COMMANDS = ['users/create', 'users/update', 'users/pin_generate', 'users/temporary_cancel'] as const;
+const SERVICE_GRANT_COMMANDS = ['users/create', 'users/update', 'users/pin_generate', 'users/temporary_cancel'] as const;
 
 /** The state to show: WisKey's own answer, or `unknown` for anything this client does not know (never an assumed grant). */
 export function serviceGrantState(g: Partial<BridgeKeyServiceGrant> | null | undefined): ServiceGrantState {

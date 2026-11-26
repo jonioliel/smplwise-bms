@@ -15,8 +15,6 @@
 import { get } from './client';
 import type { AccessControlSystemStatusRead } from './generated/wire-access-control-system-status';
 
-export type WkReadState = 'ready' | 'unsupported' | 'forbidden' | 'unavailable' | 'busy' | 'error';
-
 /** One WisKey status read as the server answers it. */
 export type WkRead = AccessControlSystemStatusRead;
 
@@ -29,7 +27,7 @@ export interface WkFailure {
   reason: string;
 }
 
-export interface WkLastResult {
+interface WkLastResult {
   request_id: string | null;
   state: string;
   observed_at: string | null;

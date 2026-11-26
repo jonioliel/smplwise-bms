@@ -164,7 +164,7 @@ function sentence(key: string, lang: WfsLang, vars: Record<string, unknown> = {}
   return fill(raw, vars as Record<string, string | number>);
 }
 
-export interface WfsReason {
+interface WfsReason {
   code: string;
   text: string;
   fix: string | null;
