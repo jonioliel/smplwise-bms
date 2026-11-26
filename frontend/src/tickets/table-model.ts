@@ -398,3 +398,15 @@ export function bulkSummary(a: BulkAnswer): { head: string; rest: string; tone: 
 export function keepAfterBulk(a: BulkAnswer, ids: readonly string[]): Set<string> {
   return new Set(a.results.filter((r) => r.result !== 'ok' && r.result !== 'unchanged' && ids.includes(r.id)).map((r) => r.id));
 }
+
+/** LOWS-FRONTEND-2550 (review SCR-56): a list answer merged with the rows on screen - a row the screen holds at a NEWER revision (an
+ * inline change confirmed while this read was on its way) keeps the screen's row. A poll that was already in flight used to put the old
+ * status back for ~20 s, and a second change then met a 409. */
+export function keepNewerRows<T extends { id: string; revision?: number | null }>(shown: readonly T[] | null, incoming: readonly T[]): T[] {
+  if (!shown?.length) return [...incoming];
+  const mine = new Map(shown.map((r) => [r.id, r] as const));
+  return incoming.map((r) => {
+    const cur = mine.get(r.id);
+    return cur && (cur.revision ?? 0) > (r.revision ?? 0) ? cur : r;
+  });
+}

@@ -23,7 +23,7 @@ import { lt } from '../tickets/list-text';
 import '../tickets/elapsed-clock';
 import { readSentenceChoice, writeSentenceOn } from '../tickets/list-prefs';
 import {
-  activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
+  activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, keepNewerRows, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
   rangeSelect, slaText, sortMark, sortText, stuckText, tableFilters, toggleOne, togglePage, toggleSort, viewDoc, type BaseFilters, type ExtraFilters, type TableLayout,
 } from '../tickets/table-model';
 import { tbt } from '../tickets/table-text';
@@ -383,7 +383,8 @@ export class TicketsTable extends LitElement {
       if (seq !== this.seq) return;
       const prev = more ? this.rows ?? [] : [];
       const seen = new Set(prev.map((r) => r.id));
-      this.rows = [...prev, ...page.items.filter((r) => !seen.has(r.id))];
+      // LOWS-FRONTEND-2550 (review SCR-56): a row changed on screen after this read began keeps its newer revision
+      this.rows = keepNewerRows(this.rows, [...prev, ...page.items.filter((r) => !seen.has(r.id))]);
       // TICKETS-PAGING-2490: a pressed "load more" shows the page of its first new row (REVIEW-2490-FIXES-2500: the automatic follow-up
       // load does not - the table opened on page 1 stays on page 1)
       if (more && !auto) this.fit.reveal(prev.length);
