@@ -5,6 +5,7 @@
 
 # --- Legitimate: named well-known addresses in security code/docs ---
 smplwise_vms/backend/smplwise/services/connection_probe.py   # blocked cloud-metadata address inside the CGNAT range (refused on purpose)
+scripts/publish_public_addon.py                              # publish scan: the same blocked metadata address and Tailscale MagicDNS are named as known-benign constants
 docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md                  # documents the same blocked metadata address
 
 # --- Legitimate: SSRF / address-class guard tests must feed private addresses to validators ---
