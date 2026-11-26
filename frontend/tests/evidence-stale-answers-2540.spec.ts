@@ -236,8 +236,10 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
       const busy = date === '2026-11-01'; // day 3 of the strip (the clock is 29.10): the slow one, and that day is booked
       if (busy) await hold.held;
       const at = (h: number) => new Date(`${date}T${String(h).padStart(2, '0')}:00:00+02:00`).toISOString();
-      const entries = busy ? [10, 14].map((h, i) => ({ id: `o${i}`, calendar_id: 'a', title: 'תפוס', start: at(h), end: at(h + 2), state: 'confirmed', kind: 'booking', organizer: null, recurring: false, revision: 1 })) : [];
-      return json(r, { rooms: [{ calendar_id: 'a', name: 'חדר ישיבות אלון', capacity: 8, open: [{ from: '07:00', to: '23:00' }], equipment: [], entries }] });
+      // day 3 answers with the other room ("b", booked), every other day with room "a" (free): a late day-3 answer is visible as room "b"
+      const cal = busy ? 'b' : 'a';
+      const entries = busy ? [10, 14].map((h, i) => ({ id: `o${i}`, calendar_id: cal, title: 'תפוס', start: at(h), end: at(h + 2), state: 'confirmed', kind: 'booking', organizer: null, recurring: false, revision: 1 })) : [];
+      return json(r, { rooms: [{ calendar_id: cal, name: busy ? 'חדר ישיבות ברוש' : 'חדר ישיבות אלון', capacity: 8, open: [{ from: '07:00', to: '23:00' }], equipment: [], entries }] });
     });
     await page.goto('about:blank');
     await page.goto(appUrl('/calendars/cal'));
@@ -259,6 +261,8 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     hold.open(); // day 3 lands last
     await page.waitForTimeout(600);
     await expect(page.locator(`${R} [data-res-day="5"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`${R} [data-res-room="b"]`)).toHaveCount(0); // day 3's room list never replaces day 5's
+    await expect(page.locator(`${R} [data-res-room="a"]`)).toBeVisible();
     await expect(page.locator(`${R} [data-res-room="a"] .mini i`)).toHaveCount(0);
   });
 
