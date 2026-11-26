@@ -19,7 +19,6 @@ from smplwise.services import energy_billing as eb
 from smplwise.services import generator_alerts as alerts
 from smplwise.services import generator_core as core
 from smplwise.services import generator_runtime as runtime
-from smplwise.services.bill_ledger import failure_retry
 from smplwise.services.notices import sources
 
 # the water world (its `app` fixture: the water module on, the SHARED VAT at 18 %, a fixed clock) and the electricity world (`w`)
@@ -75,6 +74,8 @@ def test_d07_numbered_water_bills_lock_the_customer_number(water):  # noqa: F811
 # ---------------------------------------------------------------- D-08
 
 def test_d08_the_wait_doubles_up_to_a_day():
+    from smplwise.services.bill_ledger import failure_retry
+
     six = dt.timedelta(hours=6)
     assert [failure_retry(six, n) for n in (1, 2, 3, 4, 9)] == [six, 2 * six, 4 * six, 4 * six, 4 * six]
     assert failure_retry(dt.timedelta(hours=30), 3) == dt.timedelta(hours=30)  # a longer configured wait is never shortened
