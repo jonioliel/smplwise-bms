@@ -7,7 +7,7 @@ import { keepBuilding, pickChosen, readChosen, type BuildingFilterMeta } from '.
 import { describeError } from '../api/client';
 import type { Calendar, Equipment, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
-import { DAY_LONG, MONTHS, addDays, colorVar, hm, isoDate, markOf, pad, pageOf, sameDay, span, startOfDay, timelineWindow } from './model';
+import { DAY_LONG, MONTHS, addDays, axisHours, colorVar, hm, isoDate, markOf, missingBands, pad, pageOf, roomsTapStart, sameDay, span, startOfDay, timelineWindow, wallRange } from './model';
 import { calCss } from './styles';
 import { EQUIPMENT_LABEL, drawerDetail, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
 import { axisFit } from './rooms-axis';
@@ -277,10 +277,16 @@ export class CalViewRooms extends LitElement {
     const showNow = nowL > 0 && nowL < 100;
     // the hours the pill would meet are left out, measured in px (D22); before the first measure, the old share of the axis
     const fit = axisFit({ nowPct: showNow ? nowL : -1, hours, axisPx: this.axisPx, pillPx: this.pillPx, labelPx: this.labelPx, fallbackPct: phone ? 9 : 3 });
-    const axis = Array.from({ length: hours + 1 }, (_, k) => {
+    // DST-TIMELINE-2540: a wall-clock axis - the hour the clock skips (spring) has no label, the hour it repeats (autumn) keeps its one
+    // place and says so ("01:00 ×2"); the entries are placed by their clock time (model.span), so every entry sits under its own hour
+    const axis = axisHours(this.day, win.from, win.to).map(({ k, h, kind }) => {
       const x = (k / hours) * 100;
-      if (fit.hidden.has(k)) return nothing;
-      return html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${(win.from + k) % 24} style=${`left:${x}%`}>${pad((win.from + k) % 24)}${phone ? '' : ':00'}</span>`;
+      if (fit.hidden.has(k) || kind === 'missing') return nothing;
+      const label = `${pad(h)}${phone ? '' : ':00'}`;
+      return kind === 'repeated'
+        ? html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${h} data-cal-hour-kind="repeated" style=${`left:${x}%`}
+            title=${tr('השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)', { h: `${pad(h)}:00` })}>${label} ×2</span>`
+        : html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${h} style=${`left:${x}%`}>${label}</span>`;
     });
     const pillAt = fit.pillLeftPx === null ? `left:${nowL}%` : `left:${fit.pillLeftPx}px`;
     return html`<div class="tl" data-cal-timeline>
@@ -308,8 +314,10 @@ export class CalViewRooms extends LitElement {
       at = Math.max(at, b);
     }
     if (at < 100) closed.push([at, 100]);
+    // DST-TIMELINE-2540: the hour the clock skips on the spring day is drawn like a closed hour (nothing can be booked in it)
+    const gaps = missingBands(this.day, win.from, win.to);
     const entries = r.entries.filter((o) => !['cancelled', 'rejected', 'withdrawn', 'expired'].includes(o.state)).sort((a, b) => a.start.localeCompare(b.start));
-    const lanes = trackLanes(entries);
+    const lanes = trackLanes(entries, (o) => wallRange(o, this.day));
     const nLanes = Math.max(1, ...lanes.map((l) => l + 1));
     const free = this.free && this.free.room === r.calendar_id ? span({ start: this.free.start.toISOString(), end: this.free.end.toISOString() }, this.day, win.from, win.to) : null;
     const sub = [tr('{n} מקומות', { n: r.capacity ?? '-' }), phone ? '' : c?.floor_name ?? '', !phone && c && c.approval_mode !== 'none' ? tr('באישור') : ''].filter(Boolean).join(' · ');
@@ -319,6 +327,7 @@ export class CalViewRooms extends LitElement {
         ${c?.my_role === 'view' ? html`<span class="lock" title=${tr('צפייה בלבד')}><sw-icon name="lock" size="14"></sw-icon></span>` : nothing}</div>
       <div class="tl-track" @click=${(e: MouseEvent) => this.trackClick(e, r, win)}>
         ${closed.filter(([a, b]) => b > a).map(([a, b]) => html`<div class="closed" style=${`left:${a}%;width:${b - a}%`}></div>`)}
+        ${gaps.map((g) => html`<div class="closed" data-cal-gap=${g.h} title=${tr('השעה {h} לא קיימת ביום הזה (השעון זז שעה קדימה)', { h: `${pad(g.h)}:00` })} style=${`left:${g.start}%;width:${g.width}%`}></div>`)}
         ${lines}
         ${entries.map((o, i) => {
           const sp = span(o, this.day, win.from, win.to);
@@ -345,9 +354,8 @@ export class CalViewRooms extends LitElement {
     if (!this.ctx?.access.can.book || !c?.my_role || c.my_role === 'view') return;
     const t = e.currentTarget as HTMLElement;
     const b = t.getBoundingClientRect();
-    const frac = Math.min(Math.max((e.clientX - b.left) / b.width, 0), 1);
-    const mins = Math.floor((win.from * 60 + frac * (win.to - win.from) * 60) / 30) * 30;
-    const s = new Date(startOfDay(this.day).getTime() + mins * 60000);
+    // DST-TIMELINE-2540: the half hour under the finger BY THE CLOCK (was midnight + elapsed minutes: an hour off on the two DST days)
+    const s = roomsTapStart(this.day, win, (e.clientX - b.left) / b.width);
     this.book(r.calendar_id, s, new Date(s.getTime() + 60 * 60000));
   }
 

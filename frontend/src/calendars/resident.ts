@@ -13,7 +13,7 @@ import { calErrorText } from './conflict-hint';
 import type { Calendar, Equipment, Occurrence, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import {
-  DAY_LONG, DAY_SHORT, addDays, cancelClosed, colorVar, ddmm, hm, isoDate, nextFree, pageOf, rowsThatFit, slotGrid, slotLook, span, startOfDay, timelineWindow, whenText,
+  DAY_LONG, DAY_SHORT, addDays, atMinute, axisHours, barStart, cancelClosed, colorVar, ddmm, hm, isoDate, missingBands, nextFree, pageOf, rowsThatFit, slotGrid, slotLook, span, startOfDay, timelineWindow, whenText,
   type Slot,
 } from './model';
 import { occurrenceKey } from './booking-logic';
@@ -104,7 +104,10 @@ export class CalResident extends LitElement {
     .bar .sel { position: absolute; inset-block: 4px; border-radius: var(--sw-r-sm); background: color-mix(in srgb, var(--sw-accent) 30%, transparent); box-shadow: inset 0 0 0 2px var(--sw-accent); }
     .bar .sel.bad { background: var(--sw-danger-soft); box-shadow: inset 0 0 0 2px var(--sw-danger); }
     .axis { position: relative; block-size: 16px; direction: ltr; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-    .axis span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+    .axis span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* DST-TIMELINE-2540: the clock hour that does not exist on the spring day - hatched like a closed hour, under the entries */
+    .bar .gap { position: absolute; inset-block: 0; pointer-events: none; }
+    .dst { text-align: center; font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
     .tlnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .tlsel { text-align: center; font-size: var(--sw-fs-md); color: var(--sw-heading); }
     .bk { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: var(--sw-r-lg); background: var(--sw-surface-2); min-inline-size: 0; flex: none; }
@@ -445,16 +448,14 @@ export class CalResident extends LitElement {
   /** The time bar: tap or drag places the chosen duration; the window moves by three hours. LTR geometry inside the RTL page. */
   private timelineView(r: RoomDay) {
     const win = { from: this.tlFrom, to: Math.min(24, this.tlFrom + 6) };
-    const total = (win.to - win.from) * 60;
     const sel = this.start;
     const free = sel ? this.slotFree(r, sel) : true;
     const selSpan = sel ? span({ start: sel.toISOString(), end: new Date(sel.getTime() + this.duration * 60000).toISOString() }, this.day, win.from, win.to) : null;
     const place = (e: PointerEvent) => {
       const bar = e.currentTarget as HTMLElement;
       const rect = bar.getBoundingClientRect();
-      const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-      const min = Math.round((win.from * 60 + x * total - this.duration / 2) / 15) * 15;
-      const st = new Date(startOfDay(this.day).getTime() + Math.max(win.from * 60, Math.min(win.to * 60 - this.duration, min)) * 60000);
+      // DST-TIMELINE-2540: the start under the finger BY THE CLOCK (was midnight + elapsed minutes: an hour off on the two DST days)
+      const st = barStart(this.day, win, (e.clientX - rect.left) / rect.width, this.duration);
       if (st >= this.now) this.start = st;
     };
     return html`<div class="tl" data-res-timeline>
@@ -465,10 +466,13 @@ export class CalResident extends LitElement {
         @pointerdown=${(e: PointerEvent) => { this.drag = true; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); place(e); }}
         @pointermove=${(e: PointerEvent) => { if (this.drag) place(e); }} @pointerup=${() => (this.drag = false)} @pointercancel=${() => (this.drag = false)}
         @keydown=${(e: KeyboardEvent) => this.tlKey(e)}>
+        ${missingBands(this.day, win.from, win.to).map((g) => html`<span class="closed gap" data-res-gap=${g.h} style=${`left:${g.start}%;width:${g.width}%`}></span>`)}
         ${r.entries.map((o) => { const s = span(o, this.day, win.from, win.to); return s ? html`<span class=${`e ${o.state === 'pending' ? 'p' : ''}`} style=${`left:${s.start}%;width:${s.width}%`}></span>` : nothing; })}
         ${selSpan ? html`<span class=${`sel ${free ? '' : 'bad'}`} style=${`left:${selSpan.start}%;width:${selSpan.width}%`}></span>` : nothing}
       </div>
-      <div class="axis" aria-hidden="true">${Array.from({ length: win.to - win.from + 1 }, (_, i) => html`<span style=${`left:${(i / (win.to - win.from)) * 100}%`}>${String(win.from + i).padStart(2, '0')}</span>`)}</div>
+      <div class="axis" aria-hidden="true">${axisHours(this.day, win.from, win.to).map(({ k, h, kind }) => kind === 'missing' ? nothing
+        : html`<span data-res-hour=${h} data-res-hour-kind=${kind === 'repeated' ? 'repeated' : nothing} style=${`left:${(k / (win.to - win.from)) * 100}%`}>${String(h).padStart(2, '0')}${kind === 'repeated' ? ' ×2' : ''}</span>`)}</div>
+      ${this.dstNote(win)}
     </div>`;
   }
 
@@ -476,9 +480,20 @@ export class CalResident extends LitElement {
     const step = e.key === 'ArrowRight' ? 15 : e.key === 'ArrowLeft' ? -15 : 0;
     if (!step) return;
     e.preventDefault();
-    const base = this.start ?? new Date(startOfDay(this.day).getTime() + this.tlFrom * 3600000);
+    const base = this.start ?? atMinute(this.day, this.tlFrom * 60); // DST-TIMELINE-2540: the window's first hour by the clock
     const next = new Date(base.getTime() + step * 60000);
     if (next >= this.now) this.start = next;
+  }
+
+  /** DST-TIMELINE-2540: on a DST-change day the bar's window that holds the skipped or the repeated hour says so in one line (the axis
+   * leaves the skipped hour out and marks the repeated one "×2"). */
+  private dstNote(win: { from: number; to: number }) {
+    const odd = axisHours(this.day, win.from, win.to).find((x) => x.k < win.to - win.from && x.kind !== 'plain');
+    if (!odd) return nothing;
+    const h = `${String(odd.h).padStart(2, '0')}:00`;
+    return html`<div class="dst" role="note" data-res-dst=${odd.kind}>${odd.kind === 'missing'
+      ? tr('השעה {h} לא קיימת ביום הזה (השעון זז שעה קדימה)', { h })
+      : tr('השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)', { h })}</div>`;
   }
 
   private slotFree(r: RoomDay, s: Date): boolean {

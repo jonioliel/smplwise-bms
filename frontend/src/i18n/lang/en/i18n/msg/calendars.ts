@@ -480,6 +480,8 @@ export const en = {
   'יש בקשות ממתינות, אפשר לבקש': 'Pending requests, you can still ask',
   'מוקדם יותר': 'Earlier',
   'נגיעה בפס בוחרת שעה': 'Tap the bar to choose a time',
+  'השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)': 'The hour {h} happens twice on this day (the clock goes back an hour)',
+  'השעה {h} לא קיימת ביום הזה (השעון זז שעה קדימה)': 'The hour {h} does not exist on this day (the clock goes forward an hour)',
   'מאוחר יותר': 'Later',
   'תקבל הודעה כשיוחלט': 'You\'ll get a message when it\'s decided',
   'קרובות': 'Upcoming',
