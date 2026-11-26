@@ -85,7 +85,40 @@ after the release rebuild still passed.
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+Every fix has a test that fails before and passes after.
+
+| what | where / command | before (base aeb05ad3d) | after (this branch) |
+|------|-----------------|--------------------------|---------------------|
+| TR-05 / TR-07 / TR-09 self-test (44 cases, fake data, throw-away git repo) | `python3 scripts/gate/selftest_gate_trust.py` (PC, py 3.12; runner, python3) | the same file copied into the base's `scripts/gate`: exit 1, all three parts BROKEN (`backend_lint_lane()` takes no root, no `anchor_check`, no `reference_baseline`) | exit 0, `SELFTEST PASSED` on PC and runner (heads cfdd3b955, 8cc2b5c42) |
+| release_check build stamp | `pytest tests/test_release_build_stamp_2540.py` (runner, slot B) | `scripts/release_check.py` of the base: 9 failed, 1 passed | 10 passed |
+| build-stamp writer | `node --test scripts/build-stamp.test.mjs` | (new file) | 2 pass (PC node 24, runner) |
+| node writer = python check on the real tree | `build-stamp.mjs --print` vs `release_check.inputs_digest()` | - | identical: `97162c39b76d...` over 2,120 files (PC and runner) |
+| engine self-test | `python3 scripts/gate/selftest_gate.py` (runner) | - | `SELFTEST PASSED` (the 71 % case now names its 0.70 threshold; new 89 %-is-RED case) |
+| other gate self-tests | `selftest_gate_fast.py`, `selftest_entry_check.py`, `test_selftest_hermetic.py` (runner); `selftest_gate_fast.py`, `selftest_engine_sync.py` (PC) | - | all PASSED / HERMETIC |
+| `selftest_engine_sync.py` on the runner | runner | first run: 1 BROKEN (`install --apply` refused, rc 3: the installer's busy probe saw a gate-like process of another job at that moment); the BASE copy passed a little later on an idle runner | re-run on an idle runner (busy probe empty): `SELFTEST PASSED` (head 8cc2b5c42); also PASSED on the PC |
+| release/gate backend tests, group A | `pytest test_release_build_stamp_2540 test_release_bundle_version_2520 test_release_check test_build_guards_2438` | - | 30 passed |
+| release/gate backend tests, group B | `pytest test_gate2_select test_gate_speed test_gate_always_run test_gate_addon_build test_gate_tablet_allowlist test_gate_visual_block_t074 test_select_tests test_targeted_plan test_supervisor_build_check test_fixture_job` | - | 161 passed, 1 failed: `test_gate_speed.py::test_v2_jobs_cover_exactly_the_v1_specs_and_projects` - PRE-EXISTING: the same test is a FAIL row of the 2.53 full gate at the base (`gate_release-2530-train_aeb05ad3d.json`); it concerns the fixture job list, not these changes |
+| frontend scripts | `npx tsc -p tsconfig.scripts.json --noEmit`; `npx eslint scripts/build-stamp*.mjs`; `node --test scripts/sourcemaps-archive.test.mjs` | - | tsc rc 0; eslint 0 errors (the scripts folder is in eslint's ignore list); 5 pass |
+| ruff F | `ruff check --select F` on every changed Python file | - | all checks passed |
+| release_check on this tree | `python3 scripts/release_check.py` | - | new row `[WARN]` (2.53.0, no stamp yet: required from 2.54.0); RESULT ready |
+
+Dry runs on the runner (own worktree `~/work/gate-trust-2540`, throw-away results folders under `~/work/gt2540-tmp*`, copies of the
+real reports; nothing installed, `~/smplwise-results` only read):
+- TR-05: `gate_entry.py lint --root ~/work/gate-trust-2540` -> "backend lint (ruff F, blocking) in /home/sw/work/gate-trust-2540: 0
+  finding(s)"; `decide` printed no lint line.
+- TR-09: `release_gate2.sh release/2530-train --dry-run --root <worktree> --after <copy of the 2.53 full red report aeb05ad3d>`:
+  "coverage anchor: OK - gate_release-2530-train_aeb05ad3d.json (full run, verdict fail) @ aeb05ad3d: 3 commit(s) and 2 h behind
+  the head, 0 product source file(s) changed since". The same with that report turned into a selection run: "coverage anchor: NONE
+  ... -> a real run would run the FULL tier instead of the targeted --after selection (TR-09)". Both printed the lint line on the
+  worktree; `gate2_verdict.side_records()` rendered both records into summary lines.
+- TR-07 replay over the real reports: every FULL tier-L run of 18.11-26.11 judged by the old rule (floor 17,611 / 0.70) and by the
+  new one (reference = the green full runs finished BEFORE it, per-lane thresholds). The new rule adds exactly one red: the 26.11
+  nightly on main @ 3d71fb183 (backend 31,941 of 44,902 - its backend had crashed: 13,460 failures; the old check called it
+  "181 % ok"). No real full run turned red by the tighter thresholds otherwise; the three runs the old rule already caught
+  (2439 x2, 2470 @ 092bbc9a1, broken runs with 0 pixel) stay red.
+
+NOT_RUN: a real (non-dry) release gate with the new engine (installation is the lead's step, below); a `npm run build:addon` that
+writes a real stamp into `smplwise_vms/www` (the release rebuild does it; a rebuild here would collide with the train's bundle).
 
 ## Install on the runner (the lead; NOT done by this row)
 
