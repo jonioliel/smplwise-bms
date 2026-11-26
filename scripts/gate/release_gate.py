@@ -2297,7 +2297,7 @@ def reference_baseline(tier, dirs=None, now_ts=None, max_days=None):
             if (doc.get("selection") or {}).get("reduced"):
                 continue
             fin = _parse_finished(doc.get("finished"))
-            if fin is None or (now_ts - fin) / 86400 > max_days:
+            if fin is None or fin > now_ts or (now_ts - fin) / 86400 > max_days:
                 continue
             cand, rows = doc.get("baseline_candidate") or {}, doc.get("baseline_check") or {}
             for cat, row in rows.items():
