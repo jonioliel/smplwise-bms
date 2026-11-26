@@ -243,7 +243,7 @@ export const en = {
     detail: {
       title: 'Alert details', duration: 'Duration', note: 'Acknowledgement note (optional)', notePh: 'For example: the battery is 4 years old, a new one is on order', ack: 'Acknowledge the alert', mute: 'Mute for 24 hours', muted: 'Muted until {t}',
       mutedShort: 'The alert is muted only until {t}: a critical alert can be muted for a limited time.', muteForbidden: 'The alert was not muted: muting a critical alert needs the generator management permission.',
-      unmute: 'End the mute', unmuteTitle: 'End the alert mute', unmuteBody: 'Alerts of this type are sent again from now on. An open alert raised while muted is sent at the generator's next check.', unmuteOk: 'End the mute', unmuted: 'The mute has ended.',
+      unmute: 'End the mute', unmuteTitle: 'End the alert mute', unmuteBody: 'Alerts of this type are sent again from now on. An open alert raised while muted is sent at the next generator check.', unmuteOk: 'End the mute', unmuted: 'The mute has ended.',
       snapshot: 'Values at the moment of the alert', timeline: 'Timeline', close: 'Close', acked: 'Acknowledged',
       tl: { raised: 'Alert raised', escalated: 'Escalated', delivery_failed: 'Delivery failed', folded: 'Alert repeated', acknowledged: 'Acknowledged', cleared: 'Alert cleared' },
     },
