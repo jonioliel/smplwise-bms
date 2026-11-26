@@ -54,7 +54,8 @@ type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
 /** 2.0.0: player close codes / relay errors that are NOT a lost connection - a denial, a superseded generation (another seek owns
  * the session now) or a quota refusal. Anything else (a network close, go2rtc down, an expired session, no video) may be resumed. */
-const FINAL_CODES: (number | string)[] = [4401, 4403, 4410, 4429, 'access_lost', 'remote_live_cap'];
+// PLAYER-ERROR-TEXT-2530: `presence_required` / `service_account` - the socket refused for its caller (a denial, as 4403)
+const FINAL_CODES: (number | string)[] = [4401, 4403, 4410, 4429, 'access_lost', 'remote_live_cap', 'presence_required', 'service_account'];
 type PlayerDetail = { status: string; transport?: string; error?: string; code?: number | string };
 /** PLAYBACK-SCRUB-2341: how long the pointer rests on the timeline before its picture is asked for (requests are de-duplicated). */
 const PREVIEW_REST_MS = 120;

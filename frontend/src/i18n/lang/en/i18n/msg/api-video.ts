@@ -198,4 +198,15 @@ export const en = {
   'חסרים פרטים.': 'Details are missing.',
   'אין ערוץ פנוי ב־NVR.': 'The NVR has no free channel.',
   'השם אינו תואם.': 'The name does not match.',
+  // PLAYER-ERROR-TEXT-2530: the relay's fixed error codes as sentences (api/stream-errors.ts)
+  'שרת הווידאו לא הצליח לקבל את השידור מהמצלמה': 'The video server could not get the stream from the camera',
+  'שרת הווידאו לא הצליח לקבל את ההקלטה מהמקליט': 'The video server could not get the recording from the recorder',
+  'כדי לצפות בווידאו מהאפליקציה יש להפעיל את שיתוף הנתונים הנדרש': 'To watch video from the app, turn on the required data sharing',
+  'חשבון שירות אינו יכול לצפות בווידאו': 'A service account cannot watch video',
+  'שגיאה בזרם הווידאו': 'Video stream error',
+  'ננסה שוב אוטומטית; אם זה נמשך, בדקו שהמצלמה מחוברת ופועלת': 'We will try again automatically; if it continues, check that the camera is connected and working',
+  'נסו שוב בעוד רגע; אם זה נמשך, בדקו שהמצלמה מחוברת ופועלת': 'Try again in a moment; if it continues, check that the camera is connected and working',
+  'ננסה שוב אוטומטית; אם זה נמשך, בדקו שהמקליט מחובר ופועל': 'We will try again automatically; if it continues, check that the recorder is connected and working',
+  'נסו שוב בעוד רגע; אם זה נמשך, בדקו שהמקליט מחובר ופועל': 'Try again in a moment; if it continues, check that the recorder is connected and working',
+  'נסו שוב בעוד רגע; אם זה נמשך, פנו למנהל המערכת': 'Try again in a moment; if it continues, contact the system administrator',
 };
