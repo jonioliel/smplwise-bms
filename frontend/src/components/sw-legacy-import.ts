@@ -28,7 +28,7 @@ const PAGE_PHONE = 5;
 /** The newest runs listed under the card. */
 const RUNS_SHOWN = 3;
 
-const ACTION_LABEL: Record<LegacyAction, string> = {
+const LEGACY_ACTION_LABEL: Record<LegacyAction, string> = {
   update: tr('יועתק'),
   create: tr('ייווצר'),
   manual: tr('לטיפול ידני'),
@@ -235,7 +235,7 @@ export class SwLegacyImport extends LitElement {
       { key: 'subject', label: tr('פריט'), width: '30%', card: 'title', kind: 'truncate', cellTitle: (r) => this.subject(item(r)), render: (r) => html`<bdi>${this.subject(item(r))}</bdi>` },
       {
         key: 'action', label: tr('פעולה'), width: '9rem', card: 'badge', kind: 'status',
-        render: (r) => { const a = item(r).action; return html`<sw-badge kind=${isAction(a) ? ACTION_KIND[a] : 'neutral'} label=${isAction(a) ? ACTION_LABEL[a] : a}></sw-badge>`; },
+        render: (r) => { const a = item(r).action; return html`<sw-badge kind=${isAction(a) ? ACTION_KIND[a] : 'neutral'} label=${isAction(a) ? LEGACY_ACTION_LABEL[a] : a}></sw-badge>`; },
       },
       { key: 'note', label: tr('הסבר'), card: 'show', render: (r) => item(r).note },
     ];
@@ -261,7 +261,7 @@ export class SwLegacyImport extends LitElement {
 
   private renderSummary(r: LegacyReport) {
     const shown = LEGACY_ACTIONS.filter((a) => (r.summary[a] ?? 0) > 0);
-    return html`<div class="sum" data-legacy-summary>${shown.map((a) => html`<sw-badge data-legacy-count=${a} kind=${ACTION_KIND[a]} label=${`${ACTION_LABEL[a]} · ${r.summary[a]}`}></sw-badge>`)}</div>`;
+    return html`<div class="sum" data-legacy-summary>${shown.map((a) => html`<sw-badge data-legacy-count=${a} kind=${ACTION_KIND[a]} label=${`${LEGACY_ACTION_LABEL[a]} · ${r.summary[a]}`}></sw-badge>`)}</div>`;
   }
 
   private renderTable(r: LegacyReport) {
