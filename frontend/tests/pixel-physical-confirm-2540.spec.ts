@@ -64,6 +64,15 @@ test.describe('physical action confirmation pixels', () => {
       await page.locator('sw-confirm-dialog [data-confirm-ok]').click();
       const msg = card.locator('[data-nvr-system-msg="warn"]');
       await expect(msg).toBeVisible();
+      // the row is photographed at rest: the button enabled again, no focus ring from the dialog's focus return, no hover
+      await expect(card.locator('[data-nvr-pulse="1"]')).not.toHaveAttribute('disabled', '');
+      await page.mouse.move(0, 0);
+      await page.evaluate(() => {
+        let a: Element | null = document.activeElement;
+        while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+        (a as HTMLElement | null)?.blur?.();
+      });
+      await page.waitForTimeout(300);
       await compare(card.locator('[data-nvr-output="1"]'), info, `pulse-output-${scheme}`);
       await compare(msg, info, `pulse-unknown-${scheme}`);
     });
