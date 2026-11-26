@@ -114,6 +114,8 @@ const EDIT_PARAM = 'edit';
 
 /* How tight the screen is packed to fit the viewport without a vertical scroll (owner notes 2026-09-30, item 7): FitLevel 0 = as
  * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring (devices-shared.ts fitStep). */
+/** HOME-SCROLL-2-2530: when a settled packing is measured again (ms after each settle, at most this many per fit key) - see scheduleFitRecheck. */
+const FIT_RECHECK_MS = [600, 1500, 3000] as const;
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 /** The tiles' panel segments (the same list as screens/devices-tiles-panel ITEMS_FILTERS, whose module is a lazy chunk: CR-HOME-LAZY-2440). */
@@ -452,6 +454,9 @@ export class DevicesBuilding extends LitElement {
    * tiles view at 1366x768, a landscape tablet): the top bar (the page title, the page's own block spacing) and the floor tiles
    * compress (`data-squeeze` on sw-page and .page-body; devices-building-css.ts). Tokens only; a screen that fits never gets here. */
   @state() private fitSqueeze = false;
+  /** HOME-SCROLL-2-2530: the settled packing's re-measures (scheduleFitRecheck): how many were booked for this fit key, and the pending one. */
+  private fitRechecks = 0;
+  private fitRecheckTimer = 0;
   /** `?edit=1` was seen and acted on (entered, or refused): not again until the parameter goes and comes back. */
   private editHandled = false;
   private wasEditing = false;
@@ -1364,6 +1369,7 @@ export class DevicesBuilding extends LitElement {
     // HOME-SCROLL-FIX-2530: the fold restarts with the packing (a changed key)
     if (key !== this.fitKey && this.fitFold) this.fitFold = false;
     if (key !== this.fitKey && this.fitSqueeze) this.fitSqueeze = false; // HOME-SCROLL-2-2530: so does the squeeze
+    if (key !== this.fitKey) this.fitRechecks = 0;
     // CR-G1-HOME-AREA-2440 (06:DUP-10): the step itself is shared with the area screen (a changed key restarts from 0, measured after that render)
     const step = fitStep(this.fit, key, this.fitKey, overflowing);
     this.fitKey = step.lastKey;
@@ -1373,7 +1379,21 @@ export class DevicesBuilding extends LitElement {
     else if (step.settled && step.fit === 2 && !this.fitFold && this.renderRoot.querySelector('[data-bgrid]') && overflowing()) this.fitFold = true;
     // HOME-SCROLL-2-2530: still scrolling after all that (b's fold first where its column is drawn) - the top bar and the floor tiles compress
     else if (step.settled && step.fit === 2 && !this.fitSqueeze && (this.fitFold || !this.renderRoot.querySelector('[data-bgrid]')) && overflowing()) this.fitSqueeze = true;
+    if (step.settled) this.scheduleFitRecheck();
   };
+
+  /** HOME-SCROLL-2-2530: what grows ABOVE the page body after the packing settled - the shell's setup hint, fetched after the screen drew
+   * - lengthens the page area without resizing anything this screen watches, so the packing stayed where it settled and the page
+   * scrolled (measured: 1366x768 tiles, 28 px, now and then). A settled packing is measured again a few times (FIT_RECHECK_MS, from
+   * each new fit key); every step it takes is the usual one. */
+  private scheduleFitRecheck() {
+    if (this.fitRecheckTimer || this.fitRechecks >= FIT_RECHECK_MS.length) return;
+    const ms = FIT_RECHECK_MS[this.fitRechecks++];
+    this.fitRecheckTimer = window.setTimeout(() => {
+      this.fitRecheckTimer = 0;
+      if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+    }, ms);
+  }
 
   /** The user's own home screen changed (החשבון שלי › המסך שלי): fetch the tree again, the server applies it. */
   private onPersonal = () => {
@@ -1676,7 +1696,8 @@ export class DevicesBuilding extends LitElement {
     this.flashTimer = this.staleTimer = 0;
     window.clearTimeout(this.noteTimer);
     window.cancelAnimationFrame(this.fitTimer);
-    this.noteTimer = this.fitTimer = 0;
+    window.clearTimeout(this.fitRecheckTimer);
+    this.noteTimer = this.fitTimer = this.fitRecheckTimer = 0;
     window.removeEventListener('resize', this.onResize);
     this.resizeFrame.cancel();
     this.live.stop();

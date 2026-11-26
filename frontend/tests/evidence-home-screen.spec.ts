@@ -314,7 +314,8 @@ test.describe('the home screen against the devices fixture backend', () => {
           const body = page.locator('devices-building .page-body');
           await expect(body).toHaveAttribute('data-home-direction', dir);
           const where = `${dir} ${view} ${w}x${h}`;
-          expect(await scrolls(page, '.split > nav.tree'), where).toEqual([]);
+          // (polled: the shell's setup hint above the page can arrive after the packing settled - the screen measures again, 0.6-3 s)
+          await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: where, timeout: 8000 }).toEqual([]);
           const tc = await treeCapped(page);
           if (tc) expect(tc.bottom, `${where}: the tree ends inside the viewport`).toBeLessThanOrEqual(tc.vh);
           // the owner's site fits at 1440x900 at fit 2 at most: the resting look there never compresses
