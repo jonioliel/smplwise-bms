@@ -200,6 +200,51 @@ test.describe('the home screen against the devices fixture backend', () => {
     await expect(page.locator('devices-building [data-layout-bar]')).toHaveCount(0, { timeout: 20000 });
   };
 
+  /** HOME-SPEC-STABLE-2540: drag one widget card onto another with the plain mouse, once the band is at rest (every card's box, which
+   * also moves with the page area's scroll, unchanged over five animation frames in a row). Not `locator.dragTo`: its move to the
+   * target runs the target's actionability first, and when that hit check retries it scrolls the page area (here back by the 39 px an
+   * earlier click's own scroll had left) AFTER the button went down on the source. Chromium picks the drag source at the press point
+   * only on the first move, so the press point then lay in the gap between the card rows, no drag started and the drop was a plain
+   * click (runner traces: mousedown on "quick", the page area 39 -> 0, mouseup on "clock", no dragstart; 2-4 of 10 on an idle runner,
+   * on the branch and its base alike). The plain mouse never scrolls; both points are inside the viewport (asserted). */
+  async function dragCard(page: Page, from: string, to: string) {
+    const band = page.locator('devices-building home-widgets');
+    await expect
+      .poll(
+        () =>
+          band.evaluate(
+            (el) =>
+              new Promise<boolean>((done) => {
+                const boxes = () => Array.from(el.shadowRoot!.querySelectorAll('[data-home-widget]')).map((c) => {
+                  const r = c.getBoundingClientRect();
+                  return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+                }).join(' ');
+                const first = boxes();
+                let n = 0;
+                const tick = () => {
+                  if (boxes() !== first) return done(false);
+                  if (++n >= 5) return done(true);
+                  requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+              }),
+          ),
+        { message: 'the band at rest before the drag', timeout: 10000 },
+      )
+      .toBe(true);
+    const vh = page.viewportSize()!.height;
+    const src = (await band.locator(`[data-home-widget="${from}"]`).boundingBox())!;
+    const dst = (await band.locator(`[data-home-widget="${to}"]`).boundingBox())!;
+    for (const [name, box] of [[from, src], [to, dst]] as const) {
+      expect(box.y + 30, `${name} is inside the viewport`).toBeGreaterThan(0);
+      expect(box.y + 30, `${name} is inside the viewport`).toBeLessThan(vh);
+    }
+    await page.mouse.move(src.x + 40, src.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(dst.x + 40, dst.y + 30, { steps: 4 });
+    await page.mouse.up();
+  }
+
   // ------------------------------------------------------------------------------------------------ defaults and directions
 
   test('by default: the control centre with every widget on and the catalogue\'s suggestions; the header row is only the refresh icon; no edit button', async ({ page, request }, testInfo) => {
@@ -667,8 +712,8 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
       // the order by drag: the quick actions onto the clock
       // FIXTURE-SPECS-2405: each reorder re-renders the band; the order is polled, not read once right after the key / drop (a busy runner
-      // read the old order once, right after the drop)
-      await b.locator('[data-home-widget="quick"]').dragTo(b.locator('[data-home-widget="clock"]'), { sourcePosition: { x: 40, y: 30 }, targetPosition: { x: 40, y: 30 } });
+      // read the old order once, right after the drop). HOME-SPEC-STABLE-2540: the plain mouse, the band at rest (dragCard)
+      await dragCard(page, 'quick', 'clock');
       await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
       // and the panel's own up / down buttons
       await b.locator('[data-home-wearlier="alarm"]').click();
