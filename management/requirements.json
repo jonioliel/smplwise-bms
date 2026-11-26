@@ -14439,5 +14439,53 @@
     "test_ids": [
       "AT-GEN-UNITS-ARRU-2530-1"
     ]
+  },
+  {
+    "id": "R-TEST-STABILITY-2530-1",
+    "title": "Two test stability fixes: the nvrless plan editor placement click, a hermetic engine_sync selftest",
+    "statement": "evidence-nvrless-cameras-2412 places the camera at a mapped plan point after real readiness signals (passes under load); selftest_engine_sync.py passes whatever runs on the machine (fake home, fake process table).",
+    "task_ids": [
+      "TEST-STABILITY-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TEST-STABILITY-2530-1"
+    ]
+  },
+  {
+    "id": "R-PLAYER-ERROR-TEXT-2530-1",
+    "title": "The video player shows the relay's fixed error codes as sentences with a retry hint",
+    "statement": "A live or recording player that receives a fixed relay error code shows a sentence in the page language with a retry hint, never the raw code; an unknown value gets the generic sentence.",
+    "task_ids": [
+      "PLAYER-ERROR-TEXT-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PLAYER-ERROR-TEXT-2530-1"
+    ]
+  },
+  {
+    "id": "R-REVIEW-FINDINGS-INDEX-2530-1",
+    "title": "Index of the 2.52 deep-review findings and where each was handled",
+    "statement": "docs/review/DEEP-REVIEW-2520-INDEX.md lists every 2.52 deep-review finding with the row or decision that handled it.",
+    "task_ids": [
+      "REVIEW-FINDINGS-INDEX-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-REVIEW-FINDINGS-INDEX-2530-1"
+    ]
   }
 ]

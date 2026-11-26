@@ -31338,7 +31338,8 @@
       "2026-11-25 (RELEASE-2530-TRAIN): release/2530-train cut from release/2520-train 91de5c377 (2.52.0 not released yet). Merged: LOAD-BUDGET-2530 3fe6bf2c3, NOTICE-TV-LASTSEEN-2530 9ef72a575, HOME-T120-REST-2530 4f72e6438, DOCS-ONBOARDING-2530 11cf23be5, MFA-T095-REST-2530 46692b29e, WISKEY-MEDIA-V2-2530 6365fcb17, WISKEY-NOFALLBACK-2-2530 c74e485f1; version bump 4c43d7619 (2.53.0, draft changelog, API inventory 1955 routes); chore/ACCEPT-SWEEP-2530 db79121bd (registry); sync with release/2520-train 8abc5d652 (c9085c0ad) and 9fb8109fb (4cb8ed934); WISKEY-KNOWN-TREES-RC20-2530 0a4286b4c; WISKEY-A2-EXEC-2530 1ea525393; GATE-FIXTURE-LANE-2530 6329e4178 (engine not installed); sync with release/2520-train 6d8fd71e1 (5bca84ee2); HOME-SCROLL-FIX-2530 2d674e581. Train fixes 8dfd46115, f41473bbc (WISKEY-MEDIA-V2 refusals: English, ADR-019 field envelope), 7b888872e (A2 English). Gate NOT_RUN; nothing released.",
       "2026-11-26 (RELEASE-2530-TRAIN): runner run A at 0a4286b4c, run B at 8cf1444db, run C at 014ee92ae (docs/changes/RELEASE-2530-TRAIN.md section 3); train fixes 8dfd46115, f41473bbc, 7b888872e, b2f3ae668, 548e81acf, 8cf1444db, 0d76a0980, 014ee92ae and the schedule-exec baselines; T120 DONE. Open: the 2.52 train's 17 unused exports, the 2.53 gate engine install (lead, after 2.52). Gate NOT_RUN; nothing released.",
       "2026-11-26 (RELEASE-2530-TRAIN): 2.52.0 released - main = v2.52.0 bf4e6da76 merged 1c5183244 (CHANGELOG: the 2.53.0 DRAFT section on top of the final 2.52.0 text); STALE-FIXTURE-SPECS-2530 1336cca07; HOME-SCROLL-2-2530 8ae83adfa. Gate NOT_RUN; nothing released.",
-      "2026-11-26 (RELEASE-2530-TRAIN): GEN-UNITS-ARRU-2530 579652ec6 (row 14); GEN-UNITS-FIELD-2490 -> DONE (AT PASS at 579652ec6, lead); UI rebuilt for 2.53.0 f73b4b270 (arx-shell-2.53.0; release_check ready except the tag); 2.53 gate engine installed from 8ae83adfa, drift check exit 0. Gate NOT_RUN; nothing released."
+      "2026-11-26 (RELEASE-2530-TRAIN): GEN-UNITS-ARRU-2530 579652ec6 (row 14); GEN-UNITS-FIELD-2490 -> DONE (AT PASS at 579652ec6, lead); UI rebuilt for 2.53.0 f73b4b270 (arx-shell-2.53.0; release_check ready except the tag); 2.53 gate engine installed from 8ae83adfa, drift check exit 0. Gate NOT_RUN; nothing released.",
+      "2026-11-26 (RELEASE-2530-TRAIN): 2.53 gate run 1 at aeb05ad3d FAIL (211 min, 0 hard, 6 test failures) - the six fixed at their root causes in 788bc6c5b; rows TEST-STABILITY-2530 4219db78d, PLAYER-ERROR-TEXT-2530 14383b9db, REVIEW-FINDINGS-INDEX-2530 b85eded27; HOME-SCROLL-3-2530 moved to 2.54 (lead). Gate run 2 (--after) is the lead's."
     ],
     "owner": null,
     "commit": null,
@@ -31495,6 +31496,120 @@
     ],
     "owner": null,
     "commit": "367d36556",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TEST-STABILITY-2530",
+    "title": "Two test stability fixes: the nvrless plan editor placement click, a hermetic engine_sync selftest",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "evidence-nvrless-cameras-2412 places the camera at a mapped plan point after real readiness signals (passes under load); selftest_engine_sync.py passes whatever runs on the machine (fake home, fake process table)."
+    ],
+    "requirement_ids": [
+      "R-TEST-STABILITY-2530-1"
+    ],
+    "test_ids": [
+      "AT-TEST-STABILITY-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/TEST-STABILITY-2530, change note or document, tests where applicable"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2530-TRAIN): Registered at the merge. pilot/TEST-STABILITY-2530 head 586de9471 merged 4219db78d into release/2530-train (train row 15, after the 2.53 gate run 1). Q1 = a. Merged into the 2.53.0 train, NOT released. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "586de9471",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PLAYER-ERROR-TEXT-2530",
+    "title": "The video player shows the relay's fixed error codes as sentences with a retry hint",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A live or recording player that receives a fixed relay error code shows a sentence in the page language with a retry hint, never the raw code; an unknown value gets the generic sentence."
+    ],
+    "requirement_ids": [
+      "R-PLAYER-ERROR-TEXT-2530-1"
+    ],
+    "test_ids": [
+      "AT-PLAYER-ERROR-TEXT-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/PLAYER-ERROR-TEXT-2530, change note or document, tests where applicable"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2530-TRAIN): Registered at the merge. pilot/PLAYER-ERROR-TEXT-2530 head df3d209eb merged 14383b9db into release/2530-train (train row 16, after the 2.53 gate run 1). Open questions unanswered = the recommendations. Merged into the 2.53.0 train, NOT released. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "df3d209eb",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "REVIEW-FINDINGS-INDEX-2530",
+    "title": "Index of the 2.52 deep-review findings and where each was handled",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "docs/review/DEEP-REVIEW-2520-INDEX.md lists every 2.52 deep-review finding with the row or decision that handled it."
+    ],
+    "requirement_ids": [
+      "R-REVIEW-FINDINGS-INDEX-2530-1"
+    ],
+    "test_ids": [
+      "AT-REVIEW-FINDINGS-INDEX-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P3",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch chore/REVIEW-FINDINGS-INDEX-2530, change note or document, tests where applicable"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2530-TRAIN): Registered at the merge. chore/REVIEW-FINDINGS-INDEX-2530 head 4eda5c3a2 merged b85eded27 into release/2530-train (train row 17, after the 2.53 gate run 1). Docs only. Merged into the 2.53.0 train, NOT released. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "4eda5c3a2",
     "actual_cost_usd": null
   }
 ]

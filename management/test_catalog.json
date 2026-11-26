@@ -22251,5 +22251,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-TEST-STABILITY-2530-1",
+    "requirement_ids": [
+      "R-TEST-STABILITY-2530-1"
+    ],
+    "task_ids": [
+      "TEST-STABILITY-2530"
+    ],
+    "title": "Two test stability fixes: the nvrless plan editor placement click, a hermetic engine_sync selftest",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "evidence-nvrless-cameras-2412 places the camera at a mapped plan point after real readiness signals (passes under load); selftest_engine_sync.py passes whatever runs on the machine (fake home, fake process table).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PLAYER-ERROR-TEXT-2530-1",
+    "requirement_ids": [
+      "R-PLAYER-ERROR-TEXT-2530-1"
+    ],
+    "task_ids": [
+      "PLAYER-ERROR-TEXT-2530"
+    ],
+    "title": "The video player shows the relay's fixed error codes as sentences with a retry hint",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A live or recording player that receives a fixed relay error code shows a sentence in the page language with a retry hint, never the raw code; an unknown value gets the generic sentence.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-REVIEW-FINDINGS-INDEX-2530-1",
+    "requirement_ids": [
+      "R-REVIEW-FINDINGS-INDEX-2530-1"
+    ],
+    "task_ids": [
+      "REVIEW-FINDINGS-INDEX-2530"
+    ],
+    "title": "Index of the 2.52 deep-review findings and where each was handled",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "docs/review/DEEP-REVIEW-2520-INDEX.md lists every 2.52 deep-review finding with the row or decision that handled it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-25 (RELEASE-2530-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

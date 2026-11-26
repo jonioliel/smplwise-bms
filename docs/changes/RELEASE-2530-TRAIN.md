@@ -33,6 +33,10 @@ Every row merged with `--no-ff` in the lead's order; each merge commit names the
 | 13 | `pilot/HOME-SCROLL-2-2530` | `4b20587d9` | `8ae83adfa` | `c41c14ad0` (row 11) | none | squeeze step for low screens; Q1-Q3 = a |
 | 14 | `pilot/GEN-UNITS-ARRU-2530` | `367d36556` | `579652ec6` | `8ae83adfa` | none | ar / ru unit words and labels; `ar.ts` / `ru.ts` merged cleanly (`i18n-split-langs --dry` moved 0); Q1 = a, Q2 = a. Closes AT-GEN-UNITS-FIELD-2490-1 (section 5) |
 | - | UI rebuild | - | `f73b4b270` | - | - | `npm run build:addon` at `579652ec6`, section 3.4 |
+| - | gate run 1 fixes | - | `788bc6c5b` | - | - | section 8 |
+| 15 | `pilot/TEST-STABILITY-2530` | `586de9471` | `4219db78d` | `8ae83adfa` | none | nvrless placement click; hermetic `selftest_engine_sync` (open point 4 / lead Q3 = a); `engine_sync.py` changed (install group, not STRICT) |
+| 16 | `pilot/PLAYER-ERROR-TEXT-2530` | `df3d209eb` | `14383b9db` | `8ae83adfa` | none | relay error codes as sentences; 4 Linux baselines; describe title carries "pixel-stable" |
+| 17 | `chore/REVIEW-FINDINGS-INDEX-2530` | `4eda5c3a2` | `b85eded27` | `bf4e6da76` | none | docs only |
 
 Conflicts:
 - Row 5: `sw-step-up-dialog.ts` - the row's push / alarm-code body and the 2.52 train's MFA-RESET-CHANNEL-UI `pkElsewhere` hint, both
@@ -222,3 +226,18 @@ and not from this train: `~/gate2/gate_budget.py` DIFFERENT - the installed copy
 effective-limit code, installed by hand 31.10, never committed; the same warning against `origin/main`). Not replaced (the repository
 version would drop that limit logic). Open point 7. Against `origin/main` the strict check now exits 4, as expected (the nightly runs it
 warn-only). No later train commit changes `scripts/gate/release_gate.py`, so the drift check stays clean at the train's head.
+
+## 8. Gate run 1 (`aeb05ad3d`, the lead's): FAIL, 211 min, 0 hard failures, 6 test failures
+
+Fixed in `788bc6c5b`, each at its root cause (41 flaky ones - failed once, passed alone - not chased, as the lead asked):
+
+| # | failure | root cause | fix |
+|---|---|---|---|
+| 1 | [preview] `electricity-meter-rename.spec.ts:145` desktop, height 34.67 < 36 (also alone) | the field was measured while the `sw-dialog` box was still landing from `scale(0.96)` (36 x 0.963 = 34.67); FLAKY-FIX-2520 made that entrance really apply, the test predates it | the spec settles the page's finite animations (`helpers/settle`) before reading the geometry; product unchanged |
+| 2-3 | [pixel] `pixel_55` "No tests found" / zero tests | the 56th spec of the engine's pixel list, `pixel-wiskey-schedule-exec-2530.spec.ts` (WISKEY-A2-EXEC-2530), had no "pixel-stable" in its case titles; the pixel step runs `--grep pixel-stable` (2.52's `pixel_53` class) | the four titles carry it; screenshot names / baselines unchanged. Every other spec with `toHaveScreenshot` has the tag or `pixelTitle()` (checked); row 16's spec carries it in its describe title |
+| 4 | `test_gate_speed::test_v2_jobs_cover_exactly_the_v1_specs_and_projects` | it expected ONE fixture job with every fixture spec; GATE-FIXTURE-LANE-2530 made one job per fixture group | the test checks one `fixture_<group>` job per group and that together they run exactly the classified fixture specs (PC 18 passed) |
+| 5 | `test_secfix_restore_settings_2520::...classified_keep_or_travel` | `access.station_media_direct_v2` (WISKEY-MEDIA-V2-2530) in the `access.station_*` policy family, unnamed | named in `services/backup.py` `SETTINGS_KEEP` (behaviour unchanged - the family already failed closed); PC 21 passed |
+| 6 | `test_t06_admission_295::...signing_call_are_the_known_ones` | new caller `services/wiskey_schedule_execution.py` (WISKEY-A2-EXEC-2530) | reviewed legitimate: signs only through the installed direct join's own session (as SCHED-READS) and only its three READS; decide / execute / preview / cancel refused before any byte. Added with that reason + pin test `test_the_2530_schedule_execution_caller_sends_only_its_three_reads`; PC 64 passed, 3 xfailed |
+
+`lint_spec_waits.py --new-since bf4e6da76` (the settle lint of the gate): 0 findings in 15 files (PC). Runner run G: section 9.
+

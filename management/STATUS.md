@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T06:38:03.701357+00:00
+Generated: 2026-11-26T10:24:59.374097+00:00
 
-Tasks: 724 | Requirements: 838 | Tests: 855 | Screens: 32
+Tasks: 727 | Requirements: 841 | Tests: 858 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 4
-- REVIEW: 165
+- REVIEW: 168
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 629
+- V1: 632
 - V2: 29
 - V3: 3
 
@@ -779,3 +779,6 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [STALE-FIXTURE-SPECS-2530](tasks/STALE-FIXTURE-SPECS-2530.md) | V1 | REVIEW | The four stale fixture specs into the gate (media players live, WisKey people / editor / capture) and the media leave-group fix | — |
 | [HOME-SCROLL-2-2530](tasks/HOME-SCROLL-2-2530.md) | V1 | REVIEW | The home screen fits low screens too (one more squeeze step for every direction and view, default info style) | — |
 | [GEN-UNITS-ARRU-2530](tasks/GEN-UNITS-ARRU-2530.md) | V1 | REVIEW | Arabic and Russian unit words and labels for the generator settings and run-log settings | — |
+| [TEST-STABILITY-2530](tasks/TEST-STABILITY-2530.md) | V1 | REVIEW | Two test stability fixes: the nvrless plan editor placement click, a hermetic engine_sync selftest | — |
+| [PLAYER-ERROR-TEXT-2530](tasks/PLAYER-ERROR-TEXT-2530.md) | V1 | REVIEW | The video player shows the relay's fixed error codes as sentences with a retry hint | — |
+| [REVIEW-FINDINGS-INDEX-2530](tasks/REVIEW-FINDINGS-INDEX-2530.md) | V1 | REVIEW | Index of the 2.52 deep-review findings and where each was handled | — |
