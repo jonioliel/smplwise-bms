@@ -69,7 +69,7 @@ Runner (Linux, `~/work/p2520_androidpush_run.sh`, branch head 459b86cd1; backend
 | `tests/test_wire_ratchet_2480.py` / `test_wire_consumption_2450.py` / `test_error_contract_inventory_2490.py` | 0 | 7 / 13 / 7 passed |
 | `tests/test_push.py` / `test_local_privacy.py` | 0 | 12 / 18 passed |
 | frontend `npx tsc --noEmit -p tsconfig.json` | 0 | clean |
-| `ruff check` (changed files) | 1 at 459b86cd1 | one F811 on the imported fixture in the new test; fixed (`noqa: F811`) in the follow-up commit, re-run below |
+| `ruff check` (changed files) | 1 at 459b86cd1 | one F811 on the imported fixture in the new test; fixed (`noqa: F811`) in f270676cb: `ruff check` of the same files plus `services/push.py` exit 0 ("All checks passed") |
 
 NOT_RUN: the full backend suite and the frontend unit / evidence / pixel suites (no UI change); any run against a real push server,
 a real distributor or a real phone.
