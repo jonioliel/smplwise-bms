@@ -200,6 +200,51 @@ test.describe('the home screen against the devices fixture backend', () => {
     await expect(page.locator('devices-building [data-layout-bar]')).toHaveCount(0, { timeout: 20000 });
   };
 
+  /** HOME-SPEC-STABLE-2540: drag one widget card onto another with the plain mouse, once the band is at rest (every card's box, which
+   * also moves with the page area's scroll, unchanged over five animation frames in a row). Not `locator.dragTo`: its move to the
+   * target runs the target's actionability first, and when that hit check retries it scrolls the page area (here back by the 39 px an
+   * earlier click's own scroll had left) AFTER the button went down on the source. Chromium picks the drag source at the press point
+   * only on the first move, so the press point then lay in the gap between the card rows, no drag started and the drop was a plain
+   * click (runner traces: mousedown on "quick", the page area 39 -> 0, mouseup on "clock", no dragstart; 2-4 of 10 on an idle runner,
+   * on the branch and its base alike). The plain mouse never scrolls; both points are inside the viewport (asserted). */
+  async function dragCard(page: Page, from: string, to: string) {
+    const band = page.locator('devices-building home-widgets');
+    await expect
+      .poll(
+        () =>
+          band.evaluate(
+            (el) =>
+              new Promise<boolean>((done) => {
+                const boxes = () => Array.from(el.shadowRoot!.querySelectorAll('[data-home-widget]')).map((c) => {
+                  const r = c.getBoundingClientRect();
+                  return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+                }).join(' ');
+                const first = boxes();
+                let n = 0;
+                const tick = () => {
+                  if (boxes() !== first) return done(false);
+                  if (++n >= 5) return done(true);
+                  requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+              }),
+          ),
+        { message: 'the band at rest before the drag', timeout: 10000 },
+      )
+      .toBe(true);
+    const vh = page.viewportSize()!.height;
+    const src = (await band.locator(`[data-home-widget="${from}"]`).boundingBox())!;
+    const dst = (await band.locator(`[data-home-widget="${to}"]`).boundingBox())!;
+    for (const [name, box] of [[from, src], [to, dst]] as const) {
+      expect(box.y + 30, `${name} is inside the viewport`).toBeGreaterThan(0);
+      expect(box.y + 30, `${name} is inside the viewport`).toBeLessThan(vh);
+    }
+    await page.mouse.move(src.x + 40, src.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(dst.x + 40, dst.y + 30, { steps: 4 });
+    await page.mouse.up();
+  }
+
   // ------------------------------------------------------------------------------------------------ defaults and directions
 
   test('by default: the control centre with every widget on and the catalogue\'s suggestions; the header row is only the refresh icon; no edit button', async ({ page, request }, testInfo) => {
@@ -259,6 +304,12 @@ test.describe('the home screen against the devices fixture backend', () => {
           await expect(b.locator('.page-body')).toHaveAttribute('data-home-direction', dir);
           const hw = b.locator('home-widgets');
           await expect(hw).toBeVisible();
+          // FIXTURE-SPECS-2405: the page never scrolls; the floor tree may scroll inside its own capped panel (HOME-295, after this spec was
+          // written: the shell's sub-navigation row and the bolder summary tiles left the owner's 12-row tree 58 px short at 1440x900).
+          // HOME-SPEC-STABLE-2540: polled, as the other fit tests below - the screen packs one step per render (fit 0 -> 1 -> 2, b's fold,
+          // the squeeze), starts again from 0 whenever a late read changes what is drawn, and measures again on its recheck timers (up to
+          // 3 s); read once after open()'s fixed pause, b at 1366x768 was caught mid-packing on a loaded runner ("main 962/768")
+          await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: `${dir} ${view} ${w}x${h}`, timeout: 8000 }).toEqual([]);
           const box = (await hw.boundingBox())!;
           const kpis = (await b.locator('.kpis').boundingBox())!;
           const split = (await b.locator('.split').boundingBox())!;
@@ -280,9 +331,6 @@ test.describe('the home screen against the devices fixture backend', () => {
             expect(Math.max(...tops) - Math.min(...tops), 'one row').toBeLessThanOrEqual(3);
             expect(box.height, 'about 90 px').toBeLessThanOrEqual(130);
           }
-          // FIXTURE-SPECS-2405: the page never scrolls; the floor tree may scroll inside its own capped panel (HOME-295, after this spec was
-          // written: the shell's sub-navigation row and the bolder summary tiles left the owner's 12-row tree 58 px short at 1440x900)
-          expect(await scrolls(page, '.split > nav.tree'), `${dir} ${view} ${w}x${h}`).toEqual([]);
           const tc = await treeCapped(page);
           if (tc) {
             expect(tc.capped, `${dir} ${view} ${w}x${h}: the tree is sized to the height left`).toBe(true);
@@ -357,16 +405,26 @@ test.describe('the home screen against the devices fixture backend', () => {
             continue;
           }
           // direction a: the band of large cards (hero) - folded exactly when the page squeezes, its headings then gone and one row
-          const squeezed = (await body.getAttribute('data-squeeze')) !== null;
           await expect(band, where).toHaveAttribute('layout', 'hero');
-          const fold = await band.evaluate((el) => {
-            const cards = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wrap > .wg'));
-            const heads = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wg-h')).filter((x) => getComputedStyle(x).display !== 'none').length;
-            return { on: el.hasAttribute('data-squeeze'), heads, rows: new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top))).size };
-          });
-          expect(fold.on, `${where}: the band folds with the page's squeeze step`).toBe(squeezed);
-          if (squeezed) expect(fold, `${where}: folded band`).toEqual({ on: true, heads: 0, rows: 1 });
-          else expect(fold.heads, `${where}: the resting band keeps its headings`).toBeGreaterThan(0);
+          // HOME-SPEC-STABLE-2540: the page's step and the band's state are read in ONE frame and polled, like the scroll check above (they
+          // were read in two calls, once). The loaded runner once read a squeezed page with the folded band on 2 rows (1 of 4 whole-file
+          // runs in parallel; not seen again in 200 isolated checks under the same load) - most likely a frame between a re-render and the
+          // packing's next measure, which the screen steps through by design. A state that stays wrong still fails here, with what was read.
+          await expect
+            .poll(
+              () =>
+                band.evaluate((el) => {
+                  const squeezed = (el.getRootNode() as ShadowRoot).querySelector('.page-body')?.hasAttribute('data-squeeze') ?? false;
+                  const cards = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wrap > .wg'));
+                  const heads = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wg-h')).filter((x) => getComputedStyle(x).display !== 'none').length;
+                  const rows = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top))).size;
+                  const on = el.hasAttribute('data-squeeze');
+                  if (squeezed) return on && heads === 0 && rows === 1 ? 'folded band, one row' : `the page squeezes, the band: on ${on}, ${heads} headings, ${rows} rows, ${cards.length} cards`;
+                  return !on && heads > 0 ? 'resting band with its headings' : `the page rests, the band: on ${on}, ${heads} headings`;
+                }),
+              { message: `${where}: the band folds with the page's squeeze step (then no heading, one row); at rest it keeps its headings`, timeout: 8000 },
+            )
+            .toMatch(/^(folded band, one row|resting band with its headings)$/);
         }
       }
     }
@@ -664,8 +722,8 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
       // the order by drag: the quick actions onto the clock
       // FIXTURE-SPECS-2405: each reorder re-renders the band; the order is polled, not read once right after the key / drop (a busy runner
-      // read the old order once, right after the drop)
-      await b.locator('[data-home-widget="quick"]').dragTo(b.locator('[data-home-widget="clock"]'), { sourcePosition: { x: 40, y: 30 }, targetPosition: { x: 40, y: 30 } });
+      // read the old order once, right after the drop). HOME-SPEC-STABLE-2540: the plain mouse, the band at rest (dragCard)
+      await dragCard(page, 'quick', 'clock');
       await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
       // and the panel's own up / down buttons
       await b.locator('[data-home-wearlier="alarm"]').click();
