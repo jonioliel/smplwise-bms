@@ -4,7 +4,7 @@ import { pickedShown } from '../src/screens/schedules-logic';
 import { EVENTS_LIMIT, eventsRange } from '../src/screens/investigate-events-logic';
 import { keepNewerRows } from '../src/tickets/table-model';
 import { rollbackMove } from '../src/calendars/grid-logic';
-import { bulkItemFailed, bulkResultOf } from '../src/screens/map-action-args';
+import { bulkItemFailed, bulkResultOf } from '../src/screens/map-room-bulk';
 
 // LOWS-FRONTEND-2550: the low findings of the 2.52 deep review on the operator screens - the floor map (SCR-52), water and temperature
 // deletes (SCR-53), the schedules list (SCR-54), the event centre (SCR-55), tickets and calendars (SCR-56), the home in English (SCR-57).

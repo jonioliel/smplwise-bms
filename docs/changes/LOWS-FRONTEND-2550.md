@@ -27,7 +27,7 @@ Every finding was re-read in the code at the base before it was changed. Fronten
 | SCR-49 | Users and permissions: revoking a user's role is one click (one's own too) | fixed | `screens/system-access.ts` |
 | SCR-50 | People on stations: transport failure reads "not performed"; late check on another person | fixed | `screens/wiskey-station-people.ts` |
 | SCR-51 | Call banner keeps a talk session after a 403; station permissions one `busy` slot | fixed (403 part + busy); question 2 for the non-403 read failure | `components/sw-incoming-call.ts`, `screens/wiskey-station-permissions.ts` |
-| SCR-52 | Map room card "all off": partial failure not reported; no in-flight guard | fixed (owner answer Q1 a: a line on the room card) | `screens/explore-floor-map.ts`, `screens/map-action-args.ts`, `components/sw-room-card.ts` |
+| SCR-52 | Map room card "all off": partial failure not reported; no in-flight guard | fixed (owner answer Q1 a: a line on the room card) | `screens/explore-floor-map.ts`, `screens/map-room-bulk.ts` (new), `components/sw-room-card.ts` |
 | SCR-53 | Deletes with no confirmation: water price version, temperature scheduled report | fixed | `screens/water/page-settings.ts`, `temperature/whatsapp.ts` |
 | SCR-54 | Schedules bulk enable / disable acts on selections hidden by the filter | fixed (filter); other pages of the same filter = question 3 | `screens/devices-schedules.ts`, `schedules-logic.ts` |
 | SCR-55 | Event centre: silent 500-row limit; multi-day ranges on UTC day edges | fixed | `screens/investigate-events.ts`, `investigate-events-logic.ts` |

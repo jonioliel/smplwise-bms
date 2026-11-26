@@ -89,7 +89,8 @@ import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T4): the m
 import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { tr } from '../i18n/msg/plan-editor';
-import { argKey, argsToSend, bulkItemFailed, bulkResultOf } from './map-action-args';
+import { argKey, argsToSend } from './map-action-args';
+import { bulkItemFailed, bulkResultOf } from './map-room-bulk';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: tr('כבוי'), heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר בלבד') };
