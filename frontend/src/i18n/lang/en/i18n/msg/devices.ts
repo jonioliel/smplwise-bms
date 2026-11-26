@@ -927,6 +927,7 @@ export const en = {
   'פתח קומה': 'Open floor',
   'סיכום האזור': 'Area summary',
   '{name} · {entities} התקנים · כניסה לאזור': '{name} · {entities} devices · enter area',
+  '{name} · {entities} התקנים · {unknown} · כניסה לאזור': '{name} · {entities} devices · {unknown} · enter area',
   'כבה אזור: {name}': 'Turn off area: {name}',
   'כבה אזור': 'Turn off area',
   'הצג ושלוט': 'View and control',
