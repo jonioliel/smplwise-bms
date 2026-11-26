@@ -9,7 +9,7 @@ import type { Calendar, Equipment, RoomDay } from '../api/calendars';
 import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
 import { DAY_LONG, MONTHS, addDays, colorVar, hm, isoDate, markOf, pad, pageOf, sameDay, span, startOfDay, timelineWindow } from './model';
 import { calCss } from './styles';
-import { EQUIPMENT_LABEL, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
+import { EQUIPMENT_LABEL, drawerDetail, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
 import { axisFit } from './rooms-axis';
 import { LongListsController, perPageFor } from '../api/long-lists';
 import { tr } from '../i18n/msg/calendars';
@@ -330,7 +330,7 @@ export class CalViewRooms extends LitElement {
           const who = o.state === 'pending' ? tr('ממתין לאישור') : mark === 'displaced' ? tr('נדחק בגלל תחזוקה') : o.on_behalf_label ? tr('בשם: {name}', { name: o.on_behalf_label }) : o.organizer?.name ?? '';
           const wide = sp.width > (phone ? 30 : 8) && nLanes === 1;
           return html`<button type="button" class="ev" data-mark=${mark} data-cal-entry=${o.event_id} style=${`--h:${colorVar(mark === 'maint' ? 'orange' : c?.color)};left:${sp.start}%;width:${sp.width}%;top:${top};height:${h}`}
-            title=${`${o.title ?? tr('תפוס')} · ${hm(o.start)}–${hm(o.end)}`} @click=${(e: Event) => { e.stopPropagation(); emit(this, CAL_EVENTS.newEvent, { eventId: o.event_id }); }}>
+            title=${`${o.title ?? tr('תפוס')} · ${hm(o.start)}–${hm(o.end)}`} @click=${(e: Event) => { e.stopPropagation(); emit(this, CAL_EVENTS.newEvent, drawerDetail(o)); }}>
             <b>${o.title ?? tr('תפוס')}</b>${wide && who ? html`<small>${who}</small>` : nothing}</button>`;
         })}
         ${free ? html`<button type="button" class="tl-free" data-cal-free style=${`left:${free.start}%;width:${free.width}%`} @click=${(e: Event) => { e.stopPropagation(); this.book(r.calendar_id, (this.free as { start: Date }).start, (this.free as { end: Date }).end); }}>

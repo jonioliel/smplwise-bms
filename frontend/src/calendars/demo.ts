@@ -121,6 +121,8 @@ function build(mode: string): Store {
       occurrence_id: `o${n}`, event_id: `e${n}`, calendar_id: cal, room_calendar_ids: room ? [cal] : [], start: at(day, from), end: at(day, to), all_day: k === 'hol', title, state, kind,
       on_behalf_label: who?.startsWith('בשם') ? who.replace(/^בשם:?\s*/, '') : null, organizer: who && !who.startsWith('בשם') ? P(`p${n}`, who) : P('u-me', 'יוני'), recurring: title.includes('זומבה') || title.includes('קרמיקה'),
       contested: k === 'pending' && cal === 'hall', sync_flag: k === 'flag' ? 'conflict' : null,
+      // SCR-38: a weekly entry carries its date's local key, as the server's rows do (the drawer's cancel offers "only this date")
+      ...(title.includes('זומבה') || title.includes('קרמיקה') ? { local_start: localKeyAt(day, from) } : {}),
     };
   });
   // the "שיחת לקוח" conflict pairs with "ראיון" the same day

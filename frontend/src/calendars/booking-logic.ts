@@ -3,7 +3,7 @@
  * helpers, no network): unit-tested in Node (tests/unit-calendars-ui-2310.spec.ts).
  */
 import type { Equipment, OnBehalfKind, Occurrence, RoomDay } from '../api/calendars';
-import { DAY_LONG, addDays, ddmm, sameDay, startOfDay } from './model';
+import { DAY_LONG, addDays, atMinute, ddmm, sameDay, startOfDay } from './model';
 import { tr } from '../i18n/msg/calendars';
 
 export const EQUIPMENT_LABEL: Record<Equipment, string> = { screen: tr('מסך'), projector: tr('מקרן'), video_call: tr('שיחת וידאו'), whiteboard: tr('לוח'), kitchen: tr('מטבחון'), accessible: tr('נגיש') };
@@ -28,8 +28,8 @@ export function trackLanes(entries: Pick<Occurrence, 'start' | 'end'>[]): number
 export function firstFree(rooms: Pick<RoomDay, 'calendar_id' | 'open' | 'entries'>[], day: Date, now: Date, minutes: number, until = 23): { room: string; start: Date; end: Date } | null {
   const base = sameDay(day, now) ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : 8 * 60;
   for (let m = base; m + minutes <= until * 60; m += 15) {
-    const s = new Date(startOfDay(day).getTime() + m * 60000);
-    const e = new Date(s.getTime() + minutes * 60000);
+    const s = atMinute(day, m);
+    const e = atMinute(day, m + minutes);
     for (const r of rooms) {
       const open = r.open.some((w) => {
         const [fh, fm] = w.from.split(':').map(Number);
@@ -49,6 +49,12 @@ export const BEHALF_LABEL: Record<OnBehalfKind, string> = { self: tr('אני'), 
  * `_scope`), never the UTC instant `start`; null for a single entry or a row without a usable key (then only the whole series can be cancelled). */
 export function occurrenceKey(o: Pick<Occurrence, 'recurring' | 'local_start'>): string | null {
   return o.recurring && o.local_start && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.local_start) ? o.local_start : null;
+}
+/** SCR-38: what opening the booking drawer on one occurrence carries - the entry, and for a recurring one the date it was opened on (its
+ * local key and start), so the drawer's cancel can offer "only this date" next to "the whole series". */
+export function drawerDetail(o: Pick<Occurrence, 'event_id' | 'recurring' | 'local_start' | 'start'>): { eventId: string; occurrenceKey?: string; occurrenceStart?: string } {
+  const key = occurrenceKey(o);
+  return key ? { eventId: o.event_id, occurrenceKey: key, occurrenceStart: o.start } : { eventId: o.event_id };
 }
 export type Repeat = 'none' | 'daily' | 'weekly';
 

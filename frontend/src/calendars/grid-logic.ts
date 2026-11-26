@@ -11,7 +11,7 @@
  *   These are hints only: every write goes through the server, which decides again.
  */
 import type { Calendar, CalSettings, Occurrence } from '../api/calendars';
-import { DAY_LONG, hm, pad, startOfDay } from './model';
+import { DAY_LONG, atMinute, hm, pad, sameDay, startOfDay } from './model';
 import { tr } from '../i18n/msg/calendars';
 
 export interface Band { from: number; to: number }
@@ -61,8 +61,8 @@ export function resizeSpan(cur: { s: number; e: number }, at: number, step: numb
   return { s: cur.s, e: clamp(snapRound(at, step), cur.s + step, band.to) };
 }
 
-/** Local minutes of a day -> an instant, and back. */
-export const instantAt = (day: Date, min: number) => new Date(startOfDay(day).getTime() + min * 60000);
+/** Local (wall-clock) minutes of a day -> an instant, and back. SCR-37: by the clock, so a 10:00 selection is 10:00 on the DST days too. */
+export const instantAt = (day: Date, min: number) => atMinute(day, min);
 export const minOfDay = (d: Date | string) => {
   const x = typeof d === 'string' ? new Date(d) : d;
   return x.getHours() * 60 + x.getMinutes();
@@ -186,7 +186,7 @@ export function hintFor(c: Candidate, busy: Occurrence[], s: HintSettings, now: 
   if (!cal.my_role || cal.my_role === 'view') block.push(cal.my_role === 'view' ? tr('{name}: צפייה בלבד', { name: cal.name }) : tr('אין לך הרשאה ליצור אירועים'));
   const day = startOfDay(c.start);
   const sMin = minOfDay(c.start);
-  const eMin = c.end.getTime() - day.getTime() >= 86_400_000 ? 1440 : minOfDay(c.end);
+  const eMin = sameDay(c.end, day) ? minOfDay(c.end) : 1440; // SCR-37: by the date, not 24 h of elapsed time (23 / 25 on the DST days)
   let needsApproval = cal.approval_mode === 'always' || (cal.approval_mode === 'on_behalf' && !!c.behalf && c.behalf !== 'self');
   if (hoursRule(cal, day, sMin, eMin, strong, out, block)) needsApproval = true;
   bookingRules(c, cal, strong, sMin, eMin, now, out, block);

@@ -168,11 +168,11 @@ export class ElecBillPage extends ElecBase {
         <dt>${tr('חשבון')}</dt><dd><a class="lnk" href=${href.account(b.account_id)}>${b.account_name}</a></dd><dt>${tr('לקוח')}</dt><dd>${b.customer.name}</dd>
         <dt>${tr('תקופה')}</dt><dd>${n(fmtDate(b.period.from))} - ${n(fmtDate(b.period.to))}</dd>
         ${b.issue_date ? html`<dt>${tr('הונפק')}</dt><dd>${n(fmtDate(b.issue_date))}</dd>` : nothing}${b.due_date ? html`<dt>${tr('לתשלום עד')}</dt><dd>${n(fmtDate(b.due_date))}</dd>` : nothing}
-        ${b.sent ? html`<dt>${tr('נשלח')}</dt><dd><span class="num" data-sent-at>${fmtDate(b.sent.at)}</span> · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>${tr('שולם')}</dt><dd><span class="num" data-paid-at>${fmtDate(b.paid.at)}</span>${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
+        ${b.sent ? html`<dt>${tr('נשלח')}</dt><dd><span class="num" data-sent-at>${fmtDate(b.sent.at, s.period.timezone)}</span> · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>${tr('שולם')}</dt><dd><span class="num" data-paid-at>${fmtDate(b.paid.at, s.period.timezone)}</span>${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
         <dt>${tr('מקור')}</dt><dd>${b.origin === 'auto' ? tr('נוצר אוטומטית') : tr('נוצר ידנית')}</dd></dl></div>
       ${this.openingCard(b)}
       ${this.touCard(s)}
-      <div class="card"><div class="hd"><b class="h3">${tr('יומן')}</b></div><div class="list" data-bill-log>${this.events.map((e) => html`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="num mut" style="min-inline-size:112px">${fmtDateTime(e.at)}</span><span>${e.text}</span></div>`)}</div></div>`;
+      <div class="card"><div class="hd"><b class="h3">${tr('יומן')}</b></div><div class="list" data-bill-log>${this.events.map((e) => html`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="num mut" style="min-inline-size:112px">${fmtDateTime(e.at, s.period.timezone)}</span><span>${e.text}</span></div>`)}</div></div>`;
     return html`<div class="page" data-elec="bill" data-state="ready" data-bill-state=${b.state} data-bill-id=${b.id}>
       <div class="row"><a class="btn ghost sm" href=${href.bills()} data-back>${tr('→ חיובים')}</a></div>
       <div class="row"><b class="h2 num" data-bill-number>${b.number ?? tr('טיוטה')}</b>${billChip(b.state)}

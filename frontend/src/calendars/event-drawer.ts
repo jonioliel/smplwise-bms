@@ -3,12 +3,14 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-button';
+import '../components/sw-segmented';
+import type { SegmentedChange } from '../components/sw-segmented';
 import { ApiError, describeError } from '../api/client';
 import { dateInputLang } from '../api/day-format';
 import type { CalEvent, Calendar, EventPatch, EventPreview, NewEvent, OnBehalfKind, Occurrence } from '../api/calendars';
 import { CAL_EVENTS, attendeeSlot, emit, type CalCtx, type NewEventDetail } from './ctx';
 import { hintFor, stepOf } from './grid-logic';
-import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, startOfDay, whenText } from './model';
+import { DAY_SHORT, STATE_LABEL, addDays, atMinute, colorVar, ddmm, hm, isoDate, minutesOf, sameDay, startOfDay, whenText } from './model';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
@@ -107,6 +109,8 @@ export class CalEventDrawer extends LitElement {
   @state() private busy = false;
   @state() private event: CalEvent | null = null;
   @state() private confirmCancel = false;
+  /** SCR-38: what a cancel of a recurring entry covers - the one date the drawer was opened on, or the whole series (always said, never implied) */
+  @state() private cancelScope: 'occurrence' | 'series' = 'series';
   @state() private retention: number | null = null;
   @state() private guestKinds: OnBehalfKind[] = ['customer', 'class'];
   @state() private editMode = false;
@@ -187,6 +191,7 @@ export class CalEventDrawer extends LitElement {
     try {
       const ev = (await (this.ctx as CalCtx).api.event(id)).event;
       this.event = ev;
+      this.cancelScope = ev.recurring && this.detail?.occurrenceKey ? 'occurrence' : 'series';
       if (editableInDrawer(ev, this.ctx?.now ?? new Date())) {
         const s = new Date(ev.start);
         this.calId = ev.calendar_id;
@@ -419,27 +424,54 @@ export class CalEventDrawer extends LitElement {
         ${!editableInDrawer(ev, ctx.now) && ['pending', 'confirmed'].includes(ev.state) ? html`<div class="note" role="note" data-cal-readonly-why><sw-icon name="lock" size="18"></sw-icon><div><b>${tr('צפייה בלבד')}</b>
           <span class="muted">${!ev.can.edit ? tr('רק המארגן או מנהל היומן יכולים לשנות.') : new Date(ev.end) <= ctx.now ? tr('המועד כבר עבר.') : ev.kind === 'maintenance' ? tr('חלון תחזוקה נערך בלשונית "תחזוקה".') : tr('אירוע מיומן חיצוני.')}</span></div></div>` : nothing}
         ${ev.state === 'displaced' ? html`<div class="note warn" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('ההזמנה נדחקה בגלל תחזוקה')}</b><span class="muted">${tr('היא לא נמחקה. אפשר לבחור מועד אחר ולבטל אותה.')}</span></div></div>` : nothing}
-        ${this.confirmCancel ? html`<div class="note warn" role="alert"><sw-icon name="warning" size="18"></sw-icon><div><b>${canWithdraw ? tr('למשוך את הבקשה?') : tr('לבטל את ההזמנה?')}</b><span class="muted">${ev.recurring ? tr('הביטול חל על כל הסדרה.') : tr('המועד יתפנה לאחרים.')}</span></div></div>` : nothing}`
+        ${this.confirmCancel ? this.cancelNote(ev, canWithdraw) : nothing}`
         : this.error ? nothing : html`<div class="skel" style="block-size:120px"></div>`}
         ${this.error ? html`<div class="err" role="alert" data-cal-error>${this.error}</div>` : nothing}`,
       html`<sw-button variant="secondary" data-cal-close @click=${() => this.close()}>${tr('סגירה')}</sw-button>`,
       canCancel || canWithdraw ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event @click=${() => void this.cancelEvent(canWithdraw)}>
-          ${this.confirmCancel ? tr('כן, לבטל') : canWithdraw ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
+          ${this.confirmCancel ? this.confirmLabel(ev as CalEvent, canWithdraw) : canWithdraw ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
+  }
+
+  /** SCR-38: the one date this drawer was opened on (its local key, as the grid's delete sends it), when the entry is a recurring booking
+   * (a pending request is withdrawn or cancelled as a whole, as on the home screen - home-p2-api.ts `cancelBody`). */
+  private occurrence(ev: CalEvent): { key: string; label: string } | null {
+    const key = ev.recurring && ev.state !== 'pending' ? this.detail?.occurrenceKey : undefined;
+    if (!key || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(key)) return null;
+    const at = new Date(this.detail?.occurrenceStart ?? key);
+    return { key, label: Number.isNaN(at.getTime()) ? key.slice(0, 10) : `${DAY_SHORT[at.getDay()]} ${ddmm(at)}` };
+  }
+
+  /** The confirm step: a recurring entry asks WHAT to cancel (this date / the whole series); without a known date it says the series. */
+  private cancelNote(ev: CalEvent, withdraw: boolean) {
+    const occ = !withdraw ? this.occurrence(ev) : null;
+    const series = ev.recurring && (!occ || this.cancelScope === 'series');
+    return html`<div class="note warn" role="alert" data-cal-cancel-note><sw-icon name="warning" size="18"></sw-icon><div class="col"><b>${withdraw ? tr('למשוך את הבקשה?') : ev.recurring ? tr('מה לבטל?') : tr('לבטל את ההזמנה?')}</b>
+      ${occ ? html`<sw-segmented radio label=${tr('מה לבטל')} value=${this.cancelScope} data-cal-cancel-scope @change=${(e: CustomEvent<SegmentedChange>) => (this.cancelScope = e.detail.value as 'occurrence' | 'series')}
+          .options=${[{ value: 'occurrence', label: tr('רק {date}', { date: occ.label }), attrs: { 'data-scope': 'occurrence' } }, { value: 'series', label: tr('כל הסדרה'), attrs: { 'data-scope': 'series' } }]}></sw-segmented>` : nothing}
+      <span class="muted">${series ? tr('הביטול חל על כל הסדרה.') : ev.recurring ? tr('שאר המועדים נשארים') : tr('המועד יתפנה לאחרים.')}</span></div></div>`;
+  }
+
+  private confirmLabel(ev: CalEvent, withdraw: boolean): string {
+    if (withdraw || !ev.recurring) return tr('כן, לבטל');
+    return this.occurrence(ev) && this.cancelScope === 'occurrence' ? tr('ביטול המועד') : tr('ביטול הסדרה');
   }
 
   private async cancelEvent(withdraw: boolean): Promise<void> {
     if (!this.confirmCancel) {
       this.confirmCancel = true;
+      // SCR-38: the question (and its choice) is where the eye is, also in a long form scrolled down
+      void this.updateComplete.then(() => this.renderRoot.querySelector('[data-cal-cancel-note]')?.scrollIntoView({ block: 'nearest' }));
       return;
     }
     const ev = this.event as CalEvent;
+    const occ = !withdraw && this.cancelScope === 'occurrence' ? this.occurrence(ev) : null;
     this.busy = true;
     try {
       const api = (this.ctx as CalCtx).api;
       if (withdraw) await api.withdrawEvent(ev.id, ev.revision);
-      else await api.cancelEvent(ev.id, ev.revision);
+      else await api.cancelEvent(ev.id, ev.revision, occ?.key);
       emit(this, CAL_EVENTS.changed);
-      emit(this, CAL_EVENTS.toast, withdraw && ev.held ? tr('בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם') : withdraw ? tr('הבקשה נמשכה') : tr('ההזמנה בוטלה'));
+      emit(this, CAL_EVENTS.toast, withdraw && ev.held ? tr('בקשת השינוי נמשכה · ההזמנה חזרה למועד הקודם') : withdraw ? tr('הבקשה נמשכה') : occ ? tr('המועד {date} בוטל', { date: occ.label }) : ev.recurring ? tr('הסדרה בוטלה') : tr('ההזמנה בוטלה'));
       this.close();
     } catch (e) {
       this.error = describeError(e);
@@ -476,6 +508,7 @@ export class CalEventDrawer extends LitElement {
     const toReq = ev ? !!hint && (hint.level === 'pend' || hint.level === 'contest') : toApproval;
     return this.frame(ev ? 'edit' : 'new', ev ? tr('עריכת הזמנה') : tr('הזמנה חדשה'), sub, html`
         <div class="lockline" data-cal-roleline><sw-icon name="shield" size="16"></sw-icon><span class="ell">${this.roleLine(cal)}</span></div>
+        ${ev && this.confirmCancel ? this.cancelNote(ev, ev.state === 'pending' && !!ev.held) : nothing /* SCR-38: at the top, in view when the cancel is pressed */}
         ${ev?.held ? html`<div class="note warn" role="note" data-cal-held-note><sw-icon name="warning" size="18"></sw-icon><div><b>${tr('בקשת שינוי ממתינה')}</b>
           <span class="muted">${tr('המועד הקודם')} <span class="ltr num">${hm(ev.held.start)}–${hm(ev.held.end)}</span> ${tr('שמור עד שתתקבל החלטה.')}</span></div></div>` : nothing}
         ${series ? html`<div class="note" role="note" data-cal-series-note><sw-icon name="refresh" size="18"></sw-icon><div><b>${tr('אירוע חוזר')}</b><span class="muted">${tr('כאן משנים כותרת ומשתתפים לכל הסדרה. את השעות של מועד אחד משנים מהלוח.')}</span></div></div>` : nothing}
@@ -518,7 +551,7 @@ export class CalEventDrawer extends LitElement {
       html`<sw-button variant="primary" icon="check" ?disabled=${this.busy || !list.length || hint?.level === 'bad'} data-cal-submit @click=${() => void (ev ? this.saveEdit() : this.submit())}>${toReq ? tr('שליחה לאישור') : tr('שמירה')}</sw-button>
         <sw-button variant="secondary" data-cal-dismiss @click=${() => this.close()}>${tr('ביטול')}</sw-button>`,
       ev ? html`<sw-button variant=${this.confirmCancel ? 'danger' : 'ghost'} icon="trash" ?disabled=${this.busy} data-cal-cancel-event
-          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}>${this.confirmCancel ? tr('כן, לבטל') : ev.held ? tr('משיכת השינוי') : ev.state === 'pending' ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
+          @click=${() => void this.cancelEvent(ev.state === 'pending' && !!ev.held)}>${this.confirmCancel ? this.confirmLabel(ev, ev.state === 'pending' && !!ev.held) : ev.held ? tr('משיכת השינוי') : ev.state === 'pending' ? tr('משיכת הבקשה') : tr('ביטול ההזמנה')}</sw-button>` : nothing);
   }
 
   /** The edit form's availability: the day bar, and what moving it there means (from the day's entries; the server decides on save). */
@@ -536,7 +569,9 @@ export class CalEventDrawer extends LitElement {
     const to = 22;
     const total = (to - from) * 60;
     const day = start ? startOfDay(start) : null;
-    const pct = (d: Date) => Math.min(100, Math.max(0, (((d.getTime() - (day as Date).getTime()) / 60000 - from * 60) / total) * 100));
+    // SCR-37: by the wall clock of the day (a 23 / 25-hour DST day draws 10:00 at 10:00); other days clamp to the bar's ends
+    const wall = (d: Date) => (sameDay(d, day as Date) ? minutesOf(d) : d < (day as Date) ? 0 : 1440);
+    const pct = (d: Date) => Math.min(100, Math.max(0, ((wall(d) - from * 60) / total) * 100));
     const clash = conflicts.length > 0;
     const n = this.repeat === 'none' ? 1 : Math.min(Math.max(this.count, 2), 104);
     const cal = this.cal();
@@ -556,7 +591,7 @@ export class CalEventDrawer extends LitElement {
   /** The first start on the same day (15-minute steps, until 22:00) where the same length meets no entry of the day. */
   private nextFree(start: Date, end: Date): { start: string; end: string } | null {
     const len = end.getTime() - start.getTime();
-    const limit = new Date(startOfDay(start).getTime() + 22 * 3600000);
+    const limit = atMinute(start, 22 * 60); // SCR-37: 22:00 by the clock
     for (let t = start.getTime() + 15 * 60000; t + len <= limit.getTime(); t += 15 * 60000) {
       const s = new Date(t);
       const e = new Date(t + len);

@@ -62,6 +62,9 @@ export const hm = (iso: string | Date) => {
 export const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const ddmm = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
 export const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
+/** SCR-37: the instant at wall-clock minute `min` of `day` (1440 = the next midnight). Built by the clock, never as midnight + elapsed
+ * minutes: the two DST-change days have 23 and 25 hours, and "midnight + 600 min" is 11:00 / 09:00 on them, not 10:00. */
+export const atMinute = (day: Date, min: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, min);
 
 /** "היום · 17:00–21:00", "ג׳ 03.11 · 16:00–17:30" */
 export function whenText(start: string, end: string, now: Date): string {
@@ -172,8 +175,8 @@ export function slotGrid(entries: Occurrence[], day: Date, open: { from: string;
     const [fh, fm] = w.from.split(':').map(Number);
     const [th, tm] = w.to.split(':').map(Number);
     for (let m = fh * 60 + fm; m + duration <= th * 60 + tm; m += step) {
-      const s = new Date(startOfDay(day).getTime() + m * 60000);
-      const e = new Date(s.getTime() + duration * 60000);
+      const s = atMinute(day, m);
+      const e = atMinute(day, m + duration);
       if (s < now) continue;
       const hit = entries.filter((o) => new Date(o.start) < e && new Date(o.end) > s);
       out.push({ start: s, free: !hit.some((o) => o.state === 'confirmed'), pending: hit.filter((o) => o.state === 'pending').length });

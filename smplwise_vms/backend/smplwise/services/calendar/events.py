@@ -223,7 +223,8 @@ def evaluate(ctx: Ctx, settings: dict[str, Any], d: Draft, now: dt.datetime, *, 
         if cal["capacity"] and d.headcount and d.headcount > cal["capacity"]:
             findings["capacity_ok"] = False
             raise _422("capacity_exceeded", "מספר המשתתפים גדול מקיבולת החדר.", calendar_id=cal["id"], capacity=cal["capacity"])
-        plan.conflicts = name_conflicts(ctx, occ.blockers(conn, cal, [(o.start_utc, o.end_utc) for o in d.occs], settings, exclude=exclude))
+        spans = [(o.start_utc, o.end_utc) for o in d.occs] + occ.spans_past_window(conn, cal, ev_like, settings, now)  # D-04: past the window too
+        plan.conflicts = name_conflicts(ctx, occ.blockers(conn, cal, spans, settings, exclude=exclude, now=now))
         _maintenance_guard(conn, settings, cal, plan.conflicts)
         is_room_half = cal["id"] != d.cal["id"]
         if plan.conflicts:

@@ -13,7 +13,7 @@ import {
 } from './model';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
-import { parseDateParam, readHashParam, rruleOf, writeHashParams } from './booking-logic';
+import { drawerDetail, parseDateParam, readHashParam, rruleOf, writeHashParams } from './booking-logic';
 import {
   Press, UndoStack, clickSpan, dragSpan, durText, hintFor, hintTag, instantAt, kbStep, minOfDay, minuteAt, moveSpan, movedText, openOn, resizeSpan, snapFloor, stepOf,
   type Band, type Hint, type HintSettings, type KbSel, type PressTarget, type UndoItem,
@@ -513,7 +513,7 @@ export class CalViewCalendar extends LitElement {
     const fit = list.length > 3 ? 2 : 3;
     return html`<div class="agenda" data-cal-agenda>
       <h3>${sameDay(day, now) ? `${tr('היום')}, ` : ''}${DAY_LONG[day.getDay()]} ${day.getDate()}.${pad(day.getMonth() + 1)}</h3>
-      ${list.length ? list.slice(0, fit).map((o) => html`<button type="button" class="row" data-cal-entry=${o.event_id} @click=${() => this.openDrawer(o.event_id)}>
+      ${list.length ? list.slice(0, fit).map((o) => html`<button type="button" class="row" data-cal-entry=${o.event_id} @click=${() => this.openDrawer(o)}>
           <span class="dot" style=${`--h:${colorVar(this.calOf(o.calendar_id)?.color)}`}></span><b class="num">${o.all_day ? tr('כל היום') : hm(o.start)}</b>
           <span class="grow ell">${o.title ?? tr('תפוס')}</span>${o.state === 'pending' ? html`<span class="chip dash">${tr('ממתין')}</span>` : o.kind === 'maintenance' ? html`<span class="chip">${tr('תחזוקה')}</span>` : nothing}</button>`)
         : html`<span class="muted">${tr('אין אירועים ביום הזה.')}</span>`}
@@ -881,7 +881,7 @@ export class CalViewCalendar extends LitElement {
         if (this.lastClick && this.lastClick.id === o.occurrence_id && now - this.lastClick.t < 350) {
           this.lastClick = null;
           this.closeOverlay();
-          this.openDrawer(o.event_id); // double click: the full drawer
+          this.openDrawer(o); // double click: the full drawer
           return;
         }
         this.lastClick = { id: o.occurrence_id, t: now };
@@ -1175,8 +1175,8 @@ export class CalViewCalendar extends LitElement {
     this.displaceAsk = null;
   }
 
-  private openDrawer(eventId: string): void {
-    emit(this, CAL_EVENTS.newEvent, { eventId });
+  private openDrawer(o: Occurrence): void {
+    emit(this, CAL_EVENTS.newEvent, drawerDetail(o)); // SCR-38: a recurring entry's date travels along
   }
 
   private async del(o: Occurrence): Promise<void> {
@@ -1287,7 +1287,7 @@ export class CalViewCalendar extends LitElement {
     if (this.ov === 'peek' && this.peek) {
       const o = this.peek;
       return html`<cal-peek .ctx=${ctx} .occ=${o} .anchor=${this.ovAnchor} ?sheet=${phone} ?busy=${this.ovBusy} .error=${this.ovError} .displaceAsk=${this.displaceAsk}
-        @pk-close=${() => { this.closeOverlay(); this.focusGrid(); }} @pk-edit=${() => { this.closeOverlay(); this.openDrawer(o.event_id); }}
+        @pk-close=${() => { this.closeOverlay(); this.focusGrid(); }} @pk-edit=${() => { this.closeOverlay(); this.openDrawer(o); }}
         @pk-dup=${() => void this.dup(o)} @pk-del=${() => void this.del(o)} @pk-reject=${() => void this.decide(o, 'reject')}
         @pk-approve=${(e: CustomEvent<{ displace: boolean }>) => void this.decide(o, 'approve', e.detail.displace)} @pk-back=${() => (this.displaceAsk = null)}></cal-peek>`;
     }

@@ -1255,4 +1255,7 @@ export const en = {
   'מצב {name} לא ידוע': '{name}: state unknown',
   'מצב הדלתות לא ידוע': "The doors' state is unknown",
   'מצב {length} דלתות לא ידוע': '{length} doors: state unknown',
+  // TIME-CORRECT-2540 (SCR-34)
+  'נדחקה בגלל תחזוקה': 'Displaced by maintenance',
+  'מצב לא ידוע': 'Unknown state',
 };
