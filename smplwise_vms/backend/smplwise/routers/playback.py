@@ -9,7 +9,6 @@ import contextlib
 import datetime as dt
 import logging
 import sqlite3
-import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request, WebSocket
@@ -121,7 +120,7 @@ def get_session(session_id: str, principal: Principal = Depends(current_principa
 def seek_session(session_id: str, body: SeekBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
     session = _owned(conn, principal, session_id)
-    if session.state in ("closed", "expired"):
+    if session.state in pb.TERMINAL_STATES:
         raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
     decision = require_camera(conn, principal, session.camera_id, "video.playback")  # T055: a seek is a new request - re-checked
     cam = store.camera(conn, session.camera_id)
@@ -154,7 +153,7 @@ def close_session(session_id: str, request: Request, principal: Principal = Depe
 def close_session_beacon(session_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Same as DELETE, reachable by navigator.sendBeacon on page unload (a beacon can only POST)."""
     session = _owned(conn, principal, session_id)
-    if session.state in ("closed", "expired", "failed"):
+    if session.state in pb.TERMINAL_STATES:
         return {"id": session.id, "state": session.state}
     pb.close(settings_of(request), session)
     audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
@@ -183,7 +182,7 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         await websocket.close(code=4401)
         return
     session = pb.REGISTRY.sessions.get(session_id)
-    if not session or session.state in ("closed", "expired", "failed"):
+    if not session or session.state in pb.TERMINAL_STATES:
         await websocket.close(code=4404)
         return
 
@@ -210,14 +209,12 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
     def on_down(n: int) -> None:
         session.bytes_down += n
         session.touch()
-        if session.first_frame_at is None:
-            session.first_frame_at = time.time()
-            session.state = "playing"
+        pb.mark_first_media(session)  # LOWS-BACKEND-2550 (V-08): a late byte never revives a closed / revoked session
         if session.gen_media_ms is None and session.generation == my_gen:
             pb.note_first_media(session, my_gen)  # T074: time to recording (generation 0) / time to seek (later generations), once
 
     def superseded() -> bool:
-        return session.generation != my_gen or session.state in ("closed", "expired", "failed")
+        return session.generation != my_gen or session.state in pb.TERMINAL_STATES
 
     # T055: the socket keeps the camera only while its owner still holds video.playback on it (services/leases.py);
     # an administrator watching someone else's session is checked as themselves

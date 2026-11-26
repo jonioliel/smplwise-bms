@@ -53,7 +53,7 @@ def stop(db: Any, settings: Any, recorder_id: str) -> dict[str, int]:
         log.warning("could not stop the alert stream of %s", recorder_id, exc_info=True)
     try:
         for s in list(pb.REGISTRY.sessions.values()):
-            if getattr(s, "recorder_id", PRIMARY) == recorder_id and s.state not in ("closed", "expired", "failed"):
+            if getattr(s, "recorder_id", PRIMARY) == recorder_id and s.state not in pb.TERMINAL_STATES:
                 pb.close(settings, s, "closed")
                 out["playback"] += 1
     except Exception:  # noqa: BLE001
