@@ -62,6 +62,9 @@ build until the 2.53 release step rebuilds it.
 | `b2f3ae668` | `export` dropped from four file-local declarations of rows 3 / 4 (`AccountTab`, `accountOk`, `accountTab`, `OnboardingState`) | run A `unused-exports.mjs --enforce` (21 new; 17 are the 2.52 train's, left to it) |
 | `548e81acf` | three Node unit guards: `home/home-styles-extra.ts` as a reviewed opaque menu-token bridge (`MENU_TOKEN_SETTERS`), `home/home-account.ts` on the modal stack via `home/sw-home.ts`, DOCS-ONBOARDING's four English path strings with ‹ like the other English paths | run A Node unit suite (`unit-menu-lint`, `unit-modal-stack-guard-2442`, `unit-uxfix-rtl`) |
 | `8cf1444db` | `pixel-onboarding-2530`: a fixed '0.0.0' stand-in for the interface version before the screenshot (the mask box width followed the version text, 283 px after 2.52.0 -> 2.53.0) | run A every-pixel run |
+| `0d76a0980` | `export` dropped from WISKEY-A2-EXEC's two file-local types (`ExecPhase`, `ExecSupportState`) | run B `unused-exports --enforce` |
+| `014ee92ae` | the refreshed Support baseline (desktop); `evidence-home-screen` `"gate": true` (section 4) | run B |
+| (the baselines commit) | the 6 refreshed Linux baselines of `pixel-wiskey-schedule-exec-2530` (made on the train, run C) | run B every-pixel run |
 
 ## 3. Checks
 
@@ -110,11 +113,34 @@ Pixel failure (1): `pixel-onboarding-2530` Support desktop, 283 px inside the ma
 
 ### 3.2 Runner run B at `8cf1444db` (after rows 9-11, the syncs and the train fixes; `~/work/p2520_t2530_b.sh`, results `~/work/p2530b-out`)
 
-RUN_B_RESULTS
+| check | exit | result |
+|---|---|---|
+| generators / ratchets (as run A) + `ruff check smplwise` | 0 each | wire match; 897 = baseline; 144; 0 legacy 422 sites; **0 without English, 0 run-time**; 0 findings; no count above the baseline; guide up to date; 1958 routes, no diff; clean |
+| `scripts/gate/selftest_gate.py` / `selftest_gate_fast.py` (from the merged tree; the installed engine untouched) | 0 / 0 | SELFTEST PASSED x2 |
+| `scripts/gate/selftest_engine_sync.py` | 1, then 0 | the first run fell while the 2.52 release gate's `release_gate` processes ran (00:18Z; the gate ended 00:19:54Z): its install step correctly refused (`busy()` probes the real machine with `pgrep`, rc 3) and the selftest then read a manifest that was never written. Re-run in the same worktree with no gate running: **SELFTEST PASSED** (PC: SELFTEST PASSED too). Open point 5 |
+| `bash -n scripts/gate/fixture_lane.sh` | 0 | syntax ok |
+| backend, one process per file (36 files: A2's `test_wiskey_schedule_execution_2530` and its neighbours, the wire / error-envelope / i18n files run A failed on, MEDIA-V2, KNOWN-TREES (`test_wiskey_known_trees_rc20_2530` 33, `test_wiskey_native_bundle_2272` 7, `test_wiskey_managed_install_2382` 73), `test_fixture_job` 16, `test_wkjoin_295` 23, `test_get_routes_read_conn` 743) | 0 x 35, 1 x 1 | **1830 passed, 1 failed, 8 skipped**: the one failure is `test_release_check::test_repository_is_release_consistent` (UI bundle, expected). Every run-A backend failure that belonged to a row or to the 2.52 train is green here (`test_error_contract_inventory_2490` 7, `test_error_envelope_family678_2520` 14, `test_gate_always_run` 19, `test_i18n_errors_en_2520` 9, `test_wkjoin_295` 23 alone) |
+| `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` / lazy-tags / bundle budget / api-client / i18n-split `--dry` | 0 each | 0 errors / 0 errors / clean / built / OK |
+| `unused-exports --enforce` | 1 | 19 new: 2 WISKEY-A2-EXEC -> `0d76a0980`; 17 the 2.52 train's (open point 1) |
+| Node unit suite | 1 | **5327 passed, 3 failed** (only `unit-mfa-passkeys-2490` x3, the known node-only harness), 13 skipped |
+| `evidence-wiskey-schedule-exec-2530`, `evidence-wiskey-schedule-writes`, `evidence-wiskey-schedule-reads-2520`, `layout-audit30wk-components` desktop + mobile | 0 | 41 passed, 1 skipped |
+| `pixel-onboarding-2530` Support `-u` (that test only) | 0 | 2 passed; desktop baseline rewritten, phone byte-identical -> committed `014ee92ae` |
+| every pixel spec desktop + mobile, no `-u` | 1 | **539 passed, 6 failed**, 86 skipped: all six `pixel-wiskey-schedule-exec-2530` (A2's baselines were made on `eadaa25b8`; on the train the block is 1 px taller with the same content - the 2.52 train's later card styling; checked visually) -> refreshed in run C |
+| `scripts/fixture_job.py evidence-home-screen --no-build` (devices fixture backend, desktop + mobile, one run) | 0 | **23 passed**, 21 skipped (the other project's) -> section 4 |
+
+**Run C at `014ee92ae`** (`~/work/p2520_t2530_c.sh`, results `~/work/p2530c-out`): `tsc` app / tests 0 / 0 errors; build;
+`unused-exports --enforce` 17 new (exactly the 2.52 train's; none of the 2.53 rows' left); `pixel-wiskey-schedule-exec-2530 -u` 8 passed,
+6 of the 8 Linux baselines rewritten (2 byte-identical) -> committed; re-check twice without `-u` (`pixel-wiskey-schedule-exec-2530` +
+`pixel-onboarding-2530`, desktop + mobile): **23 passed, 1 skipped** both times.
 
 ## 4. HOME-SCROLL-FIX-2530 question 1 (evidence-home-screen in the gate)
 
-RUN_HOMESCREEN
+Run B (`8cf1444db`, section 3.2): `scripts/fixture_job.py evidence-home-screen --no-build` on the merged train (GATE-FIXTURE-LANE-2530's
+fixture job + HOME-SCROLL-FIX-2530's layout fix), devices fixture backend, the JSON's projects (desktop + mobile), one run: rc 0, **23
+passed, 0 failed**. So `frontend/tests/fixtures/fixture_specs.json` now has `evidence-home-screen.spec.ts` `"gate": true` (`014ee92ae`;
+the stale `_why_not_gate` dropped), `test_fixture_job.py`'s expected gate set + 1 (PC 16 passed), `docs/testing/GATE_LANES.md` updated. It
+takes effect in the first gate with the 2.53 engine (open point 2). The row's own queued run (`~/work/p2520_homescroll_final.out`, at the
+row's branch) had not started when this was written; the train run above is the one-run 23/23 the lead asked for.
 
 ## 5. Registry
 
@@ -128,13 +154,18 @@ management, Q75); AT-T120-1..5 PASS at `0a4286b4c` with the run-A receipts (sect
 
 ## 6. Open points
 
-1. **Inherited from the 2.52 train, not fixed here:** 17 `unused-exports --enforce` items of the 2.52 rows (the gate's `fe_static` step
-   enforces it): a) the 2.52 train drops the `export`s or records them in the baseline with a reason (recommended) b) the 2.53 train does it
-   after 2.52 is released.
+1. **Inherited from the 2.52 train, not fixed here:** 17 `unused-exports --enforce` items of the 2.52 rows (`STARTABLE`, `jobCounts`,
+   `WkReadState`, `SupportState`, `WkTiles`, `RequestLine`, `SERVICE_GRANT_COMMANDS`, `ScheduleReadAction`, `SyncMode` / `SyncGate` /
+   `SyncMatch`, `WkLastResult`, `EnterAnswer`, `WfsReason`, `WpsLine`, `OfflineLang`, `InventoryLine`; the gate's `fe_static` step enforces
+   it; reported to the lead 26.11): a) the 2.52 train drops the `export`s or records them in the baseline with a reason, and the 2.53 train
+   takes it with the next sync (recommended) b) the 2.53 train does it after 2.52 is released.
 2. **The 2.53 gate engine** (GATE-FIXTURE-LANE-2530) is merged but not installed; the 2.53 gate needs `engine_sync.py install --apply` by the
    lead after 2.52 is released (the drift check refuses otherwise).
 3. **Design ratchet** says `px-literal` can be lowered (rows' token work); left for the release step (`design_ratchet.py --update` only lowers).
-4. **More rows** will join this train; each one cut from `eadaa25b8` should be checked against the 2.52 ratchets that reached 0 later
+4. **`selftest_engine_sync.py` is not hermetic against a running gate** (`engine_sync.busy()` probes the machine with `pgrep`, so
+   the selftest fails while any `release_gate` process runs - run B): a) a GATE row lets the selftest pass a fake `busy` (or `--force-busy`
+   for its own fake home) (recommended) b) run the selftest only when no gate runs.
+5. **More rows** will join this train; each one cut from `eadaa25b8` should be checked against the 2.52 ratchets that reached 0 later
    (backend refusal English / run-time, ADR-019 field envelope, Node unit guards) - rows 6 and 9 needed train fixes for exactly this.
 
 NOT_RUN on the train: the release gate (the lead's), the full backend suite in one sweep (the touched areas above only), the full Playwright

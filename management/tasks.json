@@ -31026,7 +31026,8 @@
       "Branch pilot/HOME-T120-REST-2530, change note docs/changes/HOME-T120-REST-2530.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-T120-REST-2530 head 17c61a0b7 merged 4f72e6438 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 3); change note docs/changes/HOME-T120-REST-2530.md. Decisions Q1-Q3 = a; Q1 = a closes T120. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-T120-REST-2530 head 17c61a0b7 merged 4f72e6438 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 3); change note docs/changes/HOME-T120-REST-2530.md. Decisions Q1-Q3 = a; Q1 = a closes T120. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3).",
+      "2026-11-26 (RELEASE-2530-TRAIN): train fixes b2f3ae668 (three file-local exports), 548e81acf (the .acc-body token bridge registered as an opaque menu-token bridge; home-account.ts on the modal stack via sw-home.ts)."
     ],
     "owner": null,
     "commit": "17c61a0b7",
@@ -31064,7 +31065,8 @@
       "Branch pilot/DOCS-ONBOARDING-2530, change note docs/changes/DOCS-ONBOARDING-2530.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/DOCS-ONBOARDING-2530 head 76873fac1 merged 11cf23be5 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 4); change note docs/changes/DOCS-ONBOARDING-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/DOCS-ONBOARDING-2530 head 76873fac1 merged 11cf23be5 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 4); change note docs/changes/DOCS-ONBOARDING-2530.md. Decisions Q1-Q3 = a. Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3).",
+      "2026-11-26 (RELEASE-2530-TRAIN): train fixes b2f3ae668 (OnboardingState file-local), 548e81acf (four English path strings with the left-pointing separator), 8cf1444db + 014ee92ae (pixel-onboarding-2530: a fixed version stand-in, the Support desktop baseline refreshed on the train)."
     ],
     "owner": null,
     "commit": "76873fac1",
@@ -31254,7 +31256,8 @@
       "Branch pilot/WISKEY-A2-EXEC-2530, change note docs/changes/WISKEY-A2-EXEC-2530.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-A2-EXEC-2530 head 4a5eb50c7 merged 1ea525393 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 9); change note docs/changes/WISKEY-A2-EXEC-2530.md. Decisions Q1-Q3 = a. Train fix 7b888872e (English of its four refusal texts). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/WISKEY-A2-EXEC-2530 head 4a5eb50c7 merged 1ea525393 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 9); change note docs/changes/WISKEY-A2-EXEC-2530.md. Decisions Q1-Q3 = a. Train fix 7b888872e (English of its four refusal texts). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3).",
+      "2026-11-26 (RELEASE-2530-TRAIN): train fix 0d76a0980 (two file-local exports); its 8 Linux baselines refreshed on the merged train (run C at 014ee92ae: 6 rewritten - the block 1 px taller with the same content after the 2.52 card styling - re-checked twice, 23 passed with pixel-onboarding). Train runs: test_wiskey_schedule_execution_2530 21 passed, schedule evidence / layout specs 41 passed (run B at 8cf1444db)."
     ],
     "owner": null,
     "commit": "4a5eb50c7",
@@ -31292,7 +31295,8 @@
       "Branch pilot/GATE-FIXTURE-LANE-2530, change note docs/changes/GATE-FIXTURE-LANE-2530.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/GATE-FIXTURE-LANE-2530 head d52a6e649 merged 6329e4178 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 10); change note docs/changes/GATE-FIXTURE-LANE-2530.md. Decisions Q1-Q4 = a. Engine NOT installed by the train (lead). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3)."
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/GATE-FIXTURE-LANE-2530 head d52a6e649 merged 6329e4178 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 10); change note docs/changes/GATE-FIXTURE-LANE-2530.md. Decisions Q1-Q4 = a. Engine NOT installed by the train (lead). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in RELEASE-2530-TRAIN.md section 3).",
+      "2026-11-26 (RELEASE-2530-TRAIN): from the merged tree (run B at 8cf1444db): selftest_gate.py and selftest_gate_fast.py SELFTEST PASSED; selftest_engine_sync.py SELFTEST PASSED once no gate process ran (its first run fell while the 2.52 gate ran - engine_sync.busy() probes the machine; RELEASE-2530-TRAIN open point 4); test_fixture_job.py 16 passed (17 with evidence-home-screen in the gate set after 014ee92ae: PC 16 passed). Engine NOT installed on the runner."
     ],
     "owner": null,
     "commit": "d52a6e649",
@@ -31330,7 +31334,8 @@
       "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): release/2530-train cut from release/2520-train 91de5c377 (2.52.0 not released yet). Merged: LOAD-BUDGET-2530 3fe6bf2c3, NOTICE-TV-LASTSEEN-2530 9ef72a575, HOME-T120-REST-2530 4f72e6438, DOCS-ONBOARDING-2530 11cf23be5, MFA-T095-REST-2530 46692b29e, WISKEY-MEDIA-V2-2530 6365fcb17, WISKEY-NOFALLBACK-2-2530 c74e485f1; version bump 4c43d7619 (2.53.0, draft changelog, API inventory 1955 routes); chore/ACCEPT-SWEEP-2530 db79121bd (registry); sync with release/2520-train 8abc5d652 (c9085c0ad) and 9fb8109fb (4cb8ed934); WISKEY-KNOWN-TREES-RC20-2530 0a4286b4c; WISKEY-A2-EXEC-2530 1ea525393; GATE-FIXTURE-LANE-2530 6329e4178 (engine not installed); sync with release/2520-train 6d8fd71e1 (5bca84ee2); HOME-SCROLL-FIX-2530 2d674e581. Train fixes 8dfd46115, f41473bbc (WISKEY-MEDIA-V2 refusals: English, ADR-019 field envelope), 7b888872e (A2 English). Gate NOT_RUN; nothing released."
+      "2026-11-25 (RELEASE-2530-TRAIN): release/2530-train cut from release/2520-train 91de5c377 (2.52.0 not released yet). Merged: LOAD-BUDGET-2530 3fe6bf2c3, NOTICE-TV-LASTSEEN-2530 9ef72a575, HOME-T120-REST-2530 4f72e6438, DOCS-ONBOARDING-2530 11cf23be5, MFA-T095-REST-2530 46692b29e, WISKEY-MEDIA-V2-2530 6365fcb17, WISKEY-NOFALLBACK-2-2530 c74e485f1; version bump 4c43d7619 (2.53.0, draft changelog, API inventory 1955 routes); chore/ACCEPT-SWEEP-2530 db79121bd (registry); sync with release/2520-train 8abc5d652 (c9085c0ad) and 9fb8109fb (4cb8ed934); WISKEY-KNOWN-TREES-RC20-2530 0a4286b4c; WISKEY-A2-EXEC-2530 1ea525393; GATE-FIXTURE-LANE-2530 6329e4178 (engine not installed); sync with release/2520-train 6d8fd71e1 (5bca84ee2); HOME-SCROLL-FIX-2530 2d674e581. Train fixes 8dfd46115, f41473bbc (WISKEY-MEDIA-V2 refusals: English, ADR-019 field envelope), 7b888872e (A2 English). Gate NOT_RUN; nothing released.",
+      "2026-11-26 (RELEASE-2530-TRAIN): runner run A at 0a4286b4c, run B at 8cf1444db, run C at 014ee92ae (docs/changes/RELEASE-2530-TRAIN.md section 3); train fixes 8dfd46115, f41473bbc, 7b888872e, b2f3ae668, 548e81acf, 8cf1444db, 0d76a0980, 014ee92ae and the schedule-exec baselines; T120 DONE. Open: the 2.52 train's 17 unused exports, the 2.53 gate engine install (lead, after 2.52). Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -31368,7 +31373,8 @@
       "Branch pilot/HOME-SCROLL-FIX-2530, change note docs/changes/HOME-SCROLL-FIX-2530.md, tests"
     ],
     "evidence": [
-      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-SCROLL-FIX-2530 head c41c14ad0 merged 2d674e581 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 11); change note docs/changes/HOME-SCROLL-FIX-2530.md. Decisions Q1-Q3 = a (Q1: evidence-home-screen to \"gate\": true in fixture_specs.json once the spec is 23/23 green in one run). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+      "2026-11-25 (RELEASE-2530-TRAIN): Registered at the merge. pilot/HOME-SCROLL-FIX-2530 head c41c14ad0 merged 2d674e581 into release/2530-train (cut from release/2520-train 91de5c377, 2.52.0 not yet released; docs/changes/RELEASE-2530-TRAIN.md on the train) (train row 11); change note docs/changes/HOME-SCROLL-FIX-2530.md. Decisions Q1-Q3 = a (Q1: evidence-home-screen to \"gate\": true in fixture_specs.json once the spec is 23/23 green in one run). Merged into the 2.53.0 train, NOT released (no gate yet). Target 2.53.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record.",
+      "2026-11-26 (RELEASE-2530-TRAIN): question 1 = a done - fixture_job.py evidence-home-screen on the merged train (run B at 8cf1444db, devices fixture backend, desktop + mobile, one run): 23 passed / 0 failed; fixture_specs.json evidence-home-screen.spec.ts \"gate\": true in 014ee92ae (effective with the 2.53 gate engine)."
     ],
     "owner": null,
     "commit": "c41c14ad0",
