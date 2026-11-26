@@ -117,6 +117,13 @@ def test_the_node_writer_and_this_check_agree(tmp_path):
     assert stamp["inputs_sha256"] == rc.inputs_digest(root, stamp["inputs"])["digest"]
 
 
+def test_build_addon_writes_the_stamp_last():
+    # last: after both Vite builds (--emptyOutDir would delete it) and after the source-map move (it edits shipped files)
+    script = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))["scripts"]["build:addon"]
+    assert script.endswith("&& node scripts/build-stamp.mjs")
+    assert script.index("build-stamp.mjs") > script.index("sourcemaps-archive.mjs") > script.rindex("vite build")
+
+
 def test_this_tree_lists_its_build_inputs():
     paths = rc.stamp_input_paths(ROOT)
     assert "frontend/src" in paths and "frontend/package-lock.json" in paths
