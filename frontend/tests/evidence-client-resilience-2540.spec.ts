@@ -163,6 +163,16 @@ for (const scheme of ['light', 'dark'] as const) {
       if (scheme === 'dark') await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
       await page.waitForTimeout(1200);
       await page.screenshot({ path: path.join(SHOTS, `update-${vp.name}-${scheme}.png`) });
+    });
+    test(`shots: step-up ${vp.name} ${scheme}`, async ({ page }) => {
+      test.skip(!SHOTS, 'SW_SHOTS_DIR not set');
+      fs.mkdirSync(SHOTS, { recursive: true });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+      await setup(page, { build: OWN_BUILD, action: 'door.open' }); // no update card over the save button
+      await page.goto(REMOTE_TAB);
+      await page.waitForSelector('sw-app system-diagnostics');
+      if (scheme === 'dark') await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
       await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
       await page.locator('system-diagnostics [data-save-remote]').click();
       await expect(dialog(page).locator('[data-step-up-code]')).toBeVisible();
