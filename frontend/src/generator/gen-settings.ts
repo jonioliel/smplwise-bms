@@ -7,8 +7,10 @@ import '../components/sw-field';
 import '../components/sw-dropdown';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-segmented';
 import './gen-routing';
 import type { TabItem } from '../components/sw-tabs';
+import type { SegmentOption, SegmentedChange } from '../components/sw-segmented';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { RouteState } from '../router';
 import { navigate } from '../router';
@@ -34,8 +36,11 @@ const S = GEN_SETTINGS;
 const TH_UNIT = (): Record<string, string> => ({ oil_min_bar: S.units.bar, coolant_max_c: S.units.c, fuel_low_pct: S.units.pct, fuel_empty_pct: S.units.pct, overload_pct: S.units.pct, v_min: S.units.v, v_max: S.units.v, hz_min: S.units.hz, hz_max: S.units.hz, battery_min_12v: S.units.v, battery_min_24v: S.units.v, service_warn_h: S.units.hAhead, service_every_h: S.units.h });
 const RET_UNIT = (): Record<string, string> => ({ alert_retention_days: S.units.days, history_retention_days: S.units.days, stale_after_s: S.units.s });
 const LOG_UNIT = (): Record<string, string> => ({ min_run_s: S.units.s, mains_lookback_s: S.units.s, test_min_minutes: S.units.min, test_max_minutes: S.units.min, test_interval_days: S.units.days, no_data_close_min: S.units.min, refill_min_pct: S.units.pct, refill_settle_min: S.units.min, drop_min_pct: S.units.pct, fuel_window_h: S.units.h, retention_days: S.units.days });
+/** DATA-RULES-2-2550: the starter battery's system choice - 'auto' = the server's detection (null on the wire, the default). */
+type BatChoice = 'auto' | '12' | '24';
+const batChoiceOf = (v: number | null | undefined): BatChoice => (v === 12 ? '12' : v === 24 ? '24' : 'auto');
 // GENLOG092-295: 'log' = the run log's switch and every threshold / window of it
-const SUBS = ['routing', 'mapping', 'thresholds', 'retention', 'log', 'permissions'] as const;
+const SUBS =['routing', 'mapping', 'thresholds', 'retention', 'log', 'permissions'] as const;
 type Sub = (typeof SUBS)[number];
 
 /**
@@ -53,6 +58,8 @@ export class GenSettings_ extends LitElement {
   @state() private roles: RoleItem[] = [];
   @state() private roleEdits: Record<string, string | null> = {};
   @state() private thEdits: Record<string, string> = {};
+  /** DATA-RULES-2-2550: the battery system the administrator picked and has not saved yet (null = unchanged). */
+  @state() private batEdit: BatChoice | null = null;
   @state() private retEdits: Record<string, string> = {};
   @state() private logEdits: Record<string, string | boolean> = {};
   @state() private nameEdit = '';
@@ -115,6 +122,7 @@ export class GenSettings_ extends LitElement {
       this.ratedEdit = d.rated_kw ? String(d.rated_kw) : '';
       this.ratedKvaEdit = d.rated_kva ? String(d.rated_kva) : '';
       this.thEdits = {};
+      this.batEdit = null;
       this.roleEdits = {};
       if (this.sub() === 'mapping') await this.loadRoles();
     } catch (e) {
@@ -220,15 +228,41 @@ export class GenSettings_ extends LitElement {
     const keys = Object.keys(s.threshold_defaults);
     const val = (k: string) => (k in this.thEdits ? this.thEdits[k] : String(eff[k] ?? s.threshold_defaults[k]));
     return html`<div class="col" data-section="thresholds"><div class="mut">${S.thIntro}</div>
+      ${this.batterySystem()}
       <div class="th-grid">${keys.map((k) => { const lim = s.threshold_limits[k] ?? [0, 1e6]; return html`<sw-field class="fld" label=${(S.th as Record<string, string>)[k] ?? k} unit=${TH_UNIT()[k] ?? ''}>
         <input id=${`th-${k}`} class="ltr" type="number" step="any" min=${lim[0]} max=${lim[1]} .value=${val(k)} @input=${(e: Event) => (this.thEdits = { ...this.thEdits, [k]: (e.target as HTMLInputElement).value })} />
         <span class="mut" slot="message">${fill(S.thDefault, { n: s.threshold_defaults[k] })}</span></sw-field>`; })}</div>
-      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || !Object.keys(this.thEdits).length || !this.device} @click=${() => this.run(async () => {
-        const body: Record<string, number> = {};
-        for (const k of keys) { const v = Number(val(k)); if (Number.isFinite(v) && v !== s.threshold_defaults[k]) body[k] = v; }
-        this.device = await updateDevice(this.device!.id, { thresholds: body });
+      <div class="row"><sw-button variant="primary" ?disabled=${this.busy || (!Object.keys(this.thEdits).length && this.batEdit === null) || !this.device} @click=${() => this.run(async () => {
+        const body: Parameters<typeof updateDevice>[1] = {};
+        if (Object.keys(this.thEdits).length) {
+          const th: Record<string, number> = {};
+          for (const k of keys) { const v = Number(val(k)); if (Number.isFinite(v) && v !== s.threshold_defaults[k]) th[k] = v; }
+          body.thresholds = th;
+        }
+        if (this.batEdit !== null) body.battery_nominal_v = this.batEdit === 'auto' ? null : this.batEdit === '24' ? 24 : 12;
+        this.device = await updateDevice(this.device!.id, body);
         this.thEdits = {};
+        this.batEdit = null;
       })} data-save-thresholds>${S.save}</sw-button></div></div>`;
+  }
+
+  /** DATA-RULES-2-2550 (DATA-RULES-2540 open question 2): the starter battery's system - automatic (the server's detection, the default and
+   * today's behaviour), 12 V or 24 V. Saved with the thresholds (PUT /generator/devices/{id} `battery_nominal_v`, generator.manage, audited). */
+  private batterySystem() {
+    const d = this.device;
+    const saved = batChoiceOf(d?.battery_nominal_v);
+    const cur = this.batEdit ?? saved;
+    const opts: SegmentOption<BatChoice>[] = [
+      { value: 'auto', label: S.batAuto, attrs: { 'data-bat': 'auto' } },
+      { value: '12', label: `12 ${S.units.v}`, attrs: { 'data-bat': '12' } },
+      { value: '24', label: `24 ${S.units.v}`, attrs: { 'data-bat': '24' } },
+    ];
+    const known = d?.battery_system_v ?? null;
+    const hint = cur === 'auto' ? `${S.batHintAuto}${saved === 'auto' && known ? ` ${fill(S.batDetected, { v: known })}` : ''}` : fill(S.batHintFixed, { v: cur });
+    return html`<div class="fld" data-battery-system=${cur}><span class="lbl">${S.batSystem}</span>
+      <sw-segmented radio style="align-self:flex-start" label=${S.batSystem} .options=${opts} value=${cur} ?disabled=${this.busy || !d}
+        @change=${(e: CustomEvent<SegmentedChange>) => (this.batEdit = e.detail.value === saved ? null : (e.detail.value as BatChoice))}></sw-segmented>
+      <span class="mut" data-battery-hint>${hint}</span></div>`;
   }
 
   private retention() {

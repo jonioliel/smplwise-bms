@@ -142,7 +142,7 @@ export interface AccountBody {
 export type StatusMeterWire = Wire.EnergyStatusMeter & { start_reading_kwh?: string; end_reading_kwh?: string };
 /** The open period so far (the server sends note objects, like BillSnapshot.notes). `period` null = the cycle has no period yet (kWh null, no
  * meters); `error_code` = the period could not be computed (kWh null, no meters: e.g. `tariff_missing`). */
-export type AccountStatusWire = Pick<Wire.EnergyAccountStatus, 'period' | 'kwh_so_far' | 'notes' | 'amount_so_far' | 'error_code'> & { meters: StatusMeterWire[] };
+export type AccountStatusWire = Pick<Wire.EnergyAccountStatus, 'period' | 'kwh_so_far' | 'notes' | 'amount_so_far' | 'error_code' | 'billing_gaps'> & { meters: StatusMeterWire[] };
 
 /** A bill in a list. `total` is absent from the reads answered without energy.bills (money-free): the screens show a dash then. */
 export type BillSummary = Pick<
@@ -340,6 +340,8 @@ export interface AccountStatus {
   rows: StatusRow[];
   stale: { meter: string; since: string } | null;
   notes: { code: string; text_he: string }[];
+  /** DATA-RULES-2-2550: days between the account's issued bills that no bill covers (`to` inclusive), oldest first. */
+  gaps: { from: string; to: string }[];
   next: { from: string; to: string; number: string; draft_on: string } | null;
   customer: Customer | null;
   price?: { tariff: string; ex_vat: string; inc_vat: string; vat: string };
@@ -503,6 +505,7 @@ export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today
     rows,
     stale: stale ? { meter: stale.name, since: stale.last_report_at ? stale.last_report_at.slice(11, 16) : '' } : null,
     notes: w.notes,
+    gaps: (w.billing_gaps ?? []).map((g) => ({ from: g.from, to: g.to })),
     next: nf ? { from: nf.from, to: nf.to, number: billNumber(nf.to, account.customer?.customer_number ?? '', ''), draft_on: addDays(nf.to, 1) } : null,
     customer: ctx.customer,
   };

@@ -29,6 +29,9 @@ export interface GenMockOptions {
    * generator.manage (403 `forbidden` otherwise) and lasts at most 4 h; the detail carries the running mute; DELETE ends it.
    * Absent = the old fixed answers (the existing specs unchanged). */
   muteRules?: boolean;
+  /** DATA-RULES-2-2550: the starter battery's system - the device carries `battery_nominal_v` (the choice; null = automatic) and
+   * `battery_system_v` (what the server knows), and PUT /generator/devices/{id} stores a new choice. Absent = the old answers. */
+  battery?: { nominal: 12 | 24 | null; known: 12 | 24 | null };
 }
 export interface GenMock {
   calls: { method: string; path: string; body: unknown }[];
@@ -83,6 +86,8 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
   const devs = Array.from({ length: count }, (_, i) => deviceFor(`g${i + 1}`, NAMES[i % NAMES.length] + (i >= NAMES.length ? ` ${i + 1}` : ''), level, sc, i === 0 ? open : 0, false));
   const policies = new Map<string, unknown>();
   const sevDefaults: Record<string, unknown> = { critical: null, alert: null, info: null };
+  const bat = o.battery ? { ...o.battery } : null;
+  const batteryOut = () => (bat ? { battery_nominal_v: bat.nominal, battery_system_v: bat.nominal ?? bat.known } : {});
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -113,7 +118,15 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
     const m = /^devices\/([^/]+)(?:\/([\w-]+))?(?:\/(.+))?$/.exec(g);
     if (m && method === 'GET' && !m[2]) {
       const i = devs.findIndex((d) => d.id === m[1]);
-      return i < 0 ? err(route, 404, 'generator_not_found', 'לא נמצא') : json(route, deviceFor(devs[i].id, devs[i].name, level, sc, devs[i].open_alerts));
+      return i < 0 ? err(route, 404, 'generator_not_found', 'לא נמצא') : json(route, { ...deviceFor(devs[i].id, devs[i].name, level, sc, devs[i].open_alerts), ...batteryOut() });
+    }
+    if (m && method === 'PUT' && !m[2] && bat) {
+      const i = devs.findIndex((d) => d.id === m[1]);
+      if (i < 0) return err(route, 404, 'generator_not_found', 'לא נמצא');
+      if (!perms.includes('generator.manage')) return err(route, 403, 'forbidden', 'אין הרשאה');
+      const b = (body ?? {}) as { battery_nominal_v?: 12 | 24 | null };
+      if ('battery_nominal_v' in b) bat.nominal = b.battery_nominal_v ?? null;
+      return json(route, { ...deviceFor(devs[i].id, devs[i].name, level, sc, devs[i].open_alerts), ...batteryOut() });
     }
     if (m && m[2] === 'live') {
       if (o.slowLive) await new Promise((r) => setTimeout(r, 1500));

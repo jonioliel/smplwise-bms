@@ -99,6 +99,7 @@ export const en = {
   'לא מדווח': 'Not reporting',
   'מאז': 'since',
   'הצריכה תיספר כשהמונה יחזור לדווח.': 'Its usage is counted once the meter reports again.',
+  'פער בחיובים: הימים {from} - {to} נמצאים בין חיובים שהונפקו ואינם כלולים באף חיוב.': 'Billing gap: the days {from} - {to} lie between issued bills and are in no bill.',
   'יום': 'Day',
   'מתוך': 'of',
   'צפי לסוף התקופה': 'Forecast for the period',

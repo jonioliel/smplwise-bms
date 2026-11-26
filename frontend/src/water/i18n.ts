@@ -222,6 +222,7 @@ const he = {
   colCurrentReading: 'קריאה נוכחית',
   colContribution: 'תרומה',
   staleNote: 'המונה {name} לא מדווח: הצריכה שלו לא נספרת עד שידווח שוב.',
+  gapNote: 'פער בחיובים: הימים {from} - {to} נמצאים בין חיובים שהונפקו ואינם כלולים באף חיוב.', // DATA-RULES-2-2550
   customerCard: 'כרטיס לקוח',
   priceCard: 'מחיר',
   waterPrice: 'מים למ״ק',

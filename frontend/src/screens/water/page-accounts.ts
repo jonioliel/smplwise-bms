@@ -397,7 +397,9 @@ export class WaterAccountsPage extends LitElement {
         <dt>${wt('autoMode')}</dt><dd>${AUTO_LABEL[a.auto_mode]}</dd></dl></div>
       <div class="card"><div class="hd"><b>${wt('tNextBill')}</b></div><dl class="kv"><dt>${wt('colPeriod')}</dt><dd class="num">${range(a.next_period)}</dd><dt>${wt('accPeriod')}</dt><dd>${periodLabel(a.period_months, a.period_anchor_day)}</dd></dl></div>
     </div>`;
-    return html`${tiles}${(s?.stale ?? []).map((x) => html`<div class="alert warn" role="status"><span class="x" aria-hidden="true">!</span><div>${wt('staleNote', { name: x.name })}</div></div>`)}<div class="cols side"><div class="col"><div class="mut">${a.formula.sentence_he}</div>${meters}</div>${side}</div>`;
+    // DATA-RULES-2-2550: days between issued bills that no bill covers - a warning on the account, never inside a bill
+    const gaps = (s?.billing_gaps ?? []).map((g) => html`<div class="alert warn" role="status" data-billing-gap=${g.from}><span class="x" aria-hidden="true">!</span><div>${wt('gapNote', { from: fmtDate(g.from), to: fmtDate(g.to) })}</div></div>`);
+    return html`${tiles}${(s?.stale ?? []).map((x) => html`<div class="alert warn" role="status"><span class="x" aria-hidden="true">!</span><div>${wt('staleNote', { name: x.name })}</div></div>`)}${gaps}<div class="cols side"><div class="col"><div class="mut">${a.formula.sentence_he}</div>${meters}</div>${side}</div>`;
   }
 
   private renderHistory() {

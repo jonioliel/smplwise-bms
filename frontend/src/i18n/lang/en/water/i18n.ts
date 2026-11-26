@@ -209,6 +209,7 @@ export const en = {
   colCurrentReading: 'Current reading',
   colContribution: 'Contribution',
   staleNote: 'The meter {name} is not reporting: its consumption is not counted until it reports again.',
+  gapNote: 'Billing gap: the days {from} - {to} lie between issued bills and are in no bill.',
   customerCard: 'Customer card',
   priceCard: 'Price',
   waterPrice: 'Water per m³',

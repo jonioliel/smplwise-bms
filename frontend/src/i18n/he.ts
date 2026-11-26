@@ -267,6 +267,9 @@ export const he = {
       mapDisabled: 'החיישן קיים אך מושבת במקור', mapCore: 'חובה', mapAuto2: 'אוטומטי (ברירת מחדל)', mapClear: 'ללא חיישן', mapSave: 'שמירת המיפוי',
       units: { kw: 'kW', kva: 'kVA', bar: 'bar', c: '°C', pct: '%', v: 'V', hz: 'Hz', h: 'שעות', hAhead: 'שעות מראש', s: 'שניות', min: 'דקות', days: 'ימים' },
       thIntro: 'ספי ההתראה נקבעים כאן ומחושבים במערכת; הם אינם משנים דבר בבקר עצמו.', thDefault: 'ברירת מחדל {n}',
+      // DATA-RULES-2-2550: the starter battery's system (automatic = the server's detection, today's behaviour)
+      batSystem: 'מערכת המצבר', batAuto: 'אוטומטי', batHintAuto: 'אוטומטי: מצבר שנמדד פעם מעל 16 V נחשב 24 V; עד אז כל קריאה נשפטת לפי ערכה.',
+      batDetected: 'זוהה: {v} V', batHintFixed: 'סף המצבר וחוגת המצבר נשפטים לפי מערכת של {v} V.',
       th: { oil_min_bar: 'לחץ שמן מינימלי', coolant_max_c: 'טמפרטורת נוזל קירור מקסימלית', rpm_max: 'סל״ד מקסימלי', fuel_low_pct: 'דלק נמוך', fuel_empty_pct: 'דלק אזל', overload_pct: 'עומס יתר', v_min: 'מתח מינימלי', v_max: 'מתח מקסימלי', hz_min: 'תדר מינימלי', hz_max: 'תדר מקסימלי', battery_min_12v: 'מצבר 12V מינימלי', battery_min_24v: 'מצבר 24V מינימלי', service_warn_h: 'תזכורת טיפול', service_every_h: 'מרווח טיפול', running_rpm: 'סל״ד שנחשב פועל' },
       retAlerts: 'היסטוריית התראות', retHistory: 'היסטוריית גרפים', retStale: 'זמן עד סימון "אין תקשורת"', retInfo: 'היסטוריית ההתראות נשמרת {a} ימים; דגימות הגרפים נשמרות {h} ימים.',
       permsBody: 'הרשאות הגנרטור מוגדרות בתפקידים: צפייה והתראות, וניהול והגדרות.', permsLink: 'למסך המשתמשים וההרשאות',

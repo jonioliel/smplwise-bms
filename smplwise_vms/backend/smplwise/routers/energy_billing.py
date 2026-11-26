@@ -422,7 +422,8 @@ def account_status(aid: str, request: Request, principal: Principal = Depends(_v
     provider = get_provider(conn, settings_of(request))
     today = _today(acc["timezone"])
     p = per.period_containing(eb.cycle_of(acc), max(today, eb.cycle_of(acc).first_start))
-    out: dict[str, Any] = {"period": p.as_api() if p else None, "kwh_so_far": None, "meters": [], "notes": []}
+    out: dict[str, Any] = {"period": p.as_api() if p else None, "kwh_so_far": None, "meters": [], "notes": [],
+                           "billing_gaps": eb.billing_gaps(conn, aid)}  # DATA-RULES-2-2550: days between issued bills that no bill covers
     if p is None:
         return out
     try:

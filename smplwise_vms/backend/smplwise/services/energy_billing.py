@@ -1440,6 +1440,11 @@ def retention(db: Database, data_dir: Path | None, now: dt.datetime | None = Non
     return bl.retention(KIND, db, now or now_utc(), data_dir)
 
 
+def billing_gaps(conn: sqlite3.Connection, aid: str) -> list[dict[str, str]]:
+    """DATA-RULES-2-2550: the days between the account's issued bills that no bill covers, for the account status (bill_ledger.billing_gaps)."""
+    return [g.as_api() for g in bl.billing_gaps(KIND, conn, aid)]
+
+
 def janitor(db: Database, settings: Any = None) -> AutoOutcome | None:
     """The janitor step (main.janitor_tick, every 30 s): the automatic generation at most every 5 minutes, retention hourly."""
     import time

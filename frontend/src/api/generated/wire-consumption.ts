@@ -72,6 +72,7 @@ export interface EnergyAccountStatus {
   notes: EnergyNote[];
   error_code?: string;
   amount_so_far?: string;
+  billing_gaps?: EnergyPeriod[];
 }
 
 /** The account's tariff; `price` / `price_mode` (the version in force; price null for time of use) only with energy.bills. */
@@ -935,6 +936,7 @@ export interface WaterAccountStatus {
   stale: WaterStaleMeter[];
   m3_forecast?: string;
   amount_so_far?: string;
+  billing_gaps?: EnergyPeriod[];
 }
 
 /** The account's tariff; the prices in force only with water.bills. */

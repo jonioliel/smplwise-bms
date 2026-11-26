@@ -206,6 +206,8 @@ class WaterAccountStatus(WireModel):
     stale: list[WaterStaleMeter]
     m3_forecast: str = None
     amount_so_far: str = None
+    billing_gaps: list[EnergyPeriod] = []
+    """DATA-RULES-2-2550 (additive): the days between the account's issued bills that no bill covers (`to` inclusive), oldest first."""
 
 
 class WaterHistoryPeriod(WireModel):
