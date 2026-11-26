@@ -42,7 +42,7 @@ export interface CastTargets {
 }
 
 type CastSessionState = 'starting' | 'playing' | 'not_confirmed' | 'stopped';
-type CastStopReason = 'user' | 'timeout' | 'replaced' | 'target_gone' | 'error' | 'admin' | 'refused';
+type CastStopReason = 'user' | 'timeout' | 'replaced' | 'target_gone' | 'error' | 'admin' | 'refused' | 'access_lost';
 
 export interface CastSession {
   session_id: string;

@@ -752,7 +752,9 @@ def _rollback_gate(change_id: str, principal: Principal = Depends(current_princi
 
 
 @router.post("/nvr/changes/{change_id}/rollback", status_code=201, openapi_extra={"requestBody": {"required": False, "content": {"application/json": {"schema": {
-    "type": "object", "properties": {"confirm": {"type": "boolean", "enum": [True], "description": "required for a stream_encoding change (CR-020 S2)"}}}}}}})
+    "type": "object", "properties": {"confirm": {"type": "boolean", "enum": [True], "description": "required for a stream_encoding change (CR-020 S2)"},
+                                     "force": {"type": "boolean", "description": "any other change: undo although the device no longer holds what the change left "
+                                               "(409 changed_since) or the change was undone already (409 already_rolled_back) (CAST-RELAY-HARDEN-2540)"}}}}}}})
 def rollback_change(change_id: str, request: Request, principal: Principal = Depends(_rollback_gate), raw: bytes = Depends(_raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Undo. stream_encoding: nvr.configure + camera, body {"confirm": true}, 201 {change, stream, rollback_of, reboot_required}."""
@@ -770,5 +772,7 @@ def rollback_change(change_id: str, request: Request, principal: Principal = Dep
         settings = settings_of(request)
         ensure_nvr(settings)
         return nvr_settings.rollback_stream(conn, settings, principal, r, request_id=_rid(request))
+    body = json_body(raw)
+    force = isinstance(body, dict) and body.get("force") is True  # CAST-RELAY-HARDEN-2540: only the literal true; any other body as before
     with unlocked(conn):
-        return nvr_write.rollback(settings_of(request), conn, principal, change_id, request_id=_rid(request))
+        return nvr_write.rollback(settings_of(request), conn, principal, change_id, request_id=_rid(request), force=force)
