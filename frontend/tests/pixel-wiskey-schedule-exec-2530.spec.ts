@@ -46,6 +46,8 @@ function reads() {
   ];
 }
 
+// RELEASE-2530-TRAIN: every case title carries "pixel-stable" - the gate's pixel step runs --grep pixel-stable (2.53 gate run 1:
+// pixel_55 "No tests found" for this file)
 test.describe('pixel: the read-only status in WisKey block', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => {
@@ -53,12 +55,12 @@ test.describe('pixel: the read-only status in WisKey block', () => {
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`classic ${scheme}: off`, async ({ page }, info) => {
+    test(`classic ${scheme} is pixel-stable: off`, async ({ page }, info) => {
       await open(page, scheme);
       await compare(page, info, `sched-exec-off-${scheme}`);
     });
 
-    test(`classic ${scheme}: on, one row per phase`, async ({ page }, info) => {
+    test(`classic ${scheme} is pixel-stable: on, one row per phase`, async ({ page }, info) => {
       await open(page, scheme, { enabled: true, jobs: reads() });
       await compare(page, info, `sched-exec-rows-${scheme}`);
     });

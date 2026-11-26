@@ -235,7 +235,23 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
                        # join.session.call, the reviewed direct-transport path), and port.call carries only its two pinned READS
                        # COMMANDS = (schedules/read_start_v1, schedules/read_status_v1), each only when discovery declares the
                        # wiskey-schedule-reads.v1 contract for it (JoinPort.support)
-                       "wiskey_schedule_reads.py"}, callers
+                       "wiskey_schedule_reads.py",
+                       # 2.53.0 train (RELEASE-2530-TRAIN, after the 2.53 gate at aeb05ad3d): WISKEY-A2-EXEC-2530 - status only (owner A2
+                       # option b). Only through the installed direct join's own session (_JoinPort.call -> join.session.call, the same
+                       # reviewed path as SCHED-READS), and only its three READS (operations_status / _pending / _review); decide /
+                       # execute / preview / cancel are refused before any byte (wiskey_direct_catalog.SCHEDULE_EXECUTION_OWNER_ONLY and
+                       # the port's own READS check). Pinned below.
+                       "wiskey_schedule_execution.py"}, callers
+
+
+def test_the_2530_schedule_execution_caller_sends_only_its_three_reads():
+    """RELEASE-2530-TRAIN: what WISKEY-A2-EXEC-2530 may put on the seam - the three status reads, never an owner action."""
+    from smplwise.services import wiskey_direct_catalog as catalog
+    from smplwise.services import wiskey_schedule_execution as sx
+
+    assert sx.READS == ("schedules/operations_status_v1", "schedules/operations_pending_v1", "schedules/operations_review_v1")
+    assert not set(sx.READS) & sx.NEVER
+    assert catalog.SCHEDULE_EXECUTION_OWNER_ONLY == sx.NEVER
 
 
 def test_the_2400_signing_callers_send_only_their_pinned_commands():

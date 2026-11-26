@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installElectricityMock, PERMS, url } from './electricity-mocks';
+import { settle } from './helpers/settle';
 import { checkMeterName, METER_NAME_MAX } from '../src/electricity/meter-name';
 
 // A friendly name for every meter: asked for when the meter is created (pre-filled from the device / sensor name) and renamed afterwards from the
@@ -151,6 +152,9 @@ test.describe('electricity: renaming a meter', () => {
     const input = page.locator(`${PAGE} elec-meter-card [data-meter-rename-dialog] [data-rename-input]`);
     await expect(input).toBeVisible();
     await expect(input).toBeFocused();
+    // RELEASE-2530-TRAIN (2.53 gate run 1: 34.67 px, also alone): the sw-dialog box lands from scale(0.96) (FLAKY-FIX-2520 made that
+    // entrance really apply) and 36 x 0.963 = 34.67 - the field was measured mid-landing. Read the geometry at rest.
+    await settle(page);
     const box = await input.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
   });

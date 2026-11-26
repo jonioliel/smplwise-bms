@@ -347,6 +347,9 @@ POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.", "access.station_")
 # fail closed like the families above) and how long the audit is kept (an archive must never shorten it)
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_listen", "access.station_media", "access.station_media_max_talk_s",
                                  "access.station_media_provider", "audit.retention_days"}
+# WISKEY-MEDIA-V2-2530 (classified by RELEASE-2530-TRAIN after the 2.53 gate): which signed protocol carries station video / talk /
+# listen (system administrator only, needs bridge 0.10.9+) - station media policy like the keys above; an archive never switches it
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_media_direct_v2"}
 SETTINGS_TRAVEL = frozenset({"remote.default_profile", "remote.wall_profile", "remote.max_live_streams", "remote.mse_fallback"})
 
 # CORE-02 (DEEP-REVIEW-2520-BACKEND-CORE): when the automatic daily backup last ran and which archive was last handed to the off-box
