@@ -14,6 +14,8 @@
  *   placeholder - (I18N-EN-2490) an entry whose `{name}` placeholders differ from the Hebrew (a value would be lost or shown raw);
  *                the tickets module's term tokens ({ticket}, {the_tickets}, {module} ..., filled by tickets/naming.ts in every
  *                language) do not count
+ *   script     - (I18N-ARRU-2550, --lang ar / ru only) an entry in the other language's letters (Cyrillic in an Arabic text, Arabic
+ *                in a Russian one): a word pasted into the wrong table
  * Part 1b - source-text tables (frontend/src/i18n/msg.ts): the Hebrew text is the key. The keys are the plain literals passed
  * to `tr(...)` in the files that import the module's table (`src/i18n/msg/<module>.ts`); a key the table lacks is missing.
  * Part 2 - hard-coded text. Hebrew string and template literals in source files that register no catalogue (they ignore the
@@ -51,6 +53,8 @@ const HEB = /[֐-׿]/;
 const TERM_TOKENS = new Set(['the_tickets', 'the_ticket', 'tickets', 'ticket', 'module']);
 const placeholders = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).filter((n) => !TERM_TOKENS.has(n)))].sort().join(',');
 const LETTER = /[A-Za-z֐-׿؀-ۿЀ-ӿ]/;
+// I18N-ARRU-2550: the letters that never belong in the target language's text (frontend/tests/unit-i18n-arru-completeness-2550.spec.ts)
+const FOREIGN = { ar: /[Ѐ-ӿ]/, ru: /[؀-ۿ]/ }[LANG] ?? null;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -109,7 +113,7 @@ function flatten(table, prefix = '', out = {}) {
 function catalogueRow(cat) {
   const he = flatten(cat.tables.he);
   const target = cat.tables[LANG] ? flatten(cat.tables[LANG]) : null;
-  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, placeholder: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [], missingKeys: [], placeholderKeys: [] };
+  const row = { name: cat.name, keys: 0, missing: 0, identical: 0, hebrew: 0, gap: 0, placeholder: 0, hasTable: !!target, devMarked: cat.devMarked.includes(LANG), gapKeys: [], missingKeys: [], placeholderKeys: [], scriptKeys: [] };
   for (const [key, heText] of Object.entries(he)) {
     row.keys++;
     const v = target ? target[key] : undefined;
@@ -124,6 +128,7 @@ function catalogueRow(cat) {
       row.placeholder++;
       row.placeholderKeys.push(key);
     }
+    if (v !== undefined && FOREIGN && FOREIGN.test(v)) row.scriptKeys.push(key);
     const shown = v ?? heText;
     if (HEB.test(shown)) {
       row.gap++;
@@ -142,6 +147,8 @@ function unescape(s) {
 }
 function msgRows(catalogues) {
   const tables = new Map(catalogues.filter((c) => c.name.startsWith('msg/')).map((c) => [c.name, flatten(c.tables[LANG] ?? {})]));
+  // I18N-ARRU-2550: a source-text table without a table of LANG (every one has English; none has Arabic / Russian) says so
+  const withTable = new Set(catalogues.filter((c) => c.name.startsWith('msg/') && c.tables[LANG]).map((c) => c.name));
   const used = new Map([...tables.keys()].map((k) => [k, new Set()]));
   for (const p of files) {
     const src = readFileSync(p, 'utf8');
@@ -161,7 +168,7 @@ function msgRows(catalogues) {
     const unused = Object.keys(en).filter((k) => !used.get(name).has(k));
     // every entry of the table, used or not (a key read through a variable is not seen by the scan above)
     const placeholderKeys = Object.keys(en).filter((k) => placeholders(en[k]) !== placeholders(k));
-    return { name, keys: keys.length, missing: missing.length, identical: 0, hebrew: hebrew.length, gap: missing.length + hebrew.length, placeholder: placeholderKeys.length, hasTable: true, devMarked: false, gapKeys: [...missing, ...hebrew], missingKeys: missing, placeholderKeys, unused: unused.length, unusedKeys: unused };
+    return { name, keys: keys.length, missing: missing.length, identical: 0, hebrew: hebrew.length, gap: missing.length + hebrew.length, placeholder: placeholderKeys.length, hasTable: withTable.has(name), devMarked: false, scriptKeys: [], gapKeys: [...missing, ...hebrew], missingKeys: missing, placeholderKeys, unused: unused.length, unusedKeys: unused };
   });
 }
 

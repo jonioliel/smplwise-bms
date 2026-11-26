@@ -19,8 +19,9 @@ test('run log strings: Hebrew and English complete, placeholders match, no platf
   expect(GLT_DEV_MARKED).toEqual(['ar', 'ru']);
   expect(glt('page_of', { p: 2, n: 5 }, 'he')).toBe('עמוד 2 מתוך 5');
   expect(glt('kind_mains_failure', undefined, 'ar')).toBeTruthy();
-  // a key without a Russian word falls back to Hebrew (GEN-UNITS-ARRU-2530 gave the settings words - setIntro among them - Russian words)
-  expect(glt('why_none', undefined, 'ru')).toBe(GLT_TABLES.he.why_none);
+  // I18N-ARRU-2550: every key has its Arabic / Russian now (the Hebrew fallback itself is unit-i18n-core.spec.ts)
+  expect(glt('why_none', undefined, 'ru')).toBe('Нет определяющего признака');
+  expect(GLT_KEYS.filter((k) => !GLT_TABLES.ar[k] || !GLT_TABLES.ru[k])).toEqual([]);
   expect(glt('setIntro', undefined, 'ru')).not.toBe(GLT_TABLES.he.setIntro);
   // every setting of the server's LOG_SPECS has its label
   for (const k of ['min_run_s', 'mains_lookback_s', 'test_min_minutes', 'test_max_minutes', 'classify_unloaded_as_test', 'test_interval_days', 'no_data_close_min',
