@@ -241,3 +241,23 @@ Fixed in `788bc6c5b`, each at its root cause (41 flaky ones - failed once, passe
 
 `lint_spec_waits.py --new-since bf4e6da76` (the settle lint of the gate): 0 findings in 15 files (PC). Runner run G: section 9.
 
+## 9. Runner run G at `b85eded27` (after the fixes and rows 15-17; `~/work/p2520_t2530_g.sh`, results `~/work/p2530g-out`)
+
+| check | exit | result |
+|---|---|---|
+| `lint_spec_waits.py --new-since bf4e6da76` (the gate's settle lint) | 0 | 0 findings in 15 files |
+| `gen_wire_types --check` / `error_contract_inventory --check` / `i18n_backend_errors` / `lint_backend --strict` / `design_ratchet` / `release_check` | 0 each | match / 0 legacy 422 / 0 without English, 0 run-time / 0 findings / no count above the baseline / ready for the owner's approval |
+| gate self-tests from the tree | 0 x 3 | SELFTEST PASSED x3 (engine_sync hermetic since row 15) |
+| the gate's three failed backend files, one process each: `test_gate_speed` / `test_secfix_restore_settings_2520` / `test_t06_admission_295` | 0 / 0 / 0 | **19 passed / 21 passed / 64 passed, 3 xfailed** |
+| `test_fixture_job` 16, `test_backup` 8, `test_backup_sensitive` 32, `test_wiskey_schedule_execution_2530` 21, `test_release_check` 3, `test_release_bundle_version_2520` 6 | 0 each | all passed |
+| `tsc` app / tests + scripts; `npm run lint`; build | 0 each | 0 / 0 errors; clean; built |
+| **`unused-exports --enforce`** / bundle budget / lazy tags / i18n-split `--dry` | 0 each | **no export outside the baseline** / OK / OK / moved 0 |
+| Node unit suite | 1 | 5343 passed, 3 failed = `unit-mfa-passkeys-2490` x3 (the known node-only harness), 13 skipped |
+| `electricity-meter-rename` desktop + mobile `--repeat-each=3` | 0 | **42 passed** |
+| `evidence-player-error-text-2530` + `unit-player-error-text-2530` desktop + mobile | 0 | 25 passed, 7 skipped |
+| `pixel-wiskey-schedule-exec-2530` / `pixel-player-error-text-2530` with the gate's own `--grep pixel-stable`, `--workers=1` | 0 / 0 | **8 passed / 4 passed** (was "No tests found" for the first) |
+| `fixture_job.py evidence-nvrless-cameras-2412` (all its groups, desktop / tablet / mobile) | 0 | nvrless_cameras 14 / 0, its stage s1 and nvrless_recorder PASS, 0 flaky |
+
+Then the shipped UI rebuilt at `130ca5213` (the code of `b85eded27`), commit after this note - archive sha256 `ad50c457...0014`, arx-shell-2.53.0, 0
+maps; `release_check.py` "ready for the owner's approval". HOME-SCROLL-3-2530 is NOT on this train (lead: to 2.54, its spec is flaky).
+
