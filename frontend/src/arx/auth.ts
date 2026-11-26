@@ -114,6 +114,15 @@ function saveTokens(t: ArxTokens): void {
 let memory: ArxTokens | null = null;
 const currentTokens = () => memory ?? loadTokens();
 
+/** CLIENT-RESILIENCE-2540 (review FC-03): a NEW sign-in replaces the one this browser stored - the old refresh token is revoked at the
+ * sign-in service (best effort) instead of staying valid there until its own expiry with no device holding it. The same refresh token
+ * (a refresh that met the second factor, then answered) is kept as it is. */
+function adoptSignIn(t: ArxTokens): void {
+  const prev = currentTokens();
+  saveTokens(t);
+  if (prev?.refresh_token && prev.refresh_token !== t.refresh_token) void revoke(prev.refresh_token);
+}
+
 function clearTokens(): void {
   memory = null;
   for (const s of [window.localStorage, window.sessionStorage]) {
@@ -426,7 +435,7 @@ async function answerPending(answer?: string): Promise<ExchangeResult> {
     pendingOffer = null;
     pendingEnrol = null;
     t.user_id = r.user.id;
-    saveTokens(t);
+    adoptSignIn(t);
     seedHassTokens(t);
     markActivity();
     return r;
@@ -498,7 +507,7 @@ export async function completeSignIn(flow: LoginFlow, code: string): Promise<Exc
   try {
     const r = await exchange(t);
     t.user_id = r.user.id;
-    saveTokens(t);
+    adoptSignIn(t); // CLIENT-RESILIENCE-2540: the sign-in stored before (if any) is revoked, never orphaned
     seedHassTokens(t); // D6: the WisKey frame opens signed in
     markActivity();
     return r;
@@ -522,14 +531,29 @@ export async function completeSignIn(flow: LoginFlow, code: string): Promise<Exc
 // ---------------------------------------------------------------- refresh loop
 
 let refreshTimer = 0;
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 
-/** Refresh the HA access token (our client id), re-seed HA's entry when it is still ours, re-exchange the cookie. */
+/**
+ * CLIENT-RESILIENCE-2540 (review FC-03): why a refresh (or a resume) did not renew the session. `ok` = renewed; `retry` = the sign-in
+ * service or the server could not be reached, or said "try again" (no connection, a 5xx) - the sign-in is KEPT and a retry is armed;
+ * `ended` = the sign-in is over (refused, revoked, no tokens, or the second factor is asked again). Only `ended` shows the sign-in page.
+ */
+export type RefreshOutcome = 'ok' | 'retry' | 'ended';
+
+/** A failure that means "not reachable right now", never "signed out". */
+const unreachable = (err: unknown): boolean => err instanceof ArxAuthError && (err.code === 'network' || (err.status ?? 0) >= 500);
+
+/** Refresh the HA access token (our client id), re-seed HA's entry when it is still ours, re-exchange the cookie. True = renewed. */
 export function refreshNow(): Promise<boolean> {
+  return refreshOutcome().then((r) => r === 'ok');
+}
+
+/** refreshNow() with the reason (CLIENT-RESILIENCE-2540): the 401 handler and the start-up tell "unreachable" from "ended". */
+export function refreshOutcome(): Promise<RefreshOutcome> {
   if (refreshing) return refreshing;
-  refreshing = (async () => {
+  refreshing = (async (): Promise<RefreshOutcome> => {
     const t = currentTokens();
-    if (!t) return false;
+    if (!t) return 'ended';
     try {
       const fresh = tokensFrom(await tokenRequest({ grant_type: 'refresh_token', refresh_token: t.refresh_token }), t.refresh_token);
       fresh.user_id = t.user_id;
@@ -543,21 +567,21 @@ export function refreshNow(): Promise<boolean> {
           pendingFactor = fresh;
           noteOffer(e);
           onSignedOut?.('expired');
-          return false;
+          return 'ended';
         }
         throw e;
       }
       saveTokens(fresh);
       seedHassTokens(fresh, true);
       schedule();
-      return true;
+      return 'ok';
     } catch (err) {
       // no connection, or the server says "try again" (5xx - e.g. 503 remote_unavailable / ha_unavailable): keep the
       // sign-in and retry; only an explicit refusal ends it (CR-008 P2 review follow-up)
-      if (err instanceof ArxAuthError && (err.code === 'network' || (err.status ?? 0) >= 500)) {
+      if (unreachable(err)) {
         window.clearTimeout(refreshTimer);
         refreshTimer = window.setTimeout(() => void refreshNow(), 30_000);
-        return false;
+        return 'retry';
       }
       if (err instanceof ArxAuthError && err.status === 403) await revoke(t.refresh_token); // the policy refused this user
       if (err instanceof ArxAuthError && err.code === 'remote_session_revoked') {
@@ -571,12 +595,16 @@ export function refreshNow(): Promise<boolean> {
       }
       clearTokens();
       clearHassTokens(clientId(), t.refresh_token);
-      return false;
-    } finally {
-      refreshing = null;
+      return 'ended';
     }
   })();
-  return refreshing;
+  // CLIENT-RESILIENCE-2540: cleared once settled - also when it settled at once (no tokens): an inner `finally` ran before this
+  // assignment then, and the settled answer stayed shared with every later refresh
+  const p = refreshing;
+  p.finally(() => {
+    if (refreshing === p) refreshing = null;
+  }).catch(() => undefined);
+  return p;
 }
 
 function schedule(): void {
@@ -593,22 +621,24 @@ function schedule(): void {
 
 let onSignedOut: ((reason: SignOutReason) => void) | null = null;
 
-/** Resume a stored sign-in: refresh when the access token is near its end, then (re-)exchange the cookie. False = show
- * the sign-in page; an ArxAuthError = show it with that message (the policy refused this user). */
-export async function resume(): Promise<boolean> {
+/** Resume a stored sign-in: refresh when the access token is near its end, then (re-)exchange the cookie. `ended` = show the sign-in
+ * page; an ArxAuthError = show it with that message (the policy refused this user). CLIENT-RESILIENCE-2540 (review FC-03): `retry` =
+ * the sign-in service or the server could not be reached (an installed app opened without a connection, a restart) - the stored
+ * sign-in is kept and the start-up shows "no connection, trying again" instead of the sign-in form. */
+export async function resume(): Promise<RefreshOutcome> {
   const t = loadTokens();
-  if (!t) return false;
+  if (!t) return 'ended';
   memory = t;
   if (idleExpired()) {
     await logout('idle');
-    return false;
+    return 'ended';
   }
-  if (t.expires - Date.now() < REFRESH_BEFORE_MS) return refreshNow();
+  if (t.expires - Date.now() < REFRESH_BEFORE_MS) return refreshOutcome();
   try {
     await exchange(t);
     seedHassTokens(t, true);
     schedule();
-    return true;
+    return 'ok';
   } catch (err) {
     if (err instanceof ArxAuthError && err.status === 403) {
       await logout('logout', 'unknown'); // no remote access (any more): the stored sign-in is revoked (not the user's intent: SX-09)
@@ -619,7 +649,8 @@ export async function resume(): Promise<boolean> {
       noteOffer(err);
       throw err;
     }
-    if (err instanceof ArxAuthError && err.status === 401) return refreshNow();
+    if (err instanceof ArxAuthError && err.status === 401) return refreshOutcome();
+    if (unreachable(err)) return 'retry'; // the exchange did not reach the server, or it said "try again": the sign-in stays
     throw err;
   }
 }

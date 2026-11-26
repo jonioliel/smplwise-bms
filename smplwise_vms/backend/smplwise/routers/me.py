@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request, WebSocket
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from starlette.concurrency import run_in_threadpool
 
+from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..capabilities import may_see_recorders, resolve as resolve_capabilities
 from ..db import Database, get_setting, now_iso, permission_revision
@@ -281,7 +282,9 @@ async def me_ws(websocket: WebSocket) -> None:
     listen = asyncio.create_task(reader())
     frames = user_events.subscribe(principal.user_id)  # CR-018: notification / notification_state / notify_summary for THIS user only
     try:
-        await send("hello", state)
+        # CLIENT-RESILIENCE-2540 (review FC-06, additive): the running add-on version beside the fingerprint. The socket reconnects on
+        # every add-on restart (an update included), so an open page compares it with its own bundle and offers a reload - never forced.
+        await send("hello", {**state, "build": __version__})
         while not listen.done():
             await asyncio.sleep(1)
             while True:

@@ -48,6 +48,11 @@ export const MIN_GAP_MS = 5_000;
 export const NUDGE_GAP_MS = 15_000;
 export const STAGGER_MS = 300;
 export const MAX_BACKOFF_MS = 300_000;
+/** CLIENT-RESILIENCE-2540 (review FC-05): a read still running after max(STALL_MIN_MS, STALL_PERIODS x its period) no longer holds its
+ * source: it counts as a failure, the source is armed again, and its late answer is ignored. The API client's own deadline
+ * (api/client.ts GET_DEADLINE_MS) normally ends such a read first; this covers a source that reads by other means. */
+export const STALL_MIN_MS = 180_000;
+const STALL_PERIODS = 5;
 const JITTER = 0.1;
 
 function browserEnv(): LiveEnv {
@@ -86,6 +91,9 @@ interface Slot {
   lastStart: number;
   lastOk: number;
   failures: number;
+  /** CLIENT-RESILIENCE-2540: the number of the read in flight (a stalled read given up on keeps an older number) and its watchdog. */
+  run: number;
+  watchdog: unknown;
 }
 
 export class LiveController {
@@ -100,7 +108,7 @@ export class LiveController {
   }
 
   add(src: LiveSource): this {
-    this.slots.set(src.id, { src, timer: null, running: false, queued: false, lastStart: 0, lastOk: 0, failures: 0 });
+    this.slots.set(src.id, { src, timer: null, running: false, queued: false, lastStart: 0, lastOk: 0, failures: 0, run: 0, watchdog: null });
     if (this.started) this.arm(this.slots.get(src.id)!);
     return this;
   }
@@ -109,6 +117,7 @@ export class LiveController {
     const s = this.slots.get(id);
     if (!s) return;
     this.env.clearTimeout(s.timer);
+    this.env.clearTimeout(s.watchdog);
     this.slots.delete(id);
   }
 
@@ -131,6 +140,7 @@ export class LiveController {
     for (const s of this.slots.values()) {
       this.env.clearTimeout(s.timer);
       s.timer = null;
+      // a read in flight keeps its watchdog: a stalled one is still given up on, so a later start() is never blocked by it
     }
   }
 
@@ -230,16 +240,14 @@ export class LiveController {
     }, this.period(s));
   }
 
-  private async runSlot(s: Slot): Promise<void> {
-    if (s.running) return;
-    s.running = true;
-    s.lastStart = this.env.now();
-    let ok = true;
-    try {
-      ok = (await s.src.run()) !== false;
-    } catch {
-      ok = false;
-    }
+  /** CLIENT-RESILIENCE-2540: how long one read of `s` may run before the controller stops waiting for it. */
+  private stallMs(s: Slot): number {
+    const base = typeof s.src.pollMs === 'function' ? s.src.pollMs() : s.src.pollMs;
+    return Math.max(STALL_MIN_MS, STALL_PERIODS * (Number.isFinite(base) ? base : 0));
+  }
+
+  /** One read ended (`ok`), or was given up on: the bookkeeping, the listeners, the next poll. */
+  private settle(s: Slot, ok: boolean): void {
     s.running = false;
     if (ok) {
       s.lastOk = this.env.now();
@@ -247,6 +255,31 @@ export class LiveController {
     } else s.failures++;
     this.emit();
     this.arm(s);
+  }
+
+  private async runSlot(s: Slot): Promise<void> {
+    if (s.running) return;
+    s.running = true;
+    s.lastStart = this.env.now();
+    const token = ++s.run;
+    // FC-05: a read that never settles (a half-open connection) used to hold the source for good - no poll, no resume, no retry button
+    this.env.clearTimeout(s.watchdog);
+    s.watchdog = this.env.setTimeout(() => {
+      s.watchdog = null;
+      if (s.run !== token || !s.running) return;
+      s.run++; // its late answer is ignored
+      this.settle(s, false);
+    }, this.stallMs(s));
+    let ok = true;
+    try {
+      ok = (await s.src.run()) !== false;
+    } catch {
+      ok = false;
+    }
+    if (s.run !== token) return; // given up on meanwhile: a newer read owns the source
+    this.env.clearTimeout(s.watchdog);
+    s.watchdog = null;
+    this.settle(s, ok);
   }
 
   private resume(fromOnline: boolean): void {

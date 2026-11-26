@@ -4,7 +4,9 @@
  * shell exactly as under Ingress (same API, same principal model, same screens).
  */
 import { setUnauthorizedHandler } from '../api/client';
-import { ArxAuthError, dropOrphanSeed, loadRemoteConfig, nativeReasonOf, refreshNow, remoteConfig, resume, startBackground, takeSignOutReason } from './auth';
+import { ArxAuthError, dropOrphanSeed, loadRemoteConfig, nativeReasonOf, refreshOutcome, remoteConfig, resume, startBackground, takeSignOutReason, type RefreshOutcome } from './auth';
+import type { ArxReconnect } from './arx-reconnect';
+import './arx-reconnect'; // in the start-up chunk itself: it is shown exactly when nothing more can be fetched
 import { notifyNativeSignedOut } from './native-app';
 import { mountShell } from './pre-gate';
 import { inAndroidApp } from './android-app';
@@ -27,10 +29,12 @@ async function startApp(): Promise<void> {
   started = true;
   document.documentElement.setAttribute('data-channel', 'remote');
   // a 401 mid-session: refresh + re-exchange once; if that fails the sign-in has ended
+  // CLIENT-RESILIENCE-2540 (review FC-03): only when it ENDED - with the sign-in service unreachable (no connection, a 5xx while the
+  // platform restarts) the sign-in is kept, the request fails like an offline one and the refresh retries by itself
   setUnauthorizedHandler(async () => {
-    const ok = await refreshNow();
-    if (!ok) window.location.reload();
-    return ok;
+    const r = await refreshOutcome();
+    if (r === 'ended') window.location.reload();
+    return r === 'retry' ? 'unreachable' : r === 'ok';
   });
   startBackground((reason) => {
     notifyNativeSignedOut(nativeReasonOf(reason)); // SX-10: a no-op when logout() already told the shell
@@ -68,6 +72,84 @@ function showWelcome(token: string): void {
   document.body.appendChild(page);
 }
 
+/** CLIENT-RESILIENCE-2540 (FC-03): the waits between two tries of a stored sign-in while it cannot be checked (then every 30 s). */
+const RECONNECT_MS = [5_000, 10_000, 20_000, 30_000] as const;
+
+let reconnect: { el: ArxReconnect; timer: number; attempt: number; online: () => void } | null = null;
+
+function stopReconnect(): void {
+  if (!reconnect) return;
+  window.clearTimeout(reconnect.timer);
+  window.removeEventListener('online', reconnect.online);
+  reconnect.el.remove();
+  reconnect = null;
+}
+
+/** CLIENT-RESILIENCE-2540 (FC-03): the stored sign-in could not be checked (no connection, the sign-in service or the server said "try
+ * again"). The sign-in is valid for its whole period, so the page says "no connection, trying again" - the shell's own offline state -
+ * and tries again on a timer, when the browser is back online and on "try now"; it never falls to the sign-in form for this. */
+function showReconnect(): void {
+  if (!reconnect) {
+    const el = document.createElement('arx-reconnect');
+    const state = { el, timer: 0, attempt: 0, online: () => void tryAgain() };
+    el.addEventListener('arx-reconnect-now', () => void tryAgain());
+    window.addEventListener('online', state.online);
+    document.body.appendChild(el);
+    reconnect = state;
+  }
+  const r = reconnect;
+  window.clearTimeout(r.timer);
+  r.timer = window.setTimeout(() => void tryAgain(), RECONNECT_MS[Math.min(r.attempt, RECONNECT_MS.length - 1)]);
+  r.attempt++;
+}
+
+let trying = false;
+
+async function tryAgain(): Promise<void> {
+  if (trying || !reconnect) return;
+  trying = true;
+  reconnect.el.busy = true;
+  try {
+    await startFromStored();
+  } finally {
+    trying = false;
+    if (reconnect) reconnect.el.busy = false;
+  }
+}
+
+/** The stored sign-in, checked: the shell, the reconnect state, or the sign-in page. */
+async function startFromStored(): Promise<void> {
+  let notice = takeSignOutReason() ?? '';
+  let kind: 'info' | 'error' = 'info';
+  try {
+    const r: RefreshOutcome = await resume();
+    if (r === 'ok') {
+      stopReconnect();
+      await startApp();
+      return;
+    }
+    if (r === 'retry') {
+      showReconnect();
+      return;
+    }
+    // USR2: an Arx-only identity keeps no tokens in this page - its HttpOnly cookie is the session
+    if (remoteConfig().local_identity) {
+      const me = await localMe();
+      if (me && !me.local_identity?.gate) {
+        stopReconnect();
+        await startApp();
+        return;
+      }
+    }
+    notice = takeSignOutReason() ?? notice; // CR-008 P2: resume() itself learnt that this sign-in was revoked
+  } catch (err) {
+    notice = err instanceof ArxAuthError ? err.message : '';
+    kind = 'error';
+  }
+  stopReconnect();
+  showLogin(notice, kind);
+}
+
 export async function bootRemote(): Promise<void> {
   inAndroidApp(); // CR-008 §9: record `?app=android` for this tab before any route change, and drop it from the address
   registerWorker();
@@ -78,25 +160,5 @@ export async function bootRemote(): Promise<void> {
     return;
   }
   dropOrphanSeed();
-  let notice = takeSignOutReason() ?? '';
-  let kind: 'info' | 'error' = 'info';
-  try {
-    if (await resume()) {
-      await startApp();
-      return;
-    }
-    // USR2: an Arx-only identity keeps no tokens in this page - its HttpOnly cookie is the session
-    if (remoteConfig().local_identity) {
-      const me = await localMe();
-      if (me && !me.local_identity?.gate) {
-        await startApp();
-        return;
-      }
-    }
-    notice = takeSignOutReason() ?? notice; // CR-008 P2: resume() itself learnt that this sign-in was revoked
-  } catch (err) {
-    notice = err instanceof ArxAuthError ? err.message : '';
-    kind = 'error';
-  }
-  showLogin(notice, kind);
+  await startFromStored();
 }

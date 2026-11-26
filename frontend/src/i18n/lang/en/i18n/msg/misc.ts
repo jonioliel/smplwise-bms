@@ -9,6 +9,7 @@ export const en = {
   'גרסה חדשה של Arx זמינה': 'A new version of Arx is available',
   'רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.': 'Refresh to switch to it; what is open stays in the address.',
   'רענון': 'Refresh',
+  'אחר כך': 'Later', // CLIENT-RESILIENCE-2540: the update card hides until the next new version
   'התקן את Arx': 'Install Arx',
   'אפליקציה במסך הבית או בשולחן העבודה: פתיחה מהירה, מסך מלא והתראות.': 'An app on the home screen or desktop: quick to open, full screen and notifications.',
   'התקנה': 'Install',
@@ -139,6 +140,10 @@ export const en = {
   'חזרה לכניסה': 'Back to sign-in',
   'הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.': 'The password is checked against the platform and is not stored in Arx; your permissions are the same as in the system.',
   'החלף שרת': 'Switch server',
+  // arx/arx-reconnect.ts (CLIENT-RESILIENCE-2540): a stored sign-in that cannot be checked right now ('אין חיבור לשרת' is below)
+  'הכניסה שלך נשמרה. מנסה להתחבר שוב…': 'Your sign-in is kept. Trying to connect again…',
+  'מנסה להתחבר…': 'Connecting…',
+  'נסה עכשיו': 'Try now',
 
   // wall/sw-wall.ts: the wall screen
   'נסגר': 'Closed',

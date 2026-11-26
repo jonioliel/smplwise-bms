@@ -22,9 +22,74 @@ interface PwaState {
   updateReady: boolean;
   installEvent: InstallPromptEvent | null;
   installed: boolean;
+  /** CLIENT-RESILIENCE-2540 (FC-06): the add-on version the server says it runs, when it differs from this page's bundle; else null. */
+  serverBuild: string | null;
 }
 
-export const pwa: PwaState = { registration: null, updateReady: false, installEvent: null, installed: false };
+export const pwa: PwaState = { registration: null, updateReady: false, installEvent: null, installed: false, serverBuild: null };
+
+/** CLIENT-RESILIENCE-2540 (owner answer to question 4 = a): "אחר כך" on the update card hides it until the NEXT new version. The version
+ * that was put off is kept per browser (localStorage, every access in try/catch: a locked-down browser just shows the card again). A
+ * waiting service worker whose version the page does not know (no server hello yet) is put off for this page only. */
+const UPDATE_LATER_KEY = 'arx.pwa.update.later';
+/** What this page put off ('*' = a version it does not know); also the fallback when storage is not available. */
+let laterThisPage: string | null = null;
+
+function laterBuild(): string | null {
+  try {
+    return localStorage.getItem(UPDATE_LATER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Show the update card: a new version is there and it was not put off. */
+export function showUpdate(): boolean {
+  if (!pwa.updateReady) return false;
+  const version = pwa.serverBuild ?? '*';
+  return laterThisPage !== version && !(pwa.serverBuild && laterBuild() === pwa.serverBuild);
+}
+
+/** "אחר כך": hide the update card until another version appears. */
+export function updateLater(): void {
+  laterThisPage = pwa.serverBuild ?? '*';
+  if (pwa.serverBuild) {
+    try {
+      localStorage.setItem(UPDATE_LATER_KEY, pwa.serverBuild);
+    } catch {
+      /* no storage: this page stays quiet; another page shows the card again */
+    }
+  }
+  changed();
+}
+
+/** This page's bundle version (vite.config.ts `__ARX_BUILD__`, the add-on version); '' when the build defined none. */
+function ownBuild(): string {
+  try {
+    return typeof __ARX_BUILD__ === 'string' ? __ARX_BUILD__ : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * CLIENT-RESILIENCE-2540 (review FC-06): a page left open across an add-on update (an operator desk, a wall tablet, a kiosk; or a plain
+ * http address with no service worker) kept running the old bundle against the new API for days - nothing compared the two. The
+ * server names its version in the first frame of every `/me/ws` connection (`hello.build`; the socket reconnects on every add-on
+ * restart). Another version than this bundle's raises the SAME quiet notice as a waiting service worker ("גרסה חדשה של Arx זמינה" +
+ * "רענון"); nothing reloads by itself (owner rule: default = today's behaviour). The worker, when there is one, is asked to look for
+ * the new release too, so "רענון" takes the usual hand-over. Absent, empty, `dev`, or the same version: nothing. True = the notice is up.
+ */
+export function noteServerBuild(server: unknown, own: string = ownBuild()): boolean {
+  if (typeof server !== 'string' || !server || server.length > 64 || !own || own === 'dev') return false;
+  if (server === own) return false;
+  if (pwa.serverBuild === server && pwa.updateReady) return true;
+  pwa.serverBuild = server;
+  pwa.updateReady = true;
+  changed();
+  void pwa.registration?.update().catch(() => undefined);
+  return true;
+}
 const listeners = new Set<() => void>();
 
 export function onPwa(fn: () => void): () => void {
