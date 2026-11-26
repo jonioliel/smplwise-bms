@@ -2,7 +2,6 @@
 
 ## 2.53.0 (pilot) - getting started and support, approval on the phone, my account in the home interface, a resource budget
 
-<!-- RELEASE-2530-TRAIN: DRAFT - the train coordinator's working list, not the final release text; the lead writes the final bilingual text at release. The word DRAFT is kept out of the heading (as on the 2.52 train) so scripts/release_check.py reads 2.53.0 as the CHANGELOG head while the version files are 2.53.0. -->
 
 ### חדש - New
 - תחילת עבודה: רשימת צעדים להתקנה חדשה (אשף ההתקנה ובדיקות המוכנות לפי הסדר), דלוקה רק בהתקנה חדשה; מנהל יכול להפעיל או לכבות אותה, וכל משתמש יכול להסתיר אותה. - Getting started: a checklist for a new installation (the setup wizard and the readiness checks in order), on only for a fresh installation; an administrator can turn it on or off and every user can hide it.
@@ -17,13 +16,17 @@
 - WisKey: אחרי סירוב של החיבור הישיר בגרסה 2, גם תפיסת העמדה וכתיבת ההרשאות לא עוברות לדרך אחרת. - WisKey: after a refusal of the direct transport v2, the station capture and the access-grant writes no longer switch to another path either.
 - WisKey: המערכת מזהה גם עצי WisKey מותקנים בגרסאות rc.20, rc.19 ו-rc.17 שפורסמו (לפי טביעה מדויקת); עץ אחר נשאר "לא ידוע". - WisKey: installed WisKey trees of the published rc.20, rc.19 and rc.17 are recognised too (by exact digest); any other tree stays "unknown".
 - WisKey: מצב הביצוע של תזמון שנשלח לאישור הבעלים ב-WisKey מוצג בספריית התזמונים, לקריאה בלבד (כבוי כברירת מחדל); Arx לא מאשר ולא מבצע. - WisKey: the execution status of a schedule sent for the owner's approval in WisKey is shown in the schedule library, read only (off by default); Arx never approves or executes.
-- מסך הבית לא גולל גם במסכים נמוכים (1366x768, 1280x800, 1024x768) בכל הכיוונים והתצוגות. - The home screen no longer scrolls on low screens either (1366x768, 1280x800, 1024x768), in every direction and view.
+- מסך הבית לא גולל גם במסכים נמוכים (1366x768, 1280x800, 1024x768) בסגנון המידע הרגיל, בכל הכיוונים והתצוגות. - The home screen no longer scrolls on low screens either (1366x768, 1280x800, 1024x768) in the default information style, in every direction and view.
 - גנרטור: מילות היחידה ותוויות השדות בהגדרות הגנרטור וביומן ההפעלות גם בערבית וברוסית. - Generator: the unit words and field labels of the generator and run-log settings in Arabic and Russian too.
 - נגני מדיה: נגן שעדיין מקובץ בקבוצה אחרת לא מדווח כמי שעזב את הקבוצה. - Media players: a player still grouped elsewhere is not reported as having left the group.
 - תקציב משאבים כתוב ובדיקת עומס אוטומטית שנכשלת מעליו (לצוות הפיתוח). - A written resource budget and an automated load run that fails above it (for the development team).
 
+### תוקן - Fixed
+- נגן השידור החי וההקלטות: שגיאות של שרת הווידאו מוצגות כמשפט ברור (למשל "שרת הווידאו לא הצליח לקבל את השידור מהמצלמה") במקום קוד טכני. - Live and recording player: video server errors show as a clear sentence (for example "The video server could not get the stream from the camera") instead of a technical code.
+
 ### התקנה - Install
 - אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.52.0). - No new migration. The bridge stays 0.10.9 (as in 2.52.0).
+- אין צורך להפעיל מחדש את מערכת הבית. חזרה ל-2.52.0: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.52.0 -> 2.53.0". - No home system restart is needed. Rollback to 2.52.0: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.52.0 -> 2.53.0".
 
 ## 2.52.0 (pilot) - WisKey rc.19/rc.20 adoption and bridge 0.10.9; security and backup fixes from a deep code review; English everywhere; filtering by building in the home interface
 

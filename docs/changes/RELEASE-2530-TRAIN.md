@@ -261,3 +261,21 @@ Fixed in `788bc6c5b`, each at its root cause (41 flaky ones - failed once, passe
 Then the shipped UI rebuilt at `130ca5213` (the code of `b85eded27`), commit after this note - archive sha256 `ad50c457...0014`, arx-shell-2.53.0, 0
 maps; `release_check.py` "ready for the owner's approval". HOME-SCROLL-3-2530 is NOT on this train (lead: to 2.54, its spec is flaky).
 
+
+## 10. Release gate result and release (lead, 26.11)
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | `aeb05ad3d` | full | 211 min | FAIL - 0 hard, 6 test failures (fixed in `788bc6c5b`, section 8) |
+| 2 | `5613a0ace` | `--after` run 1, default derived cap 4059 s | 65 min | FAIL - budget exhausted under runner load (every failure a timeout / no report; no test assertion failed) |
+| 3 | `5613a0ace` | `--after` run 1, `GATE_TOTAL_SECS=10800` | 125 min | **PASS** - 0 hard, 0 test failures, 24 flaky (failed once, passed alone) |
+
+Run 3 summary: `~/smplwise-results/gate_release-2530-train_5613a0ace.gate2.md` (selection 477/1120 backend files, 490/1301 specs,
+36/64 pixel specs; 17 heavy unchanged specs deferred to the nightly full run).
+
+- Owner approval (chat, 26.11): "כן, לפרסם ולהתקין" - publish and lab install. No migration, bridge unchanged (0.10.9), no Home
+  Assistant restart.
+- Final bilingual CHANGELOG written by the lead (DRAFT marker removed; the home-scroll line now says "in the default information
+  style", since the "cards" style still scrolled at 1024x768 before HOME-SCROLL-3-2530, which moved to 2.54; a Fixed line for
+  PLAYER-ERROR-TEXT-2530; the rollback note).
+- `scripts/release_check.py`: ready for the owner's approval (only the tag missing).
