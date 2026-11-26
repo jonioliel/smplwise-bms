@@ -29,6 +29,7 @@ import {
 import type { EncodingChanges } from '../api/nvr-settings';
 import { dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/media';
+import { changeArrow } from '../i18n/bidi';
 
 /** The editor's line when "שמור" cannot open the confirmation: the press always answers (owner report 2026-10-04: "nothing happens"). */
 const SAVE_LINE = {
@@ -537,7 +538,7 @@ export class NvrCameraEditor extends LitElement {
       <ol>${list.map(
         (c) => html`<li data-change=${c.id} data-status=${c.status}>
           <span class="when">${this.when(c.created_at)} · ${STATUS_HE[c.status] ?? c.status}</span>
-          <span class="what">${changeFields(c).map((x) => html`<span>${fieldName(x.field)} <bdi>${x.from}</bdi> ← <bdi>${x.to}</bdi></span>`)}</span>
+          <span class="what">${changeFields(c).map((x) => html`<span>${fieldName(x.field)} <bdi>${x.from}</bdi> ${changeArrow()} <bdi>${x.to}</bdi></span>`)}</span>
           ${last && last.id === c.id ? html`<sw-button size="sm" data-nvr-undo-change ?disabled=${this.busy} @click=${() => void this.undo(c.id)}>${tr('בטל')}</sw-button>` : nothing}
         </li>`,
       )}</ol>

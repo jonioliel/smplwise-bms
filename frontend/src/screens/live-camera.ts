@@ -46,6 +46,7 @@ import { castButtonVisible, isLow, leftText } from './cast-logic';
 import { isPhoneWidth } from '../shell/tabs-mode';
 import { t as heT } from '../i18n/he';
 import { tr } from '../i18n/msg/live';
+import { changeText } from '../i18n/bidi';
 import { fx } from '../i18n/frigate-text';
 import { timeText } from '../api/day-format';
 import { liveCameraStyles } from './live-camera-css';
@@ -425,7 +426,8 @@ export class LiveCamera extends LitElement {
 
   private renderSmartEditor() {
     const ed = this.smartEdit!;
-    const dir = (d: string) => ({ any: tr('שני הכיוונים'), 'left-right': tr('שמאל → ימין'), 'right-left': tr('ימין → שמאל') })[d] ?? d;
+    // MEDIUM-REST-2540 (SCR-27): a direction in words - a fixed arrow between two Hebrew words pointed against the reading
+    const dir = (d: string) => ({ any: tr('שני הכיוונים'), 'left-right': tr('משמאל לימין'), 'right-left': tr('מימין לשמאל') })[d] ?? d;
     return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
       <div class="note">${tr('בחר כלל ולחץ על התמונה כדי לצייר: קו =')} <strong>${tr('שתי')}</strong> ${tr('לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה =')} <strong>${tr('4 עד 10')}</strong> ${tr('לחיצות (נקודה לכל פינה), ואז ישר "שמור למקליט" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).')}</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
@@ -828,7 +830,9 @@ export class LiveCamera extends LitElement {
         ? html`<sw-dialog open heading=${tr('כתיבה למקליט: זיהוי תנועה')} subheading=${`${this.cam?.name ?? ''} · ${tr('ערוץ {n}', { n: this.zones?.channel ?? '' })}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">
               <div>${d.added ? tr('+{n} תאים נוספים לזיהוי', { n: d.added }) : ''}${d.added && d.removed ? ' · ' : ''}${d.removed ? tr('−{n} תאים מוסרים', { n: d.removed }) : ''}${!d.added && !d.removed ? tr('הרשת ללא שינוי') : ''}</div>
-              <div>${tr('רגישות:')} ${d.sensitivity ? `${m.sensitivity ?? '—'} → ${e.sensitivity}` : tr('ללא שינוי')} · ${tr('זיהוי:')} ${d.enabled ? (e.enabled ? tr('כבוי → פעיל') : tr('פעיל → כבוי')) : tr('ללא שינוי')}</div>
+              <!-- MEDIUM-REST-2540 (SCR-27): before -> after with each value isolated and the arrow of the reading direction (was "60 → 40"
+                   for 40 -> 60 in Hebrew) -->
+              <div>${tr('רגישות:')} <span data-motion-change="sensitivity">${d.sensitivity ? changeText(m.sensitivity ?? '—', e.sensitivity) : tr('ללא שינוי')}</span> · ${tr('זיהוי:')} <span data-motion-change="enabled">${d.enabled ? (e.enabled ? changeText(tr('כבוי'), tr('פעיל')) : changeText(tr('פעיל'), tr('כבוי'))) : tr('ללא שינוי')}</span></div>
               <div style="margin-block-start:6px;color:var(--sw-text-3)">${tr('המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.')}</div>
             </div>
             <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? tr('כותב…') : tr('כתוב למקליט')}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>${tr('ביטול')}</sw-button></div>

@@ -1,4 +1,5 @@
 /** Bidi helpers for text typed or formatted by someone else that lands inside a right-to-left page. */
+import { currentUiLang } from './ui-lang-boot';
 
 const LRI = '\u2066'; // left-to-right isolate
 const PDI = '\u2069'; // pop directional isolate
@@ -45,4 +46,23 @@ export const CRUMB_SEP = '\u2039';
 /** Joins the steps of a path with the separator that points the reading direction. */
 export function crumbPath(parts: ReadonlyArray<string | null | undefined>): string {
   return parts.filter((p): p is string => !!p).join(` ${CRUMB_SEP} `);
+}
+
+/** MEDIUM-REST-2540 (deep review SCR-27): the arrow of a change "before -> after" in running text points from the value read first to
+ * the value read second. Hebrew reads right to left, so the arrow points left; English points right. Neither arrow mirrors, so a fixed
+ * "→" inside a Hebrew line read "60 → 40" for 40 -> 60, and a fixed "←" read "to ← from" in English. */
+export function changeArrow(rtl: boolean = pageRtl()): string {
+  return rtl ? '\u2190' : '\u2192';
+}
+
+/** The page reads right to left (Hebrew, the default; i18n/ui-lang-boot.ts sets `<html dir>` the same way). */
+function pageRtl(): boolean {
+  return currentUiLang() === 'he';
+}
+
+const FSI = '\u2068'; // first-strong isolate: a value keeps its own direction and never swaps places with its neighbour
+
+/** "before ARROW after" as one string: each value isolated, the arrow by the page's reading direction. */
+export function changeText(from: string | number | null | undefined, to: string | number | null | undefined, rtl: boolean = pageRtl()): string {
+  return `${FSI}${String(from ?? '')}${PDI} ${changeArrow(rtl)} ${FSI}${String(to ?? '')}${PDI}`;
 }

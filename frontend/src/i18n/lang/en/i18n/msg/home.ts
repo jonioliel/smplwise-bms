@@ -1255,4 +1255,6 @@ export const en = {
   'מצב {name} לא ידוע': '{name}: state unknown',
   'מצב הדלתות לא ידוע': "The doors' state is unknown",
   'מצב {length} דלתות לא ידוע': '{length} doors: state unknown',
+  // MEDIUM-REST-2540 (SCR-31): +/- on a unit that is off and offers no other mode
+  '{name} כבוי ואי אפשר להדליק אותו מכאן.': '{name} is off and cannot be turned on from here.',
 };

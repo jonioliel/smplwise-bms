@@ -34,6 +34,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
 import { t as vt } from '../i18n/he';
 import { PollController } from '../components/poll-controller';
+import { CAMERA_REFRESH_MS, mergeById } from './wall-refresh';
 import { tr } from '../i18n/msg/live';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting.
@@ -807,6 +808,9 @@ export class LiveWall extends LitElement {
     this.poller.every('poster', 60_000, () => {
       this.posterBust = Date.now();
     });
+    // MEDIUM-REST-2540 (SCR-26): the wall stays open for days - a camera back online gets its player without a reload (not while the
+    // arrangement dialog is open: it works on the list it was opened with)
+    this.poller.every('cameras', CAMERA_REFRESH_MS, () => this.refreshCameras(), { when: () => this.cams !== null && !this.editingRows });
     this.restartSnapTimer();
   }
 
@@ -816,6 +820,7 @@ export class LiveWall extends LitElement {
     this.offScreenEdit = null;
     this.poller.cancel('poster');
     this.poller.cancel('snap');
+    this.poller.cancel('cameras');
     this.io?.disconnect();
     this.io = undefined;
     this.ioMargin = -1;
@@ -869,6 +874,23 @@ export class LiveWall extends LitElement {
       if (pick) this.count = pick;
     } catch (err) {
       this.error = describeError(err);
+    }
+  }
+
+  /** SCR-26: re-read the camera list and merge it by id (an unchanged camera keeps its object: its tile and stream are left alone). Only
+   * the list - the layout, the count and the settings stay as the person has them. A failed read keeps what is shown. */
+  private async refreshCameras(): Promise<void> {
+    if (!isApi()) return;
+    try {
+      const list = await listCameras();
+      if (!this.isConnected || this.editingRows) return;
+      this.allCams = list.cameras;
+      this.cams = mergeById(this.cams, list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false));
+      this.recorders = mergeById(this.recorders, list.recorders ?? []);
+      if (this.recorderFilter && !this.recorders.some((r) => r.id === this.recorderFilter)) this.recorderFilter = '';
+      this.canManage = list.can_sync;
+    } catch {
+      /* the next tick tries again */
     }
   }
 

@@ -11,7 +11,7 @@ import { loadSession, session } from '../api/session';
 import type { ProductSettings } from '../api/media';
 import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
 import { classifyDevice, readDeviceEnv, watchDeviceClass } from './device-class';
-import { alertView, chipHome, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
+import { alertView, chipHome, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, newBuildAvailable, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
 import { timeText } from '../api/day-format';
 import { tr } from '../i18n/msg/misc';
 import { closeLabel, closeWaitMs, dirOf, headingOf, machineMark, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
@@ -35,6 +35,8 @@ export class SwWall extends LitElement {
   @state() private data: WallDisplayConfig | null = null;
   @state() private states: WallState[] = [];
   @state() private healthOk: boolean | null = null;
+  /** MEDIUM-REST-2540: the server runs another version than this page (the add-on was updated): a quiet notice, nothing reloads by itself */
+  @state() private newBuild = false;
   @state() private now = Date.now();
   @state() private vw = window.innerWidth;
   @state() private vh = window.innerHeight;
@@ -530,6 +532,12 @@ export class SwWall extends LitElement {
       direction: ltr;
       text-align: end;
       font-variant-numeric: tabular-nums;
+    }
+    .newbuild {
+      border: 0;
+      color: inherit;
+      font-family: inherit;
+      cursor: pointer;
     }
     .updated {
       position: absolute;
@@ -1144,7 +1152,9 @@ export class SwWall extends LitElement {
     if (force || now - this.lastHealth > 60_000) {
       this.lastHealth = now;
       try {
-        this.healthOk = (await healthSummary()).status === 'ok';
+        const h = await healthSummary();
+        this.healthOk = h.status === 'ok';
+        if (newBuildAvailable(h.version, typeof __ARX_BUILD__ === 'string' ? __ARX_BUILD__ : '')) this.newBuild = true;
       } catch {
         this.healthOk = null;
       }
@@ -1303,7 +1313,7 @@ export class SwWall extends LitElement {
       ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
       ${this.renderAnnouncement()}
       ${this.panel ? this.renderPanel(data) : nothing}
-      ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>${tr('ההגדרות עודכנו')}</span>` : nothing}
+      ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>${tr('ההגדרות עודכנו')}</span>` : this.newBuild ? html`<button type="button" class="chip updated newbuild" data-wall-new-build @click=${() => location.reload()}>${tr('גרסה חדשה של Arx זמינה')} · ${tr('רענון')}</button>` : nothing}
     </div>`;
   }
 

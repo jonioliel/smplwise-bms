@@ -208,3 +208,14 @@ export const HOLD_MS = 1500;
 export function holdProgress(startedMs: number | null, nowMs: number): number {
   return startedMs === null ? 0 : clamp((nowMs - startedMs) / HOLD_MS, 0, 1);
 }
+
+/** A release version as the add-on reports it (smplwise_vms/config.yaml `version`, e.g. "2.54.0"). */
+const RELEASE = /^\d+\.\d+\.\d+(?:[.+-][0-9A-Za-z.+-]+)?$/;
+
+/** MEDIUM-REST-2540: the add-on was updated under an open wall display - the server's version (the health summary's `version`, the same
+ * value the build bakes in as `__ARX_BUILD__`) differs from this page's. As the main application's update card (CLIENT-RESILIENCE-2540,
+ * pwa/register.ts `noteServerBuild`): no version, a development build or the same version is not a new one; here both must also read as a
+ * release version (a test backend's "test" is not one). */
+export function newBuildAvailable(server: unknown, own: string): boolean {
+  return typeof server === 'string' && server.length <= 64 && RELEASE.test(server) && RELEASE.test(own) && server !== own;
+}
