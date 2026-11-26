@@ -109,7 +109,8 @@ export class SystemSetup extends LitElement {
   /** SETUPPLAN-POLISH-2331: the tone of the three result lines (sysMsg, notifyResult, wiskeyMsg) - set with the text, never guessed from it. */
   /** true = ok, false = failed (red), 'warn' = a physical action whose outcome is unknown (amber; PHYSICAL-CONFIRM-2540). */
   @state() private sysOk: boolean | 'warn' = true;
-  @state() private notifyOk = true;
+  /** 'warn' (amber): a revert the server refused without writing anything (LISTENER-DEADLINE-2540). */
+  @state() private notifyOk: boolean | 'warn' = true;
   @state() private wiskeyOk = true;
 
   /** A result line in the settings vocabulary (.msg: a tinted pill with its icon; styles/settings.ts), the screen's hook kept. */
@@ -119,7 +120,10 @@ export class SystemSetup extends LitElement {
       const tone = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err';
       return html`<div class=${`msg ${tone}`} role=${ok === true ? 'status' : 'alert'} data-nvr-system-msg=${tone}>${icon}${text}</div>`;
     }
-    if (hook === 'data-nvr-result') return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-nvr-result>${icon}${text}</div>`;
+    if (hook === 'data-nvr-result') {
+      const tone = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err';
+      return html`<div class=${`msg ${tone}`} role=${ok === true ? 'status' : 'alert'} data-nvr-result=${tone}>${icon}${text}</div>`;
+    }
     return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-wiskey-cred-msg>${icon}${text}</div>`;
   }
 
@@ -485,20 +489,51 @@ export class SystemSetup extends LitElement {
     }
   }
 
-  private async rollback(c: NvrChange) {
+  /** The change log's revert. LISTENER-DEADLINE-2540 (follow-up of CAST-RELAY-HARDEN-2540, deep review V-03): when the device no
+   * longer holds what the change left (409 `changed_since`) the server's reason is shown and the operator is asked whether to revert
+   * anyway - the shared confirmation, danger styled, the focus on cancel (a stray Enter overwrites nothing); only "revert anyway"
+   * resends, once, with `force`. A change already reverted (409 `already_rolled_back`) is a plain message and the list is refreshed;
+   * it is never forced from here. */
+  private async rollback(c: NvrChange, force = false) {
     if (this.notifyBusy) return;
     this.notifyBusy = true;
+    let reason: string | null = null;
     try {
-      await rollbackNvrChange(c.id);
+      await rollbackNvrChange(c.id, force);
       this.notifyOk = true;
-      this.notifyResult = tr('השינוי {target} הוחזר למצב הקודם.', { target: c.target });
+      this.notifyResult = force ? tr('השינוי {target} הוחזר למצב הקודם בכל זאת · נרשם באודיט.', { target: c.target }) : tr('השינוי {target} הוחזר למצב הקודם.', { target: c.target });
       await this.loadNvr();
     } catch (err) {
-      this.notifyOk = false;
-      this.notifyResult = describeError(err);
+      const code = err instanceof ApiError ? err.code : '';
+      if (code === 'changed_since' && !force) {
+        reason = describeError(err);
+        this.notifyOk = 'warn';
+        this.notifyResult = `${reason} ${tr('לא נכתב דבר ל־NVR.')}`;
+      } else if (code === 'already_rolled_back') {
+        this.notifyOk = 'warn';
+        this.notifyResult = tr('השינוי {target} כבר הוחזר קודם לכן · לא נכתב דבר ל־NVR.', { target: c.target });
+        await this.loadNvr(); // the row shows "reverted" and loses its button (loadNvr never throws)
+      } else {
+        this.notifyOk = false;
+        this.notifyResult = describeError(err);
+      }
     } finally {
       this.notifyBusy = false;
     }
+    if (reason === null) return;
+    const ok = await confirmDialog({
+      heading: tr('החזרת שינוי ב־NVR'),
+      body: [
+        reason,
+        tr('החזרה בכל זאת תכתוב ל־NVR את המצב שלפני השינוי {target} ותדרוס את מה שמוגדר בו עכשיו.', { target: c.target }),
+        tr('הפעולה נרשמת באודיט עם שם המשתמש.'),
+      ].join('
+'),
+      confirmLabel: tr('החזר בכל זאת'),
+      danger: true,
+      focusCancel: true,
+    });
+    if (ok) await this.rollback(c, true);
   }
 
   private renderNotifyCard() {

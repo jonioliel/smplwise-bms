@@ -35,7 +35,10 @@ export interface NvrChange {
 export const notifyStatus = () => get<NotifyStatus>('nvr/notify');
 export const setNotify = (body: { channels?: number[] | null; smart?: boolean; enabled?: boolean }) => put<NotifyResult>('nvr/notify', body);
 export const listNvrChanges = (limit = 20) => get<{ changes: NvrChange[] }>(`nvr/changes?limit=${limit}`);
-export const rollbackNvrChange = (id: string) => post<NvrChange>(path`nvr/changes/${id}/rollback`);
+/** The change log's undo. CAST-RELAY-HARDEN-2540: the server refuses with 409 `changed_since` when the device no longer holds what the
+ * change left, and with 409 `already_rolled_back` for a change undone already; LISTENER-DEADLINE-2540: `force` (sent only after the
+ * operator confirmed "revert anyway") is the body `{"force": true}`. Without it no body is sent, as before. */
+export const rollbackNvrChange = (id: string, force = false) => post<NvrChange>(path`nvr/changes/${id}/rollback`, force ? { force: true } : undefined);
 /** A1: manual recording started from the VMS (the NVR keeps no readable state; the VMS stops it on time). */
 interface ManualRecording { id: string; camera_id: string; track_id: number; started_at: string; stop_at: string; stopped_at: string | null; stop_reason: string | null; remaining_s: number }
 export interface RecordStatus { camera_id: string; active: ManualRecording | null; can_write: boolean; max_minutes: number; track_id: number | null }
