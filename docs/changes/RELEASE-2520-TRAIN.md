@@ -338,3 +338,13 @@ Final code head `9d06b64cc` (docs / registry commits after it change no code). R
 Next run: the hard failures were lint and fe_static only (no tsc / build / release_check / engine guard), all fixed on the branch; the
 engine is re-installed from the branch. An `--after` run on the run-1 report is allowed by the engine; its spec lint uses `--new-since` the
 report's sha (6d8fd71e1), so the lint fix is evidenced above, not by that run.
+
+## 7. Release gate results and release
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | 6d8fd71e1 | full (base v2.51.0) | 199 min | FAIL: 2 hard (lint settle in evidence-wiskey-relay-inv-2520, 17 unused exports), pixel_53 zero tests (spec name lacked "pixel-stable"), 4 backend items misread by the retry (engine took captured log lines for test ids); 32 flaky |
+| 2 | 20fc43ef9 | --after run 1 (16 files changed) | 34 min | PASS (0 hard, 0 test failures, 1 flaky: evidence-nvr-h264-bulk:54 desktop) |
+
+Fixes between the runs: 522985143 (settle, exports, pixel spec name, engine log-line fix + selftest, engine reinstalled with engine_sync install --apply while no gate ran). The two backend tests passed 3/3 alone on the runner (load sensitivity).
+Owner approval 26.11: "כן, לפרסם ולהתקין" (publish + lab install); the bridge 0.10.9 Home Assistant restart: "לא עכשיו" - the add-on copies bridge 0.10.9, the running bridge stays 0.10.8 until the owner approves a restart.
