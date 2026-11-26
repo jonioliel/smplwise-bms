@@ -99,7 +99,7 @@ def on(monkeypatch, upserver):
 
 
 @pytest.fixture()
-def w(settings, fake_push) -> World:
+def w(settings, fake_push) -> World:  # noqa: F811 - the imported fixture
     return World(settings)
 
 

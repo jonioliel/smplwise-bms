@@ -54,12 +54,25 @@ The endpoint (a capability URL) is never returned by the API, never logged, neve
 
 ## Tests
 
-| Command | Exit | Result |
-|---|---|---|
-| `python -m pytest -q -p no:cacheprovider tests/test_android_push_2550.py` (PC, the main checkout's venv) | see report | see report |
+Runner (Linux, `~/work/p2520_androidpush_run.sh`, branch head 459b86cd1; backend one pytest process per file, `SW_WIRE_STRICT=1`):
 
-NOT_RUN: the full backend suite, `tests/test_mobile_push.py`, the wire / ratchet / singleton / migration / option-manifest suites and
-the frontend type check (runner job, see the report); any run against a real push server, a real distributor or a real phone.
+| Check | Exit | Result |
+|---|---|---|
+| `scripts/gen_wire_types.py --check` | 0 | generated types match |
+| `scripts/wire_ratchet.py` | 0 | 897 unmodelled routes = baseline (no new unmodelled route) |
+| `tests/test_android_push_2550.py` (new) | 0 | 34 passed |
+| `tests/test_mobile_push.py` | 0 | 53 passed |
+| `tests/test_notices_push_295.py` / `test_tickets_app_push.py` / `test_notify_recipient_lang_2520.py` | 0 | 15 / 8 / 13 passed |
+| `tests/test_xsecfix_297.py` / `test_presence.py` / `test_presence_contract_v22.py` | 0 | 48 / 21 / 63 passed |
+| `tests/test_docs_config_consistency.py` / `test_fleet_report_215.py` / `test_frigate_addon_option.py` / `test_self_update_s3_fixes.py` | 0 | 7 / 51 / 3 / 25 passed |
+| `tests/test_singletons_registered.py` / `test_migrations.py` / `test_no_ip_literals.py` | 0 | 4 / 4 / 2 passed |
+| `tests/test_wire_ratchet_2480.py` / `test_wire_consumption_2450.py` / `test_error_contract_inventory_2490.py` | 0 | 7 / 13 / 7 passed |
+| `tests/test_push.py` / `test_local_privacy.py` | 0 | 12 / 18 passed |
+| frontend `npx tsc --noEmit -p tsconfig.json` | 0 | clean |
+| `ruff check` (changed files) | 1 at 459b86cd1 | one F811 on the imported fixture in the new test; fixed (`noqa: F811`) in the follow-up commit, re-run below |
+
+NOT_RUN: the full backend suite and the frontend unit / evidence / pixel suites (no UI change); any run against a real push server,
+a real distributor or a real phone.
 
 ## רשימת צעדים לבעלים (Hebrew owner checklist)
 
