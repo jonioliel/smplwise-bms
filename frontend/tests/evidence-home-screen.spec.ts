@@ -328,6 +328,50 @@ test.describe('the home screen against the devices fixture backend', () => {
     }
   });
 
+  // HOME-SCROLL-3-2530: the cards info style (not the default) keeps the large cards in both views; direction a's band of them stayed
+  // tall on the squeeze step and the page still scrolled at 1366x768 / 1280x800 (27-100 px). On that step the band folds now (no
+  // headings, the clock at the display size, the content's height) and keeps one row; the resting look at 1440x900 is untouched.
+  test('the cards info style: every direction and view fits without a vertical scroll down to 1280x800 and a 1180 tablet; direction a\'s band folds only on the squeeze step', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop sizes (the landscape tablet is a viewport here)');
+    test.setTimeout(300_000);
+    await seed(request);
+    await resetHome(request);
+    expect((await request.patch('/api/v1/settings', { data: { 'home.info_style': 'cards' } })).status()).toBe(200);
+    for (const dir of ['a', 'b', 'c'] as const) {
+      expect((await request.patch('/api/v1/settings', { data: { 'home.direction': dir, 'home.side': 'end' } })).status()).toBe(200);
+      for (const view of ['cards', 'tiles'] as const) {
+        for (const [w, h] of [[1440, 900], [1366, 768], [1280, 800], [1180, 820]]) {
+          await page.setViewportSize({ width: w, height: h });
+          await open(page, '/devices/building', view);
+          const body = page.locator('devices-building .page-body');
+          await expect(body).toHaveAttribute('data-home-direction', dir);
+          const where = `${dir} ${view} ${w}x${h}`;
+          await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: where, timeout: 8000 }).toEqual([]);
+          const band = page.locator('devices-building home-widgets');
+          if (w === 1440) {
+            await expect(body, where).not.toHaveAttribute('data-squeeze', /.*/);
+            await expect(band, where).not.toHaveAttribute('data-squeeze', /.*/);
+          }
+          if (dir !== 'a') {
+            await expect(band, where).not.toHaveAttribute('data-squeeze', /.*/);
+            continue;
+          }
+          // direction a: the band of large cards (hero) - folded exactly when the page squeezes, its headings then gone and one row
+          const squeezed = (await body.getAttribute('data-squeeze')) !== null;
+          await expect(band, where).toHaveAttribute('layout', 'hero');
+          const fold = await band.evaluate((el) => {
+            const cards = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wrap > .wg'));
+            const heads = Array.from(el.shadowRoot!.querySelectorAll<HTMLElement>('.wg-h')).filter((x) => getComputedStyle(x).display !== 'none').length;
+            return { on: el.hasAttribute('data-squeeze'), heads, rows: new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top))).size };
+          });
+          expect(fold.on, `${where}: the band folds with the page's squeeze step`).toBe(squeezed);
+          if (squeezed) expect(fold, `${where}: folded band`).toEqual({ on: true, heads: 0, rows: 1 });
+          else expect(fold.heads, `${where}: the resting band keeps its headings`).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
   test('direction b: the widget column can be on either side, and the floor filter narrows the floors', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop');
     await seed(request);
