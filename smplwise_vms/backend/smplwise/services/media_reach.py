@@ -102,7 +102,10 @@ class Reach:
     def due(self, now: float | None = None) -> bool:
         now = time.time() if now is None else now
         with self._lock:
-            return now >= self.next_probe_at  # 0 at start: the first check probes at once
+            # 0 at start: the first check probes at once. PILOT-ROLLBACK-2550: a next probe further ahead than any schedule this class
+            # sets means the wall clock was moved back - probe now, or a reachable state would stand unchecked (a silent "ok") for as
+            # long as the clock went back
+            return now >= self.next_probe_at or self.next_probe_at - now > max(OK_REFRESH_S, BACKOFF_MAX_S) + 1.0
 
     def tick(self, settings: Any, now: float | None = None) -> bool:
         """Probe go2rtc once when due (see the module docstring). Returns whether a probe ran. Never raises."""
@@ -136,7 +139,7 @@ class Reach:
         configured = bool(getattr(settings, "go2rtc_url", None))
         with self._lock:
             state = self.state if configured else NOT_CONFIGURED
-            down_for = int(now - self.since) if (configured and self.state == UNREACHABLE and self.since is not None) else None
+            down_for = max(0, int(now - self.since)) if (configured and self.state == UNREACHABLE and self.since is not None) else None
             return {
                 "state": state,
                 "configured": configured,

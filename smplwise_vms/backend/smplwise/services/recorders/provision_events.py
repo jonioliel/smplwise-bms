@@ -228,7 +228,7 @@ def stop_push() -> None:
 
 def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | None = None, sleep=None) -> None:
     """The reader of a Provision recorder's AlertStreamListener (see module doc). Never raises."""
-    from ..events_ingest import close_gap
+    from ..events_ingest import close_gap, outage_of
     from ...db import now_iso
 
     s = listener.settings
@@ -266,7 +266,8 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
             continue
         if st.disconnected_since is not None:
             # BACKEND-SAFETY-2435: a failed gap write is logged and retried on the next round; it never ends this thread
-            if close_gap(listener.db, st.disconnected_since, st.last_error or "disconnected", listener.recorder_id, "provision events gap"):
+            if close_gap(listener.db, st.disconnected_since, st.last_error or "disconnected", listener.recorder_id, "provision events gap",
+                         outage_s=outage_of(st)):
                 st.disconnected_since = None
         st.connected = True
         st.last_error = None

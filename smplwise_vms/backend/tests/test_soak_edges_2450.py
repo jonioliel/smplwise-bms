@@ -73,12 +73,17 @@ def report_checks(c: TestClient) -> dict[str, dict[str, Any]]:
 
 
 def summary_later(c: TestClient, monkeypatch: pytest.MonkeyPatch, seconds: float) -> dict[str, dict[str, Any]]:
-    """The summary as it reads `seconds` from now (its own clock moved, nothing else)."""
+    """The summary as it reads `seconds` from now: time passes on both clocks - the wall clock of the summary and the monotonic
+    clock the stream's outage is measured on (PILOT-ROLLBACK-2550: moving the wall clock alone is a clock jump, which no longer
+    counts as time down)."""
     import types
 
     real = health_report.time
+    later = types.SimpleNamespace(time=lambda: real.time() + seconds, monotonic=lambda: real.monotonic() + seconds, sleep=real.sleep)
     with monkeypatch.context() as m:
-        m.setattr(health_report, "time", types.SimpleNamespace(time=lambda: real.time() + seconds, monotonic=real.monotonic, sleep=real.sleep))
+        m.setattr(health_report, "time", later)
+        m.setattr(events_ingest, "time", types.SimpleNamespace(**{**{k: getattr(real, k) for k in dir(real) if not k.startswith("__")},
+                                                                   "time": later.time, "monotonic": later.monotonic}))
         return summary_items(c)
 
 
