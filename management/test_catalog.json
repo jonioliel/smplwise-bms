@@ -22676,5 +22676,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-DST-TIMELINE-2540-1",
+    "requirement_ids": [
+      "R-DST-TIMELINE-2540-1"
+    ],
+    "task_ids": [
+      "DST-TIMELINE-2540"
+    ],
+    "title": "Rooms timeline and resident time bar on a wall-clock axis on the DST change days",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "On the DST change days the rooms timeline and the resident's time bar draw every entry at its clock hour, a tap books the hour under the finger, the skipped spring hour is hatched and not bookable and the repeated autumn hour is marked x2 with its own lanes.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

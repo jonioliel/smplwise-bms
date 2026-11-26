@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T16:35:46.494187+00:00
+Generated: 2026-11-26T16:42:10.951291+00:00
 
-Tasks: 741 | Requirements: 855 | Tests: 872 | Screens: 32
+Tasks: 742 | Requirements: 856 | Tests: 873 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 5
-- REVIEW: 181
+- REVIEW: 182
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 646
+- V1: 647
 - V2: 29
 - V3: 3
 
@@ -796,3 +796,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HOME-SCROLL-3-2530](tasks/HOME-SCROLL-3-2530.md) | V1 | REVIEW | The band of large cards folds on the last fit step (the cards info style) | — |
 | [LAB-2540-RUNBOOKS](tasks/LAB-2540-RUNBOOKS.md) | V1 | REVIEW | Lab acceptance plan for 2.54, bridge-key rotation unblock plan, WisKey rc.20 lab install runbook | — |
 | [RELEASE-2540-TRAIN](tasks/RELEASE-2540-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2540-TRAIN - the 2.54.0 train | — |
+| [DST-TIMELINE-2540](tasks/DST-TIMELINE-2540.md) | V1 | REVIEW | Rooms timeline and resident time bar on a wall-clock axis on the DST change days | — |

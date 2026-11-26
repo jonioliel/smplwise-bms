@@ -14711,5 +14711,21 @@
     "test_ids": [
       "AT-RELEASE-2540-TRAIN-1"
     ]
+  },
+  {
+    "id": "R-DST-TIMELINE-2540-1",
+    "title": "Rooms timeline and resident time bar on a wall-clock axis on the DST change days",
+    "statement": "On the DST change days the rooms timeline and the resident's time bar draw every entry at its clock hour, a tap books the hour under the finger, the skipped spring hour is hatched and not bookable and the repeated autumn hour is marked x2 with its own lanes.",
+    "task_ids": [
+      "DST-TIMELINE-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DST-TIMELINE-2540-1"
+    ]
   }
 ]

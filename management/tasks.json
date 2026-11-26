@@ -32138,10 +32138,49 @@
       "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
     ],
     "evidence": [
-      "2026-11-26 (RELEASE-2540-TRAIN): release/2540-train cut from origin/main = v2.53.0 3b4654f8b. Merged: HONEST-STATES-2540 98c52bfb4, CONTROLLED-TOGGLES-2540 7261730f2, AREA-HONEST-COUNT-2540 9f3d1670c, PHYSICAL-CONFIRM-2540 a56d90414, CAST-RELAY-HARDEN-2540 d71faa640, LISTENER-DEADLINE-2540 b70544b83, CORE-RELIABILITY-2540 170191750, STALE-ANSWERS-2540 e96a8666f, TIME-CORRECT-2540 1b1341b59, CLIENT-RESILIENCE-2540 f9b650a16, GATE-TRUST-2540 f1fc6b088, HOME-SCROLL-3-2530 557859a3c, LAB-2540-RUNBOOKS 6ba8c359b; version bump 174ff0469 (2.54.0, draft changelog, API inventory 1958 routes); train fix 4c71dfbea (two file-local exports). DATA-RULES-2540 and HOME-SPEC-STABLE-2540 still to come. GATE-TRUST-2540 engine NOT installed (lead, before the gate). Gate NOT_RUN; nothing released."
+      "2026-11-26 (RELEASE-2540-TRAIN): release/2540-train cut from origin/main = v2.53.0 3b4654f8b. Merged: HONEST-STATES-2540 98c52bfb4, CONTROLLED-TOGGLES-2540 7261730f2, AREA-HONEST-COUNT-2540 9f3d1670c, PHYSICAL-CONFIRM-2540 a56d90414, CAST-RELAY-HARDEN-2540 d71faa640, LISTENER-DEADLINE-2540 b70544b83, CORE-RELIABILITY-2540 170191750, STALE-ANSWERS-2540 e96a8666f, TIME-CORRECT-2540 1b1341b59, CLIENT-RESILIENCE-2540 f9b650a16, GATE-TRUST-2540 f1fc6b088, HOME-SCROLL-3-2530 557859a3c, LAB-2540-RUNBOOKS 6ba8c359b; version bump 174ff0469 (2.54.0, draft changelog, API inventory 1958 routes); train fix 4c71dfbea (two file-local exports). DATA-RULES-2540 and HOME-SPEC-STABLE-2540 still to come. GATE-TRUST-2540 engine NOT installed (lead, before the gate). Gate NOT_RUN; nothing released.",
+      "2026-11-26 (RELEASE-2540-TRAIN): registry 1ff111f25 (rows 1-13); DST-TIMELINE-2540 7eef2eb42 (row 14, contains rows 8 and 9); train fix 8eafe5ac7 (three file-local exports). Runner checks and the UI rebuild in docs/changes/RELEASE-2540-TRAIN.md. Gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DST-TIMELINE-2540",
+    "title": "Rooms timeline and resident time bar on a wall-clock axis on the DST change days",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "On the DST change days the rooms timeline and the resident's time bar draw every entry at its clock hour, a tap books the hour under the finger, the skipped spring hour is hatched and not bookable and the repeated autumn hour is marked x2 with its own lanes."
+    ],
+    "requirement_ids": [
+      "R-DST-TIMELINE-2540-1"
+    ],
+    "test_ids": [
+      "AT-DST-TIMELINE-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DST-TIMELINE-2540, change note docs/changes/DST-TIMELINE-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/DST-TIMELINE-2540 head 02b2077e6 merged 7eef2eb42 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 14, after rows 8 and 9 which it contains); change note docs/changes/DST-TIMELINE-2540.md. Train fix 8eafe5ac7 (three file-local exports). Decisions Q1 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record."
+    ],
+    "owner": null,
+    "commit": "02b2077e6",
     "actual_cost_usd": null
   }
 ]
