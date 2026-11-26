@@ -72,7 +72,7 @@ export class SwHomeCall extends SwIncomingCall {
     void this.tick;
     const shown = this.shown();
     if (!shown.length) return nothing;
-    const c = shown[Math.min(this.front, shown.length - 1)];
+    const c = this.frontOf(shown) ?? shown[0]; // SCR-11: the front call by id, as the banner
     const mine = c.answered_by_me || this.talking.has(c.call_id);
     const busy = this.busy[c.call_id];
     const talkable = answerPlan(this.mediaNow(c)).kind === 'talk';

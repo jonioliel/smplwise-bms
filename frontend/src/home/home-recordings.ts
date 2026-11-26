@@ -14,6 +14,7 @@ import { clockOf, dayWord, daySpans, diaryWord, inSpans, playbackError } from '.
 import '../components/sw-live-player';
 import { tr } from '../i18n/msg/home';
 import { isoZ } from '../api/day-format';
+import { SeekCoalescer } from '../api/seek-coalescer';
 
 interface PbEvent { at: number; text: string; icon: string }
 
@@ -35,6 +36,12 @@ const st: PbState = { cam: '', back: 0, t: 12 * 60, play: false, session: null, 
 let tick = 0;
 /** FE-LEAK-TEXTKEY-2435: bumped by stop(); a play that was in flight when the screen left closes the session it got and does not start the clock. */
 let gen = 0;
+/** STALE-ANSWERS-2540 (SCR-28): play / seek requests go out one at a time, the newest one last - the investigate screen's
+ * SeekCoalescer with no debounce. A double tap on play with no session used to open two sessions (the first one never closed, holding
+ * one of the recorder's playback slots until its lease ran out); three quick "+10 s" sent three overlapping seeks and the last answer
+ * to land won. Now a request asked while one is on its way waits for it and replaces any other waiting one: the second tap seeks the
+ * session the first one opened, and the position the person asked for last is the one the recorder plays. */
+const seeker = new SeekCoalescer<{ h: HomeHost; minute: number }>((v) => runPlay(v.h, v.minute), { delayMs: 0 });
 
 function dateOf(back: number): string {
   return dateInZone(new Date(Date.now() - back * 86_400_000), st.tz);
@@ -47,6 +54,7 @@ export function playbackHref(camera: string, at?: Date): string {
 
 async function stop(h: HomeHost) {
   gen++;
+  seeker.cancel(); // a request still waiting belongs to the playback that is going away
   window.clearInterval(tick);
   tick = 0;
   const s = st.session;
@@ -88,10 +96,17 @@ async function loadDay(h: HomeHost) {
   h.requestUpdate();
 }
 
-async function playAt(h: HomeHost, minute: number) {
+/** Play from `minute` (the timeline shows it at once); the request itself goes out through the coalescer (SCR-28). */
+function playAt(h: HomeHost, minute: number) {
   st.t = Math.max(0, Math.min(1439.99, minute));
-  const at = isoZ(instantInZone(dateOf(st.back), st.t, st.tz));
   st.note = '';
+  seeker.request({ h, minute: st.t });
+  seeker.flush();
+  h.requestUpdate();
+}
+
+async function runPlay(h: HomeHost, minute: number) {
+  const at = isoZ(instantInZone(dateOf(st.back), minute, st.tz));
   const g = gen;
   const was = st.session?.id;
   try {
@@ -160,7 +175,7 @@ registerScreen((h: HomeHost) => ({
     if (!cam) return;
     if (cam !== st.cam || at) setCam(h, cam);
     else void loadDay(h);
-    if (at) { const g = gen; window.setTimeout(() => { if (g === gen) void playAt(h, st.t); }, 0); }
+    if (at) { const g = gen; window.setTimeout(() => { if (g === gen) playAt(h, st.t); }, 0); }
   },
   leave() {
     void stop(h);
@@ -184,15 +199,15 @@ registerScreen((h: HomeHost) => ({
     },
     pbPlay() {
       if (st.play) void stop(h);
-      else void playAt(h, st.t);
+      else playAt(h, st.t);
     },
     pbSkip(el) {
       const m = st.t + +(el.dataset.d ?? 0) / 60;
-      if (st.session) void playAt(h, m);
+      if (st.session) playAt(h, m);
       else { st.t = Math.max(0, Math.min(1439.99, m)); h.requestUpdate(); }
     },
     pbJump(el) {
-      void playAt(h, +(el.dataset.t ?? 0));
+      playAt(h, +(el.dataset.t ?? 0));
     },
     pbLive() {
       void stop(h);
@@ -217,7 +232,7 @@ registerScreen((h: HomeHost) => ({
     const acts = html`<span class="cf-nav pb-days" role="group" aria-label="${tr('יום')}"><button class="rb" data-act="pbDay" data-d="1" aria-label="${tr('יום קודם')}">${hi('back')}</button><b class="pbd clamp1">${dayWord(st.back)}</b><button class="rb" data-act="pbDay" data-d="-1" ?disabled=${st.back === 0} aria-label="${tr('יום אחרי')}">${hi('fwd')}</button></span>${cams.length > 1 ? html`<span class="cf-nav pb-cams" role="group" aria-label="${tr('מצלמה')}"><button class="rb" data-act="pbCam" data-d="-1" aria-label="${tr('המצלמה הקודמת')}">${hi('back')}</button><b class="pbd pbc clamp1" dir="auto" title=${c.name}>${c.name}</b><button class="rb" data-act="pbCam" data-d="1" aria-label="${tr('המצלמה הבאה')}">${hi('fwd')}</button></span>` : nothing}`;
     // HOME-V3-AUDITFIX-2437 (audit item 9): with the camera stepper naming the camera, the wide title does not repeat it
     const onInput = (e: Event) => { st.t = +(e.target as HTMLInputElement).value; h.requestUpdate(); };
-    const onChange = (e: Event) => { const m = +(e.target as HTMLInputElement).value; if (st.session) void playAt(h, m); else { st.t = m; h.requestUpdate(); } };
+    const onChange = (e: Event) => { const m = +(e.target as HTMLInputElement).value; if (st.session) playAt(h, m); else { st.t = m; h.requestUpdate(); } };
     return html`${h.head(h.phone ? c.name : cams.length > 1 ? tr('הקלטות') : tr('הקלטות: {name}', { name: c.name }), h.phone ? tr('בחרו יום וזמן.') : tr('בחרו יום, ואז זמן על הציר או אירוע מהרשימה'), acts)}
       <div class="pb-body" data-home-playback=${c.id}><section class=${'tile pb-pic' + (st.play ? '' : ' off')} aria-label="${tr('תמונה')}">${pic}</section>
         <section class="tile pane pb-side" aria-label="${tr('מה קרה')}"><div class="bar"><h2>${tr('מה קרה כאן')}</h2>${h.pager('pbE', pg.pages)}</div>${pg.items.length ? pg.items.map((e) => html`<button class="mrow pb-ev" data-act="pbJump" data-t=${String(e.at)} aria-pressed=${String(Math.abs(e.at - st.t) < 1)}>${hi(e.icon)}<span class="clamp2">${e.text}</span><b class="num">${clockOf(e.at).slice(0, 5)}</b></button>`) : html`<p class="muted pb-none">${tr('לא נרשמו אירועים ליד המצלמה הזו')} ${st.back === 0 ? tr('היום') : tr('ביום הזה')}.</p>`}</section>

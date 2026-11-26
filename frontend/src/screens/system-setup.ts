@@ -10,6 +10,7 @@ import '../components/sw-state-panel';
 import { can, installationSupported, isApi, nvrLess } from '../api/session';
 import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ApiError, get, describeError } from '../api/client';
+import { Latest } from '../api/latest';
 import './system-doors'; // CR-033: station placement + door map cards
 import './wiskey-relay-map'; // WISKEY-RELAYMAP-2310: the WisKey relay map approval (api relay -> physical relay per station)
 import './system-door-blocks'; // WXUNBLK: what the door path blocks, and the one audited release per virtual device
@@ -186,16 +187,25 @@ export class SystemSetup extends LitElement {
     return this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor ?? this.sys?.vendor ?? null;
   }
 
+  /** STALE-ANSWERS-2540 (SCR-14): the newest read of the card wins - a slow answer for the recorder that was left is dropped. */
+  private sysReads = new Latest();
+
   private async loadSystem() {
+    const current = this.sysReads.begin();
     if (this.sysRecorders.find((r) => r.id === this.sysRecorder)?.vendor === 'frigate') {
       this.sys = null;
       this.sysError = '';
       return;
     }
+    // SCR-14: the recorder this read is for; the card shows its answer only while that recorder is still the selected one
+    const recorder = this.sysRecorder;
     try {
-      this.sys = await this.sysApi.nvrSystem();
+      const sys = await nvrSystemApi(recorder).nvrSystem();
+      if (!current() || recorder !== this.sysRecorder) return;
+      this.sys = sys;
       this.sysError = '';
     } catch (err) {
+      if (!current() || recorder !== this.sysRecorder) return;
       this.sysError = describeError(err);
     }
   }
@@ -225,7 +235,7 @@ export class SystemSetup extends LitElement {
     const driftTone = drift === null ? '' : Math.abs(drift) <= 2 ? 'ok' : Math.abs(drift) <= 30 ? 'warn' : 'err';
     return html`<sw-card heading=${tr('מערכת ה־NVR')} subheading=${tr('שעון ו־NTP, דיסקים ובדיקת S.M.A.R.T., יציאות אזעקה, הפעלה מחדש · כל כתיבה דורשת הרשאה רגישה ונרשמת')} data-nvr-system>
       ${this.sysRecorders.length > 1
-        ? html`<sw-field label="NVR"><select data-nvr-system-recorder ?disabled=${this.sysBusy} @change=${(e: Event) => { this.sysRecorder = (e.target as HTMLSelectElement).value; this.sys = null; this.sysMsg = ''; void this.loadSystem(); }}>
+        ? html`<sw-field label="NVR"><select data-nvr-system-recorder ?disabled=${this.sysBusy} @change=${(e: Event) => { this.sysRecorder = (e.target as HTMLSelectElement).value; this.sys = null; this.sysError = ''; this.sysMsg = ''; void this.loadSystem(); }}>
             ${this.sysRecorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.sysRecorder}>${r.name}</option>`)}
           </select></sw-field>`
         : nothing}

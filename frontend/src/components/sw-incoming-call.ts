@@ -14,7 +14,7 @@ import { wkIcon } from '../screens/wiskey-stations-icons';
 import { armRingTone, Ringer, ringBlocked } from '../wiskey/ring-tone';
 import { openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps } from '../wiskey/talk-session';
-import { answerPlan, clockText, doorLabel, elapsedNow, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
+import { answerPlan, clockText, doorLabel, elapsedNow, frontCall, nextCall, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
 import { srOnlyStyles } from '../styles/fragments';
 
 const HIDDEN_KEY = 'sw.calls.hidden';
@@ -45,7 +45,8 @@ type Note = { text: string; tone: 'ok' | 'warn' | 'error' };
 export class SwIncomingCall extends LitElement {
   @state() protected active: ActiveCalls | null = null;
   @state() protected tick = 0;
-  @state() protected front = 0;
+  /** SCR-11: the call in front, by id (null: the first shown call) - kept while it is shown, so a newer call never takes its place. */
+  @state() protected frontId: string | null = null;
   @state() protected muted = false;
   @state() protected notes: Record<string, Note> = {};
   @state() protected busy: Record<string, string> = {};
@@ -407,7 +408,19 @@ export class SwIncomingCall extends LitElement {
     if (!any && this.clockTimer) (window.clearInterval(this.clockTimer), (this.clockTimer = 0));
     if (any && !this.pictureTimer) this.pictureTimer = window.setInterval(() => (document.hidden ? undefined : (this.picture = Date.now())), PICTURE_MS);
     if (!any && this.pictureTimer) (window.clearInterval(this.pictureTimer), (this.pictureTimer = 0));
-    if (this.front >= shown.length) this.front = 0;
+    this.pinFront(shown);
+  }
+
+  /** SCR-11: the call in front, kept by id; the first shown call when it left the list. */
+  protected frontOf(shown: readonly IncomingCall[]): IncomingCall | undefined {
+    return frontCall(shown, this.frontId);
+  }
+
+  /** SCR-11: remember which call is in front; a door question asked on another call is dropped when the front call changes. */
+  protected pinFront(shown: readonly IncomingCall[], next?: IncomingCall): void {
+    const id = (next ?? this.frontOf(shown))?.call_id ?? null;
+    if (id !== this.frontId) this.frontId = id;
+    if (this.doorAsk && !this.doorAsk.startsWith(`${id}/`)) this.doorAsk = null;
   }
 
   protected updated(): void {
@@ -515,7 +528,7 @@ export class SwIncomingCall extends LitElement {
     } catch {
       /* storage unavailable: hidden for this page only */
     }
-    this.front = 0;
+    this.frontId = null; // the newest shown call comes forward
     this.requestUpdate();
     this.sync();
   }
@@ -574,7 +587,7 @@ export class SwIncomingCall extends LitElement {
     const t = ict().banner;
     const sending = this.busy[c.call_id] === 'door';
     return c.locks.map(
-      (l) => html`<wk-action-button icon="unlock" size="lg" block data-call-door=${l.physical_index} ?busy=${sending} ?disabled=${sending || !!this.doorAsk}
+      (l) => html`<wk-action-button icon="unlock" size="lg" block data-call-door=${l.physical_index} ?busy=${sending} ?disabled=${sending || !!this.doorAsk?.startsWith(`${c.call_id}/`)}
         @click=${() => (this.doorAsk = `${c.call_id}/${l.physical_index}`)}>${sending ? t.doorSending : doorLabel(l, c.locks.length, ict())}</wk-action-button>`,
     );
   }
@@ -584,7 +597,7 @@ export class SwIncomingCall extends LitElement {
     const shown = this.shown();
     if (!shown.length) return nothing;
     const t = ict().banner;
-    const c = shown[Math.min(this.front, shown.length - 1)];
+    const c = this.frontOf(shown) ?? shown[0];
     const mine = c.answered_by_me || this.talking.has(c.call_id);
     const st = mine ? 'in_call' : 'ringing';
     const busy = this.busy[c.call_id];
@@ -621,7 +634,7 @@ export class SwIncomingCall extends LitElement {
       ${c.can_open_door && c.online && c.locks.length ? html`<div class="acts doors">${this.doorButtons(c)}</div>` : nothing}
       <div class="foot">
         <a href=${stationDrawerHref(c.station_id)} data-call-open-station>${wkIcon('window', 14)}${t.station}</a>
-        ${others > 0 ? html`<button class="link" data-call-next aria-label=${t.next} @click=${() => (this.front = (this.front + 1) % shown.length)}>${fill(t.more, { n: others })}</button>` : nothing}
+        ${others > 0 ? html`<button class="link" data-call-next aria-label=${t.next} @click=${() => this.pinFront(shown, nextCall(shown, c.call_id))}>${fill(t.more, { n: others })}</button>` : nothing}
       </div>
     </section>`;
   }

@@ -14,6 +14,7 @@
 //   home map           the rooms of GET home/overview drawn as a schematic plan per floor (map.read); nothing of the full map is edited
 import { html, nothing, type TemplateResult } from 'lit';
 import { describeError, get, post } from '../api/client';
+import { Latest } from '../api/latest';
 import { canAnywhere } from '../api/session';
 import { commandId } from '../api/request-id';
 import { isDead, isOn, needsPublic, type SourceItem } from '../api/media-screens';
@@ -168,17 +169,25 @@ export class P3 {
     }
   }
 
+  /** STALE-ANSWERS-2540 (SCR-32): the newest account read wins. */
+  private billReads = new Latest();
+
   async loadBill(acc: string): Promise<void> {
     if (!this.bill) return;
-    this.bill = { ...this.bill, acc, loading: true, error: '' };
+    const current = this.billReads.begin();
+    // SCR-32: another account's amounts and bills are never shown under this one - not while it loads, not after a late answer
+    const other = this.bill.acc !== acc;
+    this.bill = { ...this.bill, acc, loading: true, error: '', ...(other ? { status: null, periods: [] } : {}) };
     this.up();
     try {
       const [status, per] = await Promise.all([
         get<Wire.EnergyAccountStatus>(`energy/accounts/${enc(acc)}/status`),
         get<Wire.EnergyAccountPeriods>(`energy/accounts/${enc(acc)}/periods?past=6&future=0`),
       ]);
+      if (!current() || !this.bill || this.bill.acc !== acc) return;
       this.bill = { ...this.bill, status, periods: per.periods.slice().reverse(), loading: false };
     } catch (err) {
+      if (!current() || !this.bill || this.bill.acc !== acc) return;
       this.bill = { ...this.bill, status: null, periods: [], loading: false, error: describeError(err) };
     }
     this.up();

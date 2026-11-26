@@ -177,6 +177,10 @@ export class InvestigatePlayback extends LitElement {
   private appliedCamera = '';
   /** 06:RACE-5: the day's reads (recordings, events, bookmarks) - only the newest one's answer is drawn. */
   private recReads = new Latest();
+  /** STALE-ANSWERS-2540 (SCR-24): the newest camera pick and the newest day pick win. Each pick waits for the running session to close;
+   * a pick overtaken by a newer one while it waits is dropped (the select / date input already show the newer one). */
+  private cameraPicks = new Latest();
+  private datePicks = new Latest();
   /** 06:PERF-1: the timeline's three lists keep their identity while the day's data is the same (the cursor moves twice a second). */
   private memo = new RefMemo();
   private stopDisplay?: () => void;
@@ -655,6 +659,8 @@ export class InvestigatePlayback extends LitElement {
     window.clearInterval(this.ticker);
     window.clearTimeout(this.previewTimer);
     this.frames.dispose();
+    this.cameraPicks.cancel(); // SCR-24: a pick still waiting for its session to close applies nothing on a screen that left
+    this.datePicks.cancel();
     void this.endSession();
   }
 
@@ -766,9 +772,11 @@ export class InvestigatePlayback extends LitElement {
   };
 
   private async selectCamera(id: string, fromRoute = false) {
+    const current = this.cameraPicks.begin(); // before the "same camera" check: A -> B -> A again drops the pending B
     if (!id || (!fromRoute && id === this.cameraId)) return;
     this.clearStall();
     await this.endSession();
+    if (!current()) return; // SCR-24: a newer camera was picked while this one waited for the session to close
     this.frames.dispose();
     this.cameraId = id;
     this.appliedCamera = id;
@@ -799,12 +807,15 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private async setDate(date: string) {
+    const current = this.datePicks.begin(); // before the "same day" check: D -> E -> D again drops the pending E
     if (!date || date === this.date) return;
     this.clearStall();
     await this.endSession();
+    if (!current()) return; // SCR-24: a newer day was picked while this one waited for the session to close
     this.date = date;
     this.position = null; // SCR-02: the old day's position no longer stands for anything on the new day
     await this.loadRecordings();
+    if (!current()) return; // the newer day sets its own opening position
     const last = this.rec?.segments.at(-1);
     this.cursor = last ? this.insideLast(last) : 540;
   }

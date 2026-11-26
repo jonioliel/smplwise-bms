@@ -155,9 +155,11 @@ registerScreen((h: HomeHost) => ({
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },
     p2TkNoteSend: (el) => {
+      if (st.busy) return; // STALE-ANSWERS-2540 (SCR-39): a second tap while the note is on its way sends nothing
       const text = st.draft.note.trim();
       if (!text) return h.toast(tr('כתבו את ההערה.'));
       st.busy = true;
+      h.requestUpdate(); // the send button is drawn disabled at once (the host does not re-render after an action by itself)
       void ticketNote(el.dataset.id ?? '', text).then(() => { h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
         .catch((e) => h.toast(errText(e)))
         .finally(() => { st.busy = false; h.requestUpdate(); });

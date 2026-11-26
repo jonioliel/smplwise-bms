@@ -23,6 +23,20 @@ export function visibleCalls(active: ActiveCalls | null, hidden: ReadonlySet<str
   return [...mine, ...ringing.sort((a, b) => (a.rang_at < b.rang_at ? 1 : a.rang_at > b.rang_at ? -1 : 0))];
 }
 
+/** STALE-ANSWERS-2540 (SCR-11): the call in front is followed by its id, not by its place in the list. A newer call that rings while
+ * one is shown goes behind it ("1 more"): the sheet never swaps to another station under the finger between two polls. The front call
+ * changes only when it leaves the list (ended, hidden, taken by its drawer) - then the first shown call comes forward - or by "next". */
+export function frontCall(shown: readonly IncomingCall[], frontId: string | null): IncomingCall | undefined {
+  return (frontId !== null ? shown.find((c) => c.call_id === frontId) : undefined) ?? shown[0];
+}
+
+/** The call "next" brings forward: the one after the front call, round the list. */
+export function nextCall(shown: readonly IncomingCall[], frontId: string | null): IncomingCall | undefined {
+  if (!shown.length) return undefined;
+  const i = shown.findIndex((c) => c.call_id === frontCall(shown, frontId)?.call_id);
+  return shown[(i + 1) % shown.length];
+}
+
 /** Whether the ring tone plays now: the server allows it, a ringing call is shown, the user did not silence it on this screen. */
 export function shouldRing(active: ActiveCalls | null, shown: readonly IncomingCall[], muted: boolean): boolean {
   return !!active && active.sound === 'ring' && !muted && shown.some((c) => c.state === 'ringing' && !c.answered_by_me);
