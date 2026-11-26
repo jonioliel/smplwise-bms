@@ -10,6 +10,7 @@ import { ApiError, api, apiUrl, get, post, put } from './client';
 import { commandId } from './request-id';
 import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 import { isoZ } from './day-format';
+import { noteServerTime, serverNow } from './server-clock';
 
 /** A display zone as WisKey sends it (time.ts `DisplayZone`): an IANA zone, or a device's own DST rule. */
 export type DisplayZone =
@@ -73,21 +74,16 @@ export interface IntercomFeed {
   door_access?: Record<string, boolean>;
 }
 
-/** Server clock minus this device's clock (ms), learned from each overview reply. Physical commands' `expires_at` is
- * computed on the SERVER's time line with it, so a device whose clock is minutes off can still act - and still cannot
- * act late (T054 final review S-3). 0 until the first overview arrives (no action control renders before that). */
-let serverOffsetMs = 0;
-
-export function serverNow(): number {
-  return Date.now() + serverOffsetMs;
-}
+/** Physical commands' `expires_at` is computed on the SERVER's time line (T054 final review S-3), so a device whose clock is
+ * minutes off can still act - and still cannot act late. SCR-13: the offset lives in server-clock.ts and is learned from EVERY
+ * answer (the `Date` header, api/client.ts) and exactly from the replies that carry `server_time_ms` (this overview, the
+ * active-calls banner) - not only from the overview, which the native stations screen and the banner never read. */
+export { serverNow };
 
 export async function getIntercomOverview(): Promise<IntercomFeed> {
   const sentAt = Date.now();
   const feed = await get<IntercomFeed>('intercom/overview');
-  const receivedAt = Date.now();
-  // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
-  if (typeof feed.server_time_ms === 'number') serverOffsetMs = feed.server_time_ms - (sentAt + receivedAt) / 2;
+  noteServerTime(feed.server_time_ms, sentAt, Date.now());
   return feed;
 }
 

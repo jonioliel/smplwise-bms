@@ -1,6 +1,7 @@
 /** CR-023: number, money and date formatting shared by the electricity screens and the mock store (pure, no DOM). Dates travel as ISO `YYYY-MM-DD`; money as text decimals. */
 import { addDays, daysInclusive } from '../format/day-key';
 import { dayKey } from '../format/pad';
+import { dayText, dayTimeText } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 
 export const r2 = (x: number): number => Math.round(x * 100 + 1e-9) / 100;
@@ -39,14 +40,26 @@ export const customerName = (a: { customer: { name: string } | null }): string =
 /** 30 -> "30%", 0.3 -> "30%" is not guessed: the caller passes percent. */
 export const pct = (x: number): string => `${Number.isInteger(x) ? x : x.toFixed(1)}%`;
 
-/** `2026-09-30` -> `30.09.2026` */
-export function fmtDate(iso: string): string {
+/** `2026-09-30` -> `30.09.2026`; SCR-20: an instant with a zone is the DAY on the clock of `zone` (see fmtDateTime) */
+export function fmtDate(iso: string, zone?: string | null): string {
   if (!iso) return '';
+  if (ZONED.test(iso)) {
+    const t = dayText(iso, zone ? { timeZone: zone } : undefined);
+    if (t) return t;
+  }
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
 }
-/** `2026-10-02T09:12` -> `02.10.2026 09:12` */
-export function fmtDateTime(iso: string): string {
+/** An instant with its zone (`...Z`, `...+02:00`): the bill log and the snapshot's readings travel as UTC instants. */
+const ZONED = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+/** `2026-10-02T09:12` -> `02.10.2026 09:12`. SCR-20: an instant WITH a zone (`2026-11-30T23:30:00Z`) is shown on the clock of `zone` - the
+ * account's / site's zone the server reports (bill snapshot `period.timezone`), else the browser's (the installation's) - never the UTC digits
+ * (a closing reading of 01:30 on 01.12 printed "30.11 23:30" on the bill). A text without a zone (a local time, a bare day) stays as written. */
+export function fmtDateTime(iso: string, zone?: string | null): string {
+  if (ZONED.test(iso ?? '')) {
+    const t = dayTimeText(iso, zone ? { timeZone: zone } : undefined);
+    if (t) return t;
+  }
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso);
   return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}` : fmtDate(iso);
 }

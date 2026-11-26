@@ -755,4 +755,9 @@ export const en = {
   'מפעיל': 'Operator',
   'צופה': 'Viewer',
   'מנהל אתר': 'Site administrator',
+  // TIME-CORRECT-2540 (SCR-38, SCR-36)
+  'מה לבטל?': 'What to cancel?',
+  'המועד {date} בוטל': 'The date {date} was cancelled',
+  'הסדרה בוטלה': 'The series was cancelled',
+  'לא הצלחנו לטעון את ההזמנות שלך': 'Your bookings could not be loaded',
 };

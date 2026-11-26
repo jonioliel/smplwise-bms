@@ -63,6 +63,16 @@ export function cancelBody(state: string, revision?: string | number, occurrence
 /** SCR-04: the key of one date of a series this row may cancel alone, or null (a single booking, or no usable key). */
 export const occurrenceKey = (o: Pick<Occurrence, 'recurring' | 'local_start'>): string | null =>
   o.recurring && o.local_start && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.local_start) ? o.local_start : null;
+/** SCR-34: how one row of "my bookings" reads. /me/calendar also returns a booking that maintenance DISPLACED (the room is taken: it is not
+ * approved any more) and one that ended; any other state reads as unknown - never "approved" by default. */
+export type BookingLook = 'confirmed' | 'pending' | 'displaced' | 'done' | 'unknown';
+export function bookingLook(state: string | null | undefined): { look: BookingLook; tone: 'ok' | 'warn' | 'danger' | 'neutral' } {
+  if (state === 'confirmed') return { look: 'confirmed', tone: 'ok' };
+  if (state === 'pending') return { look: 'pending', tone: 'warn' };
+  if (state === 'displaced') return { look: 'displaced', tone: 'danger' };
+  if (state === 'done') return { look: 'done', tone: 'neutral' };
+  return { look: 'unknown', tone: 'neutral' };
+}
 
 // ---------------------------------------------------------------- notice board and buses
 export interface Notice {

@@ -5,6 +5,7 @@
 import { closedErrorText } from './closed-errors';
 import { tr } from '../i18n/msg/api-core';
 import type { ErrorEnvelope, FieldProblem } from './generated/wire-errors';
+import { noteDateHeader } from './server-clock';
 
 /** ADR-019 Step 0: the server's five-key error envelope, typed from the backend model (smplwise/wire/errors.py, generated). */
 export type ApiErrorBody = ErrorEnvelope;
@@ -129,12 +130,23 @@ async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const inline = headers.has(STEP_UP_INLINE); // MFA-TRAIN-2500: the screen confirms this one itself
   headers.delete(STEP_UP_INLINE);
-  let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
-  if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  const go = async (): Promise<Response> => {
+    const sentAt = Date.now();
+    const r = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+    // SCR-13: every answer's Date header keeps the server's time line (server-clock.ts) for the commands' expires_at
+    try {
+      noteDateHeader(r.headers.get('date'), sentAt, Date.now());
+    } catch {
+      /* a response without readable headers (a test double) teaches nothing */
+    }
+    return r;
+  };
+  let res = await go();
+  if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await go();
   if (res.status === 403 && onStepUp && !inline) {
     const details = await stepUpRefusal(res);
     // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
-    if (details && (await onStepUp(details))) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+    if (details && (await onStepUp(details))) res = await go();
   }
   return res;
 }

@@ -44,6 +44,9 @@ export const CAL_EVENTS = {
 /** CAL-GRID-EDIT-2343: the quick create's draft travels into the full drawer on "פרטים נוספים" (nothing typed is lost). */
 export interface NewEventDetail {
   calendarId?: string; start?: string; end?: string; eventId?: string;
+  /** SCR-38: the date of a recurring entry the drawer was opened from - its local key (`occurrenceKey`) and its start - so a cancel can name
+   * that one date instead of the whole series */
+  occurrenceKey?: string; occurrenceStart?: string;
   title?: string; repeat?: 'none' | 'daily' | 'weekly'; count?: number; behalf?: string; behalfLabel?: string; headcount?: number;
   /** CAL-ATTENDEES-2343 follow-up: the quick create's picked attendees (AttendeeDraft[]), seeded into the drawer's new-entry list */
   attendees?: unknown;

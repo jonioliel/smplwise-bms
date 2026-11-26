@@ -270,7 +270,7 @@ export class ElecBillPaper extends LitElement {
             </tbody>
           </table>
           <div class="note">נוסחת החשבון: ${s.account.formula.sentence_he}</div>
-          ${readingNote.map((m) => { const endN = m.end.kind !== 'reading' && m.end.reading_kwh !== null; const startN = startNoted(m.start.kind); return html`<div class="note">${m.name}: ${endN ? html`קריאת סוף התקופה ב-${n(fmtDateTime(m.end.at))}` : ''}${startN && endN ? '; ' : ''}${startN ? html`קריאת תחילת התקופה לפי ${openingSource(m.start.kind)}` : ''}.</div>`; })}
+          ${readingNote.map((m) => { const endN = m.end.kind !== 'reading' && m.end.reading_kwh !== null; const startN = startNoted(m.start.kind); return html`<div class="note">${m.name}: ${endN ? html`קריאת סוף התקופה ב-${n(fmtDateTime(m.end.at, s.period.timezone))}` : ''}${startN && endN ? '; ' : ''}${startN ? html`קריאת תחילת התקופה לפי ${openingSource(m.start.kind)}` : ''}.</div>`; })}
           <table>
             <thead><tr><th>פירוט</th><th class="r">כמות</th><th class="r">מחיר ליחידה</th><th class="r">סכום (₪)</th></tr></thead>
             <tbody>

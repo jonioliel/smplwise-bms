@@ -1249,4 +1249,7 @@ export const en = {
   'החשבון שלי': 'My account',
   'הכניסות שלי': 'My sign-ins',
   'שפה': 'Language',
+  // TIME-CORRECT-2540 (SCR-34)
+  'נדחקה בגלל תחזוקה': 'Displaced by maintenance',
+  'מצב לא ידוע': 'Unknown state',
 };

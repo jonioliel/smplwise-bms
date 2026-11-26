@@ -9,6 +9,7 @@
  * `releaseIntercomDoor`, talk on `startTalk` (api/station-media.ts) - each with its own server-side checks and audit.
  */
 import { get, put } from './client';
+import { noteServerTime } from './server-clock';
 
 export type CallBannerMode = 'off' | 'everyone' | 'roles';
 
@@ -89,7 +90,14 @@ interface CallLogPage {
   retention_days: number;
 }
 
-export const getActiveCalls = () => get<ActiveCalls>('intercom/calls/active');
+/** SCR-13: the banner's poll also sets the server's time line (its `server_time_ms` was ignored, so answer / reject from the banner
+ * stamped `expires_at` from the device clock). */
+export async function getActiveCalls(): Promise<ActiveCalls> {
+  const sentAt = Date.now();
+  const r = await get<ActiveCalls>('intercom/calls/active');
+  noteServerTime(r.server_time_ms, sentAt, Date.now());
+  return r;
+}
 
 export function getCallLog(stationId: string | null, limit = 10, before?: string | null): Promise<CallLogPage> {
   const qs = new URLSearchParams({ limit: String(limit) });

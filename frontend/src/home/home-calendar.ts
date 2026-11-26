@@ -12,7 +12,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { wallEvent } from './home-fb-api';
-import { cancelEvent, createEvent, listCalendars, myCalendar, occurrenceKey, occurrences, roomsDay, type Calendar, type Occurrence, type PendingRequest, type RoomDay } from './home-p2-api';
+import { bookingLook, cancelEvent, createEvent, listCalendars, myCalendar, occurrenceKey, occurrences, roomsDay, type BookingLook, type Calendar, type Occurrence, type PendingRequest, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, thisWeekDays, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 import { tr } from '../i18n/msg/home';
 import { keepBuilding, readChosen } from '../components/building-filter-logic';
@@ -242,6 +242,15 @@ function bookDelSheet(h: HomeHost, o: ExtOvl) {
     <div class="dlg-acts ${key ? 'three' : ''}">${key ? html`<button class="hbtn strong" data-act="p2BookDelGo" data-v="one">${tr('רק המועד הזה')}</button>` : nothing}<button class="hbtn" data-act="p2BookDelGo" data-v="series">${tr('כל הסדרה')}</button><button class="hbtn" data-act="close">${tr('ביטול')}</button></div></section>`;
 }
 
+/** SCR-34: the state line of one of "my bookings" (a displaced booking is not "approved": the room was taken for maintenance). */
+const LOOK_TEXT: Record<BookingLook, () => string> = {
+  confirmed: () => tr('מאושר'), pending: () => tr('מחכה לאישור'), displaced: () => tr('נדחקה בגלל תחזוקה'), done: () => tr('הסתיימה'), unknown: () => tr('מצב לא ידוע'),
+};
+function bookState(state: string) {
+  const b = bookingLook(state);
+  return html`<span class="dst" data-tone=${b.tone} data-bk-state=${b.look}><i class="dot"></i><span class="clamp1">${LOOK_TEXT[b.look]()}</span></span>`;
+}
+
 function book(h: HomeHost, sg: unknown) {
   // MULTI-BUILDING-FILTER-2520: the chosen building's rooms (the book tab is never drawn on a locked wall panel)
   const b = st.bf.value(h.bld, h.kioskLocked(), readChosen());
@@ -256,7 +265,7 @@ function book(h: HomeHost, sg: unknown) {
   return html`${h.headT(tr('חדרים משותפים'), tr('מזמינים חדר לשעות שנוח לכם'), html`${sg}${h.phone ? nothing : bSeg}`)}${h.phone && bSeg !== nothing ? html`<div class="bar tabsrow" data-bld-row>${bSeg}</div>` : nothing}
     <div class="doors-body bk"><section class="door-list" aria-label="${tr('חדרים')}">${pr.items.length ? pr.items.map((r) => html`<div class="tile arow"><span class="ai">${hi('door')}</span><span class="at"><b class="clamp1">${r.name}</b><span class="muted clamp1">${roomFree(r, h.now)}</span></span><button class="hbtn" data-act="p2BookNew" data-id=${r.calendar_id}>${tr('הזמן')}</button></div>`)
       : h.empty('door', st.loading ? tr('טוענים…') : tr('אין חדרים להזמנה'), tr('כשיוגדרו חדרים משותפים, אפשר יהיה להזמין אותם מכאן.'))}${h.pager('bkR', pr.pages)}</section>
-      <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span><span class="dst" data-tone=${m.state === 'pending' ? 'warn' : 'ok'}><i class="dot"></i><span class="clamp1">${m.state === 'pending' ? tr('מחכה לאישור') : tr('מאושר')}</span></span></span><button class="rb" data-act="p2BookDel" data-id=${m.id} data-oid=${m.oid || nothing} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)
+      <section class="tile pane" aria-label="${tr('ההזמנות שלי')}"><div class="bar"><h2>${tr('ההזמנות שלי')}</h2>${h.pager('bkM', pm.pages)}</div>${pm.items.length ? pm.items.map((m) => html`<div class="vrow bkm"><span class="at"><b class="clamp1">${calName(m.cal)}</b><span class="muted clamp1">${whenText(m.start, h.now)} ${tr('עד')} ${timeOf(m.end)}</span>${bookState(m.state)}</span><button class="rb" data-act="p2BookDel" data-id=${m.id} data-oid=${m.oid || nothing} aria-label="${tr('בטל את ההזמנה')}">${hi('del')}</button></div>`)
         : html`<p class="muted pb-none">${tr('עוד לא הזמנתם חדר.')}</p>`}</section></div>`;
 }
 

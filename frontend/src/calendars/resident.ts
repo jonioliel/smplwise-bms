@@ -168,6 +168,8 @@ export class CalResident extends LitElement {
   @state() private mine: Occurrence[] | null = null;
   @state() private past = false;
   @state() private error = '';
+  /** SCR-36: a failed "my bookings" read is its own honest error (with a retry), never "you have no bookings" */
+  @state() private mineError = '';
   @state() private slow = false;
   @state() private busy = false;
   @state() private actionError = '';
@@ -280,9 +282,10 @@ export class CalResident extends LitElement {
       const to = this.past ? this.now : addDays(this.now, 31);
       const r = await this.ctx.api.mine(from.toISOString(), to.toISOString());
       this.mine = r.occurrences.filter((o) => o.state !== 'cancelled' && o.state !== 'withdrawn').sort((a, b) => a.start.localeCompare(b.start));
+      this.mineError = '';
     } catch (e) {
-      this.mine = [];
-      this.error = describeError(e);
+      this.mine = null;
+      this.mineError = describeError(e);
     }
   }
 
@@ -479,15 +482,17 @@ export class CalResident extends LitElement {
   // ---------------------------------------------------------------- ההזמנות שלי
 
   private mineView() {
-    if (!this.mine) return this.stateView();
-    const list = this.mine;
+    if (!this.mine && !this.mineError) return this.stateView();
+    const list = this.mine ?? [];
     const p = pageOf(list, this.page, perPageFor(this.lists.paged, this.per, list.length));
     return html`<section class="panel" data-res-view="mine">
       ${this.done ? html`<div class="done" role="status" data-res-done><sw-icon name="check" size="18"></sw-icon><div><b>${this.done}</b><span class="muted">${tr('תקבל הודעה כשיוחלט')}</span></div></div>` : nothing}
       <sw-segmented radio style="align-self:center;flex:none" label=${tr('הזמנות')} value=${this.past ? 'past' : 'upcoming'}
         @change=${(e: CustomEvent<SegmentedChange>) => { this.past = e.detail.value === 'past'; this.mine = null; void this.loadMine(); }}
         .options=${[{ value: 'upcoming', label: tr('קרובות'), attrs: { 'data-res-upcoming': '' } }, { value: 'past', label: tr('הסתיימו'), attrs: { 'data-res-past': '' } }]}></sw-segmented>
-      ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="148">${p.items.map((o) => this.booking(o))}</div>${this.pager(p.page, p.pages)}`
+      ${this.mineError ? html`<div class="center"><sw-state-panel state="error" data-res-state="mine-error" heading=${tr('לא הצלחנו לטעון את ההזמנות שלך')} hint=${this.mineError}
+          actionLabel=${tr('לנסות שוב')} @action=${() => { this.mineError = ''; void this.loadMine(); }}></sw-state-panel></div>`
+        : list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="148">${p.items.map((o) => this.booking(o))}</div>${this.pager(p.page, p.pages)}`
         : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="mine-empty" heading=${this.past ? tr('אין הזמנות שהסתיימו') : tr('אין לך הזמנות קרובות')}
           hint=${this.past ? tr('הזמנות שהסתיימו נשמרות כאן 30 יום.') : tr('חדר פנוי אפשר להזמין בלשונית "הזמנת חדר".')} actionLabel=${this.past ? '' : tr('הזמנת חדר')} @action=${() => (this.tab = 'book')}></sw-state-panel></div>`}
     </section>`;
