@@ -39,7 +39,7 @@ test.describe('the area row tells an unknown lock / alarm apart', () => {
     await expect(row(page, 'kitchen').locator('[data-ind="locks"]')).toHaveCount(0);
   });
 
-  test('the alarm summary: the armed panel is not hidden by an offline one; an unreadable summary is grey', async ({ page }) => {
+  test('the alarm summary: the armed panel is not hidden by an offline one; an unreadable summary is grey', async ({ page }, info) => {
     await mockHonestArea(page);
     await openBuilding(page);
     const entry = row(page, 'entry').locator('[data-ind="alarm"]');
@@ -51,9 +51,15 @@ test.describe('the area row tells an unknown lock / alarm apart', () => {
     await expect(back).toHaveAttribute('data-ind-unknown', '');
     await expect(back).toHaveClass(/\bdim\b/);
     await expect(back).not.toHaveClass(/\bwarm\b/);
-    const office = row(page, 'office').locator('[data-ind="alarm"]');
-    await expect(office).toHaveText('מנוטרלת');
-    await expect(office).not.toHaveClass(/\bwarm\b/);
+    // office: four indicators (lights, the open count, the unknown lock, the alarm) - a phone shows three, the alarm folds into "+1"
+    if (info.project.name === 'mobile') {
+      await expect(row(page, 'office').locator('[data-area-indicators]')).toHaveAttribute('data-area-indicators', 'lights locks locks alarm');
+      await expect(row(page, 'office').locator('[data-ind-more]')).toHaveText(/\+1$/);
+    } else {
+      const office = row(page, 'office').locator('[data-ind="alarm"]');
+      await expect(office).toHaveText('מנוטרלת');
+      await expect(office).not.toHaveClass(/\bwarm\b/);
+    }
   });
 
   test('the area summary (popover) lists the unknown locks on their own chip', async ({ page }) => {
