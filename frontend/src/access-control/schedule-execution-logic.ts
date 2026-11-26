@@ -9,7 +9,7 @@
 import type { ScheduleExecutionJob, ScheduleExecutionSupport, ScheduleExecutionView } from '../api/schedule-execution';
 import type { Tone } from './schedule-editor-logic';
 
-export type ExecPhase =
+type ExecPhase =
   | 'waiting_owner'
   | 'review_pending'
   | 'approved'
@@ -66,7 +66,7 @@ export function execTone(phase: ExecPhase): Tone {
   }
 }
 
-export type ExecSupportState = 'supported' | 'unsupported' | 'unavailable' | 'off' | 'loading' | 'failed';
+type ExecSupportState = 'supported' | 'unsupported' | 'unavailable' | 'off' | 'loading' | 'failed';
 
 export function execSupport(support: ScheduleExecutionSupport | null | undefined, failed = false): ExecSupportState {
   if (failed) return 'failed';
