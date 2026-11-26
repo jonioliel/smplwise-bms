@@ -111,17 +111,23 @@ Runner job `~/work/p2520_cr2540_run.sh` (run 1, branch at `0973f73cc`, base `aeb
   outside a secure context), `evidence-kiosk-polish` + `evidence-dialog-toplayer-2381` passed. Run 2 repeats these on 127.0.0.1 on the
   base and the branch (below).
 
-### Run 2 - NOT_RUN at report time
-`~/work/p2520_cr2540_run2.sh` is queued on slot B (a release gate started 11:17 UTC holds the memory). It repeats, at the branch head:
-build, eslint, unused exports, the new + poll + client unit specs, all node-only unit specs, the secure-context page specs
-(`unit-mfa-train-2500`, `unit-mfa-t095-rest-2530`, `unit-mfa-passkeys-2490`, `evidence-mfa-screens-2510`, `evidence-pwa-push`) served on
-127.0.0.1 on the base AND the branch, the evidence spec desktop + mobile, and the phone step-up pictures. Logs: `~/work/p2520_cr2/`.
-Until it runs, these are NOT_RUN at the head; the failures listed above are attributed to the environment by their error text only.
-The backend test's fixture at the head is the run-1 one (passed) with a `noqa: F811` for ruff (ruff on the PC: all checks passed).
+### Run 2 (branch head `b53cd58b2`, with the "אחר כך" button; runner `~/work/p2520_cr2540_run2.sh`, logs `~/work/p2520_cr2/`)
+- Ruff RC=0; `test_client_resilience_2540.py` + `test_version.py` RC=0; design ratchet RC=0 (no count above the baseline);
+  `npm run build` RC=0; `eslint src` RC=0; unused exports RC=0.
+- New + poll + client unit specs (12 files): 121 passed, 4 skipped (shots), 0 failed.
+- All node-only unit specs: 5357 passed, 17 skipped, 3 failed - the 3 are `unit-mfa-passkeys-2490.spec.ts` with no server in the
+  node-only run (`ERR_CONNECTION_REFUSED`); the same file passes in the next line, served.
+- Secure-context page specs served on 127.0.0.1 (`unit-mfa-train-2500`, `unit-mfa-t095-rest-2530`, `unit-mfa-passkeys-2490`,
+  `evidence-mfa-screens-2510`, `evidence-pwa-push`; desktop): branch 36 passed, 9 skipped, 0 failed; base `aeb05ad3d` 36 passed, 9 skipped -
+  run 1's failures there were the environment (served by address, not a secure context), confirmed.
+- `evidence-client-resilience-2540` (incl. the two new "אחר כך" tests) + `unit-step-up-ui` + `unit-session-me-failure-2435`,
+  desktop + mobile: 38 passed, 24 skipped (shots), 0 failed.
+- Pictures (desktop + phone, light + dark): the update card with "אחר כך", the step-up dialog, the remote start-up - 12 after, in the
+  compare page.
 
-### Observation
+### Observation (answered: question 4 = a)
 On a phone the update card (bottom of the screen, above the navigation bar) covers a screen's bottom save button while it is shown
-(found by the picture run). It is the card that already shows for a waiting service worker; with FC-06 it can show more often (question 4).
+(found by the picture run). "אחר כך" now puts it away until the next version.
 
 ## Not done / NOT_RUN
 - No lab, no live install, no device: everything is mocked.
