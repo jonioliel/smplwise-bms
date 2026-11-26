@@ -53,9 +53,10 @@ const fields = (s: Locator): Promise<F[]> =>
     }),
   );
 /** Taken before the word checks, so the same spec on the base commit (where they fail) still leaves its before-pictures. */
-async function shot(page: Page, name: string) {
+async function shot(page: Page, name: string, section: Locator) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOTS, { recursive: true });
+  await section.locator('sw-field').first().scrollIntoViewIfNeeded(); // the phone shows the fields, not only the device card
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(SHOTS, `${name}-${test.info().project.name}.png`) });
@@ -66,7 +67,7 @@ test.describe('generator settings: Arabic and Russian unit words in the field fr
     const w = WORDS[lang];
     test(`${lang} ${scheme}: unit words and labels in ${lang}, the unit at the end of the reading direction, digits left-to-right`, async ({ page }) => {
       const s = await open(page, lang, scheme, '/system/infra/generator/thresholds', 'thresholds');
-      await shot(page, `gen-units-${lang}-${scheme}-thresholds`);
+      await shot(page, `gen-units-${lang}-${scheme}-thresholds`, s);
       await expect.poll(async () => (await fields(s)).find((x) => x.label === w.oil)?.unit ?? null).toBe(w.bar);
       const f = await fields(s);
       expect(f.length).toBeGreaterThan(0);
@@ -84,12 +85,12 @@ test.describe('generator settings: Arabic and Russian unit words in the field fr
       expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).direction)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
 
       const rt = await open(page, lang, scheme, '/system/infra/generator/retention', 'retention');
-      await shot(page, `gen-units-${lang}-${scheme}-retention`);
+      await shot(page, `gen-units-${lang}-${scheme}-retention`, rt);
       await expect.poll(async () => (await fields(rt)).find((x) => x.label === w.retStale)?.unit ?? null).toBe(w.s);
       expect((await fields(rt)).filter((x) => x.unit === w.days).length).toBe(2);
 
       const log = await open(page, lang, scheme, '/system/infra/generator/log', 'log');
-      await shot(page, `gen-units-${lang}-${scheme}-log`);
+      await shot(page, `gen-units-${lang}-${scheme}-log`, log);
       await expect.poll(async () => (await fields(log)).find((x) => x.label === w.interval)?.unit ?? null).toBe(w.days);
       const lf = await fields(log);
       expect(lf.find((x) => x.label === w.shortRun)?.unit).toBe(w.s);
