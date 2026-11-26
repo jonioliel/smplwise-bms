@@ -1,5 +1,48 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.54.0 (pilot) - honest states and confirmed physical actions; reliability, time and security fixes from the deep code review
+
+<!-- RELEASE-2540-TRAIN: DRAFT - the train coordinator's working list for rows 1-13, not the final release text; the lead writes the final bilingual text at release. DATA-RULES-2540 and HOME-SPEC-STABLE-2540 are still to come. The word DRAFT is kept out of the heading (as on the 2.52 and 2.53 trains) so scripts/release_check.py reads 2.54.0 as the CHANGELOG head while the version files are 2.54.0. -->
+
+### חדש - New
+- יומן השינויים של ה-NVR: כשההגדרה במכשיר השתנתה מאז השינוי, "החזר" מסביר שלא נכתב דבר ומציע "החזר בכל זאת" באישור נפרד (המיקוד על ביטול); ההחזרה הכפויה נרשמת ביומן הביקורת עם מה שנדרס. - NVR change log: when the setting on the device changed since the change, "Revert" explains that nothing was written and offers "Revert anyway" behind its own confirmation (focus on cancel); the forced revert is recorded in the audit log with what it overwrote.
+- דף פתוח יודע שהמערכת עודכנה: מופיע כרטיס "גרסה חדשה של Arx זמינה" עם "רענון" ו"אחר כך"; שום דבר לא נטען מחדש מעצמו. - An open page learns that the system was updated: the "A new version of Arx is available" card shows with "Refresh" and "Later"; nothing reloads by itself.
+
+### שופר - Improved
+- פעולות פיזיות: הפעלת יציאת אזעקה של ה-NVR (סירנה, תאורה, שער) מבקשת אישור שמציג את היציאה, המקליט ומשך הפעימה, והמיקוד על ביטול; תוצאה בלי תשובה מוצגת "לא ידוע, בדקו במקום" ולא "נכשל". - Physical actions: pulsing an NVR alarm output (siren, light, gate) asks for a confirmation that names the output, the recorder and the pulse length, with the focus on cancel; an outcome without an answer shows "unknown, check on site" instead of "failed".
+- שיחה נכנסת: הכרטיס שבחזית לא מתחלף מתחת לאצבע כשעמדה נוספת מצלצלת; פתיחת דלת שתוצאתה לא ידועה מחזיקה את הכפתור עד בירור. - Incoming call: the card in front no longer swaps under the finger when another station rings; a door opening with an unknown outcome holds its button until it is clear.
+- בדיקת התקנים באוטומציה: כל שלב מחכה לתשובת ההתקן; שלב רגיש (כמו פתיחת מנעול) ושחזור המצב רצים רק אחרי אישור משלהם. - Automation device test: each step waits for the device's answer; a sensitive step (such as an unlock) and the restore run only from their own confirmation.
+- מסך הבית בסגנון המידע "כרטיסים": פס הכרטיסים הגדולים מתקפל בשלב הדחיסה, כך שהמסך לא גולל ב-1366x768, ב-1280x800 ובטאבלט 1180. - Home screen in the "cards" information style: the band of large cards folds on the squeeze step, so the screen no longer scrolls at 1366x768, 1280x800 and on a 1180 tablet.
+- בקשת קריאה שלא נענית מסתיימת אחרי 60 שניות כ"אין חיבור" במקום להמתין לעד; רענון אוטומטי שנתקע חוזר לפעול. - A read request that gets no answer ends after 60 seconds as "no connection" instead of waiting for ever; an automatic refresh that got stuck runs again.
+- כניסה מרחוק: כשהשרת לא זמין לרגע המשתמש נשאר מחובר ורואה "אין חיבור לשרת, מנסה שוב" במקום טופס הכניסה. - Remote sign-in: when the server is briefly unreachable the user stays signed in and sees "no connection to the server, trying again" instead of the sign-in form.
+- חלון האישור לפעולות רגישות (כשהוא מופעל) מציין את הפעולה, נסגר מעצמו אחרי 90 שניות או במעבר מסך, ופעולה פיזית לא נשלחת שוב אחרי שהאישור פג. - The confirmation dialog for sensitive actions (when turned on) names the action, closes by itself after 90 seconds or on a screen change, and a physical action is not re-sent once the confirmation has expired.
+- ביטול מועד של אירוע חוזר שואל "רק התאריך הזה" או "כל הסדרה" במקום לבטל את כל הסדרה בשקט. - Cancelling one date of a recurring entry asks "only this date" or "the whole series" instead of silently cancelling the whole series.
+
+### תוקן - Fixed
+- מנעול לא מקוון או במצב לא ידוע כבר לא נספר ומוצג כדלת פתוחה, ולוח אזעקה לא זמין כבר לא מוצג "דרוך" - בממשק הביתי, בשורת האזור, בכותרת הקומה ובסיכום הבניין; מצב לא ידוע מוצג באפור "לא ידוע". - An offline lock or one in an unknown state is no longer counted and shown as an open door, and an unavailable alarm panel no longer shows as "armed" - in the home interface, the area row, the floor header and the building summary; an unknown state shows in grey as "unknown".
+- מתגים ששומרים מיד (הגדרות מודולים, כרטיסי שירות, הגדרות מערכת, תזמונים) נשארים במקומם כשהשמירה נדחתה. - Switches that save at once (module settings, tickets, system settings, schedules) stay where they were when the save is refused.
+- תשובה מאוחרת כבר לא דורסת בחירה חדשה יותר (פעולה קבוצתית, הקלטות לפי מצלמה ויום, חשבון החשמל בממשק הביתי, סצנה, יום בלוח החדרים של הדייר), ולחיצה כפולה רצה פעם אחת (ניגון הקלטה בממשק הביתי, הערה לכרטיס שירות). - A late answer no longer overwrites a newer choice (bulk action, recordings by camera and day, the home electricity bill, a scene, the resident's room day), and a double tap runs once (home recording playback, a ticket note).
+- הזמנות ביום מעבר שעון קיץ/חורף נשמרות בשעה שנבחרה (לא שעה לפני או אחרי); הזמנה שנדחקה בגלל תחזוקה לא מוצגת "מאושרת"; זמני חשבון החשמל לפי השעון המקומי; כשל בטעינת "ההזמנות שלי" לא מוצג כאילו אין הזמנות. - Bookings on the daylight-saving change days are stored at the chosen hour (not one hour off); a booking displaced by maintenance no longer shows as "approved"; electricity bill times use the local clock; a failed load of "my bookings" no longer reads as "no bookings".
+- חדר לא מוזמן פעמיים גם כשסדרה חוזרת מגיעה מעבר לטווח שחושב מראש; הבדיקה הלילית רושמת התנגשות שנמצאה ביומן הביקורת. - A room is no longer double-booked when a recurring series reaches past the precomputed range; the nightly check records a collision it finds in the audit log.
+- פקודות פיזיות נחתמות לפי שעון השרת גם כששעון המכשיר לא מסונכרן. - Physical commands are stamped by the server's clock even when the device's clock is out of sync.
+- שינוי מצב שקרה בזמן שמערכת הבית עלתה מחדש כבר לא הולך לאיבוד. - A state change that happened while the home system was restarting is no longer lost.
+- הגיבוי היומי והגיבוי הידני כבר לא חוסמים כתיבות למסד הנתונים בזמן הדחיסה. - The daily and the manual backup no longer block database writes while the archive is compressed.
+- אינטגרציה שנכנסת עם טוקן קבוע כבר לא ננעלת אחרי כשעה ולא נועלת את הכניסות האחרות מאותה כתובת; בזמן שמערכת הבית לא זמינה החיבור הקיים ממשיך. - An integration that signs in with a long-lived token is no longer locked out after about an hour and no longer locks out other sign-ins from the same address; while the home system is away the existing session continues.
+- אפליקציית הטלפון: מי שהשלב השני שלו הוא מפתח הטלפון, מפתח גישה או האימות הדו-שלבי של מערכת הבית נכנס גם לתצוגת האינטרנט של האפליקציה. - Phone app: a user whose second factor is the phone key, a passkey or the home system's own two-step sign-in now also gets into the app's web view.
+- אבטחה: שרת השידור לטלוויזיות, לוחות ההודעות וקולט ההתראות של Provision מגבילים את מספר החיבורים ואת הזמן לבקשה, כך שמכשיר ברשת לא יכול להשבית אותם בחיבורים איטיים. - Security: the TV cast relay, the notice boards and the Provision alarm listener limit connections and the time per request, so a device on the network cannot exhaust them with slow connections.
+- אבטחה: שידור לטלוויזיה נעצר כשמי שהפעיל אותו (או מי שבחר את המצלמה) מאבד הרשאה, כשהמצלמה מושבתת או כשהמשתמש הוסר. - Security: a TV cast stops when whoever started it (or chose the camera) loses permission, when the camera is disabled or the user is removed.
+- החזרת שינוי ב-NVR כבר לא דורסת בשקט הגדרה שהשתנתה במכשיר מאז השינוי. - Reverting an NVR change no longer silently overwrites a setting that changed on the device since the change.
+
+### שינוי בממשק השרת - API change
+- תוספות בלבד: `DeviceCounts.locks_unknown` / `alarms_unknown`; גוף אופציונלי `{"force": true}` ב-`POST /nvr/changes/{id}/rollback` (409 `changed_since` / `already_rolled_back`); `client_request_id` אופציונלי ב-`POST /home/tickets/{id}/notes`; `build` במסגרת ה-hello של `/me/ws`; סיבת עצירה `access_lost` לשידור; `expires_at` של שידור יכול להיות null (שידור קבוע). - Additive only: `DeviceCounts.locks_unknown` / `alarms_unknown`; an optional `{"force": true}` body on `POST /nvr/changes/{id}/rollback` (409 `changed_since` / `already_rolled_back`); an optional `client_request_id` on `POST /home/tickets/{id}/notes`; `build` in the `/me/ws` hello frame; the cast stop reason `access_lost`; a cast's `expires_at` may be null (a permanent cast).
+
+### לצוות הפיתוח - For the development team
+- שער השחרור: בדיקת הקוד רצה על הענף הנבדק, סף הירידה במספר הבדיקות נמדד מול ההרצה המלאה הירוקה האחרונה, הרצה ממוקדת דורשת עוגן כיסוי, וחותמת בנייה (`www/build-stamp.json`) מוכיחה שהממשק נבנה מהקוד שנבדק. - Release gate: the code lint runs on the branch under test, the test-count drop is measured against the newest green full run, a targeted run needs a coverage anchor, and a build stamp (`www/build-stamp.json`) proves the shipped UI was built from the gated source.
+- תוכניות בדיקת מעבדה ל-2.54, להחלפת מפתח הגשר ולהתקנת WisKey rc.20 (מסמכים בלבד). - Lab acceptance plans for 2.54, the bridge-key rotation and the WisKey rc.20 install (documents only).
+
+### התקנה - Install
+- אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.53.0). - No new migration. The bridge stays 0.10.9 (as in 2.53.0).
+
 ## 2.53.0 (pilot) - getting started and support, approval on the phone, my account in the home interface, a resource budget
 
 
