@@ -7,6 +7,8 @@
  * hidden on this device, a ringing call whose station drawer is already open is left to the drawer, the call this user answered
  * keeps its controls, and "answer" talks from here only when the station's media offers talk - otherwise it opens the station.
  */
+import { ApiError } from '../api/client';
+import { actionOutcome } from '../api/intercom';
 import type { ActiveCalls, CallLogRow, IncomingCall } from '../api/intercom-calls';
 import type { StationMedia } from '../api/station-media';
 import type { RouteState } from '../router';
@@ -101,4 +103,39 @@ export function callSeconds(row: CallLogRow): number | null {
   if (!row.answered_at || !row.ended_at) return null;
   const s = (Date.parse(row.ended_at) - Date.parse(row.answered_at)) / 1000;
   return Number.isFinite(s) && s >= 0 ? Math.round(s) : null;
+}
+
+// ---------------------------------------------------------------- PHYSICAL-CONFIRM-2540: the front call and the door outcome
+
+/** How long a call that moved to the front by itself (the front call ended, or was hidden) ignores taps on its answer / decline /
+ * door controls: a tap aimed at the call that just left never lands on the one that took its place. "Next" (the operator's own
+ * choice) has no settle time. */
+export const FRONT_SETTLE_MS = 800;
+
+/** Review SCR-11: the call in front is tracked by its id, not by its place in the list. It stays in front while it is shown, even
+ * when a newer station rings (the newer one waits one tap away, "עוד 1"); only when it leaves does the first shown call take over. */
+export function frontCall(shown: readonly IncomingCall[], frontId: string | null): IncomingCall | null {
+  if (!shown.length) return null;
+  return shown.find((c) => c.call_id === frontId) ?? shown[0];
+}
+
+/** Whether the front call takes taps now: not within FRONT_SETTLE_MS of moving to the front by itself (both on a monotonic clock). */
+export function frontSettled(changedAt: number, now: number): boolean {
+  return now - changedAt >= FRONT_SETTLE_MS;
+}
+
+/** As the stations screen (screens/wiskey-stations-logic.ts `UNKNOWN_HOLD_FALLBACK_MS`): the longest the backend holds a relay. */
+export const DOOR_HOLD_FALLBACK_MS = 70_000;
+
+/** Review SCR-12: how a banner door release that did not succeed is read - the rule of the stations screen
+ * (screens/wiskey-stations-actions.ts `failure()` / `holdMs()`). Only a structured "not sent" / "refused" from the backend is a
+ * failure ("the door was not opened: why"); anything else (a time-out, a proxy error, a dropped connection after the server forwarded
+ * the release) is "unknown, check on site" in amber. After an unknown outcome, or "an earlier release of this door is still
+ * unresolved", the door's button waits as long as the backend holds that relay. */
+export function doorFailure(err: unknown): { unknown: boolean; holdMs: number } {
+  const unknown = actionOutcome(err) === 'unknown';
+  const inProgress = err instanceof ApiError && err.code === 'intercom_release_in_progress';
+  if (!unknown && !inProgress) return { unknown, holdMs: 0 };
+  const s = err instanceof ApiError ? Number(err.body?.details?.retry_after_s) : NaN;
+  return { unknown, holdMs: Number.isFinite(s) && s >= 0 ? Math.ceil(s * 1000) : DOOR_HOLD_FALLBACK_MS };
 }

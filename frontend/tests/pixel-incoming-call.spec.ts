@@ -49,6 +49,21 @@ test.describe('incoming call banner pixels', () => {
     await compare(b, info, 'call-two-quiet');
   });
 
+  // PHYSICAL-CONFIRM-2540 (review SCR-12): an unknown door outcome - the amber line and the held door button
+  test('classic is pixel-stable: an unknown door outcome holds the door', async ({ page }, info) => {
+    await installCallsMock(page, {}, { release: 'unknown' });
+    await openApp(page, '#/explore/floors/f0');
+    const b = page.locator(BANNER);
+    await expect(b).toBeVisible({ timeout: 30_000 });
+    await expect(b.locator('[data-call-picture="still"] img')).toBeVisible();
+    await b.locator('[data-call-door="1"]').click();
+    await b.locator('[data-call-door-yes]').click();
+    await expect(b.locator('[data-call-note="warn"]')).toBeVisible();
+    await expect(b.locator('[data-call-door="1"]')).toHaveAttribute('data-call-door-held', 'true');
+    await page.evaluate(() => document.fonts.ready);
+    await compare(b, info, 'call-door-unknown');
+  });
+
   test('dark is pixel-stable: the ringing banner', async ({ page }, info) => {
     await installCallsMock(page);
     await openApp(page, '#/explore/floors/f0', { scheme: 'dark' });

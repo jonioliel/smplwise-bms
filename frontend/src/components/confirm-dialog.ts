@@ -12,7 +12,8 @@ import { enterAnswer, type EnterTarget } from './confirm-dialog-keys';
  *
  *   if (!(await confirmDialog({ body: 'למחוק?', danger: true }))) return;
  *
- * Keyboard, as the native box: the confirm button has the focus and Enter there confirms; Escape cancels. FE-SAFETY-FIX-2520 (review
+ * Keyboard, as the native box: the confirm button has the focus and Enter there confirms; Escape cancels. A physical action passes
+ * `focusCancel` (PHYSICAL-CONFIRM-2540): the focus starts on cancel instead. An auto-repeated Enter never answers. FE-SAFETY-FIX-2520 (review
  * FC-04): Enter confirms ONLY on the confirm button - on cancel and on the ✕ it cancels, anywhere else it is the focused element's own
  * key and never confirms (confirm-dialog-keys.ts). While the dialog is open no other key reaches the page (a native box is modal for the keyboard too), except Tab, which the
  * dialog's own focus trap keeps inside the box. The ✕ and a click on the backdrop cancel. Focus returns to the control that opened it.
@@ -30,6 +31,10 @@ interface ConfirmDialogOptions {
   cancelLabel?: string;
   /** A destructive action: the confirm button is the danger button. */
   danger?: boolean;
+  /** PHYSICAL-CONFIRM-2540 (deep review 2520, SCR-16 class): a PHYSICAL action (a relay, a siren, a door, a device step) - the dialog
+   * opens with the focus on CANCEL, as the tiles panel's unlock dialog does, so a stray or held Enter / Space never actuates anything;
+   * the operator presses the named confirm button on purpose. Default false (the native box's "OK has the focus"). */
+  focusCancel?: boolean;
 }
 
 /** The open confirmation dialogs, oldest first: only the top one answers the keyboard. */
@@ -86,6 +91,12 @@ export class SwConfirmDialog extends LitElement {
       e.preventDefault();
       this.answer(false);
     } else if (e.key === 'Enter') {
+      // PHYSICAL-CONFIRM-2540 (review SCR-43): an auto-repeated Enter (a key held down since it pressed the control that opened this
+      // dialog) never answers - only a fresh press does
+      if (e.repeat) {
+        e.preventDefault();
+        return;
+      }
       const answer = enterAnswer(this.enterTarget());
       if (answer === 'pass') return; // a link or field of the body keeps its own Enter; nothing is confirmed
       e.preventDefault();
@@ -128,7 +139,7 @@ export class SwConfirmDialog extends LitElement {
     // sw-dialog moves the focus on the next frame (to the first control); the native box focused its OK button - so does this one
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        const ok = this.renderRoot.querySelector<HTMLElement>('[data-confirm-ok]');
+        const ok = this.renderRoot.querySelector<HTMLElement>(this.options.focusCancel ? '[data-confirm-cancel]' : '[data-confirm-ok]');
         (ok?.shadowRoot?.querySelector<HTMLElement>('button') ?? ok)?.focus({ preventScroll: true });
       }),
     );

@@ -1563,4 +1563,13 @@ export const en = {
   'השלבים': 'The steps',
   'המצב של כל שלב נמדד באשף ההתקנה ובמוכנות ההתקנה, ומתעדכן ב"רענון". מדריך התפעול היומיומי והתמיכה:': 'Each step\'s state is measured by the setup wizard and the installation readiness, and is updated by "Refresh". Daily operation and support:',
   'הגדרות ‹ תמיכה': 'Settings ‹ Support',
+  'הפעלת יציאת אזעקה': 'Operate an alarm output',
+  'להפעיל עכשיו את {output}{rec}?': 'Operate {output}{rec} now?',
+  ' ב־{name}': ' on {name}',
+  'זהו ממסר פיזי: הוא עשוי להפעיל צופר, תאורה או שער{v}.': 'This is a physical relay: it may sound a siren, switch on a light or open a gate{v}.',
+  ' למשך {v} שנ׳': ' for {v} s',
+  'הפעולה נרשמת באודיט עם שם המשתמש.': 'The action is recorded in the audit log with your user name.',
+  'הפעל את היציאה': 'Operate the output',
+  '{label}: ה־NVR אישר את הפקודה · נרשם באודיט.': '{label}: the NVR accepted the command · recorded in the audit log.',
+  'לא ידוע אם הפעולה בוצעה · בדקו במקום לפני הפעלה חוזרת': 'It is not known whether the action was carried out · check on site before trying again',
 };
