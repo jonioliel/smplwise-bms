@@ -40,8 +40,7 @@ test.describe('MEDIUM-REST-2540 captures', () => {
     for (const lang of ['he', 'en'] as const) {
       test(`${size} ${lang}: motion confirmation 40 -> 60`, async ({ page }) => {
         await page.setViewportSize({ width: w, height: h });
-        if (lang === 'en') await page.addInitScript(() => { try { localStorage.setItem('sw.ui.lang', 'en'); } catch { /* private mode */ } });
-        await mockMotionCamera(page, 40);
+        await mockMotionCamera(page, 40, lang);
         await openMotionConfirm(page, 60);
         await shot(page, `motion-${size}-${lang}`);
       });

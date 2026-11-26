@@ -43,7 +43,9 @@ const CAMERA = {
   encoding: null, can_view_live: true,
 };
 
-export async function mockMotionCamera(page: Page, sensitivity = 40): Promise<{ puts: unknown[] }> {
+export async function mockMotionCamera(page: Page, sensitivity = 40, lang: 'he' | 'en' = 'he'): Promise<{ puts: unknown[] }> {
+  // the page's language: the server's `ui.lang` wins over the browser's copy (i18n/ui-lang.ts), so both say the same
+  if (lang === 'en') await page.addInitScript(() => { try { localStorage.setItem('sw.ui.lang', 'en'); } catch { /* private mode */ } });
   const m = { puts: [] as unknown[] };
   await page.routeWebSocket(/\/ha\/ws/, () => undefined);
   await page.routeWebSocket(/\/me\/ws/, () => undefined);
@@ -53,7 +55,7 @@ export async function mockMotionCamera(page: Page, sensitivity = 40): Promise<{ 
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     if (p === 'me') return json(route, { user: { id: 'u-mr', username: 'mr', display_name: 'בודק', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: PERMS, permissions_any: PERMS, has_access: true, permission_revision: 1, bootstrap_state: 'done' });
-    if (p === 'me/prefs') return json(route, { prefs: {}, stored: [] });
+    if (p === 'me/prefs') return json(route, { prefs: lang === 'en' ? { 'ui.lang': 'en' } : {}, stored: lang === 'en' ? ['ui.lang'] : [] });
     if (p === 'settings') return json(route, { settings: { 'ui.design': 'a' }, can_edit: false });
     if (p.startsWith('notifications')) return json(route, { unread: 0, items: [] });
     if (p === 'cameras' && method === 'GET') return json(route, { cameras: [CAMERA], recorders: [{ id: 'r1', name: 'NVR' }], recorder: { id: 'r1', name: 'NVR', model: null, firmware: null, last_seen_at: null }, can_sync: false });

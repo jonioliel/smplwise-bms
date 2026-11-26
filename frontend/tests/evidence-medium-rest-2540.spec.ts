@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { settle } from './helpers/settle';
 import { mockHome, overview } from './home-simple-mocks';
-import { expectWall, wall } from './wall-followups-mocks';
+import { TABLET_L, asDevice, expectWall, wall } from './wall-followups-mocks';
 import { holdHaSocket, mockMotionCamera, mockWalls, openMotionConfirm } from './medium-rest-2540-mocks';
 
 // MEDIUM-REST-2540 against mocked backends (nothing is sent anywhere, no device / recorder is contacted). Each case fails on the build
@@ -170,8 +170,7 @@ test.describe('SCR-27: the motion-detection confirmation shows the change the ri
   });
 
   test('English: the arrow points right and the values read old -> new from the left', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sw.ui.lang', 'en'); } catch { /* private mode */ } });
-    await mockMotionCamera(page, 40);
+    await mockMotionCamera(page, 40, 'en');
     const dlg = await openMotionConfirm(page, 60);
     const sens = dlg.locator('[data-motion-change="sensitivity"]');
     await expect(sens).toBeVisible();
@@ -221,6 +220,7 @@ test.describe('SCR-26: the camera walls read their cameras again', () => {
 test.describe('wall display: the add-on was updated under it', () => {
   test('another release on the server: a quiet "new version" notice; nothing reloads by itself', async ({ page }) => {
     await mockWalls(page, { admin: false, wall: true, cams: 4 }, 'ok', '99.0.0');
+    await asDevice(page, TABLET_L); // the wall runs on its own device (a computer shows the application unless the profile says so)
     await page.goto('/?design=a#/');
     await expectWall(page);
     const note = wall(page).locator('[data-wall-new-build]');
@@ -234,6 +234,7 @@ test.describe('wall display: the add-on was updated under it', () => {
 
   test('the same release (or a test backend) shows nothing', async ({ page }) => {
     await mockWalls(page, { admin: false, wall: true, cams: 4 }, 'ok', 'test');
+    await asDevice(page, TABLET_L);
     await page.goto('/?design=a#/');
     await expectWall(page);
     await expect(wall(page).locator('[data-wall-health]').first()).toHaveText('המערכת תקינה');

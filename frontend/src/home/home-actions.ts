@@ -100,8 +100,10 @@ export async function lightsOff(rooms: HRoom[], scope: { kind: BulkScope; id: st
   return { ok: !bad, note: bad?.note ?? null };
 }
 
+/** The zones to turn off, as the caller read them BEFORE the screen showed them off (MEDIUM-REST-2540: reading `mode` here found every
+ * zone already "off" - the A/C of "room off" was never sent). */
 export async function climateOff(zones: HZone[]): Promise<Outcome> {
-  const res = await Promise.all(zones.filter((z) => z.mode !== 'off' && z.can).map((z) => run(`home:${z.id}`, z.id, 'climate.turn_off')));
+  const res = await Promise.all(zones.filter((z) => z.can).map((z) => run(`home:${z.id}`, z.id, 'climate.turn_off')));
   const bad = res.find((o) => !o.ok);
   return { ok: !bad, note: bad?.note ?? null };
 }
