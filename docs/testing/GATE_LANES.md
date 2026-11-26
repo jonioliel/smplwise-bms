@@ -153,8 +153,8 @@ flag when `fixture_job.py evidence-wiskey-people evidence-wiskey-editor evidence
 
 Listed with `"gate": false` after the first runner run (2026-11-25), the reason in the JSON (`_why_not_gate`) - real failures,
 each also failing alone; flip the flag when the follow-up lands:
-- `evidence-home-screen.spec.ts` (HAND-SWITCH-HOME behaviour): 21 pass, 2 fail - direction b, cards and tiles at 1440x900: the page's
-  `main` scrolls 918 / 900 px (the no-scroll rule of the control screens). A product layout defect.
+- ~~`evidence-home-screen.spec.ts`~~ - in the gate since RELEASE-2530-TRAIN (HOME-SCROLL-FIX-2530 fixed direction b's 918 / 900 px
+  page scroll; `fixture_job.py evidence-home-screen` on the merged train: 23 passed, desktop + mobile, one run).
 - `evidence-media-players-live.spec.ts`: ma 43 pass / 6 fail, sonos 40 pass / 4 fail - assertions written before the CR-016 server
   existed ("unplaced devices are listed last", the favourites tab text, the group-leave outcome `left` vs `unknown`, a cross-brand
   group's room name).

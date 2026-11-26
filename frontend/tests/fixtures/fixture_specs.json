@@ -18,7 +18,7 @@
         "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-home-polish.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
-        "evidence-home-screen.spec.ts": {"gate": false, "projects": ["desktop", "mobile"], "_why_not_gate": "GATE-FIXTURE-LANE-2530 runner run (2026-11-25): 21 pass, 2 fail in the desktop project, also alone - direction b, cards and tiles view at 1440x900: the page main scrolls (918 / 900 px), against the no-scroll rule of the control screens. A product layout fix first, then gate: true."},
+        "evidence-home-screen.spec.ts": {"gate": true, "projects": ["desktop", "mobile"]},
         "evidence-area-nav.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]},
         "evidence-camsuggest-live.spec.ts": {"gate": false, "projects": ["desktop"]}
