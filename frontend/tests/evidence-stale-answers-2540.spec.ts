@@ -109,7 +109,7 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     const sheet = home(page).locator('[data-sheet="sceneEdit"]');
     await home(page).locator('[data-scene-edit="evening"]').click(); // its detail is held
     await expect(sheet).toBeVisible();
-    await sheet.locator('button[data-act="close"]').click();
+    await sheet.locator('button.rb[data-act="close"]').click();
     await home(page).locator('[data-scene-edit="night"]').click();
     await expect(sheet.locator('input.inp')).toHaveValue('לילה');
     hold.open(); // evening's detail lands last
@@ -231,11 +231,9 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     await installCalendarsMock(page);
     await page.route('**/api/v1/me/calendar**', (r) => json(r, { occurrences: [] }));
     const hold = gate();
-    let reads = 0;
     await page.route('**/api/v1/calendar/rooms/day**', async (r) => {
-      reads += 1;
       const date = new URL(r.request().url()).searchParams.get('date')!;
-      const busy = reads === 2; // the second read (the first tapped day) is the slow one, and that day is booked
+      const busy = date === '2026-11-01'; // day 3 of the strip (the clock is 29.10): the slow one, and that day is booked
       if (busy) await hold.held;
       const at = (h: number) => new Date(`${date}T${String(h).padStart(2, '0')}:00:00+02:00`).toISOString();
       const entries = busy ? [10, 14].map((h, i) => ({ id: `o${i}`, calendar_id: 'a', title: 'תפוס', start: at(h), end: at(h + 2), state: 'confirmed', kind: 'booking', organizer: null, recurring: false, revision: 1 })) : [];
@@ -247,7 +245,15 @@ test.describe('STALE-ANSWERS-2540: the newest selection wins, a double action ru
     const R = 'sw-app calendars-page cal-resident';
     await expect(page.locator(`${R} [data-res-room="a"]`)).toBeVisible();
     await page.locator(`${R} [data-res-day="3"]`).click(); // held, booked
-    await page.locator(`${R} [data-res-day="5"]`).click(); // answers at once, free
+    // the strip is hidden while a day loads, so the second pick is made on the element itself - the same path as the strip's own
+    // handler (dayIdx, start, rooms, loadDay); any other read that overlaps (a retry, the refresh after a booking) races the same way
+    await page.locator(R).evaluate((el) => {
+      const r = el as unknown as { dayIdx: number; start: unknown; rooms: unknown; loadDay: () => Promise<void> };
+      r.dayIdx = 5;
+      r.start = null;
+      r.rooms = null;
+      void r.loadDay();
+    }); // day 5 answers at once, free
     await expect(page.locator(`${R} [data-res-room="a"]`)).toBeVisible();
     await expect(page.locator(`${R} [data-res-room="a"] .mini i`)).toHaveCount(0);
     hold.open(); // day 3 lands last
