@@ -198,8 +198,10 @@ ANCHOR_MAX_COMMITS = int(os.environ.get("GATE2_ANCHOR_MAX_COMMITS", "20"))
 ANCHOR_MAX_HOURS = float(os.environ.get("GATE2_ANCHOR_MAX_HOURS", "36"))
 ANCHOR_MAX_PRODUCT_FILES = int(os.environ.get("GATE2_ANCHOR_MAX_PRODUCT_FILES", "40"))
 PRODUCT_PATHS = ("frontend/src", "smplwise_vms/backend/smplwise", "custom_components")
-# side files and copies next to the reports that are not a run of their own (gate_budget.SKIP_MARKS plus the gate-2 records)
-REPORT_SKIP = tuple(gb.SKIP_MARKS) + (".engine", ".anchor", ".lint", ".gate2")
+# side files next to the reports that are not a run of their own. NOT skipped: the kept copies of real runs - `.pre-gate2.json` (an
+# earlier run of the same sha, renamed when the sha is gated again) and `.gate2-first.json` (the full first run of a gate whose failures
+# were all quarantined; the re-run then wrote a selection report under the plain name): either can be the anchor.
+REPORT_SKIP = (".checkpoint", ".selection", ".engine", ".anchor", ".lint", ".early", "quarantine", "gate_status")
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
