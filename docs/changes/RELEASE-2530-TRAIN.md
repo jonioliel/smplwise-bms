@@ -140,7 +140,7 @@ fixture job + HOME-SCROLL-FIX-2530's layout fix), devices fixture backend, the J
 passed, 0 failed**. So `frontend/tests/fixtures/fixture_specs.json` now has `evidence-home-screen.spec.ts` `"gate": true` (`014ee92ae`;
 the stale `_why_not_gate` dropped), `test_fixture_job.py`'s expected gate set + 1 (PC 16 passed), `docs/testing/GATE_LANES.md` updated. It
 takes effect in the first gate with the 2.53 engine (open point 2). The row's own queued run (`~/work/p2520_homescroll_final.out`, at the
-row's branch) had not started when this was written; the train run above is the one-run 23/23 the lead asked for.
+row's branch) had not started when this was written; the train run above is the one-run 23/23 the lead asked for. That queued run finished later (00:08Z, at the row's branch): 22 passed, **1 failed** - "edit mode: ... the order by drag" (the drag the row's note already calls intermittent: its run 1 failed it, run 2 passed). So the train measured it once more - run D at `88c6b675b`, `fixture_job.py evidence-home-screen --project=desktop --no-build` four times in a row: **17 / 17 passed each time** (0 unexpected, 0 flaky). On the train: 5 of 5 runs green; at the row's branch: 2 of 3 runs lost the drag. The flag stays `true`; open point 6.
 
 ## 5. Registry
 
@@ -165,6 +165,7 @@ management, Q75); AT-T120-1..5 PASS at `0a4286b4c` with the run-A receipts (sect
 4. **`selftest_engine_sync.py` is not hermetic against a running gate** (`engine_sync.busy()` probes the machine with `pgrep`, so
    the selftest fails while any `release_gate` process runs - run B): a) a GATE row lets the selftest pass a fake `busy` (or `--force-busy`
    for its own fake home) (recommended) b) run the selftest only when no gate runs.
+6. **`evidence-home-screen` drag test** ("edit mode ... the order by drag", line ~549): green 5 / 5 on the train, lost 2 of 3 times at the row's branch. a) keep `"gate": true`; if the 2.53 gate shows it, quarantine that one test with a ticket and an expiry (owner rule) and make the drag wait for the drop's settle (recommended) b) set `"gate": false` again until a `--repeat-each=10` run is clean.
 5. **More rows** will join this train; each one cut from `eadaa25b8` should be checked against the 2.52 ratchets that reached 0 later
    (backend refusal English / run-time, ADR-019 field envelope, Node unit guards) - rows 6 and 9 needed train fixes for exactly this.
 
