@@ -941,7 +941,7 @@ test.describe('automation builder: dry-run, run now, enable, delete and the unsa
     await expect(sw).toHaveAttribute('aria-checked', 'false');
     await sw.click();
     const dlg = page.locator(`${tag} sw-dialog[open]`).filter({ hasText: 'כולל פעולה מתקדמת שהמערכת לא יודעת לתאר' });
-    await expect(dlg).toBeVisible();
+    await expect(dlg.locator('.dlg-body')).toBeVisible(); // the host is zero-size: its box is drawn in the shadow root
     await expect(sw).toHaveAttribute('aria-checked', 'false'); // asked, not moved
     await dlg.getByRole('button', { name: 'ביטול' }).click();
     await expect(dlg).toHaveCount(0);
