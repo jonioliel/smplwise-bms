@@ -7,6 +7,8 @@
    made by hand emits nothing (the person knows). The text is the period only - never an amount, a customer or an account name. Channels,
    quiet hours, the phone app / WhatsApp rules and the per-user push rate are the pipeline's own (services/notify_channels, mobile_push).
    Nothing here can fail the billing: an error is logged and the draft stays.
+1b. `water_draft_ready` (DATA-RULES-2540, review D-05) - the same for an automatic WATER draft: `water.bill_draft`, subject kind `water_bills`
+   (holders of water.bills while the water module is on).
 2. `listed` - the source is listed in the policy matrix (and so reachable) only while the installation has billing accounts; with none, the
    module is not in use and the source does not exist for the administrator.
 3. `state` / `revision` - what the bills screen polls: counts by state, the automatic runs and a revision (a hash of those numbers and the newest
@@ -56,6 +58,21 @@ def draft_ready(conn: sqlite3.Connection, bill_id: str, start: dt.date, end_excl
             origin={"kind": "energy_bill_draft"}, link=f"#/infra/electricity/bills/{bill_id}"))
     except Exception:  # noqa: BLE001 - a notification problem never costs a bill
         log.warning("electricity draft notification failed", exc_info=True)
+        return None
+
+
+WATER_SOURCE = "water.bill_draft"
+
+
+def water_draft_ready(conn: sqlite3.Connection, bill_id: str, start: dt.date, end_exclusive: dt.date) -> str | None:
+    """DATA-RULES-2540 (review D-05): the water twin of `draft_ready` - `water.bill_draft` for one new automatic water draft, inside the
+    caller's write transaction, to the holders of water.bills (subject kind `water_bills`). Period only. Never raises."""
+    try:
+        return notify.emit(conn, notify.Signal(
+            WATER_SOURCE, "water_bills", bill_id, dedupe_key=f"{WATER_SOURCE}:{bill_id}", params={"period": period_label(start, end_exclusive)},
+            origin={"kind": "water_bill_draft"}, link=f"#/infra/water/bills/{bill_id}"))
+    except Exception:  # noqa: BLE001 - a notification problem never costs a bill
+        log.warning("water draft notification failed", exc_info=True)
         return None
 
 

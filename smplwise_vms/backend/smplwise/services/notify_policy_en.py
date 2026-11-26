@@ -44,6 +44,7 @@ TEMPLATES_EN: dict[str, tuple[str, str, str]] = {
     'water.leak': ('Suspected water leak', '{name}: {detail}.', 'Flow stopped'),
     'water.abnormal': ('Abnormal water usage', '{name}: {detail}.', 'Usage is back to normal'),
     'water.offline': ('Water meter not reporting', '{name}: {detail}.', 'Meter is reporting again'),
+    'water.bill_draft': ('Water bill draft ready', 'The draft for the period {period} is ready for review.', 'Ended'),
     'scenario.fired': ('Scenario fired', '{name}: {detail}', 'Conditions no longer apply'),
     'scenario.fired_generic': ('Scenario fired', '{name}. You do not have permission to view the details.', 'Conditions no longer apply'),
     'scenario.degraded': ('Scenario cannot be evaluated', '{name}: {detail}', 'Scenario is running again'),

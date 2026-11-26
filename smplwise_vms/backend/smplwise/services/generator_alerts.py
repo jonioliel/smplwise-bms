@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 from ..audit import audit
 from ..db import new_id, now_iso
-from ..rbac import INSTALLATION, authorize
+from ..rbac import INSTALLATION, authorize, require
 from . import generator_catalog as cat
 from . import generator_core as core
 from . import notify
@@ -42,6 +42,7 @@ log = logging.getLogger("smplwise.generator")
 
 FOLD_S = 900
 MUTE_MAX_H = 24 * 7
+MUTE_CRITICAL_MAX_H = 4  # DATA-RULES-2540 (review D-03): a critical type is muted for at most this long, and only by a generator.manage holder
 ROUTABLE_ROLES = ("operator", "site_admin", "system_admin")  # viewers and kiosks are refused (they hold no generator.view)
 CHANNELS = ("push", "app", "email", "whatsapp")  # NOTIFWA: whatsapp mirrors onto the CR-018 policy like the others (it sends only while its master switch is on)
 CHANNELS_RESERVED = ("ha_mobile",)
@@ -52,6 +53,8 @@ SOURCE_PREFIX = "generator."
 
 _SINCE: dict[tuple[str, str], float] = {}
 _PREV: dict[str, dict[str, Any]] = {}
+_TOLD_LATE: set[str] = set()  # DATA-RULES-2540 (D-03): open alerts whose late notification (after their mute) was already tried in this process
+_BATTERY_HISTORY_READ: set[str] = set()  # DATA-RULES-2540 (D-02): generators whose stored battery history was already read for the 24 V latch
 _lock = threading.Lock()
 
 
@@ -60,6 +63,8 @@ def reset() -> None:
     with _lock:
         _SINCE.clear()
         _PREV.clear()
+        _TOLD_LATE.clear()
+        _BATTERY_HISTORY_READ.clear()
 
 
 def _held(dev: str, key: str, active: bool, hold_s: int, now_ts: float) -> bool:
@@ -74,8 +79,10 @@ def _held(dev: str, key: str, active: bool, hold_s: int, now_ts: float) -> bool:
 # ---------------------------------------------------------------- judging
 
 class Ctx:
-    def __init__(self, dev: sqlite3.Row, values: dict[str, dict[str, Any]], th: dict[str, float], avail: str, prev: dict[str, Any], stale_s: int) -> None:
+    def __init__(self, dev: sqlite3.Row, values: dict[str, dict[str, Any]], th: dict[str, float], avail: str, prev: dict[str, Any], stale_s: int,
+                 battery_known: int | None = None) -> None:
         self.dev, self.values, self.th, self.avail, self.prev, self.stale_s = dev, values, th, avail, prev, stale_s
+        self.battery_known = battery_known  # DATA-RULES-2540 (D-02): the bank's nominal system when known without the reading (core.battery_known)
 
     def v(self, role: str) -> Any:
         item = self.values.get(role)
@@ -196,7 +203,9 @@ def _j_battery(c: Ctx) -> tuple[bool | None, str]:
     b = c.v("battery_v")
     if b is None:
         return None, ""
-    low = c.th["battery_min_12v"] if b <= 16 else c.th["battery_min_24v"]
+    # DATA-RULES-2540 (D-02): the nominal system is the device's (explicit, or latched once seen above the split), never guessed from this
+    # one sample alone - a 24 V bank that sags below 16 V stays a low 24 V bank (core.battery_system; gen-logic.ts batterySystem is the same)
+    low = c.th["battery_min_24v"] if core.battery_system(c.battery_known, float(b)) == 24 else c.th["battery_min_12v"]
     return b < low, f"מתח המצבר {_n(b)} וולט"
 
 
@@ -351,11 +360,15 @@ def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severit
         aid = recent["id"]
         conn.execute("UPDATE generator_alerts SET cleared_at = NULL, count = count + 1, last_at = ?, severity = ?, snapshot_json = ?, acked_by = NULL, acked_at = NULL, ack_note = NULL WHERE id = ?",
                      (now, severity, json.dumps(snapshot, ensure_ascii=False), aid))
+        if muted:  # DATA-RULES-2540 (D-03): the earlier (resolved) notification is not this incident's - told when the mute ends (_tell_late)
+            conn.execute("UPDATE generator_alerts SET notification_id = NULL WHERE id = ?", (aid,))
     else:
         aid = new_id()
         conn.execute(
             "INSERT INTO generator_alerts(id, device_id, alert_key, severity, raised_at, cleared_at, snapshot_json, count, last_at) VALUES (?,?,?,?,?,?,?,1,?)",
             (aid, dev["id"], t.key, severity, now, now if t.event else None, json.dumps(snapshot, ensure_ascii=False), now))
+    with _lock:
+        _TOLD_LATE.discard(aid)
     if not muted:
         nid = _emit(conn, _signal(dev, t, severity, detail, aid, template=template))
         if nid:
@@ -363,7 +376,25 @@ def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severit
     return aid
 
 
+def _tell_late(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, row: sqlite3.Row, detail: str, now: str, template: str | None) -> None:
+    """DATA-RULES-2540 (review D-03): a mute DELAYS an alert, it never swallows it. An open alert that has no notification (it was raised
+    while its type was muted) is told once the mute is over (expired or removed) and the condition still holds. Tried once per alert and
+    process, so a notification centre that refuses the signal (its policy switched off) is not asked again on every tick."""
+    with _lock:
+        if row["id"] in _TOLD_LATE:
+            return
+    if _muted(conn, dev["id"], t.key, now):
+        return
+    with _lock:
+        _TOLD_LATE.add(row["id"])
+    nid = _emit(conn, _signal(dev, t, row["severity"], detail, row["id"], template=template))
+    if nid:
+        conn.execute("UPDATE generator_alerts SET notification_id = ? WHERE id = ?", (nid, row["id"]))
+
+
 def _clear(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, row: sqlite3.Row, now: str) -> None:
+    with _lock:
+        _TOLD_LATE.discard(row["id"])
     conn.execute("UPDATE generator_alerts SET cleared_at = ?, last_at = ? WHERE id = ?", (now, now, row["id"]))
     if row["notification_id"]:
         _emit(conn, _signal(dev, t, row["severity"], "", row["id"], resolve=True))
@@ -383,12 +414,20 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
     for r in conn.execute("SELECT * FROM generator_alerts WHERE cleared_at IS NULL").fetchall():
         open_all.setdefault(r["device_id"], {})[r["alert_key"]] = r
     stored_th = core.jget(conn, "generator.thresholds", {})
+    battery = core.battery_store(conn)
+    battery_changed = False
     for dev in devices:
         values = all_values.get(dev["id"], {})
         roles = set(values)
         avail = core.availability(values, mirror_connected)
         prev = _PREV.get(dev["id"], {})
-        ctx = Ctx(dev, values, core.thresholds_from(stored_th, dev["id"]), avail, prev, stale_s)
+        entry = battery.get(dev["id"])
+        if "battery_v" in values and _battery_seen_24(conn, dev["id"], entry, values["battery_v"]):
+            entry = {**(entry or {}), "seen_24": True, "seen_at": now}
+            battery[dev["id"]] = entry
+            battery_changed = True
+            log.info("generator %s: starter battery latched as a 24 V system", dev["id"])
+        ctx = Ctx(dev, values, core.thresholds_from(stored_th, dev["id"]), avail, prev, stale_s, core.battery_known(entry))
         offline = avail == "offline"
         open_rows = open_all.get(dev["id"], {})
         for t in cat.ALERT_TYPES:
@@ -415,8 +454,28 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
             elif row is not None and (not active or not enabled):
                 _clear(conn, dev, t, row, now)
                 out["cleared"] += 1
+            elif row is not None and not row["notification_id"]:
+                _tell_late(conn, dev, t, row, detail, now, pol["template_he"] if pol else None)
         _PREV[dev["id"]] = {r: i["value"] for r, i in values.items() if i["available"]}
+    if battery_changed:
+        core.jset(conn, core.BATTERY_KEY, battery)
     return out
+
+
+def _battery_seen_24(conn: sqlite3.Connection, device_id: str, entry: dict[str, Any] | None, item: dict[str, Any]) -> bool:
+    """DATA-RULES-2540 (D-02): True when this pass newly learns that the bank is a 24 V one - the current reading is above the split, or
+    (read once per generator and process, for a bank already sagging when this release starts) the stored history holds such a reading."""
+    if (entry or {}).get("seen_24"):
+        return False
+    v = item.get("value") if item.get("available") else None
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) > core.BATTERY_SPLIT_V:
+        return True
+    with _lock:
+        if device_id in _BATTERY_HISTORY_READ:
+            return False
+        _BATTERY_HISTORY_READ.add(device_id)
+    top = core.battery_history_max(conn, device_id)
+    return top is not None and top > core.BATTERY_SPLIT_V
 
 
 # ---------------------------------------------------------------- history reads
@@ -507,16 +566,47 @@ def acknowledge_all(conn: sqlite3.Connection, principal: Any, device_id: str) ->
     return n
 
 
+def is_critical(conn: sqlite3.Connection, device_id: str, key: str, severity: str | None) -> bool:
+    """DATA-RULES-2540 (D-03): a type counts as critical for muting when the alert fired as critical, its type is critical by default, or
+    the generator's saved policy makes it critical (whichever is the strictest)."""
+    t = cat.TYPE_BY_KEY.get(key)
+    pol = _policy_row(conn, device_id, key)
+    return "critical" in (severity, t.severity if t else None, pol["severity"] if pol is not None else None)
+
+
 def mute(conn: sqlite3.Connection, principal: Any, alert_id: str, hours: int) -> str | None:
-    """Mute re-raises of the alert's type on its device for `hours`; returns the end instant, None when the alert is unknown."""
-    r = conn.execute("SELECT device_id, alert_key FROM generator_alerts WHERE id = ?", (alert_id,)).fetchone()
+    """Mute re-raises of the alert's type on its device for `hours`; returns the end instant, None when the alert is unknown.
+    DATA-RULES-2540 (review D-03): a CRITICAL type needs generator.manage (the audited 403 otherwise; generator.view still mutes the other
+    severities) and is muted for at most MUTE_CRITICAL_MAX_H hours (a longer request is shortened, the answer's end instant says so). A mute
+    only delays: an alert raised meanwhile is told when the mute ends (`_tell_late`); `unmute` ends it early."""
+    r = conn.execute("SELECT device_id, alert_key, severity FROM generator_alerts WHERE id = ?", (alert_id,)).fetchone()
     if r is None:
         return None
-    until = iso_utc(dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=hours))
+    critical = is_critical(conn, r["device_id"], r["alert_key"], r["severity"])
+    if critical:
+        require(conn, principal, "generator.manage", INSTALLATION)
+    applied = min(int(hours), MUTE_CRITICAL_MAX_H) if critical else int(hours)
+    until = iso_utc(dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=applied))
     conn.execute("INSERT INTO generator_mutes(device_id, alert_key, until, muted_by) VALUES (?,?,?,?) ON CONFLICT(device_id, alert_key) DO UPDATE SET until = excluded.until, muted_by = excluded.muted_by",
                  (r["device_id"], r["alert_key"], until, principal.user_id))
-    audit(conn, actor=principal, action="generator.alert.mute", decision="allowed", resource_type="generator_alert", resource_id=alert_id, details={"hours": hours})
+    audit(conn, actor=principal, action="generator.alert.mute", decision="allowed", resource_type="generator_alert", resource_id=alert_id,
+          details={"hours": applied, "requested_hours": int(hours), "critical": critical, "device_id": r["device_id"], "key": r["alert_key"], "until": until})
     return until
+
+
+def unmute(conn: sqlite3.Connection, principal: Any, alert_id: str) -> str:
+    """DATA-RULES-2540 (review D-03): end the mute of the alert's type on its device now. 'ok' | 'not_found'; idempotent (audited only when
+    a running mute was removed). Needs generator.view only - ending a mute can only make the alerts louder. An alert raised while muted is
+    then told on the next pass of the engine (`_tell_late`)."""
+    r = conn.execute("SELECT device_id, alert_key FROM generator_alerts WHERE id = ?", (alert_id,)).fetchone()
+    if r is None:
+        return "not_found"
+    m = conn.execute("SELECT until FROM generator_mutes WHERE device_id = ? AND alert_key = ?", (r["device_id"], r["alert_key"])).fetchone()
+    conn.execute("DELETE FROM generator_mutes WHERE device_id = ? AND alert_key = ?", (r["device_id"], r["alert_key"]))
+    if m is not None and m["until"] > now_iso():
+        audit(conn, actor=principal, action="generator.alert.unmute", decision="allowed", resource_type="generator_alert", resource_id=alert_id,
+              details={"device_id": r["device_id"], "key": r["alert_key"], "was_until": m["until"]})
+    return "ok"
 
 
 def prune_alerts(conn: sqlite3.Connection, now_ts: float) -> int:
@@ -820,4 +910,4 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     return ok
 
 
-register_reset(__name__, ("_SINCE", "_PREV"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("_SINCE", "_PREV", "_TOLD_LATE", "_BATTERY_HISTORY_READ"), reset)  # CR-BE-COMPLEXITY-B-2450: module-level tables (tests/test_singletons_registered.py)

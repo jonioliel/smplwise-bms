@@ -97,6 +97,7 @@
 "אי אפשר לשלוח לספק יחידה שאינך רשאי לראות.": "You cannot send to a vendor of a unit that you are not allowed to see.",
 "אי אפשר לשלוח קוד גישה או פרטי כניסה בהודעה.": "An access code or sign-in details cannot be sent in a message.",
 "אי אפשר לשנות את המשתמש שלך מכאן.": "You cannot change your own user from here.",
+"אי אפשר לשנות את מחזור החיוב כשיש לחשבון טיוטה פתוחה. יש להנפיק או למחוק אותה קודם.": "The billing cycle cannot be changed while the account has an open draft. Issue or delete it first.",
 "אי אפשר לשנות את סוג החלון.": "The window type can't be changed.",
 "אי אפשר לשנות הגדרות בזמן הדגמה.": "Settings cannot be changed during a demo.",
 "אי אפשר לשנות מוזמנים לאירוע במצב הזה.": "Event invitees can't be changed in this state.",

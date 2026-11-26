@@ -42,6 +42,7 @@ LABELS: dict[str, tuple[str, str]] = {
     "water.leak": ("מים: דליפה חשודה", "Water: suspected leak"),
     "water.abnormal": ("מים: צריכה חריגה", "Water: abnormal usage"),
     "water.offline": ("מים: מונה לא מדווח", "Water: meter not reporting"),
+    "water.bill_draft": ("חיובי מים: טיוטה מוכנה", "Water bills: draft ready"),
     "scenario.fired": ("תרחיש: הופעל", "Scenario: fired"),
     "scenario.fired_generic": ("תרחיש: הופעל (בלי פרטים)", "Scenario: fired (no details)"),
     "scenario.degraded": ("תרחיש: לא ניתן להעריך", "Scenario: cannot be evaluated"),

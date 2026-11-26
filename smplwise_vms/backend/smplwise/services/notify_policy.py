@@ -28,7 +28,7 @@ RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "tick
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "access_denied", "water", "maintenance", "incident", "scenario", "notice", "calendar_event")  # calendar_event: CAL-ATTENDEES-2343; notice: NOTICEPUSH-295; scenario: XSCENARIO109-295; incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator", "ticket", "rfq", "elevator", "temperature", "energy_bills", "water_bills", "access_denied", "water", "maintenance", "incident", "scenario", "notice", "calendar_event")  # calendar_event: CAL-ATTENDEES-2343; notice: NOTICEPUSH-295; scenario: XSCENARIO109-295; incident: CR-LIVEEVENT100 (events.read at the incident's floor); maintenance: CR-MAINT215; water: CR-WATER78 slice 2; energy_bills: ELECBILL77; rfq: TKRFQ5; elevator: CR-INFRA-ELEVATORS 2.8.0; temperature: CR-INFRA-TEMPERATURE 2.9.1
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -121,6 +121,11 @@ SOURCES: tuple[Source, ...] = (
        resolve_text="הצריכה חזרה לרגיל"),
     _s("water.offline", "מים: מונה לא מדווח", "device_faults", "alert", "מונה מים לא מדווח", "{name}: {detail}.", who="water", push=False,
        subject="water", resolve_text="המונה חזר לדווח"),
+    # DATA-RULES-2540 (review D-05): an automatic water bill draft was computed - the water twin of `energy.bill_draft` (services/energy_notify.
+    # water_draft_ready): to the holders of water.bills (rule `energy_bills` = every active user, the visibility of subject kind `water_bills`
+    # keeps only water.bills holders while the water module is on). Period only, never an amount, a customer or an account name.
+    _s("water.bill_draft", "חיובי מים: טיוטה מוכנה", "system", "info", "טיוטת חיוב מים מוכנה", "טיוטה לתקופה {period} מוכנה לעיון.", who="energy_bills",
+       subject="water_bills", resolves=False, app=True),
     # XSCENARIO109-295 (CR-SCENARIO109 sections 4 and 8, owner Q7 = 216 a): a scenario's notify action. Two rows per fire: the detailed one to
     # the addressed people who may see every module the scenario reads, the generic one (no values) to the other addressed people. The
     # recipients are the action's own list (rule `scenario`, chosen in the editor; default list in Settings). Listed only while the module is on.
