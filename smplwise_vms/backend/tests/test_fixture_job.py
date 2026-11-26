@@ -45,10 +45,14 @@ def test_the_gate_and_the_job_agree():
     # fixture lane - the specs every released gate used to skip, each with its own fixture backend (or none)
     expected = {"evidence-camera-card.spec.ts", "evidence-curved-walls.spec.ts", "evidence-curve-points.spec.ts",
                 "evidence-floorstrip.spec.ts", "evidence-nvrless-cameras-2412.spec.ts", "devpolish-2331-shoot.spec.ts",
-                "hand-switch-home-personal-2500-shots.spec.ts", "hand-switch-home-edit-2500-shots.spec.ts"}
-    # listed for the job, not (yet) the gate - each failed on the runner for a reason recorded in the JSON ("_why_not_gate"):
-    # the WisKey specs predate the native people screen (CR-036 S7), the media spec's pre-S1 guesses, the home screen's 18 px scroll
-    assert not fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos")})
+                "hand-switch-home-personal-2500-shots.spec.ts", "hand-switch-home-edit-2500-shots.spec.ts",
+                # STALE-FIXTURE-SPECS-2530: the media spec settled against the merged players server (both houses), the three WisKey
+                # specs rewritten for the native people screen (CR-036 S7), the people spec's part 1 on the no-HA backend
+                "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts",
+                "evidence-wiskey-capture.spec.ts"}
+    assert fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos", "no_ha")}) == {
+        "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts", "evidence-wiskey-capture.spec.ts"}
+    # listed for the job, not (yet) the gate, for a reason recorded in the JSON ("_why_not_gate"): the home screen's 18 px scroll
     assert not GROUPS["devices"]["specs"]["evidence-home-screen.spec.ts"]["gate"]
     assert gate.FIXTURE_SPECS == fj.gate_specs(GROUPS) == expected
     assert {n for g in gate.fixture_groups(ROOT / "frontend").values() for n in g["specs"]} == expected
