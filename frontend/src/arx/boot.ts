@@ -88,7 +88,7 @@ function stopReconnect(): void {
 /** CLIENT-RESILIENCE-2540 (FC-03): the stored sign-in could not be checked (no connection, the sign-in service or the server said "try
  * again"). The sign-in is valid for its whole period, so the page says "no connection, trying again" - the shell's own offline state -
  * and tries again on a timer, when the browser is back online and on "try now"; it never falls to the sign-in form for this. */
-async function showReconnect(): Promise<void> {
+function showReconnect(): void {
   if (!reconnect) {
     const el = document.createElement('arx-reconnect');
     const state = { el, timer: 0, attempt: 0, online: () => void tryAgain() };
@@ -129,7 +129,7 @@ async function startFromStored(): Promise<void> {
       return;
     }
     if (r === 'retry') {
-      await showReconnect();
+      showReconnect();
       return;
     }
     // USR2: an Arx-only identity keeps no tokens in this page - its HttpOnly cookie is the session
