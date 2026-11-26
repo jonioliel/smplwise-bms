@@ -46,7 +46,7 @@ export const lockKnown = (state: string | null, available: boolean): boolean => 
 export const doorOpen = (d: Pick<HDoor, 'known' | 'locked'>): boolean => d.known && !d.locked;
 /** A door the screen cannot vouch for as locked: open, or its state is unknown (the "לא נעולות" filter keeps both). */
 export const doorNotLocked = (d: Pick<HDoor, 'known' | 'locked'>): boolean => !d.known || !d.locked;
-export type DoorTone = 'ok' | 'warn' | 'neutral';
+type DoorTone = 'ok' | 'warn' | 'neutral';
 /** The tone of a door's own icon and state: locked = ok, open = warn, unknown = neutral. */
 export const doorTone = (d: Pick<HDoor, 'known' | 'locked'>): DoorTone => (!d.known ? 'neutral' : d.locked ? 'ok' : 'warn');
 /** The tone of the doors' summary: an open door warns; otherwise a door in an unknown state (or no door) is neutral; all locked = ok. */
