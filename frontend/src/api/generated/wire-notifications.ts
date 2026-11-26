@@ -16,6 +16,20 @@ export interface AppRelayHealth {
   last_ok_at: string | null;
 }
 
+/** services/unifiedpush.health (ANDROID-PUSH-2550): never a host name, an endpoint or a key. */
+export interface AppUnifiedPushHealth {
+  enabled: boolean;
+  state: string;
+  message: string | null;
+  servers: number;
+  invalid_entries: number;
+  sent: number;
+  failed: number;
+  gone: number;
+  last_error: string | null;
+  last_sent_at: string | null;
+}
+
 export interface ChannelCounts {
   sent: number;
   failed: number;
@@ -235,6 +249,7 @@ export interface NotifyStats {
   by_source: Record<string, number>;
   push_devices: number;
   app_relay: AppRelayHealth;
+  app_unifiedpush?: AppUnifiedPushHealth | null;
 }
 
 /** What is still sent during quiet hours, per severity. */

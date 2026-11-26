@@ -77,6 +77,9 @@ options:
   remote_path: /arx
   # CR-027: the SmplWise push relay for the phone app's notifications (DOCS "Phone app push"). Empty = the app channel is off.
   push_relay_url: ""
+  # ANDROID-PUSH-2550: UnifiedPush servers for phones without Google services (DOCS "Phone app push without Google"),
+  # host names separated by commas, e.g. ntfy.example.com. Empty = off.
+  unifiedpush_servers: ""
   # CR-FLEET215: the SmplWise fleet receiver for the daily health report (DOCS "Fleet health report"). Empty = no report is ever sent;
   # even when set, nothing is sent until an Arx system administrator also switches the report on in Settings.
   fleet_report_url: ""
@@ -105,6 +108,7 @@ schema:
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
   push_relay_url: str?
+  unifiedpush_servers: str?
   fleet_report_url: str?
   cast_relay: bool?
   tickets_public: bool?

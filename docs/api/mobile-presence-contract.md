@@ -438,6 +438,36 @@ CRITSOUND (2.17.0, additive, Android only): the FCM data map may also carry `cri
 Do-Not-Disturb-bypassing channel) or `resolved_tone: "1"` (the resolved update of such an event: short calming tone); never both, never
 `"0"`, absent otherwise. APNs payloads are unchanged (no iOS Critical Alerts in phase 1). App behaviour: `docs/changes/CRITSOUND-SPEC.md` section 5.
 
+### 7.4 UnifiedPush: a phone without Google services (v2.3 addition, ANDROID-PUSH-2550; additive, off by default)
+
+An Android phone without Google Play services cannot receive FCM. It may instead use **UnifiedPush** (CR-012 section 4C): a
+distributor app on the phone (ntfy, Sunup, NextPush ...) keeps one connection to a push server the site chose, and the Arx app
+registers through the UnifiedPush connector library. Nothing of Google, Apple or the SmplWise relay is involved.
+
+- **Is it on?** `GET presence/config` carries `"unifiedpush": { "enabled": bool, "vapid_public_key": "<base64url P-256 point>" | null }`
+  (absent = an older server = off). `enabled: false` means this server accepts no UnifiedPush registration: the app keeps the relay
+  path (section 7.1) or tells the user push is unavailable on this server. The VAPID public key is the server's Web Push application
+  key; hand it to the connector when registering (distributors that require VAPID check it).
+- **Register:** `POST notifications/devices` (device token) `{ "platform": "android", "kind": "unifiedpush", "endpoint": "<the
+  connector's endpoint URL>", "p256dh": "<base64url, 65-byte P-256 public key>", "auth": "<base64url, 16-byte secret>", "app_version" }`
+  → `200` with the same body as 7.2; `push.kind` is `"unifiedpush"` (`"relay"` after a relay registration, `null` when not registered;
+  absent on older servers). Refusals: `409 unifiedpush_off`; `400 unifiedpush_endpoint_refused` (`details.fields: ["endpoint"]`: not
+  https, credentials or a fragment in the URL, or the host / port is not on the site's push-server list); `400 push_keys_invalid`
+  (`["p256dh"]`); `400 invalid_platform` (UnifiedPush is android only); `400 invalid_push_kind` (`["kind"]`). Without `kind` the body
+  is the v2 relay registration. **One route per device:** registering an endpoint clears the device's relay token and vice versa.
+  **One endpoint is one phone:** registering an endpoint another device row of this server holds removes it from that row.
+  Idempotent: repeat it on every launch and whenever the connector reports a new endpoint (`onNewEndpoint`).
+- **What arrives:** the connector decrypts (RFC 8291, `aes128gcm`) a JSON object with exactly the relay's FCM data keys:
+  `{ "notification_id": "<message_id>", "category": "safety", "server": "<server_id>", "priority": "high" | "normal" }` plus the
+  optional CRITSOUND `critical_alert: "1"` / `resolved_tone: "1"` of 7.3. No text: fetch it with `GET notifications/app/{message_id}`
+  exactly as after a relay push (24 h expiry; show the generic notification when the fetch fails). `Urgency: high` for `priority: high`,
+  `TTL: 3600`.
+- **Ending:** `DELETE notifications/devices/{id}`, device removal, sign-out and "sign out everywhere" clear the endpoint like the relay
+  token. A push server answering `404` / `410` for the endpoint ends the registration (`push.registered: false`,
+  `push.last_error: "unifiedpush_410"`): register again with the connector's current endpoint. When the app unregisters from its
+  distributor (`onUnregistered`), it should also call `DELETE notifications/devices/{id}`.
+- **Test:** `POST notifications/app/test` sends through the route the device registered.
+
 ## 8. The relay API (app ↔ relay; server ↔ relay)
 
 Base `https://<relay>/v1`. The app uses **the `relay_url` its Arx server returns** (section 2, section 7.2), so moving the relay to

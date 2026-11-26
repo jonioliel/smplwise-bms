@@ -42,6 +42,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `push_relay_url` (optional, CR-027) — the SmplWise push relay that delivers notifications to the SmplWise Arx phone
      app (`services/push-relay/README.md`). Its key (this installation's credential at the relay) is entered in Arx (see
      "Secrets" below). Without both, the "אפליקציה" channel in הגדרות › התראות plans nothing (`channel_unavailable`).
+   - `unifiedpush_servers` (optional, ANDROID-PUSH-2550) — push servers for Android phones **without Google services**
+     (UnifiedPush, e.g. a self-hosted ntfy). Host names separated by commas, optionally with a port (`ntfy.example.com`,
+     `push.example.org:8443`); no addresses, no `https://`. Empty by default = UnifiedPush off. See "Phone app push without
+     Google" below.
    - `fleet_report_url` (optional, CR-FLEET215) — the SmplWise fleet receiver for the daily health report (versions, subsystem
      states and counters only: no names, addresses, images, events or door actions). Empty by default = nothing is ever sent.
      Even when set, nothing is sent until an Arx system administrator also switches the report on in Settings; the exact
@@ -1043,6 +1047,24 @@ SmplWise **push relay** (`services/push-relay/`, a small Cloudflare Worker run b
 - **Limits.** The relay Worker is written and tested locally but is **not deployed**, and has never run against real APNs / FCM:
   until the owner deploys it with its own secrets, no push reaches a phone. The apps adopt contract v2 in their next build.
 
+
+### Phone app push without Google (UnifiedPush, ANDROID-PUSH-2550)
+
+For Android phones without Google Play services (no FCM), the app can receive the same notifications through **UnifiedPush**: a
+distributor app on the phone (ntfy, Sunup, NextPush ...) keeps one connection to a push server, and this installation sends an end-to-end
+encrypted Web Push message (RFC 8291, signed with the installation's VAPID key - the one the browsers' push uses) to the endpoint the app
+registered. No Google, Apple or SmplWise relay account is involved.
+
+- **Option.** `unifiedpush_servers`: the push servers the app may register endpoints on (host names, comma separated, optional
+  `:port`). Empty = off: registrations are refused (`unifiedpush_off`) and the app is told so in its configuration. Only an https
+  endpoint whose host (and port) is exactly on the list is ever called; IP addresses are not accepted; redirects are never followed.
+- **What travels.** The push server sees an encrypted blob of about 200 bytes, its time and its size - never the text. The app
+  decrypts a message id and fetches the text from this installation with its device token, as after a relay push.
+- **Health.** `GET notify/stats` member `app_unifiedpush`: `off` / `invalid` (no entry is a valid host name) / `ok`, with counters;
+  never a host name.
+- **Limits.** Not run against a real push server or a real phone yet; the Arx Android app has no UnifiedPush connector yet (the app
+  team adds it per `docs/api/mobile-presence-contract.md` section 7.4). Delivery while the phone sleeps depends on the distributor
+  app (battery optimisation exemption per phone brand). Public push servers have rate limits; a site with many phones should run its own.
 ## Android app download and the bundled APK
 
 The remote sign-in page can offer one quiet download link (with version and SHA-256), only on Android devices outside the app.
