@@ -16,10 +16,13 @@ const WORDS = {
   ru: { oil: 'Минимальное давление масла', fuelLow: 'Низкий уровень топлива', interval: 'Ожидаемый интервал тестов (0 = не отслеживать)', shortRun: 'Запуск короче этого не записывается', days: 'дн.', s: 'с', retStale: 'Время до показа «Нет связи»' },
 } as const;
 
-async function open(page: Page, lang: 'ar' | 'ru', hash: string, section: string): Promise<Locator> {
+type Scheme = 'light' | 'dark';
+async function open(page: Page, lang: 'ar' | 'ru', scheme: Scheme, hash: string, section: string): Promise<Locator> {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await installGeneratorMock(page, { perms: PERMS.manage, log: true });
-  await page.goto(url(hash));
+  await page.goto('about:blank');
+  await page.goto(url(hash, 'classic', scheme));
   const s = page.locator(`sw-app gen-settings [data-section="${section}"]`);
   await expect(s).toBeVisible({ timeout: 20_000 });
   await page.evaluate((l) => {
@@ -28,6 +31,7 @@ async function open(page: Page, lang: 'ar' | 'ru', hash: string, section: string
   }, lang);
   // the words are a lazy pack: wait until it is in and the page was asked to render again (i18n/lang-packs.ts)
   await page.locator(`html[data-lang-words="${lang}"]`).waitFor({ state: 'attached', timeout: 0 });
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   return s;
 }
 type F = { label: string; unit: string; drawn: string; unitX: number; inputX: number; inputDir: string };
@@ -48,17 +52,21 @@ const fields = (s: Locator): Promise<F[]> =>
       };
     }),
   );
+/** Taken before the word checks, so the same spec on the base commit (where they fail) still leaves its before-pictures. */
 async function shot(page: Page, name: string) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOTS, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(SHOTS, `${name}-${test.info().project.name}.png`) });
 }
 
 test.describe('generator settings: Arabic and Russian unit words in the field frame', () => {
-  for (const lang of ['ar', 'ru'] as const) {
+  for (const lang of ['ar', 'ru'] as const) for (const scheme of ['light', 'dark'] as const) {
     const w = WORDS[lang];
-    test(`${lang}: unit words and labels in ${lang}, the unit at the end of the reading direction, digits left-to-right`, async ({ page }) => {
-      const s = await open(page, lang, '/system/infra/generator/thresholds', 'thresholds');
+    test(`${lang} ${scheme}: unit words and labels in ${lang}, the unit at the end of the reading direction, digits left-to-right`, async ({ page }) => {
+      const s = await open(page, lang, scheme, '/system/infra/generator/thresholds', 'thresholds');
+      await shot(page, `gen-units-${lang}-${scheme}-thresholds`);
       await expect.poll(async () => (await fields(s)).find((x) => x.label === w.oil)?.unit ?? null).toBe('bar');
       const f = await fields(s);
       expect(f.length).toBeGreaterThan(0);
@@ -74,19 +82,18 @@ test.describe('generator settings: Arabic and Russian unit words in the field fr
       }
       expect(f.find((x) => x.label === w.fuelLow)?.unit).toBe('%');
       expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).direction)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
-      await shot(page, `gen-units-${lang}-thresholds`);
 
-      const rt = await open(page, lang, '/system/infra/generator/retention', 'retention');
+      const rt = await open(page, lang, scheme, '/system/infra/generator/retention', 'retention');
+      await shot(page, `gen-units-${lang}-${scheme}-retention`);
       await expect.poll(async () => (await fields(rt)).find((x) => x.label === w.retStale)?.unit ?? null).toBe(w.s);
       expect((await fields(rt)).filter((x) => x.unit === w.days).length).toBe(2);
-      await shot(page, `gen-units-${lang}-retention`);
 
-      const log = await open(page, lang, '/system/infra/generator/log', 'log');
+      const log = await open(page, lang, scheme, '/system/infra/generator/log', 'log');
+      await shot(page, `gen-units-${lang}-${scheme}-log`);
       await expect.poll(async () => (await fields(log)).find((x) => x.label === w.interval)?.unit ?? null).toBe(w.days);
       const lf = await fields(log);
       expect(lf.find((x) => x.label === w.shortRun)?.unit).toBe(w.s);
       for (const x of lf) expect(x.label, `${x.label}: no Hebrew letters`).not.toMatch(/[֐-׿]/);
-      await shot(page, `gen-units-${lang}-log`);
     });
   }
 });
