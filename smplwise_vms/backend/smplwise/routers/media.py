@@ -447,7 +447,9 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
         # whole-segment exempt routes; no socket route is exempt, `/me/ws` included - it carries notifications). Every socket of the
         # product (live / Home Assistant camera / playback / intercom live, talk and listen / events / wall / me / ha) resolves its
         # caller here, so none of them is a way around the block. The refusal's audit row commits (Database.connection on ApiError).
-        from ..services import presence, service_identity
+        # LOWS-BACKEND-2550 (SEC-6): and the home-interface gate (auth.shared_steps runs it for every HTTP request) - a person limited to
+        # the home interface opens only the home interface's own sockets, and not a category the administrator hid for them.
+        from ..services import home_interface, presence, service_identity
 
         with db.connection() as conn:
             service_identity.refuse_service_principal(conn, principal, None)
@@ -455,6 +457,8 @@ async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
             maybe_bootstrap(conn, settings, principal, None)
             presence.enforce(conn, principal, websocket.scope.get("path") or "", websocket.headers.get("user-agent"), None,
                              root_path=websocket.scope.get("root_path") or "")
+            home_interface.enforce(conn, principal, websocket.scope.get("path") or "", None,
+                                   root_path=websocket.scope.get("root_path") or "", method="GET")
 
     try:
         await run_in_threadpool(_touch)

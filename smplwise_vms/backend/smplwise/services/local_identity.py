@@ -1227,13 +1227,18 @@ def sign_in(db: Any, settings: Settings, conn_like: Any, username: str, password
     # right. The lock touches password sign-in only, which this person does not use; the passkey path is unaffected.
     if not ok or passkey_only:
         net_failures = TIERS.acct_fail(uname, ip)
-        last = float(user["last_failed_at"] or 0.0)
-        same_window = bool(last) and int(last // ACCOUNT_CEILING_WINDOW_S) == int(now // ACCOUNT_CEILING_WINDOW_S)
-        failures = int(user["failed_count"] or 0) + 1 if same_window else 1
-        locked = failures >= ACCOUNT_CEILING
+        # LOWS-BACKEND-2550 (SEC-7): the ceiling count is incremented in the database itself (one UPDATE ... RETURNING inside the write
+        # transaction), never as "the value read before the hash + 1" - failures that overlap inside the hashing time all count.
+        window = int(now // ACCOUNT_CEILING_WINDOW_S)
         with db.connection(label="local sign-in failure") as conn:
-            conn.execute("UPDATE auth_local_credentials SET failed_count = ?, last_failed_at = ?, delay_until = ?, updated_at = ? WHERE user_id = ?",
-                         (failures, now, (now + ACCOUNT_LOCK_S) if locked else None, iso(now), uid))
+            row = conn.execute("""UPDATE auth_local_credentials SET
+                                      failed_count = CASE WHEN COALESCE(last_failed_at, 0) > 0 AND CAST(last_failed_at / ? AS INTEGER) = ?
+                                                          THEN COALESCE(failed_count, 0) + 1 ELSE 1 END,
+                                      last_failed_at = ?, updated_at = ? WHERE user_id = ? RETURNING failed_count""",
+                               (ACCOUNT_CEILING_WINDOW_S, window, now, iso(now), uid)).fetchone()
+            failures = int(row[0]) if row is not None else 1
+            locked = failures >= ACCOUNT_CEILING
+            conn.execute("UPDATE auth_local_credentials SET delay_until = ? WHERE user_id = ?", ((now + ACCOUNT_LOCK_S) if locked else None, uid))
         if locked:
             _audit(db, actor=None, action="auth.local.account_locked", decision="denied", reason="ceiling", resource_id=uid,
                    details={"failures_15min": failures, "lock_seconds": int(ACCOUNT_LOCK_S), "unlock": "identity.local.manage"}, request_id=request_id)
