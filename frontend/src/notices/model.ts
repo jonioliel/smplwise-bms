@@ -216,3 +216,11 @@ export function retentionOptions(days: number): { value: number; label: string }
 export function placePresets(floors: { name: string; building: string }[]): string[] {
   return [...new Set(floors.filter((f) => f.name.trim()).map((f) => (f.building ? `${f.name} · ${f.building}` : f.name)))];
 }
+
+/** LOWS-FRONTEND-2550 (review SCR-46): a board's notice list after one change - always built from the list as it is NOW (the queue in
+ * system-notices.ts runs one change at a time), never from the state a second click captured before the first one finished; a quick
+ * "remove A, remove B" used to send B's list with A still on it and put A back on the public board. */
+export function boardItemIds(current: readonly string[], op: { add: string } | { remove: string }): string[] {
+  if ('add' in op) return current.includes(op.add) ? [...current] : [...current, op.add];
+  return current.filter((id) => id !== op.remove);
+}

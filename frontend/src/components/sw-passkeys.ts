@@ -170,12 +170,28 @@ export class SwPasskeys extends LitElement {
     return describeError(err);
   }
 
+  private clearNeed() {
+    this.need = null;
+    this.code = '';
+  }
+
+  /** SCR-44: a row's own "cancel" (removal or rename) also drops a change of that row waiting for its confirmation - it used to survive
+   * the cancel, and typing a code later still removed the passkey. */
+  private cancelRow() {
+    this.armed = '';
+    this.renaming = '';
+    this.clearNeed();
+  }
+
   /** `retry`: a 403 `step_up_required` opens the confirmation and keeps `fn` to send again once; false = the retry itself (a second
    * refusal is only shown). */
   private async run(fn: () => Promise<void>, retry = true) {
     this.busy = true;
     this.error = '';
     this.message = '';
+    // LOWS-FRONTEND-2550 (review SCR-44): a new change drops the one still waiting for its confirmation - a code typed later confirms
+    // only the change the person is looking at, never an older removal
+    if (retry) this.clearNeed();
     try {
       await fn();
     } catch (err) {
@@ -323,10 +339,10 @@ export class SwPasskeys extends LitElement {
                     <input type="text" maxlength="40" aria-label=${lit('passkeyLabel')} .value=${this.renameValue} ?disabled=${this.busy} data-pk-rename-input
                       @input=${(e: Event) => (this.renameValue = (e.target as HTMLInputElement).value)} />
                     <sw-button size="sm" variant="primary" ?disabled=${this.busy} data-pk-rename-save @click=${() => this.rename(c.id)}>${lit('passkeyRenameSave')}</sw-button>
-                    <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.renaming = '')}>${lit('cancel')}</sw-button></form>`
+                    <sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-pk-rename-cancel @click=${() => this.cancelRow()}>${lit('cancel')}</sw-button></form>`
                 : this.armed === c.id
                 ? html`<span class="actions"><sw-button size="sm" variant="danger" ?disabled=${this.busy} data-pk-remove-confirm @click=${() => this.removeOne(c.id)}>${lit('passkeyRemove')}</sw-button>
-                    <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.armed = '')}>${lit('cancel')}</sw-button></span>`
+                    <sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-pk-remove-cancel @click=${() => this.cancelRow()}>${lit('cancel')}</sw-button></span>`
                 : html`<span class="actions"><sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-pk-rename
                       @click=${() => { this.renaming = c.id; this.renameValue = c.label ?? ''; this.armed = ''; }}>${lit('passkeyRename')}</sw-button>
                     <sw-button size="sm" variant="secondary" ?disabled=${this.busy} data-pk-remove @click=${() => { this.armed = c.id; this.renaming = ''; }}>${lit('passkeyRemove')}</sw-button></span>`}

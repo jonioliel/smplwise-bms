@@ -2209,7 +2209,7 @@ export class SystemDiagnostics extends LitElement {
             ? html`<sw-state-panel compact state="loading"></sw-state-panel>`
             : list.length
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
-              : this.loadFailed
+              : this.loadFailed.backup // LOWS-FRONTEND-2550 (review SCR-47): the backup read's own failure - `loadFailed` itself (an object) was always true
                 ? html`<sw-state-panel compact state="error" heading=${tr('רשימת הגיבויים לא נטענה')} hint=${this.loadFailed.backup} actionLabel=${tr('נסו שוב')} @action=${() => void this.loadBackups()}></sw-state-panel>`
                 : html`<sw-state-panel icon="history" compact state="empty" heading=${tr('עדיין אין גיבויים')} hint=${tr('הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.')}></sw-state-panel>`}
       </sw-card>

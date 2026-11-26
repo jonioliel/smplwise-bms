@@ -452,8 +452,15 @@ export class SwSecondFactorUser extends LitElement {
     if (!this.ready() || this.busy) return; // FE-SAFETY-FIX-2520: Enter in the typed field confirms only when valid, once
     this.busy = true;
     this.error = '';
+    // LOWS-FRONTEND-2550 (review SCR-45): the answer belongs to the user it was sent for - another user selected meanwhile is not painted
+    // with "reset done" (or the error); the drawer's factor list still reads again
+    const id = this.userId;
     try {
-      await resetFactor(this.userId, this.typed, this.stepUp ? this.ownCode : undefined);
+      await resetFactor(id, this.typed, this.stepUp ? this.ownCode : undefined);
+      if (id !== this.userId) {
+        this.dispatchEvent(new CustomEvent('factors-changed', { bubbles: true, composed: true }));
+        return;
+      }
       this.since = null;
       this.armed = false;
       this.ownCode = '';
@@ -461,7 +468,7 @@ export class SwSecondFactorUser extends LitElement {
       this.message = t('secondFactor.adminResetDone');
       this.dispatchEvent(new CustomEvent('factors-changed', { bubbles: true, composed: true })); // MFA-SCREENS-2510: the drawer's factor list reads again
     } catch (err) {
-      this.error = resetErrorText(err);
+      if (id === this.userId) this.error = resetErrorText(err);
     } finally {
       this.busy = false;
     }
