@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T10:24:59.374097+00:00
+Generated: 2026-11-26T16:35:46.494187+00:00
 
-Tasks: 727 | Requirements: 841 | Tests: 858 | Screens: 32
+Tasks: 741 | Requirements: 855 | Tests: 872 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 516
-- IN_PROGRESS: 4
-- REVIEW: 168
+- IN_PROGRESS: 5
+- REVIEW: 181
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 632
+- V1: 646
 - V2: 29
 - V3: 3
 
@@ -782,3 +782,17 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [TEST-STABILITY-2530](tasks/TEST-STABILITY-2530.md) | V1 | REVIEW | Two test stability fixes: the nvrless plan editor placement click, a hermetic engine_sync selftest | — |
 | [PLAYER-ERROR-TEXT-2530](tasks/PLAYER-ERROR-TEXT-2530.md) | V1 | REVIEW | The video player shows the relay's fixed error codes as sentences with a retry hint | — |
 | [REVIEW-FINDINGS-INDEX-2530](tasks/REVIEW-FINDINGS-INDEX-2530.md) | V1 | REVIEW | Index of the 2.52 deep-review findings and where each was handled | — |
+| [HONEST-STATES-2540](tasks/HONEST-STATES-2540.md) | V1 | REVIEW | Honest lock / alarm states on the home interface; an opt-in controlled sw-toggle | — |
+| [CONTROLLED-TOGGLES-2540](tasks/CONTROLLED-TOGGLES-2540.md) | V1 | REVIEW | Every switch that saves at once is a controlled sw-toggle | — |
+| [AREA-HONEST-COUNT-2540](tasks/AREA-HONEST-COUNT-2540.md) | V1 | REVIEW | The full interface's area row and summaries tell an unknown lock / alarm apart | — |
+| [PHYSICAL-CONFIRM-2540](tasks/PHYSICAL-CONFIRM-2540.md) | V1 | REVIEW | Physical actions behind their confirmation, honest outcomes, the call banner does not swap | — |
+| [CAST-RELAY-HARDEN-2540](tasks/CAST-RELAY-HARDEN-2540.md) | V1 | REVIEW | Cast relay socket bounds, a cast ends when its user loses access, NVR undo checks the device first | — |
+| [LISTENER-DEADLINE-2540](tasks/LISTENER-DEADLINE-2540.md) | V1 | REVIEW | Notice-board and Provision push listeners get the whole-request deadline; the NVR change log offers revert anyway | — |
+| [CORE-RELIABILITY-2540](tasks/CORE-RELIABILITY-2540.md) | V1 | REVIEW | Backend core fixes: state sync window, backup outside the write lock, bearer rate limit, app factor rule | — |
+| [STALE-ANSWERS-2540](tasks/STALE-ANSWERS-2540.md) | V1 | REVIEW | A late answer never overwrites a newer selection; a double action runs once | — |
+| [TIME-CORRECT-2540](tasks/TIME-CORRECT-2540.md) | V1 | REVIEW | Time, day and booking truth (DST days, occurrence cancel, bill zone, server clock, far series) | — |
+| [CLIENT-RESILIENCE-2540](tasks/CLIENT-RESILIENCE-2540.md) | V1 | REVIEW | Frontend client resilience: read deadline, unreachable is not signed out, update card, step-up dialog life | — |
+| [GATE-TRUST-2540](tasks/GATE-TRUST-2540.md) | V1 | REVIEW | The release gate's green can be trusted (lint lane tree, count-drop reference, coverage anchor, build stamp) | — |
+| [HOME-SCROLL-3-2530](tasks/HOME-SCROLL-3-2530.md) | V1 | REVIEW | The band of large cards folds on the last fit step (the cards info style) | — |
+| [LAB-2540-RUNBOOKS](tasks/LAB-2540-RUNBOOKS.md) | V1 | REVIEW | Lab acceptance plan for 2.54, bridge-key rotation unblock plan, WisKey rc.20 lab install runbook | — |
+| [RELEASE-2540-TRAIN](tasks/RELEASE-2540-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2540-TRAIN - the 2.54.0 train | — |

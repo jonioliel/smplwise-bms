@@ -31611,5 +31611,537 @@
     "owner": null,
     "commit": "4eda5c3a2",
     "actual_cost_usd": null
+  },
+  {
+    "id": "HONEST-STATES-2540",
+    "title": "Honest lock / alarm states on the home interface; an opt-in controlled sw-toggle",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "An offline or unknown lock is never counted, announced or coloured as an open door and an unavailable / unknown alarm panel never reads as armed on the home interface; a controlled sw-toggle moves only when the screen sets the saved value."
+    ],
+    "requirement_ids": [
+      "R-HONEST-STATES-2540-1"
+    ],
+    "test_ids": [
+      "AT-HONEST-STATES-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HONEST-STATES-2540, change note docs/changes/HONEST-STATES-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/HONEST-STATES-2540 head 3e73e2d00 merged 98c52bfb4 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 1); change note docs/changes/HONEST-STATES-2540.md. Decisions Q1-Q3 = a (Q2 built by CONTROLLED-TOGGLES-2540, Q3 by AREA-HONEST-COUNT-2540). Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "3e73e2d00",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "CONTROLLED-TOGGLES-2540",
+    "title": "Every switch that saves at once is a controlled sw-toggle",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A refused save of a save-at-once switch (schedules, tickets settings, module settings, system settings, security and integration cards) leaves the switch where it was; an accepted save moves it."
+    ],
+    "requirement_ids": [
+      "R-CONTROLLED-TOGGLES-2540-1"
+    ],
+    "test_ids": [
+      "AT-CONTROLLED-TOGGLES-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/CONTROLLED-TOGGLES-2540, change note docs/changes/CONTROLLED-TOGGLES-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/CONTROLLED-TOGGLES-2540 head feb6b19e0 merged 7261730f2 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 2); change note docs/changes/CONTROLLED-TOGGLES-2540.md. Decisions Q1 = a, Q2 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "feb6b19e0",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "AREA-HONEST-COUNT-2540",
+    "title": "The full interface's area row and summaries tell an unknown lock / alarm apart",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "DeviceCounts carries locks_unknown / alarms_unknown (additive); an unknown lock is never 'not locked' and one unreadable alarm panel never hides a known state; the area row, floor chip, building locks tile and area popover show unknown in grey."
+    ],
+    "requirement_ids": [
+      "R-AREA-HONEST-COUNT-2540-1"
+    ],
+    "test_ids": [
+      "AT-AREA-HONEST-COUNT-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/AREA-HONEST-COUNT-2540, change note docs/changes/AREA-HONEST-COUNT-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/AREA-HONEST-COUNT-2540 head ea3f03567 merged 9f3d1670c into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 3); change note docs/changes/AREA-HONEST-COUNT-2540.md. Decisions Q1 = a, Q2 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "ea3f03567",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PHYSICAL-CONFIRM-2540",
+    "title": "Physical actions behind their confirmation, honest outcomes, the call banner does not swap",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The NVR alarm-output pulse confirms naming output, recorder and length (focus on cancel) and goes to the confirmed recorder once; physical outcomes read refused vs unknown; the incoming-call banner keeps its front call by id; the automation device test follows each action record."
+    ],
+    "requirement_ids": [
+      "R-PHYSICAL-CONFIRM-2540-1"
+    ],
+    "test_ids": [
+      "AT-PHYSICAL-CONFIRM-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/PHYSICAL-CONFIRM-2540, change note docs/changes/PHYSICAL-CONFIRM-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/PHYSICAL-CONFIRM-2540 head 465360eb4 merged a56d90414 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 4); change note docs/changes/PHYSICAL-CONFIRM-2540.md. Decisions Q1-Q3 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "465360eb4",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "CAST-RELAY-HARDEN-2540",
+    "title": "Cast relay socket bounds, a cast ends when its user loses access, NVR undo checks the device first",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The cast relay caps connections (32 / 8 per address), times out sockets and cuts a slow-loris request at its deadline; a running cast ends with access_lost when the starter or camera loses access; the generic NVR undo answers 409 changed_since / already_rolled_back unless forced."
+    ],
+    "requirement_ids": [
+      "R-CAST-RELAY-HARDEN-2540-1"
+    ],
+    "test_ids": [
+      "AT-CAST-RELAY-HARDEN-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/CAST-RELAY-HARDEN-2540, change note docs/changes/CAST-RELAY-HARDEN-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/CAST-RELAY-HARDEN-2540 head 1ac7534d3 merged d71faa640 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 5); change note docs/changes/CAST-RELAY-HARDEN-2540.md. Decisions Q1-Q2 = a; Q3-Q4 built by LISTENER-DEADLINE-2540. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "1ac7534d3",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LISTENER-DEADLINE-2540",
+    "title": "Notice-board and Provision push listeners get the whole-request deadline; the NVR change log offers revert anyway",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The notice-board and Provision push listeners close a request that does not finish within its deadline; after changed_since the NVR change log offers 'revert anyway' behind a cancel-first confirmation and a forced undo records the document it overwrote."
+    ],
+    "requirement_ids": [
+      "R-LISTENER-DEADLINE-2540-1"
+    ],
+    "test_ids": [
+      "AT-LISTENER-DEADLINE-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LISTENER-DEADLINE-2540, change note docs/changes/LISTENER-DEADLINE-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/LISTENER-DEADLINE-2540 head 9829bb121 merged b70544b83 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 6); change note docs/changes/LISTENER-DEADLINE-2540.md. Contains rows 4 and 5. Decisions Q1-Q3 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "9829bb121",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "CORE-RELIABILITY-2540",
+    "title": "Backend core fixes: state sync window, backup outside the write lock, bearer rate limit, app factor rule",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A state change between the HA snapshot and the subscription is applied; the daily and manual backups compress without holding the write lock; re-validating an existing bearer session is not billed to the sign-in limit; the app web session admits every factor the remote sign-in admits."
+    ],
+    "requirement_ids": [
+      "R-CORE-RELIABILITY-2540-1"
+    ],
+    "test_ids": [
+      "AT-CORE-RELIABILITY-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/CORE-RELIABILITY-2540, change note docs/changes/CORE-RELIABILITY-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/CORE-RELIABILITY-2540 head abfd96a73 merged 170191750 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 7); change note docs/changes/CORE-RELIABILITY-2540.md. Decisions Q1-Q3 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "abfd96a73",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "STALE-ANSWERS-2540",
+    "title": "A late answer never overwrites a newer selection; a double action runs once",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The bulk dialog, recorded playback, home bill, home scene sheet and resident day keep the newest selection when an older answer lands last; home recording taps and seeks run once / in order; a home ticket note with the same client_request_id is added once."
+    ],
+    "requirement_ids": [
+      "R-STALE-ANSWERS-2540-1"
+    ],
+    "test_ids": [
+      "AT-STALE-ANSWERS-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/STALE-ANSWERS-2540, change note docs/changes/STALE-ANSWERS-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/STALE-ANSWERS-2540 head 14116a86a merged e96a8666f into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 8); change note docs/changes/STALE-ANSWERS-2540.md. Decisions Q1a-Q3a built. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "14116a86a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TIME-CORRECT-2540",
+    "title": "Time, day and booking truth (DST days, occurrence cancel, bill zone, server clock, far series)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bookings on the DST change days are stored at the chosen wall-clock time; a recurring cancel offers only-this-date; a displaced booking is never approved; bill instants print on the bill's zone; commands are stamped on the server's time line; a series past the cache horizon still blocks a double booking."
+    ],
+    "requirement_ids": [
+      "R-TIME-CORRECT-2540-1"
+    ],
+    "test_ids": [
+      "AT-TIME-CORRECT-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/TIME-CORRECT-2540, change note docs/changes/TIME-CORRECT-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/TIME-CORRECT-2540 head 6ff195ab0 merged 1b1341b59 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 9); change note docs/changes/TIME-CORRECT-2540.md. Decisions Q1-Q3 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "6ff195ab0",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "CLIENT-RESILIENCE-2540",
+    "title": "Frontend client resilience: read deadline, unreachable is not signed out, update card, step-up dialog life",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A plain read ends after 60 s as no connection; an unreachable sign-in service keeps the session; the /me/ws hello carries build and an open page offers the update card; the step-up dialog names the action, expires after 90 s, and a physical action is replayed only within 120 s."
+    ],
+    "requirement_ids": [
+      "R-CLIENT-RESILIENCE-2540-1"
+    ],
+    "test_ids": [
+      "AT-CLIENT-RESILIENCE-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/CLIENT-RESILIENCE-2540, change note docs/changes/CLIENT-RESILIENCE-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/CLIENT-RESILIENCE-2540 head 397ca3484 merged f9b650a16 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 10); change note docs/changes/CLIENT-RESILIENCE-2540.md. Decisions Q1-Q4 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "397ca3484",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE-TRUST-2540",
+    "title": "The release gate's green can be trusted (lint lane tree, count-drop reference, coverage anchor, build stamp)",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The blocking backend lint lane lints the gated worktree; the count-drop baseline follows the newest green full run with per-lane thresholds; a targeted --after run needs a coverage anchor; release_check compares www/build-stamp.json with the sources from 2.54.0."
+    ],
+    "requirement_ids": [
+      "R-GATE-TRUST-2540-1"
+    ],
+    "test_ids": [
+      "AT-GATE-TRUST-2540-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GATE-TRUST-2540, change note docs/changes/GATE-TRUST-2540.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/GATE-TRUST-2540 head 181f673ef merged f1fc6b088 into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 11); change note docs/changes/GATE-TRUST-2540.md. Engine NOT installed by the train (the lead installs it before the 2.54 gate). Decisions Q1-Q4 = a. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "181f673ef",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-SCROLL-3-2530",
+    "title": "The band of large cards folds on the last fit step (the cards info style)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "With the cards info style the home screen's band of large cards folds on the squeeze step and every direction x view fits without a page scroll at 1440x900, 1366x768, 1280x800 and 1180x820."
+    ],
+    "requirement_ids": [
+      "R-HOME-SCROLL-3-2530-1"
+    ],
+    "test_ids": [
+      "AT-HOME-SCROLL-3-2530-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-SCROLL-3-2530, change note docs/changes/HOME-SCROLL-3-2530.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. pilot/HOME-SCROLL-3-2530 head 2bf0b098b merged 557859a3c into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 12); change note docs/changes/HOME-SCROLL-3-2530.md. Moved from 2.53 by the lead. Decisions Q1-Q3 = a; Q4 = HOME-SPEC-STABLE-2540. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "2bf0b098b",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LAB-2540-RUNBOOKS",
+    "title": "Lab acceptance plan for 2.54, bridge-key rotation unblock plan, WisKey rc.20 lab install runbook",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "docs/operations holds the 2.54 lab acceptance plan, the bridge rotation unblock plan and the WisKey rc.20 lab install runbook (Hebrew, plans only, nothing run)."
+    ],
+    "requirement_ids": [
+      "R-LAB-2540-RUNBOOKS-1"
+    ],
+    "test_ids": [
+      "AT-LAB-2540-RUNBOOKS-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch chore/LAB-2540-RUNBOOKS, change note docs/changes/LAB-2540-RUNBOOKS.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): Registered at the merge. chore/LAB-2540-RUNBOOKS head bb23c8fcc merged 6ba8c359b into release/2540-train (cut from origin/main = v2.53.0 3b4654f8b; docs/changes/RELEASE-2540-TRAIN.md on the train) (train row 13); change note docs/changes/LAB-2540-RUNBOOKS.md. Decisions docs only. Merged into the 2.54.0 train, NOT released (no gate yet). Target 2.54.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train runner results are in docs/changes/RELEASE-2540-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "bb23c8fcc",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2540-TRAIN",
+    "title": "RELEASE-2540-TRAIN - the 2.54.0 train",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.54.0 train on release/2540-train (cut from v2.53.0) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2540-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2540-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, release commit, runner build, release gate, tag and lab install after the owner's approval"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2540-TRAIN): release/2540-train cut from origin/main = v2.53.0 3b4654f8b. Merged: HONEST-STATES-2540 98c52bfb4, CONTROLLED-TOGGLES-2540 7261730f2, AREA-HONEST-COUNT-2540 9f3d1670c, PHYSICAL-CONFIRM-2540 a56d90414, CAST-RELAY-HARDEN-2540 d71faa640, LISTENER-DEADLINE-2540 b70544b83, CORE-RELIABILITY-2540 170191750, STALE-ANSWERS-2540 e96a8666f, TIME-CORRECT-2540 1b1341b59, CLIENT-RESILIENCE-2540 f9b650a16, GATE-TRUST-2540 f1fc6b088, HOME-SCROLL-3-2530 557859a3c, LAB-2540-RUNBOOKS 6ba8c359b; version bump 174ff0469 (2.54.0, draft changelog, API inventory 1958 routes); train fix 4c71dfbea (two file-local exports). DATA-RULES-2540 and HOME-SPEC-STABLE-2540 still to come. GATE-TRUST-2540 engine NOT installed (lead, before the gate). Gate NOT_RUN; nothing released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

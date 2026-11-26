@@ -22326,5 +22326,355 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-HONEST-STATES-2540-1",
+    "requirement_ids": [
+      "R-HONEST-STATES-2540-1"
+    ],
+    "task_ids": [
+      "HONEST-STATES-2540"
+    ],
+    "title": "Honest lock / alarm states on the home interface; an opt-in controlled sw-toggle",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "An offline or unknown lock is never counted, announced or coloured as an open door and an unavailable / unknown alarm panel never reads as armed on the home interface; a controlled sw-toggle moves only when the screen sets the saved value.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CONTROLLED-TOGGLES-2540-1",
+    "requirement_ids": [
+      "R-CONTROLLED-TOGGLES-2540-1"
+    ],
+    "task_ids": [
+      "CONTROLLED-TOGGLES-2540"
+    ],
+    "title": "Every switch that saves at once is a controlled sw-toggle",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A refused save of a save-at-once switch (schedules, tickets settings, module settings, system settings, security and integration cards) leaves the switch where it was; an accepted save moves it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-AREA-HONEST-COUNT-2540-1",
+    "requirement_ids": [
+      "R-AREA-HONEST-COUNT-2540-1"
+    ],
+    "task_ids": [
+      "AREA-HONEST-COUNT-2540"
+    ],
+    "title": "The full interface's area row and summaries tell an unknown lock / alarm apart",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "DeviceCounts carries locks_unknown / alarms_unknown (additive); an unknown lock is never 'not locked' and one unreadable alarm panel never hides a known state; the area row, floor chip, building locks tile and area popover show unknown in grey.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PHYSICAL-CONFIRM-2540-1",
+    "requirement_ids": [
+      "R-PHYSICAL-CONFIRM-2540-1"
+    ],
+    "task_ids": [
+      "PHYSICAL-CONFIRM-2540"
+    ],
+    "title": "Physical actions behind their confirmation, honest outcomes, the call banner does not swap",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The NVR alarm-output pulse confirms naming output, recorder and length (focus on cancel) and goes to the confirmed recorder once; physical outcomes read refused vs unknown; the incoming-call banner keeps its front call by id; the automation device test follows each action record.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAST-RELAY-HARDEN-2540-1",
+    "requirement_ids": [
+      "R-CAST-RELAY-HARDEN-2540-1"
+    ],
+    "task_ids": [
+      "CAST-RELAY-HARDEN-2540"
+    ],
+    "title": "Cast relay socket bounds, a cast ends when its user loses access, NVR undo checks the device first",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The cast relay caps connections (32 / 8 per address), times out sockets and cuts a slow-loris request at its deadline; a running cast ends with access_lost when the starter or camera loses access; the generic NVR undo answers 409 changed_since / already_rolled_back unless forced.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LISTENER-DEADLINE-2540-1",
+    "requirement_ids": [
+      "R-LISTENER-DEADLINE-2540-1"
+    ],
+    "task_ids": [
+      "LISTENER-DEADLINE-2540"
+    ],
+    "title": "Notice-board and Provision push listeners get the whole-request deadline; the NVR change log offers revert anyway",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The notice-board and Provision push listeners close a request that does not finish within its deadline; after changed_since the NVR change log offers 'revert anyway' behind a cancel-first confirmation and a forced undo records the document it overwrote.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CORE-RELIABILITY-2540-1",
+    "requirement_ids": [
+      "R-CORE-RELIABILITY-2540-1"
+    ],
+    "task_ids": [
+      "CORE-RELIABILITY-2540"
+    ],
+    "title": "Backend core fixes: state sync window, backup outside the write lock, bearer rate limit, app factor rule",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A state change between the HA snapshot and the subscription is applied; the daily and manual backups compress without holding the write lock; re-validating an existing bearer session is not billed to the sign-in limit; the app web session admits every factor the remote sign-in admits.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-STALE-ANSWERS-2540-1",
+    "requirement_ids": [
+      "R-STALE-ANSWERS-2540-1"
+    ],
+    "task_ids": [
+      "STALE-ANSWERS-2540"
+    ],
+    "title": "A late answer never overwrites a newer selection; a double action runs once",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The bulk dialog, recorded playback, home bill, home scene sheet and resident day keep the newest selection when an older answer lands last; home recording taps and seeks run once / in order; a home ticket note with the same client_request_id is added once.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TIME-CORRECT-2540-1",
+    "requirement_ids": [
+      "R-TIME-CORRECT-2540-1"
+    ],
+    "task_ids": [
+      "TIME-CORRECT-2540"
+    ],
+    "title": "Time, day and booking truth (DST days, occurrence cancel, bill zone, server clock, far series)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Bookings on the DST change days are stored at the chosen wall-clock time; a recurring cancel offers only-this-date; a displaced booking is never approved; bill instants print on the bill's zone; commands are stamped on the server's time line; a series past the cache horizon still blocks a double booking.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CLIENT-RESILIENCE-2540-1",
+    "requirement_ids": [
+      "R-CLIENT-RESILIENCE-2540-1"
+    ],
+    "task_ids": [
+      "CLIENT-RESILIENCE-2540"
+    ],
+    "title": "Frontend client resilience: read deadline, unreachable is not signed out, update card, step-up dialog life",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A plain read ends after 60 s as no connection; an unreachable sign-in service keeps the session; the /me/ws hello carries build and an open page offers the update card; the step-up dialog names the action, expires after 90 s, and a physical action is replayed only within 120 s.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE-TRUST-2540-1",
+    "requirement_ids": [
+      "R-GATE-TRUST-2540-1"
+    ],
+    "task_ids": [
+      "GATE-TRUST-2540"
+    ],
+    "title": "The release gate's green can be trusted (lint lane tree, count-drop reference, coverage anchor, build stamp)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The blocking backend lint lane lints the gated worktree; the count-drop baseline follows the newest green full run with per-lane thresholds; a targeted --after run needs a coverage anchor; release_check compares www/build-stamp.json with the sources from 2.54.0.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-SCROLL-3-2530-1",
+    "requirement_ids": [
+      "R-HOME-SCROLL-3-2530-1"
+    ],
+    "task_ids": [
+      "HOME-SCROLL-3-2530"
+    ],
+    "title": "The band of large cards folds on the last fit step (the cards info style)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "With the cards info style the home screen's band of large cards folds on the squeeze step and every direction x view fits without a page scroll at 1440x900, 1366x768, 1280x800 and 1180x820.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LAB-2540-RUNBOOKS-1",
+    "requirement_ids": [
+      "R-LAB-2540-RUNBOOKS-1"
+    ],
+    "task_ids": [
+      "LAB-2540-RUNBOOKS"
+    ],
+    "title": "Lab acceptance plan for 2.54, bridge-key rotation unblock plan, WisKey rc.20 lab install runbook",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "docs/operations holds the 2.54 lab acceptance plan, the bridge rotation unblock plan and the WisKey rc.20 lab install runbook (Hebrew, plans only, nothing run).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2540-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2540-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2540-TRAIN"
+    ],
+    "title": "RELEASE-2540-TRAIN - the 2.54.0 train",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The 2.54.0 train on release/2540-train (cut from v2.53.0) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2540-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

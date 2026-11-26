@@ -14487,5 +14487,229 @@
     "test_ids": [
       "AT-REVIEW-FINDINGS-INDEX-2530-1"
     ]
+  },
+  {
+    "id": "R-HONEST-STATES-2540-1",
+    "title": "Honest lock / alarm states on the home interface; an opt-in controlled sw-toggle",
+    "statement": "An offline or unknown lock is never counted, announced or coloured as an open door and an unavailable / unknown alarm panel never reads as armed on the home interface; a controlled sw-toggle moves only when the screen sets the saved value.",
+    "task_ids": [
+      "HONEST-STATES-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HONEST-STATES-2540-1"
+    ]
+  },
+  {
+    "id": "R-CONTROLLED-TOGGLES-2540-1",
+    "title": "Every switch that saves at once is a controlled sw-toggle",
+    "statement": "A refused save of a save-at-once switch (schedules, tickets settings, module settings, system settings, security and integration cards) leaves the switch where it was; an accepted save moves it.",
+    "task_ids": [
+      "CONTROLLED-TOGGLES-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CONTROLLED-TOGGLES-2540-1"
+    ]
+  },
+  {
+    "id": "R-AREA-HONEST-COUNT-2540-1",
+    "title": "The full interface's area row and summaries tell an unknown lock / alarm apart",
+    "statement": "DeviceCounts carries locks_unknown / alarms_unknown (additive); an unknown lock is never 'not locked' and one unreadable alarm panel never hides a known state; the area row, floor chip, building locks tile and area popover show unknown in grey.",
+    "task_ids": [
+      "AREA-HONEST-COUNT-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-AREA-HONEST-COUNT-2540-1"
+    ]
+  },
+  {
+    "id": "R-PHYSICAL-CONFIRM-2540-1",
+    "title": "Physical actions behind their confirmation, honest outcomes, the call banner does not swap",
+    "statement": "The NVR alarm-output pulse confirms naming output, recorder and length (focus on cancel) and goes to the confirmed recorder once; physical outcomes read refused vs unknown; the incoming-call banner keeps its front call by id; the automation device test follows each action record.",
+    "task_ids": [
+      "PHYSICAL-CONFIRM-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PHYSICAL-CONFIRM-2540-1"
+    ]
+  },
+  {
+    "id": "R-CAST-RELAY-HARDEN-2540-1",
+    "title": "Cast relay socket bounds, a cast ends when its user loses access, NVR undo checks the device first",
+    "statement": "The cast relay caps connections (32 / 8 per address), times out sockets and cuts a slow-loris request at its deadline; a running cast ends with access_lost when the starter or camera loses access; the generic NVR undo answers 409 changed_since / already_rolled_back unless forced.",
+    "task_ids": [
+      "CAST-RELAY-HARDEN-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CAST-RELAY-HARDEN-2540-1"
+    ]
+  },
+  {
+    "id": "R-LISTENER-DEADLINE-2540-1",
+    "title": "Notice-board and Provision push listeners get the whole-request deadline; the NVR change log offers revert anyway",
+    "statement": "The notice-board and Provision push listeners close a request that does not finish within its deadline; after changed_since the NVR change log offers 'revert anyway' behind a cancel-first confirmation and a forced undo records the document it overwrote.",
+    "task_ids": [
+      "LISTENER-DEADLINE-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LISTENER-DEADLINE-2540-1"
+    ]
+  },
+  {
+    "id": "R-CORE-RELIABILITY-2540-1",
+    "title": "Backend core fixes: state sync window, backup outside the write lock, bearer rate limit, app factor rule",
+    "statement": "A state change between the HA snapshot and the subscription is applied; the daily and manual backups compress without holding the write lock; re-validating an existing bearer session is not billed to the sign-in limit; the app web session admits every factor the remote sign-in admits.",
+    "task_ids": [
+      "CORE-RELIABILITY-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CORE-RELIABILITY-2540-1"
+    ]
+  },
+  {
+    "id": "R-STALE-ANSWERS-2540-1",
+    "title": "A late answer never overwrites a newer selection; a double action runs once",
+    "statement": "The bulk dialog, recorded playback, home bill, home scene sheet and resident day keep the newest selection when an older answer lands last; home recording taps and seeks run once / in order; a home ticket note with the same client_request_id is added once.",
+    "task_ids": [
+      "STALE-ANSWERS-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-STALE-ANSWERS-2540-1"
+    ]
+  },
+  {
+    "id": "R-TIME-CORRECT-2540-1",
+    "title": "Time, day and booking truth (DST days, occurrence cancel, bill zone, server clock, far series)",
+    "statement": "Bookings on the DST change days are stored at the chosen wall-clock time; a recurring cancel offers only-this-date; a displaced booking is never approved; bill instants print on the bill's zone; commands are stamped on the server's time line; a series past the cache horizon still blocks a double booking.",
+    "task_ids": [
+      "TIME-CORRECT-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TIME-CORRECT-2540-1"
+    ]
+  },
+  {
+    "id": "R-CLIENT-RESILIENCE-2540-1",
+    "title": "Frontend client resilience: read deadline, unreachable is not signed out, update card, step-up dialog life",
+    "statement": "A plain read ends after 60 s as no connection; an unreachable sign-in service keeps the session; the /me/ws hello carries build and an open page offers the update card; the step-up dialog names the action, expires after 90 s, and a physical action is replayed only within 120 s.",
+    "task_ids": [
+      "CLIENT-RESILIENCE-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CLIENT-RESILIENCE-2540-1"
+    ]
+  },
+  {
+    "id": "R-GATE-TRUST-2540-1",
+    "title": "The release gate's green can be trusted (lint lane tree, count-drop reference, coverage anchor, build stamp)",
+    "statement": "The blocking backend lint lane lints the gated worktree; the count-drop baseline follows the newest green full run with per-lane thresholds; a targeted --after run needs a coverage anchor; release_check compares www/build-stamp.json with the sources from 2.54.0.",
+    "task_ids": [
+      "GATE-TRUST-2540"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-TRUST-2540-1"
+    ]
+  },
+  {
+    "id": "R-HOME-SCROLL-3-2530-1",
+    "title": "The band of large cards folds on the last fit step (the cards info style)",
+    "statement": "With the cards info style the home screen's band of large cards folds on the squeeze step and every direction x view fits without a page scroll at 1440x900, 1366x768, 1280x800 and 1180x820.",
+    "task_ids": [
+      "HOME-SCROLL-3-2530"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-SCROLL-3-2530-1"
+    ]
+  },
+  {
+    "id": "R-LAB-2540-RUNBOOKS-1",
+    "title": "Lab acceptance plan for 2.54, bridge-key rotation unblock plan, WisKey rc.20 lab install runbook",
+    "statement": "docs/operations holds the 2.54 lab acceptance plan, the bridge rotation unblock plan and the WisKey rc.20 lab install runbook (Hebrew, plans only, nothing run).",
+    "task_ids": [
+      "LAB-2540-RUNBOOKS"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-2540-RUNBOOKS-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2540-TRAIN-1",
+    "title": "RELEASE-2540-TRAIN - the 2.54.0 train",
+    "statement": "The 2.54.0 train on release/2540-train (cut from v2.53.0) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "task_ids": [
+      "RELEASE-2540-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2540-TRAIN-1"
+    ]
   }
 ]
