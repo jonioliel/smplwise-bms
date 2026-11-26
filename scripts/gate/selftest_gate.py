@@ -426,6 +426,17 @@ check("one project: dev spec, marker in a comment -> one is True", oc["dev"]["de
 c0, f0 = g.parse_pytest("FAILED tests/test_x.py::test_gated[GET /api/v1/x] - AssertionError: no\nERROR tests/test_y.py::test_b - fixture\n"
                         "FAILED tests/test_z.py::test_c\nERROR: not found: tests/test_x.py::test_gated[GET\n1 failed in 0.1s\n")
 check("TR-01 parse: an id with a space is kept whole (up to ' - ')", [n for n, _ in f0] == ["tests/test_x.py::test_gated[GET /api/v1/x]", "tests/test_y.py::test_b", "tests/test_z.py::test_c"], f0)
+# RELEASE-2520-TRAIN (2.52 gate run 1): a captured log line ("ERROR    smplwise.events:db.py:386 ...", the logging format pads the
+# level name) is not a failed test; taken as one, the alone-retry aborted ("file or directory not found") and the real failures got no retry
+c1, f1 = g.parse_pytest("----------------------------- Captured log call ------------------------------\n"
+                        "ERROR    smplwise.events:db.py:386 alert stream nvr-edge: the data disk is full - 1 write(s) refused\n"
+                        "ERROR    smplwise:main.py:195 the data disk is full: POST /api/v1/sites could not be saved\n"
+                        "WARNING  smplwise:main.py:200 something\n"
+                        "FAILED tests/test_soak.py::test_g1_full_db\n"
+                        "ERROR tests/test_broken.py - ImportError: x\n"
+                        "1 failed, 1 error, 9 passed in 1.0s\n")
+check("2.52 run 1: captured ERROR log lines are not failure ids; real FAILED / collection ERROR lines are",
+      [n for n, _ in f1] == ["tests/test_soak.py::test_g1_full_db", "tests/test_broken.py"], f1)
 todo0 = [("tests/test_a.py::t[x y]", "boom"), ("tests/test_a.py::u", "boom")]
 v0 = {n: s for n, s, _ in g.retry_verdicts(todo0, 4, False, "ERROR: not found: tests/test_a.py::t[x\nno tests ran in 0.01s\n")}
 check("TR-01 retry that ran nothing (rc=4, 'not found') -> every id FAIL, none FLAKY", set(v0.values()) == {"FAIL"}, v0)
