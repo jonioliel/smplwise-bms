@@ -223,6 +223,9 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
         permission_overrides: { gate: 'allow', lobby: 'allow' },
         door_permissions: { gate: [1], lobby: [1] },
         cards: [{ card_no: CARD, label: 'תג ראשי', card_type: 'normalCard', enabled: true }],
+        // WisKey round 3 (CR-036): a new person's access category (the default, staff) and, at the sensitive level, the responsible
+        // person and the purpose (empty for staff)
+        access_category: 'staff', responsible_person: '', access_purpose: '',
       },
     });
     // the fixture WisKey stored the PIN and the number - and only it has them

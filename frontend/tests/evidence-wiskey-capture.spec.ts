@@ -266,7 +266,8 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     const before = (await sent('cards/capture_cancel')).length;
     await cap(page, 'cancel').click();
     await expect(state(page)).toHaveAttribute('data-wiskey-capture-state', 'cancelled', { timeout: 15000 });
-    await expect(cap(page, 'status')).toContainText('הקריאה בוטלה. לא נשמר כרטיס.');
+    // the dialog says what it knows: the cancel was SENT (the reader's own timeout is the firmware's) and no card was saved
+    await expect(cap(page, 'status')).toContainText('נשלח ביטול לקריאה. לא נשמר כרטיס.');
     await expect(dialog(page)).toContainText('זמן ההמתנה בקורא נקבע בקושחה');
     const cancels = await sent('cards/capture_cancel');
     expect(cancels.length).toBe(before + 1);

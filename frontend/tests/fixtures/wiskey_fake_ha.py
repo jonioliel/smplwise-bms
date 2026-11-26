@@ -332,7 +332,9 @@ def initial_secrets() -> dict[str, dict[str, Any]]:
 # ---------------------------------------------------------------- people writes (WisKey websocket.py users/*, access/models.py build_user)
 
 USER_FIELDS = {"door_permissions", "permission_overrides", "access_policy_revision", "profile", "group_ids", "photo", "phone", "access_timing_draft",
-               "access_timing_policy", "employee_no", "display_name", "active", "user_type", "valid_from", "valid_until", "pin", "cards", "assignments"}
+               "access_timing_policy", "employee_no", "display_name", "active", "user_type", "valid_from", "valid_until", "pin", "cards", "assignments",
+               # STALE-FIXTURE-SPECS-2530: WisKey round 3's access category, responsible person and purpose (the editor sends them since CR-036)
+               "access_category", "responsible_person", "access_purpose"}
 CARD_FIELDS = {"id", "card_no", "label", "card_type", "enabled"}
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,32}")
 
@@ -449,8 +451,22 @@ def build_user(data: dict[str, Any], previous: dict[str, Any] | None, secret: di
         "profile": previous["profile"] if previous else {}, "group_ids": previous["group_ids"] if previous else [], "permission_overrides": personal,
         "photo_configured": False, "pin_configured": pin is not None, "cards": cards, "assignments": assignments,
         "access_timing_draft": previous["access_timing_draft"] if previous else None, "access_timing_policy": previous["access_timing_policy"] if previous else None, "timing_readbacks": {},
+        **_category(data, previous),
     }
     return public, {"pin": pin, "cards": numbers}
+
+
+def _category(data: dict[str, Any], previous: dict[str, Any] | None) -> dict[str, Any]:
+    """WisKey round 3: `access_category` (staff | visitor | contractor), `responsible_person` (64) and `access_purpose` (128), patch semantics;
+    a person written before keeps what it had (a record without them reads as staff)."""
+    category = data.get("access_category", (previous or {}).get("access_category", "staff"))
+    if category not in ("staff", "visitor", "contractor"):
+        raise _Access("invalid_fields")
+    responsible = data.get("responsible_person", (previous or {}).get("responsible_person", ""))
+    purpose = data.get("access_purpose", (previous or {}).get("access_purpose", ""))
+    if not isinstance(responsible, str) or len(responsible) > 64 or not isinstance(purpose, str) or len(purpose) > 128:
+        raise _Access("invalid_fields")
+    return {"access_category": category, "responsible_person": responsible, "access_purpose": purpose}
 
 
 def _overrides(value: Any) -> dict[str, str]:
