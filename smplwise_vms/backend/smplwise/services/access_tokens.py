@@ -160,6 +160,24 @@ def note_bearer_use(db: Any, s: Any, *, first: bool, request_id: str | None = No
     return False
 
 
+TOKEN_USES_KEEP_DAYS = 400  # LOWS-BACKEND-2550 (CORE-11): a token not seen for this long leaves the list (a later use is a first use again)
+
+
+def prune_uses(db: Any, days: int = TOKEN_USES_KEEP_DAYS) -> int:
+    """LOWS-BACKEND-2550 (CORE-11): the janitor's step - `remote_token_uses` rows not seen for `days`, and the rows of deleted users.
+    Before this nothing ever deleted a row (one per Home Assistant sign-in, for ever). A database before 0219 has nothing to prune."""
+    cutoff = _iso(time.time() - max(1, int(days)) * 86400)
+    try:
+        with db.connection(label="remote token uses prune") as conn:
+            n = conn.execute("DELETE FROM remote_token_uses WHERE last_seen_at < ?", (cutoff,)).rowcount
+            n += conn.execute("DELETE FROM remote_token_uses WHERE user_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL)").rowcount
+    except Exception as exc:  # noqa: BLE001
+        if "no such table" in str(exc):
+            return 0
+        raise
+    return n
+
+
 def seen_rows(conn: Any, user_id: str) -> dict[str, dict[str, Any]]:
     """The user's recorded bearer tokens by key."""
     try:

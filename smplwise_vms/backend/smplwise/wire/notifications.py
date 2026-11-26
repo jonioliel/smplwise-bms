@@ -87,7 +87,7 @@ class NotificationPage(WireModel):
     """`GET /notifications`: newest first, open critical safety rows pinned on top."""
     notifications: list[Notification]
     next_before: str | None
-    """The cursor of the next page (the `last_at` of the last row), null on the last page."""
+    """The cursor of the next page (opaque: `<last_at>|<id>` of the last row; a bare `last_at` is still accepted), null on the last page."""
 
 
 class NotificationCounts(WireModel):

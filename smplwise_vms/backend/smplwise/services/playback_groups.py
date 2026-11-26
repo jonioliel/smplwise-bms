@@ -56,7 +56,7 @@ def close_group(settings: Settings, group: PlaybackGroup) -> None:
     """Close every member; one member's failure (a relay stream still being created, a relay hiccup) never leaves
     the others running against the playback quota, and the group is always dropped."""
     for s in sessions_of(group):
-        if s.state not in ("closed", "expired", "failed"):
+        if s.state not in pb.TERMINAL_STATES:
             try:
                 pb.close(settings, s)
             except Exception as exc:  # noqa: BLE001
@@ -67,7 +67,7 @@ def close_group(settings: Settings, group: PlaybackGroup) -> None:
 def expire_empty() -> None:
     """Drop groups whose sessions are all gone (closed by the janitor or the user)."""
     for gid, group in list(GROUPS.items()):
-        if not any(s.state not in ("closed", "expired", "failed") for s in sessions_of(group)) and time.time() - group.created > 60:
+        if not any(s.state not in pb.TERMINAL_STATES for s in sessions_of(group)) and time.time() - group.created > 60:
             GROUPS.pop(gid, None)
 
 

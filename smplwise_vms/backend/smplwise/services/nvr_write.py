@@ -331,13 +331,16 @@ def motion_path(channel: int) -> str:
     return f"/ISAPI/System/Video/inputs/channels/{channel}/motionDetection"
 
 
-_MOTION_CAPS: dict[int, dict[str, int]] = {}
+# LOWS-BACKEND-2550 (V-07): keyed by (recorder, channel) - channel 3 of a second recorder is another camera - and only a 200 answer is
+# kept; a failed read answers the defaults for this call only, so the next call asks the device again.
+_MOTION_CAPS: dict[tuple[str, int], dict[str, int]] = {}
 
 
 def motion_capabilities(settings: Settings, channel: int, *, client: httpx.Client | None = None) -> dict[str, int]:
     """min / max / step of the sensitivity as the device reports them (cached per process); defaults 0 / 100 / 1."""
-    if channel in _MOTION_CAPS:
-        return _MOTION_CAPS[channel]
+    cache_key = (str(getattr(settings, "nvr_recorder_id", "") or ""), int(channel))
+    if cache_key in _MOTION_CAPS:
+        return _MOTION_CAPS[cache_key]
     own = client is None
     c = client or _client(settings)
     try:
@@ -353,7 +356,7 @@ def motion_capabilities(settings: Settings, channel: int, *, client: httpx.Clien
                 v = re.search(rf'{key}="(\d+)"', m.group(1))
                 if v:
                     caps[key] = int(v.group(1))
-    _MOTION_CAPS[channel] = caps
+        _MOTION_CAPS[cache_key] = caps
     return caps
 
 

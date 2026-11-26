@@ -683,7 +683,7 @@ class Go2rtc:
 
 
 def names_foreign_stream(src: str, stream_names: Any, own_prefix: str) -> bool:
-    """True when the first path segment of `src` (raw, percent-decoded twice, dot segments resolved, case-insensitive) is the name of a
+    """True when the first path segment (or any longer "/"-ending prefix, or the whole path) of `src` (raw, percent-decoded twice, dot segments resolved, case-insensitive) is the name of a
     go2rtc stream outside `own_prefix`: an alias of go2rtc's RTSP restream (`rtsp://<go2rtc, by any name>:8554/<another stream>`) that
     would re-publish someone else's stream under one of our names. An address that does not parse counts as foreign (refused)."""
     try:
@@ -692,8 +692,14 @@ def names_foreign_stream(src: str, stream_names: Any, own_prefix: str) -> bool:
         return True
     decoded = unquote(unquote(path))
     normal = posixpath.normpath("/" + decoded.lstrip("/"))
-    first = {seg.lower() for seg in (path.lstrip("/").split("/", 1)[0], decoded.lstrip("/").split("/", 1)[0], normal.lstrip("/").split("/", 1)[0]) if seg}
-    return bool(first & {str(n).lower() for n in stream_names if not str(n).startswith(own_prefix)})
+    # LOWS-BACKEND-2550 (V-10): not only the first segment - a foreign stream whose name holds a "/" is matched by go2rtc on the whole
+    # path, so the whole path and every prefix of it that ends at a "/" are compared (the first segment is the shortest prefix)
+    names: set[str] = set()
+    for form in (path, decoded, normal):
+        segs = form.strip("/").split("/")
+        names.update("/".join(segs[:i]).lower() for i in range(1, len(segs) + 1))
+    names.discard("")
+    return bool(names & {str(n).lower() for n in stream_names if not str(n).startswith(own_prefix)})
 
 
 def refuse_foreign(src: str, own_prefix: str, refusal: Callable[[], ApiError]) -> Callable[[dict[str, StreamInfo]], None]:

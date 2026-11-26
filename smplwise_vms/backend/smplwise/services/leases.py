@@ -40,6 +40,11 @@ class CameraLease:
         from .access import camera_allowed
 
         with self.db.connection(mode="read", label=f"lease {self.permission} {self.camera_id}") as conn:
+            # LOWS-BACKEND-2550 (V-06): a camera an administrator disabled ends its open relays too (a new socket is already refused
+            # `camera_disabled`); an id that is no camera row (a Home Assistant camera entity) is judged by the permission alone
+            row = conn.execute("SELECT enabled FROM cameras WHERE id = ?", (self.camera_id,)).fetchone()
+            if row is not None and not row[0]:
+                return False
             return camera_allowed(conn, self.principal, self.camera_id, self.permission)
 
     async def _recheck(self) -> None:

@@ -117,7 +117,7 @@ export class ReloadThrottle {
 /** What a devices screen does with each kind of push (a missing handler = that kind is ignored). */
 interface DevicePushHandlers {
   entity?: (entityId: string) => void;
-  structure?: () => void;
+  structure?: (reason?: string) => void;
   /** The HA link went up or down (ha_sync_state). */
   connected?: (connected: boolean) => void;
   heartbeat?: (sync: HaSyncState) => void;
@@ -126,7 +126,7 @@ interface DevicePushHandlers {
 /** One push to the screen's handlers - the switch the home screen, the area screen and the quick sheet each wrote out. */
 export function routeDevicePush(m: HaPush, h: DevicePushHandlers): void {
   if (m.type === 'entity_state_changed') h.entity?.(m.entity.entity_id);
-  else if (m.type === 'structure_changed') h.structure?.();
+  else if (m.type === 'structure_changed') h.structure?.(m.reason); // LOWS-BACKEND-2550: `resync` = a refetch after the socket's queue overflowed, no change
   else if (m.type === 'ha_sync_state') h.connected?.(m.connected);
   else if (m.type === 'heartbeat') h.heartbeat?.(m.sync);
 }

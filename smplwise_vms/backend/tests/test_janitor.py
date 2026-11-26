@@ -70,6 +70,7 @@ GOLDEN = [
     ("services.events_derive:prune", ("db", "@events.retention_days"), "events prune janitor failed", False),
     ("services.thumbnails:prune", ("settings", "@events.retention_days"), "thumbnails prune janitor failed", False),
     ("audit:prune_db", ("db", "@audit.retention_days"), "audit prune janitor failed", False),
+    ("services.access_tokens:prune_uses", ("db",), "remote token uses prune janitor failed", False),  # LOWS-BACKEND-2550 (CORE-11)
     ("services.ha_user_auth:flush_refusal_summaries", ("db",), "refusal summaries janitor failed", False),
     ("services.ha_history:prune_db", ("db",), "ha history prune janitor failed", False),
     ("services.device_activity:prune_db", ("db",), "device activity prune janitor failed", False),

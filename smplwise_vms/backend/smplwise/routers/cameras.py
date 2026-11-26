@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
+import threading
 import time
 from typing import Any
 
@@ -190,22 +191,68 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     if not fresh:
         try:
             with unlocked(conn):
-                from ..services.recorders import vendor_io
-
-                if manual:  # CAMERA-STREAM-SOURCES-2410: one frame of the manual source's own stream (by name; the health records it)
-                    data = camera_sources.snapshot(settings, cam)
-                elif frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
-                    data = frigate_io.snapshot(rs, cam["recorder_id"], cam["source_ref"] or str(cam["channel"]))
-                else:
-                    data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
-            path.write_bytes(data)
+                # LOWS-BACKEND-2550 (V-09): one fetch per camera at a time - a wall of tiles opened by several people asks the recorder once,
+                # the others wait and serve that answer (or that refusal); the file is replaced whole, never rewritten in place
+                asked = time.monotonic()
+                with _snapshot_lock(camera_id):
+                    done = _SNAP_LAST.get(camera_id)
+                    if path.exists() and (now_ts() - path.stat().st_mtime) < max_age:
+                        pass  # another request refreshed it while this one waited
+                    elif done is not None and done[0] >= asked and done[1] is not None:
+                        raise done[1]  # the fetch this request waited for was refused: never ask again in a row
+                    else:
+                        try:
+                            data = _fetch_snapshot(settings, cam, rs, manual)
+                        except ApiError as exc:
+                            _SNAP_LAST[camera_id] = (time.monotonic(), exc)
+                            raise
+                        _write_atomic(path, data)
+                        _SNAP_LAST[camera_id] = (time.monotonic(), None)
         except ApiError as exc:
-            if not stale_ok:
+            if not stale_ok or not path.exists():
                 raise
             return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=10", "X-Snapshot-Stale": "true", "X-Snapshot-Error": exc.code,
                                                                                  "X-Snapshot-Age": str(int(now_ts() - path.stat().st_mtime))})
     age = int(now_ts() - path.stat().st_mtime)
     return Response(path.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": f"private, max-age={max(1, int(max_age) - age)}", "X-Snapshot-Age": str(age)})
+
+
+# LOWS-BACKEND-2550 (V-09): the per-camera single flight of the snapshot fetch, and when the last fetch of each camera ended (and how)
+_SNAP_LOCKS: dict[str, threading.Lock] = {}
+_SNAP_LAST: dict[str, tuple[float, ApiError | None]] = {}
+_SNAP_GUARD = threading.Lock()
+
+
+def _snapshot_lock(camera_id: str) -> threading.Lock:
+    with _SNAP_GUARD:
+        lock = _SNAP_LOCKS.get(camera_id)
+        if lock is None:
+            lock = _SNAP_LOCKS[camera_id] = threading.Lock()
+        return lock
+
+
+def _fetch_snapshot(settings: Any, cam: Any, rs: Any, manual: bool) -> bytes:
+    from ..services import camera_sources
+    from ..services.recorders import frigate_io, vendor_io
+
+    if manual:  # CAMERA-STREAM-SOURCES-2410: one frame of the manual source's own stream (by name; the health records it)
+        return camera_sources.snapshot(settings, cam)
+    if frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
+        return frigate_io.snapshot(rs, cam["recorder_id"], cam["source_ref"] or str(cam["channel"]))
+    return vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
+
+
+def _write_atomic(path: Any, data: bytes) -> None:
+    """The new picture under a temporary name, then one rename over the old one: a reader gets the old file or the new one, never a cut one."""
+    import os
+
+    tmp = path.with_name(f".{path.name}.{threading.get_ident()}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
 
 
 def now_ts() -> float:
@@ -426,6 +473,8 @@ def _reset_for_tests() -> None:
     """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
     _CAPS_CACHE.clear()
     _ZONES_CACHE.clear()
+    _SNAP_LOCKS.clear()
+    _SNAP_LAST.clear()
 
 
-register_reset(__name__, ("_CAPS_CACHE", "_ZONES_CACHE"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("_CAPS_CACHE", "_ZONES_CACHE", "_SNAP_LOCKS", "_SNAP_LAST"), _reset_for_tests)  # CR-SINGLETONS-REST-2480: module-level tables (tests/test_singletons_registered.py)

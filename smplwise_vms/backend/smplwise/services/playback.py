@@ -97,13 +97,28 @@ class PlaybackSession:
         self.last_activity = time.time()
 
 
+# LOWS-BACKEND-2550 (V-08): the states a session never leaves - `revoked` (access lost, a group's camera replaced) included, so a revoked
+# session holds no quota slot, is not listed with a media handle, and a seek / socket of it is refused like any finished one.
+TERMINAL_STATES = frozenset(("closed", "expired", "failed", "revoked"))
+# the states the first media byte of a generation may turn into "playing" (never a finished session: a late byte after a close)
+PLAY_FROM_STATES = frozenset(("creating", "buffering", "seeking"))
+
+
+def mark_first_media(session: "PlaybackSession") -> None:
+    """The first media byte of the session's current generation: stamped once; "playing" only from a state that waits for media (V-08)."""
+    if session.first_frame_at is None:
+        session.first_frame_at = time.time()
+        if session.state in PLAY_FROM_STATES:
+            session.state = "playing"
+
+
 class PlaybackRegistry:
     def __init__(self) -> None:
         self.sessions: dict[str, PlaybackSession] = {}
         self.lock = threading.Lock()
 
     def active(self) -> list[PlaybackSession]:
-        return [s for s in self.sessions.values() if s.state not in ("closed", "expired", "failed")]
+        return [s for s in self.sessions.values() if s.state not in TERMINAL_STATES]
 
     def by_user(self, user_id: str) -> list[PlaybackSession]:
         return [s for s in self.active() if s.user_id == user_id]
@@ -252,7 +267,7 @@ def _settle_after_stream(settings: Settings, session: PlaybackSession) -> None:
     expired) it must not come back to life — that would run a relay stream against the playback quota until the
     janitor noticed. Drop the new stream and refuse instead."""
     with REGISTRY.lock:
-        if session.state in ("closed", "expired", "failed"):
+        if session.state in TERMINAL_STATES:
             orphan, session.stream = session.stream, ""
         else:
             session.state = "buffering"
@@ -332,7 +347,7 @@ def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segme
     if not session.seek_lock.acquire(timeout=SEEK_LOCK_WAIT_S):
         raise ApiError(409, "seek_busy", "קפיצה קודמת עדיין בטיפול; נסה שוב בעוד רגע.", retryable=True)
     try:
-        if session.state in ("closed", "expired", "failed"):
+        if session.state in TERMINAL_STATES:
             raise ApiError(409, "session_over", "סשן הניגון הסתיים; פתח ניגון חדש.")
         check_seek_rate(session, max_per_min)
         with REGISTRY.lock:
@@ -389,7 +404,7 @@ def expire_idle(settings: Settings, lease_s: int) -> list[str]:
             expired.append(session.id)
     # drop finished sessions from memory after a while so the listing stays small
     for sid, session in list(REGISTRY.sessions.items()):
-        if session.state in ("closed", "expired", "failed") and now - session.last_activity > 300:
+        if session.state in TERMINAL_STATES and now - session.last_activity > 300:
             REGISTRY.sessions.pop(sid, None)
     return expired
 
@@ -426,7 +441,7 @@ def to_dict(session: PlaybackSession, lease_s: int) -> dict[str, Any]:
         "actual_end_at": None,
         "media_anchor": None,
         "time_precision": "keyframe_limited",
-        "media_handle": f"api/v1/playback/sessions/{session.id}/ws?generation={session.generation}" if session.state not in ("closed", "expired", "failed") else None,
+        "media_handle": f"api/v1/playback/sessions/{session.id}/ws?generation={session.generation}" if session.state not in TERMINAL_STATES else None,
         "expires_at": iso_utc(dt.datetime.fromtimestamp(expires, UTC)),
         # T066: slow motion and frame stepping are real on the MSE path (the buffer fills at real time and is consumed
         # slower or stepped through); faster speeds need a source that sends faster than real time — the relay does not

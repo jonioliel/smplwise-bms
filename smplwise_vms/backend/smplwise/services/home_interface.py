@@ -163,6 +163,9 @@ HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | HOME_ALLOWED_EXACT_P3
 HOME_ALLOWED_PATTERNS_P3 = (
     re.compile(r"/multimedia/devices/[^/]+(/commands|/artwork|/library)?"),
     re.compile(r"/energy/accounts/[^/]+/(status|periods)"),
+    # LOWS-BACKEND-2550 (SEC-6): the sockets are judged by this gate too; the door call's two-way talk and the station listen socket
+    # (sw-home-call answers a ringing door from the home interface) are whole routes, the sessions' other routes stay as they were
+    re.compile(r"/access-control/(talk|listen)/[A-Za-z0-9_\-]{1,64}/ws"),
 )
 
 # HOME-V3-FOLLOWUP-A-2431 (owner answer 4): the bill card's "show bill" opens the bill file itself - GET only, one whole route (never

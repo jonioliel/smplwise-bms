@@ -81,13 +81,13 @@ def _expected_revision(if_match: str | None, body_revision: Any) -> int | None:
 @router.get("/notifications", **wire(W.NotificationPage))
 def list_notifications(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                        state: Literal["open", "all"] = "all", category: str | None = Query(None, max_length=32), severity_min: Literal["info", "alert", "critical"] | None = None,
-                       unread: bool = False, before: str | None = Query(None, max_length=40), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+                       unread: bool = False, before: str | None = Query(None, max_length=120), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     """The caller's inbox, newest first (open critical safety rows pinned on top). `state=open` hides resolved rows."""
     if category and category not in policies.CATEGORIES:
         raise field_error("קטגוריה לא מוכרת.", ["category"], legacy={"field": "category"})
     if before:
         try:
-            parse_utc(before)
+            parse_utc(before.partition("|")[0])  # LOWS-BACKEND-2550 (CORE-08): "<last_at>|<id>", or the old one-part cursor
         except ValueError:
             raise field_error("before חייב להיות זמן UTC.", ["before"], legacy={"field": "before"}) from None
     return notify.list_for(conn, principal, state=state, category=category, severity_min=severity_min, unread=unread, before=before, limit=limit, data_dir=settings_of(request).data_dir)

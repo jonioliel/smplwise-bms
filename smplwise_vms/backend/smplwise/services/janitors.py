@@ -155,6 +155,8 @@ STEPS: tuple[Step, ...] = (
     Step("events prune", "services.events_derive:prune", ("db", "@events.retention_days"), "events prune janitor failed"),
     Step("thumbnails prune", "services.thumbnails:prune", ("settings", "@events.retention_days"), "thumbnails prune janitor failed"),
     Step("audit prune", "audit:prune_db", ("db", "@audit.retention_days"), "audit prune janitor failed"),
+    # LOWS-BACKEND-2550 (CORE-11): the bearer tokens' "seen" rows not seen for 400 days, and those of deleted users
+    Step("remote token uses prune", "services.access_tokens:prune_uses", ("db",), "remote token uses prune janitor failed"),
     # counted-but-quiet throttled refusals: the end-of-window summary rows
     Step("refusal summaries", "services.ha_user_auth:flush_refusal_summaries", ("db",), "refusal summaries janitor failed"),
     Step("ha history prune", "services.ha_history:prune_db", ("db",), "ha history prune janitor failed"),

@@ -87,7 +87,7 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
     group.session_ids = [s.id for _, s, _ in results if s]
     group.missing = {cid: reason for cid, s, reason in results if not s and reason}
     for cid, x in existing.items():  # a member that fell into a gap this time releases its stream
-        if x.id not in group.session_ids and x.state not in ("closed", "expired", "failed"):
+        if x.id not in group.session_ids and x.state not in pb.TERMINAL_STATES:
             pb.close(settings, x)
 
 
@@ -139,7 +139,7 @@ def seek_group(group_id: str, body: SeekBody, request: Request, principal: Princ
     except ValueError:
         raise ApiError(422, "validation", "start_at חייב להיות UTC (Z).")
     s = read_settings(conn)
-    existing = {x.camera_id: x for x in pg.sessions_of(group) if x.state not in ("closed", "expired", "failed")}
+    existing = {x.camera_id: x for x in pg.sessions_of(group) if x.state not in pb.TERMINAL_STATES}
     # T055: a seek re-checks every member - a camera the caller lost since the group started is dropped (its session
     # closed), never re-opened by the seek
     scope = camera_scope(conn, principal, "video.playback")
