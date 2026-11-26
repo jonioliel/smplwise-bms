@@ -1116,11 +1116,20 @@ def second_factor_need(conn, principal: Principal, replaces: str | None, *, pass
     user's own override, their roles' or `security.second_factor_policy = admins` for an administrator - and they have none), else `none`. The rotation of the caller's own live session (same user, cookie)
     is not a new sign-in: the factor was shown when that session began. `passkey` (the browser sign-in only, MFA-HA-PASSKEY-2520): a
     passkey that counts is a factor too while `security.passkey_remote_factor` is on - asked like the code, and it satisfies the policy."""
-    from . import second_factor as sf
-
     old = STORE.get(replaces) if replaces else None
     if old is not None and old.principal.user_id == principal.user_id and old.via == "cookie":
         return "none"
+    return factor_owed(conn, principal, passkey=passkey)
+
+
+def factor_owed(conn, principal: Principal, *, passkey: bool = False) -> str:
+    """The one rule behind "what does this user still owe as a second factor" (CORE-RELIABILITY-2540, deep review SEC-4: the remote
+    sign-in and the phone app's web session decide it with this same function). `code`: the user HAS a factor (an authenticator code;
+    a counting passkey when `passkey`; under a `required` policy also an active phone key, owner Q51); `enroll` /
+    FACTOR_ENROLL_AFTER_RESET: a `required` policy and no factor; `ha_mfa`: required by the enforced sign-in factor policy alone, which
+    HA's own MFA may satisfy (the caller decides how it is shown); `none`: nothing is owed."""
+    from . import second_factor as sf
+
     if sf.is_enrolled(conn, principal.user_id):
         return "code"
     if passkey:
@@ -1527,6 +1536,8 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
     s = STORE.get_bearer(key)
     if s is not None and now - s.last_validated < BEARER_CACHE_S:
         return s
+    if s is not None and now < s.recheck_after and (jwt_exp(token) or 0) > now and not was_rejected(token) and not STORE.is_revoked(s.iss_hash):
+        return s  # CORE-RELIABILITY-2540 (SEC-5): HA could not be asked a moment ago - served until HA_BACKOFF_S (the cookie path's rule), never past the token's expiry
     if offline:
         raise NeedsUnlock  # validation (HA) and its refusal / sign-in rows need the write lock given up first
     exp = jwt_exp(token)
@@ -1548,7 +1559,11 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         _audit_refusal(db, actor=actor, reason=reason, meta=meta, subject=subject)
         return err
 
-    if not LIMITER.hit(f"ip:{limit_ip(ip)}", IP_LIMITS):
+    # CORE-RELIABILITY-2540 (deep review SEC-5): the sign-in rate limit is for tokens Arx does not know yet - it protects HA from
+    # guessed / stolen tokens. The re-validation of a bearer session that already exists (s is not None) is no longer billed to it:
+    # it is bounded by its own cache (one HA question per session per BEARER_CACHE_S) and the HA back-off below. Before, a busy
+    # token client spent one sign-in hit a minute, was dropped with 429 after ~50 minutes and locked its address out of new sign-ins.
+    if s is None and not LIMITER.hit(f"ip:{limit_ip(ip)}", IP_LIMITS):
         raise rejected("rate_limited_ip", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     try:
         ha_user = asyncio.run(validate_token(settings, token, ip))
@@ -1556,8 +1571,13 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         _remember_rejected(token)
         raise rejected("token_invalid", unauthenticated("remote_token_invalid", TOKEN_INVALID_HE))
     except HaUnavailable:
+        if s is not None and not STORE.is_revoked(s.iss_hash):
+            # SEC-5: an existing session is served while HA is away (as the cookie path's review-M3 back-off does) and not asked
+            # again before HA_BACKOFF_S; it still ends at its token's expiry, which is checked above on every request
+            s.recheck_after = time.time() + HA_BACKOFF_S
+            return s
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
-    if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
+    if s is None and not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
     factor, enforced, need_llat = "none", True, False
     with db.connection(mode="read", label="remote bearer") as conn:
