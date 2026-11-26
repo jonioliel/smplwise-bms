@@ -15,9 +15,9 @@ import { api, get, query } from './client';
 export type LegacyAction = 'create' | 'update' | 'same' | 'keep' | 'skip' | 'manual' | 'info';
 export const LEGACY_ACTIONS: readonly LegacyAction[] = ['update', 'create', 'manual', 'keep', 'same', 'skip', 'info'];
 /** The actions an apply carries out (services/legacy_import.WRITES). */
-export const LEGACY_WRITES: readonly LegacyAction[] = ['create', 'update'];
+const LEGACY_WRITES: readonly LegacyAction[] = ['create', 'update'];
 
-export interface LegacyRun {
+interface LegacyRun {
   at: string;
   by: string | null;
   sha256: string;
