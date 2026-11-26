@@ -261,7 +261,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
    input runs left to right there); the edge mark follows it. The inline transform (scaleX / translateX) stays as it is. */
 .dim-fill:dir(ltr), .dim-edge:dir(ltr) {scale: -1 1;}
 .dim input {position: absolute; inset: 0; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; cursor: pointer; touch-action: pan-y; font-size: 16px;}
-.dim-v {position: absolute; right: 16px; inset-block: 0; display: grid; align-items: center; font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); pointer-events: none;}
+.dim-v {--dim-v-at: 16px; position: absolute; right: var(--dim-v-at); inset-block: 0; display: grid; align-items: center; font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); pointer-events: none;}
 .dim:has(input:focus-visible) {outline: 3px solid var(--hs-focus); outline-offset: 3px;}
 .side {display: flex; flex-direction: column; gap: 16px; min-block-size: 0; min-inline-size: 0;}
 .side .pane {flex: none;}
@@ -644,11 +644,11 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .ltile b.clamp1 {white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow-wrap: anywhere;}
 .hs-head .sub.clamp1 {white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3;}
 }
-.dim.lo .dim-v {right: auto; left: 16px;}
+.dim.lo .dim-v {right: auto; left: var(--dim-v-at);}
 /* SCR-57: the value sits at the fill's far end in English too (by the document's direction: the master's value keeps direction: rtl
    for its text, so a logical inset would follow that instead) */
-.dim-v:dir(ltr) {right: auto; left: 16px;}
-.dim.lo .dim-v:dir(ltr) {left: auto; right: 16px;}
+.dim-v:dir(ltr) {right: auto; left: var(--dim-v-at);}
+.dim.lo .dim-v:dir(ltr) {left: auto; right: var(--dim-v-at);}
 .rtemp {position: absolute !important; inset-block-end: 22px; inset-inline-start: 18px; font-size: 30px; font-weight: 500; line-height: 1; color: var(--hs-heading); pointer-events: none; letter-spacing: -.02em;}
 .fcl .room .rtemp, .room-list .room .rtemp {position: relative !important; inset: auto; font-size: var(--f-body); color: var(--hs-text-2); margin-inline-end: 12px; flex: none;}
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {

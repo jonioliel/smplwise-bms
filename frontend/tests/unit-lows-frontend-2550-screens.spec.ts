@@ -104,8 +104,8 @@ test.describe('SCR-57 the home in English (left to right)', () => {
 
   test('the dimmer fill and its edge are mirrored in English; the value follows the document direction', () => {
     expect(css).toContain('.dim-fill:dir(ltr), .dim-edge:dir(ltr) {scale: -1 1;}');
-    expect(css).toContain('.dim-v:dir(ltr) {right: auto; left: 16px;}');
-    expect(css).toContain('.dim.lo .dim-v:dir(ltr) {left: auto; right: 16px;}');
+    expect(css).toContain('.dim-v:dir(ltr) {right: auto; left: var(--dim-v-at);}');
+    expect(css).toContain('.dim.lo .dim-v:dir(ltr) {left: auto; right: var(--dim-v-at);}');
   });
 
   test('the user menu, room temperature, camera star and theme tick use logical insets (no physical left / right)', () => {
