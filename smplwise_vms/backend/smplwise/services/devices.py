@@ -169,7 +169,12 @@ def empty_counts() -> dict[str, Any]:
         "heating": 0, "heating_active": 0,
         "media": 0, "media_on": 0,
         "locks": 0, "locks_locked": 0,
+        # AREA-HONEST-COUNT-2540 (deep review SCR-10, the full interface): the locks among `locks` whose state is not known (offline,
+        # or a state that is no lock state) - never counted as locked nor as unlocked. Additive (ADR-015): an older client ignores it.
+        "locks_unknown": 0,
         "alarm": None,
+        # AREA-HONEST-COUNT-2540: the alarm panels whose state is not known (offline / unknown); `alarm` still names the best known state
+        "alarms_unknown": 0,
         "cameras": 0,
         "sensors": 0,
     }
@@ -237,6 +242,49 @@ def is_dimmable(e: dict[str, Any]) -> bool:
     return bool(feats & LIGHT_SUPPORT_BRIGHTNESS)
 
 
+# AREA-HONEST-COUNT-2540 (deep review SCR-10): the lock states the counts can vouch for - the home interface's own set
+# (frontend/src/home/home-logic.ts LOCK_STATES). An offline lock, or one answering anything else, is "unknown".
+LOCK_KNOWN_STATES = frozenset({"locked", "unlocked", "open", "opening", "locking", "unlocking", "jammed"})
+
+
+def lock_known(e: dict[str, Any]) -> bool:
+    """A lock entity whose state the area counts can say: available, and a lock state."""
+    return e.get("available", True) is not False and e.get("state") in LOCK_KNOWN_STATES
+
+
+# AREA-HONEST-COUNT-2540 (deep review SCR-09, the full interface): the area / floor / building `alarm` is ONE state for several panels.
+# The rule: the most urgent KNOWN state wins - triggered > pending (entry delay) > armed_* (or any other state this table does not
+# name) > arming > disarming > disarmed; only when no panel's state is known does the summary say so - "unknown" when any panel
+# answers unknown, else "unavailable". A panel that is offline (available false) counts as "unavailable" whatever its stale state
+# says. Equal ranks keep the first panel (the stable domain / name order). `alarms_unknown` counts the panels behind "not known",
+# so "disarmed" beside one unreadable panel is never the whole truth.
+ALARM_RANKS: dict[str, int] = {"unavailable": 0, "unknown": 1, "disarmed": 2, "disarming": 3, "arming": 4, "pending": 6, "triggered": 7}
+ALARM_RANK_OTHER = 5  # armed_home / armed_away / armed_night / armed_vacation / armed_custom_bypass, and a state no table names
+ALARM_KNOWN_MIN = 2  # a rank below this is a state the summary cannot vouch for
+
+
+def alarm_rank(state: str | None) -> int:
+    if state is None or state == "":
+        return ALARM_RANKS["unknown"]
+    return ALARM_RANKS.get(state, ALARM_RANK_OTHER)
+
+
+def alarm_state_of(e: dict[str, Any]) -> str:
+    """One panel's state as the summary reads it: offline = "unavailable", no state = "unknown"."""
+    if e.get("available", True) is False:
+        return "unavailable"
+    return e.get("state") or "unknown"
+
+
+def merge_alarm(current: str | None, other: str | None) -> str | None:
+    """The summary of two alarm states (None = no panel): the higher rank wins, the first on a tie."""
+    if other is None:
+        return current
+    if current is None or alarm_rank(other) > alarm_rank(current):
+        return other
+    return current
+
+
 def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
     domain, state = e["domain"], e.get("state")
     counts["entities"] += 1
@@ -263,11 +311,14 @@ def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
         counts["media_on"] += is_active(domain, state)
     elif domain == "lock":
         counts["locks"] += 1
-        counts["locks_locked"] += is_active(domain, state)
+        if lock_known(e):
+            counts["locks_locked"] += is_active(domain, state)
+        else:
+            counts["locks_unknown"] += 1
     elif domain == "alarm_control_panel":
-        # one panel per area is the norm; with several the first "not disarmed" one wins so an armed state is never hidden
-        if counts["alarm"] is None or (counts["alarm"] == "disarmed" and state not in ("disarmed", None)):
-            counts["alarm"] = state or "unknown"
+        own = alarm_state_of(e)
+        counts["alarm"] = merge_alarm(counts["alarm"], own)
+        counts["alarms_unknown"] += alarm_rank(own) < ALARM_KNOWN_MIN
     elif domain == "camera":
         counts["cameras"] += 1
     elif domain in ("sensor", "binary_sensor"):
@@ -428,8 +479,7 @@ def _sum_counts(items: list[dict[str, Any]]) -> dict[str, Any]:
     for c in items:
         for k, v in c.items():
             if k == "alarm":
-                if v is not None and (total["alarm"] is None or (total["alarm"] == "disarmed" and v != "disarmed")):
-                    total["alarm"] = v
+                total["alarm"] = merge_alarm(total["alarm"], v)  # AREA-HONEST-COUNT-2540: the same rule as one area's panels
             else:
                 total[k] += v
     return total

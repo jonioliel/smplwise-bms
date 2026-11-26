@@ -62,8 +62,13 @@ class DeviceCounts(WireModel):
     media_on: int
     locks: int
     locks_locked: int
+    locks_unknown: int
+    """AREA-HONEST-COUNT-2540: the locks among `locks` whose state is not known (offline, or no lock state); never in `locks_locked`."""
     alarm: str | None
-    """The most armed panel state of the scope (null = no panel)."""
+    """The most urgent KNOWN panel state of the scope; "unknown" / "unavailable" only when no panel's state is known (null = no
+    panel). The rule: services/devices.py ALARM_RANKS (AREA-HONEST-COUNT-2540)."""
+    alarms_unknown: int
+    """AREA-HONEST-COUNT-2540: the alarm panels of the scope whose state is not known (offline / unknown)."""
     cameras: int
     sensors: int
 

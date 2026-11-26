@@ -36,6 +36,11 @@ export const en = {
   '{title}: {on} מתוך {total}': '{title}: {on} of {total}',
   'דלתות וחלונות פתוחים: {n}': 'Doors and windows open: {n}',
   'מנעולים נעולים: {locks_locked} מתוך {locks}': 'Locks locked: {locks_locked} of {locks}',
+  'לא ידוע': 'Unknown',
+  '{n} לא ידוע': '{n} unknown',
+  'מנעולים במצב לא ידוע: {n} מתוך {locks}': 'Locks in an unknown state: {n} of {locks}',
+  'אזעקה · לוח אחד במצב לא ידוע': 'Alarm · one panel in an unknown state',
+  'אזעקה · {n} לוחות במצב לא ידוע': 'Alarm · {n} panels in an unknown state',
   // api/calendars.ts
   'ההרשאה פגה או בוטלה אצל הספק. יש לאשר מחדש.': 'The authorisation expired or was revoked at the provider. Approve it again.',
   'החיבור עדיין לא אושר אצל הספק.': 'The connection has not been approved at the provider yet.',

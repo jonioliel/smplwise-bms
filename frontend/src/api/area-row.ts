@@ -9,7 +9,7 @@
 import type { IconName } from '../components/sw-icon';
 import { canAnywhere, isApi } from './session';
 import { getMyPrefs, putMyPrefs } from './me-prefs';
-import { ALARM_HE, HVAC_HE, type ClimateSummary, type DeviceArea, type DeviceCounts } from './devices';
+import { ALARM_HE, alarmKnown, alarmWarm, HVAC_HE, type ClimateSummary, type DeviceArea, type DeviceCounts } from './devices';
 import { tr } from '../i18n/msg/api-home';
 
 export const AREA_ITEMS = ['climate', 'temperature', 'lights', 'switches', 'covers', 'media', 'openings', 'locks', 'alarm'] as const;
@@ -201,6 +201,8 @@ export interface Indicator {
   warm: boolean;
   /** An indicator that exists but is idle (an A/C that is off): drawn dimmed. */
   dim: boolean;
+  /** AREA-HONEST-COUNT-2540: the state behind it is not known (an offline lock, an unreadable alarm panel): grey, never warm. */
+  unknown?: boolean;
 }
 
 /** `24°` / `24.5°`: one decimal only when there is one. */
@@ -282,13 +284,33 @@ export function areaIndicators(a: DeviceArea, row: AreaRow): Indicator[] {
       const n = a.open_count ?? 0;
       if (n > 0 || (idleShown(id) && c.sensors > 0)) out.push({ id, icon: 'door', text: String(n), title: tr('דלתות וחלונות פתוחים: {n}', { n }), warm: n > 0, dim: false });
     } else if (id === 'locks') {
-      const unlocked = c.locks - c.locks_locked;
-      if (c.locks > 0 && (unlocked > 0 || idleShown(id))) out.push({ id, icon: unlocked > 0 ? 'unlock' : 'lock', text: `${c.locks_locked}/${c.locks}`, title: tr('מנעולים נעולים: {locks_locked} מתוך {locks}', { locks_locked: c.locks_locked, locks: c.locks }), warm: unlocked > 0, dim: false });
+      // AREA-HONEST-COUNT-2540 (deep review SCR-10): a lock whose state is not known is neither locked nor unlocked - its own grey
+      // indicator ("לא ידוע"), drawn whenever there is one (it is not an idle state "only when active" may hide)
+      const unknown = lockUnknown(c);
+      const unlocked = Math.max(0, c.locks - c.locks_locked - unknown);
+      if (c.locks > 0 && (unlocked > 0 || (idleShown(id) && unknown < c.locks))) out.push({ id, icon: unlocked > 0 ? 'unlock' : 'lock', text: `${c.locks_locked}/${c.locks}`, title: tr('מנעולים נעולים: {locks_locked} מתוך {locks}', { locks_locked: c.locks_locked, locks: c.locks }), warm: unlocked > 0, dim: false });
+      if (unknown > 0) out.push({ id, icon: 'lock', text: unknown === c.locks ? tr('לא ידוע') : tr('{n} לא ידוע', { n: unknown }), title: tr('מנעולים במצב לא ידוע: {n} מתוך {locks}', { n: unknown, locks: c.locks }), warm: false, dim: true, unknown: true });
     } else if (id === 'alarm') {
-      if (c.alarm) out.push({ id, icon: 'shield', text: ALARM_HE[c.alarm] ?? c.alarm, title: tr('אזעקה'), warm: c.alarm !== 'disarmed', dim: false });
+      // AREA-HONEST-COUNT-2540 (SCR-09): an unknown / unavailable summary is grey, never the warm "armed" look; a known summary beside
+      // panels it cannot read says so in its words
+      if (c.alarm) {
+        const known = alarmKnown(c.alarm);
+        const n = alarmsUnknown(c);
+        const title = !known || n === 0 ? tr('אזעקה') : n === 1 ? tr('אזעקה · לוח אחד במצב לא ידוע') : tr('אזעקה · {n} לוחות במצב לא ידוע', { n });
+        out.push({ id, icon: 'shield', text: ALARM_HE[c.alarm] ?? c.alarm, title, warm: alarmWarm(c.alarm), dim: !known, ...(known ? {} : { unknown: true }) });
+      }
     }
   }
   return out;
+}
+
+/** AREA-HONEST-COUNT-2540: the locks of a scope whose state is not known (0 from an older server), clamped to the scope's locks. */
+export function lockUnknown(c: DeviceCounts): number {
+  return Math.max(0, Math.min(c.locks, c.locks_unknown ?? 0));
+}
+/** AREA-HONEST-COUNT-2540: the alarm panels of a scope whose state is not known (0 from an older server). */
+export function alarmsUnknown(c: DeviceCounts): number {
+  return Math.max(0, c.alarms_unknown ?? 0);
 }
 
 /** The phone shows at most this many indicators in one line, a wider screen a few more; the rest collapse into "+N". */

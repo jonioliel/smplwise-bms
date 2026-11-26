@@ -612,6 +612,8 @@ export const en = {
   'מסכים {on}/{total}': 'Screens {on}/{total}',
   'נעולים {on}/{total}': 'Locked {on}/{total}',
   'אזעקה: {state}': 'Alarm: {state}',
+  'מצב לא ידוע {n}': 'Unknown state {n}',
+  'אזעקה: {state} · {n} לא ידוע': 'Alarm: {state} · {n} unknown',
   'אין התקנים': 'No devices',
   'אין לך הרשאה לפעולות מרוכזות בהיקף הזה.': 'You have no permission for group actions in this scope.',
   'רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן לא נשלח דבר. פתחו את הפעולה מחדש.': 'The device list changed since the window opened, so nothing was sent. Open the action again.',

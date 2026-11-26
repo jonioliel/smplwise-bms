@@ -15,7 +15,7 @@
  *  - entryLevel(): where the home opens (installation default + per-user override; a fixed / last building that no longer exists = site).
  *  - offSelection(): the "כבה הכל באתר" dialog's initial checks (shared unchecked unless the installation says include).
  */
-import type { ClimateSummary, DeviceArea, DeviceCounts, DeviceFloor, DeviceTree } from './devices';
+import { mergeAlarm, type ClimateSummary, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from './devices';
 import type { Building, Floor } from './types';
 import { matchFloors, type MatchLinks } from '../xsection/xs-model';
 import { tr } from '../i18n/msg/api-home';
@@ -24,12 +24,16 @@ export const SITE_LEVEL = 'site';
 
 const ZERO: DeviceCounts = { entities: 0, lights: 0, lights_on: 0, switches: 0, switches_on: 0, covers: 0, covers_open: 0, climate: 0, climate_active: 0, heating: 0, heating_active: 0, media: 0, media_on: 0, locks: 0, locks_locked: 0, alarm: null, cameras: 0, sensors: 0 };
 
-/** The counts of several scopes added up; the alarm is the most urgent state (triggered wins, else the first one present). */
+/** The counts of several scopes added up; the alarm is the most urgent KNOWN state (AREA-HONEST-COUNT-2540: api/devices.ts mergeAlarm,
+ * the server's rule - an unreadable building no longer hides an armed or triggered one). The unknown-state counts are added when a
+ * scope carries them (an older server does not). */
 export function sumCounts(list: DeviceCounts[]): DeviceCounts {
   const out: DeviceCounts = { ...ZERO };
   for (const c of list) {
     for (const k of Object.keys(ZERO) as (keyof DeviceCounts)[]) if (k !== 'alarm') (out[k] as number) += (c[k] as number) ?? 0;
-    if (c.alarm === 'triggered' || (c.alarm && !out.alarm)) out.alarm = c.alarm;
+    out.alarm = mergeAlarm(out.alarm, c.alarm);
+    if (typeof c.locks_unknown === 'number') out.locks_unknown = (out.locks_unknown ?? 0) + c.locks_unknown;
+    if (typeof c.alarms_unknown === 'number') out.alarms_unknown = (out.alarms_unknown ?? 0) + c.alarms_unknown;
   }
   return out;
 }

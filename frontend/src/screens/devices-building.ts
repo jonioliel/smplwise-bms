@@ -36,7 +36,7 @@ import { invalidateSettings } from '../api/prefs';
 import { LiveController } from '../api/live-refresh'; // HOMELIVE-295
 import { hl } from '../i18n/home-live';
 import { haPushLive, subscribeHa, type HaSyncState } from '../api/ha';
-import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { ALARM_HE, alarmWarm, getDevicesTree, mergeAlarm, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
 import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
@@ -236,7 +236,7 @@ function sumCounts(list: DeviceCounts[]): DeviceCounts {
   const out: DeviceCounts = { ...ZERO };
   for (const c of list) {
     for (const k of Object.keys(ZERO) as (keyof DeviceCounts)[]) if (k !== 'alarm') (out[k] as number) += c[k] as number;
-    if (c.alarm === 'triggered' || (c.alarm && !out.alarm)) out.alarm = c.alarm;
+    out.alarm = mergeAlarm(out.alarm, c.alarm); // AREA-HONEST-COUNT-2540: the server's rule (api/devices.ts mergeAlarm)
   }
   return out;
 }
@@ -2246,7 +2246,8 @@ export class DevicesBuilding extends LitElement {
     if (c.entities === 0) return html`<span class="ind none" data-area-indicators="">${tr('אין התקנים')}</span>`;
     const list = areaIndicators(a, this.rows.area);
     const { shown, hidden } = splitRow(list, this.isPhone ? ROW_MAX_PHONE : ROW_MAX_WIDE);
-    const one = (i: Indicator) => html`<span class=${classMap({ i: true, warm: i.warm, dim: i.dim, heat: i.icon === 'flame' })} data-ind=${i.id} title=${i.title}><sw-icon name=${i.icon} size=${14}></sw-icon>${i.text ? html`<span class="t">${i.text}</span>` : nothing}</span>`;
+    // AREA-HONEST-COUNT-2540: an indicator whose state is not known (an offline lock, an unreadable panel) is grey and says so (data-ind-unknown)
+    const one = (i: Indicator) => html`<span class=${classMap({ i: true, warm: i.warm, dim: i.dim, heat: i.icon === 'flame' })} data-ind=${i.id} ?data-ind-unknown=${i.unknown === true} title=${i.title}><sw-icon name=${i.icon} size=${14}></sw-icon>${i.text ? html`<span class="t">${i.text}</span>` : nothing}</span>`;
     return html`<span class="ind" data-area-indicators=${list.map((i) => i.id).join(' ')}>${shown.map(one)}${hidden.length ? html`<span class="i more" data-ind-more=${hidden.length} title=${hidden.map((i) => i.title).join(' · ')}>${ltrNum(`+${hidden.length}`)}</span>` : nothing}</span>`;
   }
 
@@ -2350,7 +2351,7 @@ export class DevicesBuilding extends LitElement {
         ? html`<button type="button" class=${classMap({ chip: true, warm })} data-floor-chip=${kind} aria-haspopup="dialog" aria-expanded=${String(this.isOpen(kind, 'floor', f.floor_id))} title=${`${title} · ${f.name}`} aria-label=${`${title}: ${text} · ${f.name}`} @click=${() => this.openPanel(kind, 'floor', f.floor_id)}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</button>`
         : html`<span class=${classMap({ chip: true, warm })} data-floor-count=${key} title=${title}><sw-icon .name=${icon} size=${size}></sw-icon>${text}</span>`;
     return html`${pills.map((p) => chip(PILL_KIND[p.key], p.key, p.icon, p.on === null ? String(p.total) : `${p.on}/${p.total}`, p.label, p.warm))}
-      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, tr('אזעקה'), f.counts.alarm !== 'disarmed') : nothing}`;
+      ${f.counts.alarm && !card ? chip('alarm', 'alarm', 'shield', ALARM_HE[f.counts.alarm] ?? f.counts.alarm, tr('אזעקה'), alarmWarm(f.counts.alarm)) : nothing}`;
   }
 
   private renderFloor(f: DeviceFloor) {
