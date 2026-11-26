@@ -1023,7 +1023,8 @@ def _display_service(request: Request) -> disp.DisplayService:
     svc = getattr(request.app.state, "notice_display", None)
     if svc is None:
         db = request.app.state.db
-        svc = disp.DisplayService(lambda: db.connection(mode="read", label="notices.display"), settings_of(request).data_dir, touch=disp.touch_seen(db),
+        svc = disp.DisplayService(lambda: db.connection(mode="read", label="notices.display"), settings_of(request).data_dir,
+                                  touch=disp.seen_recorder(request.app.state).note,  # NOTICE-TV-LASTSEEN-2530: in memory; written in the background
                                   capture=disp.capture_link(db, settings_of(request).data_dir),  # BOARD-ANSWERS-2400 (Q13 = B)
                                   limiter=disp.RateLimiter())  # the application's own counters (the LAN listener has its own too)
         request.app.state.notice_display = svc

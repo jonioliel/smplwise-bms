@@ -69,6 +69,10 @@ DEFAULTS: dict[str, str] = {
     # owner 2026-09-30: the security area's "תמונת מצב" (live overview) sub-screen; "false" hides it from the navigation and
     # redirects its route to the next live page. Per installation; the screen itself stays a normal, permitted route.
     "ui.security_snapshot": "true",
+    # DOCS-ONBOARDING-2530 (T071): the first-run "getting started" checklist (#/system/onboarding) and its row under the tab row, for
+    # whoever configures the system. "false" = today's behaviour, so an existing installation never shows it; a FRESH installation (its
+    # database created by this start, startup_steps.mark_fresh_install_onboarding) stores "true" once. Switched in Settings › Support.
+    "onboarding.enabled": "false",
     # owner 2026-09-29 (overview tiles): the summary tiles' shape on the Live overview and the devices screens -
     # auto (compact under 600 px wide, cards above) | cards (tall, icon above) | compact (a rectangle, icon beside the
     # value). Per installation; a browser may override it for itself (frontend/src/api/tile-layout.ts).
@@ -326,6 +330,10 @@ DEFAULTS: dict[str, str] = {
     # auto (WisKey's W10 media while WisKey's discovery lists its commands, falling back to Arx's own source when WisKey's answer fails).
     # An Arx decision: a WisKey upgrade alone never changes Arx's live path.
     "access.station_media_provider": "local",
+    # WISKEY-MEDIA-V2-2530 (owner 25.11: media over v2 is a separate part, only after bridge 0.10.9): station media (video, talk, listen)
+    # over WisKey's signed direct transport v2 when the bridge key set is rotated - off (default: v1 exactly as before, a rotated key stays
+    # refused) | on (needs bridge 0.10.9+; a system administrator's switch, audited). services/wiskey_media_v2.py.
+    "access.station_media_direct_v2": "off",
     # W10CLIENT-295 (owner 2026-10-24): the longest a talk through the station may last, in seconds (default 300). WKDIRECT-295: the range is
     # WisKey's own (`station_media_max_talk_seconds`, exact int 1..86400, no 180 s clamp); WisKey's per-station value, advertised in its
     # descriptor, still applies on top: the effective limit is the smaller.
@@ -420,6 +428,13 @@ DEFAULTS: dict[str, str] = {
     "security.step_up": "off",  # MFA-SECFIX-2500: owner answer Q2 = b (2026-11-24) - off until the owner switches it on
     "security.step_up_minutes": "5",
     "security.step_up_local": "off",
+    # MFA-T095-REST-2530 (CR-011 option D and 4E / Q6; services/push_approval.py, services/step_up.methods_for): two more ways to answer a
+    # step-up, both for ONE request of exactly the refused action. push_approval on = a session without the phone key may ask the account's
+    # phone to approve (number matching, signed by the phone key; the existing notice channels wake the phone); step_up_alarm_pin on = the
+    # personal alarm code answers an alarm disarm / zone bypass (the browser fallback). Both off by default (owner rule: new behaviour is
+    # opt-in; CR-011 Q11 was never answered). Security policy: never restored from a backup.
+    "security.push_approval": "off",
+    "security.step_up_alarm_pin": "off",
     # MFA-PASSKEYS-2490 (owner decision 2026-11-22, Q50 "passkeys for all users"; services/user_passkeys.py): on = every user who signs
     # in to Arx (Home Assistant users too, not only Arx-only identities) may add passkeys in My Account, and they count as a step-up
     # method; off = passkeys stay an Arx-only-identity feature (the passkeys other users already made are kept, listed, and do not

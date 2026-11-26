@@ -1,5 +1,33 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.53.0 (pilot) - getting started and support, approval on the phone, my account in the home interface, a resource budget
+
+
+### חדש - New
+- תחילת עבודה: רשימת צעדים להתקנה חדשה (אשף ההתקנה ובדיקות המוכנות לפי הסדר), דלוקה רק בהתקנה חדשה; מנהל יכול להפעיל או לכבות אותה, וכל משתמש יכול להסתיר אותה. - Getting started: a checklist for a new installation (the setup wizard and the readiness checks in order), on only for a fresh installation; an administrator can turn it on or off and every user can hide it.
+- הגדרות › כללי › תמיכה: גרסאות המערכת, ייצוא יומן מצונזר ו"דיווח על תקלה" במקום אחד; מדריך משתמש חדש "תחילת עבודה ותמיכה" בעברית ובאנגלית. - Settings › General › Support: the system versions, the redacted log export and "report a problem" in one place; a new user guide chapter "Getting started and support" in Hebrew and English.
+- אישור בטלפון (כבוי כברירת מחדל): כשנדרש אישור לפני שינוי רגיש וממסך שאין בו דרך אימות, אפשר לאשר באפליקציית הטלפון בהקלדת המספר שמופיע במסך. - Approve on the phone (off by default): when a sensitive change asks for confirmation on a screen without a sign-in method, approve it in the phone app by typing the number the screen shows.
+- קוד האזעקה האישי כאישור (כבוי כברירת מחדל): לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת. - The personal alarm code as confirmation (off by default): alarm disarm and sensor bypass only, one action at a time.
+- הממשק הביתי › התפריט האישי › "החשבון שלי": אבטחה, הכניסות שלי ושפה, גם למי שמשתמש רק בממשק הביתי. - Home interface › personal menu › "My account": security, my sign-ins and language, also for people who use the home interface only.
+
+### שופר - Improved
+- לוחות ההודעות בטלוויזיה: "נראה לאחרונה" נרשם ברקע פעם בדקה לכל הלוחות יחד, כך שקריאת הלוח לא מחכה לכתיבה. - TV notice boards: "last seen" is recorded in the background once a minute for all boards together, so a board's feed read never waits for a write.
+- WisKey: וידאו, דיבור והאזנה בעמדות יכולים לעבור בחיבור הישיר בגרסה 2 (כבוי כברירת מחדל, רק עם גשר 0.10.9 ומעלה). - WisKey: station video, talk and listen can go over the direct transport v2 (off by default, only with bridge 0.10.9 or newer).
+- WisKey: אחרי סירוב של החיבור הישיר בגרסה 2, גם תפיסת העמדה וכתיבת ההרשאות לא עוברות לדרך אחרת. - WisKey: after a refusal of the direct transport v2, the station capture and the access-grant writes no longer switch to another path either.
+- WisKey: המערכת מזהה גם עצי WisKey מותקנים בגרסאות rc.20, rc.19 ו-rc.17 שפורסמו (לפי טביעה מדויקת); עץ אחר נשאר "לא ידוע". - WisKey: installed WisKey trees of the published rc.20, rc.19 and rc.17 are recognised too (by exact digest); any other tree stays "unknown".
+- WisKey: מצב הביצוע של תזמון שנשלח לאישור הבעלים ב-WisKey מוצג בספריית התזמונים, לקריאה בלבד (כבוי כברירת מחדל); Arx לא מאשר ולא מבצע. - WisKey: the execution status of a schedule sent for the owner's approval in WisKey is shown in the schedule library, read only (off by default); Arx never approves or executes.
+- מסך הבית לא גולל גם במסכים נמוכים (1366x768, 1280x800, 1024x768) בסגנון המידע הרגיל, בכל הכיוונים והתצוגות. - The home screen no longer scrolls on low screens either (1366x768, 1280x800, 1024x768) in the default information style, in every direction and view.
+- גנרטור: מילות היחידה ותוויות השדות בהגדרות הגנרטור וביומן ההפעלות גם בערבית וברוסית. - Generator: the unit words and field labels of the generator and run-log settings in Arabic and Russian too.
+- נגני מדיה: נגן שעדיין מקובץ בקבוצה אחרת לא מדווח כמי שעזב את הקבוצה. - Media players: a player still grouped elsewhere is not reported as having left the group.
+- תקציב משאבים כתוב ובדיקת עומס אוטומטית שנכשלת מעליו (לצוות הפיתוח). - A written resource budget and an automated load run that fails above it (for the development team).
+
+### תוקן - Fixed
+- נגן השידור החי וההקלטות: שגיאות של שרת הווידאו מוצגות כמשפט ברור (למשל "שרת הווידאו לא הצליח לקבל את השידור מהמצלמה") במקום קוד טכני. - Live and recording player: video server errors show as a clear sentence (for example "The video server could not get the stream from the camera") instead of a technical code.
+
+### התקנה - Install
+- אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.52.0). - No new migration. The bridge stays 0.10.9 (as in 2.52.0).
+- אין צורך להפעיל מחדש את מערכת הבית. חזרה ל-2.52.0: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.52.0 -> 2.53.0". - No home system restart is needed. Rollback to 2.52.0: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.52.0 -> 2.53.0".
+
 ## 2.52.0 (pilot) - WisKey rc.19/rc.20 adoption and bridge 0.10.9; security and backup fixes from a deep code review; English everywhere; filtering by building in the home interface
 
 ### חדש - New

@@ -156,6 +156,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("access_control_profiles", "access-control"),  # WISKEY-PROFILES-EDIT-2390: the groups and profile fields editor (its own file and its own line)
     Mount("access_control_schedule_writes", "access-control"),  # WISKEY-SCHED-WRITE-2390: the device schedule library's writes (its own file and line)
     Mount("access_control_schedule_reads", "access-control"),  # WISKEY-SCHED-READS-2520: WisKey's signed schedule inspection jobs (its own file and line)
+    Mount("access_control_schedule_execution", "access-control"),  # WISKEY-A2-EXEC-2530: read-only status of WisKey's reviewed schedule execution (its own file and line)
     Mount("access_control_triage", "access-control"),  # WISKEY-CONFLICTS-2400: conflict resolution and fleet alert actions (its own file and its own line)
     Mount("access_control_diag", "access-control"),  # WISKEY-ACCESS-DIAG-2400: the "אבחון הרשאות" views (its own file and its own line)
     Mount("wiskey_lineage", "access-control"),  # WKR5-295: the WisKey people-write lineage administration (its own line)
@@ -250,6 +251,7 @@ ROUTERS: tuple[Mount | Load | Step, ...] = (
     Mount("access_tokens", "remote"),  # MFA-TOKENS-2490: the user's own access tokens (HA's read-only, Arx-issued revocable)
     Mount("factor_policy", "remote"),  # MFA-POLICY-2490: the sign-in factor policy - overrides and the compliance view (report mode by default)
     Mount("device_keys", "remote"),  # MFA-DEVICEKEY-2490: the Android app's phone key (register / sign / revoke; owner Q51)
+    Mount("push_approval", "remote"),  # MFA-T095-REST-2530: approve a sensitive action on the phone (number matching; off by default)
     Mount("user_factors", "remote"),  # MFA-SCREENS-2510: one user's second factors for the user drawer (read only)
     Mount("capture_lease", "access"),  # CR-WISKEY-LEASE-REVOCATION-EVENT 7.3: lease route switch (off), lease length, C03 lookup scope
     Mount("bridge_key", "system"),  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)

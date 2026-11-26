@@ -49,6 +49,11 @@ pairing secret / `g0-legacy`, WisKey rc10, the lab) keeps "not selected -> the e
 is merely unreachable, not yet tried, or whose discovery does not list the command / whose clock window does not admit Arx (none of
 those is a refusal of a v2 attempt). A failed discovery is asked again after a bounded back-off instead of latching the connection off
 (wiskey_direct_discovery WB-03).
+
+WISKEY-NOFALLBACK-2-2530: the two other selectors with the same "not selected -> the other transport" shape go through the same one
+helper (`v2_refusal_of`, i.e. `DirectJoin.v2_refusal`): the capture lease (`SelectingLeaseTransport`) raises `not_sent
+wiskey_direct_v2_refused` instead of handing the lease message to the bridge transport, and the grant engine
+(access_service_writer.select_path) refuses a service write instead of choosing the service channel. v1 keeps both exactly as before.
 """
 from __future__ import annotations
 
@@ -544,13 +549,29 @@ class MappedWhenEnabled:
 
 class SelectingLeaseTransport:
     """`lease_events.LeaseTransport`: the direct `DirectLeaseTransport` while the join selects the direct path, else the existing
-    transport (`BridgeLeaseTransport`) - byte for byte the call it made before."""
+    transport (`BridgeLeaseTransport`) - byte for byte the call it made before.
+
+    WISKEY-NOFALLBACK-2-2530 (WB-01, same root): when the direct path is not selected because a v2 attempt was refused or its outcome is
+    unknown (`v2_refusal_of`, the one rule), the lease message is NOT handed to the bridge transport: it is refused `not_sent`
+    (`v2_refused_lease_error`, code `wiskey_direct_v2_refused`, the v2 code in `details.error`), which the capture routes
+    and the lease worker already treat as "nothing was sent" and audit. `refusals` / `last_refusal` keep the last one (no I/O).
+    A v1 key, an unreachable socket, a command not discovered: the existing transport, as before."""
 
     def __init__(self, join: "DirectJoin", direct: Any, fallback: Any) -> None:
         self.join, self.direct, self.fallback = join, direct, fallback
+        self.refusals = 0
+        self.last_refusal: dict[str, Any] | None = None
 
     def _pick(self, command: str) -> Any:
-        return self.direct if self.join.selected(command) else self.fallback
+        if self.join.selected(command):
+            return self.direct
+        code = v2_refusal_of(self.join, command)
+        if code is None:
+            return self.fallback
+        self.refusals += 1
+        self.last_refusal = {"command": command, "code": code, "at": time.time()}
+        log.info("wiskey capture lease: %s refused, the v2 direct path was refused (%s); not handed to the bridge transport", command, code)
+        raise v2_refused_lease_error(code)
 
     def event(self, settings: Any, text: str) -> Any:
         from .wiskey_capture_direct import EVENT_COMMAND
@@ -561,6 +582,19 @@ class SelectingLeaseTransport:
         from .wiskey_capture_direct import REQUEST_COMMAND
 
         return self._pick(REQUEST_COMMAND).request(settings, action, text)
+
+
+V2_REFUSED_LEASE_CODE = "wiskey_direct_v2_refused"  # WISKEY-NOFALLBACK-2-2530: in access_control._NOT_SENT_CODES (nothing was sent)
+
+
+def v2_refused_lease_error(code: str) -> Any:
+    """WISKEY-NOFALLBACK-2-2530: the `ApiError` of a lease message that was not sent because the v2 direct path was refused (or its
+    outcome is unknown). The capture routes' existing "unavailable" text (and its English); `details.error` carries the v2 code; not
+    retryable until the pairing is fixed. Built here, not in wiskey_capture_direct (the receiver chain WisKey mapped stays as it was)."""
+    from ..errors import ApiError
+    from .capture_lease import UNAVAILABLE_TEXT
+
+    return ApiError(503, V2_REFUSED_LEASE_CODE, UNAVAILABLE_TEXT, details={"outcome": "not_sent", "error": str(code)[:96]})
 
 
 class DirectJoin:
@@ -937,7 +971,7 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     if not join.selected(command):
         # WISKEY-NOFALLBACK-FIX-2520 (WB-01): a v2 refusal at connect / discovery time is final - the write is refused with that code,
         # never handed to the classic channel. Everything else that is "not selected" keeps the existing path (None), as before.
-        v2_code = _v2_refusal_of(join, command)
+        v2_code = v2_refusal_of(join, command)
         return None if v2_code is None else _v2_refused_send(command, v2_code, record)
     from . import intercom_client, intercom_sync
     from . import intercom_writes as iw
@@ -1015,8 +1049,10 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     return send
 
 
-def _v2_refusal_of(join: Any, command: str) -> str | None:
-    """WISKEY-NOFALLBACK-FIX-2520: `DirectJoin.v2_refusal` of a configured join (None for anything else, never raises)."""
+def v2_refusal_of(join: Any, command: str | None) -> str | None:
+    """WISKEY-NOFALLBACK-FIX-2520: `DirectJoin.v2_refusal` of a configured join (None for anything else, never raises).
+    WISKEY-NOFALLBACK-2-2530: THE one helper every selector asks after "not selected" - the people routes (`people_send`,
+    `people_path`), the capture lease (`SelectingLeaseTransport`) and the grant engine (`access_service_writer.select_path`)."""
     try:
         check = getattr(join, "v2_refusal", None)
         if check is None or not join.configured():
@@ -1062,7 +1098,7 @@ def people_path(command: str = "users/update") -> dict[str, Any]:
             return {"path": "classic", "reason": f"lineage_{lin.status}" if lin.status in ("missing", "stale", "closed") else "lineage_unavailable"}
         if not join.configured():
             return {"path": "classic", "reason": "not_configured"}
-        v2_code = _v2_refusal_of(join, command)
+        v2_code = v2_refusal_of(join, command)
         if v2_code is not None:
             return {"path": "refused", "reason": v2_code}
         refusal = join.session.transport_refusal(command)

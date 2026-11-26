@@ -273,9 +273,11 @@ SERVICE_WRITE_ACTIONS = frozenset({"users/create", "users/update"})
 CLASSIC_ONLY_ACTIONS = frozenset({"users/delete", "cards/add", "cards/remove"})
 PATH_SERVICE_WRITER = "direct_service_writer"
 PATH_SERVICE_CHANNEL = "service_channel"
+# WISKEY-NOFALLBACK-2-2530: no path - the v2 direct path was refused (or its outcome is unknown); the write is refused `not_sent`
+PATH_REFUSED = "refused"
 # the closed reasons of a choice (recorded by `record`; the readiness check reads `direct_service_writer_missing`)
 PATH_REASONS = ("provider_local", "direct_not_selected", "not_a_service_write_action", "direct_service_writer",
-                "direct_service_writer_missing")
+                "direct_service_writer_missing", "direct_v2_refused")
 
 
 @dataclass(frozen=True)
@@ -286,6 +288,7 @@ class PathChoice:
     path: str
     reason: str
     writer: Any = None
+    code: str | None = None  # WISKEY-NOFALLBACK-2-2530: on `PATH_REFUSED` the v2 code (`wiskey_direct_join.v2_refusal_of`)
 
     @property
     def contract(self) -> str | None:
@@ -293,7 +296,14 @@ class PathChoice:
 
 
 def select_path(action: str | None, join: Any) -> PathChoice:
-    """The explicit choice for `action` (the engine's people write) on the current direct join. Never raises; no write."""
+    """The explicit choice for `action` (the engine's people write) on the current direct join. Never raises; no write.
+
+    WISKEY-NOFALLBACK-2-2530 (deep review WB-01, same root as the people routes): a service-write action whose direct path is not
+    selected because a v2 attempt was refused (or its outcome is unknown) gets NO path (`PATH_REFUSED`, reason `direct_v2_refused`, the v2
+    code in `code`) - it is never handed to the service channel (WisKey R2 `transports.selection`, `fallback_after_key_refusal: false`).
+    The rule is `wiskey_direct_join.v2_refusal_of`, the same one helper. Cards and deletion keep the service channel: no contract version
+    carries them on the direct path, so for them there is no transport to switch away from. A v1 key / unreachable / not yet tried: the
+    service channel, exactly as before."""
     if join is None:
         return PathChoice(PATH_SERVICE_CHANNEL, "provider_local")
     try:
@@ -301,6 +311,12 @@ def select_path(action: str | None, join: Any) -> PathChoice:
     except Exception:  # noqa: BLE001
         selected = False
     if not selected:
+        if action in SERVICE_WRITE_ACTIONS:
+            from .wiskey_direct_join import v2_refusal_of
+
+            code = v2_refusal_of(join, None)
+            if code is not None:
+                return PathChoice(PATH_REFUSED, "direct_v2_refused", code=code)
         return PathChoice(PATH_SERVICE_CHANNEL, "direct_not_selected")
     if not action or action in CLASSIC_ONLY_ACTIONS or action not in SERVICE_WRITE_ACTIONS:
         return PathChoice(PATH_SERVICE_CHANNEL, "not_a_service_write_action")
@@ -320,16 +336,27 @@ def select_path(action: str | None, join: Any) -> PathChoice:
 @dataclass
 class PathRecord:
     path: str | None = None      # service_channel | direct_service_writer
-    reason: str | None = None    # why this path: provider_local | direct_not_selected | direct_service_writer | direct_service_writer_missing
+    reason: str | None = None    # why this path: provider_local | direct_not_selected | not_a_service_write_action | direct_service_writer | direct_service_writer_missing
     at: str | None = None
     writes: int = 0
     fallbacks: int = 0
+    # WISKEY-NOFALLBACK-2-2530: writes refused because the v2 direct path was refused (not writes: `path` / `reason` stay the last write)
+    refusals: int = 0
+    refused_code: str | None = None
+    refused_at: str | None = None
 
 
 LAST = PathRecord()
 
 
-def record(path: str, reason: str) -> None:
+def record(path: str, reason: str, code: str | None = None) -> None:
+    if path == PATH_REFUSED:
+        with _LOCK:
+            LAST.refusals += 1
+            LAST.refused_code = code
+            LAST.refused_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        log.info("access grants: the v2 direct connection was refused (%s) - this write was not sent on any channel", code)
+        return
     with _LOCK:
         LAST.path, LAST.reason = path, reason
         LAST.at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -342,7 +369,8 @@ def record(path: str, reason: str) -> None:
 
 def last_path() -> dict[str, Any]:
     with _LOCK:
-        return {"path": LAST.path, "reason": LAST.reason, "at": LAST.at, "writes": LAST.writes, "fallbacks": LAST.fallbacks}
+        return {"path": LAST.path, "reason": LAST.reason, "at": LAST.at, "writes": LAST.writes, "fallbacks": LAST.fallbacks,
+                "refusals": LAST.refusals, "refused_code": LAST.refused_code, "refused_at": LAST.refused_at}
 
 
 def reset_for_tests() -> None:

@@ -141,7 +141,11 @@ def test_v2_jobs_cover_exactly_the_v1_specs_and_projects(g):
                 assert j["workers"] == 1, j["label"]                # the header's --workers=1 is kept
             assert all(j["projects"] == table[n]["projects"] for n in j["names"]), j["label"]
     assert [j for j in jobs if j["kind"] == "pixel"][0]["names"] == cls["pixel"]
-    assert [j for j in jobs if j["kind"] == "fixture"][0]["names"] == list(cls["fixture"])
+    # GATE-FIXTURE-LANE-2530: one fixture job per fixture group (its own fake backend), not one job for every fixture spec; together the
+    # groups run exactly the fixture specs of the classification (a spec may run in two groups: evidence-wiskey-people, wiskey + no_ha)
+    fixture_jobs = [j for j in jobs if j["kind"] == "fixture"]
+    assert {j["label"] for j in fixture_jobs} == {f"fixture_{g}" for g in cls["fixture_groups"]}
+    assert {n for j in fixture_jobs for n in j["names"]} == set(cls["fixture"])
     labels = [j["label"] for j in jobs]
     assert len(labels) == len(set(labels))     # one Playwright JSON report per job
 

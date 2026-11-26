@@ -572,7 +572,13 @@ def listing(settings: Settings, conn: Any, *, api_reader: Callable[[Settings], d
     signed: caps.SignedListing | None = None
     if why != "api_incompatible" and not (video and talk):
         try:
-            signed = caps.listing(settings, conn, choice if choice is not None else provider_choice(conn), read=read)
+            from . import wiskey_media_v2 as media_v2
+
+            chosen = choice if choice is not None else provider_choice(conn)
+            if media_v2.enabled(conn):  # WISKEY-MEDIA-V2-2530: a rotated key reads the signed document on its own v2 socket
+                signed = caps.listing(settings, conn, chosen, read=read, v2=True)
+            else:
+                signed = caps.listing(settings, conn, chosen, read=read)
         except Exception as exc:  # noqa: BLE001 - the signed source is an addition: its failure never breaks the overview's answer
             log.warning("station media: signed capabilities not consulted (%s)", type(exc).__name__)
             signed = None
@@ -1263,16 +1269,52 @@ FAKE_ENV = "SW_FAKE_STATION_MEDIA"
 _override: MediaProvider | None = None
 _local = LocalProvider()
 _bridge: WiskeyBridgeProvider | None = None
-_bridge_for: tuple[int, int | None] | None = None
+_bridge_for: tuple[Any, ...] | None = None
 _fake_from_env: FakeProvider | None = None
+
+
+class _V1OnlyFallback:
+    """WISKEY-MEDIA-V2-2530: the signed Home Assistant path (v1 only) behind `AutoTransport` while media over v2 is enabled. A rotated key
+    never opens it (`bridge_key_rotated` before any connection, exactly the v1 signer's refusal) - so a rotated key reaches WisKey on v2
+    or not at all, also inside `AutoTransport`'s retry window after an earlier v1 direct failure. Any other key: the path, unchanged."""
+
+    kind = bridge.SignedBridgeTransport.kind
+
+    def __init__(self, inner: bridge.SignedBridgeTransport, key_provider: Callable[[], Any]) -> None:
+        self.inner = inner
+        self._key_provider = key_provider
+
+    def __repr__(self) -> str:
+        return "_V1OnlyFallback()"
+
+    async def connect(self, purpose: str) -> bridge.MediaLink:
+        from . import wiskey_media_v2 as media_v2
+
+        try:
+            key = self._key_provider()
+        except Exception:  # noqa: BLE001 - unreadable: the inner signer refuses it as before
+            key = None
+        if media_v2.is_rotated(key):
+            raise bridge.MediaBridgeError("bridge_key_rotated")
+        return await self.inner.connect(purpose)
 
 
 def bridge_provider(settings: Settings, conn: Any) -> WiskeyBridgeProvider:
     """The one signed W10 provider of the process (built on first use; the transports read the pairing key through `conn`'s database).
     WKDIRECT-295: its transport is `AutoTransport` - WisKey's direct API (DIRECT_API_V1.md) when the key signs and the direct socket
-    authenticates, else the existing signed bridge over the Home Assistant WebSocket (the service channel). Both sign every command."""
+    authenticates, else the existing signed bridge over the Home Assistant WebSocket (the service channel). Both sign every command.
+
+    WISKEY-MEDIA-V2-2530: with media over v2 enabled (`wiskey_media_v2.enabled`: `access.station_media_direct_v2 = on` AND bridge 0.10.9+)
+    the direct transport also gets WisKey's v2 socket (`opener_v2`) - a rotated key then signs v2 - and the Home Assistant path refuses a
+    rotated key before connecting. The gate is part of the provider's marker: switching it closes the earlier provider (its leased
+    streams) and builds the other one. Off: the provider exactly as before."""
     global _bridge, _bridge_for
-    marker = (id(settings), id(database_of(conn)) if conn is not None else None)
+    from . import wiskey_media_v2 as media_v2
+
+    v2 = media_v2.enabled(conn)
+    marker: tuple[Any, ...] = (id(settings), id(database_of(conn)) if conn is not None else None)
+    if v2:
+        marker += ("direct_v2",)
     if _bridge is None or _bridge_for != marker:
         if _bridge is not None:
             # WKF01F02-295 (Mac delta): the earlier provider's video owner is closed first - its leased streams and timers go with it. An
@@ -1282,10 +1324,24 @@ def bridge_provider(settings: Settings, conn: Any) -> WiskeyBridgeProvider:
             _bridge_for = None
         key = _CachedKey(conn)
         signer = bridge.BridgeSigner(key)
-        media = bridge.AutoTransport(bridge.DirectApiTransport(bridge.websocket_opener(settings), key),
-                                     bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer))
-        _bridge = WiskeyBridgeProvider(media)
-        _bridge.signing_ready = signer.ready  # type: ignore[attr-defined]
+        if not v2:
+            media = bridge.AutoTransport(bridge.DirectApiTransport(bridge.websocket_opener(settings), key),
+                                         bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer))
+            _bridge = WiskeyBridgeProvider(media)
+            _bridge.signing_ready = signer.ready  # type: ignore[attr-defined]
+        else:
+            media = bridge.AutoTransport(
+                bridge.DirectApiTransport(bridge.websocket_opener(settings), key, opener_v2=bridge.websocket_opener(settings, version=2)),
+                _V1OnlyFallback(bridge.SignedBridgeTransport(bridge.ha_connector(settings), signer), key))
+            _bridge = WiskeyBridgeProvider(media)
+
+            def ready() -> bool:
+                try:
+                    return media_v2.key_problem(key()) is None
+                except Exception:  # noqa: BLE001 - an unreadable key set is "not paired"
+                    return False
+
+            _bridge.signing_ready = ready  # type: ignore[attr-defined]
         _bridge_for = marker  # only once the new provider exists: a failed build never adopts the closed earlier owner
     return _bridge
 
@@ -1386,7 +1442,13 @@ def signing_problem(conn: Any) -> str | None:
     if conn is None:
         return "not_paired"
     from . import ha_bridge
+    from . import wiskey_media_v2 as media_v2
 
+    if media_v2.enabled(conn):  # WISKEY-MEDIA-V2-2530: a rotated key signs on v2 (the media path's own rule while enabled)
+        try:
+            return media_v2.key_problem(ha_bridge.signing_key(conn))
+        except Exception:  # noqa: BLE001 - an unreadable key set is "not paired" (the signer's rule)
+            return "not_paired"
     signer = bridge.BridgeSigner(lambda: ha_bridge.signing_key(conn))
     try:
         signer._key()  # noqa: SLF001 - the signer's own check of the key, so the two rules can never drift apart

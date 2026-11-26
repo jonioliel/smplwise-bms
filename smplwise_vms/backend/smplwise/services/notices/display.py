@@ -16,8 +16,11 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import logging
 import re
 import sqlite3
+import threading
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +30,8 @@ from ..ha_user_auth import RateLimiter
 from ..transit import digest as transit_digest
 from . import info, model, news_sources, slides, sources, store
 from ...test_reset import register_reset
+
+log = logging.getLogger(__name__)
 
 SLUG_PATH = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
@@ -366,21 +371,128 @@ class DisplayService:
         return r
 
 
-def touch_seen(db: Any) -> Callable[[str], None]:
-    """`last_seen_at` of a board: a timestamp only (no address, no agent), written at most once a minute per board."""
-    last: dict[str, float] = {}
+SEEN_FLUSH_S = 60.0  # NOTICE-TV-LASTSEEN-2530: the longest a board's "last seen" waits in memory before it is written - the lag Settings may show
+SEEN_JOIN_S = 5.0  # shutdown: the longest wait for the flusher thread before the final flush
 
-    def run(board_id: str) -> None:
-        import time
 
-        now = time.time()
-        if now - last.get(board_id, 0) < 60:
-            return
-        last[board_id] = now
-        with db.connection(label="notices.board.seen") as conn:
-            conn.execute("UPDATE notice_boards SET last_seen_at = ? WHERE id = ?", (model.iso(store.utcnow()), board_id))
+class SeenRecorder:
+    """NOTICE-TV-LASTSEEN-2530: `last_seen_at` of the TV boards, out of the feed request.
 
-    return run
+    The feed (`DisplayService.feed`, both the application's routes and the LAN listener) only calls `note(board_id)`: the request's
+    time goes into a small dict under a lock - no database, no write lock, nothing the request can wait for. A daemon thread of its own
+    (started on the first note, so an installation without TV boards runs none) writes every board noted since the last pass in ONE
+    write transaction every `interval_s` (SEEN_FLUSH_S, 60 s); the shutdown stops it and writes once more (`close`). So the "last seen"
+    an administrator reads in Settings is at most `interval_s` older than the TV's last poll (before: the request wrote at most once a
+    minute per board, so the same bound), and a crash loses at most that much of it - the next poll after the restart sets it again.
+
+    Still a timestamp only (no address, no agent). Only ids `resolve()` accepted are noted (a real, enabled board), so the dict is bounded
+    by the number of boards. The UPDATE never moves a value backwards (`last_seen_at < ?`), so an older pending stamp - a failed pass
+    kept for the next one, a second process on the same file - never overwrites a newer one. A pass that fails keeps its values for the
+    next pass (merged with newer notes); it never raises into a request."""
+
+    def __init__(self, db: Any, *, interval_s: float = SEEN_FLUSH_S, now: Callable[[], str] | None = None) -> None:
+        self.db = db
+        self.interval_s = interval_s
+        self._now = now or (lambda: model.iso(store.utcnow()))
+        self._lock = threading.Lock()
+        self._pending: dict[str, str] = {}  # board id -> the latest feed read not yet written
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._closed = False
+        _LIVE.add(self)
+
+    def note(self, board_id: str) -> None:
+        """The feed's only call: in memory, never the database."""
+        stamp = self._now()
+        with self._lock:
+            if self._closed:
+                return
+            prev = self._pending.get(board_id)
+            if prev is None or stamp > prev:
+                self._pending[board_id] = stamp
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._run, name="notice-board-seen", daemon=True)
+                self._thread.start()
+
+    def pending(self) -> dict[str, str]:
+        with self._lock:
+            return dict(self._pending)
+
+    def _merge_back(self, batch: dict[str, str]) -> None:
+        with self._lock:
+            for board_id, stamp in batch.items():
+                cur = self._pending.get(board_id)
+                if cur is None or stamp > cur:
+                    self._pending[board_id] = stamp
+
+    def flush(self) -> int:
+        """Write every pending value in one transaction; returns the number of boards written (0: nothing pending, no write lock).
+        On a failure the values go back to the pending dict and the error is raised to the caller (the thread logs it)."""
+        with self._lock:
+            if not self._pending:
+                return 0
+            batch, self._pending = self._pending, {}
+        try:
+            with self.db.connection(label="notices.board.seen") as conn:
+                conn.executemany("UPDATE notice_boards SET last_seen_at = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)",
+                                 [(stamp, board_id, stamp) for board_id, stamp in batch.items()])
+        except BaseException:
+            self._merge_back(batch)
+            raise
+        return len(batch)
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval_s):
+            try:
+                self.flush()
+            except Exception as exc:  # noqa: BLE001 - best effort; the values stay for the next pass
+                log.warning("notice board last-seen flush failed: %s", type(exc).__name__)
+
+    def close(self, flush: bool = True) -> int:
+        """Shutdown: stop the thread, then (flush=True) one final pass. Later notes are ignored. Safe to call twice."""
+        with self._lock:
+            self._closed = True
+            thread = self._thread
+        self._stop.set()
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(SEEN_JOIN_S)
+        if not flush:
+            with self._lock:
+                self._pending.clear()
+            return 0
+        try:
+            return self.flush()
+        except Exception as exc:  # noqa: BLE001 - a shutdown step never raises for a timestamp
+            log.warning("notice board last-seen final flush failed: %s", type(exc).__name__)
+            return 0
+
+
+_LIVE: "weakref.WeakSet[SeenRecorder]" = weakref.WeakSet()  # every recorder of the process (the per-test reset closes them)
+_MAKE_LOCK = threading.Lock()
+
+
+def seen_recorder(state: Any) -> SeenRecorder:
+    """The application's one recorder (`app.state.notice_seen`), shared by its display routes and the LAN listener; made on first use."""
+    rec = getattr(state, "notice_seen", None)
+    if rec is None:
+        with _MAKE_LOCK:
+            rec = getattr(state, "notice_seen", None)
+            if rec is None:
+                rec = SeenRecorder(state.db)
+                state.notice_seen = rec
+    return rec
+
+
+def close_seen(state: Any) -> int:
+    """The shutdown step: the final flush of the application's recorder (0 when none was made)."""
+    rec = getattr(state, "notice_seen", None)
+    return rec.close() if rec is not None else 0
+
+
+def _reset() -> None:
+    LIMITER.clear()
+    for rec in list(_LIVE):
+        rec.close(flush=False)  # tests: the database of the test that made it may be gone
 
 
 CAPTURE_RETRY_S = 60.0  # at most one capture attempt per board a minute (a failing key never turns every feed poll into a write)
@@ -447,4 +559,4 @@ def preview_transit(conn: sqlite3.Connection, board: dict[str, Any], display: di
     return transit_digest.build(conn, disp.get("transit") or {}, now, sources.installation_tz(conn))
 
 
-register_reset(__name__, ("LIMITER",), LIMITER.clear)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py)
+register_reset(__name__, ("LIMITER", "_LIVE"), _reset)  # CR-BE-COMPLEXITY-2450: a shared-class singleton (tests/test_singletons_registered.py); NOTICE-TV-LASTSEEN-2530: the recorders' threads

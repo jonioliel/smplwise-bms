@@ -123,6 +123,7 @@ class SettingsPatch(BaseModel):
     ui_start_route: str | None = Field(default=None, pattern="^(explore|live|wall|events|playback|devices)$", alias="ui.start_route")
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
+    onboarding_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="onboarding.enabled")  # DOCS-ONBOARDING-2530
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_page_size_schedules: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules")
     ui_page_size_schedules_phone: int | None = Field(default=None, ge=3, le=50, alias="ui.page_size.schedules_phone")
@@ -239,6 +240,7 @@ class SettingsPatch(BaseModel):
     access_station_media_provider: str | None = Field(default=None, pattern="^(local|auto)$", alias="access.station_media_provider")  # REL2140 M-3
     access_station_media_max_talk_s: int | None = Field(default=None, ge=1, le=86400, alias="access.station_media_max_talk_s")  # W10CLIENT-295 / WKDIRECT-295
     access_station_listen: str | None = Field(default=None, pattern="^(off|on|probe)$", alias="access.station_listen")  # WKAUDIN-295
+    access_station_media_direct_v2: str | None = Field(default=None, pattern="^(off|on)$", alias="access.station_media_direct_v2")  # WISKEY-MEDIA-V2-2530: system_admin only
     devices_style: str | None = Field(default=None, pattern="^(smplwise|glass)$", alias="devices.style")
     devices_theme: str | None = Field(default=None, pattern="^(" + "|".join(DEVICE_THEMES) + ")$", alias="devices.theme")
     devices_default_view: str | None = Field(default=None, pattern="^(cards|tiles)$", alias="devices.default_view")
@@ -284,6 +286,8 @@ class SettingsPatch(BaseModel):
     security_step_up: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up")  # MFA-STEPUP-TRAIN-2490
     security_step_up_minutes: int | None = Field(default=None, ge=0, le=30, alias="security.step_up_minutes")
     security_step_up_local: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_local")
+    security_push_approval: str | None = Field(default=None, pattern="^(on|off)$", alias="security.push_approval")  # MFA-T095-REST-2530
+    security_step_up_alarm_pin: str | None = Field(default=None, pattern="^(on|off)$", alias="security.step_up_alarm_pin")  # MFA-T095-REST-2530
     security_passkeys_all_users: str | None = Field(default=None, pattern="^(on|off)$", alias="security.passkeys_all_users")  # MFA-PASSKEYS-2490: system_admin only
     security_passkey_remote_factor: str | None = Field(default=None, pattern="^(on|off)$", alias="security.passkey_remote_factor")  # MFA-HA-PASSKEY-2520
     security_factor_policy: str | None = Field(default=None, pattern="^(optional|admins|sensitive|all)$", alias="security.factor_policy")  # MFA-POLICY-2490

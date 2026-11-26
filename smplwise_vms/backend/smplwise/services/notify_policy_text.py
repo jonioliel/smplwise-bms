@@ -88,6 +88,7 @@ LABELS: dict[str, tuple[str, str]] = {
     # RELEASE-2510-TRAIN: the second-factor train's sources (MFA-SECFIX-2500, MFA-DEVICEKEY-2490, MFA-RESET-HARDENING-2510), Hebrew as declared
     "security.second_factor_reset_by_admin": ("מנהל איפס דרכי אימות של משתמש", "An administrator reset a user's sign-in methods"),
     "security.second_factor_added": ("דרך אימות נוספה לחשבון", "A sign-in method was added to the account"),
+    "security.push_approval_requested": ("בקשת אישור בטלפון", "Approval request on the phone"),  # MFA-T095-REST-2530
     "security.device_key_added": ("מפתח טלפון נוסף לחשבון", "A phone key was added to the account"),
     "security.second_factor_changed": ("שינוי בדרכי האימות של החשבון", "A change to the account's sign-in methods"),  # MFA-FACTOR-HARDEN-2520
     "security.app_device_key_reset": ("איפוס מפתח האבטחה של האפליקציה", "App security key reset"),

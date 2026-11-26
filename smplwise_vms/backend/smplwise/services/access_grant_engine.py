@@ -661,7 +661,9 @@ class WiskeyServiceEngine:
         connection; otherwise it degrades to the local service channel below - the path every `local` installation uses - and the
         choice and its reason are recorded for the readiness check (`access_service_writer.last_path`). The native HUMAN-actor writer
         (services/wiskey_native_write.py) is never used here. Revokes take the same path, so a revoke is never blocked by the
-        connection choice."""
+        connection choice - except WISKEY-NOFALLBACK-2-2530: after a v2 refusal of the direct connection a service write (create /
+        update, revokes included) is refused `not_sent` with the v2 code and the worker's next pass tries again; it never goes to the
+        service channel instead (`asw.select_path`)."""
         from . import access_service_writer as asw
         from . import intercom_sync, wiskey_direct_join
 
@@ -669,7 +671,9 @@ class WiskeyServiceEngine:
         # service-write action with an available writer (cards / delete never: no contract version grants them), else the service
         # channel. A refusal or an UNKNOWN on the chosen path is final for this write - never re-routed to the other path or contract.
         choice = asw.select_path(action, wiskey_direct_join.installed())
-        asw.record(choice.path, choice.reason)
+        asw.record(choice.path, choice.reason, choice.code)
+        if choice.path == asw.PATH_REFUSED:  # WISKEY-NOFALLBACK-2-2530: the v2 direct path was refused - no path at all, nothing sent
+            raise EngineError("not_sent", choice.code or choice.reason)
         if choice.writer is not None:
             if person_id is not None and intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
                 raise EngineError("not_sent", "outcome_pending")  # R3-06 holds on this path too: read the person fresh first

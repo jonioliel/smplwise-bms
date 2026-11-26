@@ -283,6 +283,8 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"occupancy.enabled", "occupancy.retention_days"
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_device_key"}
 # MFA-STEPUP-TRAIN-2490: the step-up switch, its window and its channel are security policy - a restore must never weaken them
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.step_up", "security.step_up_minutes", "security.step_up_local"}
+# MFA-T095-REST-2530: the phone approval and the alarm-code step-up switches are security policy too
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.push_approval", "security.step_up_alarm_pin"}
 # MFA-PASSKEYS-2490: whether passkeys count for every user is security policy too
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.passkeys_all_users"}
 # MFA-HA-PASSKEY-2520: whether a home-system user's passkey is a remote sign-in factor is security policy too
@@ -313,6 +315,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.a
 # restart repeat or let Arx overwrite a tree it did not stage), the WisKey account list of the last signed registry sync, and the event
 # cursor (an older archive cursor would replay events or hide a gap). Never exported, never restored (`wiskey.installation.*` by prefix).
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.auto_install", "wiskey.installation.restart_digest", "wiskey.events.cursor"}
+# DOCS-ONBOARDING-2530: whether the getting-started checklist is on describes THIS installation's first run - an archive of another box
+# (or of this one before its setup) never switches it on or off
+SETTINGS_KEEP = SETTINGS_KEEP | {"onboarding.enabled"}
 SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.installation.",)
 # WISKEY-MANAGED-INSTALL-2382: the owner's managed-installation switches, the adoption record, the last run and the tree Arx installed
 # describe THIS box - an archive must never switch managed installs on, claim an adoption or offer a rollback of another box's tree
@@ -342,6 +347,9 @@ POLICY_PREFIXES: tuple[str, ...] = ("security.", "remote.", "access.station_")
 # fail closed like the families above) and how long the audit is kept (an archive must never shorten it)
 SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_listen", "access.station_media", "access.station_media_max_talk_s",
                                  "access.station_media_provider", "audit.retention_days"}
+# WISKEY-MEDIA-V2-2530 (classified by RELEASE-2530-TRAIN after the 2.53 gate): which signed protocol carries station video / talk /
+# listen (system administrator only, needs bridge 0.10.9+) - station media policy like the keys above; an archive never switches it
+SETTINGS_KEEP = SETTINGS_KEEP | {"access.station_media_direct_v2"}
 SETTINGS_TRAVEL = frozenset({"remote.default_profile", "remote.wall_profile", "remote.max_live_streams", "remote.mse_fallback"})
 
 # CORE-02 (DEEP-REVIEW-2520-BACKEND-CORE): when the automatic daily backup last ran and which archive was last handed to the off-box

@@ -129,6 +129,12 @@ ERRORS: dict[str, str] = {
     "connection_exhausted": "provider_error",
     "bridge_outcome_unknown": "provider_error",
     "command_unavailable": "no_media",
+    # WISKEY-MEDIA-V2-2530: the v2 key / pairing refusals of the direct transport (R7) read like the v1 key refusals; they occur only
+    # while station media over v2 is enabled (services/wiskey_media_v2.py)
+    "bridge_key_unversioned": "provider_forbidden",
+    "bridge_key_changed": "provider_forbidden",
+    "pairing_ambiguous": "provider_forbidden",
+    "direct_kid_mismatch": "provider_forbidden",
 }
 BUSY_CODES = frozenset({"audio_busy"})
 

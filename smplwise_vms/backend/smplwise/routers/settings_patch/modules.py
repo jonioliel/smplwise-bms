@@ -92,3 +92,42 @@ def docread_changed(patch: Patch) -> None:
     if docread_switch is not None:
         audit(patch.conn, actor=patch.principal, action="docread.enable" if docread_switch == "true" else "docread.disable", decision="allowed",
               resource_type="installation", resource_id="docread", request_id=_rid(patch.request))
+
+
+def station_media_direct_v2(patch: Patch) -> None:
+    """WISKEY-MEDIA-V2-2530 (owner 25.11): `access.station_media_direct_v2` - station media over WisKey's signed direct transport v2 when
+    the bridge key set is rotated (services/wiskey_media_v2.py). It changes which signed protocol carries video, talk and listening, so only
+    a system administrator changes it; turning it on needs the bridge that serves v2 for WisKey (0.10.9+, as Arx last saw it). A repeated
+    value is dropped from the change; every attempt that changes it is audited (allowed or denied); a refusal fails the whole request."""
+    from ...error_text import tpl
+    from ...errors import field_error
+    from ...services import wiskey_media_v2 as media_v2
+
+    changes, conn, request, principal = patch.changes, patch.conn, patch.request, patch.principal
+    key = media_v2.SETTING_KEY
+    if key not in changes:
+        return
+    current = media_v2.setting(conn)
+    if changes[key] == current:
+        changes.pop(key)
+        return
+    from ...rbac import is_system_admin
+
+    details = {"from": current, "to": changes[key], "bridge_version": media_v2.bridge_version(conn), "bridge_required": media_v2.BRIDGE_REQUIRED}
+    if not is_system_admin(conn, principal.user_id):
+        audit(conn, actor=principal, action=key, decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
+              request_id=_rid(request), details=details)
+        raise field_error("רק מנהל מערכת משנה את ערוץ המדיה החתום של עמדות WisKey.", [key], code="forbidden", status=403,
+                          legacy={"field": key},
+                          extra={"message_en": "Only a system administrator changes the signed media channel of the WisKey stations."})
+    if changes[key] == "on" and not media_v2.bridge_ok(conn):
+        audit(conn, actor=principal, action=key, decision="denied", resource_type="installation", resource_id="*", reason="bridge_outdated",
+              request_id=_rid(request), details=details)
+        raise field_error(tpl("מדיה בחיבור החתום החדש דורשת רכיב חיבור {required} ומעלה (כעת {version}).",
+                              required=media_v2.BRIDGE_REQUIRED, version=details["bridge_version"] or "?"),
+                          [key], code="bridge_outdated", status=409, legacy={"field": key},
+                          extra={"required": media_v2.BRIDGE_REQUIRED, "version": details["bridge_version"],
+                                 "message_en": f"Media over the new signed connection needs the bridge {media_v2.BRIDGE_REQUIRED} or newer "
+                                               f"(now {details['bridge_version'] or '?'})."})
+    audit(conn, actor=principal, action=key, decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details=details)
