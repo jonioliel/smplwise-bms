@@ -17,7 +17,7 @@ const ok = (r: Route, body: unknown) => r.fulfill({ status: 200, contentType: 'a
 const ALL = ['lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'security', 'presence', 'calendar', 'notices', 'tickets', 'schedules',
   'media', 'announce', 'bills', 'water', 'systems', 'map', 'recordings', 'log', 'intercom'];
 type Scope = { customers: number | null; bill_accounts: number | null; energy_meters: number | null; water_meters: number | null } | undefined;
-interface Opts { siteWide?: string[]; modules?: string[] | null; scope?: Scope; systemAdmin?: boolean }
+interface Opts { siteWide?: string[]; modules?: string[] | null; scope?: Scope; systemAdmin?: boolean; scheme?: 'light' | 'dark' }
 
 function person(o: Opts) {
   return { user_id: 'dev-yuval', username: 'yuval', display_name: 'יובל לביא', source: 'ingress', system_admin: !!o.systemAdmin, default_interface: 'home', may_switch: false,
@@ -37,7 +37,7 @@ async function adminPage(page: Page, o: Opts = {}) {
   await page.route('**/api/v1/access/roles**', (r) => ok(r, { roles: [] }));
   await page.route('**/api/v1/access/groups**', (r) => ok(r, { groups: [], can_manage: true }));
   await page.route('**/api/v1/sites?tree=true', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
-  await page.goto('/#/system/access?tab=home');
+  await page.goto(o.scheme ? `/?scheme=${o.scheme}#/system/access?tab=home` : '/#/system/access?tab=home');
   const el = page.locator('sw-home-admin');
   await expect(el.locator('[data-home-detail] h3')).toHaveText('יובל לביא', { timeout: 30_000 });
   return { el, detail: el.locator('[data-home-detail]'), writes };
@@ -124,7 +124,7 @@ test.describe('pixel-stable: home administration, the site-wide warning', () => 
   for (const scheme of ['light', 'dark'] as const) {
     test(`person card with the warning ${scheme}`, async ({ page }, info) => {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
-      const { detail } = await adminPage(page, { siteWide: ['bills', 'energy', 'water'], scope: SITE });
+      const { detail } = await adminPage(page, { siteWide: ['bills', 'energy', 'water'], scope: SITE, scheme });
       const warn = detail.locator('[data-home-site-wide]');
       await expect(warn).toBeVisible();
       const file = `home-perms-warn-${scheme}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
@@ -146,16 +146,23 @@ test.describe('HOME-PERMS-WARN-2550 captures', () => {
   test.beforeEach(({}, info) => { test.skip(info.project.name !== 'desktop', 'sizes are set per test'); });
   const OUT = process.env.SW_SHOTS_DIR || 'test-results/home-perms-warn-2550';
   for (const scheme of ['light', 'dark'] as const) {
-    for (const [size, w, h] of [['d1440', 1440, 1100], ['p390', 390, 844]] as const) {
+    // desktop: a viewport tall enough for the whole person card (the shell scrolls inside, so a taller-than-viewport element capture comes
+    // out cut); phone: the viewport with the categories' end and the warning scrolled into view
+    for (const [size, w, h] of [['d1440', 1440, 2200], ['p390', 390, 844]] as const) {
       test(`capture ${size} ${scheme}`, async ({ page }) => {
         await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
         await page.setViewportSize({ width: w, height: h });
-        const { detail } = await adminPage(page, { siteWide: ['bills', 'energy', 'water'], scope: SITE });
-        const cols = detail.locator('.cols');
-        await cols.scrollIntoViewIfNeeded();
-        if (size === 'p390') await detail.locator('label.chk', { hasText: 'חשבון חשמל' }).scrollIntoViewIfNeeded();
+        const { detail } = await adminPage(page, { siteWide: ['bills', 'energy', 'water'], scope: SITE, scheme });
         await settle(page);
         await page.waitForTimeout(300);
+        if (size === 'p390') {
+          const warn = detail.locator('[data-home-site-wide]');
+          const anchor = (await warn.count()) ? warn : detail.locator('label.chk').last();
+          await anchor.evaluate((e) => e.scrollIntoView({ block: 'end' }));
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: `${OUT}/admin-person-${size}-${scheme}.png` });
+          return;
+        }
         await detail.screenshot({ path: `${OUT}/admin-person-${size}-${scheme}.png` });
       });
     }
