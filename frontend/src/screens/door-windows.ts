@@ -25,7 +25,7 @@ import {
 } from '../api/door-windows';
 import { dwt, dwtDynamic, type DwtKey } from '../i18n/door-windows';
 import {
-  OCC_TONE, RULE_TONE, alarms, bodyOf, byDoor, canEndNow, dayRuns, draftOf, draftProblem, emptyDraft, hm, incidentLive, localDay, periodLines, weekdayOf,
+  OCC_TONE, RULE_TONE, alarms, bodyOf, byDoor, canEndNow, dayRuns, draftOf, draftProblem, emergencyAfterFailure, emptyDraft, hm, incidentLive, localDay, periodLines, weekdayOf,
   type Draft, type Range,
 } from '../door-windows/logic';
 import { dwCss } from '../door-windows/styles';
@@ -180,8 +180,10 @@ export class DoorWindowsScreen extends LitElement {
   private async loadEmergency(): Promise<void> {
     try {
       this.em = await getEmergencyState();
-    } catch {
-      this.em = null; // no permission to see doors at all: no strip, no button
+    } catch (err) {
+      // no permission to see doors at all (403 / 404): no strip, no button. LOWS-FRONTEND-2550 (review SCR-42): any other failed read keeps
+      // what is shown - one missed poll during a live incident no longer hides the red strip and the release control
+      this.em = emergencyAfterFailure(this.em, err instanceof ApiError ? err.status : null);
     }
   }
 

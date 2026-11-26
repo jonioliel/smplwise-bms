@@ -126,6 +126,7 @@ export const en = {
   emOpen: 'Open all doors - evacuation',
   emOpenSub: 'Doors stay open until released.',
   emOpenUnavailable: 'Emergency open is not available yet.',
+  emScopeOtherKind: 'Not available for the chosen scope',
   emDoors: '{n} doors',
   emHold: 'Hold for {s} seconds',
   emHolding: 'Keep holding…',
