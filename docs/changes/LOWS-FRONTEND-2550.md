@@ -27,15 +27,15 @@ Every finding was re-read in the code at the base before it was changed. Fronten
 | SCR-49 | Users and permissions: revoking a user's role is one click (one's own too) | fixed | `screens/system-access.ts` |
 | SCR-50 | People on stations: transport failure reads "not performed"; late check on another person | fixed | `screens/wiskey-station-people.ts` |
 | SCR-51 | Call banner keeps a talk session after a 403; station permissions one `busy` slot | fixed (403 part + busy); question 2 for the non-403 read failure | `components/sw-incoming-call.ts`, `screens/wiskey-station-permissions.ts` |
-| SCR-52 | Map room card "all off": partial failure not reported; no in-flight guard | in-flight guard fixed; reporting = question 1 | `screens/explore-floor-map.ts` |
+| SCR-52 | Map room card "all off": partial failure not reported; no in-flight guard | fixed (owner answer Q1 a: a line on the room card) | `screens/explore-floor-map.ts`, `screens/map-action-args.ts`, `components/sw-room-card.ts` |
 | SCR-53 | Deletes with no confirmation: water price version, temperature scheduled report | fixed | `screens/water/page-settings.ts`, `temperature/whatsapp.ts` |
 | SCR-54 | Schedules bulk enable / disable acts on selections hidden by the filter | fixed (filter); other pages of the same filter = question 3 | `screens/devices-schedules.ts`, `schedules-logic.ts` |
 | SCR-55 | Event centre: silent 500-row limit; multi-day ranges on UTC day edges | fixed | `screens/investigate-events.ts`, `investigate-events-logic.ts` |
 | SCR-56 | Tickets: an in-flight poll restores an old status; calendar drag not rolled back | fixed | `screens/tickets-table.ts`, `tickets/table-model.ts`, `calendars/view-calendar.ts`, `grid-logic.ts` |
 | SCR-57 | Home dimmer and some positions are physical (RTL-only): English home mirrored wrongly | fixed | `home/home-styles.ts` |
 
-23 findings: 19 fixed, 2 fixed in part with a question (SCR-51, SCR-52; SCR-54 fixed with a question on its edge), 2 skipped because
-the base already carries the fix (FC-12, SCR-43).
+23 findings: 20 fixed, 1 fixed in part (SCR-51: the non-403 failure stays as it is, owner answer Q2 a), 2 skipped because the base
+already carries the fix (FC-12, SCR-43). Owner answers (coordinator, 26.11): Q1 a built; Q2 a, Q3 a, Q4 a, Q5 a as built.
 
 ## What and why
 
@@ -89,8 +89,11 @@ the base already carries the fix (FC-12, SCR-43).
   permissions: one busy slot per station (a `Set`); the result line is written only under the person it was sent for.
 
 ### Map, water, temperature, schedules, events, tickets, calendars, home
-- **SCR-52** the room card's "all off" runs one batch at a time (in-flight guard). Reporting a partial failure needs a new line on the
-  room card: question 1.
+- **SCR-52** the room card's "all off" runs one batch at a time (in-flight guard). Owner answer Q1 a: when devices stay on, the card
+  says so under the lights' title - "{failed} מתוך {total} לא כובו" / "{failed} of {total} were not turned off" (the card's own `.empty`
+  note in `--sw-warning-text`, role status, `data-room-bulk-result`). A device counts as not turned off when its command was refused or
+  failed (an error, a failed / denied record - `bulkItemFailed`); an unknown or still pending answer is not claimed. The line belongs to
+  its room (cleared when another room is selected, not written when the room changed during the batch) and to the last batch.
 - **SCR-53** deleting a water price version asks first, naming its date; deleting a scheduled temperature report asks first and a
   refused delete shows its error (it was silent). Texts he + en.
 - **SCR-54** bulk enable / disable and the bar's count use the selected schedules the current filter shows (`pickedShown`).
@@ -165,7 +168,7 @@ with no backups (empty state instead of the error panel), new confirmation dialo
 500-row banner, and the emergency sheet's disabled kind (only when the two kinds' scope lists differ). Compare page:
 `private/planning/lows_frontend_2550_compare_2026-11-26.html` (local, not committed).
 
-## Open questions (lettered options, recommendation first)
+## Open questions - answered by the owner (coordinator, 26.11): Q1 a (built in this row), Q2 a, Q3 a, Q4 a, Q5 a (as built)
 1. SCR-52 - when the room card's "all off" leaves some devices on, how should it say so? (a) one short line on the room card under its
    buttons, e.g. "2 מתוך 5 לא כובו" (recommended) (b) a toast at the bottom of the map (c) leave it silent (today).
 2. SCR-51 - the call banner after a read that failed for another reason than 403 keeps the last list (its buttons live) until the next

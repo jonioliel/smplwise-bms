@@ -961,4 +961,6 @@ export const en = {
   'ממתין לחזרת המערכת…': 'Waiting for the system to come back…',
   'זמן שעבר': 'Time elapsed',
   'עשוי להימשך עד {v} דקות': 'May take up to {v} minutes',
+  // LOWS-FRONTEND-2550 (review SCR-52)
+  '{failed} מתוך {total} לא כובו': '{failed} of {total} were not turned off',
 };

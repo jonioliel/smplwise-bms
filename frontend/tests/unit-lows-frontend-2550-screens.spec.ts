@@ -4,6 +4,7 @@ import { pickedShown } from '../src/screens/schedules-logic';
 import { EVENTS_LIMIT, eventsRange } from '../src/screens/investigate-events-logic';
 import { keepNewerRows } from '../src/tickets/table-model';
 import { rollbackMove } from '../src/calendars/grid-logic';
+import { bulkItemFailed, bulkResultOf } from '../src/screens/map-action-args';
 
 // LOWS-FRONTEND-2550: the low findings of the 2.52 deep review on the operator screens - the floor map (SCR-52), water and temperature
 // deletes (SCR-53), the schedules list (SCR-54), the event centre (SCR-55), tickets and calendars (SCR-56), the home in English (SCR-57).
@@ -17,6 +18,34 @@ test.describe('SCR-52 the map room card "all off"', () => {
     const run = s.slice(s.indexOf('private async runBulk('), s.indexOf('private renderRoomConfirm()'));
     expect(run).toMatch(/if \(this\.bulkRunning\) return;\s*\n\s*this\.bulkRunning = true;/);
     expect(run).toMatch(/finally \{\s*\n\s*this\.bulkRunning = false;/);
+  });
+});
+
+test.describe('SCR-52 the room card says how many devices "all off" left on (owner answer Q1 a)', () => {
+  test('refused or failed devices are counted; an unknown or pending answer is not claimed as "not turned off"', () => {
+    expect(bulkItemFailed('אין חיבור לשרת.', null)).toBe(true);
+    expect(bulkItemFailed('', 'failed')).toBe(true);
+    expect(bulkItemFailed('', 'denied')).toBe(true);
+    expect(bulkItemFailed('', 'confirmed')).toBe(false);
+    expect(bulkItemFailed('', 'unknown')).toBe(false);
+    expect(bulkItemFailed('', 'pending')).toBe(false);
+    expect(bulkResultOf(2, 5)).toEqual({ failed: 2, total: 5 });
+    expect(bulkResultOf(0, 5)).toBeNull();
+    expect(bulkResultOf(0, 0)).toBeNull();
+  });
+
+  test('the map counts each device of the batch and hands the result to its own room card, which shows the line', () => {
+    const map = src('screens/explore-floor-map.ts');
+    const run = map.slice(map.indexOf('private async runBulk('), map.indexOf('private renderRoomConfirm()'));
+    expect(run).toContain('if (!(await this.send(it.entityId, it.spec, true))) failed += 1;');
+    expect(run).toContain('if (this.selectedZoneId === zone) this.bulkResult = bulkResultOf(failed, sent);');
+    expect(map).toContain('private async send(entityId: string, spec: HaActionSpec, confirmed: boolean): Promise<boolean>');
+    expect(map).toContain('.bulkResult=${this.bulkResult}');
+    expect(map).toContain("if (changed.has('selectedZoneId') && this.bulkResult) this.bulkResult = null;");
+    const card = src('components/sw-room-card.ts');
+    expect(card).toContain("data-room-bulk-result>${tr('{failed} מתוך {total} לא כובו'");
+    expect(card).toMatch(/\.empty\.bulk-left \{\s*color: var\(--sw-warning-text\);/);
+    expect(src('i18n/lang/en/i18n/msg/components.ts')).toContain("'{failed} מתוך {total} לא כובו': '{failed} of {total} were not turned off',");
   });
 });
 
