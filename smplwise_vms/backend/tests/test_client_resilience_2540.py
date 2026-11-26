@@ -12,8 +12,7 @@ from smplwise import __version__
 
 
 @pytest.fixture()
-def w(settings, request) -> World:
-    request.getfixturevalue("fake_push")  # no real push service is ever contacted
+def w(settings, fake_push) -> World:  # noqa: F811 - the imported pytest fixture, requested by name (no real push service)
     return World(settings)
 
 
