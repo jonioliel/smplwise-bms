@@ -6,7 +6,7 @@ import { installSchedWritesMock, newSchedMock } from './schedule-writes-mocks';
 import { installExecMock, newExecMock } from './schedule-exec-mocks';
 import { INSTALLATION, installTicketsMock, url as ticketsUrl } from './tickets-mocks';
 import { installMaintenanceMock } from './maintenance-mocks';
-import { url as moduleUrl } from './generator-mocks';
+import { installGeneratorMock, url as moduleUrl } from './generator-mocks';
 import { appReady } from './helpers/app-ready';
 import { PERMS as CAST_PERMS, installCastMock } from './cast-mocks';
 import { installMessagingSettings } from './wiskey-messaging-settings';
@@ -188,6 +188,8 @@ test.describe('module settings: the maintenance switches', () => {
 
 // ------------------------------------------------------------------------------------------------ system settings
 
+// A regression check, not a before / after proof: this screen re-reads through a loading phase that redraws the switch, so it already
+// came back after a refusal before this row (the base run passes it too). The notice boards case below is the before / after proof.
 test.describe('system settings: the cast to screens switches', () => {
   const C = 'sw-app system-cast';
 
@@ -217,6 +219,53 @@ test.describe('system settings: the cast to screens switches', () => {
     st.refuse = false;
     await sw.locator('button').click();
     await expect.poll(() => m.config.enabled).toBe(false);
+    await expectSwitch(sw, false);
+  });
+});
+
+test.describe('system settings: the notice boards module switch', () => {
+  const N = 'sw-app system-notices';
+  const CAN = { view: true, manage: true, manage_all: true, push: true, boards: true, configure: true };
+
+  test('the module switch: a refused save leaves it on; an accepted one turns it off', async ({ page }) => {
+    await installGeneratorMock(page, { perms: ['devices.read', 'notices.view', 'notices.manage', 'notices.push', 'notices.boards', 'system.configure'], count: 0,
+      modules: { tickets: false, notices: true } as { tickets: boolean } });
+    const st = { refuse: true, patches: [] as Record<string, unknown>[] };
+    let settings: Record<string, unknown> = { enabled: true, default_days: 7, default_severity: 'info', push_default: 'by_severity', reads_names: true, retention_days: 365,
+      boards_remote: false, boards_max: 10, weather_entity: '', weather_fallback: false, news_custom: false, building_name: '', boards_origin: '', news_sources: [] };
+    await page.route('**/api/v1/notices**', async (route) => {
+      const req = route.request();
+      const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
+      const method = req.method();
+      if (p === 'notices/module') return json(route, { enabled: settings.enabled, can: CAN });
+      if (p === 'notices/settings' && method === 'PATCH') {
+        const body = req.postDataJSON() as Record<string, unknown>;
+        st.patches.push(body);
+        if (st.refuse) return json(route, refusal(500), 500);
+        settings = { ...settings, ...body };
+        return json(route, { settings });
+      }
+      if (p === 'notices/settings') return json(route, { settings, can: CAN, weather_entities: [], company_logo: false, listener: true, building_fallback: '' });
+      if (p === 'notices/boards') return json(route, { boards: [], full: true, max: 10, remote: false });
+      if (p === 'notices' && method === 'GET') return json(route, { notices: [], can: CAN, now: NOW, defaults: { default_days: 7, default_severity: 'info', push_default: 'by_severity' } });
+      if (p === 'notices/audience/options') return json(route, { floors: [], groups: [], roles: [] });
+      return json(route, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }, 404);
+    });
+    await page.goto('about:blank');
+    await page.goto(moduleUrl('/system/notices'));
+    const sw = page.locator(`${N} [data-module-switch]`);
+    await expect(sw).toBeVisible({ timeout: 30_000 });
+    await expectSwitch(sw, true);
+    await sw.locator('button').click();
+    await expect.poll(() => st.patches.length).toBe(1);
+    expect(st.patches[0]).toEqual({ enabled: false });
+    await page.waitForTimeout(300); // the refusal's message has been drawn
+    await refusedShot(page, sw, 'notices-module');
+    await expectSwitch(sw, true);
+
+    st.refuse = false;
+    await sw.locator('button').click();
+    await expect.poll(() => st.patches.length).toBe(2);
     await expectSwitch(sw, false);
   });
 });
