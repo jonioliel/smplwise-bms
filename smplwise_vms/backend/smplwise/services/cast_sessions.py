@@ -17,6 +17,12 @@ Rules (owner decisions 2026-10-05, private/planning/CAST_UX_OWNER_DECISIONS_2026
   user's live-stream cap is not touched - the playback runs on the LAN);
 - stop: by the user, by anyone holding media.cast / media.bulk at the anchor, by the administrator, by the timer, when the
   screen disappears (no command then), or when the relay sees abuse; ONE `stop`, never retried; the token dies first;
+- CAST-RELAY-HARDEN-2540 (deep review V-05): a running cast - a permanent one in particular - keeps the rights it started with only
+  while they last: every janitor round re-checks `video.live` on the camera (of whoever chose the camera now: the starter, or the
+  user of the last switch) and `media.cast` (and `media.public` on a public screen) at the screen's anchor for the starter, through
+  the same rules the start uses, and that the camera still exists and is enabled; when any fails the session ends (`access_lost`,
+  ONE stop, the restore rule). A starter disabled on either side (a Home Assistant user removed from the directory is disabled
+  there) holds nothing, so their cast ends too. The administrator's 60 s test cast is judged by the camera rules only;
 - after the stop the screen is switched off again ONLY when it was off before the cast and the installation option is on
   (default on); the user may cancel that at start or at stop;
 - "playing" is set only when the relay served the first segment to the TV; 15 s without it is "not confirmed".
@@ -842,8 +848,10 @@ def switch(conn: sqlite3.Connection, settings: Settings, principal: Principal, r
     stream = ensure_stream(settings, cam, profile)
     gen = row["token_gen"] + 1
     token = token_for(_secret(conn), session_id, gen)
-    conn.execute("UPDATE cast_sessions SET camera_id = ?, profile = ?, stream_name = ?, token_hash = ?, token_gen = ?, first_segment_at = NULL, state = 'starting', started_at = ? "
-                 "WHERE session_id = ?", (camera_id, profile, stream, cast_relay.token_hash(token), gen, _iso(now()), session_id))
+    # CAST-RELAY-HARDEN-2540: who chose the camera now - the janitor re-checks THEIR video.live on it (the screen stays the starter's)
+    restore = {**json.loads(row["restore_json"] or "{}"), "camera_by": principal.user_id}
+    conn.execute("UPDATE cast_sessions SET camera_id = ?, profile = ?, stream_name = ?, token_hash = ?, token_gen = ?, first_segment_at = NULL, state = 'starting', started_at = ?, "
+                 "restore_json = ? WHERE session_id = ?", (camera_id, profile, stream, cast_relay.token_hash(token), gen, _iso(now()), json.dumps(restore), session_id))
     cast_relay.INDEX.put(token, session_id, stream, _epoch(row["expires_at"]))  # replaces the old token of this session
     try:
         ok, error, rid = _bridge(conn, settings, row["started_by"], "play", row["target_entity_id"], url=_url(config(conn)["origin"], token), title=_title(cam))
@@ -862,7 +870,7 @@ def switch(conn: sqlite3.Connection, settings: Settings, principal: Principal, r
 
 
 def _end(conn: sqlite3.Connection, row: sqlite3.Row, reason: str, actor: Principal | None, request_id: str | None, *, send: bool, settings: Settings | None = None,
-         power_off: bool | None = None, replaced_by: str | None = None) -> dict[str, Any]:
+         power_off: bool | None = None, replaced_by: str | None = None, lost: str | None = None) -> dict[str, Any]:
     """End a session: revoke the token FIRST (memory and row), then - when `send` - ONE stop and, by the restore rule, ONE off.
     Never retried; a bridge that cannot be reached leaves the token revoked (the TV's player ends on its next request)."""
     session_id = row["session_id"]
@@ -890,7 +898,7 @@ def _end(conn: sqlite3.Connection, row: sqlite3.Row, reason: str, actor: Princip
                   resource_id=row["device_key"], request_id=request_id, details={"session_id": session_id, "status": outcome["power_off"]})
     audit(conn, actor=actor, action="media.cast.stop", decision="allowed", resource_type="media_device", resource_id=row["device_key"], reason=reason, request_id=request_id,
           details={"session_id": session_id, "camera_id": row["camera_id"], "kind": row["kind"], "stop": outcome["stop"], "power_off": outcome["power_off"],
-                   **({"replaced_by": replaced_by} if replaced_by else {})})
+                   **({"replaced_by": replaced_by} if replaced_by else {}), **({"lost": lost} if lost else {})})
     return outcome
 
 
@@ -959,9 +967,48 @@ def owner_gone(conn: sqlite3.Connection, user_id: Any) -> bool:
     return row is None or not row["active"] or bool(row["deleted_at"])
 
 
+def _principal_of(user_id: str) -> Principal:
+    """A session's user as a principal for the re-check (no session of their own: `internal`; a USR2 local id keeps its source).
+    The permissions re-checked here are not administrative ones, so the local second-factor rule does not apply to them."""
+    return Principal(user_id=str(user_id), username="", display_name="", source="local" if service_identity.is_local(user_id) else "internal")
+
+
+def access_lost(conn: sqlite3.Connection, row: sqlite3.Row) -> str | None:
+    """CAST-RELAY-HARDEN-2540 (deep review V-05): why this running cast may not go on, or None. The rules of `start`, asked again:
+    the camera exists and is enabled; `video.live` on it for whoever chose it (the starter, or the user of the last switch); for a
+    camera cast `media.cast` at the screen's anchor for the starter, and `media.public` on a public screen. A screen that is no longer
+    in the media table is the `target_gone` rule's, not this one's."""
+    from .access import camera_allowed
+    from .active_users import is_disabled
+
+    restore = json.loads(row["restore_json"] or "{}")
+    if any(is_disabled(conn, str(u)) for u in {row["started_by"], restore.get("camera_by") or row["started_by"]}):
+        return "user_inactive"  # disabled on either side; a Home Assistant user gone from the directory is disabled there
+    cam = conn.execute("SELECT enabled FROM cameras WHERE id = ?", (row["camera_id"],)).fetchone()
+    if cam is None:
+        return "camera_gone"
+    if not cam["enabled"]:
+        return "camera_disabled"
+    if not camera_allowed(conn, _principal_of(restore.get("camera_by") or row["started_by"]), row["camera_id"], "video.live"):
+        return "video_live"
+    if row["kind"] == "test":
+        return None  # the administrator's test: 60 s, started under system.configure, never extended
+    dev = conn.execute("SELECT anchor_entity_id, is_public FROM media_devices WHERE device_key = ?", (row["device_key"],)).fetchone()
+    if dev is None:
+        return None
+    starter = _principal_of(row["started_by"])
+    access = store.Access(conn, starter, (PERM_CAST, store.PERM_PUBLIC))
+    if not access.has(PERM_CAST, dev["anchor_entity_id"]):
+        return "media_cast"
+    if dev["is_public"] and not access.has(store.PERM_PUBLIC, dev["anchor_entity_id"]):
+        return "media_public"
+    return None
+
+
 def janitor(db: Any, settings: Settings) -> dict[str, int]:
     """Every 30 s: expired sessions end (`timeout`: ONE stop, the restore rule), sessions whose screen vanished end (`target_gone`, no
-    command), 15 s without a first segment is persisted as `not_confirmed`."""
+    command), sessions whose user lost the camera or the screen end (`access_lost`: ONE stop, the restore rule; CAST-RELAY-HARDEN-2540),
+    15 s without a first segment is persisted as `not_confirmed`."""
     counts = {"timeout": 0, "target_gone": 0, "not_confirmed": 0}
     with db.connection(label="cast.janitor") as conn:
         try:
@@ -989,6 +1036,15 @@ def janitor(db: Any, settings: Settings) -> dict[str, int]:
             if e is None or e["state"] == "unavailable":
                 _end(conn, r, "target_gone", None, None, send=False)
                 counts["target_gone"] += 1
+                continue
+            try:
+                lost = access_lost(conn, r)
+            except Exception as exc:  # noqa: BLE001 - a busy database keeps the cast for this round (asked again in 30 s), like a lease re-check
+                log.warning("cast access re-check failed: %s", type(exc).__name__)
+                lost = None
+            if lost is not None:
+                _end(conn, r, "access_lost", None, None, send=True, settings=settings, lost=lost)
+                counts["access_lost"] = counts.get("access_lost", 0) + 1
                 continue
             if r["state"] == "starting" and _state(r, at) == "not_confirmed":
                 conn.execute("UPDATE cast_sessions SET state = 'not_confirmed' WHERE session_id = ?", (r["session_id"],))

@@ -11,12 +11,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import time
 from typing import Any, Callable
 
+from ..lan_listener import CappedServer, RequestDeadline
 from . import page
 from .display import DisplayService, Reply, Request, not_found
 
 log = logging.getLogger(__name__)
 CONTAINER_PORT = 18094
-SOCKET_TIMEOUT_S = 10.0  # a TV that stalls (or a slow-loris client) frees its thread after this long
+SOCKET_TIMEOUT_S = 10.0  # a TV that stalls frees its thread after this long (it bounds ONE socket read)
+# LISTENER-DEADLINE-2540 (follow-up of CAST-RELAY-HARDEN-2540, deep review V-02): the whole request - request line and headers (the
+# listener reads no body) - must arrive within this deadline, so a slow-loris client that drips a byte inside SOCKET_TIMEOUT_S is cut
+# off too (services/lan_listener.RequestDeadline). One request per connection (HTTP/1.0).
+REQUEST_DEADLINE_S = 10.0
 MAX_CONNECTIONS = 32  # simultaneous connections; more are closed at once (a TV retries on its own). The default of the editable setting
 MAX_PER_ADDRESS = 8  # simultaneous connections from one client address (NOTICECAPS-295); the default of the editable setting
 CAPS_TTL_S = 2.0  # the settings are re-read at most this often, so a flood of connections cannot become a flood of database reads
@@ -53,68 +58,8 @@ def route(svc: DisplayService, www_dir: Any, method: str, path: str, headers: di
     return not_found()
 
 
-class _CappedServer(ThreadingHTTPServer):
-    """ThreadingHTTPServer with a ceiling on simultaneous connections, in total and per client address: over a cap the socket is
-    closed without a thread. `caps` (optional) returns (total, per_address) and is asked at every connection, so an administrator's
-    change applies at once without a restart; a failing `caps` keeps the last good values (the defaults at first)."""
-
-    daemon_threads = True
-
-    def __init__(self, *args: Any, max_connections: int = MAX_CONNECTIONS, max_per_address: int = MAX_PER_ADDRESS,
-                 caps: Callable[[], tuple[int, int]] | None = None, **kw: Any) -> None:
-        super().__init__(*args, **kw)
-        self._lock = threading.Lock()
-        self._total = 0
-        self._by_addr: dict[str, int] = {}
-        self._caps = caps
-        self._last = (max_connections, max_per_address)
-
-    def _current_caps(self) -> tuple[int, int]:
-        if self._caps is not None:
-            try:
-                total, per = self._caps()
-                self._last = (int(total), int(per))
-            except Exception:  # noqa: BLE001 - a settings read that fails must never open the gate or stop the listener
-                pass
-        return self._last
-
-    @staticmethod
-    def _addr(client_address: Any) -> str:
-        return str(client_address[0]) if client_address else "-"
-
-    def _release(self, addr: str) -> None:
-        with self._lock:
-            self._total -= 1
-            left = self._by_addr.get(addr, 1) - 1
-            if left > 0:
-                self._by_addr[addr] = left
-            else:
-                self._by_addr.pop(addr, None)
-
-    def process_request(self, request: Any, client_address: Any) -> None:
-        total_cap, per_cap = self._current_caps()
-        addr = self._addr(client_address)
-        with self._lock:
-            if self._total >= total_cap or self._by_addr.get(addr, 0) >= per_cap:
-                admitted = False
-            else:
-                admitted = True
-                self._total += 1
-                self._by_addr[addr] = self._by_addr.get(addr, 0) + 1
-        if not admitted:
-            self.shutdown_request(request)
-            return
-        try:
-            super().process_request(request, client_address)
-        except Exception:
-            self._release(addr)
-            raise
-
-    def process_request_thread(self, request: Any, client_address: Any) -> None:
-        try:
-            super().process_request_thread(request, client_address)
-        finally:
-            self._release(self._addr(client_address))
+# CAST-RELAY-HARDEN-2540: the class moved to services/lan_listener.py (the cast relay reuses it); its old name stays here
+_CappedServer = CappedServer
 
 
 def cached_caps(read: Callable[[], tuple[int, int]], ttl: float = CAPS_TTL_S, clock: Callable[[], float] = time.monotonic) -> Callable[[], tuple[int, int]]:
@@ -145,8 +90,9 @@ def settings_caps(open_conn: Callable[[], Any]) -> Callable[[], tuple[int, int]]
     return read
 
 
-class _Handler(BaseHTTPRequestHandler):
+class _Handler(RequestDeadline, BaseHTTPRequestHandler):
     timeout = SOCKET_TIMEOUT_S  # StreamRequestHandler applies it to the connection socket
+    request_deadline_s = REQUEST_DEADLINE_S  # LISTENER-DEADLINE-2540: the whole request line + headers
     server_version = "SmplWise"
     sys_version = ""
     svc: DisplayService
@@ -156,6 +102,7 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
     def _do(self) -> None:
+        self.clear_deadline()  # the request is in (no body is read): the answer is bounded by the socket timeout alone
         hdrs = {k.lower(): v for k, v in self.headers.items()}
         r = route(self.svc, self.www_dir, self.command, self.path, hdrs, self.client_address[0] if self.client_address else "")
         self.send_response(r.status)

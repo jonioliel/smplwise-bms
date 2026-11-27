@@ -1,7 +1,8 @@
 """Home Assistant catalogue + state sync (MASTER_SPEC ch. 14/15, T023/T024).
 
 A background thread keeps one WebSocket session to HA Core: registries (entities, devices, areas, labels,
-floors) and a full state snapshot at connect, then `state_changed` subscription. Rows carry occurred
+floors) and a full state snapshot at connect, with the `state_changed` subscription made before the snapshot and the
+events of that window applied after it (CORE-03). Rows carry occurred
 (HA `last_changed`/`last_updated`) and received (`state_seen_at`) times; while disconnected the API
 reports `fresh: false` and nothing is invented. Attributes are trimmed to an allow-list.
 
@@ -751,6 +752,48 @@ def store_states(db: Database, states: list[dict[str, Any]], seen: str) -> set[s
     return present
 
 
+# CORE-RELIABILITY-2540 (deep review CORE-03): `state_changed` is subscribed BEFORE the connect snapshot is asked for, and the
+# events that arrive while the snapshot is fetched and stored are held here, then applied once it is stored - a state that
+# changed in between used to be in neither and stayed wrong until that entity's next change. Bounded: past this many held
+# events only the newest event of each entity is kept (the older ones are superseded by it).
+HELD_STATES_MAX = 20000
+
+
+def _ha_time(value: Any) -> Any:
+    """An HA timestamp (`last_updated`) as an aware datetime, or None when it is missing or not readable."""
+    import datetime as dt
+
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        t = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else t.replace(tzinfo=dt.timezone.utc)
+
+
+def held_event_is_stale(data: dict[str, Any], snapshot_updated: dict[str, Any]) -> bool:
+    """CORE-03: is a held `state_changed` event older than what the snapshot already stored for its entity? Only a state the
+    snapshot shows as strictly newer makes it stale; an unknown or unreadable time applies the event (events arrive in order,
+    so applying is never worse than the snapshot it follows). A removal (no new state) always applies."""
+    new = data.get("new_state")
+    if not isinstance(new, dict):
+        return False
+    snap = _ha_time(snapshot_updated.get(str(data.get("entity_id") or new.get("entity_id") or "")))
+    event = _ha_time(new.get("last_updated"))
+    if snap is None or event is None:
+        return False
+    return event < snap
+
+
+def compact_held(held: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """CORE-03: the newest held event of each entity, in arrival order (used only past HELD_STATES_MAX)."""
+    last: dict[str, int] = {}
+    for i, data in enumerate(held):
+        last[str(data.get("entity_id") or "")] = i
+    return [held[i] for i in sorted(last.values())]
+
+
 def snapshot(db: Database, settings: Settings) -> int:
     """REST snapshot (also usable without the WebSocket, e.g. in tests)."""
     states = ha_client.get_states(settings)
@@ -879,12 +922,28 @@ class HaSync:
 
         debouncer: Debouncer | None = None
         tasks: set[asyncio.Task[Any]] = set()
+        # CORE-03: while not None, the connect snapshot is being fetched / stored and state events are held here (on_ready applies them)
+        held: list[dict[str, Any]] | None = None
+        held_compacted = [False]
 
         def on_event(data: dict[str, Any]) -> None:
-            new = data.get("new_state")
+            nonlocal held
             eid = data.get("entity_id", "")
             if eid.split(".", 1)[0] in STATE_DOMAINS_SKIP:
                 return
+            if held is not None and "new_state" in data:  # a registry_updated frame (no new_state key) is not a state event
+                held.append(data)
+                if len(held) > HELD_STATES_MAX:
+                    held = compact_held(held)
+                    if not held_compacted[0]:
+                        held_compacted[0] = True
+                        log.warning("HA sync: more than %d state changes during the connect snapshot; only the newest per entity kept", HELD_STATES_MAX)
+                return
+            apply_event(data)
+
+        def apply_event(data: dict[str, Any]) -> None:
+            new = data.get("new_state")
+            eid = data.get("entity_id", "")
             if not new:
                 # a registry_updated frame carries entity_id too, but never the old_state / new_state keys
                 if "new_state" in data and data.get("old_state") is not None:
@@ -953,7 +1012,7 @@ class HaSync:
         ready_seen = [False]
 
         async def on_ready(call) -> None:
-            nonlocal refresher_task, debouncer
+            nonlocal refresher_task, debouncer, held
             cfg = await call("get_config")
             STATE.ha_version = (cfg.get("result") or {}).get("version")
             # CR-029 S2 (owner 2026-10-11): the site location for the sun comes from this same core config reply
@@ -971,17 +1030,33 @@ class HaSync:
             await subscribe_registry_events(call)
             await self._subscribe_door_window_events(call)
             await self._refresh_and_notify(call, "connect", notify=False)
-            states = await call("get_states")
-            seen = now_iso()
-            await loop.run_in_executor(None, _note_connect_gap, db)  # DEVHIST: before the snapshot overwrites "the last state seen"
-            await loop.run_in_executor(None, store_states, db, states.get("result") or [], seen)
-            STATE.last_snapshot_at = seen
+            # CORE-03: the state events are subscribed BEFORE the snapshot (like the registry events above) and held until it is
+            # stored; a change made while the snapshot runs is then applied instead of lost
+            held = []
             sub = await call("subscribe_events", event_type="state_changed")
             if not sub.get("success"):
                 raise RuntimeError("subscribe_events refused")
+            states = await call("get_states")
+            listing = states.get("result") or []
+            seen = now_iso()
+            await loop.run_in_executor(None, _note_connect_gap, db)  # DEVHIST: before the snapshot overwrites "the last state seen"
+            await loop.run_in_executor(None, store_states, db, listing, seen)
+            STATE.last_snapshot_at = seen
             STATE.connected = True
             STATE.last_error = None
             STATE.auth_refusals, STATE.next_attempt_at = 0, None
+            # no await between here and the end of the loop: a new event is applied directly from now on, never before a held one
+            pending_events, held = held or [], None
+            if pending_events:
+                snapshot_updated = {str(st.get("entity_id") or ""): st.get("last_updated") for st in listing if isinstance(st, dict)}
+                applied = 0
+                for data in pending_events:
+                    if held_event_is_stale(data, snapshot_updated):
+                        continue
+                    apply_event(data)
+                    applied += 1
+                log.info("HA sync: %d state change(s) during the connect snapshot applied (%d older than the snapshot skipped)",
+                         applied, len(pending_events) - applied)
             ready_seen[0] = True
             lost, self._ha_lost_at = self._ha_lost_at, None
             if lost:  # the platform came back after a drop: a "restart needed" reason that was added before the drop is satisfied

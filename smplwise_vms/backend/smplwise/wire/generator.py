@@ -80,6 +80,12 @@ class GeneratorDevice(WireModel):
     values: dict[str, GeneratorValue] = {}
     alert_types: list[GeneratorAlertTypeState] = []
     thresholds: dict[str, float] = {}
+    battery_system_v: Literal[12, 24] | None = None
+    """DATA-RULES-2540 (review D-02 / SCR-21, additive): the starter battery's nominal system when it is known without the live reading -
+    the administrator's choice, else 24 once the bank was ever seen above 16 V; null = judge by the reading (above 16 V = 24). The same
+    rule as services/generator_core.battery_system and gen-logic.ts batterySystem."""
+    battery_nominal_v: Literal[12, 24] | None = None
+    """DATA-RULES-2540 (additive): the administrator's explicit choice (PUT /generator/devices/{id} `battery_nominal_v`); null = detect."""
 
 
 class GeneratorDeviceList(WireModel):

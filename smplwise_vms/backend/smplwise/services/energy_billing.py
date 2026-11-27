@@ -705,6 +705,7 @@ def update_account(conn: sqlite3.Connection, provider: BillingReadings, aid: str
         raise conflict("revision_conflict", "החשבון שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["revision"])
     f = _account_fields(conn, provider, body, row, installation_tz)
     meters = f.pop("_meters", None)
+    bl.guard_cycle_change(KIND, conn, row, f)  # DATA-RULES-2540 (review D-01): a cycle change never leaves days unbilled
     if f:
         sets = ", ".join(f"{k} = ?" for k in f)
         conn.execute(f"UPDATE energy_accounts SET {sets}, revision = revision + 1, updated_at = ? WHERE id = ?", (*f.values(), now_iso(), aid))

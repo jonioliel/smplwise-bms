@@ -59,7 +59,10 @@ def test_the_checkout_ships_no_map():
 
 def test_build_addon_moves_the_maps_out():
     pkg = json.loads((ROOT / "frontend" / "package.json").read_text(encoding="utf-8"))
-    assert pkg["scripts"]["build:addon"].endswith("&& node scripts/sourcemaps-archive.mjs")
+    script = pkg["scripts"]["build:addon"]
+    # after both Vite builds (GATE-TRUST-2540 appends the build stamp as the very last step, see test_release_build_stamp_2540.py)
+    assert "&& node scripts/sourcemaps-archive.mjs" in script
+    assert script.index("node scripts/sourcemaps-archive.mjs") > script.rindex("vite build")
     assert (ROOT / "frontend" / "scripts" / "sourcemaps-archive.mjs").exists()
     ignore = (ROOT / "smplwise_vms" / ".dockerignore").read_text(encoding="utf-8").split()
     assert "www/**/*.map" in ignore and "www-public/**/*.map" in ignore

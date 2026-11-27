@@ -2,7 +2,8 @@
 
 The cache (`cal_occurrences`) is rebuilt per event in the same transaction as any write to it and rolled nightly; it is never the source of
 truth (dropping it and rebuilding gives the same rows - a test asserts this). A single (non-recurring) entry is cached in full whatever its
-date; a series only inside [now - 30 days, now + series_horizon_days]. Conflict checks read this table."""
+date; a series only inside [now - 30 days, now + series_horizon_days]. Conflict checks read this table - and, past the series horizon,
+expand the holder's open series on the fly (D-04: the cache holds nothing there, so a far-ahead booking never met the series)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -61,13 +62,15 @@ def _parse_local(s: str) -> dt.datetime:
     return dt.datetime.strptime(s, "%Y-%m-%dT%H:%M")
 
 
-def event_occurrences(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[str, Any], now: dt.datetime, *, window_days: int | None = None) -> list[Occ]:
-    """Expanded occurrences of one event row (a series expands its rule minus replaced occurrences; an override row is one entry)."""
+def event_occurrences(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[str, Any], now: dt.datetime, *, window_days: int | None = None,
+                      window: tuple[dt.datetime, dt.datetime] | None = None) -> list[Occ]:
+    """Expanded occurrences of one event row (a series expands its rule minus replaced occurrences; an override row is one entry).
+    `window` (UTC) replaces the cache window [now - 30 d, now + horizon] of a series (D-04: a conflict check far ahead)."""
     ls, le = _parse_local(ev["local_start"]), _parse_local(ev["local_end"])
     if not ev["rrule"]:
         return expand(None, ls, le, ev["tz"], window_start=dt.datetime(1970, 1, 1, tzinfo=UTC), window_end=dt.datetime(2200, 1, 1, tzinfo=UTC))
     days = window_days if window_days is not None else settings["series_horizon_days"]
-    w0, w1 = now - dt.timedelta(days=PAST_DAYS), now + dt.timedelta(days=days)
+    w0, w1 = window if window is not None else (now - dt.timedelta(days=PAST_DAYS), now + dt.timedelta(days=days))
     hol = holidays_between(conn, settings, w0.date() - dt.timedelta(days=2), w1.date() + dt.timedelta(days=2)) if ev["holiday_skip"] else None
     skip = set(json.loads(ev["exdates_json"] or "[]"))
     skip |= {r[0] for r in conn.execute("SELECT override_start FROM cal_events WHERE override_of = ?", (ev["id"],)).fetchall() if r[0]}
@@ -135,11 +138,78 @@ def family(conn: sqlite3.Connection, event_id: str) -> set[str]:
     return ids | {held_id(i) for i in ids}
 
 
+ROLL_KEY = "calendar.janitor.last_roll"  # jobs.LAST_KEY (jobs imports this module)
+
+
+def cache_edge(conn: sqlite3.Connection, settings: dict[str, Any], now: dt.datetime) -> dt.datetime:
+    """D-04: up to here every open series is in the cache - the nightly roll re-expands it to `roll day + series_horizon_days` (a day of
+    slack). A roll that has not run for a while (the module switched off) moves the edge back with it; no roll on record: `now`."""
+    edge = now + dt.timedelta(days=settings["series_horizon_days"] - 1)
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (ROLL_KEY,)).fetchone()
+        last = dt.date.fromisoformat(row[0]) if row and row[0] else None
+    except (sqlite3.Error, ValueError, TypeError):
+        last = None
+    if last is None:
+        return now
+    return min(edge, dt.datetime.combine(last, dt.time(0), tzinfo=UTC) + dt.timedelta(days=settings["series_horizon_days"] - 1))
+
+
+def _series_beyond_cache(conn: sqlite3.Connection, holder: sqlite3.Row, spans: list[tuple[dt.datetime, dt.datetime]], settings: dict[str, Any],
+                         now: dt.datetime, st: tuple[str, ...], margin: dt.timedelta) -> list[tuple[str, str, str, str, str]]:
+    """D-04: the occurrences of the holder's open series inside the spans that reach past the cache edge, expanded on the fly (the expander
+    is pure; only the spans' own window is expanded). Rows as `rebuild` would cache them: (event_id, occ_start, occ_end, state, local_start) -
+    the event's own calendar at the event's state, a room half at the room's state."""
+    edge = cache_edge(conn, settings, now)
+    far = [(s, e) for s, e in spans if e + margin > edge]
+    if not far:
+        return []
+    lo, hi = min(s for s, _ in far) - margin, max(e for _, e in far) + margin
+    term = ",".join("?" * len(TERMINAL))
+    own = conn.execute(f"SELECT e.*, e.state AS half_state FROM cal_events e WHERE e.calendar_id = ? AND e.rrule IS NOT NULL AND e.override_of IS NULL "
+                       f"AND e.state NOT IN ({term})", (holder["id"], *TERMINAL)).fetchall()
+    rooms = conn.execute(f"SELECT e.*, r.state AS half_state FROM cal_events e JOIN cal_event_rooms r ON r.event_id = e.id WHERE r.room_calendar_id = ? "
+                         f"AND e.rrule IS NOT NULL AND e.override_of IS NULL AND e.state NOT IN ({term}) AND r.state NOT IN ({term})",
+                         (holder["id"], *TERMINAL, *TERMINAL)).fetchall()
+    out: list[tuple[str, str, str, str, str]] = []
+    for ev in [*own, *rooms]:
+        if ev["half_state"] not in st:
+            continue
+        try:
+            occs = event_occurrences(conn, ev, settings, now, window=(lo, hi))
+        except (RuleError, ValueError):  # a stored rule the expander refuses is cached by nobody either: nothing to compare
+            continue
+        for o in occs:
+            if any(o.start_utc < e + margin and o.end_utc > s - margin for s, e in far):
+                out.append((ev["id"], model.iso(o.start_utc), model.iso(o.end_utc), ev["half_state"], o.key))
+    return out
+
+
+def spans_past_window(conn: sqlite3.Connection, holder: sqlite3.Row, ev_like: dict[str, Any], settings: dict[str, Any], now: dt.datetime) -> list[tuple[dt.datetime, dt.datetime]]:
+    """D-04, the mirror case: a NEW series is checked only inside its horizon window, while a single entry is cached in full - one booked
+    further ahead on the holder would meet the series' later dates when the nightly roll reaches them. The draft is also expanded from the
+    window's end up to the farthest cached entry on the holder (nothing past the window: nothing to add)."""
+    if holder["conflict_policy"] != "exclusive" or not ev_like.get("rrule"):
+        return []
+    w1 = now + dt.timedelta(days=settings["series_horizon_days"])
+    row = conn.execute("SELECT MAX(occ_end) FROM cal_occurrences WHERE holder_calendar_id = ? AND occ_end > ?", (holder["id"], model.iso(w1))).fetchone()
+    if not row or not row[0]:
+        return []
+    try:
+        far = model.parse_utc(row[0], "occ_end") + dt.timedelta(minutes=holder["buffer_before_min"] + holder["buffer_after_min"])
+        occs = event_occurrences(conn, ev_like, settings, now, window=(w1, far))  # type: ignore[arg-type]
+    except (RuleError, ValueError, model.Invalid):
+        return []
+    return [(o.start_utc, o.end_utc) for o in occs]
+
+
 def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tuple[dt.datetime, dt.datetime]], settings: dict[str, Any], *,
-             exclude: Iterable[str] = (), states: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
-    """Cached occurrences on `holder` that collide with any span, buffers of the calendar on both sides (touching is not a collision)."""
+             exclude: Iterable[str] = (), states: tuple[str, ...] | None = None, now: dt.datetime | None = None) -> list[dict[str, Any]]:
+    """Occurrences on `holder` that collide with any span, buffers of the calendar on both sides (touching is not a collision): the cached
+    rows and, past the cache edge, the holder's open series expanded on the fly (D-04)."""
     if holder["conflict_policy"] != "exclusive":
         return []
+    spans = list(spans)
     st = states or (("confirmed", "pending") if settings["pending_holds_slot"] else ("confirmed",))
     margin = dt.timedelta(minutes=holder["buffer_before_min"] + holder["buffer_after_min"])
     skip = set(exclude)
@@ -155,6 +225,9 @@ def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tupl
             if held:
                 row["held"] = True  # the approved slot of a booking whose change waits for a decision
             found[(eid, r["local_start"])] = row
+    for eid, s0, e0, state, key in _series_beyond_cache(conn, holder, spans, settings, now or dt.datetime.now(UTC), st, margin):
+        if eid not in skip and (eid, key) not in found:
+            found[(eid, key)] = {"event_id": eid, "calendar_id": holder["id"], "start": s0, "end": e0, "state": state}
     return sorted(found.values(), key=lambda c: (c["start"], c["event_id"]))
 
 

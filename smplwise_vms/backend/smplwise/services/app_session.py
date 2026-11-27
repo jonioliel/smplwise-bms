@@ -204,14 +204,25 @@ def _mfa_refused(conn: sqlite3.Connection, fam: sqlite3.Row) -> bool:
     return bool(set(permissions_anywhere(conn, _internal(uid))) & hua.ADMIN_PERMISSIONS)
 
 
-def _enrol_refused(conn: sqlite3.Connection, user_id: str) -> bool:
-    """An HA user whom the second-factor policy now requires to enrol, and who has no factor (an Arx-only user gets a gated session)."""
-    from . import second_factor as sf
-    from .ha_user_auth import ADMIN_PERMISSIONS
+def _enrol_refused(conn: sqlite3.Connection, fam: sqlite3.Row) -> bool:
+    """An HA user whom the second-factor policy now requires to enrol, and who has no factor (an Arx-only user gets a gated session).
+    CORE-RELIABILITY-2540 (deep review SEC-4): "has a factor" is the remote sign-in's own rule (ha_user_auth.factor_owed) - an
+    authenticator code, an active phone key (owner Q51), a passkey while `security.passkey_remote_factor` is on, and, when only the
+    enforced sign-in factor policy requires one, HA's own MFA as recorded for the sign-in that minted this family (`ha_mfa` = 1).
+    Before, only the authenticator code counted, so a policy locked the phone-key / passkey / HA-MFA users out of the app's web view.
+    Fail closed: an administrator's reset (`must_enroll`), a family without an HA MFA record (NULL) and any answer this function does
+    not know refuse."""
+    from . import ha_user_auth as hua
 
+    user_id = fam["user_id"]
     if str(user_id).startswith(LOCAL_ID_PREFIX):
         return False
-    return not sf.is_enrolled(conn, user_id) and sf.effective_policy(conn, _internal(user_id), ADMIN_PERMISSIONS)[0] == "required"
+    owed = hua.factor_owed(conn, _internal(user_id), passkey=True)
+    if owed in ("none", "code"):
+        return False
+    if owed == "ha_mfa":
+        return _col(fam, "ha_mfa") != 1
+    return True  # enroll, enroll_after_reset, or an answer added later
 
 
 def _perm_fp(conn: sqlite3.Connection, user_id: str) -> str:
@@ -285,7 +296,7 @@ def exchange(conn: sqlite3.Connection, token: str, device_id: str, install_id: s
     if _mfa_refused(conn, fam):
         _deny_exchange(conn, fam, "mfa_required", request_id)
         raise Refused(403, "remote_mfa_required", hua.MFA_REQUIRED_HE)
-    if _enrol_refused(conn, fam["user_id"]):
+    if _enrol_refused(conn, fam):
         _deny_exchange(conn, fam, "enrol_required", request_id)
         raise Refused(403, "second_factor_enrollment_required", ENROL_HE)
     code = CODE_PREFIX + secrets.token_urlsafe(32)
@@ -425,7 +436,7 @@ def redeem(conn: sqlite3.Connection, code: str, *, origin: str, meta: dict[str, 
         return deny(reason)
     if _mfa_refused(conn, fam):
         return deny("mfa_required")
-    if _enrol_refused(conn, fam["user_id"]):
+    if _enrol_refused(conn, fam):
         return deny("enrol_required")
     uid = fam["user_id"]
     admin = ar._holds_admin(conn, uid)

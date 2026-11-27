@@ -330,6 +330,53 @@ def end_caps(kind: BillKind, conn: sqlite3.Connection, aid: str, period: per.Per
     return _meter_ends(replaces["snapshot_json"], w_end)
 
 
+# ====================================================================== a change of an account's billing cycle (DATA-RULES-2540: review D-01)
+
+CYCLE_FIELDS = ("period_months", "period_anchor_day", "period_anchor_month", "first_period_start")
+
+
+def _cycle_changed(row: sqlite3.Row, f: dict[str, Any]) -> list[str]:
+    """The cycle fields the update really changes (the screen sends the whole form back). The anchor month only matters for a 2-month cycle."""
+    out = [k for k in CYCLE_FIELDS if k in f and str(f[k]) != str(row[k])]
+    months = int(f.get("period_months", row["period_months"]))
+    if "period_anchor_month" in out and months == 1 and int(row["period_months"]) == 1:
+        out.remove("period_anchor_month")
+    return out
+
+
+def guard_cycle_change(kind: BillKind, conn: sqlite3.Connection, row: sqlite3.Row, f: dict[str, Any]) -> str | None:
+    """Keep an account's bills continuous when its billing cycle changes after bills were issued (inside the caller's write transaction;
+    `f` are the fields about to be written and may be completed here). Before this check the regular periods were simply re-laid from the
+    account's first start on the new grid: the period overlapping the last issued bill was skipped for good and the days between that
+    bill's end and the next new boundary were in no bill, silently.
+
+    Rule (the safest of the review's options): when the account has a sealed bill (issued / sent / paid), the new cycle starts where the
+    LAST sealed bill ends - `first_period_start` is set to that day (a partial first period up to the next boundary of the new cycle, like
+    the first period of a new account), or kept when it already lies later. A different start the request names explicitly is refused
+    (409 `cycle_start_mismatch`, details `last_billed_end` and `first_period_start`), and so is a change while the account has an open
+    draft or correction (409 `cycle_change_open_draft`, details `bill_id`): issue or delete it first. Returns the start that was set, else
+    None. An account without sealed bills changes freely, as before."""
+    changed = _cycle_changed(row, f)
+    if not changed:
+        return None
+    last = conn.execute(f"SELECT MAX(period_end) FROM {kind.table} WHERE account_id = ? AND state IN ('issued','sent','paid')", (row["id"],)).fetchone()[0]
+    if last is None:
+        return None
+    draft = conn.execute(f"SELECT id FROM {kind.table} WHERE account_id = ? AND state = 'draft' ORDER BY created_at LIMIT 1", (row["id"],)).fetchone()
+    if draft is not None:
+        raise conflict("cycle_change_open_draft", "אי אפשר לשנות את מחזור החיוב כשיש לחשבון טיוטה פתוחה. יש להנפיק או למחוק אותה קודם.",
+                       bill_id=draft["id"])
+    if "first_period_start" in changed:
+        if str(f["first_period_start"]) != str(last):
+            raise conflict("cycle_start_mismatch", tpl("אחרי שהונפקו חיובים, המחזור החדש מתחיל ביום שבו הסתיים החיוב האחרון ({last_billed_end}).",
+                                                       last_billed_end=str(last)),
+                           last_billed_end=str(last), first_period_start=str(f["first_period_start"]))
+        return str(last)
+    start = max(str(last), str(row["first_period_start"]))
+    f["first_period_start"] = start
+    return start
+
+
 # ====================================================================== the bills of an account's history (code review 04:F26)
 
 PeriodKey = tuple[str, str]
@@ -500,7 +547,11 @@ def retention(kind: BillKind, db: Any, now: dt.datetime, data_dir: Path | None =
     """Drafts not changed for `energy.draft_retention_days` (30) and documents whose period ended before the first of the month
     `energy.bill_retention_years` (7) back are deleted with their events (and, for a kind with stored PDFs, the files after the commit).
     A document inside the retention years is never deleted, whatever its state or last change. The ledger of used numbers and the
-    automatic-run rows stay, so a number is never reused and an old period is never generated again."""
+    automatic-run rows stay, so a number is never reused and an old period is never generated again.
+
+    DATA-RULES-2540 (review D-05): an AUTOMATIC draft (origin `auto`) is not a draft somebody left: its run row settles the period for good,
+    so deleting it would leave the period unbilled for ever, silently. It waits for review instead - it is kept until a person issues or
+    deletes it, and only the retention years remove it (a period that ended before the cut, as for an issued bill)."""
     eb = _eb()
     with db.connection(label=f"{kind.name}.billing.retention") as conn:
         days = eb._int_setting(conn, "energy.draft_retention_days", 30, 7, 365)
@@ -508,7 +559,9 @@ def retention(kind: BillKind, db: Any, now: dt.datetime, data_dir: Path | None =
         draft_cut = eb._iso(now - dt.timedelta(days=days))
         today = per.local_date(now, "UTC")
         bill_cut = today.replace(year=today.year - years, day=1).isoformat()
-        drafts = [r["id"] for r in conn.execute(f"SELECT id FROM {kind.table} WHERE state = 'draft' AND updated_at < ?", (draft_cut,)).fetchall()]
+        drafts = [r["id"] for r in conn.execute(
+            f"SELECT id FROM {kind.table} WHERE state = 'draft' AND ((origin != 'auto' AND updated_at < ?) OR (origin = 'auto' AND period_end < ?))",
+            (draft_cut, bill_cut)).fetchall()]
         cols = f"id, {kind.pdf_column}" if kind.pdf_column else "id"
         old = conn.execute(f"SELECT {cols} FROM {kind.table} WHERE state != 'draft' AND period_end < ?", (bill_cut,)).fetchall()
         ids = drafts + [r["id"] for r in old]

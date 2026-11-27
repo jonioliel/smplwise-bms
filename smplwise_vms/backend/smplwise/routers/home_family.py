@@ -193,18 +193,41 @@ def new_ticket(body: NewTicketBody, request: Request, principal: Principal = Dep
 class NoteBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=4000)
+    # STALE-ANSWERS-2540 (review SCR-39, ADR-015 additive): an optional idempotency key - the same key again (a double tap, a retry after a
+    # lost answer) returns the first answer and adds no second note. Absent = exactly as before.
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_\-]{8,64}$")
+
+
+def _note_route(ticket_id: str) -> str:
+    return f"POST /home/tickets/{ticket_id}/notes"
 
 
 @router.post("/home/tickets/{ticket_id}/notes", status_code=201)
 def my_ticket_note(body: NoteBody, request: Request, ticket_id: str = Path(..., pattern=TICKET_ID), principal: Principal = Depends(current_principal),
-                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """A note on the caller's own ticket (the module's own add_note: its rules, audit and notifications)."""
-    from ..services.tickets import present, service
+                   conn: sqlite3.Connection = Depends(get_conn)) -> Any:
+    """A note on the caller's own ticket (the module's own add_note: its rules, audit and notifications).
+
+    STALE-ANSWERS-2540: with `client_request_id` the call is idempotent per user, in the tickets module's own request store
+    (`ticket_requests`, kept REQUESTS_KEEP_H hours): a repeat returns the first answer; the same key on another route or another ticket is
+    refused (409 request_id_reused)."""
+    import json
+
+    from ..services.tickets import present, service, store
 
     viewer = _viewer(conn, principal)
     seen = _mine(viewer, ticket_id)
+    scope, key, route = f"user:{principal.user_id}", body.client_request_id, _note_route(ticket_id)
+    if key:
+        prev = store.request_get(conn, scope, key)
+        if prev is not None:
+            if prev["route"] != route:
+                raise ApiError(409, "request_id_reused", "מזהה הבקשה כבר שימש לפעולה אחרת.")
+            return JSONResponse(json.loads(prev["response_json"]), status_code=int(prev["status_code"]))
     service.add_note(conn, viewer, seen, body.text, False, _rid(request))
-    return {"ticket": _item(conn, _mine(viewer, ticket_id), present.Lookups(conn))}
+    answer = {"ticket": _item(conn, _mine(viewer, ticket_id), present.Lookups(conn))}
+    if key:
+        store.request_put(conn, scope, key, route, 201, answer)
+    return answer
 
 
 # ---------------------------------------------------------------- scene schedules
