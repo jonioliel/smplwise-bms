@@ -15,7 +15,15 @@ or on an older version), the design-debt ratchet (scripts/design_ratchet.py: no 
 tag already exists for the version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
-Usage: python scripts/release_check.py [--root .] [--json out.json] [--tag]
+GATE-NIGHTLY-2560 (deep review TR-03, partial): the rule "tag a release only after a green nightly (or a green full gate) at this head
+or an ancestor of it, within limits" is a check: `green nightly or full gate at this head or an ancestor` reads the engine reports
+(gate_<branch>_<sha>.json, verdict "pass", tier L) from ~/smplwise-results and ~/smplwise-results/nightly (SW_RESULTS_DIR overrides)
+and accepts one whose commit is HEAD or an ancestor, finished at most --green-max-age-days (7) ago and at most --green-max-commits
+(150) commits behind HEAD. Where no results directory exists (the PC) or the checkout is not a git repository it reports NOT_CHECKED as a
+WARNING - never a silent pass. No qualifying report is a WARNING on a plain run (the gate runs this check before its own verdict
+exists) and a FAILURE with --tag or --require-green.
+
+Usage: python scripts/release_check.py [--root .] [--json out.json] [--tag] [--require-green] [--green-max-age-days N] [--green-max-commits N]
 """
 from __future__ import annotations
 
@@ -23,9 +31,11 @@ import argparse
 import filecmp
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -499,7 +509,98 @@ def downgrade_safety(root: Path, version: str | None) -> dict[str, Any]:
     return md.release_check(root, version)
 
 
-def run_checks(root: Path) -> dict[str, Any]:
+# GATE-NIGHTLY-2560 (TR-03): a green nightly / full gate at this head or an ancestor, within limits.
+GREEN_MAX_AGE_DAYS = 7
+GREEN_MAX_COMMITS = 150
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def results_dirs(env: dict[str, str] | None = None) -> list[Path]:
+    """The directories whose gate_<branch>_<sha>.json reports count: ~/smplwise-results and its nightly/ (SW_RESULTS_DIR replaces the first)."""
+    env = os.environ if env is None else env
+    base = Path(env["SW_RESULTS_DIR"]) if env.get("SW_RESULTS_DIR") else Path.home() / "smplwise-results"
+    return [d for d in (base, base / "nightly") if d.is_dir()]
+
+
+def _parse_time(text: Any) -> float | None:
+    """The report's ISO time with its offset (+0000) as epoch seconds."""
+    from datetime import datetime
+    try:
+        return datetime.strptime(str(text), "%Y-%m-%dT%H:%M:%S%z").timestamp() if text else None
+    except ValueError:
+        return None
+
+
+def load_green_reports(dirs: list[Path]) -> list[dict[str, Any]]:
+    """Every engine report with a commit and a verdict (summaries *.md and the *.checkpoint/.engine/.lint side files are skipped)."""
+    out: list[dict[str, Any]] = []
+    for d in dirs:
+        for f in sorted(d.glob("gate_*_*.json")):
+            if f.name.count(".") != 1:
+                continue
+            try:
+                r = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(r, dict) and r.get("sha") and r.get("verdict"):
+                out.append({"file": f.name, "branch": r.get("branch"), "sha": str(r["sha"]), "tier": r.get("tier"),
+                            "verdict": str(r["verdict"]).lower(), "finished": _parse_time(r.get("finished"))})
+    return out
+
+
+def green_gate_check(root: Path, require: bool = False, dirs: list[Path] | None = None, now: float | None = None,
+                     max_age_days: int = GREEN_MAX_AGE_DAYS, max_commits: int = GREEN_MAX_COMMITS) -> dict[str, Any]:
+    """{"ok", "warn", "detail"}: NOT_CHECKED (a warning) without results or git; a match is ok; no match is a warning, or a failure when `require`."""
+    head = _git(root, "rev-parse", "HEAD")
+    if head is None or head.returncode != 0:
+        return {"ok": True, "warn": True, "detail": "NOT_CHECKED: not a git checkout, the head commit is unknown"}
+    head_sha = head.stdout.strip()
+    dirs = results_dirs() if dirs is None else dirs
+    if not dirs:
+        return {"ok": True, "warn": True, "detail": "NOT_CHECKED: no ~/smplwise-results here (run this on the runner before tagging)"}
+    reports = load_green_reports(dirs)
+    now = time.time() if now is None else now
+    why: list[str] = []
+    best: tuple[int, str] | None = None
+    for r in reports:
+        if r["verdict"] != "pass" or r["tier"] != "L":
+            continue
+        if r["finished"] is None or now - r["finished"] > max_age_days * 86400 or r["finished"] - now > 86400:
+            why.append(f"{r['sha']} too old or undated")
+            continue
+        full = _git(root, "rev-parse", "--verify", "--quiet", f"{r['sha']}^{{commit}}")
+        if full is None or full.returncode != 0:
+            why.append(f"{r['sha']} not in this checkout")
+            continue
+        sha = full.stdout.strip()
+        anc = _git(root, "merge-base", "--is-ancestor", sha, head_sha)
+        if anc is None or anc.returncode != 0:
+            why.append(f"{r['sha']} not an ancestor of HEAD")
+            continue
+        cnt = _git(root, "rev-list", "--count", f"{sha}..{head_sha}")
+        behind = int(cnt.stdout.strip()) if cnt is not None and cnt.returncode == 0 and cnt.stdout.strip().isdigit() else None
+        if behind is None or behind > max_commits:
+            why.append(f"{r['sha']} is {behind} commits behind HEAD (limit {max_commits})")
+            continue
+        if best is None or behind < best[0]:
+            best = (behind, f"{r['branch']} @ {r['sha']} ({'HEAD' if behind == 0 else f'{behind} commits behind HEAD'}, {r['file']})")
+    if best:
+        return {"ok": True, "warn": False, "detail": f"green tier-L report: {best[1]}"}
+    detail = (f"no green tier-L report at HEAD {head_sha[:9]} or an ancestor within {max_age_days} days / {max_commits} commits "
+              f"({len(reports)} report(s) read" + (f"; e.g. {why[0]}" if why else "") + ")")
+    if require:
+        return {"ok": False, "warn": False, "detail": detail}
+    return {"ok": True, "warn": True, "detail": detail + " - required at --tag"}
+
+
+def run_checks(root: Path, require_green: bool = False, green_dirs: list[Path] | None = None,
+               green_max_age_days: int = GREEN_MAX_AGE_DAYS, green_max_commits: int = GREEN_MAX_COMMITS) -> dict[str, Any]:
     addon = root / "smplwise_vms"
     checks: list[dict[str, Any]] = []
 
@@ -594,6 +695,8 @@ def run_checks(root: Path) -> dict[str, Any]:
     tags = git_tags(root)
     tag = f"v{cfg_v}" if cfg_v else None
     check("git tag for this version", tag in tags if tag else False, f"{tag} {'exists' if tag in tags else 'not yet (created after the owner approves)'}")
+    gg = green_gate_check(root, require_green, green_dirs, None, green_max_age_days, green_max_commits)
+    check("green nightly or full gate at this head or an ancestor (TR-03)", gg["ok"], gg["detail"], warn=gg["warn"])
     tests = root / "smplwise_vms" / "backend" / "tests"
     check("backend tests present", tests.is_dir() and len(list(tests.glob("test_*.py"))) > 30, f"{len(list(tests.glob('test_*.py')))} test files")
 
@@ -606,9 +709,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     ap.add_argument("--json", help="write the checklist as JSON here")
     ap.add_argument("--tag", action="store_true", help="print the tag commands to run after approval")
+    ap.add_argument("--require-green", action="store_true", help="fail when no green tier-L nightly/gate report covers HEAD (implied by --tag)")
+    ap.add_argument("--green-max-age-days", type=int, default=GREEN_MAX_AGE_DAYS)
+    ap.add_argument("--green-max-commits", type=int, default=GREEN_MAX_COMMITS)
     args = ap.parse_args(argv)
     root = Path(args.root)
-    res = run_checks(root)
+    res = run_checks(root, args.require_green or args.tag, None, args.green_max_age_days, args.green_max_commits)
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     except AttributeError:
