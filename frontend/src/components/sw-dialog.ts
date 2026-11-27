@@ -5,6 +5,7 @@ import { t } from '../i18n/he';
 import { deepFocusables } from './sw-drawer';
 import { raiseLifted, setTopLayer } from './top-layer';
 import { deepActive, focusWithin, holdsTab, pushLayer, removeLayer, restoreFocus, takesEscape, trapTab } from './modal-stack';
+import { openerNow } from './focus-return';
 
 /** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕.
  *
@@ -282,7 +283,9 @@ export class SwDialog extends LitElement {
     if (changed.has('open') && !this.open) this.layer(false);
     if (changed.has('open') && !this.open && changed.get('open') === true) this.restoreFocus();
     if (!changed.has('open') || !this.open) return;
-    const a = deepActive();
+    // A11Y-NEW-2550: the focused control, else the last one that had the focus (a button disabled for the request that opened this
+    // dialog - a step-up refusal - dropped it to the page body); restoreFocus waits for it to be enabled again
+    const a = openerNow();
     if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a;
     this.layer(true);
     requestAnimationFrame(() => {

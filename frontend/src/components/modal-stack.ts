@@ -110,18 +110,6 @@ export function focusLost(): boolean {
 }
 
 /**
- * A11Y-NEW-2550: put the focus on `el` - the outcome line of an action, or the control the person was on - only when the focus fell back
- * to the page (the control that had it went away or was disabled with the outcome: an un-mute button gone with the mute, a dialog closed
- * by its own result). A keyboard or screen-reader user then lands on what happened instead of the top of the page. An element that is not
- * focusable by itself gets `tabindex="-1"` (reachable by script, not by Tab). Nothing moves while the focus is anywhere else.
- */
-export function focusIfLost(el: HTMLElement | null | undefined): void {
-  if (!el?.isConnected || !focusLost()) return;
-  if (el.tabIndex < 0 && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
-  el.focus();
-}
-
-/**
  * Whether the focus is somewhere inside `host` - a light child or a part of its shadow tree, at any shadow depth - and not on `host`
  * itself. The walk the 2.43.7 gate fix wrote into sw-dialog (a field focused in the frame before the dialog's own first focus keeps
  * it), kept here so that the primitives hold no private focus walk (RELEASE-2438-TRAIN).
@@ -159,4 +147,17 @@ export function restoreFocus(opener: HTMLElement | null, now = false): void {
   if (!opener?.isConnected) return;
   if (now) opener.focus({ preventScroll: true });
   else requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+  // A11Y-NEW-2550: an opener still disabled (the save button whose request waits on this very dialog - a step-up refusal) cannot take
+  // the focus now; it takes it once it is enabled again (within 3 s), and only if the focus is still nowhere
+  if ((opener as HTMLButtonElement).disabled === true) {
+    let tries = 0;
+    const wait = setInterval(() => {
+      tries += 1;
+      if (!opener.isConnected || tries > 30) clearInterval(wait);
+      else if ((opener as HTMLButtonElement).disabled !== true) {
+        clearInterval(wait);
+        if (focusLost()) opener.focus({ preventScroll: true });
+      }
+    }, 100);
+  }
 }

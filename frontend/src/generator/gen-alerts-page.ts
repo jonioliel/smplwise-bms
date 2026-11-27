@@ -11,7 +11,7 @@ import type { TableColumn } from '../components/sw-table';
 import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, unmuteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
 import { ApiError, describeError } from '../api/client';
 import { confirmDialog } from '../components/confirm-dialog';
-import { focusIfLost } from '../components/modal-stack';
+import { focusIfLost } from '../components/focus-return';
 import { PollController } from '../components/poll-controller';
 import { navigate } from '../router';
 import { he } from '../i18n/he';

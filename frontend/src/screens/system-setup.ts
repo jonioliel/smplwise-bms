@@ -20,7 +20,7 @@ import { healthReport, type HealthReport } from '../api/health';
 import { listNvrChanges, notifyStatus, nvrSystemApi, rollbackNvrChange, setNotify, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
 import { physicalOutcome } from '../api/physical-outcome';
 import { confirmDialog } from '../components/confirm-dialog';
-import { focusIfLost } from '../components/modal-stack';
+import { focusIfLost } from '../components/focus-return';
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';

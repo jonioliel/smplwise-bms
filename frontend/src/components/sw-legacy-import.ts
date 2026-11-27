@@ -11,7 +11,7 @@ import './sw-table';
 import type { TableColumn } from './sw-table';
 import type { StateKind } from './sw-badge';
 import { ApiError, describeError } from '../api/client';
-import { focusIfLost } from './modal-stack';
+import { focusIfLost } from './focus-return';
 import { fmtBytes } from '../api/backup';
 import { dayMonthTimeText } from '../api/day-format';
 import {
