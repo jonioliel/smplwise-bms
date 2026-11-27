@@ -15015,5 +15015,21 @@
     "test_ids": [
       "AT-HOME-FIT-FOLLOWUPS-2550-1"
     ]
+  },
+  {
+    "id": "R-WIRE-DRIFT-2550-1",
+    "title": "Wire models of the access-control reads and the WisKey validation match the real answers",
+    "statement": "The response models of the access-control reads and the WisKey validation describe what the routes answer; the generated frontend types are regenerated; test_wire_drift_2550 fails when a model and its route drift apart again.",
+    "task_ids": [
+      "WIRE-DRIFT-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WIRE-DRIFT-2550-1"
+    ]
   }
 ]

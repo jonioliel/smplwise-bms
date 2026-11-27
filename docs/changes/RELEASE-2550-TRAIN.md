@@ -1,7 +1,8 @@
 # RELEASE-2550-TRAIN - the 2.55.0 train (pre-train)
 
 Branch `release/2550-train`, worktree `C:\cloude\smplwise-2550train`, cut from `origin/release/2540-train` at `f9217db8a` (the 2.54.0
-train's note commit; 2.54.0 is NOT released yet - its gate runs on that branch). Coordinator: the 2.55 pre-train agent (merges, version
+train's note commit; 2.54.0 was not released then). **2.54.0 was released on 27.11: `main` = `v2.54.0` = `3a0f02036`, which this
+train already contains** (merged as `ac6b2063e`, checked: `origin/main` is an ancestor of the train). Coordinator: the 2.55 pre-train agent (merges, version
 bump, train checks on the PC, one runner check job in slot B - section 3.5). No release gate was started, nothing was installed, no
 lab, no Home Assistant, no device, no WisKey contact. `main`, the tags, the `addon` branch and `release/2540-train` are untouched.
 
@@ -49,6 +50,8 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | 13 | `pilot/HOME-PERMS-WARN-2550` | `fb5fdd17a` | `1a72804a8` | `d65bbfd93` (row 5, in the train) | none | the site-wide warning (`sw-home-admin.ts`), the home electricity bill gate (bills category + `energy.bills`), `wire-home-interface.ts` regenerated in the row; new backend tests and `home-perms-warn-2550.spec.ts` with Linux baselines; all = a |
 | - | registry / note / changelog | - | `e5819c35b` | - | - | rows 11-13 registered |
 | 14 | `pilot/HOME-FIT-FOLLOWUPS-2550` | `ac45a3308` | `e39d511e4` | `f9217db8a` (release/2540-train) | none | `devices-building.ts` (page-area ResizeObserver) merged cleanly with rows 5, 7, 12, 13; `evidence-multibuilding-home-2330.spec.ts`: both sides kept - the 2.54 gate's `7accbe97d` (every line checked present) and this row's test appended at the end; `evidence-home-screen.spec.ts` (the picker test); all = a |
+| - | registry / note / changelog | - | `e418684f4` | - | - | row 14 registered |
+| 15 | `pilot/WIRE-DRIFT-2550` | `ff8f3a2f6` | `d1a7ab692` | `e418684f4` (this train) | none | wire models only: `wire/access_control_reads.py`, `wire/wiskey_validation.py`, the regenerated `wire-access-control-reads.ts` / `wire-wiskey-validation.ts`, new `test_wire_drift_2550.py`; removes `AccessControlReadsPersonPersonProfile` (no reference in `frontend/src` or `frontend/tests`); all = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -273,6 +276,14 @@ runner.
 
 NOT run on the PC: the row's evidence specs (`evidence-home-screen`, `evidence-multibuilding-home-2330`) - a served build and the
 runner's fixture lane; the row ran them on the runner.
+
+### 3.12 After row 15 (at `d1a7ab692`, PC)
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` / `wire_ratchet` | 0 / 0 | match / 897 = baseline |
+| `unused-exports --enforce` / `tsc` app | 0 / 0 | OK / 0 errors |
+| backend, one process each: `test_wire_drift_2550` 15, `test_access_control_wire` 23, `test_wiskey_live_validation_2390` 58 | 0 each | **96 passed** |
 
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
