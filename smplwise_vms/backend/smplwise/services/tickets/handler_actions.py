@@ -99,8 +99,11 @@ def claim(conn, link: LinkRecord, crid: str, route: str, now: dt.datetime) -> tu
     """(status, answer) of a repeat, or None after claiming the id for this write (spec 10.3 / review T22)."""
     prior = store_links.request_row(conn, _scope(link), crid)
     if prior is not None:
-        if prior["route"] != route:
+        match = store_links.request_match(prior["route"], route)
+        if match == "route":
             raise ActionRefused(409, "request_id_reused")
+        if match == "body":  # FIX-TICKETS-2560 (TK-01): the same key with an edited body is not the first request - the page sends it as new
+            raise ActionRefused(409, "request_body_changed")
         if prior["status_code"]:
             try:
                 body = json.loads(prior["response_json"] or "{}")

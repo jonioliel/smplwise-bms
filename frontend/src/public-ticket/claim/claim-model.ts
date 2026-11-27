@@ -770,6 +770,12 @@ export function beginSubmit(prev: SubmitTracker | null | undefined, idGen: () =>
   return { crid: idGen(), pending: true };
 }
 
+/** FIX-TICKETS-2560 (TK-01): 409 `request_body_changed` - the form was edited after an attempt that reached the server; send it as a new request. */
+export function isBodyChanged(r: ApiResult): boolean {
+  const b = bodyOf(r);
+  return r.status === 409 && b.code === 'request_body_changed';
+}
+
 /** After an attempt: kept (pending) on a retryable outcome, dropped after a definite answer (a success or a refusal). */
 export function endSubmit(t: SubmitTracker, outcome: Outcome): SubmitTracker | null {
   return outcome.kind === 'retry' ? { ...t, pending: true } : null;

@@ -107,6 +107,15 @@ export const newTicket = (body: { department_id: string; category_id: string | n
 /** STALE-ANSWERS-2540 (SCR-39): `client_request_id` makes the note idempotent on the server (the same id again adds no second note). */
 export const ticketNote = (id: string, text: string, clientRequestId: string) =>
   post<{ ticket: Ticket }>(`home/tickets/${encodeURIComponent(id)}/notes`, { text, client_request_id: clientRequestId });
+/** FIX-TICKETS-2560 (TK-03): the same key with an edited text is 409 `request_body_changed` - the edited note is a new request: it goes again under a fresh key. */
+export const sendNote = async (id: string, text: string, clientRequestId: string, newKey: () => string = rid): Promise<{ ticket: Ticket }> => {
+  try {
+    return await ticketNote(id, text, clientRequestId);
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code !== 'request_body_changed') throw e;
+    return ticketNote(id, text, newKey());
+  }
+};
 
 // ---------------------------------------------------------------- scene schedules
 export interface SceneSchedule {

@@ -97,6 +97,11 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
 
     async def write(request: Request, ctx: LinkContext, route: str, crid: str, fn: Callable[..., tuple[int, dict[str, Any]]], **kw: Any) -> JSONResponse:
         ck = client_key(ctx)
+        # FIX-TICKETS-2560 (TK-01): the body of the call (status + note, note + ask, ETA, return) is part of what the id stands for; the
+        # effects that take a `route` keep it with the id inside their own transaction (handler_actions.claim)
+        body = dict(kw) if kw else None
+        if body is not None:
+            kw = {**kw, "route": store_links.route_key(route, body)}
 
         async def work() -> tuple[int, dict[str, Any]]:
             try:
@@ -109,7 +114,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)  # W18: a stored effect spends one unit of the token's write budget, nothing else does
             return status, answer
 
-        return await idem.run(idempotency_scope(ctx.link), crid, route, work)
+        return await idem.run(idempotency_scope(ctx.link), crid, route, work, body)
 
     @r.get("/t/api/ticket")
     async def ticket(request: Request, ctx: LinkContext = Depends(link_context(allow_claim=True))) -> JSONResponse:

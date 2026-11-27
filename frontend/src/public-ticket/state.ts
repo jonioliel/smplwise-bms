@@ -191,6 +191,16 @@ export function planSend(draft: Draft, view: Pick<TicketView, 'status' | 'eta_at
   return { steps, draft: { ...draft, crids } };
 }
 
+/** FIX-TICKETS-2560 (TK-01): the server answered 409 `request_body_changed` - this part was edited after an earlier attempt that reached it.
+ * It is a new request: the same step under a fresh request id (the draft keeps the new id for a further retry). */
+export function bodyChanged(e: Pick<ApiFailure, 'status' | 'code'>): boolean {
+  return e.status === 409 && e.code === 'request_body_changed';
+}
+export function withFreshId(draft: Draft, step: Step, newId: () => string): { step: Step; draft: Draft } {
+  const crid = newId();
+  return { step: { ...step, crid }, draft: { ...draft, crids: { ...draft.crids, [step.kind]: crid } } };
+}
+
 /** SCR-05: the person changed the draft (a chip, the note, the ETA): it is a draft again, never a queued send. */
 export function editDraft(draft: Draft, patch: Partial<Omit<Draft, 'crids' | 'queued'>> = {}): Draft {
   const next: Draft = { ...draft, ...patch, crids: { ...draft.crids } };

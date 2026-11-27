@@ -57,7 +57,7 @@ def slice4_router(world_box: dict) -> APIRouter:
             spend_budget(request)  # W18: after the effect, inside the idempotent part (a replay never spends)
             return 200, {"ok": True, "text": body.text}
 
-        return await world_box["idem"].run(idempotency_scope(ctx.link), crid, "/t/api/note", work)
+        return await world_box["idem"].run(idempotency_scope(ctx.link), crid, "/t/api/note", work, {"text": body.text})  # FIX-TICKETS-2560: the body is part of the key
 
     @r.post("/t/api/test-crash")
     async def crash(ctx: LinkContext = Depends(link_context(write=True))) -> dict:
@@ -381,9 +381,13 @@ def test_idempotent_replay_and_reuse_on_another_route(w, tmp_path):
     c = w.client()
     rid = crid()
     first = note(c, tok, text="one", rid=rid)
-    again = note(c, tok, text="two", rid=rid.upper())
+    # FIX-TICKETS-2560 (TK-01): this test used to pin the OLD behaviour (the same id with a DIFFERENT text replayed the first answer
+    # and silently dropped the edit). Now the same id + the same body is the replay, the same id + another body is 409.
+    again = note(c, tok, text="one", rid=rid.upper())
     assert first.status_code == again.status_code == 200 and again.json() == first.json() and w.notes == ["one"]
     assert again.headers.get("x-idempotent-replay") == "1"
+    edited = note(c, tok, text="two", rid=rid)
+    assert edited.status_code == 409 and edited.json()["code"] == "request_body_changed" and w.notes == ["one"]
     photo = c.post("/t/api/photo", files={"file": ("p.jpg", jpeg_bytes(), "image/jpeg")}, data={"client_request_id": rid},
                    headers={"x-ticket-token": tok})
     assert photo.status_code == 409 and photo.json()["code"] == "request_id_reused"
@@ -657,7 +661,7 @@ def test_write_routes_spend_after_the_effect_only(w):
     rid = crid()
     for i in range(3):
         assert note(c, tok, text=f"n{i}", rid=rid if i == 0 else None).status_code == 200
-    assert note(c, tok, rid=rid).headers.get("x-idempotent-replay") == "1"
+    assert note(c, tok, text="n0", rid=rid).headers.get("x-idempotent-replay") == "1"  # FIX-TICKETS-2560: a replay carries the same body
     assert note(c, tok, text=5).status_code == 422
     assert w.app.gate.limiter.count("w:" + key, 3600) == 3
 

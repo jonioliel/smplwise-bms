@@ -45,7 +45,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import ClientDisconnect
 
 from .. import safe_paths
-from . import cost_files, image_intake, links
+from . import cost_files, image_intake, links, store_links
 from .codes import CodeEngine, CodeRefused
 from .cost_files import photo_headers
 from .image_intake import InFlight, IntakeError, StorageMeter
@@ -356,24 +356,28 @@ class Idempotency:
             with self._lock:
                 self._busy.discard(key)
 
-    async def run(self, scope: str, crid: str, route: str, work: Callable[[], Awaitable[tuple[int, Mapping[str, Any]]]]) -> JSONResponse:
+    async def run(self, scope: str, crid: str, route: str, work: Callable[[], Awaitable[tuple[int, Mapping[str, Any]]]], body: Any = None) -> JSONResponse:
         """Claim (scope, id) in this process FIRST, then look for a stored answer, then work: a duplicate that arrives while
         the first runs is 409 `request_in_progress` (the page retries), one that arrives after it is the replay - never a
         second effect. Only 2xx answers are stored (a 429 / 409 must not be replayed forever)."""
+        key = store_links.route_key(route, body)  # FIX-TICKETS-2560: the body digest is part of what the key stands for
         with self._claim((scope, crid)):
             if self.log is not None:
                 prior = await run_in_threadpool(self.log.get, scope, crid)
                 if prior is not None:
-                    if prior.route != route:
+                    match = store_links.request_match(prior.route, key)
+                    if match == "route":
                         raise PublicError(409, "request_id_reused")
+                    if match == "body":
+                        raise PublicError(409, "request_body_changed")
                     return JSONResponse(dict(prior.body), status_code=prior.status, headers={"x-idempotent-replay": "1"})
-            status, body = await work()
+            status, answer = await work()
             if self.log is not None and 200 <= status < 300:
                 try:
-                    await run_in_threadpool(self.log.put, scope, crid, route, status, body)
+                    await run_in_threadpool(self.log.put, scope, crid, key, status, answer)
                 except Exception as exc:  # noqa: BLE001 - the effect happened: the client must get its success, not a 500 to retry into a duplicate
                     SERVER_LOG.warning("public listener: request id not stored for %s (%s)", route, exception_summary(exc))
-        return JSONResponse(dict(body), status_code=status)
+        return JSONResponse(dict(answer), status_code=status)
 
 
 # ---------------------------------------------------------------- request models
