@@ -33,14 +33,19 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | 5 | `pilot/LOWS-BACKEND-2550` | `9c0387c7f` | `7b068500b` | `f9217db8a` (release/2540-train) | none | `error_text_en.json` (still valid, its sorted format), `routers/notifications.py`, `wire/notifications.py`, `services/backup.py` merged cleanly with rows 1 and 4; billing golden `tests/fixtures/bill_ledger_b_sql_golden.json` refreshed in the row on purpose (D-08); no migration; Q1-Q6 = a |
 | 6 | `pilot/LOWS-BRIDGE-GATE-2550` | `c68386d35` | `7a62d226c` | `f9217db8a` (release/2540-train) | none | **bridge 0.10.10** in both copies, byte-identical (section 1.3); `scripts/gate/*` and `nightly_tests.sh` are repo copies only, nothing installed; all questions = a |
 | - | changelog | - | `a8f8acecf` | - | - | draft lines for rows 5-6, the bridge install note |
+| - | registry / note | - | `0a8c7c96a` | - | - | rows 5-6 registered |
+| 7 | `pilot/LOWS-FRONTEND-2550` | `ec2471927` | `fdc0cb1fc` | `f9217db8a` (release/2540-train) | `msg/components.ts` (en) | see below; frontend only; new `screens/map-room-bulk.ts`; `system-diagnostics.ts` merged cleanly with row 2; no baseline refreshed; Q1 = a (built), Q2-Q5 = a |
+| 8 | `pilot/DOCS-GUIDE-2550` | `ae493fd48` | `907f9f446` | `5aa03829b` (this train) | none | docs + `test_docs_settings_2550.py`; documents rows 5 and 7; `GUIDE_ALL_HE.html` up to date after the merge; Q1 = a (the coordinator writes a short top-up of the what's-new page for the remaining rows at the end of the train - open point 8), Q2 = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
   (generated on the 2.52 base, 1951 routes). Resolved by regenerating with `scripts/api_inventory.py`: 1959 -> 1962 routes (the three
   `GET /migration/legacy`, `POST /migration/legacy/dry-run`, `POST /migration/legacy/apply`).
+- Row 7: `frontend/src/i18n/lang/en/i18n/msg/components.ts` - LEGACY-IMPORT-UI-2550's English block (row 2) and LOWS-FRONTEND-2550's
+  SCR-52 line were both appended at the end of the map; both kept, HEAD first; no duplicate key in the file (checked).
 
-No other conflict (rows 5-6 included). More rows to come when the lead says: LOWS-FRONTEND-2550, DATA-RULES-2-2550,
-HOME-FIT-FOLLOWUPS-2550, HOME-PERMS-WARN-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
+No other conflict (rows 5-8 included). More rows to come when the lead says: DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550,
+HOME-PERMS-WARN-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
 touches `routers/settings.py`, `services/ha_sync.py`, `services/settings_store.py`, DOCS / DOCS_HE and its own test). 2.54 fixes made on
 `release/2540-train` after its gate are merged in when the lead says.
 
@@ -178,6 +183,19 @@ main checkout), one process at a time, at `1c389ba73` (the train fixes included)
 Not re-run on the runner after rows 5-6: the Node unit suite (row 6's TR-10 moves `unit-mfa-passkeys-2490` out of the node-only run, so
 its 3 known failures should be gone there), the Playwright / pixel specs, and the rows' wider backend areas.
 
+### 3.7 PC re-run after rows 7-8 (at `907f9f446`, one process at a time)
+
+| check | exit | result |
+|---|---|---|
+| `unused-exports.mjs --enforce` | 0 | OK, no export outside the baseline |
+| `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` | 0 each | 0 errors / 0 errors / clean / built |
+| unit (1 worker): the five node-only `unit-lows-frontend-2550-*` (core, doors, screens, settings, wiskey), the changed `unit-automations`, `unit-i18n-api-2442`, `unit-studio-controller`, and `unit-legacy-import-2550`, `unit-no-ha-branding-2443`, `unit-pw-server-reuse-2550`, `unit-i18n-en-ratchet-2490`, `unit-i18n-lang-packs-2443` | 0 | **171 passed** |
+| `test_docs_settings_2550` (row 8) / `test_docs_config_consistency` | 0 / 0 | 11 / 7 passed |
+| `build_guide.py --check` / `lint_spec_waits --new-since f9217db8a` / `design_ratchet` | 0 each | up to date / 0 findings in 10 files / no count above the baseline (px-literal 25511) |
+
+NOT run on the PC: `unit-lows-frontend-2550-pages.spec.ts` (a page spec with a mocked server - the row ran it on the runner), the
+row's pixel files (the row: no baseline refreshed, the Hebrew screens unchanged), the Node unit suite as a whole after rows 5-8.
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -192,10 +210,14 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 
 1. **The UI rebuild** (`npm run build:addon`, the build stamp) - NOT done; after the last 2.54 fix and HA-STATE-RECONCILE-2550. Until
    then `release_check.py` fails on "shipped UI bundle built for this version" and "built from these sources" (both say 2.54.0).
-2. **Rows still to come** (the lead says when each is ready): LOWS-FRONTEND-2550, DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550,
-   HOME-PERMS-WARN-2550, HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
-7. **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
-   row's runner install steps (nightly script, crontab) are the lead's.
+2. **Rows still to come** (the lead says when each is ready): DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550, HOME-PERMS-WARN-2550,
+   HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
+   - **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
+     row's runner install steps (nightly script, crontab) are the lead's.
+   - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): at the end of the train the coordinator adds a short section to
+     `docs/user-guide/he/19-whats-new-2530-2550_HE.md` (and DOCS / DOCS_HE "2.55.0" where needed) for the rows the guide row did not
+     cover: LOWS-BRIDGE-GATE-2550 (bridge 0.10.10 and its restart) and the rows still to come; then `build_guide.py` regenerates
+     `GUIDE_ALL_HE.html`. NOT done yet.
 3. **2.54 gate fixes** - any commit added to `release/2540-train` after `f9217db8a` is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
 4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-26T23:47:42.076823+00:00
+Generated: 2026-11-27T00:32:28.484499+00:00
 
-Tasks: 752 | Requirements: 866 | Tests: 883 | Screens: 32
+Tasks: 754 | Requirements: 868 | Tests: 885 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 191
+- REVIEW: 193
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 657
+- V1: 659
 - V2: 29
 - V3: 3
 
@@ -807,3 +807,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RELEASE-2550-TRAIN](tasks/RELEASE-2550-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2550-TRAIN - the 2.55.0 train | — |
 | [LOWS-BACKEND-2550](tasks/LOWS-BACKEND-2550.md) | V1 | REVIEW | The open LOW backend findings of the 2.52 deep review: security, video, core, domain modules | — |
 | [LOWS-BRIDGE-GATE-2550](tasks/LOWS-BRIDGE-GATE-2550.md) | V1 | REVIEW | The open low findings of the bridge (WB-) and the gate tooling (TR-) of the 2.52 deep review; bridge 0.10.10 | — |
+| [LOWS-FRONTEND-2550](tasks/LOWS-FRONTEND-2550.md) | V1 | REVIEW | The open low frontend findings of the 2.52 deep review (SCR-41..57, FC-07..12) | — |
+| [DOCS-GUIDE-2550](tasks/DOCS-GUIDE-2550.md) | V1 | REVIEW | The user documentation brought up to 2.53, 2.54 and 2.55 | — |

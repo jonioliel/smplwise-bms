@@ -14887,5 +14887,37 @@
     "test_ids": [
       "AT-LOWS-BRIDGE-GATE-2550-1"
     ]
+  },
+  {
+    "id": "R-LOWS-FRONTEND-2550-1",
+    "title": "The open low frontend findings of the 2.52 deep review (SCR-41..57, FC-07..12)",
+    "statement": "The deep review's low frontend findings are fixed with a unit or page spec each that fails on the base: the room card's all-off runs once and reports what stayed on, the English home lays out left to right, destructive settings actions ask first, WisKey station writes and late poll answers are honest.",
+    "task_ids": [
+      "LOWS-FRONTEND-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LOWS-FRONTEND-2550-1"
+    ]
+  },
+  {
+    "id": "R-DOCS-GUIDE-2550-1",
+    "title": "The user documentation brought up to 2.53, 2.54 and 2.55",
+    "statement": "The Hebrew guide has a what's-new page for 2.53-2.55 and updated pages for the changed screens, DOCS.md / DOCS_HE.md describe the new settings, GUIDE_ALL_HE.html is regenerated, and test_docs_settings_2550 checks the documented settings exist.",
+    "task_ids": [
+      "DOCS-GUIDE-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DOCS-GUIDE-2550-1"
+    ]
   }
 ]

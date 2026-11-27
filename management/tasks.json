@@ -32485,7 +32485,8 @@
       "2026-11-26 (RELEASE-2550-TRAIN): release/2550-train cut from origin/release/2540-train f9217db8a (2.54.0 not released yet; its gate running). Merged: LEGACY-MIGRATION-2550 ba41fdfb6, LEGACY-IMPORT-UI-2550 3e1ab2e35, PILOT-ROLLBACK-2550 49d1ffffb, ANDROID-PUSH-2550 599398f73 (migration 0227, no renumbering); doc fix 6943fcfba; version bump 32a3432bc (2.55.0, draft changelog, API inventory 1962 routes); train fix 3f31dd97d (two file-local exports). HA-STATE-RECONCILE-2550 still to come. UI NOT rebuilt (2.54 may still change). Gate NOT_RUN; nothing released.",
       "2026-11-26 (RELEASE-2550-TRAIN): registry d74a31247 (rows 1-4); train fix 1c389ba73 (English for ANDROID-PUSH-2550's five refusals; test_i18n_errors_en_2520 1 failed -> 9 passed); train note 4909a656e (docs/changes/RELEASE-2550-TRAIN.md: PC checks - generators and ratchets green, tsc / typecheck / eslint / build 0, 22 backend files 332 passed, test_release_check fails only on the not-rebuilt UI bundle, migration 0227 applied on an empty and on a 2.54 database, downgrade check PASS). UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): runner run A at 51e390f86 (~/work/p2520_t2550_a.sh, slot B, after the 2.54 gate): 37 backend files 1338 passed; tsc / build 0; Node unit suite 5465 passed, 4 failed (unit-mfa-passkeys-2490 x3 known harness; unit-no-ha-branding-2443 -> train fix 8d6ce1665); legacy-import-ui-2550 16 passed; backup-tab neighbours 29 passed; pixel-legacy-import-2550 6 passed (gate grep and all cases), no baseline refreshed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): LOWS-BACKEND-2550 7b068500b (row 5), LOWS-BRIDGE-GATE-2550 7a62d226c (row 6, bridge 0.10.10, both copies byte-identical; the lab's active bridge is 0.10.9 since 26.11, so 0.10.10 needs one more owner-approved HA restart); changelog a8f8acecf. PC re-run: generators / ratchets / mirror / release_check rows green except the not-rebuilt UI bundle and the tag; unused-exports OK; tsc / typecheck / lint / build 0; 23 backend files 333 passed. UI NOT rebuilt; gate NOT_RUN; nothing released."
+      "2026-11-27 (RELEASE-2550-TRAIN): LOWS-BACKEND-2550 7b068500b (row 5), LOWS-BRIDGE-GATE-2550 7a62d226c (row 6, bridge 0.10.10, both copies byte-identical; the lab's active bridge is 0.10.9 since 26.11, so 0.10.10 needs one more owner-approved HA restart); changelog a8f8acecf. PC re-run: generators / ratchets / mirror / release_check rows green except the not-rebuilt UI bundle and the tag; unused-exports OK; tsc / typecheck / lint / build 0; 23 backend files 333 passed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
+      "2026-11-27 (RELEASE-2550-TRAIN): LOWS-FRONTEND-2550 fdc0cb1fc (row 7; conflict msg/components.ts en - both blocks kept), DOCS-GUIDE-2550 907f9f446 (row 8; guide top-up for the remaining rows due at the end of the train). PC re-run: unused-exports OK; tsc / typecheck / lint / build 0; 13 unit files 171 passed; test_docs_settings_2550 11, test_docs_config_consistency 7 passed; guide up to date. UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -32565,6 +32566,82 @@
     ],
     "owner": null,
     "commit": "c68386d35",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LOWS-FRONTEND-2550",
+    "title": "The open low frontend findings of the 2.52 deep review (SCR-41..57, FC-07..12)",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The deep review's low frontend findings are fixed with a unit or page spec each that fails on the base: the room card's all-off runs once and reports what stayed on, the English home lays out left to right, destructive settings actions ask first, WisKey station writes and late poll answers are honest."
+    ],
+    "requirement_ids": [
+      "R-LOWS-FRONTEND-2550-1"
+    ],
+    "test_ids": [
+      "AT-LOWS-FRONTEND-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/LOWS-FRONTEND-2550, change note docs/changes/LOWS-FRONTEND-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/LOWS-FRONTEND-2550 head ec2471927 merged fdc0cb1fc into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 7; cut from release/2540-train f9217db8a); change note docs/changes/LOWS-FRONTEND-2550.md. Decisions Q1 = a (built), Q2-Q5 = a. Conflict msg/components.ts (en) resolved by keeping both appended blocks. No baseline refreshed. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "ec2471927",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DOCS-GUIDE-2550",
+    "title": "The user documentation brought up to 2.53, 2.54 and 2.55",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The Hebrew guide has a what's-new page for 2.53-2.55 and updated pages for the changed screens, DOCS.md / DOCS_HE.md describe the new settings, GUIDE_ALL_HE.html is regenerated, and test_docs_settings_2550 checks the documented settings exist."
+    ],
+    "requirement_ids": [
+      "R-DOCS-GUIDE-2550-1"
+    ],
+    "test_ids": [
+      "AT-DOCS-GUIDE-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P3",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DOCS-GUIDE-2550, change note docs/changes/DOCS-GUIDE-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/DOCS-GUIDE-2550 head ae493fd48 merged 907f9f446 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 8; cut from this train at 5aa03829b); change note docs/changes/DOCS-GUIDE-2550.md. Decisions Q1 = a (a short top-up for the remaining rows by the train coordinator at the end of the train, not done yet), Q2 = a. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "ae493fd48",
     "actual_cost_usd": null
   }
 ]
