@@ -21,6 +21,7 @@ from smplwise.main import create_app
 from smplwise.rbac import ROLES, STATION, Principal, scope_chain
 from smplwise.routers import access_control
 from smplwise.services import door_authority, ha_client, intercom_doors, intercom_sync, trusted_door
+from support.waiting import soon
 
 ENTRY = "01JTESTSTATIONENTRY000000A"  # synthetic config entry ids, shaped like opaque ConfigEntry ids
 SIDE = "01JTESTSTATIONENTRY000000B"
@@ -68,7 +69,7 @@ def env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
 
 
 def tile(c: TestClient, entity: str, user: str, confirmed: bool = True) -> Any:
-    body = {"allowed_action_id": "lock.unlock", "client_request_id": str(uuid.uuid4()), "expires_at": "2099-01-01T00:00:00Z"}
+    body = {"allowed_action_id": "lock.unlock", "client_request_id": str(uuid.uuid4()), "expires_at": soon()}
     if confirmed:
         body["confirmation_grant"] = "confirmed"
     return c.post(f"{API}/ha/entities/{entity}/actions", json=body, headers=as_user(user))

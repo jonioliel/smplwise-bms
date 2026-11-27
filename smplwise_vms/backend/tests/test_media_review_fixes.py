@@ -21,6 +21,7 @@ from test_media_players_commands import API, code, p, reason  # noqa: F401 - `p`
 from smplwise.main import create_app
 from smplwise.rbac import Principal
 from smplwise.services import device_bulk, ha_sync, media_commands, media_model as mm, media_query, media_store, schedule_view
+from support.waiting import soon
 
 DEV = Principal(user_id="dev-joni", username="joni", display_name="joni", source="dev")
 
@@ -37,7 +38,7 @@ def place(c: TestClient, ids: dict[str, str], keys: dict[str, str], layout: dict
 
 
 def acall(c: TestClient, entity: str, action: str, args: dict[str, Any] | None = None):
-    return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"r-{action}-{entity}"[:80], "expires_at": "2099-01-01T00:00:00Z"})
+    return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"r-{action}-{entity}"[:80], "expires_at": soon()})
 
 
 # ------------------------------------------------------------------------------------------------ M1: a static group fans out

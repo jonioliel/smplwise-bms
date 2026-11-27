@@ -12,6 +12,7 @@ import type { MarkerKind } from '../map/sw-plan-canvas';
 import type { MediaLive } from './media-screens';
 import type { PlayerLive } from './media-players';
 import { dayTimeText, isoZ } from './day-format';
+import { serverNow } from './server-clock'; // FIX-SERVER-CLOCK-2560 (FE-04): every entity action's expiry on the server's clock
 import { tr } from '../i18n/msg/api-devices';
 
 export interface HaActionArgSpec {
@@ -204,7 +205,7 @@ export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install'
 
 /** Entity-action request (contracts/entity-action.request.schema.json): one client id per click, short expiry. */
 export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false, building = '') {
-  const body = actionBody(actionId, args, confirmed, commandId(), isoZ(Date.now() + 60_000), building);
+  const body = actionBody(actionId, args, confirmed, commandId(), isoZ(serverNow() + 60_000), building);
   return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
 }
 

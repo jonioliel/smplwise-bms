@@ -7,6 +7,7 @@ import { del, get, patch, post, put } from './client';
 import { commandId } from './request-id';
 import { tr } from '../i18n/msg/api-devices';
 import { isoZ } from './day-format';
+import { serverNow } from './server-clock';
 import type * as Wire from './generated/wire-alarm';
 
 type ArmMode = 'arm_home' | 'arm_away' | 'arm_night' | 'arm_vacation' | 'arm_custom_bypass';
@@ -51,7 +52,7 @@ export type CodePolicy = Wire.AlarmMe['arm_policy'];
 export const alarmPanels = () => get<AlarmPanels>('alarm/panels');
 
 function envelope() {
-  return { client_request_id: commandId(), expires_at: isoZ(Date.now() + 60_000) };
+  return { client_request_id: commandId(), expires_at: isoZ(serverNow() + 60_000) /* FIX-SERVER-CLOCK-2560 (VD-01): the server's clock */ };
 }
 
 /** The device-action record (wire: AlarmAction); narrowed: the record's status values. */

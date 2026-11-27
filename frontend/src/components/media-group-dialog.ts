@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import { commandId } from '../api/request-id';
+import { serverNow } from '../api/server-clock';
 import { players, playerErrorText, type GroupRecord, type PausePreview } from '../api/media-players';
 import type { BulkScope } from '../api/media-screens';
 import { bidi } from '../i18n/bidi';
@@ -172,7 +173,7 @@ export class MediaGroupDialog extends LitElement {
     if (!req || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const run = await players().pauseRun(req.scope, req.id, commandId(), new Date(Date.now() + 15_000).toISOString());
+      const run = await players().pauseRun(req.scope, req.id, commandId(), new Date(serverNow() + 15_000).toISOString());
       this.phase = 'running';
       this.record = await this.follow(run.bulk_id);
       this.phase = 'result';

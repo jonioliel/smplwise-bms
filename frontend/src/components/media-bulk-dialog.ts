@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import { commandId } from '../api/request-id';
+import { serverNow } from '../api/server-clock';
 import { isApi } from '../api/session';
 import { bulkHeadline, followBulk, getBulk, type BulkRecord } from '../api/device-bulk';
 import { media, type BulkPreview, type BulkScope } from '../api/media-screens';
@@ -146,7 +147,7 @@ export class MediaBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const run = await media().bulkRun(req.scope, req.id, commandId(), new Date(Date.now() + 15_000).toISOString());
+      const run = await media().bulkRun(req.scope, req.id, commandId(), new Date(serverNow() + 15_000).toISOString());
       this.phase = 'running';
       if (isApi()) {
         this.follow = { stopped: false };

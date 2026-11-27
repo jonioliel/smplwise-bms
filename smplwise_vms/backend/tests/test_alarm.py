@@ -25,6 +25,7 @@ from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
 from smplwise.services import alarm as svc
 from smplwise.services import alarm_codes as codes
 from smplwise.services import ha_bridge, ha_client, ha_sync
+from support.waiting import soon
 
 ROOT = Path(__file__).resolve().parents[3]
 BOSS = {"X-SW-Dev-User": "boss"}  # a second system administrator: an admin's own policy / first PIN are set by another (review M3)
@@ -778,7 +779,7 @@ def test_generic_route_refuses_alarm_owned_entities_whatever_the_permissions(ala
     with app.state.db.connection() as conn:
         ha_sync.upsert_state(conn, {"entity_id": "select.back_door_arm_mode", "state": "armed", "attributes": {"options": ["bypass", "armed"], "friendly_name": "x"}})
         conn.execute("UPDATE ha_entities SET platform = 'risco', config_entry_id = ? WHERE entity_id = 'select.back_door_arm_mode'", (fake_alarm.RISCO_ENTRY,))
-    body = {"arguments": {}, "expected_state_version": None, "confirmation_grant": "confirmed", "expires_at": "2099-01-01T00:00:00Z"}
+    body = {"arguments": {}, "expected_state_version": None, "confirmation_grant": "confirmed", "expires_at": soon()}
     n = len(calls)
     for eid, action in (("switch.back_door_bypassed", "switch.turn_on"), ("switch.paradox_zone_shed_bypassed", "switch.turn_on"),
                         ("select.back_door_arm_mode", "select.select_option"), ("alarm_control_panel.risco_house", "alarm_control_panel.alarm_arm_away"),
@@ -809,7 +810,7 @@ def test_bypass_switch_without_config_entry_is_still_owned_by_the_alarm(alarm_ap
         assert alarm_svc.is_managed_control(conn, sw)
     bind(c, s, "omer", "operator", "installation", "*")
     r = c.post(f"/api/v1/ha/entities/{sw}/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "expected_state_version": None, "confirmation_grant": None,
-                                                           "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}, headers=as_user("omer"))
+                                                           "client_request_id": _rid(), "expires_at": soon()}, headers=as_user("omer"))
     assert r.status_code == 409 and r.json()["code"] == "use_alarm_screen"
     from smplwise.services import switch_protection
 
@@ -863,7 +864,7 @@ def test_fallback_only_without_config_entry_and_not_alarm_mark(alarm_app):
     assert "switch.boiler_bypass" in c.get("/api/v1/alarm/config").json()["fallback_controls"]
     r = c.put("/api/v1/alarm/controls/switch.boiler_bypass/not-alarm", json={"not_alarm": True})
     assert r.status_code == 200 and r.json()["alarm_managed"] is False
-    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z"}
+    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": _rid(), "expires_at": soon()}
     assert c.post("/api/v1/ha/entities/switch.boiler_bypass/actions", json=body).status_code == 202
     # an unpaired control of the alarm's own group is released the same way
     assert c.put("/api/v1/alarm/controls/switch.paradox_zone_shed_bypassed/not-alarm", json={"not_alarm": True}).status_code == 200

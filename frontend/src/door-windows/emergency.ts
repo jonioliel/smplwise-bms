@@ -14,6 +14,7 @@ import { dwt, dwtDynamic } from '../i18n/door-windows';
 import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, scopeForKind, type SheetStep } from './logic';
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
+import { serverNow } from '../api/server-clock';
 import { uiLocale } from '../i18n/locale';
 
 /** While doors are still being sent, the incident is read again this often. */
@@ -218,10 +219,11 @@ export class DoorEmergencySheet extends LitElement {
       this.step = nextStep(this.step, 'held');
       this.armIdle();
       clearInterval(this.tick);
+      // FIX-SERVER-CLOCK-2560 (WA-01): `expires_at` is the server's instant - counted down on the server's clock, never the device's
       const until = Date.parse(this.prepared.expires_at);
-      this.left = Math.max(0, Math.round((until - Date.now()) / 1000));
+      this.left = Math.max(0, Math.round((until - serverNow()) / 1000));
       this.tick = window.setInterval(() => {
-        this.left = Math.max(0, Math.round((until - Date.now()) / 1000));
+        this.left = Math.max(0, Math.round((until - serverNow()) / 1000));
         if (this.left <= 0 && this.step === 'confirm') {
           clearInterval(this.tick);
           this.step = 'choose';

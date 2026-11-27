@@ -19,6 +19,7 @@ from smplwise.db import Database, now_iso, set_setting
 from smplwise.main import create_app
 from smplwise.routers import access_control
 from smplwise.services import door_path, door_run_guard, ha_client, intercom_sync, trusted_door
+from support.waiting import soon
 
 ENTRY = "01JTESTSTATIONENTRY000000A"  # synthetic config entry ids, shaped like opaque ConfigEntry ids
 SIDE = "01JTESTSTATIONENTRY000000B"
@@ -445,7 +446,7 @@ def test_d9_tiles_never_run_a_chain_that_reaches_a_wiskey_door(autos):
     c = autos["c"]
 
     def press(eid: str, action: str) -> Any:
-        return c.post(f"{API}/ha/entities/{eid}/actions", json={"allowed_action_id": action, "client_request_id": _rid(), "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"})
+        return c.post(f"{API}/ha/entities/{eid}/actions", json={"allowed_action_id": action, "client_request_id": _rid(), "expires_at": soon(), "confirmation_grant": "confirmed"})
 
     for eid, action in (("script.door_script", "script.turn_on"), ("scene.open_morning", "scene.turn_on")):
         r = press(eid, action)

@@ -5,7 +5,7 @@
 import { closedErrorText } from './closed-errors';
 import { tr } from '../i18n/msg/api-core';
 import type { ErrorEnvelope, FieldProblem } from './generated/wire-errors';
-import { noteDateHeader } from './server-clock';
+import { noteDateHeader, serverNow } from './server-clock';
 
 /** ADR-019 Step 0: the server's five-key error envelope, typed from the backend model (smplwise/wire/errors.py, generated). */
 export type ApiErrorBody = ErrorEnvelope;
@@ -197,6 +197,8 @@ async function fetchApi(path: string, init: RequestInit, ms = 0, hold?: (d: Dead
   const inline = headers.has(STEP_UP_INLINE); // MFA-TRAIN-2500: the screen confirms this one itself
   headers.delete(STEP_UP_INLINE);
   let last: Deadline | null = null;
+  let sending = init; // FE-01: a physical action's replay carries a fresh command envelope (freshEnvelope)
+  const stampedAt = serverNow(); // the server-clock instant the body's `expires_at` was computed from (just before this call)
   const attempt = async (): Promise<Response> => {
     const d = deadline(ms, init.signal);
     last = d;
@@ -204,7 +206,7 @@ async function fetchApi(path: string, init: RequestInit, ms = 0, hold?: (d: Dead
     const sentAt = Date.now();
     let r: Response;
     try {
-      r = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin', ...(d ? { signal: d.signal } : {}) });
+      r = await fetch(apiUrl(path), { ...sending, headers, credentials: 'same-origin', ...(d ? { signal: d.signal } : {}) });
       if (!hold) d?.clear();
     } catch (err) {
       d?.clear();
@@ -234,9 +236,47 @@ async function fetchApi(path: string, init: RequestInit, ms = 0, hold?: (d: Dead
     const refusedAt = Date.now();
     // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
     // SCR-23: a physical action (a door, the alarm) only while the refusal is recent - never replayed after the confirmation expired
-    if (details && (await onStepUp(details)) && replayAllowed(details, Date.now() - refusedAt)) res = await attempt();
+    if (details && (await onStepUp(details)) && replayAllowed(details, Date.now() - refusedAt)) {
+      // FIX-SERVER-CLOCK-2560 (review FE-01): a physical action is never re-sent with the expiry it had before the dialog - the code
+      // typed in 15-30 s outlives a 15 s envelope. Its body gets the same life again from now (server clock); a body whose expiry
+      // cannot be rebuilt is not sent at all: the screen says "confirmed - press again".
+      if (PHYSICAL_STEP_UP_ACTIONS.includes(details.action ?? '')) {
+        const fresh = freshEnvelope(sending.body, stampedAt, serverNow());
+        if (fresh === null) return pressAgain(details);
+        if (fresh !== undefined) sending = { ...sending, body: fresh };
+      }
+      res = await attempt();
+    }
   }
   return res;
+}
+
+/** FIX-SERVER-CLOCK-2560 (FE-01): the body of a confirmed physical action with its `expires_at` moved to `now` + the life it was given at
+ * `stampedAt` (both on the server's clock; at most 5 min, the longest any route takes). `undefined`: no body or no `expires_at` (nothing
+ * stale to send - re-sent as it is); `null`: an expiry that cannot be rebuilt (not JSON, unreadable, already spent) - send nothing. The
+ * `client_request_id` stays: the refused attempt was never recorded, and the same id keeps a doubled press harmless. */
+export function freshEnvelope(body: BodyInit | null | undefined, stampedAt: number, now: number): string | null | undefined {
+  if (body === null || body === undefined) return undefined;
+  if (typeof body !== 'string') return null;
+  let obj: unknown;
+  try {
+    obj = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const rec = obj as Record<string, unknown>;
+  if (!('expires_at' in rec)) return undefined;
+  const life = typeof rec.expires_at === 'string' ? Date.parse(rec.expires_at) - stampedAt : NaN;
+  if (!Number.isFinite(life) || life <= 0) return null;
+  const at = new Date(now + Math.min(life, 300_000)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return JSON.stringify({ ...rec, expires_at: at });
+}
+
+/** FE-01: the answer for a confirmed physical action that was not re-sent - the step-up is recorded, a fresh press does it. */
+function pressAgain(details: StepUpDetails): Response {
+  const body: ApiErrorBody = { code: 'step_up_confirmed_press_again', user_message: tr('האישור נקלט. לחצו שוב כדי לבצע את הפעולה.'), retryable: true, correlation_id: '', details: { action: details.action ?? '' } };
+  return new Response(JSON.stringify(body), { status: 409, headers: { 'Content-Type': 'application/json' } });
 }
 
 /** SCR-23: may the request refused for `details` be re-sent `waitedMs` after its refusal? */

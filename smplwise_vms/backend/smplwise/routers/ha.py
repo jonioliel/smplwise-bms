@@ -210,6 +210,9 @@ def run_action(entity_id: str, body: ActionBody, request: Request, response: Res
 STEP_UP_GRANTS = {"door.unlock": step_up.ACTION_DOOR_OPEN, "alarm.disarm": step_up.ACTION_DISARM, "alarm.bypass": step_up.ACTION_BYPASS}
 # ... and arming with the bypass set (a zone bypass; its bridge action carries no grant of its own - recorded in the change note)
 STEP_UP_ACTIONS = {"alarm_control_panel.alarm_arm_custom_bypass": step_up.ACTION_BYPASS}
+# FIX-SERVER-CLOCK-2560: an `expires_at` further ahead than this is refused 422 `expires_too_far` (the alarm route's 5 minutes) - an
+# unbounded expiry made the envelope meaningless (a stamp from a device clock hours fast, or a replayed body, stayed valid)
+EXPIRY_MAX_S = 300.0
 PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
 # T035: the httpx failures that happen before the request could leave (the connection was never made) - nothing reached Home
 # Assistant. Any other transport failure of `execute` may follow a delivered command (services/device_bulk.py reads the same names).
@@ -284,8 +287,11 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         expires = parse_utc(body.expires_at)
     except ValueError:
         raise ApiError(422, "validation", "expires_at חייב להיות UTC (Z).")
-    if expires < dt.datetime.now(dt.timezone.utc):
+    now = dt.datetime.now(dt.timezone.utc)
+    if expires < now:
         raise ApiError(409, "expired", "הבקשה פגה; נסה שוב.")
+    if expires > now + dt.timedelta(seconds=EXPIRY_MAX_S):
+        raise ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(EXPIRY_MAX_S)))
     existing = store.action_for_request(conn, principal.user_id, body.client_request_id)
     if existing:
         return _action_row(conn, existing["id"])  # idempotent: a duplicate click never sends twice

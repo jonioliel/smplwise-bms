@@ -17,6 +17,7 @@ import { describeError, get, post } from '../api/client';
 import { Latest } from '../api/latest';
 import { canAnywhere } from '../api/session';
 import { commandId } from '../api/request-id';
+import { serverNow } from '../api/server-clock';
 import { isDead, isOn, needsPublic, type SourceItem } from '../api/media-screens';
 import { playerErrorText, type LibraryItem, type PlayerDevice } from '../api/media-players';
 import { listLive } from '../api/generator';
@@ -75,7 +76,7 @@ interface SysView { gen: GenHomeView | null; elev: Elevator[]; temps: TempUnit[]
 
 const enc = encodeURIComponent;
 const MEDIA_KINDS = 'screen,speaker,player,receiver,group';
-const expiry = () => new Date(Date.now() + 15_000).toISOString();
+const expiry = () => new Date(serverNow() + 15_000).toISOString(); // FIX-SERVER-CLOCK-2560: the server's clock
 
 export class P3 {
   media: PlayerDevice[] | null = null;
