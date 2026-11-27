@@ -32,6 +32,7 @@ import {
   beginSubmit,
   buildPayload,
   classify,
+  isBodyChanged,
   clearDraft,
   computeForm,
   docsFromRevision,
@@ -1340,6 +1341,15 @@ export function mountClaimStep(container: HTMLElement, opts: ClaimStepOptions): 
       res = await opts.fetchJson(CLAIM_PATH, { method: 'POST', body });
     } catch {
       res = { status: 0, body: null };
+    }
+    if (isBodyChanged(res) && !destroyed) { // TK-01: an edited form after an unknown outcome is a new request under a fresh id
+      submit = { crid: newRequestId(), pending: true };
+      persist();
+      try {
+        res = await opts.fetchJson(CLAIM_PATH, { method: 'POST', body: buildPayload(form, docs, settings(), submit.crid) });
+      } catch {
+        res = { status: 0, body: null };
+      }
     }
     setSubmitting(false);
     if (destroyed) return;

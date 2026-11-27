@@ -9,7 +9,7 @@ import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
-import { myTickets, newTicket, rid, ticketNote, type Ticket, type TicketCat } from './home-p2-api';
+import { myTickets, newTicket, rid, sendNote, type Ticket, type TicketCat } from './home-p2-api';
 import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 import { PHOTOS_MAX, PHOTO_TYPES, photoProblem, ticketPhoto } from './home-fb-api';
 import { tr } from '../i18n/msg/home';
@@ -161,7 +161,7 @@ registerScreen((h: HomeHost) => ({
       st.busy = true;
       h.requestUpdate(); // the send button is drawn disabled at once (the host does not re-render after an action by itself)
       // the note's own request id (one per opening of the sheet): a retry after a lost answer is the same note, never a second one
-      void ticketNote(el.dataset.id ?? '', text, st.draft.noteCrid || rid()).then(() => { st.draft.noteCrid = ''; h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
+      void sendNote(el.dataset.id ?? '', text, st.draft.noteCrid || rid()).then(() => { st.draft.noteCrid = ''; h.ovl = null; h.toast(tr('ההערה נשלחה למטפל')); load(h, true); })
         .catch((e) => h.toast(errText(e)))
         .finally(() => { st.busy = false; h.requestUpdate(); });
     },

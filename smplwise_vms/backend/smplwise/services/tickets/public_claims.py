@@ -198,7 +198,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 if f is not None and f.link.no_money:
                     raise PublicError(404, "link_unavailable")  # TKSTAFF1 (R2): defence in depth
                 link = f.link if f is not None else ctx.link
-                replay = claim_request(conn, link, crid, CLAIM_ROUTE, when)
+                replay = claim_request(conn, link, crid, store_links.route_key(CLAIM_ROUTE, payload), when)  # FIX-TICKETS-2560 (TK-01): the body is part of the key
                 if replay is not None:
                     return replay[0], replay[1], False
                 try:  # CR-CLAIM-PREFILL (0117): the claim of the named instalment (a NEW one is written only after the submission validated)
@@ -231,7 +231,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)
             return status, answer
 
-        return await idem.run(idempotency_scope(ctx.link), crid, CLAIM_ROUTE, work)
+        return await idem.run(idempotency_scope(ctx.link), crid, CLAIM_ROUTE, work, payload)
 
     return r
 

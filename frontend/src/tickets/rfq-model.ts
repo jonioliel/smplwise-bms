@@ -361,8 +361,26 @@ export function selectionTotals(sel: readonly Selection[]): { currency: string; 
 }
 
 /** The awards to post for a selection, in order: `finalize` only on the last (a split, contract section 7). */
-export function splitPlan(sel: readonly Selection[]): RfqAwardBody[] {
-  return sel.map((s, i) => awardBody(s.quote, s.scope, i === sel.length - 1));
+export function splitPlan(sel: readonly Selection[], threshold?: number | null, currency?: string): RfqAwardBody[] {
+  // FIX-TICKETS-2560 (review TK-02): the server accepts no award after one that waits for a second approval (409 `award_pending`), so the
+  // awards predicted to need it (above the department threshold) go LAST - the others are awarded first, whatever the order of the clicks.
+  // Stable; the server still decides, and `awardOutcome` reports what really happened.
+  const ordered = threshold === null || threshold === undefined || !currency
+    ? sel
+    : [...sel.filter((s) => !secondApprovalHint(threshold, [s], currency)), ...sel.filter((s) => secondApprovalHint(threshold, [s], currency))];
+  return ordered.map((s, i) => awardBody(s.quote, s.scope, i === ordered.length - 1));
+}
+
+/** FIX-TICKETS-2560 (TK-02): what one confirm really did, per vendor: awarded (final), waiting for a second approval, or not sent
+ * because an earlier award of the same press now waits (the server refuses a further award until it is decided). */
+export interface AwardOutcome { awarded: Selection[]; pending: Selection[]; held: Selection[] }
+export function awardOutcome(sel: readonly Selection[], answers: readonly { award: { quote_id: string; state: string } }[]): AwardOutcome {
+  const out: AwardOutcome = { awarded: [], pending: [], held: [] };
+  for (const s of sel) {
+    const a = answers.find((x) => x.award.quote_id === s.quote.quote_id);
+    (!a ? out.held : a.award.state === 'pending_second' ? out.pending : out.awarded).push(s);
+  }
+  return out;
 }
 
 /**

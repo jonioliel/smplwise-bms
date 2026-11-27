@@ -524,6 +524,33 @@ def release_redeem(conn: sqlite3.Connection, id_hash: str, now: str, max_uses: i
 # ---------------------------------------------------------------- idempotency rows of the public writes (`ticket_requests`)
 
 
+# FIX-TICKETS-2560 (review TK-01 / TK-03): the request log keeps a digest of the request BODY next to the route (`route#digest` in the
+# existing `route` column - no migration; a row without a digest, written before this change or by a caller that sends no body, matches
+# any body). The same key with the same body is the replay; the same key with another body is 409 `request_body_changed`.
+BODY_SEP = "#"
+
+
+def body_digest(body: Any) -> str:
+    import hashlib
+
+    raw = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def route_key(route: str, body: Any = None) -> str:
+    """The value stored in `ticket_requests.route`: the route, plus the body digest when the caller sends a body."""
+    return route if body is None else f"{route}{BODY_SEP}{body_digest(body)}"
+
+
+def request_match(stored_route: str, key: str) -> str:
+    """'same' (replay), 'route' (the id was used for another route) or 'body' (the same route with another body)."""
+    s_route, _, s_dig = (stored_route or "").partition(BODY_SEP)
+    k_route, _, k_dig = key.partition(BODY_SEP)
+    if s_route != k_route:
+        return "route"
+    return "body" if s_dig and k_dig and s_dig != k_dig else "same"
+
+
 def request_row(conn: sqlite3.Connection, scope: str, client_request_id: str) -> dict[str, Any] | None:
     return _dict(conn.execute("SELECT * FROM ticket_requests WHERE scope = ? AND client_request_id = ?", (scope, client_request_id)).fetchone())
 

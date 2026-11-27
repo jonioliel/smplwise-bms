@@ -16,7 +16,7 @@ import { api, newRequestId, type ApiFailure, type Credentials, type TicketView, 
 import { h, icon, img } from './dom';
 import { bannerEl, centerScreen, codeCard, langPicker, messageContent, themeToggle } from './page-frame'; // CR-PUBLIC-FRAME-2440: the frame shared with the RFQ page
 import { mapBlock } from './map-block';
-import { afterFailure, afterSendFailure, afterStep, codeMessage, draftFor, EMPTY_DRAFT, editDraft, linkId, resendOnReconnect, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
+import { bodyChanged, withFreshId, afterFailure, afterSendFailure, afterStep, codeMessage, draftFor, EMPTY_DRAFT, editDraft, linkId, resendOnReconnect, linkKind, parseDraft, phaseOf, lineOf, partToggle, pickMode, planSend, primaryAction, statusChoices, statusLine, validSession,
   type Draft, type LinkKind, type Phase, type Step } from './state';
 import { holdForLang } from './lang-packs';
 import { isLang, preferredLang, RTL, text, type Key, type Lang } from './strings';
@@ -361,8 +361,15 @@ class Page {
     this.busy = true;
     this.banner = null;
     this.render();
-    for (const step of steps) {
-      const r = await this.run(step);
+    for (let step of steps) {
+      let r = await this.run(step);
+      if (!r.ok && bodyChanged(r.error)) { // TK-01: edited after an attempt that reached the server - send it as a new request
+        const fresh = withFreshId(this.draft, step, newRequestId);
+        step = fresh.step;
+        this.draft = fresh.draft;
+        this.saveDraft();
+        r = await this.run(step);
+      }
       if (linkId(this.creds.token) !== link) { // SCR-40: another link took the tab meanwhile - nothing more of this draft goes out
         this.busy = false;
         return;

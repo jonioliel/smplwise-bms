@@ -21,7 +21,7 @@ import { rIcon } from './rfq-icons';
 import { rt, type RfqTextKey } from './rfq-text';
 import { rfqStyles } from './rfq-styles';
 import {
-  KIND_ORDER, arrangeQuotes, awardPreview, currencyGroups, dateTime, dayToIso, initials, kindsOf, notSelected, rfqHref, scopeValid, secondApprovalHint, selectionTotals, splitPlan,
+  KIND_ORDER, arrangeQuotes, awardPreview, currencyGroups, dateTime, dayToIso, initials, kindsOf, notSelected, rfqHref, scopeValid, secondApprovalHint, selectionTotals, splitPlan, awardOutcome,
   windowText, type AwardScope, type CompareFilter, type CompareSort, type Selection,
 } from './rfq-model';
 import { rfqError } from './rfq-new';
@@ -156,23 +156,37 @@ export class TicketsRfqCompare extends LitElement {
     const answers: RfqAwardAnswer[] = [];
     let current = '';
     try {
-      for (const body of splitPlan(sel)) {
+      for (const body of splitPlan(sel, d.second_approval.threshold_minor, this.c?.currency)) {
         current = body.quote_id;
         const vendorId = sel.find((s) => s.quote.quote_id === body.quote_id)?.quote.vendor_id ?? '';
         const a = await ticketsRfqApi().award(d.id, { ...body, ...this.termsBody(body.quote_id), ...this.noticeBody(vendorId) });
         answers.push(a);
         this.d = a.rfq;
-        if (a.award.state === 'pending_second') break; // the RFQ waits: nothing more until the second approver decides
+        if (a.award.state === 'pending_second') break; // the RFQ waits: the server refuses any further award until the second approver decides
       }
       this.confirm = false;
-      const pending = answers.some((a) => a.award.state === 'pending_second');
-      this.notice({ ok: pending ? rt('awardPendingDone') : rt('awardDone') });
-      if (!pending) this.drafts = this.draftsOf(answers, sel);
-      this.sel = new Map();
-      this.pays = new Map();
-      this.arrivals = new Map();
-      this.notices = new Map();
-      this.noticeOff = new Set();
+      // FIX-TICKETS-2560 (TK-02): an award that waits for a second approval does not wipe the rest - what was awarded, what waits and
+      // what was not sent yet is said exactly, and the unsent selections (with their schedules) stay for the next confirm
+      const out = awardOutcome(sel, answers);
+      const names = (list: Selection[]) => list.map((s) => this.name(s.quote)).join(', ');
+      if (!out.pending.length) this.notice({ ok: rt('awardDone') });
+      else if (!out.awarded.length && !out.held.length) this.notice({ ok: rt('awardPendingDone') });
+      else {
+        this.notice({ ok: [out.awarded.length ? rt('awardPartAwarded', { names: names(out.awarded) }) : '', rt('awardPartPending', { names: names(out.pending) }),
+          out.held.length ? rt('awardPartHeld', { names: names(out.held) }) : ''].filter(Boolean).join('. ') });
+      }
+      if (!out.pending.length) this.drafts = this.draftsOf(answers, sel);
+      else if (out.awarded.length) { // only the winners' drafts: the other vendors are not closed out until the waiting award is decided
+        const winners = this.draftsOf(answers.filter((a) => a.award.state !== 'pending_second'), sel).filter((x) => x.send);
+        this.drafts = winners.length ? winners : null;
+      }
+      const keepQ = new Set(out.held.map((s) => s.quote.quote_id));
+      const keepV = new Set(out.held.map((s) => s.quote.vendor_id));
+      this.sel = new Map([...this.sel].filter(([id]) => keepQ.has(id)));
+      this.pays = new Map([...this.pays].filter(([id]) => keepQ.has(id)));
+      this.arrivals = new Map([...this.arrivals].filter(([id]) => keepQ.has(id)));
+      this.notices = new Map([...this.notices].filter(([id]) => keepV.has(id)));
+      this.noticeOff = new Set([...this.noticeOff].filter((id) => keepV.has(id)));
       await this.load();
     } catch (e) {
       this.error = rfqError(e);

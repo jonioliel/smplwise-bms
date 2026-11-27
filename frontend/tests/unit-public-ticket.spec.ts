@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { afterFailure, afterSendFailure, afterStep, bootFrom, codeMessage, draftFor, editDraft, linkId, resendOnReconnect, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft } from '../src/public-ticket/state';
+import { afterFailure, afterSendFailure, bodyChanged, withFreshId, afterStep, bootFrom, codeMessage, draftFor, editDraft, linkId, resendOnReconnect, linkKind, lineOf, parseDraft, partToggle, phaseOf, planSend, primaryAction, statusChoices, statusLine, validSession, type Draft, type Step } from '../src/public-ticket/state';
 import { CATALOGUES, LANGS, preferredLang, RTL, renderName, text, type Key } from '../src/public-ticket/strings';
 import { etaFor, instantOf, isoToLocalInput, localInputToIso, zonedParts } from '../src/public-ticket/time';
 import type { ApiFailure, TicketView } from '../src/public-ticket/api';
@@ -521,4 +521,16 @@ test('a question to the manager is its own call and never rides on the status', 
   expect(done.ask).toBeFalsy();
   expect(parseDraft(JSON.stringify({ note: 'x', ask: true })).ask).toBe(true);
   expect(parseDraft(JSON.stringify({ note: 'x', ask: 'yes' })).ask).toBeUndefined();
+});
+
+// FIX-TICKETS-2560 (TK-01): 409 `request_body_changed` = the part was edited after an attempt that reached the server: a fresh id.
+test('TK-01: an edited part after an unknown outcome is re-sent under a fresh request id', () => {
+  const old = '11111111-1111-4111-8111-111111111111';
+  const draft: Draft = { status: 'done', note: 'x', eta: undefined, crids: { status: old } };
+  const step: Step = { kind: 'status', status: 'done', note: 'x', crid: old };
+  expect(bodyChanged({ status: 409, code: 'request_body_changed' })).toBe(true);
+  expect(bodyChanged({ status: 409, code: 'request_id_reused' })).toBe(false);
+  const next = withFreshId(draft, step, () => '22222222-2222-4222-8222-222222222222');
+  expect(next.step).toMatchObject({ kind: 'status', crid: '22222222-2222-4222-8222-222222222222' });
+  expect(next.draft.crids.status).toBe('22222222-2222-4222-8222-222222222222');
 });

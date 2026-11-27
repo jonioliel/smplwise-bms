@@ -6,7 +6,7 @@ import type { RfqCompareQuote, RfqEvent, RfqKpis, RfqSummary } from '../src/api/
 import { createWireBody } from '../src/api/tickets-rfq';
 import {
   arrangeQuotes, awardBody, awardPreview, currencyGroups, defaultDue, draftProblems, eventLine, inFilter, invitable, invitePreview, isoToLocal, listTiles, localToIso,
-  matchesQuery, normalizeKinds, notSelected, parseRfqRoute, plannedChannel, refusalKey, rfqHref, scopeIndexes, scopeValid, secondApprovalHint, selectionTotals, splitPlan,
+  matchesQuery, normalizeKinds, notSelected, parseRfqRoute, plannedChannel, refusalKey, rfqHref, scopeIndexes, scopeValid, secondApprovalHint, selectionTotals, splitPlan, awardOutcome,
   statusBar, stripCounts, toggleKind, windowText, type RfqDraft, type Selection,
 } from '../src/tickets/rfq-model';
 import { RFQ_TEXT_EN_KEYS, RFQ_TEXT_HE, RFQ_TEXT_KEYS, rfqTemplate } from '../src/tickets/rfq-text';
@@ -281,4 +281,33 @@ test('the manager thread uses the System label and a distinct style for an autom
   const dlg = readFileSync(path.resolve(SRC, 'tickets/rfq-message-dialog.ts'), 'utf8');
   expect(dlg).toContain("m.system ? rt('systemAuthor') : m.by");
   expect(readFileSync(path.resolve(SRC, 'tickets/rfq-styles.ts'), 'utf8')).toContain('.thread .m[data-rfq-system]');
+});
+
+// FIX-TICKETS-2560 (TK-02): a multi-vendor award with one award above the second-approval threshold.
+test('TK-02: the awards above the threshold go last, and the outcome says awarded / waiting / not sent per vendor', () => {
+  const big = quote({ total_minor: 900_000, subtotal_minor: 900_000, vat_minor: 0, vat_mode: 'none', currency: 'ILS' });
+  const small = quote({ total_minor: 100_000, subtotal_minor: 100_000, vat_minor: 0, vat_mode: 'none', currency: 'ILS' });
+  const other = quote({ total_minor: 200_000, subtotal_minor: 200_000, vat_minor: 0, vat_mode: 'none', currency: 'ILS' });
+  const all = { mode: 'all' } as const;
+  const sel: Selection[] = [{ quote: big, scope: all }, { quote: small, scope: all }, { quote: other, scope: all }];
+  // before: the order of the clicks (the pending award first would stop the loop); after: the large one is sent last, with finalize
+  expect(splitPlan(sel).map((x) => x.quote_id)).toEqual([big.quote_id, small.quote_id, other.quote_id]);
+  const plan = splitPlan(sel, 500_000, 'ILS');
+  expect(plan.map((x) => x.quote_id)).toEqual([small.quote_id, other.quote_id, big.quote_id]);
+  expect(plan.map((x) => x.finalize)).toEqual([false, false, true]);
+  // no threshold = the old order
+  expect(splitPlan(sel, null, 'ILS').map((x) => x.quote_id)).toEqual([big.quote_id, small.quote_id, other.quote_id]);
+  // the server decided otherwise (the large award came first and waits): the rest is reported as not sent, never as saved
+  const ans = (q: RfqCompareQuote, state: string) => ({ award: { quote_id: q.quote_id, state } });
+  const out = awardOutcome(sel, [ans(big, 'pending_second')]);
+  expect(out.pending.map((s) => s.quote.quote_id)).toEqual([big.quote_id]);
+  expect(out.held.map((s) => s.quote.quote_id)).toEqual([small.quote_id, other.quote_id]);
+  expect(out.awarded).toEqual([]);
+  const ok = awardOutcome(sel, [ans(small, 'approved'), ans(other, 'approved'), ans(big, 'pending_second')]);
+  expect([ok.awarded.length, ok.pending.length, ok.held.length]).toEqual([2, 1, 0]);
+  // the words exist in Hebrew and English
+  for (const k of ['awardPartAwarded', 'awardPartPending', 'awardPartHeld']) {
+    expect(RFQ_TEXT_HE).toHaveProperty(k);
+    expect(RFQ_TEXT_EN_KEYS).toContain(k);
+  }
 });

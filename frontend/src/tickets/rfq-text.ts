@@ -308,6 +308,10 @@ const he = {
   awardSecondOff: 'אישור אחד מספיק',
   awardDone: 'הבחירה אושרה',
   awardPendingDone: 'הבחירה נשמרה וממתינה לאישור שני',
+  // FIX-TICKETS-2560 (TK-02): a press that mixed an award which waits for a second approval with others - exactly what happened, per vendor
+  awardPartAwarded: 'אושרו: {names}',
+  awardPartPending: 'ממתין לאישור שני: {names}',
+  awardPartHeld: 'טרם נשלחו, הבחירה בהם נשארה ואפשר לאשר אחרי ההכרעה: {names}',
   awardSelfRefused: 'מי שהזין את ההצעה בשם הספק לא יכול לאשר אותה',
   // the message dialog after an award (owner rule: approvals never send by themselves)
   msgTitle: 'לשלוח הודעה לספק?',
