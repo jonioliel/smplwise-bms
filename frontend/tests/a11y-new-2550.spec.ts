@@ -375,8 +375,8 @@ test('legacy import, English (LTR): axe on the report and the dialog', async ({ 
   const wide = await card.locator('sw-table[data-legacy-items]').evaluate((t) => {
     const host = t as HTMLElement;
     const out = [`table ${host.scrollWidth}/${host.clientWidth}`];
-    for (const el of host.shadowRoot?.querySelectorAll<HTMLElement>('table, th, tbody tr:first-child td, tbody tr:nth-child(2) td') ?? []) {
-      out.push(`${el.tagName.toLowerCase()} ${el.offsetWidth}/${el.scrollWidth} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
+    for (const el of host.shadowRoot?.querySelectorAll<HTMLElement>('th, td') ?? []) {
+      if (el.offsetWidth > host.clientWidth / 2) out.push(`${el.tagName.toLowerCase()} ${el.offsetWidth} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
     }
     return out;
   });
