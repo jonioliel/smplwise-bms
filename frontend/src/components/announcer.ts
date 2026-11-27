@@ -11,14 +11,14 @@
  * The same text twice in a row is still announced (the region is cleared, then filled one frame later). The visible outcome line next to
  * the control keeps its text but carries no live role of its own, so nothing is read twice.
  */
-export type AnnounceMode = 'polite' | 'assertive';
+type AnnounceMode = 'polite' | 'assertive';
 
 const HOST_ID = 'sw-announcer';
 const CLEAR_AFTER_MS = 6000;
 const timers: Record<AnnounceMode, ReturnType<typeof setTimeout> | undefined> = { polite: undefined, assertive: undefined };
 
 const visuallyHidden =
-  'position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:-1px;padding:0;border:0';
+  'position:absolute;inline-size:1em;block-size:1em;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:0;padding:0;border:0';
 
 function region(mode: AnnounceMode): HTMLElement | null {
   if (typeof document === 'undefined' || !document.body) return null;
