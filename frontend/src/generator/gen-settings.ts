@@ -28,6 +28,7 @@ import { fill, fmtDateTime } from './gen-logic';
 import { generatorAccess } from './access';
 import { glt, type GltKey } from '../i18n/generator-log';
 import { tr } from '../i18n/msg/misc';
+import { isolateRuns, ltrIsolate } from '../i18n/bidi';
 
 /** GEN-UNITS-FIELD-2490: the settings texts of the ACTIVE language (English where it has the key, else Hebrew), read at render time
  * (GEN-UNITS-FIELD-2520: the shared reader in gen-text.ts, also used by the alert routing screen). */
@@ -254,11 +255,12 @@ export class GenSettings_ extends LitElement {
     const cur = this.batEdit ?? saved;
     const opts: SegmentOption<BatChoice>[] = [
       { value: 'auto', label: S.batAuto, attrs: { 'data-bat': 'auto' } },
-      { value: '12', label: `12 ${S.units.v}`, attrs: { 'data-bat': '12' } },
-      { value: '24', label: `24 ${S.units.v}`, attrs: { 'data-bat': '24' } },
+      { value: '12', label: ltrIsolate(`12 ${S.units.v}`), attrs: { 'data-bat': '12' } },
+      { value: '24', label: ltrIsolate(`24 ${S.units.v}`), attrs: { 'data-bat': '24' } },
     ];
     const known = d?.battery_system_v ?? null;
-    const hint = cur === 'auto' ? `${S.batHintAuto}${saved === 'auto' && known ? ` ${fill(S.batDetected, { v: known })}` : ''}` : fill(S.batHintFixed, { v: cur });
+    // "24 V" keeps its order inside a right-to-left line (without the isolate it read "V 24")
+    const hint = isolateRuns(cur === 'auto' ? `${S.batHintAuto}${saved === 'auto' && known ? ` ${fill(S.batDetected, { v: known })}` : ''}` : fill(S.batHintFixed, { v: cur }));
     return html`<div class="fld" data-battery-system=${cur}><span class="lbl">${S.batSystem}</span>
       <sw-segmented radio style="align-self:flex-start" label=${S.batSystem} .options=${opts} value=${cur} ?disabled=${this.busy || !d}
         @change=${(e: CustomEvent<SegmentedChange>) => (this.batEdit = e.detail.value === saved ? null : (e.detail.value as BatChoice))}></sw-segmented>

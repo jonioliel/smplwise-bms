@@ -54,7 +54,7 @@ test.describe('DATA-RULES-2-2550: battery system choice, billing gap warning', (
       const fld = sec.locator('[data-battery-system]');
       const seg = fld.locator('sw-segmented');
       await expect(fld).toHaveAttribute('data-battery-system', 'auto', { timeout: 30_000 }); // the default: automatic (today's behaviour)
-      await expect(fld.locator('[data-battery-hint]')).toContainText('זוהה: 24 V');
+      await expect(fld.locator('[data-battery-hint]')).toContainText(/זוהה: ⁦?24 V/); // the unit run is a left-to-right isolate
       await expect(sec.locator('[data-save-thresholds]')).toHaveAttribute('disabled', ''); // nothing changed yet
       await page.evaluate(() => document.fonts.ready);
       await rest(page);
