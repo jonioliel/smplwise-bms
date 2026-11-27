@@ -233,7 +233,7 @@ export const he = {
       metrics: { load_pct: 'עומס', gen_kw: 'הספק', gen_v_l1: 'מתח גנרטור', gen_v_l2: 'מתח גנרטור', gen_v_l3: 'מתח גנרטור', fuel_pct: 'מפלס דלק', battery_v: 'מתח מצבר', coolant_temp: 'טמפרטורת נוזל קירור', oil_pressure: 'לחץ שמן' },
     },
     alerts: {
-      active: 'התראות פעילות', unacked: '{n} ללא אישור', acked: '{n} אושרו', ackAll: 'אישור הכול', ack: 'אישור', details: 'פרטים', ackedBy: 'אושרה', repeated: 'חזרה {n} פעמים',
+      active: 'התראות פעילות', unacked: '{n} ללא אישור', acked: '{n} אושרו', ackAll: 'אישור הכול', ackAllTitle: 'אישור כל ההתראות', ackAllBody: 'יאושרו כל ההתראות הפתוחות של הגנרטור שעדיין לא אושרו, גם אלה שלא מוצגות עכשיו במסך. מוצגות כרגע: {n}.', ack: 'אישור', details: 'פרטים', ackedBy: 'אושרה', repeated: 'חזרה {n} פעמים',
       emptyTitle: 'אין התראות פעילות', toHistory: 'להיסטוריה', loadMore: 'עוד',
       sev: { critical: 'קריטית', alert: 'התראה', info: 'מידע' }, cleared: 'נסגרה', open: 'פעילה', pending: 'ממתין', notNeeded: 'לא נדרש', durationMin: 'משך {n} דק׳', durationH: 'משך {n} ש׳',
     },

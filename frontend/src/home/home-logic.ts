@@ -180,6 +180,12 @@ export function favOk(f: Fav, w: FavWorld): boolean {
   }
 }
 
+/** SCR-08: the favourites grid only shows what this person can see (favOk); a save of that list must not drop the stored ones that are hidden
+ *  right now (a room hidden for a while, a device offline). The hidden ones stay, after the visible list, in their stored order. */
+export function keepHiddenFavs(stored: Fav[], next: Fav[], w: FavWorld): Fav[] {
+  return [...next, ...stored.filter((f) => !favOk(f, w) && !next.some((n) => sameFav(n, f)))];
+}
+
 export function floorName(floors: HFloor[], id: string): string {
   return floors.find((f) => f.id === id)?.name ?? '';
 }

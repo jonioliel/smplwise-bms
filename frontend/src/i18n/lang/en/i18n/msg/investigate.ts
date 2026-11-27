@@ -398,6 +398,8 @@ export const en = {
   'עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים': 'A preservation job was created; the item is marked as preserved when the copy finishes',
   'שמור עותק': 'Preserve a copy',
   'הסר מהתיק': 'Remove from the case',
+  'הסרת פריט מהתיק': 'Remove the item from the case',
+  'הפריט "{what}" יוסר מהתיק, והקובץ השמור שלו יימחק. ההקלטה במקליט נשארת.': 'The item "{what}" is removed from the case and its stored file is deleted. The recording on the recorder stays.',
   'בעלים: {name}': 'Owner: {name}',
   'עודכן {time}': 'updated {time}',
   'חקירה': 'Investigate',
