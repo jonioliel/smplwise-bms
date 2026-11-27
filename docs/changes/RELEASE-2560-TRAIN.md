@@ -97,3 +97,22 @@ sha256 `be0038b3a2c5...f2199` verified equal on both sides, both directories emp
 inputs_sha256 `966f83130294...`, source_commit `fc170982f`. `scripts/release_check.py` on the PC: "ready for the owner's approval" - only the v2.56.0 tag is missing.
 RECONCILE-TEST-LEAK-2560 (backend tests and fixtures only) joins after the build: no stamp input changes. Any later change under `frontend/src`, `frontend/public`,
 the entry pages, Vite configs, `package*.json` or `tsconfig.json` needs a new build.
+
+## 8. Final-review fix rows and the second UI build (27.11)
+
+The full 2.56 gate at `57de3270c` failed at the early layout stage (the A11Y-FOLLOWUPS announcer added ~15 px of document height). Seven fix rows
+on top of `3739e3ded` (RECONCILE-TEST-LEAK-2560 `4458e236f` merged there by the lead), merged `--no-ff`, no conflicts: FIX-NOSCROLL-2560
+(`d793ea046`), FIX-PUSH-APPROVAL-2560 (`d8b047d13`; results section added to its note), FIX-NVR-PULSE-2560 (`c42fd3eac`), FIX-CORE-2560
+(`db40cf0d3`), FIX-TICKETS-2560 (`ea925c529`, the corrected head with the missing `store_links` import; `012f2e8ec` was merged first and
+`ea925c529` on top), FIX-SERVER-CLOCK-2560 (`daf6feb61`; `api/client.ts`, `api/nvr.ts` and the step-up path merged cleanly: the fresh-expiry
+resend and the push-approval watch's rate-limit fix are both present), FIX-MH01-2560 (`cb16e5c14`). All registered REVIEW; the 2.56.0 CHANGELOG draft has a line per
+fix group and the API change lines (pulse body, `request_body_changed`, local-only backup relink).
+
+**Train fix `2986edf80`**: FIX-NOSCROLL's announcer used `inline-size:1px;block-size:1px` - two new `px-literal`s (design ratchet 25513 -> 25515, also a
+`release_check` row). Changed to `1em` (the host is `position:fixed`, so its size never reaches the scroll area). Ratchet back to the baseline.
+
+**Engine files changed** (the lead installs before the gate): `scripts/release_check.py` (FIX-CORE-2560 CD-01, GATE-NIGHTLY-2560 TR-03), `scripts/gate/release_gate.py` and `selftest_gate.py` (GATE-SETUP-FLAKE-2560).
+
+Runner: the three ticket files (`~/work/p2520_t2560_tickets.sh`, slot B) at `b5e00da72` and again at `01ed02003`: `test_tickets_quotes` 13, `test_tickets_claim_prefill` 10, `test_tickets_s4_public` 28 passed (the run at `5be08864a`, before the import fix, had 10 failed in `test_tickets_quotes`).
+
+UI rebuilt once at the end (`~/work/p2520_t2560_buildui.sh 2986edf80`): rc 0, arx-shell-2.56.0, 0 maps, archive sha256 `b05e3e2d1827...4578` verified equal on both sides, stamp 2135 files, inputs_sha256 `5ea9df99847c...`, source_commit `2986edf80`. `release_check.py` on the PC: "ready for the owner's approval", only the v2.56.0 tag missing. The earlier build (`57de3270c`, and the `c93f77643` one) is replaced.
