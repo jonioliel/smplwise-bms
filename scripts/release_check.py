@@ -516,7 +516,7 @@ GREEN_MAX_COMMITS = 150
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess | None:
     try:
-        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=30)
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
 
