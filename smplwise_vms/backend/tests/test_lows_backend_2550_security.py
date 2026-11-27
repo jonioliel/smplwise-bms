@@ -188,6 +188,8 @@ def test_sec8_target_create_update_test_and_key_export_are_refused_remotely(arx,
 
 def test_sa02_gdrive_relink_and_key_import_are_local_only(arx, tmp_path):
     """FIX-PUSH-APPROVAL-2560 SA-02: re-pointing a connected Google Drive target and importing an off-box key need the local network."""
+    from fake_gdrive import CLIENT_ID, CLIENT_SECRET
+
     from smplwise.services import offbox_store
 
     local = TestClient(arx.app)
@@ -196,8 +198,8 @@ def test_sa02_gdrive_relink_and_key_import_are_local_only(arx, tmp_path):
     assert exp.status_code == 200, exp.text
     key = exp.json()["key"]
     made = local.post(f"{API}/{OFFBOX}/targets", json={"name": "Drive", "kind": "gdrive", "enabled": False,
-                                                       "config": {"client_id": "cid", "folder_name": "Arx", "chunk_mib": 1},
-                                                       "secrets": {"client_secret": "csecret"}})
+                                                       "config": {"client_id": CLIENT_ID, "folder_name": "SmplWise Arx backups", "chunk_mib": 1},
+                                                       "secrets": {"client_secret": CLIENT_SECRET}})
     assert made.status_code == 201, made.text
     tid = made.json()["id"]
     arx.flag("u-owner")
