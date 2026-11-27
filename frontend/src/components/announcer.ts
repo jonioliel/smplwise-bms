@@ -11,17 +11,18 @@
  * The same text twice in a row is still announced (the region is cleared, then filled one frame later). The visible outcome line next to
  * the control keeps its text but carries no live role of its own, so nothing is read twice.
  */
+import { VISUALLY_HIDDEN_STYLE } from '../design/visually-hidden';
+
 type AnnounceMode = 'polite' | 'assertive';
 
 const HOST_ID = 'sw-announcer';
 const CLEAR_AFTER_MS = 6000;
 const timers: Record<AnnounceMode, ReturnType<typeof setTimeout> | undefined> = { polite: undefined, assertive: undefined };
 
-/** FIX-NOSCROLL-2560: `position:fixed` pinned to the viewport's top corner, 1px. The host is the LAST child of the body; with
- * `position:absolute` and no offsets it sat at its static place below the full-height app shell and its 1em box made the document
- * 14-15px taller than the viewport - the page scrolled on every control screen. A fixed box never adds to the document's scroll area. */
-const visuallyHidden =
-  'position:fixed;inset-block-start:0;inset-inline-start:0;inline-size:1em;block-size:1em;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:0;padding:0;border:0;pointer-events:none';
+/** FIX-NOSCROLL-2560: `position:fixed` pinned to the viewport's top corner, 1px (design/visually-hidden.ts). The host is the LAST child
+ * of the body; with `position:absolute` and no offsets it sat at its static place below the full-height app shell and a 1em box made the
+ * document 14-15px taller than the viewport - the page scrolled on every control screen. A fixed 1px box never adds to the scroll area. */
+const visuallyHidden = VISUALLY_HIDDEN_STYLE;
 
 function region(mode: AnnounceMode): HTMLElement | null {
   if (typeof document === 'undefined' || !document.body) return null;
