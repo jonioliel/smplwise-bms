@@ -50,7 +50,48 @@ draft select now reads the draft's account / period / origin / correction link, 
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+Linux runner (slot D, job `~/work/p2520_dr2_run.sh`, branch head `4f46561e7`; run 2 `p2520_dr2_run2.sh` on `4aab7ca6b`, the
+left-to-right isolate of "24 V") and the PC (one pytest file per process).
+
+Fails before / passes after (the new test files copied onto the base `f9217db8a`):
+
+| test | base (before) | branch (after) |
+|---|---|---|
+| `tests/test_data_rules_2_billing_2550.py` | exit 1: 4 failed, 1 passed (runner and PC) | exit 0: 5 passed |
+| `tests/test_data_rules_2_water_2550.py` | exit 1: 2 failed (runner and PC) | exit 0: 2 passed |
+| `tests/test_data_rules_2_generator_2550.py` | exit 1: 1 failed, 1 passed (runner and PC) | exit 0: 2 passed |
+| `frontend/tests/unit-data-rules-2-2550.spec.ts` | exit 1: 2 failed (`gaps` undefined) | exit 0 (in the unit group below) |
+| `frontend/tests/pixel-data-rules-2-2550.spec.ts` (base build, branch baselines) | exit 1: 12 failed (no battery field, no gap warning) | exit 0: 12 passed (compare) |
+
+The cases that pass on the base too are guards of unchanged behaviour: an operator cannot choose the battery system (403, audited);
+an account whose automatic mode is `off` is not reopened.
+
+Branch checks (runner unless marked PC):
+- backend shards (`SW_WIRE_STRICT=1`): [the 3 new files + `test_bill_ledger_lifecycle_b.py` + `test_bill_ledger_cross_kind.py`] 45 passed;
+  [`test_data_rules_{billing,water,generator}_2540.py` + `test_generator.py`] 67 passed; [`test_energy_billing_api.py` +
+  `test_water_billing_s3.py`] 57 passed - all exit 0. PC, one file per process, all exit 0: the 3 new files 5 / 2 / 2,
+  `test_bill_ledger_cross_kind` 11, `test_bill_ledger_lifecycle_b` 25 (after the golden regeneration), `test_data_rules_billing_2540` 5,
+  `test_data_rules_water_2540` 4, `test_data_rules_generator_2540` 9, `test_energy_billing_api` 37, `test_water_billing_s3` 20, `test_generator` 49.
+- `gen_wire_types.py --check` 0; `wire_ratchet.py` 0; `request_strict_ratchet.py --check` 0; `error_contract_inventory.py --check` 0;
+  `i18n_backend_errors.py` 0 (without English: 0); `scripts/gate/lint_backend.py --strict` 0 (0 findings); `design_ratchet.py` 0 (PC too);
+  `api_inventory.py` 0 (no change); `ruff check smplwise` 0. `ruff check` on the three new test files reports F811 for the fixture
+  imported from the neighbour test module (`w` / `app`) - the same pattern and report as `test_data_rules_billing_2540.py` and
+  `test_energy_elecbill77.py`; the blocking backend lint passes.
+- Frontend: `tsc --noEmit -p .` 0 errors; `tsc -p tsconfig.tests.json` 0 errors; eslint on the changed sources 0 errors (the test files
+  are on the lint ignore list); `lazy-tags-check` 0; `unused-exports --enforce` 0; `api-client-check` 0; `i18n-split-langs --dry` 0.
+- Unit group (`playwright.unit.config.ts`: this row, `unit-response-models-followup-2450`, `unit-data-rules-2540`, the i18n
+  completeness / lint / ratchet / packs / core specs, `unit-sw-segmented`): 82 passed.
+- Build 0; pixel spec `--update-snapshots` 12 passed, then compare 12 passed (16 Linux baselines, desktop 1440 + phone 390, light + dark:
+  `gen-battery-auto`, `gen-battery-24`, `water-gap`, `elec-gap`); regression evidence `evidence-gen-units-en-2490`, `evidence-generator`,
+  `evidence-wkwater-2331`, `evidence-gen-units-arru-2530` (desktop): 24 passed, 1 skipped.
+- Run 2 (`4aab7ca6b`, the "24 V" isolate): tsc 0 / 0 errors, eslint 0, unused-exports 0, unit 6 passed, build 0, pixel spec
+  `--update-snapshots` 12 passed then compare 12 passed (the committed baselines are this run's), `evidence-gen-units-en-2490` 3 passed.
+
+Compare page (local, Hebrew): `private/planning/data-rules-2-2550_compare_2026-11-26.html` (before = the 2.54 train build, after = the
+branch; generator thresholds, water account, electricity account; desktop + phone, light + dark).
+
+NOT_RUN: the full backend suite and the full Playwright suites (the train's gate runs them); the tablet project (the spec covers
+desktop and phone); lab (not allowed).
 
 ## Open questions (recommendation first)
 
