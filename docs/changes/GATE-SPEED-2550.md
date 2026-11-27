@@ -263,7 +263,24 @@ Dry-runs on throw-away results folders (PC):
 * `gate_budget.py` on a copy of the history as it was at the time of run 2. Old `cap` = 4059. New `limit` = 7950 (load 3) / 11925
   (load 12).
 
-Runner (slot-B job `~/work/p2520_gatespeed2550_run.sh`): QUEUED behind the running 2.54 gate (slot B needs 6 GB free while a gate runs) - see the update below when it ran.
+Runner (Linux, slot-B job `~/work/p2520_gatespeed2550_run.sh` at b330e0887, 2026-11-27 00:37-00:43 UTC, after the 2.54 gate had
+finished; no gate lock, nothing installed, throw-away results folder `/tmp/gs2550_res` removed afterwards):
+
+| command | exit | result |
+|---|---|---|
+| `python3 scripts/gate/selftest_gate_speed_2550.py` | 0 | SELFTEST OK |
+| `python3 scripts/gate/selftest_gate.py` | 0 | SELFTEST PASSED (176 s) |
+| `python3 scripts/gate/selftest_gate_fast.py` | 0 | SELFTEST PASSED |
+| `python3 scripts/gate/selftest_entry_check.py` (runs `branch_check.sh` end to end, fake engine and `flock`) | 0 | SELFTEST PASSED |
+| `python3 scripts/gate/selftest_gate_trust.py` / `selftest_engine_sync.py` | 0 / 0 | SELFTEST PASSED / PASSED |
+| `bash scripts/gate/tests/test_branch_check_fifo.sh` | 0 | FIFO TEST PASSED |
+| `pytest tests/test_gate_speed.py` / `test_gate2_select.py` (Linux venv) | 0 / 0 | 19 passed / 17 passed |
+| `ruff check --select F` on the changed Python files | 1 | 1 finding: `import math` unused in `gate2_select.py` (already in the base); removed in the next commit, the self-test re-run OK |
+| `release_gate.py --plan` base vs new (2.54 logs linked read only) | 0 / 0 | base: `pixel` 1 job 11.8 min start 133 min; new: `pixel_c0/c1` 14.0 / 13.9 min start 121 min, `dev_desktop_h0..h3`; backend 176 min critical path |
+| `release_gate2.sh pilot/GATE-SPEED-2550 --after <2.54 report> --dry-run` | 0 | no coverage anchor for this branch in the copy -> full plan; `time limit: limit 16587 s (276 min) = max(derived full cap 14400 s, estimate high 194 min x 1.25 x load factor 1.14 (load1 6.3 on 16 cores))` |
+| `release_gate2.sh pilot/GATE-SPEED-2550 --full --dry-run` | 0 | `limit 17315 s (288 min)`, load factor 1.19 (load1 7.1) |
+
+One more calibration point: the 2.54 `--after` run (c768bfc8a) finished green in 2,229 s (37 min) against its plan `~33-37 min`.
 
 ## 7. Open questions (recommendation first)
 1. The heavy deferral list (what a select gate leaves to the nightly): (a) keep the frozen 2.19.0 list (recommended; no coverage
