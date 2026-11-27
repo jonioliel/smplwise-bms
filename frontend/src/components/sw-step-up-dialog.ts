@@ -11,7 +11,7 @@ import { PasskeyCancelled, PasskeyWrongHost, passkeysSupported } from '../arx/we
 import { t, tf } from '../i18n/he';
 import { lit } from '../i18n/local-identity';
 import { STEP_UP_VERIFIED } from '../shell/step-up';
-import { alarmPinStepUp, cancelPushApproval, pushApprovalState, startPushApproval, verifyPushApproval } from '../api/push-approval';
+import { alarmPinStepUp, cancelPushApproval, pushApprovalState, pushPollRetryDelay, startPushApproval, verifyPushApproval } from '../api/push-approval';
 
 /** MFA-T095-REST-2530: how often the requesting screen asks whether the phone approved (the request lives 90 s). */
 const PUSH_POLL_MS = 2000;
@@ -307,6 +307,7 @@ export class SwStepUpDialog extends LitElement {
     try {
       const started = await startPushApproval(this.action);
       this.push = { id: started.request_id, number: started.number };
+      this.pushRefusals = 0;
       this.schedulePushPoll();
     } catch (err) {
       this.error = describeError(err);
@@ -315,8 +316,10 @@ export class SwStepUpDialog extends LitElement {
     }
   }
 
-  private schedulePushPoll() {
-    this.pushTimer = setTimeout(() => void this.pollPush(), PUSH_POLL_MS);
+  private pushRefusals = 0;
+
+  private schedulePushPoll(delay = PUSH_POLL_MS) {
+    this.pushTimer = setTimeout(() => void this.pollPush(), delay);
   }
 
   private async pollPush() {
@@ -325,6 +328,7 @@ export class SwStepUpDialog extends LitElement {
     try {
       const st = await pushApprovalState(open.id);
       if (this.push?.id !== open.id) return;
+      this.pushRefusals = 0;
       if (st.status === 'pending') return this.schedulePushPoll();
       if (st.status === 'approved') {
         this.busy = true;
@@ -337,6 +341,11 @@ export class SwStepUpDialog extends LitElement {
       this.push = null;
       this.error = PUSH_END_TEXT[st.status]?.() ?? trm('הבקשה פגה לפני שאושרה. נסה שוב.');
     } catch (err) {
+      const wait = this.push?.id === open.id ? pushPollRetryDelay(err, this.pushRefusals) : null;
+      if (wait !== null) {
+        this.pushRefusals += 1; // SA-01: a temporary 429 is not the end of the request: ask again a little later
+        return this.schedulePushPoll(wait);
+      }
       this.push = null;
       this.error = describeError(err);
     } finally {

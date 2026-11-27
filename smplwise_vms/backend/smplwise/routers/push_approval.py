@@ -40,7 +40,11 @@ from ..wire import wire
 router = APIRouter()
 
 REQUEST_LIMITS: list[tuple[float, int]] = [(300.0, 5), (3600.0, 20)]  # per user: a flood of prompts is the fatigue attack
-PHONE_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 300)]  # per user: the phone's list / challenge / answer calls
+# SA-01 (FIX-PUSH-APPROVAL-2560): one bucket per KIND of call. The requesting screen's 2-second state poll, the phone's background look
+# and the phone's three approval steps used to share one per-user bucket, so the polls starved each other (and the approval itself).
+STATE_LIMITS: list[tuple[float, int]] = [(60.0, 45), (3600.0, 1500)]  # per user: the requesting screen's poll (30 a minute while a request is open)
+PHONE_LIMITS: list[tuple[float, int]] = [(60.0, 20), (3600.0, 900)]  # per user: the phone's background look (every 5-15 s while the app is visible)
+ACT_LIMITS: list[tuple[float, int]] = [(60.0, 10), (3600.0, 60)]  # per user: the phone's challenge / approve / deny steps (the key lockout guards guessing)
 ACTION_PATTERN = r"^[a-z][a-z0-9_.]{0,63}$"
 
 
@@ -115,7 +119,7 @@ def start(body: StartBody, request: Request, principal: Principal = Depends(curr
 
 @router.get("/auth/step-up/push/{request_id}", **wire(W.PushApprovalState))
 def state(request_id: str, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
-    _limit(f"paphone:{principal.user_id}", PHONE_LIMITS)
+    _limit(f"pastate:{principal.user_id}", STATE_LIMITS)
     a = pa.of_requester(request_id, principal.user_id, step_up.session_key(request, principal))
     if a is None:
         raise _unknown()
@@ -148,7 +152,7 @@ def pending(request: Request, principal: Principal = Depends(current_principal_r
 
 def _phone_request(conn: sqlite3.Connection, request: Request, principal: Principal, request_id: str) -> tuple[pa.Approval, str]:
     """The pending request of this user as the PHONE may act on it, and the phone's session key. Fail closed with one answer."""
-    _limit(f"paphone:{principal.user_id}", PHONE_LIMITS)
+    _limit(f"paact:{principal.user_id}", ACT_LIMITS)
     if not pa.enabled(conn):
         raise ApiError(409, "push_approval_unavailable", pa.OFF_HE, details={"reason": "off"})
     a = pa.get(request_id)
