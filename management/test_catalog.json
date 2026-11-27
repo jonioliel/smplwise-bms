@@ -23176,5 +23176,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-HA-STATE-RECONCILE-2550-1",
+    "requirement_ids": [
+      "R-HA-STATE-RECONCILE-2550-1"
+    ],
+    "task_ids": [
+      "HA-STATE-RECONCILE-2550"
+    ],
+    "title": "Periodic full state reconcile of the platform mirror (ha.state_reconcile_min)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Every ha.state_reconcile_min minutes (default 10, 0 = off) one read-only get_states listing corrects only the states the home system reports as newer than the mirror's; an older listing never overwrites a newer event; skipped while disconnected or while a cycle runs.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

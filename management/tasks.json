@@ -32492,7 +32492,8 @@
       "2026-11-27 (RELEASE-2550-TRAIN): I18N-ARRU-2550 aa8d6a41d (row 10); train fix 5b72073b9 (ar / ru for row 7's temperature key, found by the row's completeness spec: 3 failed -> 146 passed over 14 unit files); tsc / typecheck / lint / unused-exports 0. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): DATA-RULES-2-2550 51d1ac37e (row 11; billing golden merged cleanly with row 5, regenerated from the merged code byte-identical), A11Y-NEW-2550 5adf8c729 (row 12), HOME-PERMS-WARN-2550 1a72804a8 (row 13). PC: generators / ratchets / lints / downgrade check green; release_check only the expected rows; unused-exports OK; tsc / typecheck / lint / build 0; 5 unit files 23 passed; 18 backend files 250 passed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): HOME-FIT-FOLLOWUPS-2550 e39d511e4 (row 14; evidence-multibuilding-home-2330 keeps the 2.54 gate fix 7accbe97d and the row's appended test). PC: unused-exports OK, tsc / typecheck / lint / build 0, design ratchet holds, spec lint 0. Only HA-STATE-RECONCILE-2550 left. UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): 2.54.0 released today, main = v2.54.0 = 3a0f02036, already in the train (ac6b2063e). WIRE-DRIFT-2550 d1a7ab692 (row 15, wire models only). PC: gen_wire_types --check 0, wire_ratchet 897 = baseline, unused-exports OK, tsc 0; test_wire_drift_2550 15, test_access_control_wire 23, test_wiskey_live_validation_2390 58 passed. Only HA-STATE-RECONCILE-2550 left. UI NOT rebuilt; gate NOT_RUN."
+      "2026-11-27 (RELEASE-2550-TRAIN): 2.54.0 released today, main = v2.54.0 = 3a0f02036, already in the train (ac6b2063e). WIRE-DRIFT-2550 d1a7ab692 (row 15, wire models only). PC: gen_wire_types --check 0, wire_ratchet 897 = baseline, unused-exports OK, tsc 0; test_wire_drift_2550 15, test_access_control_wire 23, test_wiskey_live_validation_2390 58 passed. Only HA-STATE-RECONCILE-2550 left. UI NOT rebuilt; gate NOT_RUN.",
+      "2026-11-27 (RELEASE-2550-TRAIN): HA-STATE-RECONCILE-2550 0d4b71a92 (row 16, the last row; ha_sync.py merged cleanly with row 5); guide top-up 11bfcad19 (DOCS-GUIDE-2550 Q1 a; test_docs_settings_2550 lists ha.state_reconcile_min); UI rebuilt e1a746197 (build of 11bfcad19: arx-shell-2.55.0, stamp 2134 files 73709d2b8c66, 0 maps). Final PC checks: generators / ratchets / lints / downgrade check green; release_check ready for the owner's approval (only the v2.55.0 tag missing); release / stamp / bundle tests passed; unused-exports OK; tsc / typecheck / lint / build / bundle budget 0; row 16 backend 76 passed; docs tests 12 + 7 passed. Ready for the gate; gate NOT_RUN (the lead installs the engine and starts it); nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -32914,6 +32915,44 @@
     ],
     "owner": null,
     "commit": "ff8f3a2f6",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HA-STATE-RECONCILE-2550",
+    "title": "Periodic full state reconcile of the platform mirror (ha.state_reconcile_min)",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every ha.state_reconcile_min minutes (default 10, 0 = off) one read-only get_states listing corrects only the states the home system reports as newer than the mirror's; an older listing never overwrites a newer event; skipped while disconnected or while a cycle runs."
+    ],
+    "requirement_ids": [
+      "R-HA-STATE-RECONCILE-2550-1"
+    ],
+    "test_ids": [
+      "AT-HA-STATE-RECONCILE-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HA-STATE-RECONCILE-2550, change note docs/changes/HA-STATE-RECONCILE-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/HA-STATE-RECONCILE-2550 head 76ca26382 merged 0d4b71a92 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 16; cut from CORE-RELIABILITY-2540 abfd96a73 (in the train through 2.54)); change note docs/changes/HA-STATE-RECONCILE-2550.md. Decisions Q1 = a, Q2 = a. services/ha_sync.py merged cleanly with row 5. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "76ca26382",
     "actual_cost_usd": null
   }
 ]

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T08:04:12.622439+00:00
+Generated: 2026-11-27T09:15:29.203703+00:00
 
-Tasks: 761 | Requirements: 875 | Tests: 892 | Screens: 32
+Tasks: 762 | Requirements: 876 | Tests: 893 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 200
+- REVIEW: 201
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 666
+- V1: 667
 - V2: 29
 - V3: 3
 
@@ -816,3 +816,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HOME-PERMS-WARN-2550](tasks/HOME-PERMS-WARN-2550.md) | V1 | REVIEW | Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11) | — |
 | [HOME-FIT-FOLLOWUPS-2550](tasks/HOME-FIT-FOLLOWUPS-2550.md) | V1 | REVIEW | Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test | — |
 | [WIRE-DRIFT-2550](tasks/WIRE-DRIFT-2550.md) | V1 | REVIEW | Wire models of the access-control reads and the WisKey validation match the real answers | — |
+| [HA-STATE-RECONCILE-2550](tasks/HA-STATE-RECONCILE-2550.md) | V1 | REVIEW | Periodic full state reconcile of the platform mirror (ha.state_reconcile_min) | — |

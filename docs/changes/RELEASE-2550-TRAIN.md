@@ -1,4 +1,4 @@
-# RELEASE-2550-TRAIN - the 2.55.0 train (pre-train)
+# RELEASE-2550-TRAIN - the 2.55.0 train
 
 Branch `release/2550-train`, worktree `C:\cloude\smplwise-2550train`, cut from `origin/release/2540-train` at `f9217db8a` (the 2.54.0
 train's note commit; 2.54.0 was not released then). **2.54.0 was released on 27.11: `main` = `v2.54.0` = `3a0f02036`, which this
@@ -6,11 +6,9 @@ train already contains** (merged as `ac6b2063e`, checked: `origin/main` is an an
 bump, train checks on the PC, one runner check job in slot B - section 3.5). No release gate was started, nothing was installed, no
 lab, no Home Assistant, no device, no WisKey contact. `main`, the tags, the `addon` branch and `release/2540-train` are untouched.
 
-**The UI bundle (`smplwise_vms/www`, `www-public`) is NOT rebuilt for 2.55.** Since the merge of the final 2.54.0 head (`ac6b2063e`) it
-is 2.54's final build `c768bfc8a` (stamp version 2.54.0, source `7accbe97d`; before that the train carried 2.54's earlier build
-`bdae0aaaa`). The 2.55 rebuild (`npm run build:addon` on the runner, the 2.54 way, section 3.4 of `RELEASE-2540-TRAIN.md`) comes last,
-after the remaining rows are merged. Until then
-`release_check.py` FAILS on the two bundle rows (expected).
+**The UI bundle (`smplwise_vms/www`, `www-public`) is rebuilt for 2.55.0** in `e1a746197` (the build of `11bfcad19`, all 16 rows and
+the guide top-up; section 3.14). Every later train commit changes no stamp input. **Ready for the gate**: nothing is installed, the gate is
+NOT started - the lead installs the 2.55 gate engine (GATE-TRUST-2540's strict engine check plus GATE-SPEED-2550, row 9) and starts it.
 
 ## 1. Merge log
 
@@ -32,6 +30,7 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | train note / registry | - | `4909a656e` / `51e390f86` | - | - | this note; section 4 |
 | - | train fix | - | `8d6ce1665` | - | - | section 2 (found by runner run A, section 3.5) |
 | `5b72073b9` | Arabic and Russian for `waDeleteConfirm` (LOWS-FRONTEND-2550's SCR-53 confirm text, added in Hebrew / English only) in `lang/ar` and `lang/ru` `temperature.ts`, same `{when}` placeholder | PC after row 10: `unit-i18n-arru-completeness-2550` ar + ru and `unit-temperature` (ar / ru placeholders) - 3 failed, 143 passed over 14 files; after: 18 passed in the two files |
+| `11bfcad19` | DOCS-GUIDE-2550 Q1 a - the what's-new top-up (`19-whats-new-2530-2550_HE.md`, both languages): bridge 0.10.10 and its one owner-approved home-system restart (LOWS-BRIDGE-GATE-2550), the generator battery system and the billing gap warning / reopened period (DATA-RULES-2-2550), `ha.state_reconcile_min` and states repairing themselves (HA-STATE-RECONCILE-2550), the home fit (HOME-FIT-FOLLOWUPS-2550), the site-wide data warning and the server gate on the home electricity bills (HOME-PERMS-WARN-2550), the focus return (A11Y-NEW-2550), Arabic / Russian completeness (I18N-ARRU-2550); WIRE-DRIFT-2550 internal (no user text); `80-settings_HE.md` two rows; `GUIDE_ALL_HE.html` regenerated; `test_docs_settings_2550.py` lists `ha.state_reconcile_min` | the lead (DOCS-GUIDE-2550 Q1 a); PC: `test_docs_settings_2550` 12, `test_docs_config_consistency` 7 passed, `build_guide --check` up to date |
 | - | train note | - | `5aa03829b` | - | - | section 3.5 |
 | 5 | `pilot/LOWS-BACKEND-2550` | `9c0387c7f` | `7b068500b` | `f9217db8a` (release/2540-train) | none | `error_text_en.json` (still valid, its sorted format), `routers/notifications.py`, `wire/notifications.py`, `services/backup.py` merged cleanly with rows 1 and 4; billing golden `tests/fixtures/bill_ledger_b_sql_golden.json` refreshed in the row on purpose (D-08); no migration; Q1-Q6 = a |
 | 6 | `pilot/LOWS-BRIDGE-GATE-2550` | `c68386d35` | `7a62d226c` | `f9217db8a` (release/2540-train) | none | **bridge 0.10.10** in both copies, byte-identical (section 1.3); `scripts/gate/*` and `nightly_tests.sh` are repo copies only, nothing installed; all questions = a |
@@ -52,6 +51,11 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | 14 | `pilot/HOME-FIT-FOLLOWUPS-2550` | `ac45a3308` | `e39d511e4` | `f9217db8a` (release/2540-train) | none | `devices-building.ts` (page-area ResizeObserver) merged cleanly with rows 5, 7, 12, 13; `evidence-multibuilding-home-2330.spec.ts`: both sides kept - the 2.54 gate's `7accbe97d` (every line checked present) and this row's test appended at the end; `evidence-home-screen.spec.ts` (the picker test); all = a |
 | - | registry / note / changelog | - | `e418684f4` | - | - | row 14 registered |
 | 15 | `pilot/WIRE-DRIFT-2550` | `ff8f3a2f6` | `d1a7ab692` | `e418684f4` (this train) | none | wire models only: `wire/access_control_reads.py`, `wire/wiskey_validation.py`, the regenerated `wire-access-control-reads.ts` / `wire-wiskey-validation.ts`, new `test_wire_drift_2550.py`; removes `AccessControlReadsPersonPersonProfile` (no reference in `frontend/src` or `frontend/tests`); all = a |
+| - | registry / note / changelog | - | `016de80f5` | - | - | row 15 registered |
+| 16 | `pilot/HA-STATE-RECONCILE-2550` | `76ca26382` | `0d4b71a92` | `abfd96a73` (CORE-RELIABILITY-2540, in the train through 2.54) | none | `services/ha_sync.py` merged cleanly with LOWS-BACKEND-2550's CORE-06 / CORE-07 (row 5, different functions; the merged module compiles and the tests of both rows pass, section 3.13); `settings_store.py`, `routers/settings.py`; DOCS / DOCS_HE merged cleanly with row 8; new setting `ha.state_reconcile_min`; Q1 = a, Q2 = a |
+| - | guide top-up | - | `11bfcad19` | - | - | DOCS-GUIDE-2550 Q1 a (section 2) |
+| - | UI rebuild | - | `e1a746197` | - | - | section 3.14 (the shipped bundle of the train) |
+| - | registry / note / changelog | - | (this commit) | - | - | row 16 registered; the train note closed for the gate |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -66,7 +70,7 @@ Conflict:
 - Row 7: `frontend/src/i18n/lang/en/i18n/msg/components.ts` - LEGACY-IMPORT-UI-2550's English block (row 2) and LOWS-FRONTEND-2550's
   SCR-52 line were both appended at the end of the map; both kept, HEAD first; no duplicate key in the file (checked).
 
-No other conflict (rows 5-8 included). All rows but one are merged. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
+No other conflict (rows 5-8 included). All rows are merged (16). HA-STATE-RECONCILE-2550 was still running at first (the lead says when to merge it; checked now: it adds no migration - it
 touches `routers/settings.py`, `services/ha_sync.py`, `services/settings_store.py`, DOCS / DOCS_HE and its own test). 2.54 fixes made on
 `release/2540-train` after its gate are merged in when the lead says.
 
@@ -285,6 +289,34 @@ runner's fixture lane; the row ran them on the runner.
 | `unused-exports --enforce` / `tsc` app | 0 / 0 | OK / 0 errors |
 | backend, one process each: `test_wire_drift_2550` 15, `test_access_control_wire` 23, `test_wiskey_live_validation_2390` 58 | 0 each | **96 passed** |
 
+### 3.13 After row 16 (at `0d4b71a92` / `11bfcad19`, PC, one process each)
+
+| file | exit | result |
+|---|---|---|
+| `test_ha_state_reconcile_2550` 10 (new), `test_lows_backend_2550_core` 9 (row 5's `ha_sync` changes), `test_core_reliability_2540_sync` 5, `test_ha` 5, `test_setting_value_parity` 8, `test_setting_callers_2440` 7, `test_settings_patch_audit_order` 8, `test_ui_settings` 20, `test_singletons_registered` 4 | 0 each | **76 passed** |
+| `test_docs_settings_2550` (with `ha.state_reconcile_min`) / `test_docs_config_consistency` | 0 / 0 | 12 / 7 passed |
+
+### 3.14 The shipped UI (the 2.54 way) and the final checks
+
+`npm run build:addon` on the runner (`~/work/p2520_t2550_buildui.sh 11bfcad19`, slot B, a copy of the 2.54 script: a detached worktree,
+the main checkout's `node_modules` linked, 0 untracked files under the stamp inputs; `tar` of `www` / `www-public`, copied to the PC as
+base64, sha256 `a222a370...2356` verified, both directories emptied and the archive extracted) -> **`e1a746197`**: rc 0; arx-shell-2.55.0;
+0 `.map` files and 0 `sourceMappingURL` (370 maps archived under `~/smplwise-results/sourcemaps/2.55.0`); public chunk largest
+public-ticket 60.23 kB; **`www/build-stamp.json`**: version 2.55.0, 2134 input files, inputs_sha256 `73709d2b8c66...`, source_commit
+`11bfcad19`. The script's own `bundle-budget --dir www-public` line could not measure the public build (a report-only line; the gate's
+budget runs on `frontend/dist`, below).
+
+Final checks at the train head (PC, one process at a time):
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` / `api_inventory.py` / `error_contract_inventory --check` / `i18n_backend_errors` | 0 each | match / 1962 routes (committed, unchanged) / 0 legacy 422 sites / 0 without English (2330 constant texts) |
+| `lint_spec_waits --new-since f9217db8a` / `design_ratchet` / `wire_ratchet` / `request_strict_ratchet --check` / `sync_integration --check` / `build_guide --check` / `migration_downgrade_check --from origin/release/2540-train` | 0 each | 0 findings in 17 files / no count above the baseline (px-literal 25511 may be lowered) / 897 / 144 / up to date / up to date / PASS |
+| `lint_backend --strict` / `ruff check smplwise` | 0 / 0 | 0 findings / clean |
+| **`release_check.py`** | 0 | **"ready for the owner's approval"**: one version 2.55.0 everywhere, bridge copies identical and 0.10.10, migrations contiguous (227, last 0227) and downgrade-safe since v2.54.0, both shipped-UI rows ok (arx-shell-2.55.0; the stamp = this checkout's inputs, 2134 files, `73709d2b8c66...`), no source map shipped, design ratchet; **only the v2.55.0 tag missing** (created after the owner's approval) |
+| `test_release_check` 3, `test_release_build_stamp_2540` 9 (+1 skipped), `test_release_bundle_version_2520` 6, `test_version` 1, `test_build_guards_2438` 11 | 0 each | passed |
+| `unused-exports --enforce` / `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` (to `frontend/dist`, `www` untouched) / `bundle-budget --dir dist --enforce` | 0 each | OK / 0 / 0 / clean / built / OK |
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -297,15 +329,13 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 
 ## 5. Open points
 
-1. **The UI rebuild** (`npm run build:addon`, the build stamp) - NOT done; after the last 2.54 fix and HA-STATE-RECONCILE-2550. Until
-   then `release_check.py` fails on "shipped UI bundle built for this version" and "built from these sources" (both say 2.54.0).
-2. **Row still to come** (the lead says when it is ready): HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
+1. **The UI rebuild** - done (`e1a746197`, section 3.14). ANY later change under `frontend/src`, `frontend/public`, the entry pages,
+   the Vite configs, `package*.json` or `tsconfig.json` (a gate fix included) needs a new `npm run build:addon` before the release
+   commit, or the gate's release_check fails on the build stamp.
+2. **Rows**: all 16 merged; no row is pending. Each: merge, its CHANGELOG line, registry card, PC checks.
    - **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
      row's runner install steps (nightly script, crontab) are the lead's.
-   - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): at the end of the train the coordinator adds a short section to
-     `docs/user-guide/he/19-whats-new-2530-2550_HE.md` (and DOCS / DOCS_HE "2.55.0" where needed) for the rows the guide row did not
-     cover: LOWS-BRIDGE-GATE-2550 (bridge 0.10.10 and its restart) and the rows still to come; then `build_guide.py` regenerates
-     `GUIDE_ALL_HE.html`. NOT done yet.
+   - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): done in `11bfcad19` (section 2).
 3. **2.54 gate fixes** - merged: the final 2.54.0 head `3a0f02036` (`ac6b2063e`). Any later 2.54 commit is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
 4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,
@@ -316,6 +346,7 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
    the merge commits. ANDROID-PUSH-2550's owner checklist (pick a push server, set `unifiedpush_servers`) and the app team's connector
    are outside the release; the option stays empty = off.
 
-NOT_RUN on the train: the release gate (the lead's), the UI rebuild, the full backend suite in one sweep (the rows' areas only, sections
-3.3 and 3.5), the full Playwright suites beyond the specs named, the Node unit suite after `8d6ce1665`, tablet, every lab / Home
+NOT_RUN on the train: the release gate (the lead's; the 2.55 engine is not installed), the full backend suite in one sweep (the rows' areas only, sections
+3.3 and 3.5), the full Playwright suites beyond the specs named, the Node unit suite after runner run A (`51e390f86`), the page / pixel / evidence specs of rows 5-16 (the rows ran their own on the
+runner), tablet, every lab / Home
 Assistant / device / WisKey / push-server / phone check.

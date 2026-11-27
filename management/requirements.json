@@ -15031,5 +15031,21 @@
     "test_ids": [
       "AT-WIRE-DRIFT-2550-1"
     ]
+  },
+  {
+    "id": "R-HA-STATE-RECONCILE-2550-1",
+    "title": "Periodic full state reconcile of the platform mirror (ha.state_reconcile_min)",
+    "statement": "Every ha.state_reconcile_min minutes (default 10, 0 = off) one read-only get_states listing corrects only the states the home system reports as newer than the mirror's; an older listing never overwrites a newer event; skipped while disconnected or while a cycle runs.",
+    "task_ids": [
+      "HA-STATE-RECONCILE-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HA-STATE-RECONCILE-2550-1"
+    ]
   }
 ]
