@@ -44,7 +44,7 @@ REQUEST_LIMITS: list[tuple[float, int]] = [(300.0, 5), (3600.0, 20)]  # per user
 # and the phone's three approval steps used to share one per-user bucket, so the polls starved each other (and the approval itself).
 STATE_LIMITS: list[tuple[float, int]] = [(60.0, 45), (3600.0, 1500)]  # per user: the requesting screen's poll (30 a minute while a request is open)
 PHONE_LIMITS: list[tuple[float, int]] = [(60.0, 20), (3600.0, 900)]  # per user: the phone's background look (every 5-15 s while the app is visible)
-ACT_LIMITS: list[tuple[float, int]] = [(60.0, 10), (3600.0, 60)]  # per user: the phone's challenge / approve / deny steps (the key lockout guards guessing)
+ACT_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 200)]  # per user: the phone's challenge / approve / deny steps (a retried signature is 2 calls; the key lockout guards guessing)
 ACTION_PATTERN = r"^[a-z][a-z0-9_.]{0,63}$"
 
 

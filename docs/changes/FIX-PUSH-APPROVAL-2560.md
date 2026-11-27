@@ -4,7 +4,7 @@ Fixes from the final deep review: SA-01 (medium), SA-02 (low), FE-06 (low).
 
 ## SA-01 - push approval collided with its own rate limit
 - `routers/push_approval.py`: the one per-user bucket `paphone:` is split by kind of call: `pastate:` (the requesting screen's poll,
-  45/min, 1500/h), `paphone:` (the phone's background look, 20/min, 900/h), `paact:` (challenge / approve / deny, 10/min, 60/h; the phone-key
+  45/min, 1500/h), `paphone:` (the phone's background look, 20/min, 900/h), `paact:` (challenge / approve / deny, 30/min, 200/h; the phone-key
   lockout still guards guessing). Request creation keeps `pareq:`.
 - `shell/push-approval-watch.ts`: the phone looks every 15 s while nothing is pending (5 s after a request was handled); opening the app
   still looks at once. `look()` takes injected deps and returns the next delay.
