@@ -15159,5 +15159,21 @@
     "test_ids": [
       "AT-BACKEND-SUITE-COST-2560-1"
     ]
+  },
+  {
+    "id": "R-GATE-SETUP-FLAKE-2560-1",
+    "title": "Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py)",
+    "statement": "Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py); merged into the 2.56.0 train, change note docs/changes/GATE-SETUP-FLAKE-2560.md.",
+    "task_ids": [
+      "GATE-SETUP-FLAKE-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-SETUP-FLAKE-2560-1"
+    ]
   }
 ]

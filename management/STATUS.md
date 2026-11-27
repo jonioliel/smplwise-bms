@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T17:17:24.275271+00:00
+Generated: 2026-11-27T17:30:54.799122+00:00
 
-Tasks: 768 | Requirements: 882 | Tests: 899 | Screens: 32
+Tasks: 770 | Requirements: 884 | Tests: 901 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 7
-- REVIEW: 206
+- REVIEW: 208
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 673
+- V1: 675
 - V2: 29
 - V3: 3
 
@@ -823,3 +823,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [OPEN-FINDINGS-2560](tasks/OPEN-FINDINGS-2560.md) | V1 | REVIEW | Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm | — |
 | [GATE-NIGHTLY-2560](tasks/GATE-NIGHTLY-2560.md) | V1 | REVIEW | Nightly script parity and the green-gate rule in release_check (TR-03, partial) | — |
 | [RELEASE-2560-TRAIN](tasks/RELEASE-2560-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2560-TRAIN - the 2.56.0 train | — |
+| [BACKEND-SUITE-COST-2560](tasks/BACKEND-SUITE-COST-2560.md) | V1 | REVIEW | Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout | — |
+| [GATE-SETUP-FLAKE-2560](tasks/GATE-SETUP-FLAKE-2560.md) | V1 | REVIEW | Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py) | — |

@@ -33221,5 +33221,43 @@
     "owner": null,
     "commit": "2275071fd",
     "actual_cost_usd": null
+  },
+  {
+    "id": "GATE-SETUP-FLAKE-2560",
+    "title": "Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py); merged into the 2.56.0 train, change note docs/changes/GATE-SETUP-FLAKE-2560.md."
+    ],
+    "requirement_ids": [
+      "R-GATE-SETUP-FLAKE-2560-1"
+    ],
+    "test_ids": [
+      "AT-GATE-SETUP-FLAKE-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GATE-SETUP-FLAKE-2560, change note docs/changes/GATE-SETUP-FLAKE-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/GATE-SETUP-FLAKE-2560 head bb710e95c merged 0de366cc7 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/GATE-SETUP-FLAKE-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "bb710e95c",
+    "actual_cost_usd": null
   }
 ]

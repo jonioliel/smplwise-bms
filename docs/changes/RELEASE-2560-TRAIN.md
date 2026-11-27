@@ -72,3 +72,18 @@ row head and merge commit; RELEASE-2560-TRAIN IN_PROGRESS. `scripts/project_stat
 2. UI rebuild (`npm run build:addon` on the runner) at the end of the train, then the gate (the lead's). Any later change under the stamp inputs needs a new build.
 3. The ordering test for the reconcile / worker race (section 1.1) is not written.
 4. The CHANGELOG 2.55.0 section is still below the 2.56.0 one (2.55.0 is not released); the lead merges / rewrites at release.
+
+## 6. Second round (27.11, after 2.55.0 was released: main = v2.55.0 = ad778e4ea)
+
+| # | what | head | merge | conflicts | notes |
+|---|---|---|---|---|---|
+| 6 | `ad778e4ea` (v2.55.0) | - | `90ec8596e` | `PROJECT_BOARD.html`, `management/STATUS.md` (generated, regenerated) | `tasks.json` / CHANGELOG merged cleanly; 2.56.0 draft on top, the 2.55.0 and older sections byte-identical to `ad778e4ea` (checked); version files stay 2.56.0 |
+| 7 | `pilot/BACKEND-SUITE-COST-2560` | `2275071fd` | next merge commit | none | route-analysis cache (tests only, `tests/support/route_cache.py`), faster DB copy, read-time WisKey timeout; one CHANGELOG line |
+| 8 | `pilot/GATE-SETUP-FLAKE-2560` | `bb710e95c` | 0de366cc7 | none | `scripts/gate/release_gate.py` + `selftest_gate.py` repo copies only; nothing installed on the runner |
+
+Checks (PC, one process at a time, before row 8): `gen_wire_types --check`, `i18n_backend_errors`, `wire_ratchet`, `sync_integration`, `build_guide`,
+`design_ratchet`, `migration_downgrade_check --from origin/main`: exit 0; `ruff check smplwise` clean; `unused-exports`, `tsc`, `eslint`: 0;
+`release_check`: only the two UI-bundle rows and the tag fail (expected). Backend: `test_ha_state_reconcile_2550` + `test_core10_eventloop_2560` together 16 passed;
+`test_route_cache` (equivalence) 4 passed; `test_wiskey_visit_filters_2560` 6, `test_release_check_green_2560` 12, `test_version` 1 passed.
+After row 8: `test_gate_speed` + `test_gate_always_run` 37 passed (1 skipped), `selftest_gate_speed_2550` OK, both gate scripts compile;
+`selftest_gate.py` itself is Linux-only (NOT_RUN). RECONCILE-TEST-LEAK-2560 still running, not merged.
