@@ -101,6 +101,16 @@ class SettingsPatch(BaseModel):
     playback_max_seeks_per_min: int | None = Field(default=None, ge=0, le=600, alias="playback.max_seeks_per_min")
     server_fast_network: str | None = Field(default=None, pattern="^(true|false)$", alias="server.fast_network")  # ASYNCIO-DEFAULT-2342
     server_startup_warmup: str | None = Field(default=None, pattern="^(true|false)$", alias="server.startup_warmup")  # WARMUP-POLISH-2421
+    # HA-STATE-RECONCILE-2550: minutes between two full state reconciles of the platform mirror; 0 = off, else 5..1440
+    ha_state_reconcile_min: int | None = Field(default=None, ge=0, le=1440, alias="ha.state_reconcile_min")
+
+    @field_validator("ha_state_reconcile_min")
+    @classmethod
+    def _reconcile_not_too_often(cls, v: int | None) -> int | None:
+        if v is not None and 0 < v < 5:
+            raise ValueError("the state reconcile runs at most every 5 minutes (0 turns it off)")
+        return v
+
     playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
     playback_stall_s: int | None = Field(default=None, ge=2, le=30, alias="playback.stall_s")
     playback_auto_resume_attempts: int | None = Field(default=None, ge=0, le=5, alias="playback.auto_resume_attempts")

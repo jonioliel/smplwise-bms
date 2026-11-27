@@ -1607,6 +1607,12 @@ access list and "who is in the building", and since 2.49.0 the tickets table.
 the common screens in the background, so the first screen opens faster after an update. On by default
 (`server.startup_warmup`).
 
+**State reconcile (2.55).** Every 10 minutes the add-on reads all states from Home Assistant once more (one read-only listing)
+and corrects only the states that Home Assistant reports as newer than the stored ones - a state update that was lost while the
+database was busy is repaired within one interval. An older listing never replaces a newer event, and "unknown" / "unavailable"
+stay as Home Assistant reports them. A cycle is skipped while Home Assistant is disconnected or the previous cycle still runs. The
+interval is the setting `ha.state_reconcile_min` (minutes; 0 = off, otherwise 5 to 1440; default 10).
+
 ## The home interface (2.42.0 and later)
 
 A second, simple interface that starts from the room, next to the full interface. Nothing changes for existing users until an
