@@ -24,5 +24,8 @@ Fixes from the final deep review: SA-01 (medium), SA-02 (low), FE-06 (low).
 
 No look changes (no pixel baselines). New text: none.
 
-## Tests run
-See the branch report (results are recorded in the final report; anything not run is marked NOT_RUN there).
+## Results (added by the 2.56 train coordinator from the row owner's numbers)
+- `test_mfa_t095_rest_2530.py`: 26 passed, including 2 new tests that failed before the fix.
+- SA-02: `test_sa02_gdrive_relink_and_key_import_are_local_only` failed before the fix (422 instead of 403) and passes after.
+- Frontend: `unit-push-approval-fix-2560` plus the step-up specs: 11 passed.
+- Not run: pixel baselines (no look change).
