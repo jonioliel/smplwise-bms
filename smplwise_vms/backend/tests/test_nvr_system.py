@@ -111,7 +111,7 @@ def test_system_status_and_writes(settings, monkeypatch):
         assert r.status_code == 201 and r.json()["name"] == "לובי" and "<name>לובי</name>" in fake.docs["/ISAPI/ContentMgmt/InputProxy/channels/1"]
         assert c.get(f"/api/v1/cameras/{cam['id']}/osd", headers=h).json()["nvr_name"] == "לובי"
         # alarm output pulse, S.M.A.R.T. test, reboot: one-shot commands, recorded without a "before"
-        r = c.post("/api/v1/nvr/outputs/802/pulse", headers=h)
+        r = c.post("/api/v1/nvr/outputs/802/pulse", json={"confirm": True, "client_request_id": "t-802-a"}, headers=h)
         assert r.status_code == 201 and r.json()["has_before"] is False and fake.commands[-1][0] == "/ISAPI/System/IO/outputs/802/trigger" and "<outputState>high</outputState>" in fake.commands[-1][1]
         r = c.post("/api/v1/nvr/storage/2/smart-test", json={"kind": "short"}, headers=h)
         assert r.status_code == 201 and fake.commands[-1][0] == "/ISAPI/ContentMgmt/Storage/hdd/2/SMARTTest" and "<selfTestType>short</selfTestType>" in fake.commands[-1][1]

@@ -9,6 +9,8 @@ import datetime as dt
 import html
 import re
 import sqlite3
+import threading
+import time
 from typing import Any
 
 import httpx
@@ -272,8 +274,62 @@ def alarm_outputs(settings: Settings, *, client: httpx.Client | None = None) -> 
 PULSE_XML = f'<IOPortData version="2.0" {XMLNS}><outputState>high</outputState></IOPortData>'
 
 
-def pulse_output(settings: Settings, conn: sqlite3.Connection, principal: Any, output_id: int, *, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
-    """Trigger the output once (the port's own pulse duration ends it); recorded, audited, not rollbackable."""
+# FIX-NVR-PULSE-2560 (deep review VD-02): a transport failure before the request left the host (no connection) is a refusal;
+# any other one (a read time-out, a dropped connection after the body) may follow a delivered command (services/ha.py reads the same names)
+NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout", "PoolTimeout"})
+PULSE_UNKNOWN_TEXT = "לא ידוע אם היציאה הופעלה: הקשר עם ה־NVR נפסק אחרי שהפקודה נשלחה. בדקו במקום לפני הפעלה חוזרת."
+PULSE_UNKNOWN_TEXT_EN = "It is not known whether the output was triggered: the link to the NVR dropped after the command was sent. Check on site before triggering it again."
+
+
+def pulse_outcome_unknown(exc: ApiError) -> bool:
+    """True when the pulse may have reached the recorder although no good answer came back: a transport failure other than
+    'could not connect', or a 5xx from the recorder itself. A refusal (401/403, an ISAPI rejection, a connect error) is False."""
+    if exc.code in ("source_unavailable", "source_timeout"):
+        return (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
+    if exc.code == "nvr_rejected":
+        status = (exc.details or {}).get("status")
+        return isinstance(status, int) and status >= 500
+    return False
+
+
+# VD-04: a repeated (user, recorder, client request id) within this window answers the first result and never pulses again
+PULSE_DEDUPE_SECONDS = 120.0
+_PULSE_LOCK = threading.Lock()
+_PULSE_SEEN: dict[tuple[str, str, int, str], tuple[float, dict[str, Any] | ApiError]] = {}
+
+
+def _pulse_key(principal: Any, settings: Settings, output_id: int, request_id: str) -> tuple[str, str, int, str]:
+    return (str(getattr(principal, "user_id", "")), str(getattr(settings, "nvr_recorder_id", "") or ""), output_id, request_id)
+
+
+def pulse_output(settings: Settings, conn: sqlite3.Connection, principal: Any, output_id: int, *, request_id: str | None = None, client: httpx.Client | None = None,
+                 client_request_id: str | None = None) -> dict[str, Any]:
+    """Trigger the output once (the port's own pulse duration ends it); recorded, audited, not rollbackable. `client_request_id`
+    (VD-04): a repeat of the same id inside PULSE_DEDUPE_SECONDS returns the first result (or re-raises the first 'unknown') and sends nothing.
+    The lock is held across the call, so two simultaneous copies cannot both pulse."""
+    if client_request_id is None:
+        return _pulse_once(settings, conn, principal, output_id, request_id=request_id, client=client)
+    key = _pulse_key(principal, settings, output_id, client_request_id)
+    with _PULSE_LOCK:
+        now = time.monotonic()
+        for k in [k for k, (t, _) in _PULSE_SEEN.items() if now - t > PULSE_DEDUPE_SECONDS]:
+            del _PULSE_SEEN[k]
+        seen = _PULSE_SEEN.get(key)
+        if seen is not None:
+            if isinstance(seen[1], ApiError):
+                raise seen[1]
+            return {**seen[1], "duplicate": True}
+        try:
+            rec = _pulse_once(settings, conn, principal, output_id, request_id=request_id, client=client)
+        except ApiError as exc:
+            if (exc.details or {}).get("outcome") == "unknown":  # a refusal sent nothing: the same id may try again
+                _PULSE_SEEN[key] = (time.monotonic(), exc)
+            raise
+        _PULSE_SEEN[key] = (time.monotonic(), rec)
+        return rec
+
+
+def _pulse_once(settings: Settings, conn: sqlite3.Connection, principal: Any, output_id: int, *, request_id: str | None, client: httpx.Client | None) -> dict[str, Any]:
     path = f"{IO_OUTPUTS}/{output_id}/trigger"
     own = client is None
     c = client or _client(settings)
@@ -281,8 +337,15 @@ def pulse_output(settings: Settings, conn: sqlite3.Connection, principal: Any, o
         try:
             _put(c, path, PULSE_XML)
         except ApiError as exc:
+            if pulse_outcome_unknown(exc):
+                # VD-02: sent, no good answer: neither "failed" nor "denied" - the operator is told to check on site
+                _record(conn, principal, kind="alarm_output", permission="nvr.alarm_output", target=f"output-{output_id}", path=path, before=None, after=PULSE_XML, status="unknown", error=exc.code, note="הפעלת יציאה - לא ידוע, לבדוק במקום")
+                audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=f"output-{output_id}", reason=exc.code, request_id=request_id,
+                      details={"kind": "alarm_output", "path": path, "outcome": "unknown"})
+                raise ApiError(504, "action_outcome_unknown", PULSE_UNKNOWN_TEXT, retryable=False,
+                               details={**(exc.details or {}), "outcome": "unknown", "message_en": PULSE_UNKNOWN_TEXT_EN}) from exc
             _record(conn, principal, kind="alarm_output", permission="nvr.alarm_output", target=f"output-{output_id}", path=path, before=None, after=PULSE_XML, status="failed", error=exc.code, note="הפעלת יציאה")
-            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=f"output-{output_id}", reason=exc.code, request_id=request_id, details={"kind": "alarm_output", "path": path})
+            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=f"output-{output_id}", reason=exc.code, request_id=request_id, details={"kind": "alarm_output", "path": path, "outcome": "refused"})
             raise
     finally:
         if own:

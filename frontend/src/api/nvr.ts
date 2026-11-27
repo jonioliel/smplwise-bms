@@ -1,6 +1,7 @@
 /** Owner-approved NVR writes (0.1.64): "Notify Surveillance Center" per channel and the change log with rollback.
  * Reading needs system.configure; writing needs the sensitive permission `nvr.config.events` (custom role). */
 import { get, path, post, put } from './client';
+import { commandId } from './request-id';
 
 interface NotifyType { supported: boolean; center: boolean | null }
 interface NotifyChannel {
@@ -20,7 +21,7 @@ export interface NvrChange {
   permission: string;
   target: string;
   path: string;
-  status: 'applied' | 'unchanged' | 'rolled_back' | 'failed';
+  status: 'applied' | 'unchanged' | 'rolled_back' | 'failed' | 'unknown';
   error: string | null;
   rollback_of: string | null;
   note: string;
@@ -60,7 +61,8 @@ export interface NvrSystem { time: NvrTime | null; disks: NvrDisk[]; outputs: Nv
 export const nvrSystem = () => get<NvrSystem>('nvr/system');
 export const setNvrTime = (body: { sync_now?: boolean; mode?: 'NTP' | 'manual' }) => put<NvrChange>('nvr/time', body);
 export const setNvrNtp = (body: { host: string; port?: number; interval_min?: number | null }) => put<NvrChange>('nvr/ntp', body);
-export const pulseNvrOutput = (id: number) => post<NvrChange>(path`nvr/outputs/${id}/pulse`);
+/** FIX-NVR-PULSE-2560 (VD-04): the pulse carries its confirmation and one request id per deliberate press (a resend or a second tab is answered with the first result, never pulsed twice). */
+export const pulseNvrOutput = (id: number, requestId: string = commandId()) => post<NvrChange>(path`nvr/outputs/${id}/pulse`, { confirm: true, client_request_id: requestId });
 export const startSmartTest = (hddId: number, kind: 'short' | 'extended' = 'short') => post<NvrChange>(path`nvr/storage/${hddId}/smart-test`, { kind });
 export const rebootNvr = (confirm: string) => post<NvrChange>('nvr/reboot', { confirm });
 /** CR-024 (multi-NVR): the system actions of one recorder (`?recorder_id=`; the first recorder when omitted - the routes' default). */
@@ -70,7 +72,7 @@ export function nvrSystemApi(recorderId?: string) {
     nvrSystem: () => get<NvrSystem>(`nvr/system${q}`),
     setNvrTime: (body: { sync_now?: boolean; mode?: 'NTP' | 'manual' }) => put<NvrChange>(`nvr/time${q}`, body),
     setNvrNtp: (body: { host: string; port?: number; interval_min?: number | null }) => put<NvrChange>(`nvr/ntp${q}`, body),
-    pulseNvrOutput: (id: number) => post<NvrChange>(path`nvr/outputs/${id}/pulse` + q),
+    pulseNvrOutput: (id: number, requestId: string = commandId()) => post<NvrChange>(path`nvr/outputs/${id}/pulse` + q, { confirm: true, client_request_id: requestId }),
     startSmartTest: (hddId: number, kind: 'short' | 'extended' = 'short') => post<NvrChange>(path`nvr/storage/${hddId}/smart-test` + q, { kind }),
     rebootNvr: (confirm: string) => post<NvrChange>(`nvr/reboot${q}`, { confirm }),
   };
