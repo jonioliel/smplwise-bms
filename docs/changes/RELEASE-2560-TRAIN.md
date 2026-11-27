@@ -120,3 +120,37 @@ UI rebuilt at the end (`~/work/p2520_t2560_buildui.sh 15a88f337`): rc 0, arx-she
 ### 8.1 PC checks of the fix rows (one process at a time; frontend / ratchets at `c93f77643`, repeated where a train fix touched them)
 
 `gen_wire_types --check`, `api_inventory` (1962 routes, no diff), `error_contract_inventory`, `i18n_backend_errors`, `wire_ratchet`, `request_strict_ratchet`, `sync_integration`, `build_guide`, `lint_spec_waits`, `migration_downgrade_check --from origin/main`: 0. `ruff check smplwise` clean. `design_ratchet` failed once (announcer px, fixed `2986edf80`) -> 0; `unused-exports` failed once (3 exports, fixed `15a88f337`) -> OK; `tsc` / `typecheck` / `eslint` / `build`: 0. Unit (1 worker, 5 files incl. `unit-fix-server-clock-2560`, `unit-push-approval-fix-2560`): 92 passed. Backend, one file per process: `test_fix_server_clock_2560` 3, `test_fix_mh01_2560` 10, `test_mfa_t095_rest_2530` 26, `test_lows_backend_2550_security` 8, `test_nvr_pulse_confirm_2560` 6, `test_nvr_system` 8, `test_nvr_write_guard_2438` 10, `test_legacy_import_2550` 18, `test_release_check_green_2560` 14, `test_home_ticket_note_idem_2540` 4, `test_tickets_public_app` 54, `test_version` 1; `test_core10_eventloop_2560` 11 and `test_ha_state_reconcile_2550` 10 alone and 21 together: all passed. NOT_RUN: the layout / no-scroll Playwright specs (Linux, served build - the gate's early stage, the one that failed), pixel specs, the whole Node unit suite.
+
+## 9. Gate #2 fixes (28.11)
+
+Gate #2 at `0a8214160` (`~/smplwise-results/gate_release-2560-train_0a8214160.gate2.md`): FAIL, 20 test failures (all "failed again alone"),
+0 hard failures, 32 flaky (passed alone). Fixed on the train in four groups:
+
+1. **Announcer** (`ededd9ec3`): `2986edf80` had made the hidden announcer host `1em`; the 14.5px fixed box failed "announcer: takes no
+   room" (desktop, mobile) and the layout guards (`layout-visdiff-246` live-wall / security-alarm / settings-access,
+   `layout-update-screens` tesla / crystal light / dark: "[floating] div covers input 'חיפוש בהגדרות'"). Back to the 1px fixed box of
+   FIX-NOSCROLL-2560; its style string moved to `frontend/src/design/visually-hidden.ts` (the design layer, where size literals are not
+   px-literal debt), so the design ratchet stays at px-literal 25513 without a baseline raise. No layout spec changed.
+2. **SCR-39 spec** (`dba0296d2`): FIX-TICKETS-2560 routes the home note through `sendNote` (same key; a fresh key only after 409
+   `request_body_changed`). The guarded behaviour is intact (no second note while busy, the button redrawn disabled at once, one request
+   id per opening of the sheet, cleared after the send); `unit-stale-answers-2540.spec.ts` follows the name and also asserts the retry rule.
+3. **Backend guards** (`9390f6989`): English for `home_family` `request_body_changed` in `error_text_en.json` (both i18n guards);
+   `nvr_system._PULSE_SEEN` and `ha_state_worker.DELIVERY` register a per-test reset, `ha_sync.STATE_WORKER` recorded in
+   `singletons_unregistered.txt` (it owns a daemon thread and a FIFO); `test_mfa_stepup_gates_2490`: `catalog.delete_building` /
+   `delete_floor` listed in `AFTER_REQUIRE` (FIX-MH01's RemapGuard re-checks `site.content.configure` after the route's own gated
+   `require()`, as `put_home_link`). The pulse route was not flagged (`nvr.alarm_output` is not a physical permission; unchanged by the
+   fix rows). `test_release_check`: CD-01 makes `--tag` without a results directory a failure by design; the test asserts that and passes a
+   stated `--accept-no-results` reason.
+4. **UI rebuild** (`f29d415e2`): `~/work/p2520_t2560_buildui.sh ededd9ec3`: rc 0, arx-shell-2.56.0, 0 maps, archive sha256
+   `a162b1d7c191...dd5b` equal on both sides (base64 transfer), stamp 2136 files, inputs_sha256 `ef8474abdf22...`, source_commit
+   `ededd9ec3`. `release_check.py` on the PC: "ready for the owner's approval", only the v2.56.0 tag missing.
+
+Runner job `~/work/p2520_g2fix_run.sh ededd9ec3` (slot B, workers 2, vite preview of the head): tsc app + tests 0, eslint 0;
+`a11y-new-2550` 64 passed / 2 skipped; `unit-stale-answers-2540` 48 passed (desktop, mobile, tablet); `layout-visdiff-246` 23 passed;
+`layout-update-screens` 8 passed; `layout-noscroll-1366` 66 passed / 66 skipped; `evidence-noscroll-295` 25 passed / 25 skipped;
+`layout-timescrub-noscroll` 10 passed. Backend: `test_i18n_errors_en_2520` 9, `test_i18n_runtime_errors_2520` 8,
+`test_singletons_registered` 4, `test_mfa_stepup_gates_2490` 19 passed; `test_release_check` 1 failed / 2 passed at `ededd9ec3` (the www
+stamp did not yet match the changed announcer source - expected before the rebuild) and 3 passed on the PC after `f29d415e2`.
+ruff (default rules) on the touched files: 26 F811 fixture re-imports in `test_mfa_stepup_gates_2490.py`, all pre-existing (the gate's
+ruff F lane reported 0). NOT_RUN: the gate (`release_gate2.sh --after`, the lead's), the `[dev]` project as such (the update screens ran
+against the preview build), the 32 flaky tests.
