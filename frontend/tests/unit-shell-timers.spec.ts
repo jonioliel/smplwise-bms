@@ -326,6 +326,9 @@ const LOCAL_CLOCKS: Record<string, number> = {
   'components/media-remote.ts': 1, // same (tickTimer)
   'components/media-remote-logic.ts': 2, // the repeat-press seam (injected timers) and its default
   'components/media-screen-card.ts': 1, // the progress ticker
+  // A11Y-NEW-2550 (restoreFocus): a 100 ms wait, at most 30 ticks (3 s), until a still-disabled opener is enabled again; it reads the
+  // button's own `disabled` and gives it the focus - DOM only, no request; cleared when the opener leaves the page or after 3 s
+  'components/modal-stack.ts': 1,
   'components/notify-center.ts': 1, // notifyStore.tick(): the "ago" clock (local recompute)
   'components/sw-camera-tile.ts': 1, // the 1 s still scheduler: stillDue() requests only when visible, in view and due
   'components/sw-demo-banner.ts': 1, // a 15 s clock
