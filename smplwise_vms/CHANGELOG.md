@@ -2,7 +2,6 @@
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 
-<!-- RELEASE-2560-TRAIN: DRAFT - the train coordinator's working list for rows 1-5 (CORE10-EVENTLOOP-2560, A11Y-FOLLOWUPS-2560, WISKEY-VISIT-FILTERS-2560, OPEN-FINDINGS-2560, GATE-NIGHTLY-2560), not the final release text; the lead writes the final bilingual text at release (BACKEND-SUITE-COST-2560 may add a line). The word DRAFT is kept out of the heading so scripts/release_check.py reads 2.56.0 as the CHANGELOG head. -->
 
 ### שופר - Improved
 - מצבי מערכת הבית נכתבים בחוט עבודה נפרד: מסד נתונים עמוס או חוק שמפעיל הודעה כבר לא עוצרים את קריאת הערוץ, ולכן "רענן ממערכת הבית", תזמונים וזיהוי בלחיצה לא מקבלים שגיאת זמינות בגללם. - Home system states are written on a worker thread: a busy database or a rule that sends a notice no longer holds up reading the feed, so "refresh from Home Assistant", schedules and detect-by-pressing do not time out because of it.
@@ -19,6 +18,9 @@
 
 ### שינוי בממשק השרת - API change
 - נוסף: `POST /nvr/outputs/{id}/pulse` דורש גוף `{confirm: true, client_request_id}` ועונה 504 `action_outcome_unknown` כשהתשובה אבדה; בקשת כרטיס שחוזרת עם אותו מפתח וגוף אחר נדחית ב-409 `request_body_changed`; קישור מחדש ליעד גיבוי ויבוא מפתח הם מהרשת המקומית בלבד. אין שינוי בהגדרות. - Added: `POST /nvr/outputs/{id}/pulse` requires a body `{confirm: true, client_request_id}` and answers 504 `action_outcome_unknown` when the answer was lost; a ticket request repeated with the same key and another body is refused with 409 `request_body_changed`; re-linking a backup target and key import are local-network only. No settings change. `capabilities.visits.statuses` של הביקורים החיצוניים נגזר מחוזה WisKey כשהוא מפורסם. - No route or setting change. `capabilities.visits.statuses` of the external visits follows the WisKey contract when it is published.
+
+### התקנה - Install
+- אין מיגרציה חדשה. הגשר נשאר 0.10.10 (כמו ב-2.55.0). אין צורך להפעיל מחדש את מערכת הבית. חזרה ל-2.55.0: לשחזר את הגיבוי "auto-pre-upgrade" שההערה שלו "before upgrade 2.55.0 -> 2.56.0", לא את החדש ביותר. - No new migration. The bridge stays 0.10.10 (as in 2.55.0). No home system restart is needed. Rollback to 2.55.0: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.55.0 -> 2.56.0", not the newest one.
 
 ## 2.55.0 (pilot) - import from the old NVR add-on, a safe way back, Android push without Google
 

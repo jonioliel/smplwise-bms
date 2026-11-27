@@ -154,3 +154,13 @@ stamp did not yet match the changed announcer source - expected before the rebui
 ruff (default rules) on the touched files: 26 F811 fixture re-imports in `test_mfa_stepup_gates_2490.py`, all pre-existing (the gate's
 ruff F lane reported 0). NOT_RUN: the gate (`release_gate2.sh --after`, the lead's), the `[dev]` project as such (the update screens ran
 against the preview build), the 32 flaky tests.
+
+## 10. Release gate result (lead, 28.11)
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | `57de3270c` | full | 42 min | FAIL - early layout stage, 102 no-scroll failures (announcer, fixed by FIX-NOSCROLL-2560) |
+| 2 | `0a8214160` | full (all FIX rows) | 159 min | FAIL - 0 hard, 20 tests, 3 causes (section 9) |
+| 3 | `e99e0cc96` | `--after` run 2, 3 h cap | 31 min | **PASS** - 0 hard, 0 test failures, 3 flaky |
+
+Final bilingual CHANGELOG by the lead (DRAFT marker removed, install/rollback note). Publishing waits for the owner's approval in chat.
