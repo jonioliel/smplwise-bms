@@ -399,7 +399,10 @@ def test_history_hidden_from_a_viewer_who_sees_part_of_the_elevator(owner, monke
     c, db, settings, eid = owner
     import time
 
-    tick(db, time.time())
+    # BACKEND-SUITE-COST-2560: the row is pinned 600 s inside the window, as in test_history_segments_and_window above. Taken at
+    # time.time() it fell in the request's own second whenever the app answered fast (a warm route cache), and history() drops that
+    # zero-length trailing segment by design - the same flake that test fixed on 2026-10-29.
+    tick(db, time.time() - 600)
     bind(c, settings, "flo", "viewer", "installation", "*")
     real = ha_scope.visible_floors
     monkeypatch.setattr(ha_scope, "visible_floors", lambda conn, p, perm: (False, {"f1"}) if p.username == "flo" else real(conn, p, perm))
