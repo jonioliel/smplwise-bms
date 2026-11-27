@@ -7,8 +7,9 @@ when "bills" is on for a person on a site with more than one customer; the perso
 D-11 is still present at the base (`GET /energy/accounts` lists every account; `services/home_interface.home_bill_file_check` checks the
 category and the bill state only).
 
-**No behaviour change.** Nobody may read anything they could not read before, and nothing is written. The API change is additive
-(ADR-015). **No migration.**
+The warning itself changes no behaviour. The owner's rule (an unanswered question takes the recommendation) then added the two
+recommendations of the questions below: **Q1 = a** closes a server gap (permissions only get stricter, for home-only people) and
+**Q2 = a** adds one line under the room list. The API change is additive (ADR-015). **No migration.**
 
 ## What changed
 
@@ -50,15 +51,40 @@ exactly as before). Hebrew + English (`frontend/src/i18n/lang/en/i18n/msg/home.t
 Display hints only, never an authorization. Wire models: `wire/home_interface.HomeUserPolicy.site_wide`, `HomeSharedScope`,
 `HomePolicies.shared_scope`; `frontend/src/api/generated/wire-home-interface.ts` regenerated (`scripts/gen_wire_types.py`).
 
+### Q1 = a - the electricity bill's routes for a home-only person (security, backend)
+
+**Before.** `GET /energy/accounts`, `GET /energy/accounts/{id}/status`, `GET /energy/accounts/{id}/periods` were on the home-only allow-list
+and kept only the billing module's own check (`energy.view` OR `energy.manage` OR `energy.bills`). A home-only person with `energy.view` and
+no bill permission (the operator role) - for whom the home interface shows no bill screen - could call them directly and read every
+account: the customer's name and number, the account's formula and meters, the period and the last bill's number, dates and kWh (no
+money). Hiding the "חשבון חשמל" category did not stop it either (it stopped only the bill file).
+
+**After.** `services/home_interface.enforce` (the home-only gate, run on every request) judges these routes and the bill file
+(`GET /energy/bills/{id}/pdf`) for a home-only person (or a wall panel) exactly as the home bill screen decides: the "bills" category must
+be on AND the person must hold `energy.bills` (installation scope). Otherwise 403 with a clear code - `home_module_off` (category hidden) or
+`home_bills_permission` (no bill permission; "אין לך הרשאה לחשבונות החשמל." / "You have no permission for the electricity bills.") - and no
+account data in the answer. Every refusal is audited as `home_interface.bills.refused` (reason = the code; at most once per person and code
+per 5 minutes, the gate's own rule against audit floods). Not judged here, so unchanged: everybody who is not home-only (the full
+interface keeps the billing module's rules), and a system administrator. A home-only person with the category on and `energy.bills` reads
+as before. `GET /energy/tariffs` and `GET /energy/meters` are not bill routes and stay as they were.
+
+### Q2 = a - the room list says what it does (frontend)
+
+Under "חדרים שהמשתמש רואה" one line (`data-home-rooms-note`, the page's `.note` style): "הרשימה רק מסתירה חדרים במסך הראשי של הממשק
+הביתי. היא לא מגבילה מצלמות, הקלטות או פעולות על מכשירים: אותן קובעות ההרשאות." English: "This list only hides rooms on the home
+interface's main screen. It does not limit cameras, recordings or device actions: the permissions decide those." No server change.
+
 ## Files
 
-* `smplwise_vms/backend/smplwise/services/home_interface.py` - `SITE_WIDE_READS`, `site_wide_reads`, `shared_scope`; `list_policies` adds `site_wide`
+* `smplwise_vms/backend/smplwise/services/home_interface.py` - `SITE_WIDE_READS`, `site_wide_reads`, `shared_scope`; `list_policies` adds `site_wide`;
+  Q1: `HOME_BILLS_*`, `bills_route`, `_refuse_audited`, the bill branch in `enforce`
+* `smplwise_vms/backend/smplwise/error_text_en.json` - the English of the new refusal
 * `smplwise_vms/backend/smplwise/routers/home_interface.py` - `GET /home/policies` adds `shared_scope`
 * `smplwise_vms/backend/smplwise/wire/home_interface.py` - the two additive fields and `HomeSharedScope`
 * `frontend/src/api/generated/wire-home-interface.ts` - regenerated
-* `frontend/src/home/sw-home-admin.ts` - `siteWideWarning`, its style
-* `frontend/src/i18n/lang/en/i18n/msg/home.ts` - the eight English texts
-* `smplwise_vms/backend/tests/test_home_perms_warn_2550.py` - new
+* `frontend/src/home/sw-home-admin.ts` - `siteWideWarning`, its style; Q2: the room list's line
+* `frontend/src/i18n/lang/en/i18n/msg/home.ts` - the nine English texts
+* `smplwise_vms/backend/tests/test_home_perms_warn_2550.py`, `tests/test_home_bills_gate_2550.py` - new
 * `frontend/tests/home-perms-warn-2550.spec.ts` - new (behaviour, pixel baselines, compare captures) and its `-snapshots/` (Linux)
 
 ## Tests
@@ -91,7 +117,7 @@ Compare page (local, Hebrew): `private/planning/home-perms-warn-2550_compare_202
 
 | Category | What a home user reads | Per person? | Gap |
 |---|---|---|---|
-| חשבון חשמל (`bills`) | `GET /energy/accounts` (every account), `.../{id}/status`, `.../{id}/periods`, the bill file | no | **yes** - D-11; warned now |
+| חשבון חשמל (`bills`) | `GET /energy/accounts` (every account), `.../{id}/status`, `.../{id}/periods`, the bill file | no | **yes** - D-11; warned now; home-only access now needs the category and `energy.bills` (Q1) |
 | חשמל (`energy`) | `GET /energy/meters`, `/energy/consumption` - every meter (`energy.view` at installation scope only) | no | **yes** - warned now |
 | מים (`water`) | `GET /infra/water/meters`, `/consumption`, `/events/summary` - every meter for an installation-wide `water.view`; a floor-scoped holder sees his floors only | per floor only | **partly** - warned for the installation-wide holder |
 | פניות שירות (`tickets`) | `GET /home/tickets` - only the tickets the caller opened (owner decision round 27 q8) | yes | no |
@@ -100,29 +126,18 @@ Compare page (local, Hebrew): `private/planning/home-perms-warn-2550_compare_202
 | יומן הבית (`log`), אינטרקום | `GET /events` (rbac scope), `GET /intercom/calls` (stations the caller may read) | per scope | no |
 | מי בבית (`presence`) | the household, by design | - | no |
 
-Two related things found on the way (not in the row's scope, not changed):
+Two related things found on the way (both then decided by the owner's rule, questions 1 and 2):
 
 * `GET /energy/accounts` (and `.../{id}/status|periods`) is on the home-only allow-list and accepts `energy.view` **or** `energy.bills`. A
   home-only person with `energy.view` only (the operator role) - for whom the home interface shows no bill screen - can still read every
   account with its customer's name and number and the last bill's kWh and dates (no money) by calling the route directly. The "bills"
-  category does not gate these routes on the server either (only the bill file, `home_bill_file_check`). See question 1.
+  category did not gate these routes on the server either (only the bill file, `home_bill_file_check`). **Closed by Q1 = a.**
 * The person's room list ("חדרים שהמשתמש רואה") filters the home overview (`routers/home_interface` `allowed_rooms`) but is not a server-side
-  limit on the other home routes: cameras, recordings, device actions and the house log follow the person's permission scope. See question 2.
+  limit on the other home routes: cameras, recordings, device actions and the house log follow the person's permission scope. **Said on the page by Q2 = a** (no server change).
 
-## Open questions (recommendation first)
+## Questions (owner rule: unanswered = the recommendation)
 
-1. **The electricity accounts for a home-only person without the bill permission.**
-   a. For a home-only person, gate `GET /energy/accounts*` by the "bills" category and `energy.bills` (what the home interface itself uses);
-      the full interface keeps its rules (a small backend row) **(recommended)**.
-   b. Keep it: `energy.view` deliberately reads the accounts without money.
-2. **The room list is a display filter, not a permission.**
-   a. Say so on the page (one line under "חדרים שהמשתמש רואה": "מסתיר חדרים מהממשק הביתי; ההרשאות נקבעות במשתמשים והרשאות") and keep
-      the server as it is - the role scope is the limit **(recommended)**.
-   b. Enforce the room list on the server for home-only people too (cameras, recordings, device actions) - a larger row with its own tests.
-3. **The person -> customer binding** (D-11 question 3, the later part of a).
-   a. When tenants become a target: an optional binding person -> billing customer that narrows the bills (and the meters of the
-      customer's accounts) for that person; until then the warning **(recommended)**.
-   b. Build it now.
-4. **Should the warning also appear on a single-customer site?**
-   a. No - one customer means every bill is that household's; the note would only be noise **(recommended, as built)**.
-   b. Always, as long as the category is on and the permission is site-wide.
+1. The electricity accounts for a home-only person without the bill permission - **a, built** (see Q1 above).
+2. The room list is a display filter, not a permission - **a, built** (the line above); the server stays as it is.
+3. The person -> customer binding - **a**: later, when tenants become a target; until then the warning.
+4. The warning on a single-customer site - **a, as built**: not shown.

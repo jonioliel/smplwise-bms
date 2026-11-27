@@ -1269,4 +1269,6 @@ export const en = {
   'מים: הצריכה של כל מוני המים באתר. הרשאת מים לפי קומה מגבילה אותו לקומות שלו.': 'Water: the use of every water meter on the site. A water permission for a floor limits them to their floors.',
   '{name} יראה בממשק הביתי נתונים של כל האתר': "{name} will see the whole site's data in the home interface",
   'עדיין אין קישור בין אדם ללקוח החשבון או למונה שלו. ההרשאות עצמן נקבעות במשתמשים והרשאות; כאן אפשר רק להסתיר את המסך מהממשק הביתי.': 'There is no link yet between a person and their billing customer or meter. The permissions themselves are set in Users and permissions; here you can only hide the screen from the home interface.',
+  // HOME-PERMS-WARN-2550 (owner Q2 = a): the room list is a display filter, not a permission
+  'הרשימה רק מסתירה חדרים במסך הראשי של הממשק הביתי. היא לא מגבילה מצלמות, הקלטות או פעולות על מכשירים: אותן קובעות ההרשאות.': 'This list only hides rooms on the home interface’s main screen. It does not limit cameras, recordings or device actions: the permissions decide those.',
 };

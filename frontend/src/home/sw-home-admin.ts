@@ -10,6 +10,8 @@
 // HOME-PERMS-WARN-2550 (LOWS-BACKEND-2550 finding D-11, question 3 = a): a read-only warning under a person's categories when the electricity
 // bill, electricity or water category is on and the person's permission reads that data for the whole site (`site_wide`), on a site with
 // more than one billing customer (`shared_scope.customers`; unknown = shown). There is no person -> customer / meter binding yet. Changes nothing.
+// HOME-PERMS-WARN-2550 (owner Q2 = a): one line under the room list - it hides rooms on the home main screen only; cameras, recordings and
+// device actions follow the person's permissions (the server filters the home overview by it, nothing else).
 import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -495,7 +497,7 @@ export class SwHomeAdmin extends LitElement {
       <div class="srow"><div><b>${tr('רשאי להזמין אורחים')}</b><div class="note">${u.can_invite ? tr('מופיע בממשק הביתי תחת אינטרקום: אורח מקבל קוד זמני לדלת. דורש שהזמנת מבקרים מופעלת בהתקנה.') : tr('הסימון לבדו לא מספיק: צריך גם הרשאה להזמנת מבקרים (משתמשים והרשאות), והזמנת מבקרים מופעלת בהתקנה.')}</div></div><sw-toggle label="${tr('רשאי להזמין אורחים')}" labelHidden data-home-guests ?checked=${!!u.guests} ?disabled=${this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { guests: e.detail.checked })}></sw-toggle></div>
       <div class="cols">
         <div><b>${tr('מה מופיע בממשק הביתי')}</b>${this.data!.modules.map((m) => html`<label class="chk"><input type="checkbox" .checked=${modOn(m)} @change=${(e: Event) => { const next = toggleList(u.modules, this.data!.modules, m, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_modules: true } : { modules: next }); }}><span>${MODULE_LABEL[m]}</span></label>`)}</div>
-        <div><b>${tr('חדרים שהמשתמש רואה')}</b>${rooms.length ? rooms.map((r) => html`<label class="chk"><input type="checkbox" .checked=${roomOn(r.id)} @change=${(e: Event) => { const next = toggleList(u.rooms, rooms.map((x) => x.id), r.id, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_rooms: true } : { rooms: next }); }}><span>${r.name}</span></label>`) : html`<p class="note">${tr('עוד אין חדרים.')}</p>`}</div>
+        <div><b>${tr('חדרים שהמשתמש רואה')}</b><div class="note" data-home-rooms-note>${tr('הרשימה רק מסתירה חדרים במסך הראשי של הממשק הביתי. היא לא מגבילה מצלמות, הקלטות או פעולות על מכשירים: אותן קובעות ההרשאות.')}</div>${rooms.length ? rooms.map((r) => html`<label class="chk"><input type="checkbox" .checked=${roomOn(r.id)} @change=${(e: Event) => { const next = toggleList(u.rooms, rooms.map((x) => x.id), r.id, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_rooms: true } : { rooms: next }); }}><span>${r.name}</span></label>`) : html`<p class="note">${tr('עוד אין חדרים.')}</p>`}</div>
       </div>
       ${this.siteWideWarning(u, modOn)}
     </section>`;

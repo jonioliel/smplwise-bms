@@ -102,6 +102,20 @@ test.describe('HOME-PERMS-WARN-2550 site-wide data warning', () => {
     await expect(lines.nth(1)).toHaveText('מים: הצריכה של כל מוני המים באתר. הרשאת מים לפי קומה מגבילה אותו לקומות שלו.');
   });
 
+  test('the room list says it only hides rooms on the home main screen (owner Q2 = a)', async ({ page }) => {
+    const { detail } = await adminPage(page, { siteWide: [], scope: SITE });
+    const col = detail.locator('.cols > div').nth(1);
+    await expect(col.locator('b').first()).toHaveText('חדרים שהמשתמש רואה');
+    const note = col.locator('[data-home-rooms-note]');
+    await expect(note).toHaveText('הרשימה רק מסתירה חדרים במסך הראשי של הממשק הביתי. היא לא מגבילה מצלמות, הקלטות או פעולות על מכשירים: אותן קובעות ההרשאות.');
+    // between the heading and the first room
+    const head = await col.locator('b').first().boundingBox();
+    const box = await note.boundingBox();
+    const first = await col.locator('label.chk').first().boundingBox();
+    expect(box!.y).toBeGreaterThanOrEqual(head!.y + head!.height - 1);
+    expect(first!.y).toBeGreaterThanOrEqual(box!.y + box!.height - 1);
+  });
+
   test('no warning without site-wide reads, for a system administrator, or from an older server', async ({ page }) => {
     let { detail } = await adminPage(page, { siteWide: [], scope: SITE });
     await expect(detail.locator('[data-home-site-wide]')).toHaveCount(0);
