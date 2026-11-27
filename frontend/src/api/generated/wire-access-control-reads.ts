@@ -149,16 +149,16 @@ export interface AccessControlReadsEventDetail {
 export interface AccessControlReadsEventDetailEvent {
   id: string;
   station_id: string;
-  timestamp: string;
-  received_at: string;
-  time_source: string;
-  person_name: string;
+  timestamp: string | null;
+  received_at: string | null;
+  time_source: string | null;
+  person_name: string | null;
   authentication: string;
   result: string;
   event_type: string;
   recovered: boolean;
-  door: number;
-  employee_no: string;
+  door: number | null;
+  employee_no: string | null;
   evidence: AccessControlReadsEventDetailEventEvidence;
   source_identity: AccessControlReadsEventDetailEventSourceIdentity;
 }
@@ -209,15 +209,15 @@ export interface AccessControlReadsEventsEvents {
 export interface AccessControlReadsEventsEventsRecord {
   id: string;
   station_id: string;
-  timestamp: string;
-  received_at: string;
-  time_source: string;
+  timestamp: string | null;
+  received_at: string | null;
+  time_source: string | null;
   person_name: string | null;
   authentication: string;
   result: string;
   event_type: string;
   recovered: boolean;
-  door: number;
+  door: number | null;
   employee_no: string | null;
   portrait: boolean | null;
 }
@@ -528,10 +528,10 @@ export interface AccessControlReadsPeoplePeopleRecord {
   active: boolean;
   archived: boolean;
   valid_from: string | null;
-  valid_until: string;
-  revision: number;
-  access_category: string;
-  user_type: string;
+  valid_until: string | null;
+  revision: number | null;
+  access_category: string | null;
+  user_type: string | null;
   identity_locked: boolean;
   employee_no: string | null;
   group_ids: string[];
@@ -565,12 +565,12 @@ export interface AccessControlReadsPersonPerson {
   active: boolean;
   archived: boolean;
   valid_from: unknown;
-  valid_until: string;
-  revision: number;
-  access_category: string;
-  user_type: string;
+  valid_until: string | null;
+  revision: number | null;
+  access_category: string | null;
+  user_type: string | null;
   identity_locked: boolean;
-  employee_no: string;
+  employee_no: string | null;
   group_ids: string[];
   stations: AccessControlReadsPersonPersonStation[];
   stations_known: boolean;
@@ -581,7 +581,7 @@ export interface AccessControlReadsPersonPerson {
   phone_set: boolean | null;
   credentials: AccessControlReadsPersonPersonCredentials | null;
   photo_configured: boolean | null;
-  profile: AccessControlReadsPersonPersonProfile | null;
+  profile: Record<string, string> | null;
   responsible_person: string | null;
   access_purpose: string | null;
 }
@@ -591,16 +591,12 @@ export interface AccessControlReadsPersonPersonCredentials {
   cards: number;
 }
 
-export interface AccessControlReadsPersonPersonProfile {
-  department: string;
-}
-
 export interface AccessControlReadsPersonPersonStation {
   station_id: string;
   enabled: boolean;
   doors: number[];
-  sync_state: string;
-  last_sync_at: string;
+  sync_state: string | null;
+  last_sync_at: string | null;
   last_error: string | null;
 }
 
@@ -841,9 +837,18 @@ export interface AccessControlReadsStationsStationTechnical {
   last_poll_ms: number;
 }
 
+/**
+ * A station clock's display zone as WisKey sends it: `{kind: "iana", name}` or a device zone (`kind: "device"`, the device's POSIX
+ * TZ text as `name`) that also carries the standard offset and DST increment in seconds and the DST start / end rules (`[month, week,
+ * weekday, second]`, null without DST) - WIRE-DRIFT-2550: set only on a device zone, so absent on an IANA one.
+ */
 export interface AccessControlReadsStationsStationZone {
   kind: string;
   name: string;
+  standard?: number | null;
+  delta?: number | null;
+  start?: number[] | null;
+  end?: number[] | null;
 }
 
 /** The status page's station list (`access.read` and `access.admin.read` on each), as GET /access-control/stations. */

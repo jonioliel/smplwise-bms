@@ -29,7 +29,7 @@ class WiskeyValidationOverviewRun(ExactModel):
     id: str
     scope: str
     state: str
-    created_by_name: str
+    created_by_name: str | None
     created_at: str
     finished_at: str | None
     station_count: Num
@@ -62,7 +62,7 @@ class WiskeyValidationRunStationProgress(ExactModel):
 
 class WiskeyValidationRunStation(ExactModel):
     station_id: str
-    name: str
+    name: str | None
     checks: list[dict[str, Any]]
     counts: dict[str, Any]
     progress: WiskeyValidationRunStationProgress
@@ -75,9 +75,9 @@ class WiskeyValidationRunPuls(ExactModel):
     parent_run_id: str
     state: str
     created_by: str
-    created_by_name: str
+    created_by_name: str | None
     created_at: str
-    finished_at: str
+    finished_at: str | None  # WIRE-DRIFT-2550: null while the run is running
     cancel_requested: bool
     station_count: Num
     stations: list[dict[str, Any]]
@@ -93,9 +93,9 @@ class WiskeyValidationRun(ExactModel):
     parent_run_id: Any
     state: str
     created_by: str
-    created_by_name: str
+    created_by_name: str | None
     created_at: str
-    finished_at: str
+    finished_at: str | None  # WIRE-DRIFT-2550: null while the run is running
     cancel_requested: bool
     station_count: Num
     stations: list[WiskeyValidationRunStation]

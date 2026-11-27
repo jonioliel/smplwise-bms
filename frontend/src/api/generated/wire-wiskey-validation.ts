@@ -27,7 +27,7 @@ export interface WiskeyValidationOverviewRun {
   id: string;
   scope: string;
   state: string;
-  created_by_name: string;
+  created_by_name: string | null;
   created_at: string;
   finished_at: string | null;
   station_count: number;
@@ -54,9 +54,9 @@ export interface WiskeyValidationRun {
   parent_run_id: unknown;
   state: string;
   created_by: string;
-  created_by_name: string;
+  created_by_name: string | null;
   created_at: string;
-  finished_at: string;
+  finished_at: string | null;
   cancel_requested: boolean;
   station_count: number;
   stations: WiskeyValidationRunStation[];
@@ -72,9 +72,9 @@ export interface WiskeyValidationRunPuls {
   parent_run_id: string;
   state: string;
   created_by: string;
-  created_by_name: string;
+  created_by_name: string | null;
   created_at: string;
-  finished_at: string;
+  finished_at: string | null;
   cancel_requested: boolean;
   station_count: number;
   stations: Record<string, unknown>[];
@@ -85,7 +85,7 @@ export interface WiskeyValidationRunPuls {
 
 export interface WiskeyValidationRunStation {
   station_id: string;
-  name: string;
+  name: string | null;
   checks: Record<string, unknown>[];
   counts: Record<string, unknown>;
   progress: WiskeyValidationRunStationProgress;

@@ -71,8 +71,15 @@ class AccessControlReadsFeatures(ExactModel):
 
 
 class AccessControlReadsStationsStationZone(ExactModel):
+    """A station clock's display zone as WisKey sends it: `{kind: "iana", name}` or a device zone (`kind: "device"`, the device's POSIX
+    TZ text as `name`) that also carries the standard offset and DST increment in seconds and the DST start / end rules (`[month, week,
+    weekday, second]`, null without DST) - WIRE-DRIFT-2550: set only on a device zone, so absent on an IANA one."""
     kind: str
     name: str
+    standard: Num | None = None
+    delta: Num | None = None
+    start: list[Num] | None = None
+    end: list[Num] | None = None
 
 
 class AccessControlReadsStationsStationTechnical(ExactModel):
@@ -538,10 +545,10 @@ class AccessControlReadsPeoplePeopleRecord(ExactModel):
     active: bool
     archived: bool
     valid_from: str | None
-    valid_until: str
-    revision: Num
-    access_category: str
-    user_type: str
+    valid_until: str | None  # WIRE-DRIFT-2550: null = no end date (or the access fields withheld)
+    revision: Num | None
+    access_category: str | None
+    user_type: str | None
     identity_locked: bool
     employee_no: str | None
     group_ids: list[str]
@@ -589,8 +596,8 @@ class AccessControlReadsPersonPersonStation(ExactModel):
     station_id: str
     enabled: bool
     doors: list[Num]
-    sync_state: str
-    last_sync_at: str
+    sync_state: str | None
+    last_sync_at: str | None  # WIRE-DRIFT-2550: null = never synced
     last_error: str | None
 
 
@@ -608,22 +615,18 @@ class AccessControlReadsPersonPersonCredentials(ExactModel):
     cards: Num
 
 
-class AccessControlReadsPersonPersonProfile(ExactModel):
-    department: str
-
-
 class AccessControlReadsPersonPerson(ExactModel):
     id: str
     display_name: str
     active: bool
     archived: bool
     valid_from: Any
-    valid_until: str
-    revision: Num
-    access_category: str
-    user_type: str
+    valid_until: str | None  # WIRE-DRIFT-2550: as the list row
+    revision: Num | None
+    access_category: str | None
+    user_type: str | None
     identity_locked: bool
-    employee_no: str
+    employee_no: str | None
     group_ids: list[str]
     stations: list[AccessControlReadsPersonPersonStation]
     stations_known: bool
@@ -634,7 +637,7 @@ class AccessControlReadsPersonPerson(ExactModel):
     phone_set: bool | None
     credentials: AccessControlReadsPersonPersonCredentials | None
     photo_configured: bool | None
-    profile: AccessControlReadsPersonPersonProfile | None
+    profile: dict[str, str] | None  # WIRE-DRIFT-2550: the administrator's own profile fields (WisKey profiles/settings), not a fixed set
     responsible_person: str | None
     access_purpose: str | None
 
@@ -652,15 +655,15 @@ class AccessControlReadsPerson(ExactModel):
 class AccessControlReadsEventsEventsRecord(ExactModel):
     id: str
     station_id: str
-    timestamp: str
-    received_at: str
-    time_source: str
+    timestamp: str | None
+    received_at: str | None
+    time_source: str | None
     person_name: str | None
     authentication: str
     result: str
     event_type: str
     recovered: bool
-    door: Num
+    door: Num | None  # WIRE-DRIFT-2550: 1 or 2, null when WisKey names no door (a ring, a station-level event) or another value
     employee_no: str | None
     portrait: bool | None
 
@@ -711,16 +714,16 @@ class AccessControlReadsEventDetailEventSourceIdentity(ExactModel):
 class AccessControlReadsEventDetailEvent(ExactModel):
     id: str
     station_id: str
-    timestamp: str
-    received_at: str
-    time_source: str
-    person_name: str
+    timestamp: str | None
+    received_at: str | None
+    time_source: str | None
+    person_name: str | None
     authentication: str
     result: str
     event_type: str
     recovered: bool
-    door: Num
-    employee_no: str
+    door: Num | None  # WIRE-DRIFT-2550: as the list row
+    employee_no: str | None
     evidence: AccessControlReadsEventDetailEventEvidence
     source_identity: AccessControlReadsEventDetailEventSourceIdentity
 
