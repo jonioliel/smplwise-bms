@@ -177,9 +177,11 @@ test('inside a building "כבה הכל" names the building', async ({ page }, in
 });
 
 // HOME-FIT-FOLLOWUPS-2550 (RELEASE-2540-TRAIN section 6, B): a building switch restarted the fit from its loosest step, so for one or two
-// frames the new building was drawn at fit 0 and the page overflowed by 5-9 px (tablet; since v2.53.0) before it stepped back. The screen
-// now keeps its step when the new building fits in it. Measured on every frame from the press to 1.5 s after it (an animation-frame
-// sampler, plus a ResizeObserver on the page area, its children and the page body, which reads each re-pack as it is laid out).
+// frames the new building was drawn at fit 0 and the page overflowed by 5-9 px (tablet; since v2.53.0) before it stepped. The screen now
+// keeps its step when the new building fits in it, and a switch measures (and steps) before the first paint instead of a frame later
+// (here building ג fits at fit 0 and the shared building needs fit 1). Measured on every frame from the press to 1.5 s after it (an
+// animation-frame sampler, plus a ResizeObserver on the page area, its children and the page body, which reads each re-pack as it is
+// laid out, before it is painted).
 test('a building switch never overflows the page, not even for a frame', async ({ page }) => {
   test.skip(phone(page), 'the phone scrolls (no fit)');
   await open(page, '&mb=alarm');

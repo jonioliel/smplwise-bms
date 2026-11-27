@@ -116,6 +116,8 @@ const EDIT_PARAM = 'edit';
  * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring (devices-shared.ts fitStep). */
 /** HOME-SCROLL-2-2530: when a settled packing is measured again (ms after each settle, at most this many per fit key) - see scheduleFitRecheck. */
 const FIT_RECHECK_MS = [600, 1500, 3000] as const;
+/** HOME-FIT-FOLLOWUPS-2550: the most measures a building switch runs before its first paint (fit 1, fit 2, b's fold, the squeeze) - see packNow. */
+const FIT_SYNC_STEPS = 4;
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 /** The tiles' panel segments (the same list as screens/devices-tiles-panel ITEMS_FILTERS, whose module is a lazy chunk: CR-HOME-LAZY-2440). */
@@ -1359,6 +1361,10 @@ export class DevicesBuilding extends LitElement {
   /** HOME-FIT-FOLLOWUPS-2550: the last measure's key parts a building switch leaves alone, and its level (see measureFit). */
   private fitRest = '';
   private fitLevel = '';
+  /** HOME-FIT-FOLLOWUPS-2550: the level the last render was drawn for, and how many measures a building switch may still run before the
+   * next paint (packNow). */
+  private fitSyncLevel = '';
+  private fitSync = 0;
 
   /** Owner notes 2026-09-30, item 7: on a desktop-width screen the whole screen should fit the viewport without a vertical
    * scroll (for the owner's site: 3 floors, 8 areas, ~150 devices). The tiles and rows are packed tighter one step at a
@@ -1579,6 +1585,12 @@ export class DevicesBuilding extends LitElement {
       notifyScreenViews(); // the user menu's view choice re-reads the value (and hides itself while the layout editor is open)
     }
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+    // HOME-FIT-FOLLOWUPS-2550: a building switch packs before its first paint (packNow)
+    if (this.level !== this.fitSyncLevel) {
+      if (this.fitSyncLevel) this.fitSync = FIT_SYNC_STEPS;
+      this.fitSyncLevel = this.level;
+    }
+    if (this.fitSync > 0) this.packNow();
     const body = this.renderRoot.querySelector('.page-body');
     if (body !== this.fitObserved) {
       this.fitObs?.disconnect();
@@ -1591,6 +1603,28 @@ export class DevicesBuilding extends LitElement {
       }
     }
     this.watchPageArea();
+  }
+
+  /** HOME-FIT-FOLLOWUPS-2550: the measure of a building switch, run before the browser paints. The packing steps one level per measure,
+   * and a measure used to wait for the next animation frame - so a new building that needs a tighter step than the old one (the
+   * shared building after building ג on a tablet: fit 0 -> 1) was painted once at the old step, 5-9 px over the page (RELEASE-2540-TRAIN
+   * section 6, B). Here the measure runs in a microtask after this render and after the children it drew have drawn (their updates were
+   * queued during it; three hops reach three levels deep), and a step it takes renders and measures again the same way - all before the
+   * next paint. Bounded: at most FIT_SYNC_STEPS measures per switch, and the run ends at the first measure that changes nothing. */
+  private packNow() {
+    queueMicrotask(() =>
+      queueMicrotask(() =>
+        queueMicrotask(() => {
+          if (this.fitSync <= 0 || !this.isConnected) return;
+          this.fitSync -= 1;
+          const before = `${this.fit}|${this.fitFold}|${this.fitSqueeze}`;
+          window.cancelAnimationFrame(this.fitTimer);
+          this.fitTimer = 0;
+          this.measureFit();
+          if (`${this.fit}|${this.fitFold}|${this.fitSqueeze}` === before) this.fitSync = 0; // settled: the frames take over as before
+        }),
+      ),
+    );
   }
 
   /** HOME-FIT-FOLLOWUPS-2550: one ResizeObserver on the page area and its direct children (the screen's own wrapper shrinks when
@@ -1747,6 +1781,7 @@ export class DevicesBuilding extends LitElement {
     this.fitObserved = null;
     this.fitAreaObs?.disconnect(); // HOME-FIT-FOLLOWUPS-2550
     this.fitAreaObs = this.fitArea = null;
+    this.fitSync = 0;
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();
