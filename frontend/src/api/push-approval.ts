@@ -6,7 +6,7 @@
  * - `alarm_pin`: the personal alarm code proves one alarm disarm / zone bypass (`auth/step-up/verify {method: "alarm_pin"}`).
  * Shapes: generated from smplwise/wire/push_approval.py and second_factor.py.
  */
-import { api, get, post } from './client';
+import { ApiError, api, get, post } from './client';
 import type { PushApprovalChallenge, PushApprovalList, PushApprovalPending, PushApprovalStarted, PushApprovalState } from './generated/wire-push-approval';
 import type { StepUpProof } from './generated/wire-second-factor';
 import { DeviceKeyCancelled } from './factor-screens';
@@ -45,4 +45,12 @@ export async function approvePushApproval(id: string, keyId: string, number: num
   }
   if (!signature) throw new DeviceKeyCancelled('failed');
   return post<PushApprovalState>(`auth/push-approvals/${enc(id)}/approve`, { challenge_id: ch.challenge_id, key_id: keyId, signature });
+}
+
+/** SA-01 (FIX-PUSH-APPROVAL-2560): the requesting screen's poll meets a temporary 429 -> wait and ask again (a few times) instead of dropping
+ * the request. Answers the delay in ms, or null when the error is final (any other error, or too many refusals in a row). */
+export const PUSH_POLL_RETRY_MAX = 8;
+export function pushPollRetryDelay(err: unknown, refusals: number): number | null {
+  if (!(err instanceof ApiError) || err.status !== 429 || refusals >= PUSH_POLL_RETRY_MAX) return null;
+  return Math.min(10000, 3000 + refusals * 1000);
 }

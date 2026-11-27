@@ -98,9 +98,16 @@ def _local_only(conn: sqlite3.Connection, request: Request, principal: Principal
 
     if not is_remote(request):
         return
-    audit(conn, actor=principal, action=action, decision="denied", resource_type="backup_offbox_target" if action != "backup.offbox.key_export" else "backup_offbox_key",
+    audit(conn, actor=principal, action=action, decision="denied", resource_type="backup_offbox_key" if action in ("backup.offbox.key_export", "backup.offbox.key_import") else "backup_offbox_target",
           resource_id=resource_id, request_id=_rid(request), reason="local_only")
     raise ApiError(403, "offbox_local_only", LOCAL_ONLY_HE)
+
+
+def _gdrive_relink_local_only(conn: sqlite3.Connection, request: Request, principal: Principal, target: dict[str, Any], action: str) -> None:
+    """SA-02 (FIX-PUSH-APPROVAL-2560): re-pointing a Google Drive target that already has an account is a change of the destination, like
+    editing an S3 / SFTP target: local network only. The first connection of a target stays as it was."""
+    if offbox_store.secret_state(conn, target["id"]).get("refresh_token", {}).get("configured"):
+        _local_only(conn, request, principal, action, target["id"])
 
 
 def _err(exc: OffboxError, status: int = 422) -> ApiError:
@@ -374,7 +381,8 @@ def gdrive_connect(target_id: str, request: Request, principal: Principal = Depe
     """Start the consent: the answer is the short code and Google's device page (google.com/device). The device code never leaves
     the server. The administrator approves on any phone or computer; the screen then polls `.../gdrive/poll`."""
     require(conn, principal, "backup.manage", INSTALLATION)
-    _gdrive_or_404(conn, target_id)
+    t = _gdrive_or_404(conn, target_id)
+    _gdrive_relink_local_only(conn, request, principal, t, "backup.offbox.gdrive_connect_start")
     release(conn)  # no transaction across the call to Google
     try:
         out = offbox_gdrive_connect.start(_db(request), settings_of(request), target_id)
@@ -390,7 +398,8 @@ def gdrive_poll(target_id: str, request: Request, principal: Principal = Depends
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """One poll of the pending consent: {state: none | pending | slow_down | denied | expired | connected, interval?}."""
     require(conn, principal, "backup.manage", INSTALLATION)
-    _gdrive_or_404(conn, target_id)
+    t = _gdrive_or_404(conn, target_id)
+    _gdrive_relink_local_only(conn, request, principal, t, "backup.offbox.gdrive_connect")
     release(conn)
     try:
         out = offbox_gdrive_connect.poll(_db(request), settings_of(request), target_id, principal.user_id)
@@ -475,6 +484,7 @@ def rotate_key(body: ConfirmIn, request: Request, principal: Principal = Depends
 @router.post("/backups/offbox/key/import")
 def import_key(body: ImportIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
+    _local_only(conn, request, principal, "backup.offbox.key_import", "-")  # SA-02: a key that decrypts copies is added from the local network only
     try:
         kid = offbox_keys.import_key(Path(settings_of(request).data_dir), body.key.get_secret_value())
     except OffboxError as exc:

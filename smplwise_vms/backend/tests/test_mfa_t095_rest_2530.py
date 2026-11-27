@@ -333,6 +333,50 @@ def test_requests_are_rate_limited(two):
     assert codes[:5] == [200] * 5 and codes[5] == 429
 
 
+def test_the_requesters_poll_and_the_phones_look_do_not_starve_each_other(two, paclock, monkeypatch):
+    """SA-01 (FIX-PUSH-APPROVAL-2560): the phone looks every 5 s (visible for a minute before the request) while the requesting screen
+    polls every 2 s for the whole 90 s life of the request, and the phone approves at the end. One shared per-user bucket refused the
+    requester's poll ~38 s in; separate buckets per kind of call refuse nothing."""
+    from smplwise.services import ha_user_auth as hua
+
+    s = two
+    monkeypatch.setattr(hua.LIMITER, "_clock", lambda: paclock.t)
+    for _ in range(12):  # the phone's watcher alone, a minute
+        assert s.app.get(PENDING).status_code == 200
+        paclock.advance(5)
+    started = start(s).json()
+    rid = started["request_id"]
+    elapsed, refused, last_look = 0, [], 0
+    while elapsed < pa.TTL_S - 4:
+        r = s.desk.get(f"{PUSH}/{rid}")
+        if r.status_code != 200:
+            refused.append((elapsed, r.status_code))
+        if elapsed - last_look >= 5:
+            assert s.app.get(PENDING).status_code == 200
+            last_look = elapsed
+        paclock.advance(2)
+        elapsed += 2
+    assert refused == [], refused
+    a, _ = pick(s, rid, started["number"])
+    assert a.status_code == 200 and a.json()["status"] == "approved", a.text
+    assert s.desk.get(f"{PUSH}/{rid}").json()["status"] == "approved"
+    assert spend(s, rid).status_code == 200
+
+
+def test_an_app_left_open_for_an_hour_keeps_working(two, paclock, monkeypatch):
+    from smplwise.services import ha_user_auth as hua
+
+    s = two
+    monkeypatch.setattr(hua.LIMITER, "_clock", lambda: paclock.t)
+    for _ in range(3600 // 5):  # the watcher every 5 s for a whole hour (720 calls)
+        assert s.app.get(PENDING).status_code == 200
+        paclock.advance(5)
+    started = start(s).json()
+    assert s.desk.get(f"{PUSH}/{started['request_id']}").status_code == 200
+    a, _ = pick(s, started["request_id"], started["number"])
+    assert a.status_code == 200, a.text
+
+
 def test_nothing_is_asked_while_step_up_is_off(two):
     s = two
     s.arx.setting("security.step_up", "off")
