@@ -12,6 +12,7 @@ import { toggled } from '../components/sw-toggle';
 import type { RouteState } from '../router';
 import { ApiError, describeError } from '../api/client';
 import { isApi } from '../api/session';
+import { serverNow } from '../api/server-clock';
 import {
   getCompare, getProfiles, getProfilesAccess, getRollbackDraft, getSuggestions, getVersions, postApply, postCheck, postPreview,
   type ApplyReply, type CompareReply, type DiffRow, type PolicyValues, type PreviewReply, type ProfileField, type ProfileGroup, type ProfilesView,
@@ -63,7 +64,7 @@ export class WiskeyProfilesScreen extends LitElement {
   @state() private result: ApplyReply | null = null;
   @state() private resultError: { outcome: string; code: string; message: string } | null = null;
   @state() private checkLine = '';
-  @state() private now = Date.now();
+  @state() private now = serverNow(); // FIX-SERVER-CLOCK-2560 (WA-01): a review's expiry is the server's instant
   // versions
   @state() private versions: VersionsPage | null = null;
   @state() private versionsError = '';
@@ -82,7 +83,7 @@ export class WiskeyProfilesScreen extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     void this.reload();
-    this.timer = window.setInterval(() => (this.now = Date.now()), 1000);
+    this.timer = window.setInterval(() => (this.now = serverNow()), 1000);
   }
 
   disconnectedCallback(): void {

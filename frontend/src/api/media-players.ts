@@ -21,6 +21,7 @@ import { del, describeError, get, post, put, ApiError } from './client';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import { lazyAdapter } from './demo-load';
+import { serverNow } from './server-clock';
 import {
   ERROR_LABEL, isDead, isOn,
   type BulkScope, type CommandResult, type Glyph, type KeyId, type MediaCan, type MediaCaps, type MediaCommand, type MediaDevice,
@@ -584,7 +585,7 @@ export const httpPlayers: PlayersAdapter = {
 
 /** One queue edit with a fresh request id (one per deliberate gesture; never retried). */
 export const sendQueueEdit = (key: string, op: QueueOp, extra: { item?: string; items?: string[]; to?: number; confirmed?: boolean } = {}, requestId: string = commandId()): Promise<QueueEditResult> =>
-  players().queueEdit(key, { op, ...extra, client_request_id: requestId, expires_at: new Date(Date.now() + 15_000).toISOString() });
+  players().queueEdit(key, { op, ...extra, client_request_id: requestId, expires_at: expiry() });
 
 /** CR-MOCKS-LAZY-2436 (review 07:F2): the mock (./media-players-mock.ts) is fetched on the first demo call - with a backend it is never
  * loaded. Each call reads the mock's current store (`playersMock()`), as before. */
@@ -593,7 +594,8 @@ const demoPlayers = lazyAdapter<PlayersAdapter>(() => import('./media-players-mo
 /** The adapter in force: HTTP with a backend, the mock otherwise (same selector as CR-015's `media()`). */
 export const players = (): PlayersAdapter => (isApi() ? httpPlayers : demoPlayers);
 
-const expiry = (ms = 15_000) => new Date(Date.now() + ms).toISOString();
+/** FIX-SERVER-CLOCK-2560 (VD-03): every player / queue / group command expires 15 s ahead on the SERVER's clock (media_commands refuses past / > 60 s). */
+export const expiry = (ms = 15_000) => new Date(serverNow() + ms).toISOString();
 
 /** Sends one command with a fresh request id (one per deliberate tap; never retried). */
 export function sendPlayerCommand(key: string, cmd: PlayerCommand, requestId: string = commandId()): Promise<CommandResult> {

@@ -23,6 +23,9 @@ from .access_control_base import log
 from .access_control_command import ORIGIN_RE, RELAYS, ReleaseBody, SEND_WITHIN_S, _Action, _door_gate_ro, _envelope, _parse, _perform, _relay_of, _station
 from ..error_text import tpl
 
+# FIX-SERVER-CLOCK-2560: the door tile's `expires_at` (POST /ha/entities/{id}/actions) at most this far ahead - routers/ha.py EXPIRY_MAX_S
+TILE_EXPIRY_MAX_S = 300.0
+
 router = APIRouter()
 
 
@@ -209,6 +212,8 @@ def open_from_tile(request: Request, principal: Principal, entity_id: str, actio
         now = datetime.now(timezone.utc)
         if expires <= now:
             raise act.refuse(ApiError(409, "expired", "הבקשה פגה; נסה שוב."))
+        if expires > now + timedelta(seconds=TILE_EXPIRY_MAX_S):  # FIX-SERVER-CLOCK-2560: the same bound as every entity action (routers/ha.py)
+            raise act.refuse(ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(TILE_EXPIRY_MAX_S))))
         not_after = min(expires, now + timedelta(seconds=SEND_WITHIN_S))
         try:
             target = intercom_doors.resolve(conn, entity_id)

@@ -6,11 +6,12 @@ import type { PlayerDevice } from '../api/media-players';
 import { groupCandidates, groupSectionOffered, joinDiff } from '../api/media-players';
 import { ApiError, post, describeError } from '../api/client';
 import { commandId } from '../api/request-id';
+import { serverNow } from '../api/server-clock';
 import { playing, type MediaCmd, type P3, type P3Ovl } from './home-p3';
 import { mediaLook, nowLine, plural, progressOf } from './home-p3-logic';
 import { tr } from '../i18n/msg/home';
 
-const expiry = () => new Date(Date.now() + 15_000).toISOString();
+const expiry = () => new Date(serverNow() + 15_000).toISOString(); // FIX-SERVER-CLOCK-2560: the server's clock
 
 export function sMedia(p: P3) {
   const h = p.h;

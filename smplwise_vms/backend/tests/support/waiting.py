@@ -95,6 +95,13 @@ def day_now() -> _dt.datetime:
     return DAY_ANCHOR + _dt.timedelta(seconds=time.monotonic() - _DAY_T0)
 
 
+def soon(seconds: float = 60.0) -> str:
+    """A command envelope's `expires_at` `seconds` ahead of the real UTC clock, in the API's form (`...Z`). FIX-SERVER-CLOCK-2560: every
+    route that takes a client expiry refuses one too far ahead (5 min for the entity actions and the alarm, 60 s for the WisKey, bulk and
+    media envelopes), so a fixed far-future stamp ("2099-...") is no longer a valid request."""
+    return (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def datetime_shim(now_fn) -> _types.SimpleNamespace:
     """A stand-in for a module's `datetime as dt` whose `dt.datetime.now(tz)` reads `now_fn()` (an aware UTC datetime); every
     other name of the datetime module is the real one. Patch it over one module (`monkeypatch.setattr(mod, "dt", datetime_shim(f))`)

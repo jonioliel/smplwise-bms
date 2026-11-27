@@ -15,6 +15,7 @@ from smplwise.db import Database
 from smplwise.errors import ApiError
 from smplwise.main import create_app
 from smplwise.services import ha_bridge, ha_client, ha_sync
+from support.waiting import soon
 
 STATES = [
     {"entity_id": "light.lobby", "state": "off", "attributes": {"friendly_name": "Lobby light", "supported_features": 44, "brightness": None, "secret_token": "x"}, "last_changed": "2026-09-15T10:00:00+00:00", "last_updated": "2026-09-15T10:00:00+00:00"},
@@ -171,7 +172,7 @@ def test_bridge_signing_and_directory(ha_app):
 def test_actions_through_bridge(ha_app, monkeypatch):
     app, s = ha_app
     c = TestClient(app)
-    body = lambda **kw: {"allowed_action_id": "light.turn_on", "arguments": {"brightness_pct": 40}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req-1", "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
+    body = lambda **kw: {"allowed_action_id": "light.turn_on", "arguments": {"brightness_pct": 40}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req-1", "expires_at": soon(), **kw}  # noqa: E731
     # not paired → 503 with an explanation, recorded as failed
     r = c.post("/api/v1/ha/entities/light.lobby/actions", json=body())
     assert r.status_code == 503 and r.json()["code"] == "bridge_not_paired"

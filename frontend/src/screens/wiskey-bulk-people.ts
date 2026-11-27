@@ -32,6 +32,7 @@ import { blockerKey, canConfirm, expiryText, pageCount, pageOf, resultWords, sho
 import { attention, codesText, editRequest, EMPTY_EDIT, precheckFile, previewCounts, shouldContinue, stepOf, valueText, type EditForm } from '../access-control/bulk-people-logic';
 import { bt, btDynamic, btLang } from '../i18n/bulk-people';
 import { dateInputLang } from '../api/day-format';
+import { serverNow } from '../api/server-clock'; // FIX-SERVER-CLOCK-2560 (WA-01): the preview's expiry is the server's instant
 import { localeFor } from '../i18n/locale';
 
 interface BulkStation {
@@ -272,7 +273,7 @@ export class SwBulkPeopleDialog extends LitElement {
   }
 
   private async confirmVerifiedStep(): Promise<void> {
-    if (!this.job || !this.vp || !canConfirm(this.vp, this.vtyped, Date.now())) return;
+    if (!this.job || !this.vp || !canConfirm(this.vp, this.vtyped, serverNow())) return;
     const id = this.job.id;
     const out = await this.run(() => confirmVerified(id, this.vp!.preview_digest, this.vtyped));
     if (!out) return;
@@ -471,7 +472,7 @@ export class SwBulkPeopleDialog extends LitElement {
         : this.settings?.system_admin
           ? html`<div>${bt('confirm_text', { n: vp.writes })}</div>
             <div class="actions"><label><span class="muted">${bt('confirm_label')}</span><input inputmode="numeric" data-verify-typed .value=${this.vtyped} @input=${(e: Event) => (this.vtyped = (e.target as HTMLInputElement).value)}></label>
-              <sw-button variant="primary" data-verify-confirm ?disabled=${this.busy || !canConfirm(vp, this.vtyped, Date.now())} @click=${() => void this.confirmVerifiedStep()}>${bt('v_confirm_btn')}</sw-button></div>`
+              <sw-button variant="primary" data-verify-confirm ?disabled=${this.busy || !canConfirm(vp, this.vtyped, serverNow())} @click=${() => void this.confirmVerifiedStep()}>${bt('v_confirm_btn')}</sw-button></div>`
           : html`<div class="line" data-verify-admin-only><sw-icon name="clock" size=${16}></sw-icon><span>${bt('v_admin_only')}</span></div>`}
       <div class="actions"><sw-button variant="ghost" data-verify-again ?disabled=${this.busy} @click=${() => void this.verify()}>${bt('v_btn')}</sw-button>${cancel}</div>`;
   }

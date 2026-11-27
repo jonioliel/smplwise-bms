@@ -31,6 +31,7 @@ from smplwise.rbac import ROLES
 from smplwise.routers import access_control
 from smplwise.routers.access import PERMISSION_LABELS
 from smplwise.services import door_authority, trusted_door
+from support.waiting import soon
 
 TESTS = Path(__file__).resolve().parent
 BACKEND = TESTS.parent / "smplwise"
@@ -384,7 +385,7 @@ def test_t20_covers_switches_buttons_and_ordinary_locks_still_use_execute(world)
             conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, state_seen_at, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
                          (eid, eid.split(".")[0], eid.split(".")[1], platform, state, now_iso(), now_iso(), now_iso()))
     for eid, action in (("cover.garage", "cover.open_cover"), ("switch.pump", "switch.turn_on"), ("button.reboot_router", "button.press")):
-        r = c.post(f"{API}/ha/entities/{eid}/actions", json={"allowed_action_id": action, "client_request_id": new_id(), "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"})
+        r = c.post(f"{API}/ha/entities/{eid}/actions", json={"allowed_action_id": action, "client_request_id": new_id(), "expires_at": soon(), "confirmation_grant": "confirmed"})
         assert r.status_code == 202 and r.json()["via"] == "bridge", (eid, r.text)
     assert [(p["domain"], p["service"], p["data"]["entity_id"]) for p in world["executed"]] == [
         ("cover", "open_cover", "cover.garage"), ("switch", "turn_on", "switch.pump"), ("button", "press", "button.reboot_router")]

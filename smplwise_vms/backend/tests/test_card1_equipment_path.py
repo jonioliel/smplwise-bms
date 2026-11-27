@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
 from smplwise.services import ha_bridge, ha_client, ha_sync
+from support.waiting import soon
 
 CARD1_PAIRS = {("vacuum", "pause"), ("valve", "open_valve"), ("valve", "close_valve"), ("water_heater", "turn_on"), ("water_heater", "turn_off")}
 
@@ -75,7 +76,7 @@ def _install_bridge(monkeypatch, secret: str, allowed: set[tuple[str, str]]) -> 
 
 
 def _body(action_id: str, rid: str, **kw):
-    return {"allowed_action_id": action_id, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": rid, "expires_at": "2099-01-01T00:00:00Z", **kw}
+    return {"allowed_action_id": action_id, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": rid, "expires_at": soon(), **kw}
 
 
 def _report(app, entity_id: str, state: str, **attrs) -> None:

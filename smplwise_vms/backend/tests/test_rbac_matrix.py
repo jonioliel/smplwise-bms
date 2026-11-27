@@ -14,6 +14,7 @@ from smplwise import audit as audit_mod
 from smplwise.db import Database, new_id, now_iso, permission_revision
 from smplwise.main import create_app
 from smplwise.services import ha_sync
+from support.waiting import soon
 
 
 def _event(app, eid: str, camera_id: str) -> None:
@@ -120,7 +121,7 @@ def test_matrix_by_role_scope_and_deny(settings):
     assert st("omer", "post", f"/api/v1/cases/{other['id']}/items", json={"kind": "event", "event_id": "e3"}) == 403
     assert st("omer", "post", f"/api/v1/cases/{other['id']}/items", json={"kind": "event", "event_id": "e2"}) == 201
     # HA control, storage and access administration are separate grants
-    action = {"allowed_action_id": "lock.unlock", "client_request_id": "r1", "expires_at": "2099-01-01T00:00:00Z"}
+    action = {"allowed_action_id": "lock.unlock", "client_request_id": "r1", "expires_at": soon()}
     assert st("vera", "post", "/api/v1/ha/entities/lock.front/actions", json=action) == 403
     assert st("sara", "get", "/api/v1/storage") == 403 and c.get("/api/v1/storage").status_code == 200
     binding = {"subject_kind": "user", "subject_id": "dev-vera", "role_id": "operator", "scope_type": "floor", "scope_id": f2}

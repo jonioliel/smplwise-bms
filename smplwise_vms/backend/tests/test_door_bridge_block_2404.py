@@ -27,6 +27,7 @@ import keyrot_harness as kh
 from smplwise.db import Database, get_setting, set_setting
 from smplwise.main import create_app
 from smplwise.services import backup, door_execute_guard, ha_bridge, ha_client
+from support.waiting import soon
 
 REPO = bridge_loader.REPO
 SRC, MIRROR = bridge_loader.SRC, bridge_loader.MIRROR
@@ -460,7 +461,7 @@ def tile_world(settings, monkeypatch):
 def test_t24_end_to_end_the_bridge_refuses_what_a_stale_mirror_let_through(tile_world):
     c, db, b = tile_world["c"], tile_world["db"], tile_world["bridge"]
     r = c.post("/api/v1/ha/entities/lock.stale_mirror/actions", json={"allowed_action_id": "lock.lock", "client_request_id": str(uuid.uuid4()),
-                                                                          "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"})
+                                                                          "expires_at": soon(), "confirmation_grant": "confirmed"})
     assert r.status_code in (200, 202), r.text
     assert r.json()["status"] == "failed" and r.json()["error"] == CODE, r.json()
     assert len(tile_world["sent"]) == 1 and b.calls == [], "the add-on sent it once; the bridge called nothing"
@@ -478,7 +479,7 @@ def test_t24_end_to_end_the_add_on_guard_still_refuses_first_for_a_known_wiskey_
         conn.execute("INSERT INTO ha_entities(entity_id, domain, name, platform, state, state_seen_at, first_seen_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
                      ("button.entrance_open", "button", "open", "hikvision_intercom", "unknown", now_iso(), now_iso(), now_iso()))
     r = c.post("/api/v1/ha/entities/button.entrance_open/actions", json={"allowed_action_id": "button.press", "client_request_id": str(uuid.uuid4()),
-                                                                             "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"})
+                                                                             "expires_at": soon(), "confirmation_grant": "confirmed"})
     assert r.status_code == 409 and r.json()["code"] == CODE, r.text
     assert tile_world["sent"] == [] and b.calls == [] and b.events == [], "never left the add-on"
 

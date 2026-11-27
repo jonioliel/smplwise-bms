@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
 from smplwise.services import ha_bridge, ha_client, ha_sync
+from support.waiting import soon
 
 ENTITY = "switch.lat1_relay"
 SERVICE_ACK_S = 0.035  # the lab floor (lead, 2026-10-08): service ack ~35 ms ...
@@ -169,7 +170,7 @@ def lat_app(settings, monkeypatch):
 
 
 def _body(n: int, action: str) -> dict:
-    return {"allowed_action_id": action, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": f"lat1-{n}-{time.time_ns()}", "expires_at": "2099-01-01T00:00:00Z"}
+    return {"allowed_action_id": action, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": f"lat1-{n}-{time.time_ns()}", "expires_at": soon()}
 
 
 class PushClock:

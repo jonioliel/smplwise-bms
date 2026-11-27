@@ -8,6 +8,7 @@ export const en = {
   // api/client.ts
   'השרת דחה את הבקשה ({status})': 'The server refused the request ({status})',
   'אין חיבור לשרת.': 'No connection to the server.',
+  'האישור נקלט. לחצו שוב כדי לבצע את הפעולה.': 'Confirmed. Press again to carry out the action.',
   // api/health.ts
   'תקין': 'OK',
   'לתשומת לב': 'Needs attention',

@@ -15,6 +15,7 @@ import { del, get, post, put, resourceUrl } from './client';
 import { commandId } from './request-id';
 import { isApi } from './session';
 import { lazyAdapter } from './demo-load';
+import { serverNow } from './server-clock';
 import { tr } from '../i18n/msg/api-media';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
@@ -359,7 +360,8 @@ export function artworkUrl(path: string): string {
   return resourceUrl(rel.startsWith('api/') ? rel : `api/v1/${rel}`);
 }
 
-const expiry = (ms = 15_000) => new Date(Date.now() + ms).toISOString();
+/** FIX-SERVER-CLOCK-2560: a screen command expires 15 s ahead on the SERVER's clock. */
+export const expiry = (ms = 15_000) => new Date(serverNow() + ms).toISOString();
 
 /** Sends one command with a fresh request id (one per deliberate tap; never retried). */
 export function sendCommand(key: string, cmd: MediaCommand, requestId: string = commandId()): Promise<CommandResult> {

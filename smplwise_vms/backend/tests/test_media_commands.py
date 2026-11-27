@@ -16,6 +16,7 @@ from media_seed import body, send, service_of
 
 from smplwise.main import create_app
 from smplwise.services import ha_client, media_commands
+from support.waiting import soon
 
 
 @pytest.fixture()
@@ -563,7 +564,7 @@ def test_the_generic_route_refuses_managed_screens_and_every_media_action(m):
     app, c, calls, keys, settings = m
 
     def act(entity: str, action: str, args: dict[str, Any] | None = None, headers=None):
-        return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"g-{action}-{entity}"[:80], "expires_at": "2099-01-01T00:00:00Z"}, headers=headers or {})
+        return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"g-{action}-{entity}"[:80], "expires_at": soon()}, headers=headers or {})
 
     r = act("media_player.tv_living", "media_player.turn_off")
     assert (r.status_code, r.json()["code"]) == (409, "use_media_screen"), "a managed screen is operated from Multimedia only"
@@ -776,7 +777,7 @@ def test_the_generic_route_also_refuses_the_power_and_input_controls_of_a_manage
     assert c.post("/api/v1/ha/dev/registry", json={"entities": [*seed.ENTITY_REGISTRY, *extra], "devices": seed.DEVICES, "areas": seed.AREAS, "floors": seed.FLOORS}).status_code == 200
 
     def act(entity: str, action: str, args: dict[str, Any] | None = None, headers=None):
-        return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"g-{action}-{entity}"[:80], "expires_at": "2099-01-01T00:00:00Z"}, headers=headers or {})
+        return c.post(f"/api/v1/ha/entities/{entity}/actions", json={"allowed_action_id": action, "arguments": args or {}, "client_request_id": f"g-{action}-{entity}"[:80], "expires_at": soon()}, headers=headers or {})
 
     for entity, action, args in (("switch.tv_living_power", "switch.turn_off", None), ("select.tv_living_input", "select.select_option", {"option": "a"}), ("number.tv_living_level", "number.set_value", {"value": 5}),
                                  ("button.tv_living_menu", "button.press", None), ("switch.tv_kitchen_power", "switch.turn_on", None)):

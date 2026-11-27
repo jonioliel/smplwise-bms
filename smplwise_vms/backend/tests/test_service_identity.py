@@ -18,6 +18,7 @@ from smplwise.errors import ApiError
 from smplwise.rbac import Principal
 from smplwise.services import device_activity, ha_bridge, ha_client
 from smplwise.services import service_identity as si
+from support.waiting import soon
 
 SID = "a" * 32  # the service identity: a regular HA user
 HA_ADMIN = "c" * 32
@@ -294,7 +295,7 @@ def _bridge(lx, monkeypatch, version="0.9.0", answer=None):
 
 def _action(client, entity="light.lobby", action="light.turn_on", crid="c-1", **extra):
     body = {"allowed_action_id": action, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": crid,
-            "expires_at": "2099-01-01T00:00:00Z", **extra}
+            "expires_at": soon(), **extra}
     return client.post(f"/arx/api/v1/ha/entities/{entity}/actions", json=body)
 
 

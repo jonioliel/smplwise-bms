@@ -29,6 +29,7 @@ import { navTt } from '../i18n/nav-labels'; // CR-038 (spec 13.4 names this file
 import type { Severity, Weekday } from './types';
 import { tr } from '../i18n/msg/api-notify';
 import { isoZ } from './day-format';
+import { serverNow } from './server-clock'; // FIX-SERVER-CLOCK-2560: the door release from a notification, on the server's clock
 import { packTable } from '../i18n/lang-packs';
 import type * as Wire from './generated/wire-notifications';
 
@@ -1213,7 +1214,7 @@ async function call<T>(ctx: ErrorContext, fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } catch (err) { throw mapNotifyError(err, ctx); }
 }
 const DEFAULT_PAGE = 50;
-const commandEnvelope = () => ({ client_request_id: commandId(), expires_at: isoZ(Date.now() + 15_000) });
+const commandEnvelope = () => ({ client_request_id: commandId(), expires_at: isoZ(serverNow() + 15_000) });
 
 export const httpNotify: NotifyAdapter = {
   list: (q = {}) => call('user', async () => {

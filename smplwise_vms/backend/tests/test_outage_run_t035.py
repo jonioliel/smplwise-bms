@@ -40,6 +40,7 @@ from smplwise.main import create_app
 from smplwise.routers import access_control
 from smplwise.services import autosync, events_ingest, go2rtc, ha_bridge, ha_client, ha_sync, health_report, intercom_sync, intercom_write_journal, nvr
 from support.waiting import wait_for as _wait_for
+from support.waiting import soon
 
 
 def record(scenario: str, **observed: Any) -> None:
@@ -202,7 +203,7 @@ def bridge(settings, monkeypatch, ha_state_saved):
 
 def unlock_body(request_id: str | None = None) -> dict[str, Any]:
     return {"allowed_action_id": "lock.unlock", "arguments": {}, "expected_state_version": None, "confirmation_grant": "confirmed",
-            "client_request_id": request_id or uuid.uuid4().hex[:16], "expires_at": "2099-01-01T00:00:00Z"}
+            "client_request_id": request_id or uuid.uuid4().hex[:16], "expires_at": soon()}
 
 
 def unlock(c: TestClient, request_id: str | None = None) -> httpx.Response:
