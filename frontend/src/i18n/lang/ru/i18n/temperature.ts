@@ -450,6 +450,7 @@ export const ru = {
   waReason_unknown_outcome: 'Неизвестно, отправлено ли',
   waSchedules: 'Текущие расписания',
   waDelete: 'Удалить',
+  waDeleteConfirm: 'Удалить запланированный отчёт ({when})?',
   dow0: 'Воскресенье',
   dow1: 'Понедельник',
   dow2: 'Вторник',

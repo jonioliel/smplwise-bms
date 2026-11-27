@@ -450,6 +450,7 @@ export const ar = {
   waReason_unknown_outcome: 'غير معروف إن أُرسل',
   waSchedules: 'الجدولات الحالية',
   waDelete: 'حذف',
+  waDeleteConfirm: 'هل تريد حذف التقرير المجدول ({when})؟',
   dow0: 'الأحد',
   dow1: 'الإثنين',
   dow2: 'الثلاثاء',
