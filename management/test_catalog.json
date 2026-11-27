@@ -23001,5 +23001,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-GATE-SPEED-2550-1",
+    "requirement_ids": [
+      "R-GATE-SPEED-2550-1"
+    ],
+    "task_ids": [
+      "GATE-SPEED-2550"
+    ],
+    "title": "Gate engine speed-ups: measured pixel estimate and chunks, heavy unit split, load-aware limit, fresh seeds",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The gate engine copies under scripts/gate plan pixel chunks from measured durations, split the heavy unit files, size the run limit by load and use fresh duration / cost seeds; the self-tests and test_gate_speed pass from the tree; installed on the runner only by the lead before the 2.55 gate.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

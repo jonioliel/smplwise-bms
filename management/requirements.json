@@ -14919,5 +14919,21 @@
     "test_ids": [
       "AT-DOCS-GUIDE-2550-1"
     ]
+  },
+  {
+    "id": "R-GATE-SPEED-2550-1",
+    "title": "Gate engine speed-ups: measured pixel estimate and chunks, heavy unit split, load-aware limit, fresh seeds",
+    "statement": "The gate engine copies under scripts/gate plan pixel chunks from measured durations, split the heavy unit files, size the run limit by load and use fresh duration / cost seeds; the self-tests and test_gate_speed pass from the tree; installed on the runner only by the lead before the 2.55 gate.",
+    "task_ids": [
+      "GATE-SPEED-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-SPEED-2550-1"
+    ]
   }
 ]

@@ -5,9 +5,10 @@ train's note commit; 2.54.0 is NOT released yet - its gate runs on that branch).
 bump, train checks on the PC, one runner check job in slot B - section 3.5). No release gate was started, nothing was installed, no
 lab, no Home Assistant, no device, no WisKey contact. `main`, the tags, the `addon` branch and `release/2540-train` are untouched.
 
-**The UI bundle (`smplwise_vms/www`, `www-public`) is NOT rebuilt.** It is still the 2.54.0 build of `bdae0aaaa` (stamp version 2.54.0,
-source `7e2c937aa`). 2.54 may still change after its gate; the 2.55 rebuild (`npm run build:addon` on the runner, the 2.54 way, section
-3.4 of `RELEASE-2540-TRAIN.md`) comes last, after the last 2.54 fix and HA-STATE-RECONCILE-2550 are merged. Until then
+**The UI bundle (`smplwise_vms/www`, `www-public`) is NOT rebuilt for 2.55.** Since the merge of the final 2.54.0 head (`ac6b2063e`) it
+is 2.54's final build `c768bfc8a` (stamp version 2.54.0, source `7accbe97d`; before that the train carried 2.54's earlier build
+`bdae0aaaa`). The 2.55 rebuild (`npm run build:addon` on the runner, the 2.54 way, section 3.4 of `RELEASE-2540-TRAIN.md`) comes last,
+after the remaining rows are merged. Until then
 `release_check.py` FAILS on the two bundle rows (expected).
 
 ## 1. Merge log
@@ -36,11 +37,20 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | registry / note | - | `0a8c7c96a` | - | - | rows 5-6 registered |
 | 7 | `pilot/LOWS-FRONTEND-2550` | `ec2471927` | `fdc0cb1fc` | `f9217db8a` (release/2540-train) | `msg/components.ts` (en) | see below; frontend only; new `screens/map-room-bulk.ts`; `system-diagnostics.ts` merged cleanly with row 2; no baseline refreshed; Q1 = a (built), Q2-Q5 = a |
 | 8 | `pilot/DOCS-GUIDE-2550` | `ae493fd48` | `907f9f446` | `5aa03829b` (this train) | none | docs + `test_docs_settings_2550.py`; documents rows 5 and 7; `GUIDE_ALL_HE.html` up to date after the merge; Q1 = a (the coordinator writes a short top-up of the what's-new page for the remaining rows at the end of the train - open point 8), Q2 = a |
+| - | registry / note | - | `700486c5f` | - | - | rows 7-8 registered |
+| 2.54 | `origin/release/2540-train` (final 2.54.0) | `3a0f02036` | `ac6b2063e` | - | `PROJECT_BOARD.html`, `management/STATUS.md` | see below; 2.54 passed its gate; brings the alarm-card ellipsis fix `9c5fc334c`, the test fix `7accbe97d`, the UI rebuild `c768bfc8a`, the gate note `bba451a5f`, the final changelog `3a0f02036` |
+| 9 | `pilot/GATE-SPEED-2550` | `14a353ce4` | `0d9e3f0ef` | `5aa03829b` (this train) | none | gate engine repo copies only (`release_gate.py`, `gate_budget.py` new, `gate2_select.py`, `release_gate2.sh`, `branch_check.sh`, `engine_sync.py` INSTALL_MAP, `gate_durations.json`, `gate2_costs.json`, `selftest_gate_speed_2550.py` new, `test_gate_speed.py`); no file overlaps row 6's `scripts/gate` changes; NOT installed (the lead, before the 2.55 gate); all questions = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
   (generated on the 2.52 base, 1951 routes). Resolved by regenerating with `scripts/api_inventory.py`: 1959 -> 1962 routes (the three
   `GET /migration/legacy`, `POST /migration/legacy/dry-run`, `POST /migration/legacy/apply`).
+- 2.54 final (`ac6b2063e`): `PROJECT_BOARD.html` and `management/STATUS.md` (generated) - regenerated with `project_status.py --write`
+  after `management/tasks.json` merged cleanly (2.54's evidence line and the 2.55 cards). `smplwise_vms/www` / `www-public`: no
+  conflict (this train never changed them), so the merge carries 2.54's final bundle; kept as merged instead of forcing the older
+  train build back (that would silently revert a 2.54 commit inside the merge) - either way a 2.54.0 build, rebuilt for 2.55 at the
+  end. `smplwise_vms/CHANGELOG.md` merged cleanly: the 2.55.0 DRAFT section on top, the final 2.54.0 section below it byte-identical
+  to `3a0f02036` (checked). Version files stay 2.55.0.
 - Row 7: `frontend/src/i18n/lang/en/i18n/msg/components.ts` - LEGACY-IMPORT-UI-2550's English block (row 2) and LOWS-FRONTEND-2550's
   SCR-52 line were both appended at the end of the map; both kept, HEAD first; no duplicate key in the file (checked).
 
@@ -196,6 +206,21 @@ its 3 known failures should be gone there), the Playwright / pixel specs, and th
 NOT run on the PC: `unit-lows-frontend-2550-pages.spec.ts` (a page spec with a mocked server - the row ran it on the runner), the
 row's pixel files (the row: no baseline refreshed, the Hebrew screens unchanged), the Node unit suite as a whole after rows 5-8.
 
+### 3.8 After the 2.54 final head and row 9 (at `0d9e3f0ef`)
+
+| check | where | exit | result |
+|---|---|---|---|
+| `gen_wire_types --check` / `error_contract_inventory --check` / `i18n_backend_errors` / `wire_ratchet` / `request_strict_ratchet --check` / `sync_integration --check` / `build_guide --check` | PC | 0 each | match / 0 legacy 422 sites / 0 without English / 897 = baseline / 144 / up to date / up to date |
+| `lint_spec_waits --new-since f9217db8a` / `design_ratchet` / `lint_backend --strict` | PC | 0 each | 0 findings in 10 files / no count above the baseline / 0 findings |
+| `migration_downgrade_check --from origin/release/2540-train` | PC | 0 | PASS |
+| `release_check.py` | PC | 1 | only the expected rows: the UI bundle (2.54.0 build) x2 and the v2.55.0 tag |
+| `unused-exports.mjs --enforce` | PC | 0 | OK |
+| `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` | PC | 0 each | 0 errors / 0 errors / clean / built |
+| `test_gate_speed` / `test_gate2_select` / `test_gate_always_run` | PC | 0 each | 18 passed + 1 skipped / 17 / 19 passed |
+| gate self-tests from the tree: `selftest_gate_trust`, `selftest_gate_speed_2550`, `selftest_gate_fast`, `selftest_engine_sync` | PC | 0 x 4 | SELFTEST PASSED / OK / PASSED / PASSED |
+| `selftest_gate.py` | PC | 1 | `FileNotFoundError` (WinError 2) spawning its fake Playwright: a Linux-only self-test - the same failure at the 2.54 head `3a0f02036` on the PC, so not caused by this train |
+| the five gate self-tests (`selftest_gate`, `selftest_engine_sync`, `selftest_gate_fast`, `selftest_gate_trust`, `selftest_gate_speed_2550`) from the tree | runner (`~/work/p2520_t2550_st.sh 0d9e3f0ef`, slot B, a temporary worktree removed after; nothing installed, `~/gate2` untouched) | 0 x 5 | SELFTEST PASSED x 4, SELFTEST OK |
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -218,7 +243,7 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
      `docs/user-guide/he/19-whats-new-2530-2550_HE.md` (and DOCS / DOCS_HE "2.55.0" where needed) for the rows the guide row did not
      cover: LOWS-BRIDGE-GATE-2550 (bridge 0.10.10 and its restart) and the rows still to come; then `build_guide.py` regenerates
      `GUIDE_ALL_HE.html`. NOT done yet.
-3. **2.54 gate fixes** - any commit added to `release/2540-train` after `f9217db8a` is merged in when the lead says (a merge, not a
+3. **2.54 gate fixes** - merged: the final 2.54.0 head `3a0f02036` (`ac6b2063e`). Any later 2.54 commit is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
 4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,
    fixed in `8d6ce1665`); the pixel baselines still match (none refreshed). `8d6ce1665` changes one frontend file after run A: the
