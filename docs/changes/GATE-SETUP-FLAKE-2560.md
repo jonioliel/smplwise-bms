@@ -16,10 +16,11 @@ for what was a setup flake.
 - `selftest_gate.py`: fake modes `sf_*` and 4 cases (flaky case fails before the change: it reported "failed again alone"; the other
   three guard the reverse direction).
 
-## Tests
-- `selftest_gate.py` is POSIX only (fake `npx`); see the result line in the report of the agent (RUNNER_RESULT below).
-
-RUNNER_RESULT: NOT_RUN (filled in the report)
+## Tests (runner server, slot-free fake suite, nothing installed)
+- `selftest_gate.py` with the change: **SELFTEST PASSED** (all cases, including the 4 new ones).
+- Same selftest with the old `release_gate.py` from the train: **FAILED, 1 case** - the new flaky case ("failed again alone"); the
+  three reverse/guard cases pass on both engines, as intended.
+- Playwright, product tests: NOT_RUN (not needed; gate tooling only).
 
 ## Install on the runner (owner/lead; not done by this row)
 From a checkout of the merged train (dry run first, then `--apply`; an existing backup is never overwritten):
