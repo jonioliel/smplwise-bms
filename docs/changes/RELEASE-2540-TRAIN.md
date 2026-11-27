@@ -196,5 +196,67 @@ NOT_RUN); RELEASE-2540-TRAIN IN_PROGRESS with evidence lines (`1ff111f25`, `7524
    tested before / after, and DATA-RULES-2540's server rule ships in the same release) b) move it to a separate row. The battery-system
    control (DATA-RULES-2540 Q2) and the account continuity note (Q3) stay later rows.
 
+7. **The one-frame scroll after a building switch** (found for gate failure B, present since before 2.54): a new fit key restarts the
+   packing from its loosest step, so for one or two frames (~40 ms) the page area is 5-9 px too tall before it settles. a) a small
+   follow-up row: start a changed key's packing from the previous step when the page still fits there, measured the same way
+   (recommended - invisible today, but the cause of every "read once after a switch" test failure) b) leave it.
+
 NOT_RUN on the train: the release gate (the lead's), the full backend suite in one sweep (the touched areas only, section 3), the full
 Playwright suites beyond the specs named, tablet, every lab / Home Assistant / device / WisKey check.
+
+## 6. Gate run 1 (`f9217db8a`, the lead's): FAIL, 192 min, 0 hard failures, 9 test failures, 8 flaky
+
+The new engine's lint lane on the gate's worktree: 0 findings. Summary `~/smplwise-results/gate_release-2540-train_f9217db8a.gate2.md`.
+Two root causes, each found by measurement on the runner and bisected over the train's merges (`~/work/p2520_t2540_bisect.sh`, results
+`~/work/p2540x-out`: a preview build per commit, the gate's two failing tests on tablet, plus a diagnostic spec that is never committed):
+
+| commit | layout-worstcase tablet (classic + domus light worst) | multibuilding shared tablet x3 |
+|---|---|---|
+| `3b4654f8b` (v2.53.0) | 2 passed | 3 passed |
+| `f1fc6b088` (rows 1-11) | 2 passed | 1 failed, 2 passed (Received 2) |
+| `557859a3c` (+ row 12, HOME-SCROLL-3-2530) | **2 failed** (86 px in 81 px) | 3 passed |
+| `cf6fcae70` / `8a1e5e67b` / `edc766955` / `f9217db8a` | 2 failed each | 3 passed / 3 passed / 1 failed / 3 passed |
+
+| # | failure | root cause | fix |
+|---|---|---|---|
+| A | [preview] `layout-worstcase-screens-297.spec.ts:55` [tablet] x 8 (4 themes x worst / huge): "clipped div.al-t content 86px wider than box 81px (79px in domus)" | **HOME-SCROLL-3-2530** (row 12; first failing merge `557859a3c`). Measured with the worst data at 1024x768: the cards info style reaches fit 2 and squeezes (`data-squeeze`, layout hero); the squeezed band gives the medium alarm card four fifths of its basis (164 px) and the state "דרוכה (חוץ)" at 18 px is 86 px wide in its 81 px text box (`.al-s` `white-space: nowrap`). Not AREA-HONEST-COUNT-2540's grey label (it is in the area rows, not this card) | **product** `9c5fc334c`: `.al-s` stays on one line and ends in an ellipsis inside the card (`min-inline-size: 0`, `overflow: hidden`, `text-overflow: ellipsis`), the full state is the element's `title`; a state that fits looks as before. A wrapping variant was tried first and rejected: the card grew and the shared building's page scrolled (multibuilding 2 of 10 failed) |
+| B | [preview] `evidence-multibuilding-home-2330.spec.ts:124` [tablet] "the shared building opens ..." `toBeLessThanOrEqual(1)` (also alone) | **not a 2.54 row** - present at v2.53.0. A per-frame trace of the page area after the building switch (8 repeats per commit): a new building is a new fit key, so the packing restarts from its loosest step and settles one or two frames after the crumb changed (`f9217db8a`: crumb "משותף" at 204 ms, fit 0 and 5 px over at 241 ms, fit 1 and 0 px at 280 ms; `3b4654f8b`: crumb at ~130 ms, 9 px over, 0 px a frame later; 8 of 8 repeats on each commit show the one frame). The test read the overflow once, right after the crumb: 1 of 10 at `3b4654f8b`, 1 of 10 at `f9217db8a` (tablet, `--repeat-each=10`); the gate's re-run alone met the same frame | **test** `7accbe97d`: the check is polled for 3 s, as the building test above it in the same file already is (DOMUS-DEFAULT-2439) |
+
+Proof (runner, `~/work/p2520_t2540_fix.sh`, results `~/work/p2540y-out`):
+
+| run | base `f9217db8a` | with the fix |
+|---|---|---|
+| `layout-worstcase-screens-297` tablet, all 16 cases | **8 failed**, 13 passed | **21 passed** |
+| `evidence-multibuilding-home-2330` "the shared building" tablet `--repeat-each=10` | 1 failed, 9 passed (`3b4654f8b`: 1 failed, 9 passed) | **10 passed** |
+
+The 8 flaky ones (failed once, passed alone) were not chased.
+
+### 6.1 Run D at `7accbe97d` (the two fixes; `~/work/p2520_t2540_d.sh`, results `~/work/p2540d-out`)
+
+| check | exit | result |
+|---|---|---|
+| `lint_spec_waits.py --new-since 3b4654f8b` / `design_ratchet` | 0 / 0 | 0 findings in 33 files / no count above the baseline |
+| `tsc` app / typecheck / lint / build / `unused-exports --enforce` / bundle budget / lazy tags | 0 each | 0 / 0 errors; clean; built; no export outside the baseline; OK; OK |
+| `layout-worstcase-screens-297` desktop + tablet + mobile | 0 | **63 passed** |
+| `evidence-multibuilding-home-2330` all projects | 0 | **21 passed** |
+| the shared building test, tablet `--repeat-each=20` | 0 | **20 passed** |
+| building / home evidence: area-row, devices-tiles, home-295, homeinfo-295, home-quickcard-295, mb-home-2500, area-honest-count-2540, generator-home, elevators-home, home-polish; desktop + tablet + mobile | 0 | **86 passed**, 190 skipped (their own project skips) |
+| `fixture_job.py evidence-home-screen --no-build` | 0 | 25 passed, 0 unexpected, 0 flaky |
+| layout-devices-break-297, layout-widgets-break-297, layout-home-widgets-wide-298, layout-elevators-widget-297, layout-home-edit-bar-wp4 against the **preview** build | 1 | 35 failed, 32 passed - not a result: four of the five say "needs the Vite DEV server" (their harness imports `/src/`); re-run on the dev server in run E below |
+| pixel home-gaps-2436, home-auditfix-2437, home-fb-2431, home-next-2500, area-honest-count-2540, home-account-2530, `--grep pixel-stable` | 1 | 43 passed, **3 failed** (home-auditfix "portrait tablet 768 ... dark", home-next "wall notice board, all dark", home-gaps "my notifications with the alarm code dark": two settle time-outs, one 41-pixel diff) - all three are the home INTERFACE (`home/*`), which does not use `home-widgets` (the changed component); base vs fix in run F below |
+| visual-matrix home cases desktop + tablet | 1 | 11 passed, 1 failed: "devices-building ready dark" tablet - the screenshot timed out after 5 s (no picture compared); run F below |
+
+### 6.2 Runs E and F (`~/work/p2520_t2540_ef.sh`; results `~/work/p2540e-out`, `~/work/p2540f-out`)
+
+| check | base `f9217db8a` | head `c768bfc8a` |
+|---|---|---|
+| the five building / home layout specs on the **Vite dev server** (as the gate's dev lane), desktop + tablet + mobile | - | **67 passed**, 23 skipped, 0 failed |
+| pixel home-auditfix-2437 / home-next-2500 / home-gaps-2436, desktop + mobile, `--grep pixel-stable`, `--repeat-each=2`, workers 1 | 50 passed, **2 failed** | 51 passed, **1 failed** |
+| visual-matrix home cases desktop + tablet `--repeat-each=2` | 24 passed | 24 passed |
+
+The one pixel test that fails in this harness - home-next "wall notice board, all dark" (41 pixels) - fails at the base too (2 of 2) and
+passed in the gate at the same base (`pw_pixel_27.log`): a difference of this ad-hoc harness (a plain `vite build` + `vite preview`), not
+of the fix; the home interface does not use the changed `home-widgets`. The run-D settle time-outs did not repeat.
+
+UI rebuilt at `c768bfc8a` (the build of `7accbe97d`): arx-shell-2.54.0, 0 maps, build stamp 2129 files `683e70eff9b1...`, source_commit
+`7accbe97d`, archive sha256 `fb65b61b...19d2`; `release_check.py` on the PC: "ready for the owner's approval" (only the tag).
