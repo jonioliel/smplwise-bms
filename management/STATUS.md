@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T18:47:20.012536+00:00
+Generated: 2026-11-27T19:00:45.800649+00:00
 
-Tasks: 776 | Requirements: 890 | Tests: 907 | Screens: 32
+Tasks: 777 | Requirements: 891 | Tests: 908 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 7
-- REVIEW: 214
+- REVIEW: 215
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 681
+- V1: 682
 - V2: 29
 - V3: 3
 
@@ -831,3 +831,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-NVR-PULSE-2560](tasks/FIX-NVR-PULSE-2560.md) | V1 | REVIEW | Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation | — |
 | [FIX-CORE-2560](tasks/FIX-CORE-2560.md) | V1 | REVIEW | Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound | — |
 | [FIX-TICKETS-2560](tasks/FIX-TICKETS-2560.md) | V1 | REVIEW | Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order | — |
+| [FIX-SERVER-CLOCK-2560](tasks/FIX-SERVER-CLOCK-2560.md) | V1 | REVIEW | Final review fixes VD-01, VD-03, FE-01, FE-03, FE-04, WA-01: server clock for command expiry, upper bound on expires_at | — |

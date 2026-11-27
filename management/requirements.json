@@ -15271,5 +15271,21 @@
     "test_ids": [
       "AT-FIX-TICKETS-2560-1"
     ]
+  },
+  {
+    "id": "R-FIX-SERVER-CLOCK-2560-1",
+    "title": "Final review fixes VD-01, VD-03, FE-01, FE-03, FE-04, WA-01: server clock for command expiry, upper bound on expires_at",
+    "statement": "Final review fixes VD-01, VD-03, FE-01, FE-03, FE-04, WA-01: server clock for command expiry, upper bound on expires_at; merged into the 2.56.0 train, change note docs/changes/FIX-SERVER-CLOCK-2560.md.",
+    "task_ids": [
+      "FIX-SERVER-CLOCK-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-SERVER-CLOCK-2560-1"
+    ]
   }
 ]
