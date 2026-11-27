@@ -373,7 +373,7 @@ export function splitPlan(sel: readonly Selection[], threshold?: number | null, 
 
 /** FIX-TICKETS-2560 (TK-02): what one confirm really did, per vendor: awarded (final), waiting for a second approval, or not sent
  * because an earlier award of the same press now waits (the server refuses a further award until it is decided). */
-export interface AwardOutcome { awarded: Selection[]; pending: Selection[]; held: Selection[] }
+interface AwardOutcome { awarded: Selection[]; pending: Selection[]; held: Selection[] }
 export function awardOutcome(sel: readonly Selection[], answers: readonly { award: { quote_id: string; state: string } }[]): AwardOutcome {
   const out: AwardOutcome = { awarded: [], pending: [], held: [] };
   for (const s of sel) {

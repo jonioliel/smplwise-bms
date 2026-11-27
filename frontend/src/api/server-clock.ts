@@ -13,9 +13,9 @@
 type ClockSource = 'body' | 'header';
 
 /** A round trip longer than this (ms) is not a clock sample. */
-export const SAMPLE_MAX_RTT_MS = 2_000;
+const SAMPLE_MAX_RTT_MS = 2_000;
 /** A kept sample older than this (ms, device clock) gives way to any usable one. */
-export const SAMPLE_FRESH_MS = 60_000;
+const SAMPLE_FRESH_MS = 60_000;
 
 let offsetMs = 0;
 let source: ClockSource | null = null;
