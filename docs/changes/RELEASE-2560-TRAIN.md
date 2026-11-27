@@ -87,3 +87,13 @@ Checks (PC, one process at a time, before row 8): `gen_wire_types --check`, `i18
 `test_route_cache` (equivalence) 4 passed; `test_wiskey_visit_filters_2560` 6, `test_release_check_green_2560` 12, `test_version` 1 passed.
 After row 8: `test_gate_speed` + `test_gate_always_run` 37 passed (1 skipped), `selftest_gate_speed_2550` OK, both gate scripts compile;
 `selftest_gate.py` itself is Linux-only (NOT_RUN). RECONCILE-TEST-LEAK-2560 still running, not merged.
+
+## 7. The shipped UI (the 2.55 way)
+
+`npm run build:addon` on the runner (`~/work/p2520_t2560_buildui.sh fc170982f`, slot B, a copy of the 2.55 script: detached worktree, main
+checkout's `node_modules` linked, 0 untracked files under the stamp inputs); `tar` of `www` / `www-public` copied to the PC as base64,
+sha256 `be0038b3a2c5...f2199` verified equal on both sides, both directories emptied, archive extracted. rc 0; arx-shell-2.56.0; 0 `.map` files and 0
+`sourceMappingURL` (370 maps archived under `~/smplwise-results/sourcemaps/2.56.0`); `www/build-stamp.json`: version 2.56.0, 2135 input files,
+inputs_sha256 `966f83130294...`, source_commit `fc170982f`. `scripts/release_check.py` on the PC: "ready for the owner's approval" - only the v2.56.0 tag is missing.
+RECONCILE-TEST-LEAK-2560 (backend tests and fixtures only) joins after the build: no stamp input changes. Any later change under `frontend/src`, `frontend/public`,
+the entry pages, Vite configs, `package*.json` or `tsconfig.json` needs a new build.
