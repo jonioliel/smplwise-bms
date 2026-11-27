@@ -370,7 +370,11 @@ def delete_building(building_id: str, request: Request, principal: Principal = D
     n = store.live_floor_count(conn, building_id)
     if n:
         raise conflict("has_children", "למבנה יש קומות; מחק אותן קודם.", floors=n)
+    from ..services import building_scope
+
+    guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # FIX-MH01-2560: the building's area -> building rows stop counting
     store.soft_delete_building(conn, building_id, now_iso(), now_iso())
+    guard.check()
     audit(conn, actor=principal, action="building.delete", decision="allowed", resource_type="building", resource_id=building_id, request_id=_rid(request))
 
 
@@ -430,10 +434,14 @@ def delete_floor(floor_id: str, request: Request, principal: Principal = Depends
     if anchors and not force:
         raise conflict("has_anchors", "על הקומה מוצבים פריטים; אשר מחיקה מפורשת (force) או הסר אותם קודם.", anchors=anchors)
     now = now_iso()
+    from ..services import building_scope
+
+    guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # FIX-MH01-2560: the floor's areas fall back to their next mapping row
     if anchors:
         store.end_floor_anchors(conn, floor_id, now, principal.user_id)
     store.archive_floor_plans(conn, floor_id, now)
     store.soft_delete_floor(conn, floor_id, now)
+    guard.check()  # before any file is removed below
     from ..services import revocation, shared_spaces
 
     ended = shared_spaces.end_for_floor(conn, floor_id, principal.user_id, now)  # review L5: no live share or member row outlives the floor
