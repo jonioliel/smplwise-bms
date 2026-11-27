@@ -56,6 +56,17 @@ if mode == "param_fail":      # a test() in a loop: two siblings share file:line
     a, b = spec(7, "unexpected"), spec(7)
     a["title"], b["title"] = "classic is pixel-stable", "bubble is pixel-stable"
     write(report([a, b])); sys.exit(1)
+if mode.startswith("sf_"):    # GATE-SETUP-FLAKE-2560: a beforeAll failure pinned to a desktop-only test (line 108) that skips itself on mobile
+    def sf(line, status, ann=()):
+        return {"title": f"t{line}", "file": "tests/a.spec.ts", "line": line, "tests": [{"projectName": "desktop", "status": status,
+                "annotations": [{"type": a} for a in ann], "results": [{"status": "failed" if status == "unexpected" else "passed",
+                "error": {"message": "beforeAll hook timeout of 60000ms"} if status == "unexpected" else None}]}]}
+    rows_ = {"sf_first": [sf(108, "unexpected"), sf(248, "skipped")],                # setup failed: pinned test fails, the sibling did not run
+             "sf_rerun_ok": [sf(108, "skipped", ["skip"]), sf(248, "expected")],     # setup green, :108 self-skips, sibling passes
+             "sf_rerun_again": [sf(108, "unexpected"), sf(248, "skipped")],          # setup fails again
+             "sf_rerun_sibling_red": [sf(108, "skipped", ["skip"]), sf(248, "unexpected")],
+             "sf_rerun_only_skip": [sf(108, "skipped", ["skip"]), sf(248, "skipped", ["skip"])]}[mode]
+    write(report(rows_)); sys.exit(1 if any(x["tests"][0]["status"] == "unexpected" for x in rows_) else 0)
 sys.exit(99)
 '''
 npx = BIN / "npx"
@@ -141,6 +152,27 @@ check("playwright: an exit code other than 0/1 FAILS", v == "fail", (v, c, ids))
 v, c, ids = pw_case("param_fail")
 check("playwright: a failing parametrized sibling (same file:line) is not 'flaky' because the last sibling passed alone",
       v == "fail" and c.get("flaky", 0) == 0 and c.get("fail") == 1, (v, c, ids))
+
+# ---- GATE-SETUP-FLAKE-2560: setup failure pinned to a self-skipping test
+def sf_case(rerun):
+    reset()
+    logd = TMP / f"logs_sf_{rerun}"
+    logd.mkdir(exist_ok=True)
+    rows, rc, to = g.run_pw(TMP, ["a.spec.ts"], ["desktop"], "http://127.0.0.1:1/", logd, "lab", env={"FAKE_PW_MODE": "sf_first"}, timeout=60)
+    g.settle("preview", rows, rc, to, TMP, logd, "http://127.0.0.1:1/", {"FAKE_PW_MODE": rerun}, "lab")
+    return g.compute_verdict([]), g.COUNTS.get("preview", {}), [(i["status"], i["reason"]) for i in g.ITEMS]
+
+
+v, c, its = sf_case("sf_rerun_ok")
+check("setup flake: pinned test self-skips on the rerun and the rest of the file passes -> FLAKY (not fail, not a pass), with the note",
+      v == "pass" and c.get("fail", 0) == 0 and c.get("flaky") == 1 and c.get("pass") == 1
+      and any(st == "FLAKY" and "rerun green, test self-skips on this project" in why for st, why in its), (v, c, its))
+v, c, its = sf_case("sf_rerun_again")
+check("setup flake: the setup fails again on the rerun -> still a failure", v == "fail" and c.get("flaky", 0) == 0 and c.get("fail", 0) >= 1, (v, c, its))
+v, c, its = sf_case("sf_rerun_sibling_red")
+check("setup flake: the pinned test self-skips but a sibling still fails -> still a failure", v == "fail" and c.get("flaky", 0) == 0, (v, c, its))
+v, c, its = sf_case("sf_rerun_only_skip")
+check("setup flake: nothing in the file positively passed (all skips) -> never FLAKY", c.get("flaky", 0) == 0, (v, c, its))
 
 # ---- pytest shards
 v, why = pytest_case("ok")

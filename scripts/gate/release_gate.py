@@ -1484,6 +1484,30 @@ def ident_of(r):
     return f"{r['file']}:{r['line']} [{r['project']}] {r['title']}"
 
 
+def setup_flake_self_skip(r, r2, rows, rows2):
+    """GATE-SETUP-FLAKE-2560: a beforeAll/setup failure is pinned by Playwright to the first test of its group, which may be a test that
+    skips itself on this project (a desktop-only test failing on mobile). The alone-rerun then passes the setup and that test skips.
+    True only when the pinned test's rerun is a self-skip (not a "did not run") AND every other test of the same file/project is
+    positively green (its rerun result when it was rerun, else its first-run result) with at least one real pass: a skip is never
+    counted as a pass, the case is FLAKY with a note. A failing or unverified neighbour keeps it a failure."""
+    if r2 is None or r2["status"] != "skipped" or r2.get("norun"):
+        return False
+    again = {(x["file"], x["line"], x["title"]): x for x in (rows2 or []) if x["project"] == r["project"]}
+    others, passed = 0, 0
+    for x in rows:
+        if x["file"] != r["file"] or x["project"] != r["project"] or (x["line"], x["title"]) == (r["line"], r["title"]):
+            continue
+        y = again.get((x["file"], x["line"], x["title"]), x)
+        if y["status"] in ("expected", "flaky"):
+            passed += 1
+        elif y["status"] == "skipped" and not y.get("norun"):
+            pass
+        else:
+            return False
+        others += 1
+    return others > 0 and passed > 0
+
+
 def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
     """Count a Playwright result set: known / retry once alone / flaky / fail. A test that "did not run" because an earlier test
     of its serial group failed is never counted as skipped: its file is re-run alone with the failed one."""
@@ -1560,6 +1584,8 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
                     count(cat, "skipped")
                 else:
                     count(cat, "fail"); item(cat, ident_of(r), "FAIL", "did not run in the full run (a serial group stopped) and not verified alone: " + (r2["error"] if r2 and r2["error"] else "no result"))
+            elif setup_flake_self_skip(r, r2, rows, rows2):
+                count(cat, "flaky"); item(cat, ident_of(r), "FLAKY", "setup failure (" + r["error"][:120] + "), rerun green, test self-skips on this project")
             elif good:
                 count(cat, "flaky"); item(cat, ident_of(r), "FLAKY", "failed in the full run (" + r["error"][:120] + "), passed alone")
             elif r2 is None and (to2 or rows2 is None):
