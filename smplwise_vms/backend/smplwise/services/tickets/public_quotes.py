@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import costs, links, quotes
+from . import costs, links, quotes, store_links
 from .handler_actions import ActionRefused, LinkGone, _finish as finish_request, _progress as link_progress, claim as claim_request, fresh as fresh_link
 from .keyring import KEYS
 from .module_key import ModuleKeyError
