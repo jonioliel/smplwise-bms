@@ -145,7 +145,8 @@ test.describe('pixel-stable: home administration, the site-wide warning', () => 
       // the person's card is taller than the viewport (23 categories): the baseline is the warning itself, scrolled into view (a tall
       // element capture was not stable on the runner, RELEASE-2510-TRAIN); the captures of the compare page show it in its card
       const target = warn;
-      await target.scrollIntoViewIfNeeded();
+      // centred: at the viewport's edge the phone's bottom bar covers part of it
+      await target.evaluate((e) => e.scrollIntoView({ block: 'center' }));
       await settle(page);
       if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
       else await expect(target).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', caret: 'hide', timeout: 15_000 });
