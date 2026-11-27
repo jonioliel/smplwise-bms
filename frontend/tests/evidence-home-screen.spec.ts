@@ -430,6 +430,88 @@ test.describe('the home screen against the devices fixture backend', () => {
     }
   });
 
+  // HOME-FIT-FOLLOWUPS-2550: what grows in the page area without resizing the page body - the shell's setup hint arriving above the
+  // screen, a banner - is packed at once now (a ResizeObserver on the page area and its children). It used to wait for the screen's
+  // recheck timers (0.6 / 1.5 / 3 s after a settle: on a loaded runner the page scrolled for 1.7 s) and was missed altogether once those
+  // were spent. The growth here is a plain block put into the page area above the screen AFTER the timers ran out, so only the new
+  // observer can see it; then the packing must stay still (no ResizeObserver loop: no measure while nothing changes, no loop error).
+  test('growth in the page area above the screen is packed within a few frames, and the packing then stays still', async ({ page, request }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'desktop sizes');
+    await seed(request);
+    await resetHome(request);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (/ResizeObserver/i.test(m.text())) errors.push(m.text());
+    });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await open(page, '/devices/building');
+    const body = page.locator('devices-building .page-body');
+    await expect(body).toHaveAttribute('data-home-direction', 'a');
+    await expect.poll(() => scrolls(page, '.split > nav.tree'), { message: 'fits before the growth', timeout: 8000 }).toEqual([]);
+    // the screen's recheck timers are spent (all booked, none pending: scheduleFitRecheck) - read from the element itself
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const el = document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-building') as unknown as { fitRechecks: number; fitRecheckTimer: number } | null;
+            return !!el && el.fitRechecks >= 3 && !el.fitRecheckTimer;
+          }),
+        { message: 'the recheck timers ran out', timeout: 15000 },
+      )
+      .toBe(true);
+    const seen = await page.evaluate(
+      () =>
+        new Promise<{ frames: number; ms: number; from: string; to: string }>((done) => {
+          const app = document.querySelector('sw-app')!.shadowRoot!;
+          const main = app.querySelector('main')!;
+          const pb = app.querySelector('devices-building')!.shadowRoot!.querySelector('.page-body')!;
+          const read = () => `fit ${pb.getAttribute('data-fit')}${pb.hasAttribute('data-squeeze') ? ' squeeze' : ''}`;
+          const from = read();
+          const block = document.createElement('div');
+          block.setAttribute('data-test-growth', '');
+          block.style.cssText = `flex: none; block-size: ${Math.round(innerHeight * 0.6)}px`;
+          main.insertBefore(block, main.querySelector(':scope > .screen'));
+          const t0 = performance.now();
+          let frames = 0;
+          const tick = () => {
+            frames += 1;
+            const now = read();
+            if (now !== from || frames >= 60) done({ frames, ms: Math.round(performance.now() - t0), from, to: now });
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    expect(seen.to, `the packing stepped after the growth (${seen.from} -> ${seen.to}, ${seen.frames} frames, ${seen.ms} ms)`).not.toBe(seen.from);
+    // the growth's frame, the observer's measure in the next one, its render read in the one after (and one frame of slack)
+    expect(seen.frames, `the first step within a few frames (${seen.frames} frames, ${seen.ms} ms)`).toBeLessThanOrEqual(4);
+    // then still: count the screen's measures once the packing settled - a loop would measure every frame
+    const idle = await page.evaluate(
+      () =>
+        new Promise<{ settling: number; idle: number }>((done) => {
+          const el = document.querySelector('sw-app')!.shadowRoot!.querySelector('devices-building') as unknown as { measureFit: () => void };
+          const orig = el.measureFit;
+          let n = 0;
+          el.measureFit = () => {
+            n += 1;
+            orig();
+          };
+          window.setTimeout(() => {
+            const settling = n;
+            n = 0;
+            window.setTimeout(() => {
+              el.measureFit = orig;
+              done({ settling, idle: n });
+            }, 1500);
+          }, 2000);
+        }),
+    );
+    expect(idle.settling, `measures while it settles (${idle.settling})`).toBeLessThanOrEqual(20);
+    expect(idle.idle, 'no measure once settled (a ResizeObserver loop measures every frame)').toBeLessThanOrEqual(2);
+    expect(errors, 'no ResizeObserver loop error, no page error').toEqual([]);
+  });
+
   test('direction b: the widget column can be on either side, and the floor filter narrows the floors', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'desktop');
     await seed(request);
@@ -959,12 +1041,21 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect(card.locator('[data-home-dir-thumb]')).toHaveCount(3); // a live preview thumbnail per direction
       await expect(card.locator('[data-home-dir-option="a"]')).toHaveAttribute('aria-pressed', 'true'); // the default
       await expect(card.locator('[data-home-side-option]')).toHaveCount(0);
+      // HOME-FIT-FOLLOWUPS-2550: the card says "saved" only once the server answered the PATCH, and that answer comes after a durable
+      // commit (synchronous=FULL). On the loaded runner that commit once held the write lock 5.1 s (backend log "write lock held 5.1 s
+      // by PATCH /api/v1/settings", 50 ms before this test gave up), so the message's 5 s default timeout measured the runner's disk,
+      // not the card. The wait is on the save's own answer now (its status checked), and the message must follow it at once.
+      const saved = (path: string) => page.waitForResponse((r) => r.request().method() === 'PATCH' && new URL(r.url()).pathname === path, { timeout: 30000 });
+      const dirSaved = saved('/api/v1/settings');
       await card.locator('[data-home-dir-option="b"]').click();
+      expect((await dirSaved).status()).toBe(200);
       await expect(card.locator('[data-home-message]')).toHaveText('המסך הראשי נשמר');
       expect((await settings(request))['home.direction']).toBe('b');
       await expect(card.locator('[data-home-side-option="end"]')).toHaveAttribute('aria-pressed', 'true');
+      const sideSaved = saved('/api/v1/settings');
       await card.locator('[data-home-side-option="start"]').click();
-      await expect.poll(async () => (await settings(request))['home.side']).toBe('start');
+      expect((await sideSaved).status()).toBe(200);
+      expect((await settings(request))['home.side']).toBe('start');
       await shot(page, 'home-settings', testInfo);
       // the screen follows
       await open(page, '/devices/building');
@@ -972,7 +1063,13 @@ test.describe('the home screen against the devices fixture backend', () => {
       // the link opens the screen's edit mode
       await page.goto('about:blank');
       await page.goto('/?design=a#/system/diagnostics?tab=devices');
-      await page.locator('system-home-screen sw-button[data-home-edit-link]').click();
+      // HOME-FIT-FOLLOWUPS-2550: the link is disabled until the card's own settings read says this user may edit (`ro`). Playwright counts a
+      // custom element's `disabled` attribute as enabled, so it clicked the still-disabled link and the inner <button disabled> swallowed
+      // the click (runner trace, a loaded whole-file run: "locator resolved to <sw-button disabled ...>", the input snapshot still
+      // disabled; the card's own GET /settings answered only about then; no navigation, the edit panel never came).
+      const editLink = page.locator('system-home-screen sw-button[data-home-edit-link]');
+      await expect(editLink).not.toHaveAttribute('disabled', /.*/, { timeout: 30000 });
+      await editLink.click();
       await expect(page.locator('devices-building home-edit-panel')).toBeVisible({ timeout: 30000 });
       // a viewer sees the picker but cannot change it; the server refuses too
       bindings.push(await bindUser(request, user, 'viewer'));

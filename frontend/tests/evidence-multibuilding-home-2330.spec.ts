@@ -179,6 +179,69 @@ test('inside a building "כבה הכל" names the building', async ({ page }, in
   await shot(page, 'building-off', info.project.name);
 });
 
+// HOME-FIT-FOLLOWUPS-2550 (RELEASE-2540-TRAIN section 6, B): a building switch restarted the fit from its loosest step, so for one or two
+// frames the new building was drawn at fit 0 and the page overflowed by 5-9 px (tablet; since v2.53.0) before it stepped. The screen now
+// keeps its step when the new building fits in it, and a switch measures (and steps) before the first paint instead of a frame later
+// (here building ג fits at fit 0 and the shared building needs fit 1). Measured on every frame from the press to 1.5 s after it (an
+// animation-frame sampler, plus a ResizeObserver on the page area, its children and the page body, which reads each re-pack as it is
+// laid out, before it is painted).
+test('a building switch never overflows the page, not even for a frame', async ({ page }) => {
+  test.skip(phone(page), 'the phone scrolls (no fit)');
+  await open(page, '&mb=alarm');
+  const view = B(page).locator('home-site-view');
+  const cell = view.locator('[data-site-cell="bC_f3"]');
+  if (await cell.count()) await cell.click();
+  else {
+    await view.locator('[data-site-tree-fold="bC"]').click();
+    await view.locator('[data-site-tree-floor="bC_f3"]').click();
+  }
+  await expect(B(page).locator('[data-site-bar]')).toHaveAttribute('data-site-level', 'bC');
+  await expect.poll(() => overflowY(page), { message: 'building ג fits before the switch', timeout: 3000 }).toBeLessThanOrEqual(1);
+  await page.evaluate(() => {
+    const w = window as unknown as { hffSamples: string[]; hffMax: number; hffDone: boolean };
+    w.hffSamples = [];
+    w.hffMax = 0;
+    w.hffDone = false;
+    const host = document.querySelector('sw-app')!.shadowRoot!.querySelector('devices-building')!;
+    let node: Node | null = host;
+    let sc: HTMLElement | null = null;
+    while (node && !sc) {
+      const parent: Node | null = (node as Element).assignedSlot ?? node.parentNode ?? (node as ShadowRoot).host ?? null;
+      if (parent instanceof HTMLElement && ['auto', 'scroll'].includes(getComputedStyle(parent).overflowY)) sc = parent;
+      node = parent;
+    }
+    const area = sc ?? document.documentElement;
+    const t0 = performance.now();
+    const read = (how: string) => {
+      const over = area.scrollHeight - area.clientHeight;
+      const pb = host.shadowRoot!.querySelector('.page-body');
+      const crumb = host.shadowRoot!.querySelector('.crumb.here')?.textContent?.trim() ?? '';
+      if (over > w.hffMax) w.hffMax = over;
+      if (over > 1) w.hffSamples.push(`${Math.round(performance.now() - t0)} ms ${how}: ${over} px over, fit ${pb?.getAttribute('data-fit')}, "${crumb}"`);
+    };
+    const ro = new ResizeObserver(() => read('re-pack'));
+    for (const el of [area, ...Array.from(area.children), host.shadowRoot!.querySelector('.page-body')]) if (el) ro.observe(el);
+    const frame = () => {
+      read('frame');
+      if (performance.now() - t0 < 1500) requestAnimationFrame(frame);
+      else {
+        ro.disconnect();
+        w.hffDone = true;
+      }
+    };
+    requestAnimationFrame(frame);
+  });
+  await B(page).locator('[data-site-switch-btn="bS"]').click();
+  await expect(B(page).locator('.crumb.here')).toHaveText('משותף');
+  await page.waitForFunction(() => (window as unknown as { hffDone: boolean }).hffDone, undefined, { timeout: 10000 });
+  const r = await page.evaluate(() => {
+    const w = window as unknown as { hffSamples: string[]; hffMax: number };
+    return { max: w.hffMax, over: w.hffSamples.slice(0, 8) };
+  });
+  expect(r.max, `the page overflowed after the switch: ${r.over.join(' | ')}`).toBeLessThanOrEqual(1);
+  expect(await overflowY(page), 'the shared building fits').toBeLessThanOrEqual(1);
+});
+
 test('dark scheme of the site level', async ({ page }, info) => {
   await open(page, '&mb=1', true);
   await expect(B(page).locator('home-site-view')).toBeVisible();

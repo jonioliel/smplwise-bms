@@ -116,6 +116,8 @@ const EDIT_PARAM = 'edit';
  * designed, 1 = smaller tiles / rows, 2 = the smallest (and the secondary strips drop). Stepped up by measuring (devices-shared.ts fitStep). */
 /** HOME-SCROLL-2-2530: when a settled packing is measured again (ms after each settle, at most this many per fit key) - see scheduleFitRecheck. */
 const FIT_RECHECK_MS = [600, 1500, 3000] as const;
+/** HOME-FIT-FOLLOWUPS-2550: the most measures a building switch runs before its first paint (fit 1, fit 2, b's fold, the squeeze) - see packNow. */
+const FIT_SYNC_STEPS = 4;
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 /** The tiles' panel segments (the same list as screens/devices-tiles-panel ITEMS_FILTERS, whose module is a lazy chunk: CR-HOME-LAZY-2440). */
@@ -476,6 +478,12 @@ export class DevicesBuilding extends LitElement {
    * pixel or two left a control screen scrolling at the loosest packing (tablet 1024x768, a building of a site, the domus skin). */
   private fitObs: ResizeObserver | null = null;
   private fitObserved: Element | null = null;
+  /** HOME-FIT-FOLLOWUPS-2550: the page area (the shell's scroll container) and each of its own children are watched too - what grows
+   * there without resizing the page body (the shell's setup hint arriving above the screen, a banner) was measured only on the recheck
+   * timers, so a slow device scrolled for 1.5-3 s (and not at all once those were spent). See watchPageArea. */
+  private fitAreaObs: ResizeObserver | null = null;
+  private fitArea: HTMLElement | null = null;
+  private fitAreaKids = new WeakSet<Element>();
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
   /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
@@ -1350,6 +1358,13 @@ export class DevicesBuilding extends LitElement {
   }
 
   private fitKey = '';
+  /** HOME-FIT-FOLLOWUPS-2550: the last measure's key parts a building switch leaves alone, and its level (see measureFit). */
+  private fitRest = '';
+  private fitLevel = '';
+  /** HOME-FIT-FOLLOWUPS-2550: the level the last render was drawn for, and how many measures a building switch may still run before the
+   * next paint (packNow). */
+  private fitSyncLevel = '';
+  private fitSync = 0;
 
   /** Owner notes 2026-09-30, item 7: on a desktop-width screen the whole screen should fit the viewport without a vertical
    * scroll (for the owner's site: 3 floors, 8 areas, ~150 devices). The tiles and rows are packed tighter one step at a
@@ -1371,11 +1386,27 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     const h = this.homeOf(t);
-    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, this.level, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
+    // HOME-FIT-FOLLOWUPS-2550: what a building switch leaves alone (`rest`) apart from what it changes (the level, the floor picked in
+    // it, the widgets that follow the building)
+    const rest = [window.innerWidth, window.innerHeight, this.layout, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout].join('|');
+    const key = [rest, this.selected, this.level, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
     const overflowing = () => {
       const sc = scrollParentOf(this);
       return !!sc && sc.scrollHeight - sc.clientHeight > 1;
     };
+    // HOME-FIT-FOLLOWUPS-2550: a building switch on a multi-building site (the level changed, nothing of `rest` did) is a new key, and the
+    // packing used to restart from its loosest step: the new building was drawn at fit 0 for a frame or two and the page overflowed by
+    // 5-9 px before it stepped back (RELEASE-2540-TRAIN section 6, B; since v2.53.0). Now a building switch keeps the step the screen is
+    // on (the key is taken as is): a new building that fits there stays, one that does not packs tighter from there by the usual steps - a
+    // looser step cannot fit where this one does not, so restarting from it only drew the overflow (measured: building ג at fit 2, the
+    // first read of the shared building, half drawn, said 9 px over, the restart drew it at fit 0 and it overflowed 5 px a frame later).
+    // One comparison per measure, no new state that renders, no loop: the packing still only tightens per key.
+    if (key !== this.fitKey && this.level !== this.fitLevel && rest === this.fitRest) {
+      this.fitKey = key;
+      this.fitRechecks = 0;
+    }
+    this.fitRest = rest;
+    this.fitLevel = this.level;
     // HOME-SCROLL-FIX-2530: the fold restarts with the packing (a changed key)
     if (key !== this.fitKey && this.fitFold) this.fitFold = false;
     if (key !== this.fitKey && this.fitSqueeze) this.fitSqueeze = false; // HOME-SCROLL-2-2530: so does the squeeze
@@ -1556,6 +1587,12 @@ export class DevicesBuilding extends LitElement {
       notifyScreenViews(); // the user menu's view choice re-reads the value (and hides itself while the layout editor is open)
     }
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+    // HOME-FIT-FOLLOWUPS-2550: a building switch packs before its first paint (packNow)
+    if (this.level !== this.fitSyncLevel) {
+      if (this.fitSyncLevel) this.fitSync = FIT_SYNC_STEPS;
+      this.fitSyncLevel = this.level;
+    }
+    if (this.fitSync > 0) this.packNow();
     const body = this.renderRoot.querySelector('.page-body');
     if (body !== this.fitObserved) {
       this.fitObs?.disconnect();
@@ -1567,7 +1604,59 @@ export class DevicesBuilding extends LitElement {
         this.fitObs.observe(body);
       }
     }
+    this.watchPageArea();
   }
+
+  /** HOME-FIT-FOLLOWUPS-2550: the measure of a building switch, run before the browser paints. The packing steps one level per measure,
+   * and a measure used to wait for the next animation frame - so a new building that needs a tighter step than the old one (the
+   * shared building after building ג on a tablet: fit 0 -> 1) was painted once at the old step, 5-9 px over the page (RELEASE-2540-TRAIN
+   * section 6, B). Here the measure runs in a microtask after this render and after the children it drew have drawn (their updates were
+   * queued during it; three hops reach three levels deep), and a step it takes renders and measures again the same way - all before the
+   * next paint. Bounded: at most FIT_SYNC_STEPS measures per switch, and the run ends at the first measure that changes nothing. */
+  private packNow() {
+    queueMicrotask(() =>
+      queueMicrotask(() =>
+        queueMicrotask(() => {
+          if (this.fitSync <= 0 || !this.isConnected) return;
+          this.fitSync -= 1;
+          const before = `${this.fit}|${this.fitFold}|${this.fitSqueeze}`;
+          window.cancelAnimationFrame(this.fitTimer);
+          this.fitTimer = 0;
+          this.measureFit();
+          if (`${this.fit}|${this.fitFold}|${this.fitSqueeze}` === before) this.fitSync = 0; // settled: the frames take over as before
+        }),
+      ),
+    );
+  }
+
+  /** HOME-FIT-FOLLOWUPS-2550: one ResizeObserver on the page area and its direct children (the screen's own wrapper shrinks when
+   * something above it arrives; a child that grows is seen itself). Bounded: a ResizeObserver reports only boxes that really changed
+   * size (a page at rest reports nothing); a notification only asks for the usual measure, at most one per animation frame (the shared
+   * `fitTimer`); and the measure only ever packs tighter for a given fit key (fit 1, fit 2, b's fold, the squeeze - four steps at most), so
+   * a run of notifications that its own steps cause ends once the packing settles. No timer, no loosening, no new state. */
+  private watchPageArea() {
+    const sc = this.isConnected ? scrollParentOf(this) : null;
+    if (sc !== this.fitArea) {
+      this.fitAreaObs?.disconnect();
+      this.fitArea = sc;
+      this.fitAreaKids = new WeakSet();
+      if (!sc) return;
+      this.fitAreaObs ??= new ResizeObserver(this.onPageArea);
+      this.fitAreaObs.observe(sc);
+    }
+    if (!sc || !this.fitAreaObs) return;
+    for (const el of Array.from(sc.children)) {
+      if (this.fitAreaKids.has(el)) continue;
+      this.fitAreaKids.add(el);
+      this.fitAreaObs.observe(el);
+    }
+  }
+
+  private onPageArea = () => {
+    if (!this.isConnected) return;
+    this.watchPageArea(); // a child that arrived since (its first notification comes back here once)
+    if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
+  };
 
   static styles = devicesBuildingStyles;
 
@@ -1692,6 +1781,9 @@ export class DevicesBuilding extends LitElement {
     this.fitObs?.disconnect();
     this.fitObs = null;
     this.fitObserved = null;
+    this.fitAreaObs?.disconnect(); // HOME-FIT-FOLLOWUPS-2550
+    this.fitAreaObs = this.fitArea = null;
+    this.fitSync = 0;
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offXs?.();
