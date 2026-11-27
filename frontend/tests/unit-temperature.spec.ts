@@ -173,7 +173,9 @@ test('strings: English is complete; Arabic and Russian are dev-marked partial tr
   }
   expect(tt('subtitle', { n: 5, d: 4 }, 'en')).toBe('Infrastructure · 5 units · 4 with a door sensor · live from the sensors');
   expect(tt('stOff', undefined, 'ru')).toBe('Выключен');
-  expect(tt('logSub', undefined, 'ar')).toBe(TT_TABLES.he.logSub); // falls back to Hebrew
+  // I18N-ARRU-2550: every key has its Arabic / Russian now (the Hebrew fallback itself is unit-i18n-core.spec.ts)
+  expect(tt('logSub', undefined, 'ar')).not.toBe(TT_TABLES.he.logSub);
+  expect(TT_KEYS.filter((k) => TT_TABLES.ar[k] === undefined || TT_TABLES.ru[k] === undefined)).toEqual([]);
   // operator words never name the home platform
   for (const k of TT_KEYS) expect([k, /Home Assistant|\bHA\b|Ingress/.test(TT_TABLES.he[k] ?? '')]).toEqual([k, false]);
 });

@@ -1,7 +1,7 @@
 /**
  * GENLOG092-295: the words of the generator run log (Infrastructure > Generator > run log) and of its settings section. Hebrew first; the
- * English column follows the document language; Arabic and Russian are an INITIAL translation of the main words (dev-marked) - a missing key
- * falls back to the Hebrew. `{n}` style placeholders are filled by `glt(key, vars)`. Operator words only: the home platform is never named.
+ * English column follows the document language; Arabic and Russian are an INITIAL translation of every word (dev-marked; I18N-ARRU-2550
+ * filled the rest) - a missing key falls back to the Hebrew. `{n}` style placeholders are filled by `glt(key, vars)`. Operator words only: the home platform is never named.
  */
 import { docLang, fill, registerCatalogue } from './core';
 import { packTable } from './lang-packs';

@@ -134,7 +134,9 @@ test('strings: English is complete, Arabic / Russian are dev-marked, placeholder
   expect(elt('summaryFault', { f: 1 }, 'en')).toBe('1 in fault');
   expect(elt('summaryFire', { k: 2 }, 'en')).toBe('2 fire service');
   expect(elt('stateFault', undefined, 'ru')).toBe('Неисправность');
-  expect(elt('roleWaiting', undefined, 'ar')).toBe('ממתינה / עומדת'); // missing in ar -> Hebrew
+  // I18N-ARRU-2550: every key has its Arabic / Russian now (the Hebrew fallback itself is unit-i18n-core.spec.ts)
+  expect(elt('roleWaiting', undefined, 'ar')).toBe('في الانتظار / متوقف');
+  expect(ELT_KEYS.filter((k) => !ELT_TABLES.ar[k] || !ELT_TABLES.ru[k])).toEqual([]);
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
     for (const v of Object.values(ELT_TABLES[lang])) expect(v ?? '').not.toMatch(/Home Assistant|\bHA\b|Ingress/);
   }
