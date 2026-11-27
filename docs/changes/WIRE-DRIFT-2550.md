@@ -39,7 +39,9 @@ Siblings found by the same real-shaped payloads (the lab log names only the FIRS
 - `ruff check` on the three Python files: exit 0.
 - `tsc --noEmit --strict` on the two regenerated files: exit 0. Nothing else in `frontend/src` imports either file, so the project
   type-check cannot change; the full `tsc -b` was NOT_RUN on the PC (memory rule).
-- `tests/test_wiskey_live_validation_2390.py`, `tests/test_access_control_wire.py`: see the report (run one per process).
+- `pytest tests/test_wiskey_live_validation_2390.py` (46 test functions; drives the run routes through the wire oracle): exit 0.
+- `pytest tests/test_access_control_wire.py` (6 test functions): exit 0.
+  (This project's pytest setup prints no count line; the counts are the test functions in each file.)
 - Full backend suite, Playwright: NOT_RUN (no UI change; the train gate runs them).
 
 ## Open questions
