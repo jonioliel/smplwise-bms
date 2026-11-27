@@ -537,6 +537,15 @@ def _parse_time(text: Any) -> float | None:
         return None
 
 
+def _is_full_run(doc: dict[str, Any]) -> bool:
+    """CD-01: a FULL run that really ran the backend; a diff selection (selection.reduced) or a targeted re-run never counts
+    (same test as scripts/gate/gate_budget.py mode_of and gate_entry.full_run_completed)."""
+    if (doc.get("selection") or {}).get("reduced"):
+        return False
+    backend = (doc.get("counts") or {}).get("backend") or {}
+    return isinstance(backend, dict) and (backend.get("pass") or 0) > 0
+
+
 def load_green_reports(dirs: list[Path]) -> list[dict[str, Any]]:
     """Every engine report with a commit and a verdict (summaries *.md and the *.checkpoint/.engine/.lint side files are skipped)."""
     out: list[dict[str, Any]] = []
@@ -550,26 +559,40 @@ def load_green_reports(dirs: list[Path]) -> list[dict[str, Any]]:
                 continue
             if isinstance(r, dict) and r.get("sha") and r.get("verdict"):
                 out.append({"file": f.name, "branch": r.get("branch"), "sha": str(r["sha"]), "tier": r.get("tier"),
-                            "verdict": str(r["verdict"]).lower(), "finished": _parse_time(r.get("finished"))})
+                            "verdict": str(r["verdict"]).lower(), "finished": _parse_time(r.get("finished")),
+                            "full": _is_full_run(r)})
     return out
 
 
 def green_gate_check(root: Path, require: bool = False, dirs: list[Path] | None = None, now: float | None = None,
-                     max_age_days: int = GREEN_MAX_AGE_DAYS, max_commits: int = GREEN_MAX_COMMITS) -> dict[str, Any]:
-    """{"ok", "warn", "detail"}: NOT_CHECKED (a warning) without results or git; a match is ok; no match is a warning, or a failure when `require`."""
+                     max_age_days: int = GREEN_MAX_AGE_DAYS, max_commits: int = GREEN_MAX_COMMITS,
+                     accept_no_results: str | None = None) -> dict[str, Any]:
+    """{"ok", "warn", "detail"}: without results or git: NOT_CHECKED (a warning), but a FAILURE when `require` unless
+    `accept_no_results` (an explicit reason, printed) is given (CD-01); a match is ok; no match is a warning, or a failure when `require`.
+    Only a FULL tier-L report counts (not a diff selection)."""
+    def unchecked(why: str) -> dict[str, Any]:
+        if not require:
+            return {"ok": True, "warn": True, "detail": f"NOT_CHECKED: {why}"}
+        if accept_no_results and accept_no_results.strip():
+            return {"ok": True, "warn": True, "detail": f"NOT_CHECKED: {why}; ACCEPTED, reason given: {accept_no_results.strip()}"}
+        return {"ok": False, "warn": False, "detail": f"NOT_CHECKED: {why}; required at --tag (run on the runner, or pass --accept-no-results \"<reason>\")"}
+
     head = _git(root, "rev-parse", "HEAD")
     if head is None or head.returncode != 0:
-        return {"ok": True, "warn": True, "detail": "NOT_CHECKED: not a git checkout, the head commit is unknown"}
+        return unchecked("not a git checkout, the head commit is unknown")
     head_sha = head.stdout.strip()
     dirs = results_dirs() if dirs is None else dirs
     if not dirs:
-        return {"ok": True, "warn": True, "detail": "NOT_CHECKED: no ~/smplwise-results here (run this on the runner before tagging)"}
+        return unchecked("no ~/smplwise-results here (run this on the runner before tagging)")
     reports = load_green_reports(dirs)
     now = time.time() if now is None else now
     why: list[str] = []
     best: tuple[int, str] | None = None
     for r in reports:
         if r["verdict"] != "pass" or r["tier"] != "L":
+            continue
+        if not r["full"]:
+            why.append(f"{r['sha']} is a diff selection / targeted run, not a full gate")
             continue
         if r["finished"] is None or now - r["finished"] > max_age_days * 86400 or r["finished"] - now > 86400:
             why.append(f"{r['sha']} too old or undated")
@@ -600,7 +623,8 @@ def green_gate_check(root: Path, require: bool = False, dirs: list[Path] | None 
 
 
 def run_checks(root: Path, require_green: bool = False, green_dirs: list[Path] | None = None,
-               green_max_age_days: int = GREEN_MAX_AGE_DAYS, green_max_commits: int = GREEN_MAX_COMMITS) -> dict[str, Any]:
+               green_max_age_days: int = GREEN_MAX_AGE_DAYS, green_max_commits: int = GREEN_MAX_COMMITS,
+               accept_no_results: str | None = None) -> dict[str, Any]:
     addon = root / "smplwise_vms"
     checks: list[dict[str, Any]] = []
 
@@ -695,7 +719,7 @@ def run_checks(root: Path, require_green: bool = False, green_dirs: list[Path] |
     tags = git_tags(root)
     tag = f"v{cfg_v}" if cfg_v else None
     check("git tag for this version", tag in tags if tag else False, f"{tag} {'exists' if tag in tags else 'not yet (created after the owner approves)'}")
-    gg = green_gate_check(root, require_green, green_dirs, None, green_max_age_days, green_max_commits)
+    gg = green_gate_check(root, require_green, green_dirs, None, green_max_age_days, green_max_commits, accept_no_results)
     check("green nightly or full gate at this head or an ancestor (TR-03)", gg["ok"], gg["detail"], warn=gg["warn"])
     tests = root / "smplwise_vms" / "backend" / "tests"
     check("backend tests present", tests.is_dir() and len(list(tests.glob("test_*.py"))) > 30, f"{len(list(tests.glob('test_*.py')))} test files")
@@ -710,11 +734,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", help="write the checklist as JSON here")
     ap.add_argument("--tag", action="store_true", help="print the tag commands to run after approval")
     ap.add_argument("--require-green", action="store_true", help="fail when no green tier-L nightly/gate report covers HEAD (implied by --tag)")
+    ap.add_argument("--accept-no-results", metavar="REASON", help="with --tag/--require-green and no results directory: accept that the green gate cannot be checked here, for this stated reason (printed)")
     ap.add_argument("--green-max-age-days", type=int, default=GREEN_MAX_AGE_DAYS)
     ap.add_argument("--green-max-commits", type=int, default=GREEN_MAX_COMMITS)
     args = ap.parse_args(argv)
     root = Path(args.root)
-    res = run_checks(root, args.require_green or args.tag, None, args.green_max_age_days, args.green_max_commits)
+    res = run_checks(root, args.require_green or args.tag, None, args.green_max_age_days, args.green_max_commits, args.accept_no_results)
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     except AttributeError:
