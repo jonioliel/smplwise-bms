@@ -241,8 +241,14 @@ export class ArxPwaPrompts extends LitElement {
   private lastOutside: HTMLElement | null = null;
   private readonly onFocusIn = () => {
     const now = lastFocused(); // focus-return.ts keeps it (its window listener was added first, so it already holds this move)
-    if (now && !this.shadowRoot?.contains(now)) this.lastOutside = now;
+    if (now && !this.holds(now)) this.lastOutside = now;
   };
+
+  /** The element is drawn by these cards (an sw-button's inner button sits in a nested shadow root: contains() does not see it). */
+  private holds(el: Node): boolean {
+    for (let n: Node | null = el; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) if (n === this) return true;
+    return false;
+  }
 
   private putAway(done: () => void) {
     const back = this.lastOutside;
