@@ -7,6 +7,7 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import { announce } from '../components/announcer';
 import { can, installationSupported, isApi, nvrLess } from '../api/session';
 import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ApiError, get, describeError } from '../api/client';
@@ -119,13 +120,19 @@ export class SystemSetup extends LitElement {
     const icon = html`<sw-icon name=${ok === true ? 'check' : 'warning'} size=${13}></sw-icon>`;
     if (hook === 'data-nvr-system-msg') {
       const tone = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err';
-      return html`<div class=${`msg ${tone}`} role=${ok === true ? 'status' : 'alert'} data-nvr-system-msg=${tone}>${icon}${text}</div>`;
+      return html`<div class=${`msg ${tone}`} data-nvr-system-msg=${tone}>${icon}${text}</div>`;
     }
     if (hook === 'data-nvr-result') {
       const tone = ok === 'warn' ? 'warn' : ok ? 'ok' : 'err';
-      return html`<div class=${`msg ${tone}`} role=${ok === true ? 'status' : 'alert'} data-nvr-result=${tone}>${icon}${text}</div>`;
+      return html`<div class=${`msg ${tone}`} data-nvr-result=${tone}>${icon}${text}</div>`;
     }
     return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-wiskey-cred-msg>${icon}${text}</div>`;
+  }
+
+  /** A11Y-FOLLOWUPS-2560: the pulse / revert / notify outcomes go through the app's one announcer (success polite; unknown or refused assertive). */
+  protected updated(c: Map<string, unknown>) {
+    if ((c.has('sysMsg') || c.has('sysOk')) && this.sysMsg) announce(this.sysMsg, this.sysOk === true ? 'polite' : 'assertive');
+    if ((c.has('notifyResult') || c.has('notifyOk')) && this.notifyResult) announce(this.notifyResult, this.notifyOk === true ? 'polite' : 'assertive');
   }
 
   connectedCallback() {

@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import { announce } from '../components/announcer';
 import '../components/sw-button';
 import '../components/sw-segmented';
 import type { SegmentedChange } from '../components/sw-segmented';
@@ -74,6 +75,9 @@ export class GenAlertsPage extends LitElement {
   protected updated(c: Map<string, unknown>) {
     if (c.has('device') || c.has('mode')) void this.load();
     if (c.has('alertId')) void this.loadDetail();
+    // A11Y-FOLLOWUPS-2560: the mute outcomes are said through the app's one announcer (the visible lines carry no live role of their own)
+    if (c.has('notice') && this.notice) announce(this.notice, 'assertive');
+    if (c.has('info') && this.info) announce(this.info);
   }
 
   private async load(quiet = false, more = false) {
@@ -176,10 +180,12 @@ export class GenAlertsPage extends LitElement {
   }
 
   private card(a: GenAlert) {
-    return html`<div class="al ${a.severity}" role="button" tabindex="0" data-alert=${a.id} @click=${() => this.open(a.id)} @keydown=${(e: KeyboardEvent) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.open(a.id); } }}>
+    // A11Y-FOLLOWUPS-2560: the card is not a button (it holds the acknowledge button): the title row is the one real button and its
+    // ::after stretches over the whole card, so a click anywhere opens the alert, Enter / Space work on it, and the acknowledge button sits above
+    return html`<div class="al ${a.severity}" data-alert=${a.id}>
       <div class="ic"><sw-icon name="warning" size="20"></sw-icon></div>
-      <div class="grow"><div class="t1">${a.title} ${sev(a.severity)}${a.acknowledged ? html`<span class="sev mut">${G.alerts.ackedBy}</span>` : nothing}${a.count > 1 ? html`<span class="sev mut">${fill(G.alerts.repeated, { n: a.count })}</span>` : nothing}</div>
-        <div class="t2"><span><sw-icon name="clock" size="12"></sw-icon> <span class="num">${fmtDateTime(a.raised_at)}</span> · ${durText(a)}</span></div></div>
+      <div class="grow"><button type="button" class="t1 open" data-alert-open aria-describedby=${`al-t2-${a.id}`} @click=${() => this.open(a.id)}>${a.title} ${sev(a.severity)}${a.acknowledged ? html`<span class="sev mut">${G.alerts.ackedBy}</span>` : nothing}${a.count > 1 ? html`<span class="sev mut">${fill(G.alerts.repeated, { n: a.count })}</span>` : nothing}</button>
+        <div class="t2" id=${`al-t2-${a.id}`}><span><sw-icon name="clock" size="12"></sw-icon> <span class="num">${fmtDateTime(a.raised_at)}</span> · ${durText(a)}</span></div></div>
       ${a.acknowledged ? nothing : html`<sw-button variant="primary" size="sm" icon="check" ?disabled=${this.busy} @click=${(e: Event) => { e.stopPropagation(); void this.act(() => ackAlert(a.id)); }} data-ack>${G.alerts.ack}</sw-button>`}
     </div>`;
   }
@@ -245,8 +251,8 @@ export class GenAlertsPage extends LitElement {
         ${a.muted_until ? html`<div class="notice" data-muted>${fill(G.detail.muted, { t: fmtDateTime(a.muted_until) })}</div>` : nothing}
         ${a.acknowledged ? html`<div class="notice" data-acked><sw-icon name="check" size="18"></sw-icon><span>${G.detail.acked} <span class="num">${fmtDateTime(a.acked_at)}</span>${a.ack_note ? ` · ${a.ack_note}` : ''}</span></div>`
           : html`<div class="fld"><label for="ack-note">${G.detail.note}</label><textarea id="ack-note" class="note" placeholder=${G.detail.notePh} .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)}></textarea></div>`}
-        ${this.notice ? html`<div class="alert err" role="alert" data-notice><span class="x">!</span><div>${this.notice}</div></div>` : nothing}
-        ${this.info ? html`<div class="notice" role="status" data-mute-info>${this.info}</div>` : nothing}
+        ${this.notice ? html`<div class="alert err" data-notice><span class="x">!</span><div>${this.notice}</div></div>` : nothing}
+        ${this.info ? html`<div class="notice" data-mute-info>${this.info}</div>` : nothing}
         <div class="row">${a.acknowledged ? nothing : html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.act(() => ackAlert(a.id, this.note.trim()))} data-ack-detail>${G.detail.ack}</sw-button>`}
           ${a.state === 'open' ? html`<sw-button ?disabled=${this.busy} @click=${() => void this.mute(a)} data-mute>${G.detail.mute}</sw-button>` : nothing}
           ${a.muted_until && Date.parse(a.muted_until) > Date.now() ? html`<sw-button variant="ghost" icon="bell" ?disabled=${this.busy} @click=${() => void this.unmute(a)} data-unmute>${G.detail.unmute}</sw-button>` : nothing}</div>

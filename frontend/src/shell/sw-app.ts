@@ -1,4 +1,5 @@
 import { NO_TRAP, removeLayer, syncLayer, takesEscape } from '../components/modal-stack';
+import { mountAnnouncer } from '../components/announcer';
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -1928,6 +1929,7 @@ export class SwApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    mountAnnouncer(); // A11Y-FOLLOWUPS-2560: the app's one polite + one assertive live region exist before the first outcome
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);

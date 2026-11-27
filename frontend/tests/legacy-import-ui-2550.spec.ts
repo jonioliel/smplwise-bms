@@ -139,7 +139,7 @@ test.describe('LEGACY-IMPORT-UI-2550: the legacy import card', () => {
     await card.locator('[data-legacy-confirm]').fill('ייבוא מהמערכת הישנה');
     await card.locator('[data-legacy-apply]').click();
     await expect(card.locator('sw-dialog[data-legacy-dialog]')).toHaveCount(0);
-    await expect(card.locator('[data-legacy-error][role=alert]')).toContainText('התוכנית השתנתה מאז הבדיקה');
+    await expect(card.locator('[data-legacy-error]')).toContainText('התוכנית השתנתה מאז הבדיקה');
     await expect(card.locator('[data-legacy-apply-open]')).toHaveAttribute('disabled', '');
     await shot(page, 'legacy-changed');
     await card.locator('[data-legacy-rerun]').click();

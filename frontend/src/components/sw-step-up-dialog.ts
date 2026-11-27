@@ -391,6 +391,9 @@ export class SwStepUpDialog extends LitElement {
     // A11Y-NEW-2550: the field is described by the refused action and the expiry (the dialog's own name is only its heading, and the
     // focus lands in the field, so a screen reader did not say WHICH action waits for the code nor that it is cancelled by itself)
     const describedBy = named ? 'su-action su-expiry' : 'su-expiry';
+    // A11Y-FOLLOWUPS-2560: a passkey / phone-key / phone-approval button is an sw-button (its own shadow root), so the same two lines reach it
+    // as the button's hidden `description` - the pending action and the expiry are read with the button, also when it is the only control
+    const pending = [named ? trm('הפעולה: {action}', { action: named }) : '', trm('אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.', { seconds })].filter(Boolean).join('. ');
     return html`<sw-dialog ?open=${this.open} heading=${t('stepUp.heading')} data-step-up-dialog @close=${(e: Event) => { e.stopPropagation(); this.answer(false); }}>
       ${named ? html`<p class="msg action" id="su-action" data-step-up-action>${trm('הפעולה: {action}', { action: named })}</p>` : nothing}
       ${can
@@ -399,10 +402,10 @@ export class SwStepUpDialog extends LitElement {
             <p class="hint" data-step-up-window>${minutes > 0 ? tf('stepUp.window', { minutes }) : t('stepUp.once')}</p>
             <p class="hint" id="su-expiry" data-step-up-expiry>${trm('אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.', { seconds })}</p>
             ${pk
-              ? html`<div class="pk"><sw-button variant=${code ? 'secondary' : 'primary'} data-step-up-passkey ?disabled=${this.busy} @click=${() => void this.byPasskey()}>${this.passkeyBusy ? t('stepUp.passkeyWaiting') : t('stepUp.passkey')}</sw-button></div>`
+              ? html`<div class="pk"><sw-button variant=${code ? 'secondary' : 'primary'} description=${pending} data-step-up-passkey ?disabled=${this.busy} @click=${() => void this.byPasskey()}>${this.passkeyBusy ? t('stepUp.passkeyWaiting') : t('stepUp.passkey')}</sw-button></div>`
               : nothing}
             ${dk
-              ? html`<div class="pk"><sw-button variant=${code || pk ? 'secondary' : 'primary'} icon="sensor" data-step-up-device-key ?disabled=${this.busy} @click=${() => void this.byDeviceKey()}>${this.keyBusy ? trm('ממתין לטלפון…') : trm('אישור במפתח הטלפון')}</sw-button></div>`
+              ? html`<div class="pk"><sw-button variant=${code || pk ? 'secondary' : 'primary'} icon="sensor" description=${pending} data-step-up-device-key ?disabled=${this.busy} @click=${() => void this.byDeviceKey()}>${this.keyBusy ? trm('ממתין לטלפון…') : trm('אישור במפתח הטלפון')}</sw-button></div>`
               : nothing}
             ${push
               ? this.push
@@ -411,7 +414,7 @@ export class SwStepUpDialog extends LitElement {
                     <span class="num" dir="ltr" data-step-up-push-number>${this.push.number}</span>
                     <span class="hint">${trm('ממתין לאישור בטלפון…')}</span>
                   </div>`
-                : html`<div class="pk"><sw-button variant=${code || pk || dk ? 'secondary' : 'primary'} icon="bell" data-step-up-push ?disabled=${this.busy}
+                : html`<div class="pk"><sw-button variant=${code || pk || dk ? 'secondary' : 'primary'} icon="bell" description=${pending} data-step-up-push ?disabled=${this.busy}
                     @click=${() => void this.byPush()}>${trm('אישור בטלפון')}</sw-button></div>`
               : nothing}
             ${(pk || dk || push) && code ? html`<div class="or" aria-hidden="true">${t('stepUp.or')}</div>` : nothing}

@@ -110,11 +110,15 @@ const apiErr = (code: string, msg: string, details: Record<string, unknown> = {}
 
 // ------------------------------------------------------------------------------------------- the step-up dialog and the update card
 
+/** The app's one announcer (A11Y-FOLLOWUPS-2560): the always-present polite and assertive regions in the document body. */
+const polite = (page: Page) => page.locator('#sw-announcer [data-announce="polite"]');
+const assertive = (page: Page) => page.locator('#sw-announcer [data-announce="assertive"]');
+
 const SU_PERMS = ['video.live', 'map.read', 'entity.state.read', 'access.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure', 'rbac.assign'];
 
 /** A signed-in administrator; step-up ON (it ships OFF); the settings save is refused once with `step_up_required` for `action`;
  * `build` = the version the server names in the /me/ws hello (another one than the bundle's raises the update card). */
-async function suSetup(page: Page, opts: { build?: string; action?: string } = {}) {
+async function suSetup(page: Page, opts: { build?: string; action?: string; methods?: string[] } = {}) {
   const st = { patches: 0 };
   let until: string | null = null;
   const settings: Record<string, unknown> = { 'ui.design': 'a', 'security.second_factor_policy': 'optional', 'remote.policy': 'flag', 'security.step_up': 'on', 'security.step_up_minutes': 5, 'security.step_up_local': 'off' };
@@ -132,13 +136,13 @@ async function suSetup(page: Page, opts: { build?: string; action?: string } = {
     if (p === 'me') return json(route, { user: { id: 'u-admin', username: 'admin', display_name: 'מנהל', source: 'ingress' }, channel: 'local', remote: null, active: true, bindings: [{ id: 'b1', role_id: 'system_admin', role_name: 'מנהל מערכת', scope_type: 'installation', scope_id: '*', scope_name: 'כל ההתקנה', effect: 'allow' }], permissions_installation: SU_PERMS, permissions_any: SU_PERMS, has_access: true, permission_revision: 1, permissions_fingerprint: 'fp', permissions_changed: false, bootstrap_state: 'done', mode: 'full' });
     if (p === 'me/prefs') return json(route, { prefs: {}, stored: [], updated_at: null });
     if (p === 'settings' && method === 'PATCH') {
-      if (!until) return json(route, apiErr('step_up_required', 'לפני נטרול אזעקה, עקיפת חיישן או פתיחת דלת צריך לאשר שוב את הזהות.', { action: opts.action ?? 'door.open', methods: ['totp'], minutes: 5, verify_path: 'auth/step-up/verify' }), 403);
+      if (!until) return json(route, apiErr('step_up_required', 'לפני נטרול אזעקה, עקיפת חיישן או פתיחת דלת צריך לאשר שוב את הזהות.', { action: opts.action ?? 'door.open', methods: opts.methods ?? ['totp'], minutes: 5, verify_path: 'auth/step-up/verify' }), 403);
       st.patches += 1;
       Object.assign(settings, req.postDataJSON() as Record<string, unknown>);
       return json(route, { settings, can_edit: true });
     }
     if (p === 'settings') return json(route, { settings, can_edit: true });
-    if (p === 'auth/step-up' && method === 'GET') return json(route, { enabled: true, minutes: 5, local_channel: false, applies: true, reason: null, methods: ['totp'], valid_until: until });
+    if (p === 'auth/step-up' && method === 'GET') return json(route, { enabled: true, minutes: 5, local_channel: false, applies: true, reason: null, methods: opts.methods ?? ['totp'], valid_until: until });
     if (p === 'auth/step-up/verify' && method === 'POST') {
       until = '2026-11-26T08:05:00+00:00';
       return json(route, { method: 'totp', minutes: 5, valid_until: until });
@@ -203,14 +207,16 @@ for (const scheme of SCHEMES) {
     await page.goto(genUrl('/infra/generator/alerts/al5', 'classic', scheme));
     const detail = page.locator(`${GEN} [data-detail]`);
     await detail.locator('[data-mute]').waitFor({ timeout: 30_000 });
-    expect(await axe(page, ['gen-alerts-page', 'data-detail'], ['div[data-alert='])).toEqual([]);
+    expect(await axe(page, ['gen-alerts-page', 'data-detail'])).toEqual([]);
     // mute by keyboard: the result line is said, the focus stays in the drawer
     await detail.locator('[data-mute] button').focus();
     await page.keyboard.press('Enter');
     await expect(detail.locator('[data-mute-info]')).toContainText('הושתקה רק עד');
-    await expect(detail.locator('[data-mute-info]')).toHaveAttribute('role', 'status');
+    // A11Y-FOLLOWUPS-2560: the result is said through the app's one announcer (polite); the visible line has no live role of its own
+    await expect(detail.locator('[data-mute-info]')).not.toHaveAttribute('role', /./);
+    await expect(polite(page)).toContainText('הושתקה רק עד');
     expect(await focusLost(page), 'after the mute').toBe(false);
-    expect(await axe(page, ['gen-alerts-page', 'data-detail'], ['div[data-alert='])).toEqual([]);
+    expect(await axe(page, ['gen-alerts-page', 'data-detail'])).toEqual([]);
     // the un-mute question: the focus on cancel; Escape cancels and gives the focus back to its button; nothing is sent
     await detail.locator('[data-unmute] button').focus();
     await page.keyboard.press('Enter');
@@ -282,7 +288,8 @@ for (const scheme of SCHEMES) {
     await dlg.locator('[data-confirm-ok]').click();
     const warn = card.locator('[data-nvr-system-msg="warn"]');
     await expect(warn).toContainText('לא ידוע אם הפעולה בוצעה');
-    await expect(warn).toHaveAttribute('role', 'alert');
+    await expect(warn).not.toHaveAttribute('role', /./);
+    await expect(assertive(page)).toContainText('לא ידוע אם הפעולה בוצעה'); // A11Y-FOLLOWUPS-2560: an unknown outcome is announced assertively
     expect(await focusLost(page), 'after the pulse').toBe(false);
     expect(await axe(page, ['data-nvr-system'])).toEqual([]);
   });
@@ -347,7 +354,8 @@ for (const scheme of SCHEMES) {
     await page.keyboard.press('Enter');
     const result = card.locator('[data-legacy-result]');
     await expect(result).toContainText('הועתקו 2 כינויים');
-    await expect(result).toHaveAttribute('role', 'status');
+    await expect(result).not.toHaveAttribute('role', /./);
+    await expect(polite(page)).toContainText('הועתקו 2 כינויים'); // A11Y-FOLLOWUPS-2560
     await expect.poll(() => focusIn(page, '[data-legacy-result]'), { timeout: 5_000 }).toBe(true);
     expect(await axe(page, [LEGACY])).toEqual([]);
   });
@@ -363,7 +371,8 @@ test('legacy import: 409 "changed since the dry run" - the refusal (an alert) ta
   await page.keyboard.press('Enter');
   const errLine = card.locator('[data-legacy-error]');
   await expect(errLine).toBeVisible();
-  await expect(errLine).toHaveAttribute('role', 'alert');
+  await expect(errLine).not.toHaveAttribute('role', /./);
+  await expect(assertive(page)).toContainText('התוכנית השתנתה מאז הבדיקה'); // A11Y-FOLLOWUPS-2560: the refusal is announced assertively
   await expect.poll(() => focusIn(page, '[data-legacy-error]'), { timeout: 5_000 }).toBe(true);
 });
 
@@ -394,11 +403,11 @@ for (const scheme of SCHEMES) {
     await openBuilding(page, scheme);
     const entry = page.locator('devices-building a.arow[data-area-row="ahc_entry"]');
     await expect(entry.locator('[data-ind="locks"][data-ind-unknown]')).toHaveText('1 לא ידוע');
-    // the visible "1 unknown" is in the name a screen reader reads for the row (the link has its own aria-label)
+    // the visible "1 unknown" is in the name a screen reader reads for the row
     await expect(entry).toHaveAccessibleName(/לא ידוע: 1 מתוך 2/);
     await expect(page.locator('devices-building a.arow[data-area-row="ahc_back"]')).toHaveAccessibleName(/לא ידוע/);
-    // label-content-name-mismatch on every area row is older than 2.54 (A11Y-AUDIT-2490 baseline; open question in the change note)
-    expect(await axe(page, ['.arow', 'data-area-row', 'data-ind'], ['label-content-name-mismatch'])).toEqual([]);
+    // A11Y-FOLLOWUPS-2560: label-content-name-mismatch is fixed - the link is named by its own content, then a hidden tail
+    expect(await axe(page, ['.arow', 'data-area-row', 'data-ind'])).toEqual([]);
   });
 
   test(`home doors (${scheme}): an offline / unknown lock and an unavailable panel - axe on the doors screen and the status chips`, async ({ page }) => {
@@ -474,3 +483,144 @@ for (const scheme of SCHEMES) {
     expect(await axe(page, ['arx-reconnect'])).toEqual([]);
   });
 }
+
+// =========================================================================================== A11Y-FOLLOWUPS-2560
+// The items left by A11Y-NEW-2550 (docs/changes/A11Y-FOLLOWUPS-2560.md): the rooms timeline's DST note and the "01, twice" name, the
+// shared announcer, the generator alert card that was a button holding buttons, the area row's name with its counts, the step-up
+// description on a passkey-only / phone-only button.
+
+/** What a screen reader reads from an element's own content: its text nodes, skipping what is aria-hidden / hidden. */
+async function spokenText(loc: ReturnType<Page['locator']>): Promise<string> {
+  return loc.evaluate((el) => {
+    const out: string[] = [];
+    const walk = (n: Node) => {
+      if (n instanceof Element && (n.getAttribute('aria-hidden') === 'true' || n.hasAttribute('hidden'))) return;
+      if (n.nodeType === Node.TEXT_NODE) out.push(n.textContent ?? '');
+      n.childNodes.forEach(walk);
+    };
+    walk(el);
+    return out.join('').replace(/\s+/g, ' ').trim();
+  });
+}
+
+test('rooms timeline, autumn DST night (phone): the same explanation line as the resident bar sits above the axis; "01 x2" is named "01, twice"', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mobile', 'the phone window 00-06 holds the repeated hour');
+  await mockRooms(page, { manage: true, entries: () => [] });
+  await openRooms(page, '/calendars/rooms?date=2026-10-25', '2026-10-20T00:30:00+03:00');
+  const note = page.locator(`${ROOMS} [data-cal-dst="repeated"]`);
+  await expect(note).toHaveText('השעה 01:00 עוברת פעמיים ביום הזה (השעון זז שעה אחורה)');
+  await expect(note).toHaveAttribute('role', 'note');
+  // above the axis
+  const [n, ax] = [await note.boundingBox(), await page.locator(`${ROOMS} .tl-axis`).boundingBox()];
+  expect(n && ax && n.y + n.height <= ax.y + 1, 'the note is above the axis').toBe(true);
+  // the label reads "01, twice", not "01 times 2"
+  const label = page.locator(`${ROOMS} [data-cal-hour="1"]`);
+  expect(await spokenText(label)).toBe('01, פעמיים');
+  await expect(label.locator('[aria-hidden="true"]')).toHaveText('×2');
+  expect(await axe(page, ['cal-view-rooms'])).toEqual([]);
+});
+
+test('rooms timeline, spring DST night (phone): the note says the skipped hour does not exist', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mobile', 'the phone window 00-06 holds the skipped hour');
+  await mockRooms(page, { manage: true, entries: () => [] });
+  await openRooms(page, '/calendars/rooms?date=2026-03-27', '2026-03-20T00:30:00+02:00');
+  await expect(page.locator(`${ROOMS} [data-cal-dst="missing"]`)).toHaveText('השעה 02:00 לא קיימת ביום הזה (השעון זז שעה קדימה)');
+  expect(await axe(page, ['cal-view-rooms'])).toEqual([]);
+});
+
+test('rooms timeline, an ordinary day: no DST note', async ({ page }) => {
+  await mockRooms(page, { manage: true, entries: () => [] });
+  await openRooms(page, '/calendars/rooms?date=2026-06-10', '2026-06-09T12:00:00+03:00');
+  await expect(page.locator(`${ROOMS} [data-cal-timeline]`)).toBeVisible();
+  await expect(page.locator(`${ROOMS} [data-cal-dst]`)).toHaveCount(0);
+});
+
+test('announcer: one polite and one assertive region, always present, empty, in the document body', async ({ page }) => {
+  await suSetup(page, { build: OWN_BUILD });
+  await gotoApp(page, '/?design=a#/system/diagnostics');
+  await expect(page.locator('#sw-announcer')).toHaveCount(1);
+  await expect(page.locator('#sw-announcer [data-announce]')).toHaveCount(2);
+  await expect(polite(page)).toHaveAttribute('aria-live', 'polite');
+  await expect(assertive(page)).toHaveAttribute('aria-live', 'assertive');
+  await expect(polite(page)).toHaveText('');
+  await expect(assertive(page)).toHaveText('');
+  // a direct child of the body (light DOM), not inside a component's shadow root
+  expect(await page.evaluate(() => document.getElementById('sw-announcer')?.parentElement === document.body)).toBe(true);
+});
+
+for (const scheme of SCHEMES) {
+  test(`generator alert cards (${scheme}): the card is not a button; the title is the one button; Enter and Space open it; acknowledge does not; axe has no nested-interactive`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await installGeneratorMock(page, { perms: GEN_PERMS.manage, muteRules: true });
+    await page.goto('about:blank');
+    await page.goto(genUrl('/infra/generator/alerts', 'classic', scheme));
+    const card = page.locator(`${GEN} [data-gen-alerts] [data-alert]`).first();
+    await card.waitFor({ timeout: 30_000 });
+    await expect(card).not.toHaveAttribute('role', 'button');
+    await expect(card).not.toHaveAttribute('tabindex', /./);
+    const open = card.locator('button[data-alert-open]');
+    await expect(open).toHaveCount(1);
+    await expect(open).toHaveAccessibleDescription(/\d/); // the time line
+    expect(await axe(page, ['gen-alerts-page'])).toEqual([]);
+    // keyboard: the title button takes the focus; Enter opens the alert
+    await open.focus();
+    expect(await focusIn(page, 'button[data-alert-open]')).toBe(true);
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/infra\/generator\/alerts\/\w+/);
+    await page.goBack();
+    await card.waitFor();
+    await card.locator('button[data-alert-open]').focus();
+    await page.keyboard.press('Space');
+    await expect(page).toHaveURL(/infra\/generator\/alerts\/\w+/);
+    await page.goBack();
+    // the acknowledge button stays its own control: pressing it does not open the alert
+    const ack = page.locator(`${GEN} [data-gen-alerts] [data-alert] [data-ack]`).first();
+    if (await ack.count()) {
+      await ack.locator('button').click();
+      await expect(page).not.toHaveURL(/infra\/generator\/alerts\/\w+/);
+    }
+  });
+}
+
+for (const scheme of SCHEMES) {
+  test(`area row (${scheme}): the accessible name holds the name and the counts shown in the row, then the spoken tail`, async ({ page }) => {
+    await mockHonestArea(page, { scheme });
+    await openBuilding(page, scheme);
+    const entry = page.locator('devices-building a.arow[data-area-row="ahc_entry"]');
+    const visible = (await entry.innerText()).replace(/\s+/g, ' ').trim();
+    const spoken = await spokenText(entry);
+    expect(visible).toContain('1 לא ידוע');
+    expect(spoken.startsWith(visible), `"${spoken}" starts with the visible "${visible}"`).toBe(true);
+    await expect(entry).toHaveAccessibleName(/התקנים/);
+    await expect(entry).toHaveAccessibleName(/לא ידוע: 1 מתוך 2/);
+    await expect(entry).toHaveAccessibleName(/כניסה לאזור/);
+    expect(await entry.evaluate((el) => el.hasAttribute('aria-label')), 'no aria-label that replaces the content').toBe(false);
+    expect(await axe(page, ['.arow', 'data-area-row'])).toEqual([]);
+  });
+}
+
+test('step-up by passkey only: the confirm button is described by the pending action and the expiry', async ({ page }) => {
+  await suSetup(page, { build: OWN_BUILD, action: 'door.open', methods: ['passkey'] });
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=remote');
+  await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
+  await page.locator('system-diagnostics [data-save-remote] button').focus();
+  await page.keyboard.press('Enter');
+  const pk = stepUp(page).locator('[data-step-up-passkey]');
+  await expect(pk).toBeVisible();
+  await expect(stepUp(page).locator('[data-step-up-code]')).toHaveCount(0); // the only control is the button
+  const inner = pk.locator('button');
+  await expect(inner).toHaveAccessibleDescription(/פתיחת דלת/);
+  await expect(inner).toHaveAccessibleDescription(/90/);
+  expect(await axe(page, ['sw-step-up-dialog'])).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(stepUp(page)).toHaveCount(0);
+});
+
+test('sw-button: without a description there is no aria-describedby and no hidden text', async ({ page }) => {
+  await suSetup(page, { build: OWN_BUILD, action: 'door.open', methods: ['totp'] });
+  await gotoApp(page, '/?design=a#/system/diagnostics?tab=remote');
+  await page.locator('system-diagnostics select[data-set-remote="remote.policy"]').selectOption('any_role');
+  const save = page.locator('system-diagnostics [data-save-remote]');
+  await expect(save.locator('button')).not.toHaveAttribute('aria-describedby', /./);
+  await expect(save.locator('[data-button-description]')).toHaveCount(0);
+});

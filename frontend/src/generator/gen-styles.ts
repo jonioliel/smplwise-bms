@@ -545,9 +545,37 @@ export const genCss = css`
   .al:active {
     transform: scale(var(--sw-press-scale));
   }
-  .al:focus-visible {
+  /* A11Y-FOLLOWUPS-2560: the title row is the card's one button; its ::after covers the card (a click anywhere opens it) and carries the focus ring */
+  .al {
+    position: relative;
+  }
+  .al .open {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+    inline-size: 100%;
+  }
+  .al .open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--sw-r-md);
+  }
+  .al .open:focus-visible {
+    outline: none;
+  }
+  .al .open:focus-visible::after {
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: var(--sw-focus-offset);
+  }
+  .al sw-button {
+    position: relative;
+    z-index: 1;
   }
   .al.critical {
     background: color-mix(in srgb, var(--sw-danger) 7%, var(--sw-surface));

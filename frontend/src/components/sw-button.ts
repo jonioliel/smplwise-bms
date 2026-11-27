@@ -1,4 +1,4 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
@@ -15,11 +15,22 @@ export class SwButton extends LitElement {
   @property({ type: Boolean, reflect: true }) iconOnly = false;
   @property({ type: Boolean, reflect: true }) round = false;
   @property() label = '';
+  /** A11Y-FOLLOWUPS-2560: a hidden description of the button (what it will do, what is pending): a visually hidden span in this shadow root that the
+   * inner button names with aria-describedby - a host-level aria-describedby cannot reach across the shadow boundary. Empty = none. */
+  @property() description = '';
   @property() type: 'button' | 'submit' = 'button';
 
   static styles = css`
     :host {
       display: inline-flex;
+    }
+    .desc {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
     }
     :host([hidden]) {
       display: none;
@@ -193,10 +204,10 @@ export class SwButton extends LitElement {
 
   render() {
     return html`
-      <button type=${this.type} ?disabled=${this.disabled} @click=${this.onClick} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''}>
+      <button type=${this.type} ?disabled=${this.disabled} @click=${this.onClick} aria-label=${this.iconOnly ? this.label : ''} title=${this.iconOnly ? this.label : ''} aria-describedby=${this.description ? 'desc' : nothing}>
         ${this.icon ? html`<sw-icon .name=${this.icon} size=${this.size === 'sm' ? 13 : this.size === 'lg' ? 18 : 15}></sw-icon>` : ''}
         ${this.iconOnly ? '' : html`<slot>${this.label}</slot>`}
-      </button>
+      </button>${this.description ? html`<span class="desc" id="desc" data-button-description>${this.description}</span>` : nothing}
     `;
   }
 }
