@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T17:30:54.799122+00:00
+Generated: 2026-11-27T18:47:20.012536+00:00
 
-Tasks: 770 | Requirements: 884 | Tests: 901 | Screens: 32
+Tasks: 776 | Requirements: 890 | Tests: 907 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 7
-- REVIEW: 208
+- REVIEW: 214
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 675
+- V1: 681
 - V2: 29
 - V3: 3
 
@@ -825,3 +825,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RELEASE-2560-TRAIN](tasks/RELEASE-2560-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2560-TRAIN - the 2.56.0 train | — |
 | [BACKEND-SUITE-COST-2560](tasks/BACKEND-SUITE-COST-2560.md) | V1 | REVIEW | Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout | — |
 | [GATE-SETUP-FLAKE-2560](tasks/GATE-SETUP-FLAKE-2560.md) | V1 | REVIEW | Release gate setup flake: engine setup step hardened (release_gate.py, selftest_gate.py) | — |
+| [RECONCILE-TEST-LEAK-2560](tasks/RECONCILE-TEST-LEAK-2560.md) | V1 | REVIEW | Test fix: FakeHa.states is a deep copy of the shared STATES | — |
+| [FIX-NOSCROLL-2560](tasks/FIX-NOSCROLL-2560.md) | V1 | REVIEW | Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures) | — |
+| [FIX-PUSH-APPROVAL-2560](tasks/FIX-PUSH-APPROVAL-2560.md) | V1 | REVIEW | Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet | — |
+| [FIX-NVR-PULSE-2560](tasks/FIX-NVR-PULSE-2560.md) | V1 | REVIEW | Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation | — |
+| [FIX-CORE-2560](tasks/FIX-CORE-2560.md) | V1 | REVIEW | Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound | — |
+| [FIX-TICKETS-2560](tasks/FIX-TICKETS-2560.md) | V1 | REVIEW | Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order | — |

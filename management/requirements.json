@@ -15175,5 +15175,101 @@
     "test_ids": [
       "AT-GATE-SETUP-FLAKE-2560-1"
     ]
+  },
+  {
+    "id": "R-RECONCILE-TEST-LEAK-2560-1",
+    "title": "Test fix: FakeHa.states is a deep copy of the shared STATES",
+    "statement": "Test fix: FakeHa.states is a deep copy of the shared STATES; merged into the 2.56.0 train, change note docs/changes/RECONCILE-TEST-LEAK-2560.md.",
+    "task_ids": [
+      "RECONCILE-TEST-LEAK-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RECONCILE-TEST-LEAK-2560-1"
+    ]
+  },
+  {
+    "id": "R-FIX-NOSCROLL-2560-1",
+    "title": "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures)",
+    "statement": "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures); merged into the 2.56.0 train, change note docs/changes/FIX-NOSCROLL-2560.md.",
+    "task_ids": [
+      "FIX-NOSCROLL-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-NOSCROLL-2560-1"
+    ]
+  },
+  {
+    "id": "R-FIX-PUSH-APPROVAL-2560-1",
+    "title": "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet",
+    "statement": "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet; merged into the 2.56.0 train, change note docs/changes/FIX-PUSH-APPROVAL-2560.md.",
+    "task_ids": [
+      "FIX-PUSH-APPROVAL-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-PUSH-APPROVAL-2560-1"
+    ]
+  },
+  {
+    "id": "R-FIX-NVR-PULSE-2560-1",
+    "title": "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation",
+    "statement": "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation; merged into the 2.56.0 train, change note docs/changes/FIX-NVR-PULSE-2560.md.",
+    "task_ids": [
+      "FIX-NVR-PULSE-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-NVR-PULSE-2560-1"
+    ]
+  },
+  {
+    "id": "R-FIX-CORE-2560-1",
+    "title": "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound",
+    "statement": "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound; merged into the 2.56.0 train, change note docs/changes/FIX-CORE-2560.md.",
+    "task_ids": [
+      "FIX-CORE-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-CORE-2560-1"
+    ]
+  },
+  {
+    "id": "R-FIX-TICKETS-2560-1",
+    "title": "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order",
+    "statement": "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order; merged into the 2.56.0 train, change note docs/changes/FIX-TICKETS-2560.md.",
+    "task_ids": [
+      "FIX-TICKETS-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-TICKETS-2560-1"
+    ]
   }
 ]

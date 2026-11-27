@@ -23401,5 +23401,155 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-RECONCILE-TEST-LEAK-2560-1",
+    "requirement_ids": [
+      "R-RECONCILE-TEST-LEAK-2560-1"
+    ],
+    "task_ids": [
+      "RECONCILE-TEST-LEAK-2560"
+    ],
+    "title": "Test fix: FakeHa.states is a deep copy of the shared STATES",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Test fix: FakeHa.states is a deep copy of the shared STATES; merged into the 2.56.0 train, change note docs/changes/RECONCILE-TEST-LEAK-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-NOSCROLL-2560-1",
+    "requirement_ids": [
+      "R-FIX-NOSCROLL-2560-1"
+    ],
+    "task_ids": [
+      "FIX-NOSCROLL-2560"
+    ],
+    "title": "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures); merged into the 2.56.0 train, change note docs/changes/FIX-NOSCROLL-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-PUSH-APPROVAL-2560-1",
+    "requirement_ids": [
+      "R-FIX-PUSH-APPROVAL-2560-1"
+    ],
+    "task_ids": [
+      "FIX-PUSH-APPROVAL-2560"
+    ],
+    "title": "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet; merged into the 2.56.0 train, change note docs/changes/FIX-PUSH-APPROVAL-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-NVR-PULSE-2560-1",
+    "requirement_ids": [
+      "R-FIX-NVR-PULSE-2560-1"
+    ],
+    "task_ids": [
+      "FIX-NVR-PULSE-2560"
+    ],
+    "title": "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation; merged into the 2.56.0 train, change note docs/changes/FIX-NVR-PULSE-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-CORE-2560-1",
+    "requirement_ids": [
+      "R-FIX-CORE-2560-1"
+    ],
+    "task_ids": [
+      "FIX-CORE-2560"
+    ],
+    "title": "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound; merged into the 2.56.0 train, change note docs/changes/FIX-CORE-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-TICKETS-2560-1",
+    "requirement_ids": [
+      "R-FIX-TICKETS-2560-1"
+    ],
+    "task_ids": [
+      "FIX-TICKETS-2560"
+    ],
+    "title": "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order; merged into the 2.56.0 train, change note docs/changes/FIX-TICKETS-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

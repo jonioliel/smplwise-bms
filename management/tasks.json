@@ -33259,5 +33259,233 @@
     "owner": null,
     "commit": "bb710e95c",
     "actual_cost_usd": null
+  },
+  {
+    "id": "RECONCILE-TEST-LEAK-2560",
+    "title": "Test fix: FakeHa.states is a deep copy of the shared STATES",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Test fix: FakeHa.states is a deep copy of the shared STATES; merged into the 2.56.0 train, change note docs/changes/RECONCILE-TEST-LEAK-2560.md."
+    ],
+    "requirement_ids": [
+      "R-RECONCILE-TEST-LEAK-2560-1"
+    ],
+    "test_ids": [
+      "AT-RECONCILE-TEST-LEAK-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/RECONCILE-TEST-LEAK-2560, change note docs/changes/RECONCILE-TEST-LEAK-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/RECONCILE-TEST-LEAK-2560 head 4458e236f merged 3739e3ded into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/RECONCILE-TEST-LEAK-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "4458e236f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-NOSCROLL-2560",
+    "title": "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Announcer set to position:fixed so no screen scrolls (2.56 gate layout failures); merged into the 2.56.0 train, change note docs/changes/FIX-NOSCROLL-2560.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-NOSCROLL-2560-1"
+    ],
+    "test_ids": [
+      "AT-FIX-NOSCROLL-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-NOSCROLL-2560, change note docs/changes/FIX-NOSCROLL-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/FIX-NOSCROLL-2560 head d793ea046 merged 4b92086b8 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/FIX-NOSCROLL-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "d793ea046",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-PUSH-APPROVAL-2560",
+    "title": "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Final review fixes SA-01, SA-02, FE-06: push approval, off-box backup local-only, step-up sheet; merged into the 2.56.0 train, change note docs/changes/FIX-PUSH-APPROVAL-2560.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-PUSH-APPROVAL-2560-1"
+    ],
+    "test_ids": [
+      "AT-FIX-PUSH-APPROVAL-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-PUSH-APPROVAL-2560, change note docs/changes/FIX-PUSH-APPROVAL-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/FIX-PUSH-APPROVAL-2560 head d8b047d13 merged abc24e24e into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/FIX-PUSH-APPROVAL-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "d8b047d13",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-NVR-PULSE-2560",
+    "title": "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Final review fixes VD-02, VD-04: alarm-output pulse unknown outcome and server-side confirmation; merged into the 2.56.0 train, change note docs/changes/FIX-NVR-PULSE-2560.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-NVR-PULSE-2560-1"
+    ],
+    "test_ids": [
+      "AT-FIX-NVR-PULSE-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-NVR-PULSE-2560, change note docs/changes/FIX-NVR-PULSE-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/FIX-NVR-PULSE-2560 head c42fd3eac merged 8384ce054 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/FIX-NVR-PULSE-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "c42fd3eac",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-CORE-2560",
+    "title": "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Final review fixes CD-01..CD-04: green-gate check, resync, legacy import backup, rule delivery bound; merged into the 2.56.0 train, change note docs/changes/FIX-CORE-2560.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-CORE-2560-1"
+    ],
+    "test_ids": [
+      "AT-FIX-CORE-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-CORE-2560, change note docs/changes/FIX-CORE-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/FIX-CORE-2560 head db40cf0d3 merged b8af4c850 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/FIX-CORE-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "db40cf0d3",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-TICKETS-2560",
+    "title": "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Final review fixes TK-01..TK-03: request body digest on idempotent replay, multi-vendor award order; merged into the 2.56.0 train, change note docs/changes/FIX-TICKETS-2560.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-TICKETS-2560-1"
+    ],
+    "test_ids": [
+      "AT-FIX-TICKETS-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-TICKETS-2560, change note docs/changes/FIX-TICKETS-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/FIX-TICKETS-2560 head ea925c529 merged b5c7a1e76 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/FIX-TICKETS-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "ea925c529",
+    "actual_cost_usd": null
   }
 ]
