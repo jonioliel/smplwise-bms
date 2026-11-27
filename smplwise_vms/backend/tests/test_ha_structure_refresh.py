@@ -44,7 +44,8 @@ class FakeHa:
         self.devices = [{"id": "dev-desk", "area_id": "office"}]
         self.areas = copy.deepcopy(AREAS)
         self.floors = copy.deepcopy(FLOORS)
-        self.states = STATES + [{"entity_id": "light.desk", "state": "on", "attributes": {"friendly_name": "Desk"}, "last_changed": "2026-09-28T10:00:00+00:00", "last_updated": "2026-09-28T10:00:00+00:00"}]
+        # RECONCILE-TEST-LEAK-2560: a COPY - the shared test_devices.STATES dicts must never be edited by a test through this listing
+        self.states = copy.deepcopy(STATES) + [{"entity_id": "light.desk", "state": "on", "attributes": {"friendly_name": "Desk"}, "last_changed": "2026-09-28T10:00:00+00:00", "last_updated": "2026-09-28T10:00:00+00:00"}]
         self.fail: set[str] = set()
         self.calls: list[str] = []
         self.subscribed: list[str] = []
