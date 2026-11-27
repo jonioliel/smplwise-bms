@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 // Curved walls (owner request 2026-10-08) in the plan editor's structure tool, against a running backend: C opens the
@@ -12,6 +13,27 @@ const ED = 'explore-plan-editor';
 const ids = { site: '', building: '', floor: '', version: '' };
 let api: APIRequestContext;
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'private-evidence', 'curved-walls');
+
+/** RELEASE-2550-TRAIN (2.55 gate, mobile fixture lane): the plan image is built here, not shot from a browser page - the beforeAll's
+ * page.screenshot of a blank page hung past the 60 s hook limit once on a loaded runner ("taking page screenshot ... fonts loaded").
+ * The same picture as before: 1000 x 600, white, a 10 px #333 frame. */
+function planPng(w = 1000, h = 600, frame = 10): Buffer {
+  const row = w * 3 + 1;
+  const raw = Buffer.alloc(row * h, 0xff);
+  for (let y = 0; y < h; y += 1) {
+    raw[y * row] = 0;
+    for (let x = 0; x < w; x += 1) {
+      if (x < frame || y < frame || x >= w - frame || y >= h - frame) raw.fill(0x33, y * row + 1 + x * 3, y * row + 4 + x * 3);
+    }
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(Buffer.concat([Buffer.from(type), data])));
+    return Buffer.concat([len, Buffer.from(type), data, crc]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 
 type P = [number, number];
 interface Wall { id: string; polyline: P[]; bulges?: number[] }
@@ -78,16 +100,13 @@ async function openStructure(page: Page) {
 test.describe.serial('plan editor: curved walls', () => {
   test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
 
-  test.beforeAll(async ({ playwright, browser }) => {
+  test.beforeAll(async ({ playwright }) => {
     api = await playwright.request.newContext({ baseURL: BASE });
     const stamp = new Date().toISOString().slice(0, 19);
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת קשתות ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'מבנה בדיקה' } })).json()).id;
     ids.floor = (await (await api.post(`api/v1/buildings/${ids.building}/floors`, { data: { name: 'קומת קשתות', level: 0 } })).json()).id;
-    const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
-    await page.setContent('<div style="box-sizing:border-box;width:1000px;height:600px;background:#fff;border:10px solid #333"></div>');
-    const png = await page.screenshot();
-    await page.close();
+    const png = planPng();
     const asset = await (await api.post(`api/v1/floors/${ids.floor}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } })).json();
     ids.version = (await (await api.post(`api/v1/floors/${ids.floor}/plan-versions`, { data: { asset_id: asset.id } })).json()).id;
     expect((await api.post(`api/v1/plan-versions/${ids.version}/publish`)).status()).toBe(200);

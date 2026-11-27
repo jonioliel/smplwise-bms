@@ -320,6 +320,44 @@ Final checks at the train head (PC, one process at a time):
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
+### 3.15 The 2.55 gate (run 1 at `15ba75f92`) and its two fixes
+
+Gate run 1 (the lead's): FAIL after 187 min - 0 hard failures, **4 test failures, 23 flaky**, the new backend lint lane clean
+(`~/smplwise-results/gate_release-2550-train_15ba75f92.gate2.md`). Two root causes:
+
+**A - `unit-shell-timers.spec.ts:355`, desktop / tablet / mobile** ("every bare interval left in a component is a recorded local clock
+(no request)"): one more file with `setInterval(` in `frontend/src/components/` - `components/modal-stack.ts`, A11Y-NEW-2550's
+`restoreFocus` (`6260b3397`): when the opener of a closed layer is still disabled, a 100 ms wait (at most 30 ticks, 3 s) reads the
+button's own `disabled` and gives it the focus once enabled, only if the focus is nowhere. DOM only, no request - a local clock in the
+spec's sense. **Fix `9a11d27d0`** (test registry, the way the spec asks): `LOCAL_CLOCKS['components/modal-stack.ts'] = 1` with the
+reason. The spec's checks are unchanged (no loosening); no product change.
+
+**B - `evidence-curved-walls.spec.ts:108` [mobile], fixture lane** ("beforeAll hook timeout of 60000ms"): the hook hung in
+`page.screenshot()` of a blank page it opens only to make a plan PNG ("taking page screenshot - waiting for fonts to load - fonts
+loaded"), in the loaded full run. **Not a product defect and not caused by a 2.55 row**: the retry alone on the same tree passed the hook
+and the group's mobile test (`:248`); the file passed in the 2.53 and 2.54 gates; and at v2.54.0 it passes the same way (below). The gate
+said "failed again alone" because the hook's error is attributed to `:108`, a desktop-only test that skips itself on mobile, and
+`release_gate.settle` counts a retry result `skipped` as not passed (open point 9). **Fix `7a34865fe`** (test only): the plan PNG is
+built in the spec (zlib; the same picture, 1000 x 600 white with a 10 px #333 frame; the encoder of `evidence-notify-live.spec.ts`), so
+the hook makes no browser screenshot. No product change, so no UI rebuild: `frontend/src` is untouched and `release_check.py` still
+reads the stamp as this checkout's inputs ("ready for the owner's approval", only the tag missing).
+
+Runner before / after (`~/work/p2520_t2550_gfix.sh 15ba75f92 7a34865fe 3a0f02036`, slot B, a temporary worktree removed after; nothing
+installed, `~/gate2` untouched; results `~/work/p2550gfix-out`):
+
+| check | at | exit | result |
+|---|---|---|---|
+| A `unit-shell-timers.spec.ts` desktop + tablet + mobile (preview of the build) | `15ba75f92` (before) | 1 | **3 failed** (`:355` x 3: received `+ "components/modal-stack.ts"`), 48 passed |
+| A the same | `7a34865fe` (after) | 0 | **51 passed** |
+| B `fixture_job.py evidence-curved-walls --project=mobile --project=desktop` | `3a0f02036` (v2.54.0) | 0 | PASS: 6 passed, 6 skipped (their own desktop / phone skips), 0 unexpected |
+| B the same | `15ba75f92` (before) | 0 | PASS: 6 passed, 6 skipped, 0 unexpected (the failure does not reproduce on a calm runner) |
+| B the same, twice | `7a34865fe` (after) | 0 / 0 | PASS / PASS: 6 passed, 6 skipped, 0 unexpected each |
+
+PC: `lint_spec_waits --new-since f9217db8a` 0 findings in 17 files; `unused-exports --enforce` OK; `tsc -p tsconfig.tests.json` 0
+errors; eslint on the two specs 0 errors (2 warnings: spec files are on eslint's ignore list); `release_check.py` ready (only the tag).
+
+The 23 flaky of run 1 passed alone (the engine's rule); none is in a file these fixes touch. The `--after` run is the lead's.
+
 ## 4. Registry
 
 `management/tasks.json`: cards LEGACY-MIGRATION-2550, LEGACY-IMPORT-UI-2550, PILOT-ROLLBACK-2550, ANDROID-PUSH-2550 as REVIEW with the
@@ -336,6 +374,11 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
    - **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
      row's runner install steps (nightly script, crontab) are the lead's.
    - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): done in `11bfcad19` (section 2).
+9. **Gate engine attribution (seen in 2.55 gate run 1, B)**: a `beforeAll` error is attributed to the first test of its serial group; when
+   that test skips itself on the project (here desktop-only on mobile), its retry result is `skipped` and `release_gate.settle` reports
+   "failed again alone" although the hook and the group's test passed alone. a) a small engine row: treat a retried row whose result is
+   its own `skip` annotation, with the group's other tests passed, as FLAKY (recommended, 2.56); b) leave it - such a hook failure then
+   needs a reading like this one.
 3. **2.54 gate fixes** - merged: the final 2.54.0 head `3a0f02036` (`ac6b2063e`). Any later 2.54 commit is merged in when the lead says (a merge, not a
    cherry-pick, so the 2.54 release commit stays an ancestor).
 4. **Runner checks before the 2.55 gate** - the lead chose a): run A (section 3.5) at `51e390f86`. One real failure (the branding guard,
@@ -350,3 +393,14 @@ NOT_RUN on the train: the release gate (the lead's; the 2.55 engine is not insta
 3.3 and 3.5), the full Playwright suites beyond the specs named, the Node unit suite after runner run A (`51e390f86`), the page / pixel / evidence specs of rows 5-16 (the rows ran their own on the
 runner), tablet, every lab / Home
 Assistant / device / WisKey / push-server / phone check.
+
+## 9. Release gate result (lead, 27.11)
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | `15ba75f92` | full (engine with GATE-TRUST + GATE-SPEED + LOWS-BRIDGE-GATE files) | 187 min | FAIL - 0 hard, 4 test failures, 2 causes (section 3.15) |
+| 2 | `15831f640` | `--after` run 1, 3 h cap | 19 min | **PASS** - 0 hard, 0 test failures, 0 flaky |
+
+Coverage anchor (TR-09): run 1 at `15ba75f92`, 3 commits / 0 h behind, 0 product files changed. Final bilingual CHANGELOG by the lead
+(DRAFT marker removed). Publishing waits for the owner's approval in chat. Bridge 0.10.10 loads in the lab only after one owner-approved
+Home Assistant restart (manual lab profile).
