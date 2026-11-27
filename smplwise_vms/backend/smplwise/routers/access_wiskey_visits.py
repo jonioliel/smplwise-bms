@@ -82,7 +82,7 @@ def home(request: Request, principal: Principal = Depends(current_principal_ro),
     if not _sees(conn, principal):
         raise av._hidden()
     auth = ia.Authority(conn, principal)
-    return {"capabilities": wv.capabilities(conn, _api(request)),
+    return {"capabilities": wv.capabilities(conn, _api(request), wv.direct_capabilities()),
             "can": {"list": auth.unrestricted(ia.PEOPLE_READ), "settings": is_system_admin(conn, principal.user_id)}}
 
 
@@ -98,7 +98,7 @@ def visits(request: Request, principal: Principal = Depends(current_principal_ro
     available, reason = wv.feature_state(api, "visits")
     if not available:
         raise _unavailable("visits", reason)
-    if status not in wv.list_statuses(api):  # WISKEY-VISITS-ENDED-FILTER-2520: `ended` only when WisKey offers it; refused before any call
+    if status not in wv.list_statuses(api, wv.direct_capabilities()):  # WISKEY-VISITS-ENDED-FILTER-2520: `ended` only when WisKey offers it; refused before any call
         raise _unavailable("ended_filter", "ended_filter_not_offered")
     needle = " ".join(query.split())
     reply = intercom_sync.SYNC.command(settings_of(request), "visits", lambda call: wv.list_visits(call, offset=offset, limit=limit, status=status, query=needle),
@@ -223,4 +223,4 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         before, after = wv.set_switch(conn, body.push == "on")
         audit(conn, actor=principal, action=wv.AUDIT_SETTINGS, decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"key": wv.SWITCH_KEY, "before": before, "after": after})
-        return {"capabilities": wv.capabilities(conn, _api(request))}
+        return {"capabilities": wv.capabilities(conn, _api(request), wv.direct_capabilities())}
