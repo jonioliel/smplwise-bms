@@ -35,6 +35,12 @@ const collect = (v: unknown): void => {
   else if (v && typeof v === 'object') Object.values(v).forEach(collect);
 };
 collect(MAIN_HE);
+/** Every Hebrew string of a fake payload (unit, area, sensor names): data, even where a name equals a catalogue word ("מקרר תרופות"). */
+function dataWords(v: unknown, out = new Set<string>()): Set<string> {
+  if (typeof v === 'string') out.add(v.trim());
+  else if (v && typeof v === 'object') Object.values(v).forEach((x) => dataWords(x, out));
+  return out;
+}
 
 // the elevators of evidence-elevators.spec.ts (the owner's sensor set), trimmed
 const NOW = '2026-10-18T09:00:00Z';
@@ -59,11 +65,11 @@ async function installElevators(page: Page) {
   });
 }
 
-interface Screen { id: string; hash: string; el: string; install: (page: Page) => Promise<void>; words: RegExp[] }
+interface Screen { id: string; hash: string; el: string; install: (page: Page) => Promise<void>; words: RegExp[]; data: Set<string> }
 const SCREENS: Screen[] = [
-  { id: 'temperature', hash: '/infra/temperature', el: 'infra-temperature', install: (p) => installTemperature(p, units()), words: patterns(TT_TABLES.he) },
-  { id: 'elevators', hash: '/infra/elevators', el: 'infra-elevators', install: installElevators, words: patterns(ELT_TABLES.he) },
-  { id: 'genlog', hash: '/infra/generator/log', el: 'gen-log-page', install: async (p) => void (await installGeneratorMock(p, { perms: PERMS.view, log: true })), words: patterns(GLT_TABLES.he) },
+  { id: 'temperature', hash: '/infra/temperature', el: 'infra-temperature', install: (p) => installTemperature(p, units()), words: patterns(TT_TABLES.he), data: dataWords(units()) },
+  { id: 'elevators', hash: '/infra/elevators', el: 'infra-elevators', install: installElevators, words: patterns(ELT_TABLES.he), data: dataWords(ELEVATORS) },
+  { id: 'genlog', hash: '/infra/generator/log', el: 'gen-log-page', install: async (p) => void (await installGeneratorMock(p, { perms: PERMS.view, log: true })), words: patterns(GLT_TABLES.he), data: new Set<string>() },
 ];
 
 /** The Hebrew text nodes under `sel` (found through the app's shadow roots), through every shadow root below it. */
@@ -114,7 +120,7 @@ for (const screen of SCREENS) {
         }
         const { hebrew, texts } = await hebrewTexts(page, `sw-app ${screen.el}`);
         expect(texts, 'the walk reaches the rendered text of the screen').toBeGreaterThan(10);
-        const left = hebrew.filter((t) => !MAIN.has(t) && screen.words.some((re) => re.test(t)));
+        const left = hebrew.filter((t) => !MAIN.has(t) && !screen.data.has(t) && screen.words.some((re) => re.test(t)));
         if (process.env.SW_ARRU_PRINT) console.log(`ARRU ${screen.id} ${lang} ${scheme} ${test.info().project.name}: module ${JSON.stringify(left)} other ${JSON.stringify(hebrew.filter((t) => !left.includes(t)))}`);
         expect(left, `words of the module left in Hebrew on the ${lang} ${screen.id} screen`).toEqual([]);
         expect(await page.evaluate(() => getComputedStyle(document.querySelector('sw-app')!).direction)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
