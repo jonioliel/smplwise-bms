@@ -37,7 +37,6 @@
 
 ## 2.54.0 (pilot) - honest states and confirmed physical actions; reliability, time and security fixes from the deep code review
 
-<!-- RELEASE-2540-TRAIN: DRAFT - the train coordinator's working list for rows 1-17 and the train fixes, not the final release text; the lead writes the final bilingual text at release. The word DRAFT is kept out of the heading (as on the 2.52 and 2.53 trains) so scripts/release_check.py reads 2.54.0 as the CHANGELOG head while the version files are 2.54.0. -->
 
 ### חדש - New
 - יומן השינויים של ה-NVR: כשההגדרה במכשיר השתנתה מאז השינוי, "החזר" מסביר שלא נכתב דבר ומציע "החזר בכל זאת" באישור נפרד (המיקוד על ביטול); ההחזרה הכפויה נרשמת ביומן הביקורת עם מה שנדרס. - NVR change log: when the setting on the device changed since the change, "Revert" explains that nothing was written and offers "Revert anyway" behind its own confirmation (focus on cancel); the forced revert is recorded in the audit log with what it overwrote.
@@ -89,6 +88,7 @@
 
 ### התקנה - Install
 - אין מיגרציה חדשה. הגשר נשאר 0.10.9 (כמו ב-2.53.0). - No new migration. The bridge stays 0.10.9 (as in 2.53.0).
+- אין צורך להפעיל מחדש את מערכת הבית. חזרה ל-2.53.0: שחזרו את הגיבוי "auto-pre-upgrade" שההערה שלו היא "before upgrade 2.53.0 -> 2.54.0". - No home system restart is needed. Rollback to 2.53.0: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.53.0 -> 2.54.0".
 
 ## 2.53.0 (pilot) - getting started and support, approval on the phone, my account in the home interface, a resource budget
 
