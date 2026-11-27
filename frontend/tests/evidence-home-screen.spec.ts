@@ -1063,7 +1063,13 @@ test.describe('the home screen against the devices fixture backend', () => {
       // the link opens the screen's edit mode
       await page.goto('about:blank');
       await page.goto('/?design=a#/system/diagnostics?tab=devices');
-      await page.locator('system-home-screen sw-button[data-home-edit-link]').click();
+      // HOME-FIT-FOLLOWUPS-2550: the link is disabled until the card's own settings read says this user may edit (`ro`). Playwright counts a
+      // custom element's `disabled` attribute as enabled, so it clicked the still-disabled link and the inner <button disabled> swallowed
+      // the click (runner trace, a loaded whole-file run: "locator resolved to <sw-button disabled ...>", the input snapshot still
+      // disabled; the card's own GET /settings answered only about then; no navigation, the edit panel never came).
+      const editLink = page.locator('system-home-screen sw-button[data-home-edit-link]');
+      await expect(editLink).not.toHaveAttribute('disabled', /.*/, { timeout: 30000 });
+      await editLink.click();
       await expect(page.locator('devices-building home-edit-panel')).toBeVisible({ timeout: 30000 });
       // a viewer sees the picker but cannot change it; the server refuses too
       bindings.push(await bindUser(request, user, 'viewer'));
