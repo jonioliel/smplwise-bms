@@ -89,24 +89,29 @@ interface's main screen. It does not limit cameras, recordings or device actions
 
 ## Tests
 
-All on the Linux test server through `~/work/slotb.sh` (jobs `p2520_hpw_run.sh`, `_run2.sh`, `_run3.sh`, `_re.sh`); base = `d65bbfd93`.
+Final state (after Q1 = a and Q2 = a). PC: backend files one per process (`.venv` python, worktree sources). Linux test server through
+`~/work/slotb.sh`: jobs `p2520_hpw_run4.sh` (head `faa3762af`) and `p2520_hpw_run5.sh` (head `a470d23bd`, the phone baseline fix); base = `d65bbfd93`.
 
-| Check | Command | Result |
+| Check | Where / command | Result |
 |---|---|---|
-| wire types | `python scripts/gen_wire_types.py` then `--check` | regenerated (38-line diff, committed); `--check` exit 0 |
-| new backend test, **before** (base + the new file) | `pytest -q tests/test_home_perms_warn_2550.py` | exit 1: 3 failed (`site_wide` / `shared_scope` missing, `shared_scope` not defined) |
-| new backend test, after | same, on the branch | exit 0, 3 passed |
-| related backend files (one process each) | `pytest -q tests/<f>` for `test_home_interface`, `test_home_v3_p1/p2/p3`, `test_home_v3_followup_a`, `test_home_followup_b_2431`, `test_home_v3_gaps_2436`, `test_home_account_2530`, `test_mb_home_2500`, `test_lows_backend_2550_security`, `test_wire_routers_b/c/d/e`, `test_wire_consumption_2450` | every file exit 0 |
-| ruff (touched backend files) | `ruff check ...` | exit 0 (also on the PC) |
-| frontend build | `npm run build` (tsc + vite) | exit 0 (run 2) |
-| typecheck (tests + scripts) | `npm run typecheck` | exit 0, 0 errors |
-| eslint (touched files) | `npx eslint --pass-on-unpruned-suppressions <files>` | exit 0 (one warning: the spec file is outside eslint's scope) |
+| Q1 new backend test, **before** (base + the new file) | runner, `pytest -q tests/test_home_bills_gate_2550.py` | exit 1: 3 failed - the home-only viewer read the accounts (200), the hidden category did not stop the accounts, `bills_route` missing; the 2 "unchanged" tests passed |
+| Q1 new backend test, after | PC and runner, same file | exit 0, 5 passed |
+| warning backend test, **before** / after | runner `tests/test_home_perms_warn_2550.py` | before exit 1 (3 failed); after exit 0, 3 passed (PC too) |
+| PC, one process each | `test_home_interface` (29), `test_home_v3_p3` (6), `test_home_v3_followup_a` (8), `test_i18n_errors_en_2520` (9), `test_lows_backend_2550_security` (7), `test_singletons_registered` (4) | every file exit 0 |
+| runner, related groups, one process each | `test_home_account_2530`, `test_home_config`, `test_home_followup_b_2431`, `test_home_interface`, `test_home_interface_doors_2421`, `test_home_links`, `test_home_scene_manage_2500`, `test_home_screen`, `test_home_screen_options_295`, `test_home_ticket_note_idem_2540`, `test_home_v3_followup_a`, `test_home_v3_gaps_2436`, `test_home_v3_p1/p2/p3`, `test_mb_home_2500`, `test_lows_backend_2550_security`, `test_energy_billing_api`, `test_bill_pdf`, `test_energy_bill_pdf_pipeline`, `test_bill_ledger_lifecycle_b`, `test_i18n_errors_en_2520`, `test_singletons_registered`, `test_wire_routers_b/c/d/e`, `test_wire_consumption_2450` | every file exit 0 |
+| wire types | `python scripts/gen_wire_types.py --check` | exit 0 (regenerated earlier: 38-line diff, committed) |
+| ruff (touched backend files) | PC `py -3.12 -m ruff check ...` | all checks passed |
+| frontend build / typecheck | runner `npm run build`, `npm run typecheck` | exit 0 / exit 0, 0 errors |
+| eslint (touched src files) | runner | exit 0 |
 | English texts | `playwright -c playwright.unit.config.ts tests/unit-i18n-home.spec.ts` | exit 0, 6 passed |
 | design ratchet | `python scripts/design_ratchet.py` | exit 0, no count up |
-| new spec, **before** (base build + the new file) | `playwright test tests/home-perms-warn-2550.spec.ts --project=desktop -g "site-wide data warning"` | exit 1: 4 failed (no warning), 2 passed (the "no warning" cases) |
-| new spec, after | `playwright test tests/home-perms-warn-2550.spec.ts --project=desktop --project=mobile --workers=2` | exit 0, 10 passed (6 behaviour + 4 pixel), 14 skipped (behaviour is desktop-only; captures run only with SW_SHOTS) |
-| pixel baselines | same with `-u -g "pixel-stable"` | 4 written (desktop 1440 + phone 390, light + dark; dark through `?scheme=dark`), then compared: pass |
-| related admin / home specs (desktop) | `playwright test home-simple-2420/2421, home-v3-followup-a, home-v3-p1, home-next-2500, home-wall-night-2500, pixel-home-next-2500` | 74 passed, 2 failed: `pixel-home-next-2500` "wall notice board, all dark" fails on the base build too (not this row); `home-simple-2421` "no exit ignores the long press" timed out waiting for the room title once - re-run `--repeat-each=3` on the branch: 27 passed, exit 0 (a load flake; the wall panel screen is not touched here) |
+| new spec, **before** (base build + the new file) | `playwright test tests/home-perms-warn-2550.spec.ts --project=desktop -g "HOME-PERMS-WARN-2550 site-wide"` | exit 1: 5 failed (no warning, no room-list line), 2 passed (the "no warning" cases) |
+| new spec, after | `--project=desktop --project=mobile --workers=2`, twice (run 5) | exit 0 both times: 11 passed (7 behaviour + 4 pixel), 15 skipped (behaviour is desktop-only; captures only with SW_SHOTS) |
+| pixel baselines | `-u -g "pixel-stable"`, desktop 1440 + phone 390, light + dark (dark through `?scheme=dark`) | 4 written in run 5 and compared twice: pass. (Run 4 failed the two phone baselines: the warning sat at the viewport's edge under the phone's bottom bar; now centred and refreshed.) |
+| related admin / home specs (desktop) | `home-simple-2420/2421`, `home-v3-followup-a`, `home-v3-p1`, `home-v3-p3`, `home-next-2500`, `home-wall-night-2500` | exit 0, 89 passed |
+
+Earlier runs: `pixel-home-next-2500` "wall notice board, all dark" failed on the base build too (not this row; it was not in run 4's
+list); one `home-simple-2421` load time-out in run 2 passed 27/27 with `--repeat-each=3` and passed again in run 4.
 
 NOT_RUN: the full backend suite, the full Playwright suite, the tablet project, Windows / macOS pixel baselines (Linux only), any lab check
 (not allowed for this row).
