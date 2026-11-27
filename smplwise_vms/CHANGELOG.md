@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
+
+<!-- RELEASE-2560-TRAIN: DRAFT - the train coordinator's working list for rows 1-5 (CORE10-EVENTLOOP-2560, A11Y-FOLLOWUPS-2560, WISKEY-VISIT-FILTERS-2560, OPEN-FINDINGS-2560, GATE-NIGHTLY-2560), not the final release text; the lead writes the final bilingual text at release (BACKEND-SUITE-COST-2560 may add a line). The word DRAFT is kept out of the heading so scripts/release_check.py reads 2.56.0 as the CHANGELOG head. -->
+
+### שופר - Improved
+- מצבי מערכת הבית נכתבים בחוט עבודה נפרד: מסד נתונים עמוס או חוק שמפעיל הודעה כבר לא עוצרים את קריאת הערוץ, ולכן "רענן ממערכת הבית", תזמונים וזיהוי בלחיצה לא מקבלים שגיאת זמינות בגללם. - Home system states are written on a worker thread: a busy database or a rule that sends a notice no longer holds up reading the feed, so "refresh from Home Assistant", schedules and detect-by-pressing do not time out because of it.
+- נגישות: הערה על יום מעבר שעון בציר החדרים ("01, פעמיים"), מכריז אחד להודעות מתעדכנות, כרטיס התראת גנרטור בלי כפתור בתוך כפתור, ותיאור לכפתור האימות הנוסף. - Accessibility: a note on the rooms timeline for a clock-change day ("01, twice"), one announcer for live messages, a generator alert card without a button inside a button, and a description for the extra-verification button.
+- ביקורים חיצוניים ב-WisKey: מסנני הרשימה נלקחים מהחוזה ש-WisKey מפרסם (כולל "הסתיימו"). - External WisKey visits: the list filters follow the contract WisKey publishes (the "ended" filter included).
+
+### תוקן - Fixed
+- מסך הבית: שמירת המועדפים כבר לא מוחקת מועדפים מוסתרים. - Home screen: saving the favourites no longer drops hidden favourites.
+- תיק חקירה: הסרת פריט מהתיק מבקשת אישור; התראות גנרטור: "אשר הכול" מבקש אישור ומציין כמה התראות. - Investigation case: removing an item asks for confirmation; generator alerts: "acknowledge all" asks first and states how many alerts.
+
+### שינוי בממשק השרת - API change
+- אין שינוי בנתיבים או בהגדרות. `capabilities.visits.statuses` של הביקורים החיצוניים נגזר מחוזה WisKey כשהוא מפורסם. - No route or setting change. `capabilities.visits.statuses` of the external visits follows the WisKey contract when it is published.
+
 ## 2.55.0 (pilot) - import from the old NVR add-on, a safe way back, Android push without Google
 
 <!-- RELEASE-2550-TRAIN: DRAFT - the train coordinator's working list for rows 1-8 (LEGACY-MIGRATION-2550, LEGACY-IMPORT-UI-2550, PILOT-ROLLBACK-2550, ANDROID-PUSH-2550, LOWS-BACKEND-2550, LOWS-BRIDGE-GATE-2550, LOWS-FRONTEND-2550, DOCS-GUIDE-2550) and rows 9-13 (GATE-SPEED-2550, I18N-ARRU-2550, DATA-RULES-2-2550, A11Y-NEW-2550, HOME-PERMS-WARN-2550, HOME-FIT-FOLLOWUPS-2550, WIRE-DRIFT-2550, HA-STATE-RECONCILE-2550) and the train fixes, not the final release text; the lead writes the final bilingual text at release. All 2.55 rows are merged. The word DRAFT is kept out of the heading (as on the 2.52-2.54 trains) so scripts/release_check.py reads 2.55.0 as the CHANGELOG head while the version files are 2.55.0. -->
