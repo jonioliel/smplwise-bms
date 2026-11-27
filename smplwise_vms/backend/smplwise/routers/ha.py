@@ -888,6 +888,14 @@ async def ha_ws(websocket: WebSocket) -> None:
     access_gen = revocation.generation(principal.user_id)
     try:
         while True:
+            if ha_sync.take_overflow(q):
+                # LOWS-BACKEND-2550 (CORE-06): this socket's queue overflowed (a client that stopped reading) and frames were lost: one
+                # `structure_changed` (reason `resync`) - every screen on this socket already refetches on it - instead of silent gaps
+                seq += 1
+                resync = {"type": "structure_changed", "reason": "resync", "changed": True, "last_registry_at": ha_sync.STATE.last_registry_at}
+                await websocket.send_text(json.dumps({"version": 1, "type": "structure_changed", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(),
+                                                      "received_at": now_iso(), "payload": resync}, ensure_ascii=False, default=str))
+                continue
             try:
                 msg = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
             except (asyncio.TimeoutError, queue.Empty):

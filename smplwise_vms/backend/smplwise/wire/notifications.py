@@ -87,7 +87,7 @@ class NotificationPage(WireModel):
     """`GET /notifications`: newest first, open critical safety rows pinned on top."""
     notifications: list[Notification]
     next_before: str | None
-    """The cursor of the next page (the `last_at` of the last row), null on the last page."""
+    """The cursor of the next page (opaque: `<last_at>|<id>` of the last row; a bare `last_at` is still accepted), null on the last page."""
 
 
 class NotificationCounts(WireModel):
@@ -301,6 +301,20 @@ class AppRelayHealth(WireModel):
     last_ok_at: str | None
 
 
+class AppUnifiedPushHealth(WireModel):
+    """services/unifiedpush.health (ANDROID-PUSH-2550): never a host name, an endpoint or a key."""
+    enabled: bool
+    state: str
+    message: str | None
+    servers: int
+    invalid_entries: int
+    sent: int
+    failed: int
+    gone: int
+    last_error: str | None
+    last_sent_at: str | None
+
+
 class NotifyStats(WireModel):
     """`GET /notify/stats`: the last 24 hours per channel, the push worker's counters, the volume per source, the push devices."""
     since: str
@@ -309,3 +323,4 @@ class NotifyStats(WireModel):
     by_source: dict[str, int]
     push_devices: int
     app_relay: AppRelayHealth
+    app_unifiedpush: AppUnifiedPushHealth | None = None  # ANDROID-PUSH-2550 (additive)

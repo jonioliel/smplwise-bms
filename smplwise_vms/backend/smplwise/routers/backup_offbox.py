@@ -86,6 +86,23 @@ MESSAGES = {
 }
 
 
+# LOWS-BACKEND-2550 (SEC-8, owner Q1a): adding / editing / testing a target (an administrator-typed endpoint the add-on then contacts) and the
+# one-time export of the key that decrypts every off-box copy are allowed on the local channel only - the check the factor reset's "local
+# only" setting uses (remote_channel.is_remote). Listing, a push to an existing target, the key rotation and the restore stay remote.
+LOCAL_ONLY_HE = "את הפעולה הזו של הגיבוי החיצוני (ייצוא מפתח, הוספה, עריכה או בדיקה של יעד) אפשר לעשות רק מהרשת המקומית."
+
+
+def _local_only(conn: sqlite3.Connection, request: Request, principal: Principal, action: str, resource_id: str) -> None:
+    """403 `offbox_local_only` (audited) when the request came through the remote channel."""
+    from ..remote_channel import is_remote
+
+    if not is_remote(request):
+        return
+    audit(conn, actor=principal, action=action, decision="denied", resource_type="backup_offbox_target" if action != "backup.offbox.key_export" else "backup_offbox_key",
+          resource_id=resource_id, request_id=_rid(request), reason="local_only")
+    raise ApiError(403, "offbox_local_only", LOCAL_ONLY_HE)
+
+
 def _err(exc: OffboxError, status: int = 422) -> ApiError:
     return ApiError(status, exc.code, MESSAGES.get(exc.code, "הפעולה נדחתה."))
 
@@ -232,6 +249,7 @@ def offbox_status(request: Request, principal: Principal = Depends(current_princ
 @router.post("/backups/offbox/targets", status_code=201)
 def create_target(body: TargetIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
+    _local_only(conn, request, principal, "backup.offbox.target_create", "new")
     config = _clean_config(body.kind, body.config)
     _validate(body.kind, config, settings_of(request))
     _precheck(body.kind, body.secrets, body.enabled, set())
@@ -249,6 +267,7 @@ def create_target(body: TargetIn, request: Request, principal: Principal = Depen
 def update_target(target_id: str, body: TargetIn, request: Request, principal: Principal = Depends(current_principal),
                   conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
+    _local_only(conn, request, principal, "backup.offbox.target_update", target_id)
     cur = _target_or_404(conn, target_id)
     if body.kind != cur["kind"]:
         raise ApiError(422, "kind_immutable", MESSAGES["kind_immutable"])
@@ -296,6 +315,7 @@ def delete_target(target_id: str, request: Request, principal: Principal = Depen
 @router.post("/backups/offbox/targets/{target_id}/test")
 def test_target(target_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "backup.manage", INSTALLATION)
+    _local_only(conn, request, principal, "backup.offbox.test", target_id)
     _target_or_404(conn, target_id)
     audit(conn, actor=principal, action="backup.offbox.test", decision="allowed", resource_type="backup_offbox_target", resource_id=target_id,
           request_id=_rid(request))
@@ -423,6 +443,7 @@ def gdrive_disconnect(target_id: str, request: Request, principal: Principal = D
 def export_key(body: ConfirmIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The active key, ONCE per key, after the administrator typed EXPORT. The answer is the only place the key ever appears."""
     require(conn, principal, "backup.manage", INSTALLATION)
+    _local_only(conn, request, principal, "backup.offbox.key_export", "active")
     if body.confirm != "EXPORT":
         raise ApiError(422, "confirm_required", MESSAGES["confirm_required"])
     try:

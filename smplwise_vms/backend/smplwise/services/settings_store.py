@@ -240,6 +240,10 @@ DEFAULTS: dict[str, str] = {
     # (services/startup_warmup.py, read at start-up) and the browser's idle fetch of the common screens' chunks. On by default; the
     # environment variable SW_STARTUP_WARMUP wins on the server side.
     "server.startup_warmup": "true",
+    # HA-STATE-RECONCILE-2550 (deep review CORE-03, CORE-RELIABILITY-2540 question 1 = a): minutes between two full state reconciles of the
+    # Home Assistant mirror (services/ha_sync.reconcile_now: one read-only state listing, only states HA reports as newer are written - a
+    # state update lost to a busy database is repaired). 0 = off; otherwise 5..1440 (PATCH refuses 1-4). Applies within a minute.
+    "ha.state_reconcile_min": "10",
     # 2.0.0 stall detection (docs/changes/PLAYBACK-STALL-RESUME.md): seconds without media progress while a recording should be playing
     # before the player says "מתחבר מחדש", and how many automatic "resume from here" attempts (each a new generation of the same session,
     # the old go2rtc stream deleted) it makes before "הניגון נעצר" with a retry button; 0 = detect and stop, no automatic attempt.
@@ -623,7 +627,7 @@ DEFAULTS: dict[str, str] = {
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
-INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "security.step_up_minutes", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.video_notice_after_min", "ha.state_reconcile_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "security.step_up_minutes", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
 # Keep in step with FROZEN_SKINS / FROZEN_FALLBACK_SKIN in frontend/src/design/skins/index.ts. Unfreeze = empty FROZEN_SKINS.
 FROZEN_SKINS = ("bubble",)

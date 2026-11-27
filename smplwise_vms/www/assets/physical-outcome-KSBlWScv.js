@@ -1,1 +1,0 @@
-import{c as e}from"./index-CoJbESCx.js";const o=new Set(["source_forbidden"]);function s(n){if(!(n instanceof e))return"unknown";const t=n.body?.details?.outcome;return t==="not_sent"||t==="refused"?"refused":t==="unknown"?"unknown":n.status>=400&&n.status<500||o.has(n.code)?"refused":"unknown"}export{s as p};

@@ -320,7 +320,7 @@ def update_customer(conn: sqlite3.Connection, cid: str, body: dict[str, Any]) ->
     if "customer_number" in body and body["customer_number"] is not None:
         num = _customer_number(conn, body["customer_number"], exclude_id=cid)
         if num != row["customer_number"]:
-            if conn.execute("SELECT 1 FROM energy_bills WHERE customer_id = ? AND number IS NOT NULL LIMIT 1", (cid,)).fetchone():
+            if conn.execute("SELECT 1 FROM energy_bills WHERE customer_id = ? AND number IS NOT NULL LIMIT 1", (cid,)).fetchone() or _has_numbered_water_bills(conn, cid):
                 raise conflict("customer_number_locked", "ללקוח יש חיובים ממוספרים; מספר הלקוח אינו ניתן לשינוי.")
             fields["customer_number"] = num
     if body.get("name") is not None:
@@ -433,6 +433,31 @@ def _version_used(conn: sqlite3.Connection, version_id: str, field: str) -> bool
         if any(ln.get(field) == version_id for ln in lines):
             return True
     return False
+
+
+def _water_vat_used(conn: sqlite3.Connection, vid: str) -> bool:
+    """LOWS-BACKEND-2550 (D-06): the VAT table is shared with water billing (water_billing.vat_rates); a numbered water bill's lines name the
+    rate they used. A database before the water billing tables holds nothing."""
+    try:
+        rows = conn.execute("SELECT snapshot_json FROM water_bills WHERE number IS NOT NULL").fetchall()
+    except sqlite3.OperationalError:
+        return False
+    for (snap,) in rows:
+        try:
+            lines = json.loads(snap).get("lines") or []
+        except ValueError:
+            continue
+        if any(isinstance(ln, dict) and ln.get("vat_rate_id") == vid for ln in lines):
+            return True
+    return False
+
+
+def _has_numbered_water_bills(conn: sqlite3.Connection, cid: str) -> bool:
+    """LOWS-BACKEND-2550 (D-07): the customer card is shared with water; its numbered water bills hold the customer number too."""
+    try:
+        return conn.execute("SELECT 1 FROM water_bills WHERE customer_id = ? AND number IS NOT NULL LIMIT 1", (cid,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
 
 
 TOU_PRICE_PLACEHOLDER = "0.0000"  # energy_tariff_versions.price is NOT NULL; a time-of-use version's prices live in its definition
@@ -588,7 +613,7 @@ def add_vat(conn: sqlite3.Connection, actor_id: str | None, effective_from: dt.d
 def delete_vat(conn: sqlite3.Connection, vid: str) -> None:
     if not conn.execute("SELECT 1 FROM energy_vat_rates WHERE id = ?", (vid,)).fetchone():
         raise not_found("שיעור המע״מ לא נמצא.")
-    if _version_used(conn, vid, "vat_rate_id"):
+    if _version_used(conn, vid, "vat_rate_id") or _water_vat_used(conn, vid):
         raise conflict("tariff_in_use", "שיעור המע״מ שימש בחיוב שהונפק ואינו ניתן למחיקה.")
     conn.execute("DELETE FROM energy_vat_rates WHERE id = ?", (vid,))
 
@@ -1438,6 +1463,11 @@ def retention(db: Database, data_dir: Path | None, now: dt.datetime | None = Non
     settings registry; read here with their defaults). The ledger of used numbers and the automatic-run rows stay, so a
     number is never reused and an old period is never generated again."""
     return bl.retention(KIND, db, now or now_utc(), data_dir)
+
+
+def billing_gaps(conn: sqlite3.Connection, aid: str) -> list[dict[str, str]]:
+    """DATA-RULES-2-2550: the days between the account's issued bills that no bill covers, for the account status (bill_ledger.billing_gaps)."""
+    return [g.as_api() for g in bl.billing_gaps(KIND, conn, aid)]
 
 
 def janitor(db: Database, settings: Any = None) -> AutoOutcome | None:

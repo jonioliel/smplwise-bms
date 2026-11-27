@@ -163,6 +163,9 @@ HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | HOME_ALLOWED_EXACT_P3
 HOME_ALLOWED_PATTERNS_P3 = (
     re.compile(r"/multimedia/devices/[^/]+(/commands|/artwork|/library)?"),
     re.compile(r"/energy/accounts/[^/]+/(status|periods)"),
+    # LOWS-BACKEND-2550 (SEC-6): the sockets are judged by this gate too; the door call's two-way talk and the station listen socket
+    # (sw-home-call answers a ringing door from the home interface) are whole routes, the sessions' other routes stay as they were
+    re.compile(r"/access-control/(talk|listen)/[A-Za-z0-9_\-]{1,64}/ws"),
 )
 
 # HOME-V3-FOLLOWUP-A-2431 (owner answer 4): the bill card's "show bill" opens the bill file itself - GET only, one whole route (never
@@ -172,6 +175,15 @@ HOME_READ_ONLY_PATTERNS_FA = (re.compile(r"/energy/bills/[A-Za-z0-9_\-]{1,64}/pd
 # A home-only person whose administrator hid one of these categories is refused its routes (403 `home_module_off`): the recordings'
 # playback sessions and the house log's event list. The intercom's routes are not gated here on purpose: an incoming door call must
 # still ring on every screen (sw-home-call); the category hides the intercom screen and its chip only.
+# HOME-PERMS-WARN-2550 (owner Q1 = a, LOWS-BACKEND-2550 D-11 follow-up): the electricity bill's routes on the home allow-list. A home-only
+# person reaches them only the way the home interface's bill screen does: the "bills" category on AND energy.bills (installation scope).
+# Before, `energy.view` alone (the operator role) read every account - customer names and numbers, the formula, the last bill's kWh - by
+# calling the routes directly, and a hidden "bills" category did not stop it. Refused 403 `home_module_off` (category hidden) or
+# `home_bills_permission` (no energy.bills); audited (`home_interface.bills.refused`, at most once per person and reason per
+# GATE_AUDIT_EVERY_S, the gate's rule). Nobody who is not home-only, and no system administrator, is judged here.
+HOME_BILLS_EXACT = frozenset({"/energy/accounts"})
+HOME_BILLS_PATTERNS = (re.compile(r"/energy/accounts/[^/]+/(status|periods)"), re.compile(r"/energy/bills/[A-Za-z0-9_\-]{1,64}/pdf"))
+HOME_BILLS_PERMISSION = "energy.bills"
 HOME_MODULE_ROUTES: dict[str, tuple[frozenset[str], tuple[str, ...]]] = {
     "recordings": (frozenset({"/playback/sessions"}), ("/playback/sessions/",)),
     "log": (frozenset({"/events"}), ("/events/",)),
@@ -433,6 +445,7 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         out.append({"user_id": u["id"], "username": u["username"], "display_name": u["display_name"] or u["username"], "source": u["source"],
                     "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin", "guests")},
                     "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite"),
+                    "site_wide": site_wide_reads(conn, u["id"]),  # HOME-PERMS-WARN-2550 (D-11): the page's "sees every household" warning
                     **({"building_id": eff["building_id"]} if eff.get("building_id") else {})})  # MULTI-BUILDING-HOME-2500 (Q65)
     return out
 
@@ -445,6 +458,43 @@ def holds_anywhere(conn: sqlite3.Connection, user_id: str, permission: str) -> b
         return permission in set(permissions_anywhere(conn, Principal(user_id=user_id, username="", display_name="", source="")))
     except Exception:  # noqa: BLE001 - a display hint only, never an authorization
         return False
+
+
+# HOME-PERMS-WARN-2550 (LOWS-BACKEND-2550 finding D-11, question 3 = a): the home categories whose data is the whole site's, never one
+# household's - there is no person -> billing customer (or meter) binding yet. {category: the permission that opens it installation-wide}.
+# bills: the electricity bills of every account (energy.bills is an installation permission); energy: every electricity meter (energy.view,
+# installation only); water: every water meter for an installation-wide water.view (a floor-scoped holder sees his floors' meters only).
+SITE_WIDE_READS = (("bills", "energy.bills"), ("energy", "energy.view"), ("water", "water.view"))
+
+
+def site_wide_reads(conn: sqlite3.Connection, user_id: str) -> list[str]:
+    """The categories of SITE_WIDE_READS this person reads for the whole site (a display hint for the administrator's page only, never an
+    authorization: every route checks its own permission). A system administrator reads everything anyway and is not listed."""
+    try:
+        if is_system_admin(conn, user_id):
+            return []
+        p = Principal(user_id=user_id, username="", display_name="", source="")
+        return [cat for cat, perm in SITE_WIDE_READS if authorize(conn, p, perm, INSTALLATION).allowed]
+    except Exception:  # noqa: BLE001 - a display hint only
+        return []
+
+
+def shared_scope(conn: sqlite3.Connection) -> dict[str, int | None]:
+    """HOME-PERMS-WARN-2550: how much of the site a SITE_WIDE_READS category shows - the billing customers (the shared card of the
+    electricity and water bills; more than one = more than one household), the active electricity accounts, and the electricity / water
+    meters that are not retired. A count the database cannot answer (an older database without the table) stays null (unknown)."""
+    def count(sql: str) -> int | None:
+        try:
+            return int(conn.execute(sql).fetchone()[0])
+        except sqlite3.OperationalError:
+            return None
+    return {
+        "customers": count("SELECT COUNT(*) FROM energy_customers WHERE deleted_at IS NULL"),
+        "bill_accounts": count("SELECT COUNT(*) FROM energy_accounts a JOIN energy_customers c ON c.id = a.customer_id "
+                               "WHERE a.status = 'active' AND c.deleted_at IS NULL"),
+        "energy_meters": count("SELECT COUNT(*) FROM energy_meters WHERE status <> 'retired'"),
+        "water_meters": count("SELECT COUNT(*) FROM water_meters WHERE status <> 'retired'"),
+    }
 
 
 # ---------------------------------------------------------------- the server-side gate
@@ -506,6 +556,31 @@ def module_route(path: str, root_path: str = "") -> str | None:
     return None
 
 
+def bills_route(path: str, root_path: str = "") -> bool:
+    """HOME-PERMS-WARN-2550: whether the route is one of the electricity bill's home routes (HOME_BILLS_*)."""
+    rest = api_route_of(path, root_path)
+    if rest is None:
+        return False
+    rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
+    return rest_cmp in HOME_BILLS_EXACT or any(p.fullmatch(rest_cmp) for p in HOME_BILLS_PATTERNS)
+
+
+def _refuse_audited(conn: sqlite3.Connection, principal: Principal, path: str, root_path: str, request_id: str | None, action: str, code: str, text: str) -> None:
+    """Audit a refusal (at most once per person and code per GATE_AUDIT_EVERY_S) and raise it. The answer carries the code and a fixed text only."""
+    now = time.monotonic()
+    key = f"{code}:{principal.user_id}"
+    with _LOCK:
+        audit_now = now - _GATE_AUDITED.get(key, 0.0) >= GATE_AUDIT_EVERY_S
+        if audit_now:
+            _GATE_AUDITED[key] = now
+    if audit_now:
+        from ..audit import audit
+
+        audit(conn, actor=principal, action=action, decision="denied", resource_type="route", resource_id=(api_route_of(path, root_path) or path)[:200],
+              reason=code, request_id=request_id)
+    raise HomeInterfaceError(403, code, text)
+
+
 def home_bill_file_check(conn: sqlite3.Connection, principal: Principal, bill: sqlite3.Row) -> None:
     """HOME-V3-FOLLOWUP-A-2431 (owner answer 4): the bill file for a home-only person - only a bill the home interface shows (issued,
     sent or paid; never a draft or a void one) and only while the person's "bills" category is on. The route already checked
@@ -565,7 +640,8 @@ def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_i
         raise HomeInterfaceError(403, "kiosk_calendar_add_only", "ממסך הקיר אפשר רק להוסיף אירוע ליומן המשפחתי.")
     allowed = home_allowed(path, root_path, method)
     mod = module_route(path, root_path) if allowed else None
-    if allowed and mod is None:
+    bills = allowed and bills_route(path, root_path)  # HOME-PERMS-WARN-2550
+    if allowed and mod is None and not bills:
         return
     try:
         r = conn.execute("SELECT * FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
@@ -575,6 +651,15 @@ def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_i
             return
         raise
     if r is None or not (r["home_only"] or r["kiosk"]):
+        return
+    if bills and not is_system_admin(conn, principal.user_id):
+        # HOME-PERMS-WARN-2550 (owner Q1 = a): the bill screen's own rule - the "bills" category and energy.bills
+        mods = _loads(r["modules_json"])
+        if isinstance(mods, list) and "bills" not in mods:
+            _refuse_audited(conn, principal, path, root_path, request_id, "home_interface.bills.refused", "home_module_off", "המסך הזה לא הופעל עבורך.")
+        if not authorize(conn, principal, HOME_BILLS_PERMISSION, INSTALLATION).allowed:
+            _refuse_audited(conn, principal, path, root_path, request_id, "home_interface.bills.refused", "home_bills_permission",
+                            "אין לך הרשאה לחשבונות החשמל.")
         return
     if allowed:
         mods = _loads(r["modules_json"])

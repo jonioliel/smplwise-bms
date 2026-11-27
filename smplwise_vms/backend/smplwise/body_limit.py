@@ -22,7 +22,7 @@ The limits (LIMITS below; docs/changes/CR-008-ARX-REMOTE-APP.md §9 has the tabl
 - every route: 1 MiB (JSON bodies of the API are far below it);
 - the upload routes: their own cap + 64 KiB of multipart framing - plan files (`max_upload_bytes`), site / building
   images (catalog.IMAGE_MAX_BYTES), the settings background pictures (ui_background.IMAGE_MAX_BYTES), the skins control image (skins store CONTROL_MAX_BYTES), the backup upload (backup
-  MAX_UPLOAD), the plan package preview / import (plan_package.MAX_PACKAGE_BYTES); evidence bundles (verify / import): the ceiling of the `cases.import_max_mb` setting - those two routes
+  MAX_UPLOAD), the plan package preview / import (plan_package.MAX_PACKAGE_BYTES), the legacy add-on import (dry run / apply: 20 MiB raw); evidence bundles (verify / import): the ceiling of the `cases.import_max_mb` setting - those two routes
   stream the body themselves after authorising the caller and stop at the configured value while it streams;
 - large JSON documents: the Plan Studio geometry document and a detection acceptance 16 MiB, a catalog import 8 MiB;
 - the CSP report sink 16 KiB (its own streaming bound, routers/remote.CSP_BODY_MAX).
@@ -110,6 +110,14 @@ def _backup_upload(_s: Settings) -> int:
     from .services import backup
 
     return backup.MAX_UPLOAD + MULTIPART_SLACK
+
+
+def _legacy_import(_s: Settings) -> int:
+    """LEGACY-MIGRATION-2550: one copy of the legacy add-on's files as the raw body (services/legacy_source.MAX_INPUT_BYTES; no
+    multipart). The route reads it after the system-administrator gate and stops at the same cap while it streams."""
+    from .services import legacy_source
+
+    return legacy_source.MAX_INPUT_BYTES
 
 
 def _csp_report(_s: Settings) -> int:
@@ -234,6 +242,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"PUT"}), re.compile(rf"/api/v1/home/room-wallpapers/{_ID}/image"), _home_wallpaper, "home_wallpaper"),  # HOME-V3-P1-2430
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/news-sources/{_ID}/logo"), _notice_news_logo, "notice_news_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
+    (frozenset({"POST"}), re.compile(r"/api/v1/migration/legacy/(dry-run|apply)"), _legacy_import, "legacy_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/detect/accept"), _const(LARGE_JSON_MAX), "detection_accept"),

@@ -522,31 +522,41 @@ def list_for(conn: sqlite3.Connection, principal: Principal, *, state: str = "al
         params.extend(want)
     if unread:
         where.append("r.read_at IS NULL")
+    # LOWS-BACKEND-2550 (CORE-08): the cursor is (last_at, id) - the order's own two keys - written "<last_at>|<id>"; stamps have one-second
+    # resolution, so `last_at < ?` alone skipped the rows that shared the boundary row's second. A one-part cursor (a client of before
+    # this change) is still accepted with its old meaning.
     if before:
-        where.append("n.last_at < ?")
-        params.append(before)
+        b_at, _sep, b_id = before.partition("|")
+        if b_id:
+            where.append("(n.last_at < ? OR (n.last_at = ? AND n.id < ?))")
+            params.extend((b_at, b_at, b_id))
+        else:
+            where.append("n.last_at < ?")
+            params.append(b_at)
     reach = Reach(conn, principal)
     out: list[dict[str, Any]] = []
-    last_at = None
+    cursor: tuple[str, str] | None = None  # the last row read (seen or hidden) - the inner pages' own (last_at, id) cursor
+    last_out: tuple[str, str] | None = None  # the last row returned - the next page's cursor
     while len(out) < limit:  # rows hidden by a revoked scope are skipped, not counted
         page = conn.execute(
             f"SELECT n.*, r.read_at AS _read_at, r.snoozed_until AS _snoozed FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id WHERE {' AND '.join(where)}"
-            + (" AND n.last_at < ?" if last_at else "") + " ORDER BY n.last_at DESC, n.id DESC LIMIT ?",
-            (*params, *([last_at] if last_at else []), limit * 2),
+            + (" AND (n.last_at < ? OR (n.last_at = ? AND n.id < ?))" if cursor else "") + " ORDER BY n.last_at DESC, n.id DESC LIMIT ?",
+            (*params, *((cursor[0], cursor[0], cursor[1]) if cursor else ()), limit * 2),
         ).fetchall()
         if not page:
             break
         for row in page:
-            last_at = row["last_at"]
+            cursor = (row["last_at"], row["id"])
             if not reach.can_see(_row_note(row)):
                 continue
             rec = {"read_at": row["_read_at"], "snoozed_until": row["_snoozed"]}
             out.append(serialize(conn, row, principal, reach, rec, data_dir))  # type: ignore[arg-type]
+            last_out = (row["last_at"], row["id"])
             if len(out) >= limit:
                 break
         if len(page) < limit * 2:
             break
-    next_before = out[-1]["last_at"] if len(out) >= limit else None
+    next_before = f"{last_out[0]}|{last_out[1]}" if len(out) >= limit and last_out else None
     # pinned: open critical safety rows stay at the top until acknowledged or resolved
     out.sort(key=lambda x: 0 if (x["category"] == "safety" and x["severity"] == "critical" and x["state"] == "open") else 1)
     return {"notifications": out, "next_before": next_before}

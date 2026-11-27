@@ -127,6 +127,7 @@ OPTION_TYPES: dict[str, str] = {
     "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?", "db_conn_pool": "bool?",
     "log_level": "log_level",
     "push_relay_url": "relay_url",  # CR-027 (RELAY-SAFE-2380: https base only, validated by relay_url.check_relay_url): the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
+    "unifiedpush_servers": "str?",  # ANDROID-PUSH-2550: UnifiedPush push-server host names (config.py reads it into the environment; services/unifiedpush.py validates each entry)
     "fleet_report_url": "str?",  # CR-FLEET215: the SmplWise fleet receiver's URL (config.py reads it into the environment; the Arx switch is the other key)
     "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)
     "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)

@@ -160,6 +160,24 @@ class IngestState:
         self.ws_drops = 0  # pushes a slow event socket missed (its queue was full)
         self.queue: "IngestQueue | None" = None  # CR-024: a further recorder's listener has its own queue (None = QUEUE)
 
+    # PILOT-ROLLBACK-2550 (clock jumps): `disconnected_since` stays the wall-clock stamp (the coverage gap's start, the tests set it);
+    # setting it also records the same instant on the monotonic clock, and every "how long has it been down" reads that one. A wall
+    # clock moved back by NTP made an outage read as negative (the top bar went silent, a long outage left no coverage gap); moved
+    # forward, a short blip read as an hour-long gap.
+    @property
+    def disconnected_since(self) -> float | None:
+        return self.__dict__.get("_disconnected_since")
+
+    @disconnected_since.setter
+    def disconnected_since(self, value: float | None) -> None:
+        self.__dict__["_disconnected_since"] = value
+        self.__dict__["_disconnected_mono"] = None if value is None else time.monotonic() - max(0.0, time.time() - value)
+
+    def outage_s(self) -> float:
+        """Seconds the stream has been down (0 while connected or never down), immune to wall-clock jumps."""
+        mono = self.__dict__.get("_disconnected_mono")
+        return 0.0 if mono is None else max(0.0, time.monotonic() - mono)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "connected": self.connected,
@@ -457,16 +475,39 @@ def record_gap(conn: sqlite3.Connection, started: dt.datetime, ended: dt.datetim
 _GAP_FAILED: set[str] = set()  # recorders whose last gap write failed (the traceback is logged once per failure streak)
 
 
-def close_gap(db: Database | None, disconnected_since: float | None, reason: str, recorder_id: str, what: str) -> bool:
+def outage_of(state: Any) -> float | None:
+    """The monotonic outage length of a listener state (IngestState.outage_s); None for a state without one (a test double)."""
+    fn = getattr(state, "outage_s", None)
+    return fn() if callable(fn) else None
+
+
+CLOCK_JUMP_S = 5.0  # wall clock and monotonic clock disagree by more than this over an outage: the wall clock was moved
+
+
+def gap_window(disconnected_since: float, outage_s: float | None) -> tuple[dt.datetime, dt.datetime, float]:
+    """PILOT-ROLLBACK-2550: (since, until, length) of an outage that ends now. `outage_s` = its length on the monotonic clock
+    (IngestState.outage_s); None = only the wall stamp is known (the old reading). When the wall clock was moved during the outage the
+    gap keeps its true length and ends now, instead of a negative or an hour-long span."""
+    now = time.time()
+    until, wall = dt.datetime.fromtimestamp(now, UTC), now - disconnected_since  # one reading of the wall clock for both
+    if outage_s is None or abs(wall - outage_s) <= CLOCK_JUMP_S:
+        return dt.datetime.fromtimestamp(disconnected_since, UTC), until, wall
+    log.warning("the wall clock moved by %+.0f s during an event-stream outage; the coverage gap keeps its measured length (%.0f s)", wall - outage_s, outage_s)
+    return until - dt.timedelta(seconds=outage_s), until, outage_s
+
+
+def close_gap(db: Database | None, disconnected_since: float | None, reason: str, recorder_id: str, what: str, outage_s: float | None = None) -> bool:
     """BACKEND-SAFETY-2435 (review 03 F02): record the coverage gap of a reconnect, for the vendor loops (Provision-ISR,
     Frigate). True when the caller may clear `disconnected_since`: the gap was written and published, or it was too short
     (or there is no database) to record. False when the write failed: logged, never raised, so the listener thread keeps
-    running and the next successful round retries the same gap (its dedup key is the start, so it is written once)."""
+    running and the next successful round retries the same gap (its dedup key is the start, so it is written once).
+    `outage_s` (PILOT-ROLLBACK-2550): the outage's length on the monotonic clock (IngestState.outage_s) - decides the threshold and
+    the span when the wall clock was moved meanwhile."""
     if disconnected_since is None:
         return True
-    if time.time() - disconnected_since < GAP_AFTER_S or db is None:
+    since, until, length = gap_window(disconnected_since, outage_s)
+    if length < GAP_AFTER_S or db is None:
         return True
-    since, until = dt.datetime.fromtimestamp(disconnected_since, UTC), dt.datetime.now(UTC)
 
     def _gap() -> dict[str, Any]:
         with db.connection() as conn:
@@ -649,9 +690,9 @@ class AlertStreamListener:
                             self.state.last_error = f"http_{r.status_code}"
                             raise RuntimeError(f"alertStream HTTP {r.status_code}")
                         if self.state.disconnected_since is not None:
-                            gap = time.time() - self.state.disconnected_since
+                            since, until, gap = gap_window(self.state.disconnected_since, self.state.outage_s())  # PILOT-ROLLBACK-2550: clock jumps
                             if gap >= GAP_AFTER_S:
-                                since, until, why = dt.datetime.fromtimestamp(self.state.disconnected_since, UTC), dt.datetime.now(UTC), self.state.last_error or "disconnected"
+                                why = self.state.last_error or "disconnected"
 
                                 def _gap() -> dict[str, Any]:
                                     with self.db.connection() as conn:

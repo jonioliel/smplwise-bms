@@ -262,6 +262,27 @@ class ManualGrantSource:
             self._last = obs
             return obs
 
+    def observe(self) -> GrantObservation:
+        """LOWS-BRIDGE-GATE-2550 (deep review 2.52 WB-05): the status screen's answer. A fresh observation of the CURRENT connection that
+        really sent the read (`sent`) is answered as it is - the same FRESHNESS_S the writes already rely on (`current_grant`) - so a
+        page that polls, or two administrators, no longer send one signed WisKey read per request, each behind the other under the
+        lock. Anything else (no observation, a stale one, another connection, or one that sent nothing - those cost no read) is read
+        again; a caller that waited for the lock takes the observation the call ahead of it just made."""
+        try:
+            join = self._join()
+        except Exception:  # noqa: BLE001
+            join = None
+        obs = self._last
+        if obs is not None and obs.sent and self._fresh(obs, join):
+            return obs
+        with self._lock:
+            obs = self._last
+            if obs is not None and obs.sent and self._fresh(obs, join):
+                return obs
+            obs = self._refresh_locked()
+            self._last = obs
+            return obs
+
     def _refresh_locked(self) -> GrantObservation:
         from .wiskey_capture_port import PortError
 

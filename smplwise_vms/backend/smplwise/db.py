@@ -1241,7 +1241,19 @@ def release(conn: sqlite3.Connection) -> None:
         return
     with _finishing(conn):
         if open_tx:
-            conn.execute("COMMIT")
+            try:
+                conn.execute("COMMIT")
+            except sqlite3.Error:
+                # PILOT-ROLLBACK-2550: the commit was refused (a full disk: the WAL cannot grow). Roll back HERE: the client is told the
+                # change failed, so the request's closing connection() must never commit it later (space freed in between).
+                try:
+                    if conn.in_transaction:
+                        conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    _spoil(conn)
+                if not conn.in_transaction:
+                    _end_hold(conn)
+                raise
         _end_hold(conn)  # hands the gate on
     conn.execute("PRAGMA query_only=1")
     db = database_of(conn)

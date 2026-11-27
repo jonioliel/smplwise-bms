@@ -148,6 +148,9 @@ def rotate_key(conn: sqlite3.Connection) -> tuple[str, int]:
     removed; each browser that still has notification permission re-subscribes with the new key the next time Arx
     opens there (push.ts syncSubscription). Returns (new public key, subscriptions removed)."""
     removed = conn.execute("DELETE FROM push_subscriptions").rowcount
+    # ANDROID-PUSH-2550: a phone's UnifiedPush endpoint was registered with the old public key too (a distributor may bind it): drop the
+    # endpoints, the app sees `push.registered: false` and registers again with the key `presence/config` now returns
+    conn.execute("UPDATE mobile_devices SET push_up_endpoint = NULL, push_up_p256dh = NULL, push_up_auth = NULL, push_platform = NULL WHERE push_up_endpoint IS NOT NULL")
     conn.execute("DELETE FROM push_vapid")
     with _KEYS_LOCK:
         _KEYS.pop(_db_key(conn), None)

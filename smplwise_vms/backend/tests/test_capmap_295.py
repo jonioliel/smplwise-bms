@@ -194,6 +194,13 @@ REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
      "Persister.clean_entry blanks only the retired code recognised by its saved tag; a new PairingFence class (the 'same pairing' "
      "gate of the bridge's own services) in front of KeySet.verify. A fresh KeySet (no stored state, the vectors' case) takes exactly "
      "the old path; sign(), verify() / _check(), the v1/v2 recipes and handle_control() are byte-for-byte unchanged."),
+    ("custom_components/smplwise_bridge/keyset.py",
+     "05d6458f4fc8843121c4a6d003191d825a17724f042ceddccb4c43021bb005c4",
+     "78a444e622a6fdeb89d98ee3bfd592e550876f75588dddd96a2b9420e4a5247a",
+     "LOWS-BRIDGE-GATE-2550 (deep review 2.52 WB-06, bridge 0.10.10): only the Persister changed - persist()'s body moved into "
+     "_persist_held() (persist() takes the lock and calls it), control() holds that lock for snapshot + handle_control + save and sets "
+     "dirty after a rollback; two docstring lines. KeySet, sign(), verify() / _check(), the v1/v2 recipes and handle_control() - the "
+     "path lease_contract.validate takes for these vectors - are byte-for-byte unchanged."),
     ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
      "58cfc9139623f4184e427950a0f03569db04c27ab18f1cdf9e8a25272a7caa74",
      "3a7ee1f8a6501407c9a28746f605817ab7b523659f198b16217698131a99f886",

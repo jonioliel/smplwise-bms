@@ -214,6 +214,17 @@ class HomeUserPolicy(WireModel):
     guests: bool
     can_invite: bool
     building_id: str | None = None  # MULTI-BUILDING-HOME-2500 (Q65)
+    # HOME-PERMS-WARN-2550 (D-11): the home categories this person reads for the whole site, not one household (a display hint)
+    site_wide: list[Literal["bills", "energy", "water"]] = Field(default_factory=list)
+
+
+class HomeSharedScope(WireModel):
+    """HOME-PERMS-WARN-2550 (D-11): how much of the site a site-wide home category shows - billing customers (households), active
+    electricity accounts, electricity and water meters (not retired). null = unknown (the database cannot answer)."""
+    customers: int | None
+    bill_accounts: int | None
+    energy_meters: int | None
+    water_meters: int | None
 
 
 class HomePolicies(WireModel):
@@ -222,6 +233,7 @@ class HomePolicies(WireModel):
     seed: dict[str, Any]
     kiosk_code_set: bool
     buildings: list[HomeBuilding] | None = None  # MULTI-BUILDING-HOME-2500 (Q65): only on a multi-building site
+    shared_scope: HomeSharedScope | None = None  # HOME-PERMS-WARN-2550
 
 
 class HomeSeed(WireModel):

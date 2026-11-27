@@ -81,13 +81,13 @@ def _expected_revision(if_match: str | None, body_revision: Any) -> int | None:
 @router.get("/notifications", **wire(W.NotificationPage))
 def list_notifications(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                        state: Literal["open", "all"] = "all", category: str | None = Query(None, max_length=32), severity_min: Literal["info", "alert", "critical"] | None = None,
-                       unread: bool = False, before: str | None = Query(None, max_length=40), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+                       unread: bool = False, before: str | None = Query(None, max_length=120), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     """The caller's inbox, newest first (open critical safety rows pinned on top). `state=open` hides resolved rows."""
     if category and category not in policies.CATEGORIES:
         raise field_error("קטגוריה לא מוכרת.", ["category"], legacy={"field": "category"})
     if before:
         try:
-            parse_utc(before)
+            parse_utc(before.partition("|")[0])  # LOWS-BACKEND-2550 (CORE-08): "<last_at>|<id>", or the old one-part cursor
         except ValueError:
             raise field_error("before חייב להיות זמן UTC.", ["before"], legacy={"field": "before"}) from None
     return notify.list_for(conn, principal, state=state, category=category, severity_min=severity_min, unread=unread, before=before, limit=limit, data_dir=settings_of(request).data_dir)
@@ -461,10 +461,10 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
             c["skipped"][r["reason"] or "other"] = c["skipped"].get(r["reason"] or "other", 0) + r["n"]
     by_source = {r["source"]: r["n"] for r in store.notification_counts_by_source_since(conn, since)}
     worker = {k: push_svc.STATS[k] for k in ("queued", "sent", "retried", "gone", "failed", "refused", "retry_skipped", "rate_limited", "dropped_queue")}
-    from ..services import mobile_push  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
+    from ..services import mobile_push, unifiedpush  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
 
     return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": store.push_subscription_count(conn),
-            "app_relay": mobile_push.relay_health()}
+            "app_relay": mobile_push.relay_health(), "app_unifiedpush": unifiedpush.health()}  # ANDROID-PUSH-2550: off / invalid / ok, no host names
 
 
 def _reset_for_tests() -> None:

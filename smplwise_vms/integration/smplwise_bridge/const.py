@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.9"
+VERSION = "0.10.10"
+# 0.10.10 (LOWS-BRIDGE-GATE-2550, deep review 2.52 WB-06): keyset.Persister.control holds the saver's lock for the whole rotation step
+# (snapshot, op, save) - a second control during a failing save no longer answers "ok" for a change the rollback reverts - and a
+# rolled-back step leaves the key set dirty, so a high-water mark whose delayed save was pending is saved by the next persist. No answer,
+# refusal code or signature byte changes. Needs one Home Assistant restart (by the owner) to load - the same one 0.10.9 still waits for.
 # 0.10.9 (WISKEY-BRIDGE-KEYSET-2520, WisKey adoption plan 2.52): new module native_keyset.py - the key-set binding WisKey rc19's direct
 # transport v2 imports (`verify` -> a binding with `check()` / `sign_reply()`, `Unavailable`, `legacy_allowed`, `source_fingerprint`,
 # `attach`). It verifies a kid-signed frame with this setup's own KeySet (v2 only, never the kid-less recipe; `g0-legacy` refused on v2;

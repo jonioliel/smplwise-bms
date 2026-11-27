@@ -12,6 +12,7 @@ import io
 import json
 import logging
 import re
+import shutil
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -152,7 +153,7 @@ if NEVER_EXPORTED_TABLES & set(PROJECT_TABLES + ACCESS_TABLES + OPTIONAL_TABLES[
     raise RuntimeError("a never-exported table is listed for backup")
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], "plan_bakes": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
-KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7, "auto-pre-restore": 3}  # OFFBOX-RESTORE-2300: the safety archive written before a restore from an off-box copy
+KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7, "auto-pre-restore": 3, "auto-pre-legacy-import": 5}  # OFFBOX-RESTORE-2300: the safety archive written before a restore from an off-box copy
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
                  # BRIDGE-STALE-DISCOVERY-2383: which Supervisor discovery messages THIS installation posted - local infrastructure state
                  "bridge.discovery_messages", "bridge.discovery_swept_at",
@@ -430,6 +431,34 @@ def _drop_invalid_settings(data: dict[str, list[dict[str, Any]]]) -> list[str]:
 
 
 MAX_UPLOAD = 200 * 1024 * 1024
+# LOWS-BACKEND-2550 (CORE-09): the decompressed size of an archive member is checked before it is read - the upload limit above is on
+# the COMPRESSED file, and a highly compressible member would otherwise be held whole in memory (by the upload, by every list of the
+# backups and by the notification monitor's pass). Far above anything a real installation writes.
+MANIFEST_MAX_BYTES = 1024 * 1024
+TABLE_MEMBER_MAX_BYTES = 256 * 1024 * 1024
+FILE_MEMBER_MAX_BYTES = 512 * 1024 * 1024
+
+
+def read_member_capped(z: zipfile.ZipFile, name: str, cap: int) -> bytes:
+    """One archive member, refused (ValueError) when its declared or its real decompressed size is over `cap`."""
+    info = z.getinfo(name)
+    if info.file_size > cap:
+        raise ValueError(f"backup member {name} is too large ({info.file_size} bytes, at most {cap})")
+    with z.open(info) as f:
+        data = f.read(cap + 1)
+    if len(data) > cap:
+        raise ValueError(f"backup member {name} is too large (at most {cap} bytes)")
+    return data
+
+
+def check_member_sizes(z: zipfile.ZipFile) -> None:
+    """Every member against its cap, before anything of a restore is deleted or written (ValueError names the first one over)."""
+    for info in z.infolist():
+        name = info.filename
+        cap = (MANIFEST_MAX_BYTES if name == "manifest.json" else TABLE_MEMBER_MAX_BYTES if name.startswith("data/")
+               else FILE_MEMBER_MAX_BYTES if name.startswith("files/") else None)
+        if cap is not None and info.file_size > cap:
+            raise ValueError(f"backup member {name} is too large ({info.file_size} bytes, at most {cap})")
 DAILY_SECONDS = 24 * 3600
 
 
@@ -580,7 +609,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     with zipfile.ZipFile(path) as z:
         if "manifest.json" not in z.namelist():
             raise ValueError("not a SMPLWISE backup (manifest.json missing)")
-        m = json.loads(z.read("manifest.json").decode("utf-8"))
+        m = json.loads(read_member_capped(z, "manifest.json", MANIFEST_MAX_BYTES).decode("utf-8"))
     if not isinstance(m, dict) or m.get("format") != FORMAT:
         raise ValueError("unsupported backup format")
     return m
@@ -913,10 +942,11 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     data: dict[str, list[dict[str, Any]]] = {}
     with zipfile.ZipFile(path) as z:
         names = set(z.namelist())
+        check_member_sizes(z)  # LOWS-BACKEND-2550 (CORE-09): before any row is deleted
         for t in tables:
             member = f"data/{t}.json"
             if member in names:
-                data[t] = json.loads(z.read(member).decode("utf-8"))
+                data[t] = json.loads(read_member_capped(z, member, TABLE_MEMBER_MAX_BYTES).decode("utf-8"))
         # BACKUP-HASH-ENC: decided before any row is deleted
         sens_state, payload, sens_skipped = _open_sensitive(manifest, z, names, backup_password, skip_sensitive)
         plaintext_ignored = sens.strip_plaintext(data) if sens_state != "legacy" else 0
@@ -1021,7 +1051,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 files += 1
                 continue
             with z.open(member) as src, open(dest, "wb") as dst:
-                dst.write(src.read())
+                shutil.copyfileobj(src, dst, 1024 * 1024)  # LOWS-BACKEND-2550 (CORE-09): streamed, never the whole member in memory
             files += 1
         energy: dict[str, Any] = {}
         if "energy_meters" in tables:  # CR-023: the allow-listed energy.db part, only for meters the restored project has
@@ -1226,7 +1256,8 @@ def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:
         with zipfile.ZipFile(io.BytesIO(content)) as z:
             if "manifest.json" not in z.namelist():
                 raise ValueError("not a SMPLWISE backup (manifest.json missing)")
-            m = json.loads(z.read("manifest.json").decode("utf-8"))
+            check_member_sizes(z)  # LOWS-BACKEND-2550 (CORE-09): an archive with an over-size member is refused at upload
+            m = json.loads(read_member_capped(z, "manifest.json", MANIFEST_MAX_BYTES).decode("utf-8"))
     except zipfile.BadZipFile as exc:
         raise ValueError("not a zip file") from exc
     if m.get("format") != FORMAT:

@@ -264,6 +264,17 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     gone = [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute(
         f"SELECT recorder_id, channel FROM cameras WHERE recorder_id IN ({','.join('?' * len(removed_ids))})", removed_ids).fetchall()
         for p in ("sub", "main")] if removed_ids else []
+    # LOWS-BACKEND-2550 (V-06): a DISABLED camera is treated like a disabled recorder - its streams (with the recorder's credentials in
+    # their source) leave go2rtc by exact name, unless an enabled camera row names the same stream
+    keep = {(c["recorder_id"], c["channel"]) for c in cams}
+    for r in conn.execute("SELECT recorder_id, channel FROM cameras WHERE enabled = 0 AND recorder_id IS NOT NULL AND channel IS NOT NULL").fetchall():
+        if (r["recorder_id"], r["channel"]) in keep or r["recorder_id"] in removed_ids:
+            continue
+        for p in ("sub", "main"):
+            try:
+                gone.append(g2.stream_name(r["recorder_id"], r["channel"], p))
+            except ValueError:
+                continue
     from . import live_codec
 
     # LIVE-H265-2341: the H.264 variants a viewer had go2rtc transcode go with their camera's streams (exact names, our namespace)

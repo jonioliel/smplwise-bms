@@ -651,7 +651,8 @@ def account_status(conn: sqlite3.Connection, provider: WaterReadings, acc: sqlit
     c = eb.cycle_of(acc)
     today = per.local_date(now, tz)
     p = per.period_containing(c, max(today, c.first_start))
-    out: dict[str, Any] = {"period": p.as_api() if p else None, "day_of_period": None, "days": None, "m3_so_far": None, "meters": [], "stale": []}
+    out: dict[str, Any] = {"period": p.as_api() if p else None, "day_of_period": None, "days": None, "m3_so_far": None, "meters": [], "stale": [],
+                           "billing_gaps": [g.as_api() for g in bl.billing_gaps(KIND, conn, acc["id"])]}  # DATA-RULES-2-2550
     if p is None:
         return out
     out["day_of_period"], out["days"] = min(p.days, (today - p.start).days + 1), p.days

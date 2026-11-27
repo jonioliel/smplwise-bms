@@ -12,7 +12,12 @@ area, floor - all on HA's non-admin subscribe allow-list). Any of them schedules
 refresh changed the mirror, a `structure_changed` notice goes out on /ha/ws so open screens refetch. The periodic
 refresh stays as a safety net, and `HaSync.refresh_now` lets a user force one. A refresh whose entity or device
 listing fails writes nothing (a partial listing would move every device-area entity to "no area" and tombstone
-entities); a failed area / floor listing keeps that mirror table and resolves names from it."""
+entities); a failed area / floor listing keeps that mirror table and resolves names from it.
+
+State reconcile (HA-STATE-RECONCILE-2550): every `ha.state_reconcile_min` minutes (10 by default, 0 = off) the session reads all
+states once more (one read-only `get_states`) and writes only the entities whose state HA reports as strictly newer than the
+stored one - a state update lost to a busy database (or to anything else) is repaired within one interval. An older snapshot never
+replaces a newer stored state, a state a live event touched during the cycle is left to that event, and nothing is invented."""
 from __future__ import annotations
 
 import asyncio
@@ -129,6 +134,7 @@ class SyncState:
         # rate-limited) attempt is due; 0 / None while the token is accepted
         self.auth_refusals = 0
         self.next_attempt_at: str | None = None
+        self.dropped_frames = 0  # LOWS-BACKEND-2550 (CORE-06): frames a full /ha/ws subscriber queue could not take (since start)
 
     def __setattr__(self, name: str, value: Any) -> None:
         # when the connection was lost (monotonic): the NVR-less health reports an HA outage past a grace period
@@ -229,7 +235,22 @@ def publish(msg: dict[str, Any]) -> None:
         try:
             q.put_nowait(msg)
         except queue.Full:
-            pass
+            # LOWS-BACKEND-2550 (CORE-06): never silently - the socket's handler sees the mark and tells its client to refetch
+            q.overflowed = True  # type: ignore[attr-defined]
+            STATE.dropped_frames += 1
+
+
+def take_overflow(q: queue.Queue) -> bool:
+    """LOWS-BACKEND-2550 (CORE-06): True once after `publish` dropped a frame for this subscriber. The frames still queued are older
+    than the refetch the client is about to make, so they are discarded (a stale frame landing after the refetch would undo it)."""
+    if not getattr(q, "overflowed", False):
+        return False
+    q.overflowed = False  # type: ignore[attr-defined]
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            return True
 
 
 FORECAST_KEEP = 14  # a weather entity's own `forecast` attribute: the first entries only (a week of days, or half a day of hours)
@@ -271,6 +292,28 @@ def scrub_attributes(attrs: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in attrs.items() if k not in SECRET_ATTRS and not _tokenised(v)}
 
 
+ATTR_BUDGET = 4000  # characters of the stored attribute document (the TV lists above are outside it)
+
+
+def _fit_attributes(kept: dict[str, Any], budget: int) -> dict[str, Any]:
+    """LOWS-BACKEND-2550 (CORE-07): bring the attribute document under `budget` without ever cutting the JSON text (a cut document
+    does not parse, and every reader then sees no attributes at all). The largest attribute goes first: a list loses its tail items
+    (halved, never a cut string), anything else is dropped whole - the small ones (unit, device class, name, icon) stay."""
+    out = dict(kept)
+
+    def size(v: Any) -> int:
+        return len(json.dumps(v, ensure_ascii=False, default=str))
+
+    while out and len(json.dumps(out, ensure_ascii=False, default=str)) > budget:
+        key = max(out, key=lambda k: size(out[k]) + len(k))
+        value = out[key]
+        if isinstance(value, list) and len(value) > 1:
+            out[key] = value[: len(value) // 2]
+        else:
+            del out[key]
+    return out
+
+
 def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     kept = scrub_attributes({k: v for k, v in (attrs or {}).items() if k in ATTR_ALLOW})
     if "forecast" in kept:
@@ -281,9 +324,9 @@ def trim_attributes(attrs: dict[str, Any], domain: str | None = None) -> str:
     if domain in ("media_player", "scene") and isinstance((attrs or {}).get("entity_id"), list):  # CR-017: a scene's members (a native scene lists what it sets)
         media_lists["entity_id"] = _media_list(attrs["entity_id"], HELPER_GROUP_MEMBERS_MAX)  # CR-016: the members of a helper group (a shortcut, never joinable)
     text = json.dumps(kept, ensure_ascii=False, default=str)
-    if len(text) > 4000:
-        kept = {k: kept[k] for k in list(kept)[:10]}
-        text = json.dumps(kept, ensure_ascii=False, default=str)[:4000]
+    if len(text) > ATTR_BUDGET:
+        kept = _fit_attributes(kept, ATTR_BUDGET)
+        text = json.dumps(kept, ensure_ascii=False, default=str)
     if media_lists:
         try:
             merged = json.loads(text)
@@ -794,6 +837,133 @@ def compact_held(held: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [held[i] for i in sorted(last.values())]
 
 
+# HA-STATE-RECONCILE-2550 (deep review CORE-03, its second suggestion; CORE-RELIABILITY-2540 open question 1 = a): the periodic full
+# state reconcile. The setting is in minutes; 0 = off, any other value is held to RECONCILE_MIN_MIN..RECONCILE_MAX_MIN (a damaged
+# row reads as the default). The loop looks at the setting once per RECONCILE_TICK_S, so a change applies within a minute.
+RECONCILE_SETTING = "ha.state_reconcile_min"
+RECONCILE_DEFAULT_MIN = 10
+RECONCILE_MIN_MIN = 5
+RECONCILE_MAX_MIN = 1440
+RECONCILE_TICK_S = 60.0
+RECONCILE_OUTCOMES = ("repaired", "older", "same", "live", "removed", "unknown_time", "failed")
+
+
+def reconcile_interval_min(raw: Any) -> int:
+    """The interval in minutes the loop uses for a stored setting value: 0 = off; 1..4 -> RECONCILE_MIN_MIN; above the maximum ->
+    RECONCILE_MAX_MIN; unreadable or negative -> the default."""
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return RECONCILE_DEFAULT_MIN
+    if n == 0:
+        return 0
+    if n < 0:
+        return RECONCILE_DEFAULT_MIN
+    return max(RECONCILE_MIN_MIN, min(RECONCILE_MAX_MIN, n))
+
+
+def reconcile_interval_s(db: Database) -> float:
+    """The reconcile interval in seconds (0.0 = off), read from the settings; a read that fails uses the default."""
+    from .settings_store import setting_value  # local import: settings_store imports many services
+
+    try:
+        with db.connection(mode="read") as conn:
+            raw = setting_value(conn, RECONCILE_SETTING)
+    except Exception:  # noqa: BLE001 - a busy or damaged settings read never stops the reconcile
+        log.debug("state reconcile: the interval setting could not be read", exc_info=True)
+        raw = RECONCILE_DEFAULT_MIN
+    return reconcile_interval_min(raw) * 60.0
+
+
+def reconcile_decision(snap: dict[str, Any], stored: Any, touched: set[str] | frozenset[str]) -> str:
+    """What the reconcile does with one state of the listing against the stored row (`state`, `last_updated`, `removed_at`; None =
+    no row): "repaired" = write it; otherwise the reason it is left as stored:
+    - "live": a `state_changed` event (or a removal) for the entity arrived while the cycle ran - the event is the newer word;
+    - "removed": the entity is tombstoned (the registry refresh and the next state event decide about it, not a snapshot);
+    - "unknown_time": either time is missing or unreadable - nothing is guessed, the stored state stays;
+    - "older" / "same": HA's state is older than / as old as the stored one (never replaces a newer event).
+    A row that never had a state (a registry-only row) takes the listing's state; so does an entity the mirror does not know.
+    `unknown` / `unavailable` are states like any other: written as they are when newer, kept as they are otherwise."""
+    eid = str(snap.get("entity_id") or "")
+    if eid in touched:
+        return "live"
+    if stored is None:
+        return "repaired"
+    if stored["removed_at"] is not None:
+        return "removed"
+    if stored["state"] is None and stored["last_updated"] is None:
+        return "repaired"
+    snap_t = _ha_time(snap.get("last_updated"))
+    stored_t = _ha_time(stored["last_updated"])
+    if snap_t is None or stored_t is None:
+        return "unknown_time"
+    if snap_t > stored_t:
+        return "repaired"
+    return "older" if snap_t < stored_t else "same"
+
+
+def _reconcile_row(conn: sqlite3.Connection, entity_id: str) -> Any:
+    return conn.execute("SELECT state, last_updated, removed_at FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+
+
+def reconcile_states(db: Database, listing: list[Any], seen: str, touched: set[str]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Compare a full `get_states` listing with the mirror and write only the states HA reports as newer (reconcile_decision).
+    One read transaction finds the candidates; each candidate is decided again inside the chunk's write transaction (a live event
+    may have written it meanwhile) and written through upsert_state (the mirror row and its history row - never the correlation,
+    notification or rule hooks: a reconciled state is not an event that just happened). Entities missing from the listing are left
+    as they are (the registry refresh decides about them). A chunk the database refuses after its retries stops the cycle: the
+    rest is counted as failed and the next cycle tries again. Returns (the written rows, a count per outcome)."""
+    counts = {k: 0 for k in RECONCILE_OUTCOMES}
+    states = [st for st in listing if isinstance(st, dict) and isinstance(st.get("entity_id"), str) and "." in st["entity_id"]
+              and st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
+    with db.connection(mode="read") as conn:
+        stored = {r["entity_id"]: r for r in conn.execute("SELECT entity_id, state, last_updated, removed_at FROM ha_entities").fetchall()}
+    candidates: list[dict[str, Any]] = []
+    for st in states:
+        decision = reconcile_decision(st, stored.get(st["entity_id"]), touched)
+        if decision == "repaired":
+            candidates.append(st)
+        else:
+            counts[decision] += 1
+    rows: list[dict[str, Any]] = []
+    chunks = list(_chunks(candidates))
+    for i, chunk in enumerate(chunks):
+        def _write(chunk=chunk) -> tuple[list[dict[str, Any]], dict[str, int]]:
+            out: list[dict[str, Any]] = []
+            local = {k: 0 for k in RECONCILE_OUTCOMES}  # fresh on every retry of the chunk
+            with db.connection(durable=False) as conn:
+                for st in chunk:
+                    decision = reconcile_decision(st, _reconcile_row(conn, st["entity_id"]), touched)
+                    if decision != "repaired":
+                        local[decision] += 1
+                        continue
+                    conn.execute("SAVEPOINT reconcile_row")
+                    try:
+                        out.append(upsert_state(conn, st, seen))
+                        local["repaired"] += 1
+                    except DATA_ERRORS as exc:
+                        conn.execute("ROLLBACK TO reconcile_row")
+                        local["failed"] += 1
+                        log.debug("state reconcile: a state not stored: %s", type(exc).__name__)
+                    finally:
+                        conn.execute("RELEASE reconcile_row")
+            return out, local
+        try:
+            written, local = _busy_retry(_write)
+        except Exception as exc:  # noqa: BLE001 - a busy / full database: the next cycle repairs what this one could not
+            if is_storage_full(exc):
+                log_storage_full(log, "HA state reconcile")
+            else:
+                log.warning("HA state reconcile: write stopped: %s", type(exc).__name__)
+            counts["failed"] += sum(len(c) for c in chunks[i:])
+            break
+        rows.extend(written)
+        for k, v in local.items():
+            counts[k] += v
+    counts["read"] = len(states)
+    return rows, counts
+
+
 def snapshot(db: Database, settings: Settings) -> int:
     """REST snapshot (also usable without the WebSocket, e.g. in tests)."""
     states = ha_client.get_states(settings)
@@ -839,6 +1009,9 @@ class HaSync:
         self._ha_lost_at: str | None = None  # the moment a ready session was lost: the next ready session means the platform restarted since
         # CR-038 S5b: the ids of this session's TICKET_EVENTS subscriptions ([] = not subscribed)
         self._ticket_sub_ids: list[int] = []
+        # HA-STATE-RECONCILE-2550: while a reconcile runs, the entity ids a live state event touched (None = no reconcile running)
+        self._reconcile_touched: set[str] | None = None
+        self.last_reconcile: dict[str, Any] | None = None  # the counts of the last finished (or skipped) reconcile, for diagnostics
 
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
@@ -931,6 +1104,9 @@ class HaSync:
             eid = data.get("entity_id", "")
             if eid.split(".", 1)[0] in STATE_DOMAINS_SKIP:
                 return
+            touched = self._reconcile_touched
+            if touched is not None and "new_state" in data:  # HA-STATE-RECONCILE-2550: the live event wins over the cycle's listing
+                touched.add(str(eid))
             if held is not None and "new_state" in data:  # a registry_updated frame (no new_state key) is not a state event
                 held.append(data)
                 if len(held) > HELD_STATES_MAX:
@@ -1097,6 +1273,26 @@ class HaSync:
 
             refresher_task = asyncio.create_task(refresher(), name="ha-registry-refresher")
 
+            # HA-STATE-RECONCILE-2550: the periodic full state reconcile (the setting is read once a tick; 0 = off)
+            async def reconciler() -> None:
+                last = loop.time()  # the connect snapshot was just stored: the first cycle is one interval from now
+                while not stop_evt.is_set():
+                    await asyncio.sleep(RECONCILE_TICK_S)
+                    interval = await loop.run_in_executor(None, reconcile_interval_s, db)
+                    if interval <= 0 or loop.time() - last < interval:
+                        continue
+                    last = loop.time()
+                    try:
+                        await self.reconcile_now(call, "periodic")
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - one failed cycle never ends the loop
+                        log.warning("HA state reconcile failed: %s", type(exc).__name__)
+
+            reconciler_task = asyncio.create_task(reconciler(), name="ha-state-reconciler")
+            tasks.add(reconciler_task)
+            reconciler_task.add_done_callback(tasks.discard)
+
         try:
             await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)
         finally:
@@ -1141,6 +1337,50 @@ class HaSync:
             if notify and (changed or force_notice):
                 publish({"type": "structure_changed", "reason": reason, "changed": changed, "last_registry_at": STATE.last_registry_at})
             return changed
+
+    async def reconcile_now(self, call, reason: str = "periodic") -> dict[str, Any]:
+        """HA-STATE-RECONCILE-2550: one state reconcile on this session - one read-only `get_states`, then reconcile_states off the
+        loop, then an `entity_state_changed` push per repaired row. Skipped (nothing asked, nothing written) while Home Assistant is
+        not connected or while another reconcile still runs. Logs ONE summary line of counts (never an entity id at info level).
+        Returns the counts, or {"skipped": reason}."""
+        if self.db is None or not STATE.connected:
+            return self._reconcile_done({"skipped": "disconnected"}, reason)
+        if self._reconcile_touched is not None:
+            return self._reconcile_done({"skipped": "busy"}, reason)
+        db = self.db
+        touched: set[str] = set()
+        self._reconcile_touched = touched  # from before the listing is asked for: an event that races it is never undone
+        started = time.monotonic()
+        try:
+            reply = await call("get_states")
+            if not isinstance(reply, dict) or reply.get("success") is False:
+                code = ((reply or {}).get("error") or {}).get("code") if isinstance(reply, dict) else None
+                log.warning("HA state reconcile (%s): the state listing was refused (%s); nothing changed", reason, code)
+                return self._reconcile_done({"skipped": "refused"}, reason)
+            listing = reply.get("result")
+            if not isinstance(listing, list):
+                log.warning("HA state reconcile (%s): no state listing in the answer; nothing changed", reason)
+                return self._reconcile_done({"skipped": "refused"}, reason)
+            if not STATE.connected:  # the session dropped while the listing came in
+                return self._reconcile_done({"skipped": "disconnected"}, reason)
+            rows, counts = await asyncio.get_running_loop().run_in_executor(None, reconcile_states, db, listing, now_iso(), touched)
+        finally:
+            self._reconcile_touched = None
+        for row in rows:
+            STATE.sequence += 1
+            publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
+        counts["ms"] = int((time.monotonic() - started) * 1000)
+        log.info("HA state reconcile (%s) in %d ms: %d states read, %d repaired, %d older kept, %d unchanged, %d updated live during the cycle, "
+                 "%d removed kept, %d without a readable time kept, %d not written",
+                 reason, counts["ms"], counts["read"], counts["repaired"], counts["older"], counts["same"], counts["live"], counts["removed"],
+                 counts["unknown_time"], counts["failed"])
+        return self._reconcile_done(counts, reason)
+
+    def _reconcile_done(self, result: dict[str, Any], reason: str) -> dict[str, Any]:
+        if "skipped" in result:
+            log.debug("HA state reconcile (%s) skipped: %s", reason, result["skipped"])
+        self.last_reconcile = {**result, "reason": reason, "at": now_iso()}
+        return result
 
     # ------------------------------------------------------------------ CR-014: the scheduler component (read-only WS calls)
 

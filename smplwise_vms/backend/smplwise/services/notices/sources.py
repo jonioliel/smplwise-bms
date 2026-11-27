@@ -460,8 +460,10 @@ class NewsCache:
             self._health[url] = (now, None) if titles is not None else (self._health.get(url, (None, None))[0], code)
             if titles is not None:
                 self._items[url] = (now, titles)
-            elif url in self._items:
-                self._items[url] = (now, self._items[url][1])  # back off for one TTL
+            else:
+                # back off for one TTL - LOWS-BACKEND-2550 (D-10): also a feed that never succeeded (no titles yet): it used to be fetched
+                # again on every board poll as soon as the previous attempt ended
+                self._items[url] = (now, self._items[url][1] if url in self._items else [])
 
     def titles(self, url: str) -> list[str]:
         with self._lock:
