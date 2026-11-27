@@ -249,7 +249,8 @@ test('SCR-39: "send note" returns while a note is on its way and redraws the dis
   const s = code('home/home-tickets.ts');
   const send = between(s, 'p2TkNoteSend: (el) => {', '\n  },\n}));');
   expect(send).toMatch(/^p2TkNoteSend: \(el\) => \{\s*if \(st\.busy\) return;/);
-  expect(send).toMatch(/st\.busy = true;\s*h\.requestUpdate\(\);\s*void ticketNote/);
+  // FIX-TICKETS-2560 (TK-03): the note goes through sendNote (the same key, or a fresh one only after 409 request_body_changed)
+  expect(send).toMatch(/st\.busy = true;\s*h\.requestUpdate\(\);\s*void sendNote/);
 });
 
 // ---------------------------------------------------------------- owner answers (unanswered = recommendation): Q1a, Q2a, Q3a
@@ -259,7 +260,9 @@ test('Q1a (SCR-39): the note carries its own request id - one per opening of the
   expect(api).toMatch(/export const ticketNote = \(id: string, text: string, clientRequestId: string\) =>\s*post<\{ ticket: Ticket \}>\(`home\/tickets\/\$\{encodeURIComponent\(id\)\}\/notes`, \{ text, client_request_id: clientRequestId \}\);/);
   const s = code('home/home-tickets.ts');
   expect(s).toMatch(/p2TkNote: \(el\) => \{ st\.draft\.note = ''; st\.draft\.noteCrid = rid\(\);/);
-  expect(s).toMatch(/void ticketNote\(el\.dataset\.id \?\? '', text, st\.draft\.noteCrid \|\| rid\(\)\)\.then\(\(\) => \{ st\.draft\.noteCrid = '';/);
+  expect(s).toMatch(/void sendNote\(el\.dataset\.id \?\? '', text, st\.draft\.noteCrid \|\| rid\(\)\)\.then\(\(\) => \{ st\.draft\.noteCrid = '';/);
+  // a retry with the same text reuses the key; only an edited text (409 request_body_changed) is sent again under a new key
+  expect(api).toMatch(/return await ticketNote\(id, text, clientRequestId\);\s*\} catch \(e\) \{\s*if \(\(e as \{ code\?: string \} \| null\)\?\.code !== 'request_body_changed'\) throw e;\s*return ticketNote\(id, text, newKey\(\)\);/);
 });
 
 /** A bulk record with only what followBulk reads. */
