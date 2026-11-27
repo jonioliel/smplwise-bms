@@ -224,7 +224,8 @@ def policies(principal: Principal = Depends(current_principal_ro), conn: sqlite3
     from ..db import get_setting
 
     seed = {row["room_key"]: hi._loads(row["items_json"]) or [] for row in store.favourites_seed_rows(conn)}
-    out = {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY))}
+    out = {"users": hi.list_policies(conn), "modules": list(hi.MODULES), "seed": seed, "kiosk_code_set": bool(get_setting(conn, hi.KIOSK_CODE_KEY)),
+           "shared_scope": hi.shared_scope(conn)}  # HOME-PERMS-WARN-2550 (D-11): what a site-wide category shows
     choices = hb.building_choices(conn)  # MULTI-BUILDING-HOME-2500 (Q65): the per-person building picker, only on a multi-building site
     if choices is not None:
         out["buildings"] = choices

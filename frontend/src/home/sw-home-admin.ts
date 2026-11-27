@@ -7,6 +7,11 @@
 // many at once, filtered by suggestion / class / room). The classification needs system.configure (its stores are Settings').
 // HOME-WALL-NIGHT-2500: a fourth sub-tab, "מסכי קיר" - the wall panels' rest screen, night mode and screen takeover (installation settings,
 // the same PUT /home/settings; owner 22.11 Q70 / Q71 / Q73 / Q74). Drawn in this tab's own look: cards, switch rows and option lists.
+// HOME-PERMS-WARN-2550 (LOWS-BACKEND-2550 finding D-11, question 3 = a): a read-only warning under a person's categories when the electricity
+// bill, electricity or water category is on and the person's permission reads that data for the whole site (`site_wide`), on a site with
+// more than one billing customer (`shared_scope.customers`; unknown = shown). There is no person -> customer / meter binding yet. Changes nothing.
+// HOME-PERMS-WARN-2550 (owner Q2 = a): one line under the room list - it hides rooms on the home main screen only; cameras, recordings and
+// device actions follow the person's permissions (the server filters the home overview by it, nothing else).
 import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -25,6 +30,7 @@ import type { SegmentedChange } from '../components/sw-segmented';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
 import '../components/sw-dropdown'; // MULTI-BUILDING-HOME-2500: the person's building
+import '../components/sw-icon'; // HOME-PERMS-WARN-2550: the site-wide warning
 import { tr } from '../i18n/msg/home';
 
 /* The page's rows are the backend's response models (wire/home_interface.py, ../api/generated/wire-home-interface.ts); narrowed on
@@ -107,6 +113,13 @@ export class SwHomeAdmin extends LitElement {
     .cls.protected { background: var(--sw-surface-3, var(--sw-surface-2)); color: var(--sw-heading); font-weight: 600; }
     .sug { display: inline-flex; gap: var(--sw-s-1h); align-items: center; flex-wrap: wrap; }
     .sug .why { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+    /* HOME-PERMS-WARN-2550: the site-wide data warning (the access screens' callout, warning tone) */
+    .warn { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sw-s-2); align-items: start; margin-block-start: var(--sw-s-3); padding: var(--sw-s-2) var(--sw-s-3);
+      border-radius: var(--sw-r-md); background: var(--sw-warning-soft); color: var(--sw-text); font-size: var(--sw-fs-sm); }
+    .warn > sw-icon { color: var(--sw-warning-text); }
+    .warn b { display: block; color: var(--sw-warning-text); }
+    .warn ul { margin: var(--sw-s-1) 0; padding-inline-start: var(--sw-s-4); display: grid; gap: var(--sw-s-1); }
+    .warn .note { color: var(--sw-text-2); }
     .pager { display: flex; gap: var(--sw-s-2); align-items: center; justify-content: flex-end; margin-block-start: var(--sw-s-2); color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
   `;
 
@@ -484,9 +497,37 @@ export class SwHomeAdmin extends LitElement {
       <div class="srow"><div><b>${tr('רשאי להזמין אורחים')}</b><div class="note">${u.can_invite ? tr('מופיע בממשק הביתי תחת אינטרקום: אורח מקבל קוד זמני לדלת. דורש שהזמנת מבקרים מופעלת בהתקנה.') : tr('הסימון לבדו לא מספיק: צריך גם הרשאה להזמנת מבקרים (משתמשים והרשאות), והזמנת מבקרים מופעלת בהתקנה.')}</div></div><sw-toggle label="${tr('רשאי להזמין אורחים')}" labelHidden data-home-guests ?checked=${!!u.guests} ?disabled=${this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { guests: e.detail.checked })}></sw-toggle></div>
       <div class="cols">
         <div><b>${tr('מה מופיע בממשק הביתי')}</b>${this.data!.modules.map((m) => html`<label class="chk"><input type="checkbox" .checked=${modOn(m)} @change=${(e: Event) => { const next = toggleList(u.modules, this.data!.modules, m, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_modules: true } : { modules: next }); }}><span>${MODULE_LABEL[m]}</span></label>`)}</div>
-        <div><b>${tr('חדרים שהמשתמש רואה')}</b>${rooms.length ? rooms.map((r) => html`<label class="chk"><input type="checkbox" .checked=${roomOn(r.id)} @change=${(e: Event) => { const next = toggleList(u.rooms, rooms.map((x) => x.id), r.id, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_rooms: true } : { rooms: next }); }}><span>${r.name}</span></label>`) : html`<p class="note">${tr('עוד אין חדרים.')}</p>`}</div>
+        <div><b>${tr('חדרים שהמשתמש רואה')}</b><div class="note" data-home-rooms-note>${tr('הרשימה רק מסתירה חדרים במסך הראשי של הממשק הביתי. היא לא מגבילה מצלמות, הקלטות או פעולות על מכשירים: אותן קובעות ההרשאות.')}</div>${rooms.length ? rooms.map((r) => html`<label class="chk"><input type="checkbox" .checked=${roomOn(r.id)} @change=${(e: Event) => { const next = toggleList(u.rooms, rooms.map((x) => x.id), r.id, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_rooms: true } : { rooms: next }); }}><span>${r.name}</span></label>`) : html`<p class="note">${tr('עוד אין חדרים.')}</p>`}</div>
       </div>
+      ${this.siteWideWarning(u, modOn)}
     </section>`;
+  }
+
+  /** HOME-PERMS-WARN-2550 (D-11): which of the person's shown categories read the whole site's data, in plain words. Display only. */
+  private siteWideWarning(u: PolicyRow, modOn: (m: HomeModule) => boolean) {
+    const sc = this.data?.shared_scope;
+    const wide = new Set(u.site_wide ?? []);
+    if (u.system_admin || !wide.size || (sc?.customers != null && sc.customers <= 1)) return nothing;
+    const known = (...n: (number | null | undefined)[]) => n.every((x) => x != null);
+    const lines: string[] = [];
+    if (wide.has('bills') && modOn('bills')) {
+      lines.push(known(sc?.customers, sc?.bill_accounts)
+        ? tr('חשבון חשמל: החשבונות והסכומים של כל הלקוחות באתר (לקוחות: {c}, חשבונות פעילים: {a}), לא רק של הבית שלו.', { c: sc!.customers!, a: sc!.bill_accounts! })
+        : tr('חשבון חשמל: החשבונות והסכומים של כל הלקוחות באתר, לא רק של הבית שלו.'));
+    }
+    if (wide.has('energy') && modOn('energy')) {
+      lines.push(known(sc?.energy_meters) ? tr('חשמל: הצריכה של כל מוני החשמל באתר (מונים: {n}).', { n: sc!.energy_meters! }) : tr('חשמל: הצריכה של כל מוני החשמל באתר.'));
+    }
+    if (wide.has('water') && modOn('water')) {
+      lines.push(known(sc?.water_meters) ? tr('מים: הצריכה של כל מוני המים באתר (מונים: {n}). הרשאת מים לפי קומה מגבילה אותו לקומות שלו.', { n: sc!.water_meters! })
+        : tr('מים: הצריכה של כל מוני המים באתר. הרשאת מים לפי קומה מגבילה אותו לקומות שלו.'));
+    }
+    if (!lines.length) return nothing;
+    return html`<div class="warn" role="note" data-home-site-wide><sw-icon name="warning" size="18"></sw-icon><div>
+      <b>${tr('{name} יראה בממשק הביתי נתונים של כל האתר', { name: u.display_name })}</b>
+      <ul>${lines.map((l) => html`<li>${l}</li>`)}</ul>
+      <div class="note">${tr('עדיין אין קישור בין אדם ללקוח החשבון או למונה שלו. ההרשאות עצמן נקבעות במשתמשים והרשאות; כאן אפשר רק להסתיר את המסך מהממשק הביתי.')}</div>
+    </div></div>`;
   }
 }
 
