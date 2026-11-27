@@ -548,6 +548,24 @@ test('announcer: one polite and one assertive region, always present, empty, in 
   expect(await page.evaluate(() => document.getElementById('sw-announcer')?.parentElement === document.body)).toBe(true);
 });
 
+// FIX-NOSCROLL-2560: the announcer is the body's last child; it must add nothing to the document's height (it sat below the full-height
+// shell with a 1em box and made every control screen scroll by 14-15px). It stays inside the viewport and the document does not scroll.
+test('announcer: takes no room - inside the viewport, the document does not scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await suSetup(page, { build: OWN_BUILD });
+  await gotoApp(page, '/?design=a#/system/diagnostics');
+  await expect(page.locator('#sw-announcer')).toHaveCount(1);
+  const m = await page.evaluate(() => {
+    const r = document.getElementById('sw-announcer')!.getBoundingClientRect();
+    const se = document.scrollingElement!;
+    return { top: r.top, bottom: r.bottom, h: r.height, over: se.scrollHeight - se.clientHeight };
+  });
+  expect(m.h).toBeLessThanOrEqual(1);
+  expect(m.top).toBeGreaterThanOrEqual(0);
+  expect(m.bottom).toBeLessThanOrEqual(768);
+  expect(m.over).toBeLessThanOrEqual(1);
+});
+
 for (const scheme of SCHEMES) {
   test(`generator alert cards (${scheme}): the card is not a button; the title is the one button; Enter and Space open it; acknowledge does not; axe has no nested-interactive`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
