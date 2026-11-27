@@ -11,6 +11,7 @@ import type { TableColumn } from '../components/sw-table';
 import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, unmuteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
 import { ApiError, describeError } from '../api/client';
 import { confirmDialog } from '../components/confirm-dialog';
+import { focusIfLost } from '../components/focus-return';
 import { PollController } from '../components/poll-controller';
 import { navigate } from '../router';
 import { he } from '../i18n/he';
@@ -147,7 +148,13 @@ export class GenAlertsPage extends LitElement {
       this.notice = e instanceof ApiError && e.status === 403 ? G.detail.muteForbidden : describeError(e);
     } finally {
       this.busy = false;
+      this.focusOutcome();
     }
+  }
+  /** A11Y-NEW-2550: the button pressed went away or waited disabled (the un-mute button leaves with the mute) - the focus goes to the
+   * outcome line instead of falling back to the page; nothing moves when the focus is anywhere else. */
+  private focusOutcome() {
+    void this.updateComplete.then(() => focusIfLost(this.renderRoot.querySelector<HTMLElement>('[data-detail] [data-notice], [data-detail] [data-mute-info]')));
   }
   /** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): end a running mute now - only after its own confirmation (focus on cancel). */
   private async unmute(a: GenAlertDetail) {
@@ -164,6 +171,7 @@ export class GenAlertsPage extends LitElement {
       this.notice = describeError(e);
     } finally {
       this.busy = false;
+      this.focusOutcome();
     }
   }
 

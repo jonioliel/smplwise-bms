@@ -228,7 +228,7 @@ export class CalViewRooms extends LitElement {
         <button type="button" class="btn icon sm" aria-label=${tr('יום קודם')} data-cal-prev @click=${() => this.go(-1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
         <button type="button" class="btn icon sm" aria-label=${tr('יום הבא')} data-cal-next @click=${() => this.go(1)}><sw-icon name="chevron" size="16"></sw-icon></button>
         ${phone
-          ? html`<button type="button" class="btn sm num ltr" data-cal-window aria-label=${tr('חלון השעות')} @click=${() => (this.shift = this.shift >= 6 ? -6 : this.shift + 3)}>${pad(win.from)}:00–${pad(win.to % 24)}:00</button>`
+          ? html`<button type="button" class="btn sm num ltr" data-cal-window aria-label=${`${tr('חלון השעות')} ${pad(win.from)}:00–${pad(win.to % 24)}:00`} @click=${() => (this.shift = this.shift >= 6 ? -6 : this.shift + 3)}>${pad(win.from)}:00–${pad(win.to % 24)}:00</button>`
           : today ? nothing : html`<button type="button" class="btn sm" data-cal-today @click=${() => { this.day = startOfDay(ctx.now); writeHashParams({ date: isoDate(this.day) }); }}>${tr('היום')}</button>`}
         <span class="sp"></span>
         ${phone ? nothing : html`

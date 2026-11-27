@@ -33,7 +33,9 @@ export class ArxReconnect extends LitElement {
   `;
 
   render() {
-    return html`<sw-state-panel state="stale" role="status" data-arx-reconnect heading=${tr('אין חיבור לשרת')}
+    // A11Y-NEW-2550: the panel's own text is the live region (sw-state-panel `.text role="status"`); a second status around the whole
+    // panel (button included) nested two regions and could read the screen twice
+    return html`<sw-state-panel state="stale" data-arx-reconnect heading=${tr('אין חיבור לשרת')}
       hint=${tr('הכניסה שלך נשמרה. מנסה להתחבר שוב…')} actionLabel=${this.busy ? tr('מנסה להתחבר…') : tr('נסה עכשיו')}
       @action=${() => this.dispatchEvent(new CustomEvent('arx-reconnect-now'))}></sw-state-panel>`;
   }

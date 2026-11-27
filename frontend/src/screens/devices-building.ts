@@ -2293,12 +2293,15 @@ export class DevicesBuilding extends LitElement {
           ? html`${dot}<span class="nm" dir="auto" title=${a.name}>${bidi(a.name)}</span>${mid}`
           : html`${dot}<span class="nm" title=${a.name}>${bidi(a.name)}</span>${this.renderIndicators(a)}`;
     const attrs = { area: a.area_id, on: String(on), counts: countsAttr(pills) };
+    // A11Y-NEW-2550: the link's own name replaces its content, so the grey "N לא ידוע" of an unknown lock / alarm (AREA-HONEST-COUNT-2540)
+    // was never read; the row's name now says it with the indicator's own title, when the row draws its indicators
+    const unknownSaid = where === 'card' && !quickRow && c.entities > 0 ? areaIndicators(a, this.rows.area).filter((i) => i.unknown).map((i) => i.title).join(' · ') : '';
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
     const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label=${tr('סיכום האזור')}
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${tr('{name} · {entities} התקנים · כניסה לאזור', { name: a.name, entities: c.entities })} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${unknownSaid ? tr('{name} · {entities} התקנים · {unknown} · כניסה לאזור', { name: a.name, entities: c.entities, unknown: unknownSaid }) : tr('{name} · {entities} התקנים · כניסה לאזור', { name: a.name, entities: c.entities })} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
       </devices-bulk-menu>`;
     if (quickRow) {
       return html`<div class="arow-q" data-area-quick-row=${a.area_id} ?data-lit=${on && !this.offline && !bad} ?data-bad=${bad}>${menu}${this.renderQuick(a, rowQuickMax(window.innerWidth), true)}</div>`;

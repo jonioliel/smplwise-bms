@@ -11,6 +11,7 @@ import './sw-table';
 import type { TableColumn } from './sw-table';
 import type { StateKind } from './sw-badge';
 import { ApiError, describeError } from '../api/client';
+import { focusIfLost } from './focus-return';
 import { fmtBytes } from '../api/backup';
 import { dayMonthTimeText } from '../api/day-format';
 import {
@@ -216,6 +217,8 @@ export class SwLegacyImport extends LitElement {
     } finally {
       this.busy = '';
       this.confirm = '';
+      // A11Y-NEW-2550: the dialog (and the focus in it) closed with the outcome - the result line or the refusal takes the focus
+      void this.updateComplete.then(() => focusIfLost(this.renderRoot.querySelector<HTMLElement>('[data-legacy-result], [data-legacy-error], [data-legacy-dialog-error]')));
     }
   }
 
@@ -237,7 +240,9 @@ export class SwLegacyImport extends LitElement {
         key: 'action', label: tr('פעולה'), width: '9rem', card: 'badge', kind: 'status',
         render: (r) => { const a = item(r).action; return html`<sw-badge kind=${isAction(a) ? ACTION_KIND[a] : 'neutral'} label=${isAction(a) ? LEGACY_ACTION_LABEL[a] : a}></sw-badge>`; },
       },
-      { key: 'note', label: tr('הסבר'), card: 'show', render: (r) => item(r).note },
+      // A11Y-NEW-2550: the explanation wraps (sw-table cells do not): a longer English note widened the table past its card - a sideways
+      // scroll region no keyboard could reach (axe scrollable-region-focusable) in a card that pages its rows so nothing scrolls
+      { key: 'note', label: tr('הסבר'), card: 'show', render: (r) => html`<span style="white-space:normal">${item(r).note}</span>` },
     ];
   }
 

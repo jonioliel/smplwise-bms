@@ -103,6 +103,12 @@ export function deepActive(): HTMLElement | null {
   return a as HTMLElement | null;
 }
 
+/** A11Y-NEW-2550: the focus fell back to the page - nothing, the body, a removed or disabled control, or a bare <dialog> holds it. */
+export function focusLost(): boolean {
+  const a = deepActive();
+  return !a || a === document.body || a === document.documentElement || !a.isConnected || a instanceof HTMLDialogElement || (a as HTMLButtonElement).disabled === true;
+}
+
 /**
  * Whether the focus is somewhere inside `host` - a light child or a part of its shadow tree, at any shadow depth - and not on `host`
  * itself. The walk the 2.43.7 gate fix wrote into sw-dialog (a field focused in the frame before the dialog's own first focus keeps
@@ -141,4 +147,17 @@ export function restoreFocus(opener: HTMLElement | null, now = false): void {
   if (!opener?.isConnected) return;
   if (now) opener.focus({ preventScroll: true });
   else requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+  // A11Y-NEW-2550: an opener still disabled (the save button whose request waits on this very dialog - a step-up refusal) cannot take
+  // the focus now; it takes it once it is enabled again (within 3 s), and only if the focus is still nowhere
+  if ((opener as HTMLButtonElement).disabled === true) {
+    let tries = 0;
+    const wait = setInterval(() => {
+      tries += 1;
+      if (!opener.isConnected || tries > 30) clearInterval(wait);
+      else if ((opener as HTMLButtonElement).disabled !== true) {
+        clearInterval(wait);
+        if (focusLost()) opener.focus({ preventScroll: true });
+      }
+    }, 100);
+  }
 }

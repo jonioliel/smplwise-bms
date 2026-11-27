@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
 import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
+import { focusIfLost, lastFocused } from '../components/focus-return';
 import { onMeEvent, onSession } from '../api/session';
 import { applyUpdate, dismiss, noteServerBuild, onPwa, promptInstall, showInstall, showIosHint, showUpdate, startPwa, updateLater } from './register';
 import { syncSubscription } from './push';
@@ -219,6 +220,7 @@ export class ArxPwaPrompts extends LitElement {
     );
     window.addEventListener('offline', this.onOffline);
     window.addEventListener('online', this.onOnline);
+    window.addEventListener('focusin', this.onFocusIn, true);
     void startPwa();
     // DIALOG-TOPLAYER-2381: the offline pill and the update card stay above an open sw-dialog (it is in the top layer)
     liftToTopLayer(this);
@@ -230,7 +232,28 @@ export class ArxPwaPrompts extends LitElement {
     this.stops = [];
     window.removeEventListener('offline', this.onOffline);
     window.removeEventListener('online', this.onOnline);
+    window.removeEventListener('focusin', this.onFocusIn, true);
     window.clearTimeout(this.backTimer);
+  }
+
+  /** A11Y-NEW-2550: the last control of the page that had the focus before it came to these cards. A card put away by keyboard
+   * ("אחר כך", "לא עכשיו", ✕) gives the focus back there instead of letting it fall to the page body. */
+  private lastOutside: HTMLElement | null = null;
+  private readonly onFocusIn = () => {
+    const now = lastFocused(); // focus-return.ts keeps it (its window listener was added first, so it already holds this move)
+    if (now && !this.holds(now)) this.lastOutside = now;
+  };
+
+  /** The element is drawn by these cards (an sw-button's inner button sits in a nested shadow root: contains() does not see it). */
+  private holds(el: Node): boolean {
+    for (let n: Node | null = el; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) if (n === this) return true;
+    return false;
+  }
+
+  private putAway(done: () => void) {
+    const back = this.lastOutside;
+    done();
+    void this.updateComplete.then(() => focusIfLost(back));
   }
 
   private async install() {
@@ -253,7 +276,7 @@ export class ArxPwaPrompts extends LitElement {
         <div class="text"><b>${tr('גרסה חדשה של Arx זמינה')}</b><span>${tr('רעננו כדי לעבור אליה; מה שפתוח יישמר בכתובת.')}</span></div>
         <div class="actions">
           <sw-button size="lg" variant="primary" data-pwa-update-go @click=${() => applyUpdate()}>${tr('רענון')}</sw-button>
-          <sw-button size="lg" variant="ghost" data-pwa-update-later @click=${() => updateLater()}>${tr('אחר כך')}</sw-button>
+          <sw-button size="lg" variant="ghost" data-pwa-update-later @click=${() => this.putAway(updateLater)}>${tr('אחר כך')}</sw-button>
         </div>
       </div>`);
     }
@@ -263,14 +286,14 @@ export class ArxPwaPrompts extends LitElement {
         <div class="text"><b>${tr('התקן את Arx')}</b><span>${tr('אפליקציה במסך הבית או בשולחן העבודה: פתיחה מהירה, מסך מלא והתראות.')}</span></div>
         <div class="actions">
           <sw-button size="lg" variant="primary" data-pwa-install-go @click=${() => this.install()}>${tr('התקנה')}</sw-button>
-          <sw-button size="lg" variant="ghost" data-pwa-install-later @click=${() => dismiss('install')}>${tr('לא עכשיו')}</sw-button>
+          <sw-button size="lg" variant="ghost" data-pwa-install-later @click=${() => this.putAway(() => dismiss('install'))}>${tr('לא עכשיו')}</sw-button>
         </div>
       </div>`);
     } else if (showIosHint()) {
       cards.push(html`<div class="card" role="dialog" aria-label=${tr('התקנת Arx באייפון')} data-pwa-ios>
         ${this.icon()}
         <div class="text"><b>${tr('התקן את Arx באייפון')}</b><span>${tr('ב־Safari הקישו על')} <svg class="share" width="16" height="16" viewBox="0 0 24 24" aria-label=${tr('שיתוף')} role="img"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> ${tr('שיתוף ואז "הוספה למסך הבית". התראות באייפון מגיעות רק לאפליקציה שהותקנה כך.')}</span></div>
-        <button class="x" type="button" aria-label=${tr('סגירה')} data-pwa-ios-close @click=${() => dismiss('ios')}><sw-icon name="close" size=${18}></sw-icon></button>
+        <button class="x" type="button" aria-label=${tr('סגירה')} data-pwa-ios-close @click=${() => this.putAway(() => dismiss('ios'))}><sw-icon name="close" size=${18}></sw-icon></button>
       </div>`);
     }
     return cards.length ? cards : nothing;
