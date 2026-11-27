@@ -8,6 +8,7 @@
 - מצבי מערכת הבית נכתבים בחוט עבודה נפרד: מסד נתונים עמוס או חוק שמפעיל הודעה כבר לא עוצרים את קריאת הערוץ, ולכן "רענן ממערכת הבית", תזמונים וזיהוי בלחיצה לא מקבלים שגיאת זמינות בגללם. - Home system states are written on a worker thread: a busy database or a rule that sends a notice no longer holds up reading the feed, so "refresh from Home Assistant", schedules and detect-by-pressing do not time out because of it.
 - נגישות: הערה על יום מעבר שעון בציר החדרים ("01, פעמיים"), מכריז אחד להודעות מתעדכנות, כרטיס התראת גנרטור בלי כפתור בתוך כפתור, ותיאור לכפתור האימות הנוסף. - Accessibility: a note on the rooms timeline for a clock-change day ("01, twice"), one announcer for live messages, a generator alert card without a button inside a button, and a description for the extra-verification button.
 - ביקורים חיצוניים ב-WisKey: מסנני הרשימה נלקחים מהחוזה ש-WisKey מפרסם (כולל "הסתיימו"). - External WisKey visits: the list filters follow the contract WisKey publishes (the "ended" filter included).
+- WisKey: חיבור שנתקע נחתך בזמן קריאה מוגבל ולא תוקע את הבקשה (וסוויטת הבדיקות של השרת זולה יותר, ללא שינוי כיסוי). - WisKey: a stalled connection is cut off by a read-time limit instead of holding the request (and the server test suite is cheaper, same coverage).
 
 ### תוקן - Fixed
 - מסך הבית: שמירת המועדפים כבר לא מוחקת מועדפים מוסתרים. - Home screen: saving the favourites no longer drops hidden favourites.

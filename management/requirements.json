@@ -15143,5 +15143,21 @@
     "test_ids": [
       "AT-RELEASE-2560-TRAIN-1"
     ]
+  },
+  {
+    "id": "R-BACKEND-SUITE-COST-2560-1",
+    "title": "Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout",
+    "statement": "Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout; merged into the 2.56.0 train, change note docs/changes/BACKEND-SUITE-COST-2560.md.",
+    "task_ids": [
+      "BACKEND-SUITE-COST-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-BACKEND-SUITE-COST-2560-1"
+    ]
   }
 ]

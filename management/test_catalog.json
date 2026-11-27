@@ -23351,5 +23351,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-BACKEND-SUITE-COST-2560-1",
+    "requirement_ids": [
+      "R-BACKEND-SUITE-COST-2560-1"
+    ],
+    "task_ids": [
+      "BACKEND-SUITE-COST-2560"
+    ],
+    "title": "Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Backend suite cost: route-analysis cache (tests only), faster DB copy, read-time WisKey timeout; merged into the 2.56.0 train, change note docs/changes/BACKEND-SUITE-COST-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
