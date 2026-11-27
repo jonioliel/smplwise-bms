@@ -121,7 +121,7 @@ test.describe('studio controller (unit)', () => {
     const { api, attempts, failOnce } = fakeApi(sample());
     const c = new StudioController(host(), api, 20);
     await c.load('v1');
-    failOnce(new ApiError(503, { code: 'http_503', user_message: 'y', retryable: true, correlation_id: '', details: {} }));
+    failOnce(new ApiError(503, { code: 'mock_unavailable', user_message: 'y', retryable: true, correlation_id: '', details: {} })); // LOWS-FRONTEND-2550 (FC-08): a server error model (an `http_<status>` code is the client's own fallback and reads as its translated sentence)
     c.commit({ ...c.doc!, walls: c.doc!.walls.slice(0, 2) });
     expect(await c.flush()).toBe(false);
     expect(c.saveState).toBe('error');

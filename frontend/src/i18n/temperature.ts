@@ -427,6 +427,7 @@ const he = {
   waStatus_handed: 'הועבר לתור ההודעות',
   waSchedules: 'תזמונים קיימים',
   waDelete: 'מחיקה',
+  waDeleteConfirm: 'למחוק את הדוח המתוזמן ({when})?',
   dow0: 'יום א׳',
   dow1: 'יום ב׳',
   dow2: 'יום ג׳',

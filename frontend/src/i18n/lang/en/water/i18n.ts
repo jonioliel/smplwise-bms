@@ -378,6 +378,7 @@ export const en = {
   noTariffs: 'No tariffs yet',
   loadTariffsError: 'The tariffs could not be loaded',
   delVersion: 'Delete version',
+  delVersionConfirm: 'Delete the price version from {date}?',
   shared: 'Shared with the account',
   sharedTitle: 'Shared with electricity',
   sharedNote: 'VAT, business details, numbering, payment terms and retention come from the electricity billing settings.',

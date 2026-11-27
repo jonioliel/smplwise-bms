@@ -814,7 +814,7 @@ test.describe('automations client: error mapping and settings', () => {
     expect(automationErrorText(api(503, 'bridge_not_paired', {}, 'גשר לא מצומד'))).toBe('גשר לא מצומד'); // "existing": the server's own message
     expect(automationErrorText(api(422, 'validation', {}, 'שדה חסר'))).toBe('שדה חסר'); // placeholders without details fall back to the server's text
     expect(automationErrorText(api(500, 'something_else', {}, 'מה זה'))).toBe('מה זה');
-    expect(automationErrorText(new TypeError('x'))).toBe('אין חיבור לשרת.');
+    expect(automationErrorText(new TypeError('Failed to fetch'))).toBe('אין חיבור לשרת.');
   });
 
   test('mapAutomationError: kind, conflict item, issues, grant, maybe-saved, confirm', () => {
@@ -831,7 +831,7 @@ test.describe('automations client: error mapping and settings', () => {
     expect(mapAutomationError(api(404, 'trash_not_found')).kind).toBe('not_found');
     expect(mapAutomationError(api(502, 'config_refused', { error: 'ha_invalid' })).kind).toBe('refused');
     expect(mapAutomationError(api(418, 'teapot')).kind).toBe('unknown');
-    expect(mapAutomationError(new TypeError('failed'))).toMatchObject({ code: 'network', kind: 'unavailable', retryable: true, message: 'אין חיבור לשרת.' });
+    expect(mapAutomationError(new TypeError('Failed to fetch'))).toMatchObject({ code: 'network', kind: 'unavailable', retryable: true, message: 'אין חיבור לשרת.' });
   });
 
   test('settings: defaults, reading the keys, the patch of what differs, including the two display settings', () => {

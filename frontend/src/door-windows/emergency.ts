@@ -11,7 +11,7 @@ import {
   type EmergencyKind, type EmergencyState, type Incident, type Prepared, type Scope,
 } from '../api/door-windows';
 import { dwt, dwtDynamic } from '../i18n/door-windows';
-import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, type SheetStep } from './logic';
+import { AUTO_CLOSE_MS, RESULT_TONE, holdProgress, incidentLines, nextStep, retryableOpenDoors, scopeForKind, type SheetStep } from './logic';
 import { dwCss } from './styles';
 import { timeText } from '../api/day-format';
 import { uiLocale } from '../i18n/locale';
@@ -159,9 +159,11 @@ export class DoorEmergencySheet extends LitElement {
       this.error = '';
       this.reason = '';
       this.drill = !this.data?.enabled;
-      const scopes = this.scopes('lock_secure').length ? this.scopes('lock_secure') : this.scopes('open');
-      this.scopeKey = scopes[0] ? `${scopes[0].scope_type}:${scopes[0].scope_id}` : 'installation:*';
+      this.scopeKey = this.firstScopeKey();
       this.armIdle();
+    } else if (changed.has('data') && this.open && !scopeForKind([...this.scopes('lock_secure'), ...this.scopes('open')], this.scopeKey)) {
+      // SCR-41: the chosen scope left the list (a re-read while the sheet is open): back to the first one, as on opening
+      this.scopeKey = this.firstScopeKey();
     }
     if (changed.has('open') && !this.open) this.stopTimers();
   }
@@ -190,12 +192,18 @@ export class DoorEmergencySheet extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
+  private firstScopeKey(): string {
+    const scopes = this.scopes('lock_secure').length ? this.scopes('lock_secure') : this.scopes('open');
+    return scopes[0] ? `${scopes[0].scope_type}:${scopes[0].scope_id}` : 'installation:*';
+  }
+
   private scopes(kind: EmergencyKind): Scope[] {
     return this.data?.scopes?.[kind] ?? [];
   }
 
+  /** LOWS-FRONTEND-2550 (review SCR-41): the chosen scope only - never another kind's first scope (see `scopeForKind`). */
   private scope(kind: EmergencyKind): Scope | undefined {
-    return this.scopes(kind).find((s) => `${s.scope_type}:${s.scope_id}` === this.scopeKey) ?? this.scopes(kind)[0];
+    return scopeForKind(this.scopes(kind), this.scopeKey);
   }
 
   private async held(kind: EmergencyKind): Promise<void> {
@@ -285,10 +293,10 @@ export class DoorEmergencySheet extends LitElement {
         </select></div>` : all.length === 1 ? html`<div class="note" data-em-scope-one>${all[0].name}</div>` : nothing}
       <label class="drill"><sw-toggle size="sm" labelHidden in-label label=${forced ? dwt('emDrillForced') : dwt('emDrill')} data-em-drill .checked=${this.drill || forced} ?disabled=${forced}
         @change=${(e: Event) => { this.drill = toggled(e); this.armIdle(); }}></sw-toggle>${forced ? dwt('emDrillForced') : dwt('emDrill')}</label>
-      ${d?.can.lock && lock ? html`<door-hold-button data-em-kind="lock_secure" icon="lock" .holdMs=${hold} label=${dwt('emLock')}
-          sub=${`${dwt('emDoors', { n: lock.doors })} · ${dwt('emLockSub')}`} @held=${() => this.held('lock_secure')}></door-hold-button>` : nothing}
-      ${d?.can.open && open ? html`<door-hold-button fill data-em-kind="open" icon="unlock" .holdMs=${hold} ?disabled=${!openUsable} label=${dwt('emOpen')}
-          sub=${openUsable ? `${dwt('emDoors', { n: open.doors })} · ${dwt('emOpenSub')}` : dwt('emOpenUnavailable')} @held=${() => this.held('open')}></door-hold-button>` : nothing}
+      ${d?.can.lock && lockScopes.length ? html`<door-hold-button data-em-kind="lock_secure" icon="lock" .holdMs=${hold} ?disabled=${!lock} label=${dwt('emLock')}
+          sub=${lock ? `${dwt('emDoors', { n: lock.doors })} · ${dwt('emLockSub')}` : dwt('emScopeOtherKind')} @held=${() => this.held('lock_secure')}></door-hold-button>` : nothing}
+      ${d?.can.open && openScopes.length ? html`<door-hold-button fill data-em-kind="open" icon="unlock" .holdMs=${hold} ?disabled=${!openUsable || !open} label=${dwt('emOpen')}
+          sub=${!openUsable ? dwt('emOpenUnavailable') : open ? `${dwt('emDoors', { n: open.doors })} · ${dwt('emOpenSub')}` : dwt('emScopeOtherKind')} @held=${() => this.held('open')}></door-hold-button>` : nothing}
       ${this.error ? html`<div class="callout" data-tone="err" data-em-error><sw-icon name="warning"></sw-icon><span>${this.error}</span></div>` : nothing}
     </div>`;
   }

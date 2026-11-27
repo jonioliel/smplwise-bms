@@ -149,29 +149,85 @@ export function onMeEvent(fn: (env: { type: string; payload?: unknown }) => void
  * re-mounts the current screen. On every (re)connect the server's first message carries the current fingerprint, so
  * a change made while the socket was down is noticed too. Returns a stop function.
  */
-export function watchPermissions(onChanged: () => void, env?: SocketEnv): () => void {
+export function watchPermissions(onChanged: () => void, env?: SocketEnv, reload: () => Promise<Session> = loadSession): () => void {
   // SESSION-DEMO-WS-2435: the shared reconnecting socket - back-off 2 s .. 60 s as before, plus the HOMELIVE-295 liveness check (the
   // server's heartbeat is every 30 s: a socket silent past SOCKET_SILENT_MS is half-open and replaced; the new socket's `hello` carries
   // the fingerprint, so a change missed meanwhile is noticed) and a retry after a constructor that throws
-  return openReconnectingSocket({
-    url: wsUrl('me/ws'),
-    env,
-    onMessage: (data) => meFrame(data, onChanged),
-  });
+  // LOWS-FRONTEND-2550 (review FC-11): the server closes a handshake without a session with 4401 (no access: 4403). The socket used to
+  // reconnect for the life of the page and nothing told the session, so a page whose sign-in ended stayed drawn as signed in. Now that
+  // close ends the socket and the session is read once (`reload`): the shell turns to the sign-in (Ingress), or the remote channel's
+  // 401 path renews the sign-in - and only while the session is still signed in afterwards is the channel opened again, after a wait
+  // that doubles on each such refusal in a row (2 s .. 60 s), so a refusing server is never asked in a tight loop.
+  const timers = env ?? { setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms) as unknown, clearTimeout: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>) };
+  let stopped = false;
+  let stopSocket: () => void = () => undefined;
+  let reopen: unknown = null;
+  let refusals = 0;
+  const open = () => {
+    if (stopped) return;
+    stopSocket = openReconnectingSocket({
+      url: wsUrl('me/ws'),
+      env,
+      onMessage: (data) => {
+        refusals = 0; // the server spoke on this socket: the handshake was accepted
+        meFrame(data, onChanged);
+      },
+      finalClose: (code) => {
+        if (!(ME_WS_FINAL_CLOSE as readonly number[]).includes(code)) return false;
+        const wait = Math.min(ME_WS_REOPEN_MAX_MS, ME_WS_REOPEN_MIN_MS * 2 ** refusals);
+        refusals += 1;
+        void reload().then(
+          (s) => {
+            if (stopped || (s.mode !== 'api' && s.mode !== 'no_access')) return; // the sign-in ended: the channel stays closed
+            reopen = timers.setTimeout(() => {
+              reopen = null;
+              open();
+            }, wait);
+          },
+          () => undefined,
+        );
+        return true;
+      },
+    });
+  };
+  open();
+  return () => {
+    stopped = true;
+    if (reopen !== null) timers.clearTimeout(reopen);
+    stopSocket();
+  };
 }
 
-/** One frame of `/me/ws`: to every `onMeEvent` listener, then the permissions check. */
+/** FC-11: the wait before `/me/ws` is opened again after a 4401 / 4403 while the session stayed signed in (doubles up to the maximum). */
+const ME_WS_REOPEN_MIN_MS = 2_000;
+const ME_WS_REOPEN_MAX_MS = 60_000;
+
+/** One frame of `/me/ws`: the permissions check, then every `onMeEvent` listener.
+ * LOWS-FRONTEND-2550 (review FC-09): only a malformed frame is ignored. The permissions check runs first and each listener in its own
+ * `try` - a listener that throws no longer skips the check (the shell kept the old navigation) nor the listeners after it, and its
+ * error reaches the console instead of vanishing. */
 function meFrame(data: string, onChanged: () => void): void {
+  let env: { type: string; payload?: { permissions_fingerprint?: string } };
   try {
-    const env = JSON.parse(data) as { type: string; payload?: { permissions_fingerprint?: string } };
-    meListeners.forEach((fn) => fn(env));
-    const known = session.me?.permissions_fingerprint;
-    if (env.type === 'permissions_changed') onChanged();
-    else if (env.type === 'hello' && known && env.payload?.permissions_fingerprint && env.payload.permissions_fingerprint !== known) onChanged();
+    env = JSON.parse(data) as typeof env;
   } catch {
-    /* ignore */
+    return; // a malformed frame
+  }
+  if (!env || typeof env !== 'object' || typeof env.type !== 'string') return;
+  const known = session.me?.permissions_fingerprint;
+  if (env.type === 'permissions_changed') onChanged();
+  else if (env.type === 'hello' && known && env.payload?.permissions_fingerprint && env.payload.permissions_fingerprint !== known) onChanged();
+  for (const fn of [...meListeners]) {
+    try {
+      fn(env);
+    } catch (err) {
+      console.error('me/ws listener failed', err);
+    }
   }
 }
+
+/** FC-11: the close codes after which `/me/ws` is not opened again - the server refused the handshake (no session / no access). */
+const ME_WS_FINAL_CLOSE = [4401, 4403] as const;
 
 export function can(permission: string): boolean {
   return session.me?.permissions_installation.includes(permission) ?? false;

@@ -1033,4 +1033,6 @@ export const en = {
   'מהתוסף הקודם (גרסה {v}) · מנהלי מערכת בלבד': 'From the previous add-on (version {v}) · system administrators only',
   'מצב הייבוא לא נטען': 'The import status did not load',
   'להריץ את הבדיקה שוב': 'Run the check again',
+  // LOWS-FRONTEND-2550 (review SCR-52)
+  '{failed} מתוך {total} לא כובו': '{failed} of {total} were not turned off',
 };

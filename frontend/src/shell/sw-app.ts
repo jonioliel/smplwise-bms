@@ -58,7 +58,7 @@ import '../components/sw-toggle';
 // schedule-drawer, schedule-editor) - no longer by the shell
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
 // CR-SHELL-LAZY-2436: <media-remote> is not rendered by the shell; the home widgets and the area media card import it themselves
-import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
+import { decodeSegment, navigate, onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
@@ -2805,7 +2805,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'playback') return html`<investigate-playback .cameraId=${r.params.get('camera') ?? ''} .at=${r.params.get('t') ?? ''} .extraParam=${r.params.get('extra') ?? ''} .fromMap=${r.params.get('from') === 'map'}></investigate-playback>`;
         if (s[1] === 'floors') return html`<investigate-history-map .floorId=${s[2] ?? 'f0'} .at=${r.params.get('t') ?? ''} .camera=${r.params.get('camera') ?? ''}></investigate-history-map>`;
         if (s[1] === 'events' && s[2]) return html`<investigate-event-detail .eventId=${s[2]}></investigate-event-detail>`;
-        if (s[1] === 'incidents') return html`<investigate-incidents .incidentId=${s[2] ? decodeURIComponent(s[2]) : ''}></investigate-incidents>`; // CR-LIVEEVENT100
+        if (s[1] === 'incidents') return html`<investigate-incidents .incidentId=${s[2] ? decodeSegment(s[2]) : ''}></investigate-incidents>`; // CR-LIVEEVENT100
         if (s[1] === 'events' && sensorEventsOnly() && this.session.mode === 'api') return html`<investigate-ha-events .date=${r.params.get('date') ?? ''}></investigate-ha-events>`; // NVRLESS-295: no recorder events, the sensor events list
         if (s[1] === 'events') return html`<investigate-events .cameraId=${r.params.get('camera') ?? ''} .date=${r.params.get('date') ?? ''}></investigate-events>`;
         // NN5-F1B: the review screen; with no Frigate recorder it renders the event windows itself (investigate-reviews)
@@ -2890,12 +2890,12 @@ export class SwApp extends LitElement {
       }
       case 'devices':
         // CR-007 slice 1: the read-only electricity / device control area - the building tree and one area's cards.
-        if (s[1] === 'areas' && s[2]) return html`<devices-area .areaId=${decodeURIComponent(s[2])}></devices-area>`;
+        if (s[1] === 'areas' && s[2]) return html`<devices-area .areaId=${decodeSegment(s[2])}></devices-area>`;
         // CR-014: "תזמונים", the second tab of the home area. The list, its drawer (#/devices/schedules/<id>), the trash
         // and the review are one element (it reads the address itself); the editor is a screen of its own (registered by
         // screens/schedule-editor), and `new` / `trash` / `review` are not schedule ids (the component's ids are 6-hex).
         if (s[1] === 'schedules' && s[3] === 'edit') {
-          return html`<schedule-editor .scheduleId=${s[2] === 'new' ? '' : decodeURIComponent(s[2] ?? '')} .template=${r.params.get('template') ?? ''} .preset=${r.params.get('preset') ?? ''}></schedule-editor>`;
+          return html`<schedule-editor .scheduleId=${s[2] === 'new' ? '' : decodeSegment(s[2] ?? '')} .template=${r.params.get('template') ?? ''} .preset=${r.params.get('preset') ?? ''}></schedule-editor>`;
         }
         // 0.1.154: the schedules are the first segment of "קברניט"; the address stays #/devices/schedules (old links, notifications and the
         // guide keep working) and the screen draws the segment strip itself, from what this user is offered

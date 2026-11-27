@@ -84,6 +84,7 @@ import {
   sortSchedules,
   stateCounts,
   tagOptions,
+  pickedShown,
   togglable,
   upcomingToday,
   windowText,
@@ -603,8 +604,19 @@ export class DevicesSchedules extends LitElement {
     this.selected = next;
   }
 
+  /** LOWS-FRONTEND-2550 (review SCR-54): the selection the current filter shows (`pickedShown`) - never a selected schedule it hides. */
+  private pickedNow(): Schedule[] {
+    return pickedShown(this.shownRows(this.scopedItems()), this.selected);
+  }
+
+  /** The schedules the current filter shows (all pages), memoised on the list and the filters. */
+  private shownRows(all: Schedule[]): Schedule[] {
+    const filters = this.filters;
+    return this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
+  }
+
   private async bulk(op: 'enable' | 'disable') {
-    const picked = (this.items ?? []).filter((s) => this.selected.has(s.id));
+    const picked = this.pickedNow();
     const eligible = togglable(picked).filter((s) => (op === 'disable' ? s.enabled : !s.enabled)).filter((s) => op === 'disable' || !s.lowering);
     const skippedLowering = op === 'enable' ? picked.filter((s) => s.lowering && !s.enabled).length : 0;
     if (!eligible.length) {
@@ -960,7 +972,7 @@ export class DevicesSchedules extends LitElement {
   }
 
   private renderBulk() {
-    const n = this.selected.size;
+    const n = this.selected.size ? this.pickedNow().length : 0; // SCR-54: what the bulk buttons act on
     if (this.selecting && !n && this.view !== 'week') {
       return html`<div class="editbar bulk" role="region" aria-label=${pl('select')} data-bulk-bar="empty"><span class="t">${aIcon('check')}${tr('{n} נבחרו', { n: 0 })}</span><span class="grow"></span><button type="button" class="btn sm quiet" data-select-done @click=${() => (this.selecting = false)}>${pl('selectDone')}</button></div>`;
     }
@@ -1030,8 +1042,7 @@ export class DevicesSchedules extends LitElement {
 
   private renderReady(st: ReturnType<typeof screenState>) {
     const all = this.scopedItems();
-    const filters = this.filters;
-    const rows = this.filteredMemo.get([all, filters], () => filterSchedules(all, filters));
+    const rows = this.shownRows(all);
     const manage = !!this.status?.can.manage;
     let content: TemplateResult;
     if (!(this.items ?? []).length) {

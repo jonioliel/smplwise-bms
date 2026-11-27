@@ -3,6 +3,8 @@
  * they can be checked without a browser: what to do with an event the push socket delivered while filters are set, and when a row's
  * pending thumbnail is asked for again. No DOM, no request of its own.
  */
+import { instantInZone } from '../api/recordings';
+import { addDaysByParts } from '../format/day-key';
 
 /** The list's filters as the screen holds them ('' = not set). */
 export interface PushFilters {
@@ -159,4 +161,17 @@ export class ThumbPoller {
  * device that is down): a bug, now the same red as the list and the event drawer. */
 export function sevKind(sev: string): 'error' | 'stale' | 'neutral' {
   return sev === 'critical' ? 'error' : sev === 'alert' ? 'stale' : 'neutral';
+}
+
+/** LOWS-FRONTEND-2550 (review SCR-55): the event list's row limit (one read asks for at most this many). A list that reached it says so. */
+export const EVENTS_LIMIT = 500;
+
+/** LOWS-FRONTEND-2550 (review SCR-55): the instants of a range of `rangeDays` local days ending on `lastDay` (YYYY-MM-DD) in the
+ * installation's zone - from the first day's local midnight to the last day's end. The range used UTC day edges: in Israel the first two
+ * or three local hours of the first day were missing and as many hours after the last day's end were in. DST-safe (instantInZone). */
+export function eventsRange(lastDay: string, rangeDays: number, zone: string): { from: string; to: string } {
+  const days = Math.max(1, Math.floor(rangeDays));
+  const from = instantInZone(addDaysByParts(lastDay, -(days - 1)), 0, zone);
+  const to = new Date(instantInZone(addDaysByParts(lastDay, 1), 0, zone).getTime() - 1);
+  return { from: from.toISOString(), to: to.toISOString() };
 }

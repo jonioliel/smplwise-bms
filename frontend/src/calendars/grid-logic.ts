@@ -343,3 +343,11 @@ export function placePopover(a: { x: number; y: number; w: number; h: number }, 
   const top = clamp(a.y - 8, 8, Math.max(8, vh - ph - 8));
   return { left, top, origin: `${ox} ${clamp(a.y - top + 12, 0, ph)}px` };
 }
+
+/** LOWS-FRONTEND-2550 (review SCR-56): an entry dragged to a new time goes back where it was when the server refused the move - the
+ * optimistic position stayed on screen when the reload after the failure failed too. */
+export function rollbackMove<T extends { occurrence_id: string; calendar_id: string; start: string; end: string }>(
+  occ: readonly T[], occurrenceId: string, before: { calendarId: string; start: string; end: string },
+): T[] {
+  return occ.map((x) => (x.occurrence_id === occurrenceId ? { ...x, calendar_id: before.calendarId, start: before.start, end: before.end } : x));
+}

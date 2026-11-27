@@ -242,3 +242,19 @@ export function retryableOpenDoors(inc: Incident | null | undefined): { door: st
     return [{ door: d.door, stationId: d.door.slice(0, at), relay, label: d.label, name: parts[parts.length - 1] }];
   });
 }
+
+/** LOWS-FRONTEND-2550 (review SCR-41): the scope one emergency kind acts on for the scope chosen in the sheet - only that exact scope.
+ * The picker lists the scopes of both kinds together; a scope that only one kind has used to fall back to the OTHER kind's first scope
+ * (possibly the whole installation) for the other button. `undefined`: this kind cannot act on the chosen scope (its button is shown
+ * disabled, saying so). */
+export function scopeForKind<T extends { scope_type: string; scope_id: string }>(scopes: readonly T[], key: string): T | undefined {
+  return scopes.find((s) => `${s.scope_type}:${s.scope_id}` === key);
+}
+
+/** LOWS-FRONTEND-2550 (review SCR-42): the emergency state to show after its 5 s read failed. Only a refusal (403: no right to see the
+ * doors; 404: not offered) hides the strip and the control; a failed read (no connection, a 5xx, a time-out) keeps what was shown - one
+ * missed poll during a live incident no longer removes the red strip and the release control until the next good read. `status`: the
+ * HTTP status of the failure, `null` when there was no answer. */
+export function emergencyAfterFailure<T>(shown: T | null, status: number | null): T | null {
+  return status === 403 || status === 404 ? null : shown;
+}

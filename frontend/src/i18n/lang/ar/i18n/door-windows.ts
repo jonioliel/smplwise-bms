@@ -126,6 +126,7 @@ export const ar = {
   emOpen: 'فتح كل الأبواب - إخلاء',
   emOpenSub: 'تبقى الأبواب مفتوحة حتى التحرير.',
   emOpenUnavailable: 'فتح الطوارئ غير متاح بعد.',
+  emScopeOtherKind: 'غير متاح للنطاق المختار',
   emDoors: '{n} أبواب',
   emHold: 'اضغط مطولًا {s} ثوانٍ',
   emHolding: 'استمر بالضغط…',

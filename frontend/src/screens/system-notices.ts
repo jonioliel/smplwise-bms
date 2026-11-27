@@ -16,13 +16,14 @@ import '../components/sw-dropdown'; // MULTI-BUILDING-HOME-2500: the board's bui
 import type { TableColumn } from '../components/sw-table';
 import { qrSvg } from '../components/sw-second-factor';
 import { ApiError, describeError } from '../api/client';
+import { Latest } from '../api/latest';
 import {
   audienceOptions, boardControl, boardLink, createBoard, deleteBoard, getBoard, listBoards, listNotices, noticesSettings, patchBoard, patchNoticesSettings, putBoardItems, putTvDefaults,
   getBoardLink, rotateBoardToken, type Board, type NewsSource, type Notice, type SettingsResponse,
 } from '../api/notices';
 import { effectiveTv, effectiveTv2, tv2DefaultsOf, tvDefaultsOf, type Display, type Tv2Defaults, type TvDefaults } from '../notice-tv/tv-logic';
 import { nt } from '../i18n/notices';
-import { SEV_KEY, SEV_LOOK, agoText, boardDraft, draftOf, newDraft, placePresets, retentionOptions, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
+import { SEV_KEY, SEV_LOOK, agoText, boardDraft, boardItemIds, draftOf, newDraft, placePresets, retentionOptions, seenState, slugOk, suggestSlug, windowText, type Draft } from '../notices/model';
 import '../notices/compose-dialog';
 import '../notices/display-saver';
 import '../notices/display-layout';
@@ -151,6 +152,10 @@ export class SystemNotices extends LitElement {
   private optionsLoaded = false;
   private toastTimer = 0;
   private loadedFor = '';
+  /** SCR-46: the board reads (the newest wins) and the board's notice-list changes, one at a time. */
+  private boardReads = new Latest();
+  private itemsQueue: Promise<unknown> = Promise.resolve();
+  private savedIds: { board: string; ids: string[] } | null = null;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -204,22 +209,28 @@ export class SystemNotices extends LitElement {
   }
 
   private async loadBoard(): Promise<void> {
+    // LOWS-FRONTEND-2550 (review SCR-46): the newest read wins - an older board's answer that arrives last is dropped
+    const current = this.boardReads.begin();
     this.loadedFor = this.boardId;
     this.detail = null;
     this.draft = null;
     this.dirty = false;
+    this.savedIds = null;
     if (!this.boardId || !this.s?.settings.enabled || !this.s.can.boards) return;
     try {
-      this.detail = await getBoard(this.boardId);
-      this.draft = structuredClone(this.detail.board.display ?? null) as Display | null;
-      this.nameDraft = this.detail.board.name;
+      const detail = await getBoard(this.boardId);
+      if (!current()) return;
+      this.detail = detail;
+      this.draft = structuredClone(detail.board.display ?? null) as Display | null;
+      this.nameDraft = detail.board.name;
       try {
-        this.notices = (await listNotices('all')).notices;
+        const notices = (await listNotices('all')).notices;
+        if (current()) this.notices = notices;
       } catch {
-        this.notices = [];
+        if (current()) this.notices = [];
       }
     } catch (e) {
-      this.error = describeError(e);
+      if (current()) this.error = describeError(e);
     }
   }
 
@@ -816,20 +827,39 @@ export class SystemNotices extends LitElement {
     </div>`;
   }
 
-  private async addItem(id: string): Promise<void> {
-    if (!id || !this.detail) return;
-    await this.setItems([...this.detail.notices.map((n) => n.id), id]);
+  private addItem(id: string): Promise<void> {
+    if (!id || !this.detail) return Promise.resolve();
+    return this.queueItems({ add: id });
   }
 
-  private async removeItem(id: string): Promise<void> {
-    if (!this.detail) return;
-    await this.setItems(this.detail.notices.map((n) => n.id).filter((x) => x !== id));
+  private removeItem(id: string): Promise<void> {
+    if (!this.detail) return Promise.resolve();
+    return this.queueItems({ remove: id });
   }
 
-  private async setItems(ids: string[]): Promise<void> {
+  /** LOWS-FRONTEND-2550 (review SCR-46): the board's list is replaced as a whole (PUT), so its changes run one at a time, each built from
+   * the list as the previous one left it (`boardItemIds`). */
+  private queueItems(op: { add: string } | { remove: string }): Promise<void> {
+    const run = this.itemsQueue.then(() => this.setItems(op));
+    this.itemsQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async setItems(op: { add: string } | { remove: string }): Promise<void> {
+    const d = this.detail;
+    if (!d) return;
+    const boardId = d.board.id;
+    const now = this.savedIds?.board === boardId ? this.savedIds.ids : d.notices.map((n) => n.id);
+    const ids = boardItemIds(now, op);
     try {
-      await putBoardItems(this.detail!.board.id, ids);
-      this.detail = await getBoard(this.detail!.board.id);
+      await putBoardItems(boardId, ids);
+      // the list as saved - the next change in the queue is built from it even when the read below fails
+      this.savedIds = { board: boardId, ids };
+      const fresh = await getBoard(boardId);
+      if (this.detail?.board.id === boardId) {
+        this.detail = fresh;
+        this.savedIds = null; // the board's own answer is the list again
+      }
       this.say(nt('saved'));
     } catch (e) {
       this.say(describeError(e));
@@ -838,9 +868,19 @@ export class SystemNotices extends LitElement {
 
   private async saveBoard(body: Parameters<typeof patchBoard>[1]): Promise<void> {
     if (!this.detail) return;
+    const sent = this.draft;
+    const boardId = this.detail.board.id;
     try {
-      const r = await patchBoard(this.detail.board.id, body);
+      const r = await patchBoard(boardId, body);
+      if (this.detail?.board.id !== boardId) return void this.loadBoards(); // another board is open now: its view is not touched
       this.detail = { ...this.detail, board: r.board };
+      // SCR-46: edits typed while the save was on its way stay (and stay unsaved); a save that did not carry the display (a switch)
+      // never drops the display edits waiting for "save"
+      if (this.draft !== sent || (body.display === undefined && this.dirty)) {
+        this.say(nt('saved'));
+        void this.loadBoards();
+        return;
+      }
       this.draft = structuredClone(r.board.display ?? this.draft) as Display;
       this.dirty = false;
       this.say(nt('saved'));

@@ -135,6 +135,7 @@ const he = {
   emOpen: 'פתיחת כל הדלתות - פינוי',
   emOpenSub: 'הדלתות נשארות פתוחות עד שחרור.',
   emOpenUnavailable: 'פתיחת חירום עדיין לא זמינה.',
+  emScopeOtherKind: 'לא זמין לטווח שנבחר',
   emDoors: '{n} דלתות',
   emHold: 'יש להחזיק {s} שניות',
   emHolding: 'ממשיכים להחזיק…',

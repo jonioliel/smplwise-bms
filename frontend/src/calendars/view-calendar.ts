@@ -15,7 +15,7 @@ import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import { drawerDetail, parseDateParam, readHashParam, rruleOf, writeHashParams } from './booking-logic';
 import {
-  Press, UndoStack, clickSpan, dragSpan, durText, hintFor, hintTag, instantAt, kbStep, minOfDay, minuteAt, moveSpan, movedText, openOn, resizeSpan, snapFloor, stepOf,
+  Press, UndoStack, clickSpan, dragSpan, durText, hintFor, hintTag, instantAt, kbStep, minOfDay, minuteAt, moveSpan, movedText, openOn, resizeSpan, rollbackMove, snapFloor, stepOf,
   type Band, type Hint, type HintSettings, type KbSel, type PressTarget, type UndoItem,
 } from './grid-logic';
 import './grid-overlays';
@@ -955,6 +955,8 @@ export class CalViewCalendar extends LitElement {
       this.say(text);
       this.changed();
     } catch (err) {
+      // SCR-56: back where it was at once - the reload below may fail too (it used to leave the entry where it was dropped)
+      this.occ = rollbackMove(this.occ, o.occurrence_id, before);
       this.showToast(calErrorText(err), false, true);
       this.reload();
     }

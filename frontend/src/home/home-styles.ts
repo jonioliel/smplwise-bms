@@ -257,8 +257,12 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .lrow.is-on .dim-edge {opacity: 1;}
 .dim:active .dim-edge {transition: none;}
 .dim:active .dim-fill {transition: none;}
+/* LOWS-FRONTEND-2550 (review SCR-57): the fill grows from the inline start - from the right in Hebrew, from the left in English (a range
+   input runs left to right there); the edge mark follows it. The inline transform (scaleX / translateX) stays as it is. */
+.dim-fill:dir(ltr) {transform-origin: 0 50%;}
+.dim-edge:dir(ltr) {scale: -1 1;}
 .dim input {position: absolute; inset: 0; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; cursor: pointer; touch-action: pan-y; font-size: 16px;}
-.dim-v {position: absolute; right: 16px; inset-block: 0; display: grid; align-items: center; font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); pointer-events: none;}
+.dim-v {--dim-v-at: 16px; position: absolute; right: var(--dim-v-at); inset-block: 0; display: grid; align-items: center; font-size: var(--f-sm); font-weight: 600; color: var(--hs-heading); pointer-events: none;}
 .dim:has(input:focus-visible) {outline: 3px solid var(--hs-focus); outline-offset: 3px;}
 .side {display: flex; flex-direction: column; gap: 16px; min-block-size: 0; min-inline-size: 0;}
 .side .pane {flex: none;}
@@ -420,8 +424,8 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .dlg-ic {--cs: var(--hs-accent-soft); --ct: var(--hs-accent-text); margin-block-end: 6px;}
 .sheet.dialog h2 {font-size: 24px; overflow-wrap: anywhere;}
 .dlg-acts {display: grid; grid-template-columns: 1fr 1fr; gap: 12px; inline-size: 100%; margin-block-start: 16px;}
-.sheet.umenu {inset-block-start: 76px; left: 22px; inline-size: min(400px, calc(100vw - 32px)); border-radius: 26px; padding: 18px; display: grid; gap: 12px; transform-origin: 28px 0; transition: opacity 180ms ease, transform 220ms var(--hs-ease);}
-.sheet.umenu.at-rail {inset-block: auto 16px; left: auto; right: 84px; transform-origin: 100% 100%; font-family: var(--hs-font);}
+.sheet.umenu {inset-block-start: 76px; inset-inline-end: 22px; inline-size: min(400px, calc(100vw - 32px)); border-radius: 26px; padding: 18px; display: grid; gap: 12px; transform-origin: 28px 0; transition: opacity 180ms ease, transform 220ms var(--hs-ease);}
+.sheet.umenu.at-rail {inset-block: auto 16px; inset-inline-end: auto; inset-inline-start: 84px; transform-origin: 100% 100%; font-family: var(--hs-font);}
 .sheet.umenu h3 {font-size: var(--f-sm); font-weight: 500; color: var(--hs-text-2); margin-block-start: 4px;}
 .menu-h {display: flex; align-items: center; gap: 14px; min-inline-size: 0;}
 .mh-t {flex: 1; min-inline-size: 0; display: grid;}
@@ -474,7 +478,7 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .wl-pic.full i:nth-child(4) {grid-row: 2 / -1;}
 .wl-pic.full i:nth-child(5) {grid-column: 3 / -1;}
 @media (max-width: 767px) {
-.sheet.umenu.at-rail {right: 12px; inset-block-end: 68px;}
+.sheet.umenu.at-rail {inset-inline-start: 12px; inset-block-end: 68px;}
 }
 @media (min-width: 1400px) and (min-height: 860px) {
 :host {--f-h1: 38px; --f-num: 60px; --f-huge: 100px;}
@@ -641,8 +645,12 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .ltile b.clamp1 {white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow-wrap: anywhere;}
 .hs-head .sub.clamp1 {white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3;}
 }
-.dim.lo .dim-v {right: auto; left: 16px;}
-.rtemp {position: absolute !important; inset-block-end: 22px; right: 18px; font-size: 30px; font-weight: 500; line-height: 1; color: var(--hs-heading); pointer-events: none; letter-spacing: -.02em;}
+.dim.lo .dim-v {right: auto; left: var(--dim-v-at);}
+/* SCR-57: the value sits at the fill's far end in English too (by the document's direction: the master's value keeps direction: rtl
+   for its text, so a logical inset would follow that instead) */
+.dim-v:dir(ltr) {right: auto; left: var(--dim-v-at);}
+.dim.lo .dim-v:dir(ltr) {left: auto; right: var(--dim-v-at);}
+.rtemp {position: absolute !important; inset-block-end: 22px; inset-inline-start: 18px; font-size: 30px; font-weight: 500; line-height: 1; color: var(--hs-heading); pointer-events: none; letter-spacing: -.02em;}
 .fcl .room .rtemp, .room-list .room .rtemp {position: relative !important; inset: auto; font-size: var(--f-body); color: var(--hs-text-2); margin-inline-end: 12px; flex: none;}
 @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
 .room-grid .rtemp {display: none;}
@@ -747,7 +755,7 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .arow a.at {color: inherit; min-block-size: var(--hit); align-content: center;}
 .hs.v2 .drow {grid-template-columns: var(--hit) minmax(0, 1fr) auto var(--hit); gap: 12px;}
 .cam-t {position: relative;}
-.cam-t .star {position: absolute !important; inset-block-start: 8px; left: 8px; z-index: 2 !important;}
+.cam-t .star {position: absolute !important; inset-block-start: 8px; inset-inline-end: 8px; z-index: 2 !important;}
 .hs .cam-t .rb.star {background: var(--hs-scrim); color: var(--hs-white);}
 .pick-list.wide {inline-size: 100%;}
 @media (min-width: 1400px) and (min-height: 860px) {
@@ -910,7 +918,7 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .thm[aria-checked="true"] {outline-color: var(--hs-accent-text);}
 .thm-t {display: grid; gap: 1px; padding-inline: 4px 30px; min-inline-size: 0;}
 .thm-t b {font-size: var(--f-body); font-weight: 600;}
-.thm .tick {position: absolute !important; inset-block-end: 14px; left: 14px;}
+.thm .tick {position: absolute !important; inset-block-end: 14px; inset-inline-end: 14px;}
 .thm-pv {display: grid; grid-template-columns: 1.3fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; padding: 8px; border-radius: 14px; background: var(--hs-bg); min-block-size: 0;}
 .thm-pv i {border-radius: 8px; background: var(--hs-surface);}
 .thm-pv .pv-a {grid-row: 1 / 3; background: var(--hs-accent);}

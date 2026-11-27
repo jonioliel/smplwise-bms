@@ -413,6 +413,7 @@ export const en = {
   waStatus_handed: 'Handed to the message queue',
   waSchedules: 'Existing schedules',
   waDelete: 'Delete',
+  waDeleteConfirm: 'Delete the scheduled report ({when})?',
   dow0: 'Sunday',
   dow1: 'Monday',
   dow2: 'Tuesday',

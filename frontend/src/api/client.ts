@@ -376,9 +376,24 @@ export const put = <T>(path: string, body: unknown, opts?: CallOptions) => api<T
 export const del = (path: string, opts?: CallOptions) => api<void>(path, withSignal({ method: 'DELETE' }, opts));
 export const upload = <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', body: form });
 
+/** LOWS-FRONTEND-2550 (review FC-08): the browsers' own wording of a `fetch` that got no answer (Chrome / Edge "Failed to fetch",
+ * Firefox "NetworkError when attempting to fetch resource.", Safari "Load failed", Node "fetch failed") - and the plain words tests
+ * and older callers use for it. */
+const FETCH_FAILURE = /fetch|network|load failed|offline/i;
+
+/** FC-08: a request that got no answer - not every TypeError (`undefined.x` inside a screen's load is a TypeError too). */
+function isNoConnection(err: unknown): boolean {
+  return err instanceof ApiUnreachable || (err instanceof TypeError && FETCH_FAILURE.test(err.message));
+}
+
 export function describeError(err: unknown): string {
-  if (err instanceof ApiError) return closedErrorText(err.body.code) ?? (err.body.user_message || err.body.code || tr('השרת דחה את הבקשה ({status})', { status: err.status }));
-  if (err instanceof TypeError) return tr('אין חיבור לשרת.');
+  if (err instanceof ApiError) {
+    // FC-08: an answer without the server's error model (a proxy's 502 page, an empty body) carries `http_<status>` and the HTTP status
+    // text (empty over HTTP/2, English over HTTP/1.1) - the translated sentence with the status, never the raw code
+    const bare = err.body.code.startsWith('http_');
+    return closedErrorText(err.body.code) ?? ((!bare && (err.body.user_message || err.body.code)) || tr('השרת דחה את הבקשה ({status})', { status: err.status }));
+  }
+  if (isNoConnection(err)) return tr('אין חיבור לשרת.');
   return err instanceof Error ? err.message : String(err);
 }
 

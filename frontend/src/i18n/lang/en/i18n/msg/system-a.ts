@@ -1691,4 +1691,7 @@ export const en = {
   'צרפו את הגרסאות מהכרטיס "גרסאות".': 'Attach the versions from the "Versions" card.',
   'שלחו הכול למי שהתקין את המערכת או לתמיכה של SmplWise.': 'Send it all to whoever installed the system or to SmplWise support.',
   'היומן לא כולל וידאו, תמונות, תוכניות, סיסמאות, מפתחות או כתובות: הם מוסתרים לפני ההורדה, וכל הורדה נרשמת באודיט.': 'The log holds no video, pictures, plans, passwords, keys or addresses: they are hidden before the download, and every download is recorded in the audit log.',
+  // LOWS-FRONTEND-2550 (review SCR-49)
+  'לבטל את השיוך שלך "{role} · {scope}"? ייתכן שתאבד הרשאות, כולל הגישה למסך הזה.': 'Remove your own assignment "{role} · {scope}"? You may lose permissions, including access to this screen.',
+  'לבטל את השיוך "{role} · {scope}" של {name}?': 'Remove the assignment "{role} · {scope}" of {name}?',
 };

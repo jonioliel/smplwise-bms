@@ -375,7 +375,12 @@ export class SwIncomingCall extends LitElement {
       for (const id of [...this.media.keys()]) if (!live.has(id)) this.media.delete(id); // read again at the next call (the setting may change)
       for (const c of this.active.calls) void this.mediaOf(c.station_id);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) this.active = null; // the call right was removed: quiet until the next check
+      if (err instanceof ApiError && err.status === 403) {
+        // the call right was removed: quiet until the next check. LOWS-FRONTEND-2550 (review SCR-51): every call it showed ends here too -
+        // a live talk session (microphone open) used to stay with no banner and no hang-up until the server closed it
+        for (const id of new Set([...this.sessions.keys(), ...(this.active?.calls ?? []).map((c) => c.call_id)])) this.ended(id);
+        this.active = null;
+      }
     } finally {
       this.loading = false;
       this.schedule();

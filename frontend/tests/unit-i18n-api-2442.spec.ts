@@ -286,13 +286,13 @@ test('behaviour: the helpers answer in the document language at call time; Hebre
   withLang('he', () => {
     expect(warningsHeading(1)).toBe('אזהרה אחת');
     expect(warningsHeading(3)).toBe('3 אזהרות');
-    expect(describeError(new TypeError('x'))).toBe('אין חיבור לשרת.');
+    expect(describeError(new TypeError('Failed to fetch'))).toBe('אין חיבור לשרת.');
     expect(elecErrorText(new TypeError('x'))).toBe('אין חיבור לשרת.');
   });
   withLang('en', () => {
     expect(warningsHeading(1)).toBe('1 warning');
     expect(warningsHeading(3)).toBe('3 warnings');
-    expect(describeError(new TypeError('x'))).toBe('No connection to the server.');
+    expect(describeError(new TypeError('Failed to fetch'))).toBe('No connection to the server.');
     expect(elecErrorText(new TypeError('x'))).toBe('No connection to the server.');
   });
 });

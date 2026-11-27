@@ -34,6 +34,7 @@ import { can, isApi, session } from '../api/session';
 import { doorPermissionNote } from './lock-reason';
 import { toggled } from '../components/sw-toggle';
 import { describeError } from '../api/client';
+import { confirmDialog } from '../components/confirm-dialog';
 import { TabsModeController } from '../shell/tabs-mode';
 import { parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
@@ -649,6 +650,13 @@ export class SystemAccess extends LitElement {
         return;
       }
     }
+    // LOWS-FRONTEND-2550 (review SCR-49): a user's role is revoked only after a confirmation that names it (a group's binding already
+    // passes its preview) - it was one click, one's own binding included; revoking one's own says it may take this screen away
+    const own = b.subject_kind === 'user' && b.subject_id === session.me?.user.id;
+    const body = own
+      ? tr('לבטל את השיוך שלך "{role} · {scope}"? ייתכן שתאבד הרשאות, כולל הגישה למסך הזה.', { role: b.role_name, scope: b.scope_name })
+      : tr('לבטל את השיוך "{role} · {scope}" של {name}?', { role: b.role_name, scope: b.scope_name, name: this.userName(b.subject_id) });
+    if (!(await confirmDialog({ body, danger: true, confirmLabel: tr('בטל שיוך'), focusCancel: own }))) return;
     this.busy = true;
     this.error = '';
     try {

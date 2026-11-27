@@ -90,6 +90,7 @@ import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { tr } from '../i18n/msg/plan-editor';
 import { argKey, argsToSend } from './map-action-args';
+import { bulkItemFailed, bulkResultOf } from './map-room-bulk';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: tr('כבוי'), heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר בלבד') };
@@ -1672,6 +1673,7 @@ export class ExploreFloorMap extends LitElement {
   /** 06:MAP-1 a: a notice belongs to the card it was written on - another selection (or none) starts without it. */
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('selectedId') && this.notice) this.notice = '';
+    if (changed.has('selectedZoneId') && this.bulkResult) this.bulkResult = null; // SCR-52: the "all off" line belongs to its own room
     // MEDIUM-REST-2540 (SCR-17): values typed for one device do not wait for the next card (a pending confirmation keeps its own)
     if (changed.has('selectedId') && Object.keys(this.actionArgs).length) {
       const keep = this.confirmSpec ? `${this.confirmSpec.entityId}|` : null;
@@ -2501,6 +2503,11 @@ export class ExploreFloorMap extends LitElement {
     this.trigger(d.entityId, d.spec);
   }
 
+  /** SCR-52: a room's "all off" batch is on its way. */
+  private bulkRunning = false;
+  /** SCR-52 (owner Q1 a): the selected room's last "all off" left this many of this many devices on (null: all went off / none run). */
+  @state() private bulkResult: { failed: number; total: number } | null = null;
+
   /** "כבה הכול": at once (the recommended rule: lights never ask), or after a confirmation with `map.room_card_confirm` = bulk. */
   private onRoomBulk(d: RoomCardBulkDetail): void {
     if (this.r28?.['map.room_card_confirm'] === 'bulk') {
@@ -2512,9 +2519,24 @@ export class ExploreFloorMap extends LitElement {
 
   private async runBulk(d: RoomCardBulkDetail): Promise<void> {
     this.roomConfirm = null;
-    for (const it of d.items) {
-      if (it.spec.sensitive) continue; // a sensitive action never rides in a batch: it has its own confirmation
-      await this.send(it.entityId, it.spec, true);
+    // LOWS-FRONTEND-2550 (review SCR-52): one "all off" at a time - a second tap while the first batch is still sending does not start a
+    // second batch over the same devices
+    if (this.bulkRunning) return;
+    this.bulkRunning = true;
+    this.bulkResult = null;
+    const zone = this.selectedZoneId;
+    let sent = 0;
+    let failed = 0;
+    try {
+      for (const it of d.items) {
+        if (it.spec.sensitive) continue; // a sensitive action never rides in a batch: it has its own confirmation
+        sent += 1;
+        if (!(await this.send(it.entityId, it.spec, true))) failed += 1;
+      }
+      // owner answer Q1 a: the room card says how many devices did not go off (its own room only)
+      if (this.selectedZoneId === zone) this.bulkResult = bulkResultOf(failed, sent);
+    } finally {
+      this.bulkRunning = false;
     }
   }
 
@@ -3007,22 +3029,28 @@ export class ExploreFloorMap extends LitElement {
     void this.send(entityId, spec, false);
   }
 
-  private async send(entityId: string, spec: HaActionSpec, confirmed: boolean) {
+  /** Resolves false when the command was refused or failed (SCR-52: the room card's "all off" counts them). */
+  private async send(entityId: string, spec: HaActionSpec, confirmed: boolean): Promise<boolean> {
     this.confirmSpec = null;
+    let last: HaActionRecord | null = null;
     this.action = { entityId, spec, record: null, error: '', busy: true };
     try {
       const ent = this.bundle?.anchors.find((a) => a.resource_type === 'ha_entity' && a.resource_id === entityId)?.entity;
       const r = await runAction(entityId, spec.id, ent ? this.argsFor(ent, spec) : {}, confirmed);
       this.action = { entityId, spec, record: r, error: '', busy: r.status === 'pending' };
+      last = r;
       if (r.status === 'pending') {
         const token = this.action;
         await awaitAction(r.id, (a) => {
+          last = a;
           if (this.action === token || this.action?.record?.id === a.id) this.action = { entityId, spec, record: a, error: '', busy: a.status === 'pending' };
         }, undefined, entityId); // LAT1: the entity's push wakes the next look (no fixed 1.5 s wait)
       }
+      return !bulkItemFailed('', (last as HaActionRecord | null)?.status);
     } catch (err) {
       const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? tr('הגשר אינו מצומד. התקנה וצימוד: הגדרות → כללי.') : describeError(err);
       this.action = { entityId, spec, record: null, error: msg, busy: false };
+      return false;
     }
   }
 
@@ -3272,7 +3300,7 @@ export class ExploreFloorMap extends LitElement {
     const z = b.zones.find((x) => x.id === this.selectedZoneId);
     if (!z || z.shared) return nothing; // a shared room shows its members card instead
     const camera = this.r28?.['map.room_card_camera'];
-    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} place=${this.roomCardPlace()} camera=${camera === 'snapshot' || camera === 'none' ? camera : 'live'}
+    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} .bulkResult=${this.bulkResult} place=${this.roomCardPlace()} camera=${camera === 'snapshot' || camera === 'none' ? camera : 'live'}
       @room-card-action=${(e: CustomEvent<RoomCardActionDetail>) => this.onRoomAction(e.detail)} @room-card-bulk=${(e: CustomEvent<RoomCardBulkDetail>) => this.onRoomBulk(e.detail)}
       @room-card-close=${() => (this.selectedZoneId = null)} @room-card-camera=${(e: CustomEvent<{ id: string }>) => navigate(`/live/cameras/${e.detail.id}`)}
       @room-card-recordings=${(e: CustomEvent<{ id: string }>) => navigate('/investigate/playback', { camera: e.detail.id, from: 'map' })}></sw-room-card>`;

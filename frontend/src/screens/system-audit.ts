@@ -3,6 +3,9 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-state-panel';
 import { get, describeError } from '../api/client';
+import { Latest } from '../api/latest';
+import { productSettings } from '../api/prefs';
+import { auditCsv, auditTime } from './audit-logic';
 import { isApi } from '../api/session';
 import '../components/sw-page';
 import '../components/sw-table';
@@ -90,8 +93,9 @@ const DECISION: Record<string, { kind: 'success' | 'danger' | 'neutral' | 'warni
   failed: { kind: 'warning', label: tr('נכשל') },
 };
 
-const apiColumns: TableColumn[] = [
-  { key: 'at', label: tr('זמן'), ltr: true, render: (r) => html`<span class="ltr">${new Date(String(r.at)).toLocaleString(uiLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>` },
+// LOWS-FRONTEND-2550 (review SCR-48): the time column in the installation's zone (`zone`), not the browser's
+const apiColumns = (zone: string): TableColumn[] => [
+  { key: 'at', label: tr('זמן'), ltr: true, render: (r) => html`<span class="ltr">${auditTime(String(r.at), zone, uiLocale())}</span>` },
   { key: 'actor', label: tr('משתמש'), render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(r.actor_username ?? tr('מערכת'))} size=${24}></sw-avatar>${String(r.actor_username ?? tr('מערכת'))}</span>` },
   { key: 'action', label: tr('פעולה'), ltr: true, render: (r) => html`<span class="ltr">${String(r.action)}</span>` },
   { key: 'decision', label: tr('החלטה'), render: (r) => { const d = DECISION[String(r.decision)] ?? { kind: 'neutral' as const, label: String(r.decision) }; return html`<sw-badge kind=${d.kind} label=${d.label}></sw-badge>`; } },
@@ -114,33 +118,62 @@ export class SystemAudit extends LitElement {
   @state() private limit = 100;
   @state() private channel: (typeof CHANNELS)[number]['id'] = '';
   @state() private view: (typeof VIEWS)[number]['id'] | '' = '';
+  /** LOWS-FRONTEND-2550 (review SCR-48): the installation's time zone (settings `time.zone`) for the time column. */
+  @state() private zone = 'Asia/Jerusalem';
+  /** SCR-48: a read is on its way - the export waits for it (it exported the previous filter's rows). */
+  @state() private loading = false;
+  /** SCR-48: the newest filter read wins (two quick filter changes answered out of order showed the older filter's rows). */
+  private reads = new Latest();
+  private columns: { zone: string; value: TableColumn[] } | null = null;
 
   connectedCallback() {
     super.connectedCallback();
-    if (isApi()) void this.load();
+    if (!isApi()) return;
+    void productSettings()
+      .then((s) => {
+        const z = (s as unknown as Record<string, unknown>)['time.zone'];
+        if (typeof z === 'string' && z) this.zone = z;
+      })
+      .catch(() => undefined);
+    void this.load();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.reads.cancel();
+  }
+
+  private columnsFor(zone: string): TableColumn[] {
+    if (this.columns?.zone !== zone) this.columns = { zone, value: apiColumns(zone) };
+    return this.columns.value;
   }
 
   private async load() {
+    const current = this.reads.begin();
+    this.loading = true;
     try {
       const q = new URLSearchParams({ prefix: this.family, limit: String(this.limit) });
       if (this.actor.trim()) q.set('actor', this.actor.trim());
       if (this.channel) q.set('channel', this.channel);
       if (this.view) q.set('view', this.view);
       const r = await get<AuditWire.AuditPage>(`/audit?${q.toString()}`);
+      if (!current()) return;
       this.rows = r.rows;
       this.error = '';
     } catch (err) {
+      if (!current()) return;
       this.error = describeError(err);
       this.rows = [];
+    } finally {
+      if (current()) this.loading = false;
     }
   }
 
   private exportCsv() {
+    if (this.loading) return;
     const rows = this.rows ?? [];
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [['at', 'actor', 'action', 'decision', 'resource_type', 'resource_id', 'reason', 'request_id', 'permission_revision'].join(',')];
-    for (const r of rows) lines.push([r.at, r.actor_username, r.action, r.decision, r.resource_type, r.resource_id, r.reason, r.request_id, r.permission_revision].map(esc).join(','));
-    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    // SCR-48: every cell neutralised - a value starting like a formula (= + - @) no longer runs in a spreadsheet
+    const blob = new Blob(['\ufeff' + auditCsv(rows)], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -152,7 +185,7 @@ export class SystemAudit extends LitElement {
     const rows = this.rows;
     return html`
       <sw-page crumbs=${tr('הגדרות')} heading=${tr('יומן אודיט')} subheading=${tr('מי צפה, שינה, ייצא או שלח פעולה · משתמש, פעולה, החלטה, משאב, סיבה ומספר בקשה · אין סיסמאות או טוקנים ביומן')}>
-        <sw-button slot="actions" icon="download" ?disabled=${!rows?.length} @click=${() => this.exportCsv()}>${tr('ייצוא CSV')}</sw-button>
+        <sw-button slot="actions" icon="download" ?disabled=${!rows?.length || this.loading} @click=${() => this.exportCsv()}>${tr('ייצוא CSV')}</sw-button>
         <div class="filters" data-audit-filters>
           <sw-field><select aria-label=${tr('פעולה')} .value=${this.family} @change=${(e: Event) => { this.family = (e.target as HTMLSelectElement).value; void this.load(); }}>${PREFIXES.map((p) => html`<option value=${p.id} ?selected=${p.id === this.family}>${p.label}</option>`)}</select></sw-field>
           <sw-field><select aria-label=${tr('ערוץ')} data-audit-channel-filter .value=${this.channel} @change=${(e: Event) => { this.channel = (e.target as HTMLSelectElement).value as typeof this.channel; void this.load(); }}>${CHANNELS.map((c) => html`<option value=${c.id} ?selected=${c.id === this.channel}>${c.label}</option>`)}</select></sw-field>
@@ -165,7 +198,7 @@ export class SystemAudit extends LitElement {
         ${rows === null
           ? html`<sw-state-panel state="loading" heading=${tr('טוען יומן…')}></sw-state-panel>`
           : rows.length
-            ? html`<sw-table data-audit-table .columns=${apiColumns} .rows=${rows as unknown as Record<string, unknown>[]}></sw-table>`
+            ? html`<sw-table data-audit-table .columns=${this.columnsFor(this.zone)} .rows=${rows as unknown as Record<string, unknown>[]}></sw-table>`
             : this.error
               ? nothing
               : html`<sw-state-panel icon="filter" state="empty" heading=${tr('אין רשומות לסינון הזה')} hint=${tr('נסה משפחת פעולות אחרת או נקה את שם המשתמש')}></sw-state-panel>`}

@@ -102,15 +102,18 @@ export class SwUserFactors extends LitElement {
     if (!this.ready() || this.busy) return; // FE-SAFETY-FIX-2520: Enter in the typed field confirms only when valid, once
     this.busy = true;
     this.error = '';
+    // LOWS-FRONTEND-2550 (review SCR-45): the answer belongs to the user it was sent for - not painted on another user selected meanwhile
+    const id = this.userId;
     try {
-      await resetFactor(this.userId, this.typed, this.stepUp ? this.ownCode : undefined);
+      await resetFactor(id, this.typed, this.stepUp ? this.ownCode : undefined);
+      if (id !== this.userId) return;
       this.armed = false;
       this.ownCode = '';
       this.typed = '';
       this.message = t('secondFactor.adminResetDone');
       await this.load();
     } catch (err) {
-      this.error = resetErrorText(err);
+      if (id === this.userId) this.error = resetErrorText(err);
     } finally {
       this.busy = false;
     }
