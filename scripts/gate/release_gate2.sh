@@ -36,7 +36,7 @@
 #      and no visual failure of an --after report; the visual step is BLOCKING by default, docs/changes/T074-VISUAL-METRICS-2405.md)
 #   5. keeps an earlier report of the same branch+sha as gate_<b>_<sha>.pre-gate2.* (the engine would overwrite it)
 #   6. runs the engine: --tier L --schedule v2 --select-base <base>, GATE_SELECT_ENABLE=1, total limit GATE_TOTAL_SECS
-#      (default 7200 s; 12000 s for --full)
+#      (explicit wins; else GATE-SPEED-2550: max(derived cap, plan ESTIMATE high x 1.25 x load factor) - gate_budget.py limit)
 #   7. gate2_verdict.py: gate_<b>_<sha>.gate2.md (quarantine applied, next step); when EVERY failure is quarantined it re-runs
 #      only those tests on the same sha once (the first report is kept as .gate2-first.json); quarantined VISUAL cases are re-checked
 #      by the engine itself in that re-run (GATE2_RERUN_ONLY overrides the --no-visual below, T074)
@@ -126,8 +126,13 @@ if [ "$DRY" = 1 ]; then
   ARGS=(plan --root "$ROOT" --base "$BASE" --head HEAD --json "${TMPDIR:-/tmp}/gate2_dry_${TAG}.selection.json")
   [ -z "$AFTER" ] || ARGS+=(--after "$AFTER")
   [ "${GATE2_DEFER_HEAVY:-1}" = 0 ] && ARGS+=(--no-defer-heavy)
-  nice -n 19 "$PY3" "$G2/gate2_select.py" "${ARGS[@]}"
+  DPLAN="$(nice -n 19 "$PY3" "$G2/gate2_select.py" "${ARGS[@]}" 2>&1)"
   rc=$?
+  printf '%s\n' "$DPLAN"
+  # GATE-SPEED-2550: the time limit a real run would get now (explicit GATE_TOTAL_SECS, else gate_budget.py limit; nothing is started)
+  printf '%s\n' "$DPLAN" | "$PY3" "$G2/gate_budget.py" limit --results "$RES" --mode "$([ "$FULL" = 1 ] && echo full || echo select)" --plan - \
+    --fallback "$([ "$FULL" = 1 ] && echo 12000 || echo 7200)" --explicit "${GATE_TOTAL_SECS:-}" \
+    --load1 "$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)" --nproc "$(nproc 2>/dev/null)" --explain 2>&1 >/dev/null | sed 's/^/  /' || true
   echo "selection JSON: ${TMPDIR:-/tmp}/gate2_dry_${TAG}.selection.json"
   exit $rc
 fi
@@ -192,6 +197,14 @@ fi
 # GATE-FAST-2291 (item 4): the total cap is derived = sum of the per-phase budgets x 1.5 (gate_budget.py); an explicit GATE_TOTAL_SECS wins;
 # without the helper / seed the old fixed defaults apply (7200 select, 12000 full)
 derived_cap() { local c; c="$("$PY3" "$G2/gate_budget.py" cap --results "$RES" --mode "$1" 2>/dev/null)" && [ -n "$c" ] && printf %s "$c" || printf %s "$2"; }
+# GATE-SPEED-2320 + GATE-SPEED-2550: the limit = max(derived cap, the plan's ESTIMATE high x 1.25 x the load factor at the start), never
+# below the estimate; a side the selection runs FULL uses the full-mode budgets (gate_budget.py limit). An explicit GATE_TOTAL_SECS wins
+# (the callers keep `: "${GATE_TOTAL_SECS:=...}"`). An older gate_budget.py without `limit`: the derived cap, else the fixed default.
+effective_limit() {   # $1 mode, $2 fallback seconds; the plan text on stdin; prints seconds (the "why" line goes to the terminal)
+  local c; c="$("$PY3" "$G2/gate_budget.py" limit --results "$RES" --mode "$1" --plan - --fallback "$2" \
+                --load1 "$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)" --nproc "$(nproc 2>/dev/null)" --explain)" && [ -n "$c" ] \
+    && printf %s "$c" || derived_cap "$1" "$2"
+}
 WT="$HOME/work/gate-$TAG"         # the engine's own worktree path; we hold the gate lock, so nobody else uses it
 if [ ! -e "$WT/.git" ]; then
   git -C "$REPO" worktree prune
@@ -219,9 +232,13 @@ if [ "$FULL" = 0 ]; then
   printf '%s\n' "$PLAN" | grep -q "^  visual: skip" && ENGINE+=(--no-visual)   # T074 (was: "pixel: no frontend/src change")
   ENGINE+=(--select-base "$BASE")
   export GATE_SELECT_ENABLE=1
-  : "${GATE_TOTAL_SECS:=$(derived_cap select 7200)}"
+  : "${GATE_TOTAL_SECS:=$(printf '%s\n' "$PLAN" | effective_limit select 7200)}"
 else
-  : "${GATE_TOTAL_SECS:=$(derived_cap full 12000)}"
+  # the full tier: the plan's own "full tier on the same tree" estimate is a floor too (GATE-SPEED-2320; seconds, no test is started)
+  if [ -z "${GATE_TOTAL_SECS:-}" ]; then
+    FPLAN="$("$PY3" "$G2/gate2_select.py" plan --root "$WT" --base "$BASE" --head HEAD 2>/dev/null | grep -E 'ESTIMATE|full (backend|frontend)')" || FPLAN=""
+    GATE_TOTAL_SECS="$(printf '%s\n' "$FPLAN" | effective_limit full 12000)"
+  fi
 fi
 [ -z "$AFTER" ] || export GATE2_AFTER_REPORT="$(readlink -f "$AFTER")"
 export GATE_SCHEDULE=v2 GATE_TOTAL_SECS GATE2_COSTS="${GATE2_COSTS:-$G2/gate2_costs.json}"

@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
-import math
 import os
 import re
 import subprocess
@@ -646,7 +645,9 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
     # R1 (replay: 13 of 15 escapes): no deferral on a side that already runs the full tier - a hub change is exactly when the
     # heavy layout sweeps find something
     if defer_heavy and costs and not full["frontend"]:
-        sec = costs.get("seconds", {})
+        # GATE-SPEED-2550: the seed's frozen defer_seconds (the 2.19.0 values) when present, so refreshing the estimate costs never
+        # changes which unchanged heavy sweeps a select gate leaves to the nightly; without it (an older seed, a test) the seconds
+        sec = costs.get("defer_seconds") or costs.get("seconds", {})
         changed_specs = {Path(p).name for s, p in changes if re.match(rf"^{FE}/tests/[^/]+\.spec\.ts$", p) and s != "D"}
         pinned = changed_specs | set((after or {}).get("frontend", ())) | (tree_scanners if fe_src_changed else set())
         for n in sorted(fsel):
@@ -674,9 +675,12 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
 
 # ---------------------------------------------------------------- estimate (reuses the engine's own v2 job planner)
 CALIB = {
-    # 2.19.0 gate (release/2190 @ e476e48ae, v2, 12 slots, 6 shards): the measured pool phase and the planner's makespan for
-    # the same classification and costs. Filled by `calibrate`; see GATE_V2.md section 2.
-    "pool_actual_s": 8686, "settle_actual_s": 397, "setup_actual_s": 54,
+    # GATE-SPEED-2550: the 2.54.0 full gate (release/2540-train @ f9217db8a, v2, 8 slots, 4 shards - the knobs every gate since
+    # 2.4x ran with): the pool phase 11270 s (critical path; the slowest backend shard 10973 s), 247 s before the pool, retries
+    # settled inside the pool. The seed gate2_costs.json is from the same gate, so k = measured / planner is the runner's own factor.
+    # Was: 2.19.0 (release/2190 @ e476e48ae, 12 slots, 6 shards, pool 8686 s, settle 397 s, setup 54 s) with a seed of that gate.
+    "gate": "2.54.0", "slots": 8, "shards": 4, "wall_min": 192,
+    "pool_actual_s": 11270, "settle_actual_s": 0, "setup_actual_s": 247,
 }
 
 
@@ -688,7 +692,7 @@ def load_costs(path: Path | None) -> dict:
         return {}
 
 
-def estimate(root: Path, sel: dict | None, costs: dict, slots: int = 12, shards: int | None = None) -> dict:
+def estimate(root: Path, sel: dict | None, costs: dict, slots: int = 12, shards: int | None = None, fixed_slots: bool = False) -> dict:
     """Wall-time estimate of a gate-2 run (sel) or of the full tier (sel=None) from the recorded costs, with the engine's own
     classify() / filter_classification() / v2_jobs() / simulate_pool(). Runs nothing."""
     import importlib
@@ -696,6 +700,8 @@ def estimate(root: Path, sel: dict | None, costs: dict, slots: int = 12, shards:
     rg = importlib.import_module("release_gate")
     rg.SCHEDULE = "v2"
     rg._COSTS = dict(costs.get("seconds", {}))          # the seed instead of the runner's gate logs
+    rg._PCOSTS = {}                                     # GATE-SPEED-2550: per project = the file's seconds / its projects (heavy split)
+    rg._PXWALL = {k: float(v) for k, v in (costs.get("pixel_seconds") or {}).items() if isinstance(v, (int, float)) and v > 0}
     fe = Path(root) / FE
     cls = rg.classify(fe, "L")
     if sel:
@@ -721,10 +727,12 @@ def estimate(root: Path, sel: dict | None, costs: dict, slots: int = 12, shards:
 
     if shards is None:
         # one CPU budget for both tracks, as measured in 2.19.0 (12 Playwright slots + 6 shards = 18 on 16 cores): try every
-        # split of it between backend shards (GATE_BACKEND_SHARDS, 4..10) and Playwright slots (GATE_PW_SLOTS, at least 6)
+        # split of it between backend shards (GATE_BACKEND_SHARDS, 4..10) and Playwright slots (GATE_PW_SLOTS, at least 6).
+        # GATE-SPEED-2550: fixed_slots = the slot count is already decided (GATE_PW_SLOTS in the environment wins in the wrapper),
+        # so only the shard count is searched and the estimate is made for the slots the run will really have
         best = None
         for n in range(4, 11):
-            s = max(6, UNITS - n)
+            s = slots if fixed_slots else max(6, UNITS - n)
             mk, _ = rg.simulate_pool(jobs, s)
             crit = max(mk, be_wall_of(n))
             if best is None or crit < best[0] - 1:
@@ -742,7 +750,7 @@ UNITS = int(os.environ.get("GATE2_CPU_UNITS", "18"))
 
 
 def wall_range(est: dict, full_est: dict | None) -> tuple[float, float]:
-    """(low, high) minutes. Calibration: the 2.19.0 pool took CALIB pool_actual_s against the planner's makespan for the full
+    """(low, high) minutes. Calibration: the calibration gate (CALIB, 2.54.0 since GATE-SPEED-2550) took CALIB pool_actual_s against the planner's makespan for the full
     tier (factor k >= 1: the per-test costs were recorded under that gate's load, and the backend shared the CPU). low = the
     planner's critical path; high = k x that. Both add the measured setup and settle (retry) phases."""
     k = 1.0
@@ -783,7 +791,7 @@ def nightly_health(results_dir: Path, max_age_h: float = 36.0) -> dict:
 
 
 # ---------------------------------------------------------------- CLI
-def _print_plan(root: Path, base: str, head: str, sel: dict, est: dict, full_est: dict, costs: dict) -> None:
+def _print_plan(root: Path, base: str, head: str, sel: dict, est: dict, full_est: dict, costs: dict, explicit: bool = False) -> None:
     lo, hi = wall_range(est, full_est)
     flo, fhi = wall_range(full_est, full_est)
     b, f = sel["backend"], sel["frontend"]
@@ -799,7 +807,8 @@ def _print_plan(root: Path, base: str, head: str, sel: dict, est: dict, full_est
     print(f"  frontend: {len(f['selected'])}/{f['total']} specs ({est['rest']} preview, {est['dev']} dev, {est['fixture']} fixture, {est['pixel_specs']} pixel), "
           f"{est['pw_worker_s'] / 60:.0f} of {full_est['pw_worker_s'] / 60:.0f} worker-min, {est['jobs']} pool jobs on {est['pw_slots']} slots, "
           f"longest job {est['pw_longest_job_s'] / 60:.0f} min, pool makespan ~{est['pw_makespan_s'] / 60:.0f} min")
-    print(f"  knobs for this run: GATE_BACKEND_SHARDS={est['backend_shards']} GATE_PW_SLOTS={est['pw_slots']} (closure depth {sel.get('closure_depth')})")
+    print(f"  knobs for this run: GATE_BACKEND_SHARDS={est['backend_shards']} GATE_PW_SLOTS={est['pw_slots']} (closure depth {sel.get('closure_depth')})"
+          + (" [estimated with the explicit GATE_PW_SLOTS / GATE_BACKEND_SHARDS of the environment]" if explicit else ""))
     d = sel["deferred_to_nightly"]
     print(f"  deferred to the nightly (heavy, > {sel['heavy_secs'] / 60:.0f} worker-min, unchanged): {len(d)} specs, {sum(d.values()):.0f} worker-min"
           + (": " + ", ".join(f"{k} ({v})" for k, v in sorted(d.items(), key=lambda kv: -kv[1])[:8]) if d else ""))
@@ -811,7 +820,7 @@ def _print_plan(root: Path, base: str, head: str, sel: dict, est: dict, full_est
     print("  why selected (count):")
     for (side, key), c in sorted(why.items(), key=lambda kv: -kv[1])[:14]:
         print(f"    {side:<8} {c:>4}  {key}")
-    print(f"  ESTIMATE gate2: ~{lo}-{hi} min wall   (full tier on the same tree: ~{flo}-{fhi} min; 2.19.0 actual full v2 gate: 152 min)")
+    print(f"  ESTIMATE gate2: ~{lo}-{hi} min wall   (full tier on the same tree: ~{flo}-{fhi} min; {CALIB['gate']} actual full v2 gate: {CALIB['wall_min']} min)")
 
 
 def main(argv=None) -> int:
@@ -843,13 +852,29 @@ def main(argv=None) -> int:
         print(json.dumps(sel, indent=1, ensure_ascii=False))
         return 0
     head_root = root
-    est = estimate(head_root, sel, costs)
-    full_est = estimate(head_root, None, costs, ns.slots, shards=6)
+    slots, shards, fixed = run_knobs()
+    est = estimate(head_root, sel, costs, slots if fixed else 12, shards, fixed_slots=fixed)
+    full_est = estimate(head_root, None, costs, CALIB["slots"], shards=CALIB["shards"])
     k = CALIB["pool_actual_s"] / max(full_est["pw_makespan_s"], full_est["backend_wall_s"], 1)
-    print(f"calibration: full tier on this tree, 12 slots + 6 shards -> planner {max(full_est['pw_makespan_s'], full_est['backend_wall_s']) / 60:.0f} min "
-          f"vs the 2.19.0 pool phase {CALIB['pool_actual_s'] / 60:.0f} min measured (k = {k:.2f})")
-    _print_plan(root, ns.base, ns.head, sel, est, full_est, costs)
+    print(f"calibration: full tier on this tree, {CALIB['slots']} slots + {CALIB['shards']} shards -> planner "
+          f"{max(full_est['pw_makespan_s'], full_est['backend_wall_s']) / 60:.0f} min vs the {CALIB['gate']} critical path "
+          f"{CALIB['pool_actual_s'] / 60:.0f} min measured (k = {k:.2f})")
+    _print_plan(root, ns.base, ns.head, sel, est, full_est, costs, explicit=(fixed or shards is not None))
     return 0
+
+
+def run_knobs() -> tuple[int, int | None, bool]:
+    """GATE-SPEED-2550: (slots, shards, slots fixed) for the estimate of THIS run. release_gate2.sh / branch_check.sh keep an explicit
+    GATE_PW_SLOTS / GATE_BACKEND_SHARDS of the environment (`: ${GATE_PW_SLOTS:=...}`), so the plan must estimate with them: the 2.53
+    run 2 printed ~91-105 min for 14 slots while it ran on 8 (125 min measured in run 3). Unset or invalid: the search as before."""
+    def num(name):
+        try:
+            v = int(str(os.environ.get(name, "")).strip())
+            return v if v > 0 else None
+        except ValueError:
+            return None
+    slots, shards = num("GATE_PW_SLOTS"), num("GATE_BACKEND_SHARDS")
+    return (slots or 12), shards, slots is not None
 
 
 if __name__ == "__main__":

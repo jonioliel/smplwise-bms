@@ -55,6 +55,13 @@ INSTALL_MAP: dict[str, list[str]] = {
     "fixture_lane.sh": ["fixture_lane.sh"],   # GATE-FIXTURE-LANE-2530: next to ~/release_gate.py (it runs that engine)
     "gate_baselines.json": ["gate_baselines.json"],             # GATE-TRUST-2540 (TR-07): the floor; release_gate2.sh copies it to ~/gate2
     "selftest_gate_trust.py": ["gate2/selftest_gate_trust.py"],  # GATE-TRUST-2540: TR-05 / TR-07 / TR-09 self-test (reads its neighbours)
+    # GATE-SPEED-2550: the limit helper (the engine imports it from its own directory), the duration seeds, the planner's cost seed,
+    # the entry check wrapper (os.replace below = a new inode, so waiting checks keep reading the old file) and the self-test
+    "gate_budget.py": ["gate_budget.py", "gate2/gate_budget.py"],
+    "gate_durations.json": ["gate_durations.json", "nightly-gate/gate_durations.json"],   # release_gate2.sh copies ~/ into ~/gate2
+    "gate2_costs.json": ["gate2/gate2_costs.json"],
+    "branch_check.sh": ["gate2/branch_check.sh"],
+    "selftest_gate_speed_2550.py": ["gate2/selftest_gate_speed_2550.py"],
 }
 ENGINE_GROUP = ["release_gate.py", "release_gate2.sh", "engine_sync.py", "selftest_gate.py"]
 
