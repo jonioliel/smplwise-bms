@@ -20,7 +20,7 @@ Final deep review 2.55 / 2.56, area 6 of `docs/review/FINAL-REVIEW-PLAN-2560.md`
 
 Counts: critical 0, high 0, medium 0, low 4.
 
-Old findings of this area (plan section 1): 19 re-verified - FIXED 17, PARTIAL 2 (SCR-22, D-11), STILL OPEN 0 (table in section 3).
+Old findings of this area (plan section 1): 23 re-verified - FIXED 21, PARTIAL 2 (SCR-22, D-11), STILL OPEN 0 (table in section 3).
 
 ## 2. Findings
 
