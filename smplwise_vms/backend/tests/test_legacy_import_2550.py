@@ -288,7 +288,7 @@ def test_the_apply_refuses_a_changed_plan_a_missing_word_and_a_failed_backup(cli
     def boom(*a, **k):
         raise OSError("disk full")
 
-    monkeypatch.setattr(backup_svc, "create", boom)
+    monkeypatch.setattr(backup_svc, "write_prepared", boom)
     r = client.post(f"{API}/apply", params={"plan_digest": digest, **CONFIRM}, content=bundle)
     assert r.status_code == 409 and r.json()["code"] == "legacy_backup_failed"
     assert _alias(settings, "cam-1") is None, "no backup, no change"
@@ -337,3 +337,56 @@ def test_a_nonzero_legacy_display_offset_is_a_warning(settings, client):
     assert rep["time"]["effective_minutes"] == 120
     assert any(w["code"] == "display_offset" for w in rep["warnings"])
     assert next(i for i in rep["items"] if i["id"] == "time.display_offset")["code"] == "offset_nonzero"
+
+
+def _spy_conn(monkeypatch) -> list:
+    conns: list = []
+    real_plan = li.plan
+
+    def plan(conn, *a, **k):
+        conns.append(conn)
+        return real_plan(conn, *a, **k)
+
+    monkeypatch.setattr(li, "plan", plan)
+    return conns
+
+
+def test_cd03_the_safety_backup_is_compressed_without_the_write_lock(client, settings, bundle, monkeypatch):
+    """CD-03: the archive is written with the request's write lock given up (CORE-05), and the apply still backs up first."""
+    from smplwise.services import backup as backup_svc
+
+    client.get("/api/v1/me")
+    _seed(settings)
+    digest = client.post(f"{API}/dry-run", content=bundle).json()["plan_digest"]
+    conns = _spy_conn(monkeypatch)
+    held: list[bool] = []
+    real = backup_svc.write_prepared
+
+    def spy(settings_, prepared):
+        held.append(conns[-1].in_transaction)
+        return real(settings_, prepared)
+
+    monkeypatch.setattr(backup_svc, "write_prepared", spy)
+    r = client.post(f"{API}/apply", params={"plan_digest": digest, **CONFIRM}, content=bundle)
+    assert r.status_code == 200, r.text
+    assert held == [False], "the archive must be written while no write transaction is open"
+    assert _alias(settings, "cam-1") == "כניסה ראשית" and r.json()["backup"]["name"].startswith(li.BACKUP_KIND + "-")
+
+
+def test_cd03_a_change_during_the_open_lock_is_a_409_and_nothing_is_written(client, settings, bundle, monkeypatch):
+    from smplwise.services import backup as backup_svc
+
+    client.get("/api/v1/me")
+    _seed(settings)
+    digest = client.post(f"{API}/dry-run", content=bundle).json()["plan_digest"]
+    real = backup_svc.write_prepared
+
+    def meanwhile(settings_, prepared):
+        with Database(settings.db_path).connection() as other:   # only possible when the apply gave the write lock up
+            other.execute("UPDATE cameras SET alias = 'שער' WHERE id = 'cam-1'")
+        return real(settings_, prepared)
+
+    monkeypatch.setattr(backup_svc, "write_prepared", meanwhile)
+    r = client.post(f"{API}/apply", params={"plan_digest": digest, **CONFIRM}, content=bundle)
+    assert r.status_code == 409 and r.json()["code"] == "legacy_plan_changed"
+    assert _alias(settings, "cam-1") == "שער"

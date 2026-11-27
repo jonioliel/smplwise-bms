@@ -115,31 +115,71 @@ class StateWorker:
 # the rule delivery that talks to Home Assistant: one thread, in firing order
 _DELIVERY = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ha-rule-delivery")
 _delivery_lock = threading.Lock()
-DELIVERY = {"queued": 0, "done": 0}
+DELIVERY = {"queued": 0, "done": 0, "skipped_old": 0, "dropped_full": 0}
+# CD-04: a notify / announce that waited longer than this is stale ("door open" minutes late is worse than none): it is skipped,
+# counted and logged. The queue is bounded too: past DELIVERY_MAX_QUEUE waiting deliveries a new one is dropped, counted and logged.
+# The in-app notification rows are not affected (the notifier thread is still woken).
+DELIVERY_MAX_AGE_S = 120.0
+DELIVERY_MAX_QUEUE = 200
 
 
 def _needs_ha(fired: list[dict[str, Any]]) -> bool:
     return any(item.get("_pending") or item.get("_announce") for item in fired)
 
 
+def _wake_only(fired: list[dict[str, Any]]) -> None:
+    """A delivery that is not sent to Home Assistant still wakes the notifier thread (in-app / push rows are already committed)."""
+    from . import rules as rules_svc
+
+    for item in fired:
+        item.pop("_pending", None)
+        item.pop("_announce", None)
+    rules_svc.deliver_pending(fired)
+
+
+def _count(key: str) -> int:
+    with _delivery_lock:
+        DELIVERY[key] += 1
+        return DELIVERY[key]
+
+
 def deliver_later(fired: list[dict[str, Any]]) -> None:
     """`rules.deliver_pending` off the state path when a fired rule talks to Home Assistant (notify / announce); a list without
-    such an action only wakes the notifier thread, which is immediate and stays inline."""
+    such an action only wakes the notifier thread, which is immediate and stays inline. CD-04: bounded (DELIVERY_MAX_QUEUE) and
+    age-limited (DELIVERY_MAX_AGE_S); what is dropped is counted in DELIVERY and logged (the first one and every 50th), never silent."""
     from . import rules as rules_svc
 
     if not _needs_ha(fired):
         rules_svc.deliver_pending(fired)
         return
+    with _delivery_lock:
+        waiting = DELIVERY["queued"] - DELIVERY["done"] - DELIVERY["skipped_old"]
+    if waiting >= DELIVERY_MAX_QUEUE:
+        n = _count("dropped_full")
+        if n == 1 or n % 50 == 0:
+            log.warning("HA rule delivery: %d notification(s) waiting for Home Assistant; this one was dropped (%d dropped so far)", waiting, n)
+        _wake_only(fired)
+        return
+    queued_at = time.monotonic()
 
     def run() -> None:
+        age = time.monotonic() - queued_at
+        if age > DELIVERY_MAX_AGE_S:
+            n = _count("skipped_old")
+            if n == 1 or n % 50 == 0:
+                log.warning("HA rule delivery: a notification waited %d s (limit %d s) and was skipped as stale (%d skipped so far)",
+                            int(age), int(DELIVERY_MAX_AGE_S), n)
+            try:
+                _wake_only(fired)
+            except Exception:  # noqa: BLE001
+                log.exception("rule delivery wake failed")
+            return
         try:
             rules_svc.deliver_pending(fired)
         except Exception:  # noqa: BLE001 - deliver_pending never raises by contract; a bug here must not end the thread
             log.exception("rule delivery failed")
         finally:
-            with _delivery_lock:
-                DELIVERY["done"] += 1
+            _count("done")
 
-    with _delivery_lock:
-        DELIVERY["queued"] += 1
+    _count("queued")
     _DELIVERY.submit(run)

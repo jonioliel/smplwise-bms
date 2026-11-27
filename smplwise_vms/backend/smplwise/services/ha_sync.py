@@ -839,11 +839,16 @@ async def _run_on_state_worker(fn: Callable[..., Any], *args: Any) -> Any:
     return await fut
 
 
-def apply_resync(db: Database, listing: list[dict[str, Any]], seen: str) -> None:
+def apply_resync(db: Database, listing: list[dict[str, Any]], seen: str, touched: set[str] | None = None) -> None:
     """CORE-10: the full re-read after the state worker's queue refused frames - run ON the worker, so every frame queued before the
     re-read was asked for is stored first and every frame after it is applied on top. Open screens refetch on the `resync` notice
-    (the CORE-06 signal of a full /ha/ws queue)."""
-    store_states(db, listing, seen)
+    (the CORE-06 signal of a full /ha/ws queue).
+    CD-02: the listing is applied through the reconcile rule (reconcile_states), never as a blind overwrite: a state HA reports as
+    older than the stored one is kept, and an entity in `touched` (a state frame that arrived from the moment the re-read was asked
+    for until now) is left to that frame - the socket reader may hand newer frames to the worker before this job is submitted."""
+    _rows, counts = reconcile_states(db, listing, seen, set(touched or ()))
+    log.info("HA sync: re-read applied: %d repaired, %d older kept, %d unchanged, %d updated live, %d not written",
+             counts["repaired"], counts["older"], counts["same"], counts["live"], counts["failed"])
     STATE.last_snapshot_at = seen
     STATE.state_resyncs += 1
     log.warning("HA sync: every state re-read after %d state change(s) did not fit the queue (%d entities)", STATE.state_overflows, len(listing))
@@ -1148,7 +1153,7 @@ class HaSync:
         held_compacted = [False]
         # CORE-10: this session's `call` once on_ready has it (the re-read after an overflow), and the re-read's own state
         session_call: list[Any] = [None]
-        resync: dict[str, Any] = {"task": None, "again": False, "warned": False}
+        resync: dict[str, Any] = {"task": None, "again": False, "warned": False, "touched": None}  # CD-02: ids of frames seen since the re-read was asked for
 
         def on_event(data: dict[str, Any]) -> None:
             nonlocal held
@@ -1158,6 +1163,8 @@ class HaSync:
             touched = self._reconcile_touched
             if touched is not None and "new_state" in data:  # HA-STATE-RECONCILE-2550: the live event wins over the cycle's listing
                 touched.add(str(eid))
+            if resync["touched"] is not None and "new_state" in data:  # CD-02: the same for the re-read after an overflow
+                resync["touched"].add(str(eid))
             if held is not None and "new_state" in data:  # a registry_updated frame (no new_state key) is not a state event
                 held.append(data)
                 if len(held) > HELD_STATES_MAX:
@@ -1389,6 +1396,7 @@ class HaSync:
                     resync["again"] = False
                     while STATE_WORKER.frames() > STATE_WORKER.maxsize * RESYNC_LOW_WATER:
                         await asyncio.sleep(0.2)
+                    resync["touched"] = touched = set()  # from before the listing is asked for: a frame that races it is never undone
                     try:
                         reply = await call("get_states")
                     except Exception as exc:  # noqa: BLE001 - a dropped socket: the reconnect's snapshot re-reads everything
@@ -1399,9 +1407,11 @@ class HaSync:
                                     (reply.get("error") or {}).get("code"))
                         return
                     # a control job: never refused, and placed behind every frame queued so far (they are older than this listing)
-                    STATE_WORKER.submit(apply_resync, db, reply.get("result") or [], now_iso(), bounded=False)
+                    # frames queued after this job are applied on top of it (FIFO); frames read before it are in `touched`
+                    STATE_WORKER.submit(apply_resync, db, reply.get("result") or [], now_iso(), touched, bounded=False)
             finally:
                 resync["warned"] = False
+                resync["touched"] = None
 
         try:
             await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)

@@ -222,3 +222,125 @@ def test_the_worker_survives_a_failing_job_and_reports_its_numbers():
     assert w.wait_idle(5) is True
     assert done == [1, 3] and w.failed == 1 and w.done == 4 and w.max_depth >= 3
     assert w.submit(done.append, 4) and w.wait_idle(5) and done == [1, 3, 4]
+
+
+def _seed_listing_state(app, entity_id: str, state: str, at: str) -> None:
+    ev = _event(entity_id, None, state, 0)["new_state"]
+    ev["last_updated"] = ev["last_changed"] = at
+    ha_sync.store_states(app.state.db, [ev], at)
+
+
+def _listing_item(entity_id: str, state: str, at: str) -> dict[str, Any]:
+    ev = _event(entity_id, None, state, 0)["new_state"]
+    ev["last_updated"] = ev["last_changed"] = at
+    return ev
+
+
+def test_cd02_the_re_read_never_overwrites_a_newer_stored_state(app_s):
+    """CD-02: a state frame newer than the re-read's listing was stored first; the older listing must not replace it."""
+    app, _s = app_s
+    _seed_listing_state(app, "binary_sensor.cd02_door", "on", "2026-11-26T10:05:00+00:00")
+    ha_sync.apply_resync(app.state.db, [_listing_item("binary_sensor.cd02_door", "off", "2026-11-26T10:04:00+00:00")], "2026-11-26T10:06:00+00:00")
+    assert _state(app, "binary_sensor.cd02_door") == "on"
+    ha_sync.apply_resync(app.state.db, [_listing_item("binary_sensor.cd02_door", "off", "2026-11-26T10:07:00+00:00")], "2026-11-26T10:08:00+00:00")
+    assert _state(app, "binary_sensor.cd02_door") == "off", "a genuinely newer listing state is still written"
+
+
+def test_cd02_an_entity_seen_live_since_the_re_read_was_asked_is_left_to_its_frame(app_s):
+    app, _s = app_s
+    _seed_listing_state(app, "binary_sensor.cd02_live", "off", "2026-11-26T10:01:00+00:00")
+    ha_sync.apply_resync(app.state.db, [_listing_item("binary_sensor.cd02_live", "unavailable", "2026-11-26T10:09:00+00:00")],
+                         "2026-11-26T10:10:00+00:00", {"binary_sensor.cd02_live"})
+    assert _state(app, "binary_sensor.cd02_live") == "off"
+
+
+def test_cd02_on_event_records_the_ids_for_the_resync(app_s, monkeypatch):
+    """End to end: a newer frame delivered between the re-read's reply and its job survives the older listing."""
+    app, s = app_s
+    fake = FakeHa()
+    monkeypatch.setattr(ha_sync.STATE_WORKER, "maxsize", 3)
+    stuck = threading.Event()
+    real_call = fake.call
+
+    async def call(*a, **kw):
+        reply = await real_call(*a, **kw)
+        if a and a[0] == "get_states" and stuck.is_set():   # the re-read's reply: HA sent a newer frame right after the listing
+            on_event_ref[0](_event("sensor.cd02_race", None, "NEWER", 59))
+        return reply
+
+    on_event_ref: list[Any] = [None]
+    resyncs0 = ha_sync.STATE.state_resyncs
+
+    async def script(on_event, _call):
+        on_event_ref[0] = on_event
+        ha_sync.STATE_WORKER.submit(stuck.wait, 5, bounded=False)
+        for n in range(10):
+            on_event(_event("sensor.cd02_race", None, str(n), n))
+        fake.states.append(copy.deepcopy(_event("sensor.cd02_race", None, "LISTED", 20)["new_state"]))
+        stuck.set()
+        await wait_until(lambda: ha_sync.STATE.state_resyncs > resyncs0)
+
+    async def ws_session(_settings, on_ready, on_event, stop, on_message=None):  # noqa: ARG001
+        await on_ready(call)
+        await script(on_event, call)
+
+    monkeypatch.setattr(ha_client, "ws_session", ws_session)
+    sync = ha_sync.HaSync()
+    sync.db, sync.settings = app.state.db, s
+    asyncio.run(sync._session(asyncio.Event()))
+    assert ha_sync.STATE_WORKER.wait_idle(5)
+    assert _state(app, "sensor.cd02_race") == "NEWER"
+
+
+def _fired() -> list[dict[str, Any]]:
+    return [{"_pending": [("notify.x", "door open", "Door")], "ha_notify": {}, "announce": []}]
+
+
+def test_cd04_a_stale_notification_is_skipped_counted_and_logged(monkeypatch, caplog):
+    """CD-04: a delivery that waited past the age limit behind a slow Home Assistant is not sent late; it is counted and logged."""
+    from smplwise.services import ha_state_worker as w
+
+    sent: list[str] = []
+    woken: list[int] = []
+    monkeypatch.setattr(rules_svc, "deliver_pending", lambda fired: (sent.append("sent") if any(i.get("_pending") for i in fired) else woken.append(1)))
+    monkeypatch.setattr(w, "DELIVERY_MAX_AGE_S", 0.05)
+    base = dict(w.DELIVERY)
+    gate = threading.Event()
+    w._DELIVERY.submit(gate.wait, 5)             # the slow earlier delivery holds the single thread
+    with caplog.at_level("WARNING"):
+        w.deliver_later(_fired())
+        time.sleep(0.2)                           # older than the limit by the time the thread is free
+        gate.set()
+        t0 = time.time()
+        while w.DELIVERY["skipped_old"] == base["skipped_old"] and time.time() - t0 < 5:
+            time.sleep(0.02)
+    assert w.DELIVERY["skipped_old"] == base["skipped_old"] + 1 and sent == [] and woken == [1]
+    assert any("skipped as stale" in r.getMessage() for r in caplog.records)
+    w.deliver_later(_fired())                     # a fresh one is still delivered
+    t0 = time.time()
+    while not sent and time.time() - t0 < 5:
+        time.sleep(0.02)
+    assert sent == ["sent"]
+
+
+def test_cd04_the_delivery_queue_is_bounded_and_the_drop_is_counted_and_logged(monkeypatch, caplog):
+    from smplwise.services import ha_state_worker as w
+
+    monkeypatch.setattr(rules_svc, "deliver_pending", lambda fired: None)
+    monkeypatch.setattr(w, "DELIVERY_MAX_QUEUE", 3)
+    monkeypatch.setattr(w, "DELIVERY_MAX_AGE_S", 60.0)
+    base = dict(w.DELIVERY)
+    gate = threading.Event()
+    w._DELIVERY.submit(gate.wait, 5)
+    with caplog.at_level("WARNING"):
+        for _ in range(6):
+            w.deliver_later(_fired())
+        queued = w.DELIVERY["queued"] - base["queued"]
+        dropped = w.DELIVERY["dropped_full"] - base["dropped_full"]
+        gate.set()
+    assert queued == 3 and dropped == 3
+    assert any("was dropped" in r.getMessage() for r in caplog.records)
+    t0 = time.time()
+    while w.DELIVERY["done"] - base["done"] < 3 and time.time() - t0 < 5:
+        time.sleep(0.02)
+    assert w.DELIVERY["done"] - base["done"] == 3
