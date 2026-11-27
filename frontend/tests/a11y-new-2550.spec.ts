@@ -587,10 +587,13 @@ for (const scheme of SCHEMES) {
     await mockHonestArea(page, { scheme });
     await openBuilding(page, scheme);
     const entry = page.locator('devices-building a.arow[data-area-row="ahc_entry"]');
-    const visible = (await entry.innerText()).replace(/\s+/g, ' ').trim();
     const spoken = await spokenText(entry);
-    expect(visible).toContain('1 לא ידוע');
-    expect(spoken.startsWith(visible), `"${spoken}" starts with the visible "${visible}"`).toBe(true);
+    const compact = (t: string) => t.replace(/\s+/g, '');
+    // the content names the link: the area's name first, then the chips as drawn ("1 unknown"), then the hidden tail
+    expect(await entry.locator('[data-ind="locks"][data-ind-unknown]').innerText()).toContain('1 לא ידוע');
+    expect(compact(spoken).startsWith(compact('כניסה')), spoken).toBe(true);
+    expect(compact(spoken), spoken).toContain(compact('1 לא ידוע'));
+    expect(compact(spoken).indexOf(compact('1 לא ידוע')), 'the visible chip text comes before the tail').toBeLessThan(compact(spoken).indexOf(compact('התקנים')));
     await expect(entry).toHaveAccessibleName(/התקנים/);
     await expect(entry).toHaveAccessibleName(/לא ידוע: 1 מתוך 2/);
     await expect(entry).toHaveAccessibleName(/כניסה לאזור/);
