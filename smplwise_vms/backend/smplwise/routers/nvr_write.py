@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -316,13 +316,26 @@ def set_ntp(body: NtpIn, request: Request, principal: Principal = Depends(curren
         return nvr_system.set_ntp(settings, conn, principal, host=body.host, port=body.port, interval_min=body.interval_min, request_id=_rid(request))
 
 
+class PulseIn(_Body):
+    """FIX-NVR-PULSE-2560 (deep review VD-04): a physical command carries its own confirmation and request id, like every other one."""
+    confirm: bool
+    client_request_id: str = Field(min_length=1, max_length=80)
+
+    @field_validator("confirm")
+    @classmethod
+    def _must_confirm(cls, v: bool) -> bool:
+        if v is not True:
+            raise ValueError("confirm must be true")
+        return v
+
+
 @router.post("/nvr/outputs/{output_id}/pulse", status_code=201)
-def pulse_output(output_id: int, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def pulse_output(output_id: int, body: PulseIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
                  recorder_id: str = Query(PRIMARY, max_length=40)) -> dict[str, Any]:
     require(conn, principal, "nvr.alarm_output", INSTALLATION)
     settings = recorder_settings(request, conn, recorder_id)
     with unlocked(conn):
-        return nvr_system.pulse_output(settings, conn, principal, output_id, request_id=_rid(request))
+        return nvr_system.pulse_output(settings, conn, principal, output_id, request_id=_rid(request), client_request_id=body.client_request_id)
 
 
 class SmartIn(_Body):

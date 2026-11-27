@@ -146,6 +146,11 @@ test.describe('the NVR system card (SCR-14 / SCR-15)', () => {
     expect(pulse).toContain('danger: true');
     expect(pulse).toMatch(/if \(!ok \|\| rid !== this\.sysRecorder\) return;/);
     expect(pulse).toContain('nvrSystemApi(rid).pulseNvrOutput(o.id)');
+    // FIX-NVR-PULSE-2560 (VD-04): the call carries the server-side confirmation and one request id per press; the change log reads "unknown" as such
+    const api = src('api/nvr.ts');
+    expect(api.match(/\{ confirm: true, client_request_id: requestId \}/g)?.length).toBe(2);
+    expect(api).toContain('requestId: string = commandId()');
+    expect(s).toContain("c.status === 'unknown' ? tr('לא ידוע · לבדוק במקום')");
     // a late answer for another recorder is dropped
     const load = s.slice(s.indexOf('private async loadSystem('), s.indexOf('private recorderName('));
     expect(load).toMatch(/if \(rid !== this\.sysRecorder\) return;/);

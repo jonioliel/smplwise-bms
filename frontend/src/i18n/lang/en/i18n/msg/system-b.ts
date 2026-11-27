@@ -1578,4 +1578,5 @@ export const en = {
   'הפעל את היציאה': 'Operate the output',
   '{label}: ה־NVR אישר את הפקודה · נרשם באודיט.': '{label}: the NVR accepted the command · recorded in the audit log.',
   'לא ידוע אם הפעולה בוצעה · בדקו במקום לפני הפעלה חוזרת': 'It is not known whether the action was carried out · check on site before trying again',
+  'לא ידוע · לבדוק במקום': 'Unknown · check on site',
 };
