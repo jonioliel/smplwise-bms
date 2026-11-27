@@ -23576,5 +23576,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-MH01-2560-1",
+    "requirement_ids": [
+      "R-FIX-MH01-2560-1"
+    ],
+    "task_ids": [
+      "FIX-MH01-2560"
+    ],
+    "title": "Final review fix MH-01 (high): the room area field and link-dropping writes run the building RemapGuard",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Final review fix MH-01 (high): the room area field and link-dropping writes run the building RemapGuard; merged into the 2.56.0 train, change note docs/changes/FIX-MH01-2560.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-27 (RELEASE-2560-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

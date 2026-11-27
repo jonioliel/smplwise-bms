@@ -15287,5 +15287,21 @@
     "test_ids": [
       "AT-FIX-SERVER-CLOCK-2560-1"
     ]
+  },
+  {
+    "id": "R-FIX-MH01-2560-1",
+    "title": "Final review fix MH-01 (high): the room area field and link-dropping writes run the building RemapGuard",
+    "statement": "Final review fix MH-01 (high): the room area field and link-dropping writes run the building RemapGuard; merged into the 2.56.0 train, change note docs/changes/FIX-MH01-2560.md.",
+    "task_ids": [
+      "FIX-MH01-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-MH01-2560-1"
+    ]
   }
 ]
