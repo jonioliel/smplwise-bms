@@ -99,8 +99,15 @@ def build(real_migrate, db_cls, where: Path | None = None) -> dict:
 
 
 def copy_into(tpl: dict, target: Path) -> None:
-    """Page copy of the template into the (empty) target, then the clock-derived values re-stamped to now."""
+    """Page copy of the template into the (empty) target, then the clock-derived values re-stamped to now.
+
+    BACKEND-SUITE-COST-2560: the copying connection runs with synchronous=OFF. `synchronous` is a per-connection setting (not
+    stored in the file), so the copy is byte-for-byte the same and every connection the application opens afterwards keeps its
+    own durability class (db.py: FULL / NORMAL). What it removes is the fsync of a ~6 MB file at the end of the copy and of the
+    re-stamp commit: 350-870 ms per test app on an idle runner, 5 ms without (measured), and far more under a gate's disk load.
+    A test database lives in tmp_path and is never expected to survive a power cut."""
     with closing(sqlite3.connect(tpl["path"])) as src, closing(sqlite3.connect(target, isolation_level=None)) as dst:
+        dst.execute("PRAGMA synchronous=OFF")
         src.backup(dst)
         if tpl["stamps"]:
             now = _now()

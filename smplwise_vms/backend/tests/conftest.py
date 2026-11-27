@@ -56,6 +56,12 @@ from smplwise.db import Database as _Database  # noqa: E402
 
 _db_template.install(_Database)
 
+# BACKEND-SUITE-COST-2560: fastapi's per-application route analysis runs once per route and include context per process, not once
+# per test app (tests/support/route_cache.py; proof in tests/test_route_cache.py). SW_TEST_ROUTE_CACHE=0 restores the per-app path.
+from support import route_cache as _route_cache  # noqa: E402
+
+_route_cache.install()
+
 # CR-TEST-SUPPORT-2440 (review 05:P2-16): the plain helpers live in tests/support/ and are imported by name; they stay
 # importable from here (`from conftest import as_user, bind, seed_tree`), as hundreds of test files do.
 from support.apps import as_user, bind, enable_search, make_client, pdf_bytes, png_bytes, seed_tree, warm_routes  # noqa: E402,F401
