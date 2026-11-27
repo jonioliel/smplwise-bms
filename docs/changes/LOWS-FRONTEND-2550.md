@@ -161,11 +161,23 @@ Runner jobs `~/work/p2520_lfe_run.sh` (run 1, branch `fb6520ba2`), `p2520_lfe_ru
 - NOT_RUN: the full evidence / layout / pixel lanes (the release gate's job), tablet and mobile projects of the evidence specs, the
   i18n missing-keys report on its own (its ratchet spec `unit-i18n-en-ratchet-2490` ran inside the node unit run and passed).
 
+### SCR-52 line (owner answer Q1 a) - runs 5-7 (`p2520_lfe_run5.sh` at `766305b31`, `p2520_lfe_run6.sh` / `run7.sh` at `b8c907d42`)
+- Before / after: `unit-lows-frontend-2550-screens.spec.ts` on `4adf2cc19` (before the line): RC=1, does not load (`bulkItemFailed`
+  missing); on the branch: 12 passed.
+- Branch `b8c907d42`: build RC=0, typecheck RC=0, eslint (map, room card, map-room-bulk) RC=0, unused exports RC=0, bundle budget RC=0.
+- Node unit specs: 5497 passed, 17 skipped, 4 failed = the three `unit-mfa-passkeys-2490` page tests (no server in the node-only run)
+  and `unit-arx-local-login` "turns Arx users on from the tab" (a re-read timing check; not touched by this row; it passed in runs 1,
+  2 and 5, and re-run alone three times: 18 passed each). Run 5 (`766305b31`) had `unit-medium-rest-2540` failing on the map's
+  `map-action-args` import line; the helpers moved to `screens/map-room-bulk.ts` (`b8c907d42`), and the spec passes again.
+- Room card evidence (built app, mocked API, desktop + mobile): `evidence-k88-plan-advanced` + `evidence-physical-confirm-2540`: 30 passed,
+  2 skipped. Page specs `unit-overlay-fade-2520` + `unit-lows-frontend-2550-pages`: 4 passed.
+
 ## Look changes and the compare page
 Hebrew screens: no pixel change is expected (logical insets equal the replaced physical sides in right-to-left; the new states appear only
 in their own conditions). Visible changes: the English home (dimmer, menu, temperature, star, tick), the backups tab of an installation
 with no backups (empty state instead of the error panel), new confirmation dialogs (shared component, SCR-49 / SCR-53), the event list's
-500-row banner, and the emergency sheet's disabled kind (only when the two kinds' scope lists differ). Compare page:
+500-row banner, and the emergency sheet's disabled kind (only when the two kinds' scope lists differ), and the room card's "all off" line (only when
+devices stayed on). Compare page:
 `private/planning/lows_frontend_2550_compare_2026-11-26.html` (local, not committed).
 
 ## Open questions - answered by the owner (coordinator, 26.11): Q1 a (built in this row), Q2 a, Q3 a, Q4 a, Q5 a (as built)
