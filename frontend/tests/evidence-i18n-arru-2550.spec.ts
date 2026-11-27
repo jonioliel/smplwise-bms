@@ -66,14 +66,16 @@ const SCREENS: Screen[] = [
   { id: 'genlog', hash: '/infra/generator/log', el: 'gen-log-page', install: async (p) => void (await installGeneratorMock(p, { perms: PERMS.view, log: true })), words: patterns(GLT_TABLES.he) },
 ];
 
-/** The Hebrew text nodes under `sel`, through every shadow root. */
-async function hebrewTexts(page: Page, sel: string): Promise<string[]> {
-  return page.evaluate((sel) => {
+/** The Hebrew text nodes under `sel` (found through the app's shadow roots), through every shadow root below it. */
+async function hebrewTexts(page: Page, sel: string): Promise<{ hebrew: string[]; texts: number }> {
+  return page.locator(sel).first().evaluate((root) => {
     const heb = /[֐-׿]/;
     const out: string[] = [];
+    let texts = 0;
     const walk = (n: Node) => {
       if (n.nodeType === Node.TEXT_NODE) {
         const t = (n.textContent ?? '').trim();
+        if (t) texts++;
         if (heb.test(t)) out.push(t);
         return;
       }
@@ -83,9 +85,9 @@ async function hebrewTexts(page: Page, sel: string): Promise<string[]> {
       }
       n.childNodes.forEach(walk);
     };
-    document.querySelectorAll(sel).forEach(walk);
-    return [...new Set(out)];
-  }, sel);
+    walk(root);
+    return { hebrew: [...new Set(out)], texts };
+  });
 }
 
 for (const screen of SCREENS) {
@@ -110,7 +112,8 @@ for (const screen of SCREENS) {
           await page.evaluate(() => document.fonts.ready);
           await page.screenshot({ path: path.join(SHOTS, `${screen.id}-${lang}-${scheme}-${test.info().project.name}.png`) });
         }
-        const hebrew = await hebrewTexts(page, `sw-app ${screen.el}`);
+        const { hebrew, texts } = await hebrewTexts(page, `sw-app ${screen.el}`);
+        expect(texts, 'the walk reaches the rendered text of the screen').toBeGreaterThan(10);
         const left = hebrew.filter((t) => !MAIN.has(t) && screen.words.some((re) => re.test(t)));
         if (process.env.SW_ARRU_PRINT) console.log(`ARRU ${screen.id} ${lang} ${scheme} ${test.info().project.name}: module ${JSON.stringify(left)} other ${JSON.stringify(hebrew.filter((t) => !left.includes(t)))}`);
         expect(left, `words of the module left in Hebrew on the ${lang} ${screen.id} screen`).toEqual([]);
