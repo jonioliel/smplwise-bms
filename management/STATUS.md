@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T01:18:10.834478+00:00
+Generated: 2026-11-27T01:54:35.974852+00:00
 
-Tasks: 755 | Requirements: 869 | Tests: 886 | Screens: 32
+Tasks: 756 | Requirements: 870 | Tests: 887 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 194
+- REVIEW: 195
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 660
+- V1: 661
 - V2: 29
 - V3: 3
 
@@ -810,3 +810,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [LOWS-FRONTEND-2550](tasks/LOWS-FRONTEND-2550.md) | V1 | REVIEW | The open low frontend findings of the 2.52 deep review (SCR-41..57, FC-07..12) | — |
 | [DOCS-GUIDE-2550](tasks/DOCS-GUIDE-2550.md) | V1 | REVIEW | The user documentation brought up to 2.53, 2.54 and 2.55 | — |
 | [GATE-SPEED-2550](tasks/GATE-SPEED-2550.md) | V1 | REVIEW | Gate engine speed-ups: measured pixel estimate and chunks, heavy unit split, load-aware limit, fresh seeds | — |
+| [I18N-ARRU-2550](tasks/I18N-ARRU-2550.md) | V1 | REVIEW | Arabic and Russian for every key of the four-language catalogues; a completeness check | — |

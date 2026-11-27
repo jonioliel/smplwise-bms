@@ -23026,5 +23026,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-I18N-ARRU-2550-1",
+    "requirement_ids": [
+      "R-I18N-ARRU-2550-1"
+    ],
+    "task_ids": [
+      "I18N-ARRU-2550"
+    ],
+    "title": "Arabic and Russian for every key of the four-language catalogues; a completeness check",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Every key of a catalogue that offers Arabic and Russian has its ar and ru text with the same placeholders, except the listed keys with a reason in docs/i18n/ARRU_COMPLETENESS.json; unit-i18n-arru-completeness-2550 fails on a new key without them.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

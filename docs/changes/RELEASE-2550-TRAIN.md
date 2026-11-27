@@ -30,6 +30,7 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | train fix | - | `1c389ba73` | - | - | section 2 |
 | - | train note / registry | - | `4909a656e` / `51e390f86` | - | - | this note; section 4 |
 | - | train fix | - | `8d6ce1665` | - | - | section 2 (found by runner run A, section 3.5) |
+| `5b72073b9` | Arabic and Russian for `waDeleteConfirm` (LOWS-FRONTEND-2550's SCR-53 confirm text, added in Hebrew / English only) in `lang/ar` and `lang/ru` `temperature.ts`, same `{when}` placeholder | PC after row 10: `unit-i18n-arru-completeness-2550` ar + ru and `unit-temperature` (ar / ru placeholders) - 3 failed, 143 passed over 14 files; after: 18 passed in the two files |
 | - | train note | - | `5aa03829b` | - | - | section 3.5 |
 | 5 | `pilot/LOWS-BACKEND-2550` | `9c0387c7f` | `7b068500b` | `f9217db8a` (release/2540-train) | none | `error_text_en.json` (still valid, its sorted format), `routers/notifications.py`, `wire/notifications.py`, `services/backup.py` merged cleanly with rows 1 and 4; billing golden `tests/fixtures/bill_ledger_b_sql_golden.json` refreshed in the row on purpose (D-08); no migration; Q1-Q6 = a |
 | 6 | `pilot/LOWS-BRIDGE-GATE-2550` | `c68386d35` | `7a62d226c` | `f9217db8a` (release/2540-train) | none | **bridge 0.10.10** in both copies, byte-identical (section 1.3); `scripts/gate/*` and `nightly_tests.sh` are repo copies only, nothing installed; all questions = a |
@@ -40,6 +41,8 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | - | registry / note | - | `700486c5f` | - | - | rows 7-8 registered |
 | 2.54 | `origin/release/2540-train` (final 2.54.0) | `3a0f02036` | `ac6b2063e` | - | `PROJECT_BOARD.html`, `management/STATUS.md` | see below; 2.54 passed its gate; brings the alarm-card ellipsis fix `9c5fc334c`, the test fix `7accbe97d`, the UI rebuild `c768bfc8a`, the gate note `bba451a5f`, the final changelog `3a0f02036` |
 | 9 | `pilot/GATE-SPEED-2550` | `14a353ce4` | `0d9e3f0ef` | `5aa03829b` (this train) | none | gate engine repo copies only (`release_gate.py`, `gate_budget.py` new, `gate2_select.py`, `release_gate2.sh`, `branch_check.sh`, `engine_sync.py` INSTALL_MAP, `gate_durations.json`, `gate2_costs.json`, `selftest_gate_speed_2550.py` new, `test_gate_speed.py`); no file overlaps row 6's `scripts/gate` changes; NOT installed (the lead, before the 2.55 gate); all questions = a |
+| - | registry / note / changelog | - | `18acfe3a0` / `7a6de3f7e` | - | - | row 9 registered; its changelog line |
+| 10 | `pilot/I18N-ARRU-2550` | `553f10741` | `aa8d6a41d` | `5aa03829b` (this train) | none | ar / ru packs of door automation, elevators, generator log, temperature; `docs/i18n/ARRU_COMPLETENESS.json`, `scripts/i18n_missing_keys.mjs`; the completeness spec found row 7's new temperature key without ar / ru -> train fix `5b72073b9`; all questions = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -220,6 +223,14 @@ row's pixel files (the row: no baseline refreshed, the Hebrew screens unchanged)
 | gate self-tests from the tree: `selftest_gate_trust`, `selftest_gate_speed_2550`, `selftest_gate_fast`, `selftest_engine_sync` | PC | 0 x 4 | SELFTEST PASSED / OK / PASSED / PASSED |
 | `selftest_gate.py` | PC | 1 | `FileNotFoundError` (WinError 2) spawning its fake Playwright: a Linux-only self-test - the same failure at the 2.54 head `3a0f02036` on the PC, so not caused by this train |
 | the five gate self-tests (`selftest_gate`, `selftest_engine_sync`, `selftest_gate_fast`, `selftest_gate_trust`, `selftest_gate_speed_2550`) from the tree | runner (`~/work/p2520_t2550_st.sh 0d9e3f0ef`, slot B, a temporary worktree removed after; nothing installed, `~/gate2` untouched) | 0 x 5 | SELFTEST PASSED x 4, SELFTEST OK |
+
+### 3.9 After row 10 (at `5b72073b9`, PC)
+
+| check | exit | result |
+|---|---|---|
+| the 14 `unit-i18n-*` files + `unit-elevators`, `unit-genlog-tempexplain`, `unit-temperature` (1 worker), at `aa8d6a41d` | 1 | 143 passed, **3 failed**: the completeness spec for ar and ru and `unit-temperature`'s ar / ru placeholder case - row 7's new `waDeleteConfirm` -> `5b72073b9` |
+| the same 14 files after `5b72073b9` | 0 | **146 passed** |
+| `tsc` app / `npm run typecheck` / `npm run lint` / `unused-exports --enforce` | 0 each | 0 errors / 0 errors / clean / OK |
 
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.

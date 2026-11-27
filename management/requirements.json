@@ -14935,5 +14935,21 @@
     "test_ids": [
       "AT-GATE-SPEED-2550-1"
     ]
+  },
+  {
+    "id": "R-I18N-ARRU-2550-1",
+    "title": "Arabic and Russian for every key of the four-language catalogues; a completeness check",
+    "statement": "Every key of a catalogue that offers Arabic and Russian has its ar and ru text with the same placeholders, except the listed keys with a reason in docs/i18n/ARRU_COMPLETENESS.json; unit-i18n-arru-completeness-2550 fails on a new key without them.",
+    "task_ids": [
+      "I18N-ARRU-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-I18N-ARRU-2550-1"
+    ]
   }
 ]

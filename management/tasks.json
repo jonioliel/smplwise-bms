@@ -32488,7 +32488,8 @@
       "2026-11-27 (RELEASE-2550-TRAIN): runner run A at 51e390f86 (~/work/p2520_t2550_a.sh, slot B, after the 2.54 gate): 37 backend files 1338 passed; tsc / build 0; Node unit suite 5465 passed, 4 failed (unit-mfa-passkeys-2490 x3 known harness; unit-no-ha-branding-2443 -> train fix 8d6ce1665); legacy-import-ui-2550 16 passed; backup-tab neighbours 29 passed; pixel-legacy-import-2550 6 passed (gate grep and all cases), no baseline refreshed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): LOWS-BACKEND-2550 7b068500b (row 5), LOWS-BRIDGE-GATE-2550 7a62d226c (row 6, bridge 0.10.10, both copies byte-identical; the lab's active bridge is 0.10.9 since 26.11, so 0.10.10 needs one more owner-approved HA restart); changelog a8f8acecf. PC re-run: generators / ratchets / mirror / release_check rows green except the not-rebuilt UI bundle and the tag; unused-exports OK; tsc / typecheck / lint / build 0; 23 backend files 333 passed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): LOWS-FRONTEND-2550 fdc0cb1fc (row 7; conflict msg/components.ts en - both blocks kept), DOCS-GUIDE-2550 907f9f446 (row 8; guide top-up for the remaining rows due at the end of the train). PC re-run: unused-exports OK; tsc / typecheck / lint / build 0; 13 unit files 171 passed; test_docs_settings_2550 11, test_docs_config_consistency 7 passed; guide up to date. UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): the final 2.54.0 head 3a0f02036 merged ac6b2063e (generated board / status regenerated; www carries 2.54's final build c768bfc8a until the 2.55 rebuild; CHANGELOG 2.54.0 section byte-identical to 3a0f02036; version 2.55.0 kept); GATE-SPEED-2550 0d9e3f0ef (row 9, gate engine repo copies, NOT installed). Checks: PC generators / ratchets / lints / downgrade check green, release_check only the expected rows, unused-exports OK, tsc / typecheck / lint / build 0, test_gate_speed 18, test_gate2_select 17, test_gate_always_run 19 passed; gate self-tests from the tree on the runner 5 x pass (selftest_gate is Linux-only: WinError 2 on the PC, also at the 2.54 head). UI NOT rebuilt; gate NOT_RUN; nothing released."
+      "2026-11-27 (RELEASE-2550-TRAIN): the final 2.54.0 head 3a0f02036 merged ac6b2063e (generated board / status regenerated; www carries 2.54's final build c768bfc8a until the 2.55 rebuild; CHANGELOG 2.54.0 section byte-identical to 3a0f02036; version 2.55.0 kept); GATE-SPEED-2550 0d9e3f0ef (row 9, gate engine repo copies, NOT installed). Checks: PC generators / ratchets / lints / downgrade check green, release_check only the expected rows, unused-exports OK, tsc / typecheck / lint / build 0, test_gate_speed 18, test_gate2_select 17, test_gate_always_run 19 passed; gate self-tests from the tree on the runner 5 x pass (selftest_gate is Linux-only: WinError 2 on the PC, also at the 2.54 head). UI NOT rebuilt; gate NOT_RUN; nothing released.",
+      "2026-11-27 (RELEASE-2550-TRAIN): I18N-ARRU-2550 aa8d6a41d (row 10); train fix 5b72073b9 (ar / ru for row 7's temperature key, found by the row's completeness spec: 3 failed -> 146 passed over 14 unit files); tsc / typecheck / lint / unused-exports 0. UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -32682,6 +32683,44 @@
     ],
     "owner": null,
     "commit": "14a353ce4",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "I18N-ARRU-2550",
+    "title": "Arabic and Russian for every key of the four-language catalogues; a completeness check",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every key of a catalogue that offers Arabic and Russian has its ar and ru text with the same placeholders, except the listed keys with a reason in docs/i18n/ARRU_COMPLETENESS.json; unit-i18n-arru-completeness-2550 fails on a new key without them."
+    ],
+    "requirement_ids": [
+      "R-I18N-ARRU-2550-1"
+    ],
+    "test_ids": [
+      "AT-I18N-ARRU-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P3",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/I18N-ARRU-2550, change note docs/changes/I18N-ARRU-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/I18N-ARRU-2550 head 553f10741 merged aa8d6a41d into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 10; cut from this train at 5aa03829b); change note docs/changes/I18N-ARRU-2550.md. Decisions all = a. Train fix 5b72073b9: ar / ru for row 7's temperature key waDeleteConfirm (the completeness spec found it). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "553f10741",
     "actual_cost_usd": null
   }
 ]
