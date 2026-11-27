@@ -108,11 +108,11 @@ on top of `3739e3ded` (RECONCILE-TEST-LEAK-2560 `4458e236f` merged there by the 
 resend and the push-approval watch's rate-limit fix are both present), FIX-MH01-2560 (`cb16e5c14`). All registered REVIEW; the 2.56.0 CHANGELOG draft has a line per
 fix group and the API change lines (pulse body, `request_body_changed`, local-only backup relink).
 
-**Train fix `2986edf80`**: FIX-NOSCROLL's announcer used `inline-size:1px;block-size:1px` - two new `px-literal`s (design ratchet 25513 -> 25515, also a
+**Train fix `2986edf80`** (and `15a88f337`, three file-local exports for the unused-exports ratchet: `SAMPLE_MAX_RTT_MS`, `SAMPLE_FRESH_MS`, `AwardOutcome`): FIX-NOSCROLL's announcer used `inline-size:1px;block-size:1px` - two new `px-literal`s (design ratchet 25513 -> 25515, also a
 `release_check` row). Changed to `1em` (the host is `position:fixed`, so its size never reaches the scroll area). Ratchet back to the baseline.
 
 **Engine files changed** (the lead installs before the gate): `scripts/release_check.py` (FIX-CORE-2560 CD-01, GATE-NIGHTLY-2560 TR-03), `scripts/gate/release_gate.py` and `selftest_gate.py` (GATE-SETUP-FLAKE-2560).
 
 Runner: the three ticket files (`~/work/p2520_t2560_tickets.sh`, slot B) at `b5e00da72` and again at `01ed02003`: `test_tickets_quotes` 13, `test_tickets_claim_prefill` 10, `test_tickets_s4_public` 28 passed (the run at `5be08864a`, before the import fix, had 10 failed in `test_tickets_quotes`).
 
-UI rebuilt once at the end (`~/work/p2520_t2560_buildui.sh 2986edf80`): rc 0, arx-shell-2.56.0, 0 maps, archive sha256 `b05e3e2d1827...4578` verified equal on both sides, stamp 2135 files, inputs_sha256 `5ea9df99847c...`, source_commit `2986edf80`. `release_check.py` on the PC: "ready for the owner's approval", only the v2.56.0 tag missing. The earlier build (`57de3270c`, and the `c93f77643` one) is replaced.
+UI rebuilt at the end (`~/work/p2520_t2560_buildui.sh 15a88f337`): rc 0, arx-shell-2.56.0, 0 maps, archive sha256 `6a73757c6518...d7b1` verified equal on both sides, stamp 2135 files, inputs_sha256 `20fcf6aa4d3b...`, source_commit `15a88f337`. `release_check.py` on the PC: "ready for the owner's approval", only the v2.56.0 tag missing. The earlier build (`57de3270c`, and the `c93f77643` one) is replaced.
