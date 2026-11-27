@@ -260,3 +260,15 @@ of the fix; the home interface does not use the changed `home-widgets`. The run-
 
 UI rebuilt at `c768bfc8a` (the build of `7accbe97d`): arx-shell-2.54.0, 0 maps, build stamp 2129 files `683e70eff9b1...`, source_commit
 `7accbe97d`, archive sha256 `fb65b61b...19d2`; `release_check.py` on the PC: "ready for the owner's approval" (only the tag).
+
+## 7. Release gate result (lead, 27.11)
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | `f9217db8a` | full (new GATE-TRUST engine installed before it) | 192 min | FAIL - 0 hard, 9 test failures, 2 root causes (section 6) |
+| 2 | `c768bfc8a` | `--after` run 1, 3 h cap | 41 min | FAIL - 1 hard: addon_build, `ghcr.io` TLS handshake timeout pulling the base image (infra; manifest reachable again right after), 0 test failures |
+| 3 | `c768bfc8a` | `--after` run 1, 3 h cap | 37 min | **PASS** - 0 hard, 0 test failures, 0 flaky |
+
+Coverage anchor (TR-09) for runs 2-3: the full run 1 at `f9217db8a`, 3 commits / 2 h behind, 2 product files changed. `bba451a5f`
+after `c768bfc8a` is docs/management only. Final bilingual CHANGELOG by the lead (DRAFT marker removed, rollback note added).
+Publishing waits for the owner's approval in chat.
