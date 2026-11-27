@@ -94,6 +94,8 @@ def test_a_state_update_lost_to_a_busy_database_is_repaired(app_s, monkeypatch):
         # the front door opens at 09:05 while another worker holds the write lock past busy_timeout: the update is lost
         monkeypatch.setattr(ha_sync, "handle_state_event", busy)
         on_event(_event("binary_sensor.front_contact", "off", "on", "2026-09-28T09:05:00+00:00"))
+        # CORE10-EVENTLOOP-2560: the frame is handled on the state worker now - wait for it before the real writer is put back
+        await asyncio.get_running_loop().run_in_executor(None, ha_sync.STATE_WORKER.wait_idle, 10.0)
         monkeypatch.setattr(ha_sync, "handle_state_event", real)
         out["lost"] = _row(app, "binary_sensor.front_contact")
         _set_listing(fake, "binary_sensor.front_contact", "on", "2026-09-28T09:05:00+00:00")  # what HA itself holds
