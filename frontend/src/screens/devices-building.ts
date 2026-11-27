@@ -1396,10 +1396,12 @@ export class DevicesBuilding extends LitElement {
     };
     // HOME-FIT-FOLLOWUPS-2550: a building switch on a multi-building site (the level changed, nothing of `rest` did) is a new key, and the
     // packing used to restart from its loosest step: the new building was drawn at fit 0 for a frame or two and the page overflowed by
-    // 5-9 px before it stepped back (RELEASE-2540-TRAIN section 6, B; since v2.53.0). Now, when the new building already fits at the step
-    // the screen is on, that step is kept (the key is taken as is, nothing re-renders); a building that does not fit there restarts as
-    // before. One comparison per measure, no new state that renders, no loop.
-    if (key !== this.fitKey && this.level !== this.fitLevel && rest === this.fitRest && !overflowing()) {
+    // 5-9 px before it stepped back (RELEASE-2540-TRAIN section 6, B; since v2.53.0). Now a building switch keeps the step the screen is
+    // on (the key is taken as is): a new building that fits there stays, one that does not packs tighter from there by the usual steps - a
+    // looser step cannot fit where this one does not, so restarting from it only drew the overflow (measured: building ג at fit 2, the
+    // first read of the shared building, half drawn, said 9 px over, the restart drew it at fit 0 and it overflowed 5 px a frame later).
+    // One comparison per measure, no new state that renders, no loop: the packing still only tightens per key.
+    if (key !== this.fitKey && this.level !== this.fitLevel && rest === this.fitRest) {
       this.fitKey = key;
       this.fitRechecks = 0;
     }
