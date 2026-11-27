@@ -15047,5 +15047,101 @@
     "test_ids": [
       "AT-HA-STATE-RECONCILE-2550-1"
     ]
+  },
+  {
+    "id": "R-CORE10-EVENTLOOP-2560-1",
+    "title": "HA state frames handled on a worker thread, never on the socket reader (CORE-10)",
+    "statement": "HA state frames handled on a worker thread, never on the socket reader (CORE-10); merged into the 2.56.0 train, change note docs/changes/CORE10-EVENTLOOP-2560.md.",
+    "task_ids": [
+      "CORE10-EVENTLOOP-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CORE10-EVENTLOOP-2560-1"
+    ]
+  },
+  {
+    "id": "R-A11Y-FOLLOWUPS-2560-1",
+    "title": "Accessibility follow-ups: DST note, one announcer, alert card and area row names, step-up button description",
+    "statement": "Accessibility follow-ups: DST note, one announcer, alert card and area row names, step-up button description; merged into the 2.56.0 train, change note docs/changes/A11Y-FOLLOWUPS-2560.md.",
+    "task_ids": [
+      "A11Y-FOLLOWUPS-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-A11Y-FOLLOWUPS-2560-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-VISIT-FILTERS-2560-1",
+    "title": "External WisKey visit list filters from the wiskey-visit-list-filters.v1 contract",
+    "statement": "External WisKey visit list filters from the wiskey-visit-list-filters.v1 contract; merged into the 2.56.0 train, change note docs/changes/WISKEY-VISIT-FILTERS-2560.md.",
+    "task_ids": [
+      "WISKEY-VISIT-FILTERS-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-VISIT-FILTERS-2560-1"
+    ]
+  },
+  {
+    "id": "R-OPEN-FINDINGS-2560-1",
+    "title": "Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm",
+    "statement": "Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm; merged into the 2.56.0 train, change note docs/changes/OPEN-FINDINGS-2560.md.",
+    "task_ids": [
+      "OPEN-FINDINGS-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-OPEN-FINDINGS-2560-1"
+    ]
+  },
+  {
+    "id": "R-GATE-NIGHTLY-2560-1",
+    "title": "Nightly script parity and the green-gate rule in release_check (TR-03, partial)",
+    "statement": "Nightly script parity and the green-gate rule in release_check (TR-03, partial); merged into the 2.56.0 train, change note docs/changes/GATE-NIGHTLY-2560.md.",
+    "task_ids": [
+      "GATE-NIGHTLY-2560"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE-NIGHTLY-2560-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2560-TRAIN-1",
+    "title": "RELEASE-2560-TRAIN - the 2.56.0 train",
+    "statement": "The 2.56.0 train on release/2560-train (cut from release/2550-train) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "task_ids": [
+      "RELEASE-2560-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2560-TRAIN-1"
+    ]
   }
 ]

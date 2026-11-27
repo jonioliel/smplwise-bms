@@ -1,0 +1,74 @@
+# RELEASE-2560-TRAIN - the 2.56.0 train (pre-train)
+
+Branch `release/2560-train`, worktree `C:\cloude\smplwise-2560train`, cut from `origin/release/2550-train` at `15ba75f92` (the 2.55.0
+train; its release gate was still running, 2.55.0 not released; nothing was pushed to `release/2550-train`). Coordinator: the 2.56
+pre-train agent (merges, version bump, draft changelog, PC checks). **The UI bundle (`smplwise_vms/www`, `www-public`) is NOT rebuilt
+(still the 2.55.0 build), no gate was started, nothing installed, no lab / Home Assistant / device / WisKey contact.** `main`, the
+tags and the `addon` branch are untouched. BACKEND-SUITE-COST-2560 is still running and is not merged.
+
+## 1. Merge log
+
+`git log --all --grep <ROW>` was checked first: no row was merged anywhere else. `--no-ff`, in the lead's order.
+
+| # | row | head | merge commit | conflicts | notes |
+|---|---|---|---|---|---|
+| 1 | `pilot/CORE10-EVENTLOOP-2560` | `71615e9c0` | `809326af5` | `services/ha_sync.py` | see 1.1; base LOWS-BACKEND d65bbfd93 (already in 2.55) |
+| 2 | `pilot/A11Y-FOLLOWUPS-2560` | `e8d5e6328` | `6da512f2d` | none | frontend only; one Linux pixel baseline added by the row |
+| 3 | `pilot/WISKEY-VISIT-FILTERS-2560` | `0415275ac` | `12801e716` | none | backend only |
+| 4 | `pilot/OPEN-FINDINGS-2560` | `8ea7168f5` | `71f3fa8dc` | none | frontend only |
+| 5 | `pilot/GATE-NIGHTLY-2560` | `1899c99fb` | `d1a09d6d1` | none | `release_check.py` TR-03 check, tests; nothing installed on the runner |
+| - | version bump / draft changelog / API inventory | - | `3f5727474` | - | 2.56.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.56.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains); `contracts/API_INVENTORY.md` version line (1962 routes, unchanged) |
+| - | registry | - | (this commit) | - | section 4 |
+
+### 1.1 The `ha_sync.py` conflict (CORE10-EVENTLOOP-2560 against HA-STATE-RECONCILE-2550)
+
+Both edits sat at the same place at the end of `on_ready`. Resolution: **both kept** - HA-STATE-RECONCILE-2550's `reconciler` task
+(inside `on_ready`) and CORE10's `resync_states` coroutine (after it, session level). No other hunk conflicted.
+
+**Ordering of the reconcile's writes - changed, not left as is.** After the merge the periodic `reconcile_states` ran in the default
+thread pool, concurrently with the state worker. A frame that arrived BEFORE the listing was asked for (so it was not in the
+reconcile's `touched` set) could still be waiting in the worker queue; the repair would store the newer listed state, and the older
+queued frame would then be applied on top of it (`on_state_changed` has no staleness guard) until that entity's next change. Fix in
+this train (`809326af5`): `HaSync.reconcile_now` now runs `reconcile_states` as a **control job on the same `STATE_WORKER`**
+(`_run_on_state_worker`: never refused, FIFO behind every queued frame, result awaited on the session loop; a cancelled awaiter drops
+the result). A frame that arrives after the listing is in `touched` (marked by `on_event` on the reader, before it is queued) and the
+repair leaves it alone; the same worker also runs `apply_resync`, so the two repairs cannot interleave. `touched` is cleared only after
+the job finished (unchanged `finally`). The listing itself (`get_states`) is still awaited on the loop, never on the worker.
+Test change: `test_a_state_update_lost_to_a_busy_database_is_repaired` patched `handle_state_event` around a synchronous `on_event`;
+frames are now handled on the worker, so the test waits for `STATE_WORKER.wait_idle` before restoring the real writer (the
+assertion that the update was really lost is unchanged). No new test for the ordering race itself (NOT_RUN: left for the row owner;
+it needs a stalled worker and a controlled listing).
+
+## 2. Train fixes
+
+`809326af5` (section 1.1) only. No frontend change beyond the rows.
+
+## 3. Checks (PC, Windows 11, Python 3.12 venv of the main checkout, Node 24; `frontend/node_modules` junctioned; one process at a time; at `3f5727474` plus the registry commit)
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` / `error_contract_inventory --check` / `i18n_backend_errors` / `wire_ratchet` / `request_strict_ratchet --check` | 0 each | match / ok / ok / ok / ok |
+| `sync_integration --check` / `build_guide --check` / `design_ratchet` / `lint_spec_waits --new-since origin/release/2550-train` / `migration_downgrade_check --from origin/release/2550-train` | 0 each | up to date / up to date / no count above baseline / 0 findings in 1 file / PASS (no migration added) |
+| `api_inventory.py` | 0 | 1962 routes (unchanged), version 2.56.0 |
+| `ruff check smplwise` | 0 | All checks passed (`lint_backend.py --strict` itself: NOT_RUN, ruff is not in the venv; ruff 0.17.5 run directly) |
+| `release_check.py` | 1 | only the expected rows fail: the two shipped-UI rows (www is the 2.55.0 build) and the v2.56.0 tag; TR-03 green-gate check is NOT_CHECKED (a WARNING: no `~/smplwise-results` on the PC) |
+| `unused-exports.mjs --enforce` / `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` (to `frontend/dist`) | 0 each | OK / 0 errors / 0 errors / clean / built |
+| `test_ha_state_reconcile_2550` + `test_core10_eventloop_2560` in one process, after the merge and fix | 0 | 16 passed |
+| one file per process: `test_wiskey_visit_filters_2560` 6, `test_wiskey_visits_ended_filter_2520` 7, `test_nightly_lightening_2560` 2, `test_release_check_green_2560` 12, `test_core10_eventloop_load_2560` 1, `test_version` 1 | 0 each | passed |
+| `test_release_check` | 1 | 1 failed + 2 passed - `test_repository_is_release_consistent`, the not-rebuilt UI bundle (same as `release_check.py`) |
+| unit `unit-open-findings-2560` (1 worker) | 0 | 4 passed |
+
+NOT_RUN: the Node unit suite as a whole, the Playwright / pixel specs (`a11y-new-2550`, `legacy-import-ui-2550` changed by A11Y-FOLLOWUPS-2560, the new DST baseline) - served build and Linux baselines, the rows ran theirs; `lint_backend --strict`; the
+CORE10 soak (the row ran it); every lab / device / WisKey check; the release gate.
+
+## 4. Registry
+
+`management/tasks.json`, `requirements.json`, `test_catalog.json`: the five rows as REVIEW (R-<id>-1 PLANNED, AT-<id>-1 NOT_RUN) with
+row head and merge commit; RELEASE-2560-TRAIN IN_PROGRESS. `scripts/project_status.py --write`: PASS (768 tasks, 882 requirements).
+
+## 5. Open points
+
+1. BACKEND-SUITE-COST-2560: merge when the lead says; add its CHANGELOG line (the draft marks it).
+2. UI rebuild (`npm run build:addon` on the runner) at the end of the train, then the gate (the lead's). Any later change under the stamp inputs needs a new build.
+3. The ordering test for the reconcile / worker race (section 1.1) is not written.
+4. The CHANGELOG 2.55.0 section is still below the 2.56.0 one (2.55.0 is not released); the lead merges / rewrites at release.

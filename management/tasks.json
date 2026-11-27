@@ -32954,5 +32954,233 @@
     "owner": null,
     "commit": "76ca26382",
     "actual_cost_usd": null
+  },
+  {
+    "id": "CORE10-EVENTLOOP-2560",
+    "title": "HA state frames handled on a worker thread, never on the socket reader (CORE-10)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "HA state frames handled on a worker thread, never on the socket reader (CORE-10); merged into the 2.56.0 train, change note docs/changes/CORE10-EVENTLOOP-2560.md."
+    ],
+    "requirement_ids": [
+      "R-CORE10-EVENTLOOP-2560-1"
+    ],
+    "test_ids": [
+      "AT-CORE10-EVENTLOOP-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/CORE10-EVENTLOOP-2560, change note docs/changes/CORE10-EVENTLOOP-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/CORE10-EVENTLOOP-2560 head 71615e9c0 merged 809326af5 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/CORE10-EVENTLOOP-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "71615e9c0",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "A11Y-FOLLOWUPS-2560",
+    "title": "Accessibility follow-ups: DST note, one announcer, alert card and area row names, step-up button description",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Accessibility follow-ups: DST note, one announcer, alert card and area row names, step-up button description; merged into the 2.56.0 train, change note docs/changes/A11Y-FOLLOWUPS-2560.md."
+    ],
+    "requirement_ids": [
+      "R-A11Y-FOLLOWUPS-2560-1"
+    ],
+    "test_ids": [
+      "AT-A11Y-FOLLOWUPS-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/A11Y-FOLLOWUPS-2560, change note docs/changes/A11Y-FOLLOWUPS-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/A11Y-FOLLOWUPS-2560 head e8d5e6328 merged 6da512f2d into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/A11Y-FOLLOWUPS-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "e8d5e6328",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-VISIT-FILTERS-2560",
+    "title": "External WisKey visit list filters from the wiskey-visit-list-filters.v1 contract",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "External WisKey visit list filters from the wiskey-visit-list-filters.v1 contract; merged into the 2.56.0 train, change note docs/changes/WISKEY-VISIT-FILTERS-2560.md."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-VISIT-FILTERS-2560-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-VISIT-FILTERS-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/WISKEY-VISIT-FILTERS-2560, change note docs/changes/WISKEY-VISIT-FILTERS-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/WISKEY-VISIT-FILTERS-2560 head 0415275ac merged 12801e716 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/WISKEY-VISIT-FILTERS-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "0415275ac",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "OPEN-FINDINGS-2560",
+    "title": "Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm; merged into the 2.56.0 train, change note docs/changes/OPEN-FINDINGS-2560.md."
+    ],
+    "requirement_ids": [
+      "R-OPEN-FINDINGS-2560-1"
+    ],
+    "test_ids": [
+      "AT-OPEN-FINDINGS-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/OPEN-FINDINGS-2560, change note docs/changes/OPEN-FINDINGS-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/OPEN-FINDINGS-2560 head 8ea7168f5 merged 71f3fa8dc into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/OPEN-FINDINGS-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "8ea7168f5",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE-NIGHTLY-2560",
+    "title": "Nightly script parity and the green-gate rule in release_check (TR-03, partial)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Nightly script parity and the green-gate rule in release_check (TR-03, partial); merged into the 2.56.0 train, change note docs/changes/GATE-NIGHTLY-2560.md."
+    ],
+    "requirement_ids": [
+      "R-GATE-NIGHTLY-2560-1"
+    ],
+    "test_ids": [
+      "AT-GATE-NIGHTLY-2560-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/GATE-NIGHTLY-2560, change note docs/changes/GATE-NIGHTLY-2560.md, tests"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): Registered at the merge. pilot/GATE-NIGHTLY-2560 head 1899c99fb merged d1a09d6d1 into release/2560-train (cut from origin/release/2550-train 15ba75f92; docs/changes/RELEASE-2560-TRAIN.md on the train). Change note docs/changes/GATE-NIGHTLY-2560.md. Target 2.56.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2560-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "1899c99fb",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2560-TRAIN",
+    "title": "RELEASE-2560-TRAIN - the 2.56.0 train",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.56.0 train on release/2560-train (cut from release/2550-train) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2560-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2560-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, version bump, draft changelog, PC checks; the UI rebuild, the release gate and the tag are the lead's"
+    ],
+    "evidence": [
+      "2026-11-27 (RELEASE-2560-TRAIN): release/2560-train cut from origin/release/2550-train 15ba75f92 (2.55.0 gate running, not released). Merged: CORE10-EVENTLOOP-2560, A11Y-FOLLOWUPS-2560, WISKEY-VISIT-FILTERS-2560, OPEN-FINDINGS-2560, GATE-NIGHTLY-2560; ha_sync.py conflict with HA-STATE-RECONCILE-2550 resolved (both kept; the reconcile write runs as a control job on the state worker); version 2.56.0, DRAFT changelog. PC checks in docs/changes/RELEASE-2560-TRAIN.md section 3. BACKEND-SUITE-COST-2560 still to come. UI NOT rebuilt; gate NOT_RUN; nothing released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T09:15:29.203703+00:00
+Generated: 2026-11-27T11:09:05.458947+00:00
 
-Tasks: 762 | Requirements: 876 | Tests: 893 | Screens: 32
+Tasks: 768 | Requirements: 882 | Tests: 899 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 12
 - BLOCKED: 27
 - DONE: 516
-- IN_PROGRESS: 6
-- REVIEW: 201
+- IN_PROGRESS: 7
+- REVIEW: 206
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 667
+- V1: 673
 - V2: 29
 - V3: 3
 
@@ -817,3 +817,9 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HOME-FIT-FOLLOWUPS-2550](tasks/HOME-FIT-FOLLOWUPS-2550.md) | V1 | REVIEW | Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test | — |
 | [WIRE-DRIFT-2550](tasks/WIRE-DRIFT-2550.md) | V1 | REVIEW | Wire models of the access-control reads and the WisKey validation match the real answers | — |
 | [HA-STATE-RECONCILE-2550](tasks/HA-STATE-RECONCILE-2550.md) | V1 | REVIEW | Periodic full state reconcile of the platform mirror (ha.state_reconcile_min) | — |
+| [CORE10-EVENTLOOP-2560](tasks/CORE10-EVENTLOOP-2560.md) | V1 | REVIEW | HA state frames handled on a worker thread, never on the socket reader (CORE-10) | — |
+| [A11Y-FOLLOWUPS-2560](tasks/A11Y-FOLLOWUPS-2560.md) | V1 | REVIEW | Accessibility follow-ups: DST note, one announcer, alert card and area row names, step-up button description | — |
+| [WISKEY-VISIT-FILTERS-2560](tasks/WISKEY-VISIT-FILTERS-2560.md) | V1 | REVIEW | External WisKey visit list filters from the wiskey-visit-list-filters.v1 contract | — |
+| [OPEN-FINDINGS-2560](tasks/OPEN-FINDINGS-2560.md) | V1 | REVIEW | Open findings: SCR-08 hidden favourites kept, SCR-25 case item removal confirm, SCR-22 ack-all confirm | — |
+| [GATE-NIGHTLY-2560](tasks/GATE-NIGHTLY-2560.md) | V1 | REVIEW | Nightly script parity and the green-gate rule in release_check (TR-03, partial) | — |
+| [RELEASE-2560-TRAIN](tasks/RELEASE-2560-TRAIN.md) | V1 | IN_PROGRESS | RELEASE-2560-TRAIN - the 2.56.0 train | — |
