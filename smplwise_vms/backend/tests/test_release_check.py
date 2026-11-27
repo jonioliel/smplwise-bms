@@ -16,7 +16,7 @@ spec.loader.exec_module(rc)
 
 
 def test_repository_is_release_consistent(tmp_path, monkeypatch):
-    monkeypatch.setenv("SW_RESULTS_DIR", str(tmp_path / "no-results-here"))  # GATE-NIGHTLY-2560: --tag requires a green report; none here = NOT_CHECKED (warning)
+    monkeypatch.setenv("SW_RESULTS_DIR", str(tmp_path / "no-results-here"))  # GATE-NIGHTLY-2560: --tag requires a green report; none here = NOT_CHECKED (a failure at --tag since CD-01)
     res = rc.run_checks(ROOT)
     by = {c["name"]: c for c in res["checks"]}
     assert res["version"] and by["one version everywhere"]["ok"], by["one version everywhere"]["detail"]
@@ -28,7 +28,9 @@ def test_repository_is_release_consistent(tmp_path, monkeypatch):
     assert by["release package document present"]["ok"] and by["known-limits sources present"]["ok"]
     assert res["ok"] is True, "every required check passes on the current tree"
     out = tmp_path / "r.json"
-    assert rc.main(["--root", str(ROOT), "--json", str(out), "--tag"]) == 0
+    # FIX-CORE-2560 CD-01: --tag without any results directory is a failure unless a reason is stated (the tag itself is only reported)
+    assert rc.main(["--root", str(ROOT), "--json", str(out), "--tag"]) == 1
+    assert rc.main(["--root", str(ROOT), "--json", str(out), "--tag", "--accept-no-results", "test: no gate reports in tmp_path"]) == 0
     assert json.loads(out.read_text(encoding="utf-8"))["version"] == res["version"]
 
 

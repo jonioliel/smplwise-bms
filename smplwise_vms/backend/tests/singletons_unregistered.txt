@@ -36,6 +36,8 @@ smplwise.services.ha_camera_streams._TRANSPORT
 smplwise.services.ha_client._BRIDGE_POOL
 smplwise.services.ha_client._REST_POOL
 smplwise.services.ha_sync.SYNC
+# CORE10-EVENTLOOP-2560: the state-frame worker owns a daemon thread and its FIFO; ha_sync tests drain it through their session (no reset that could drop queued frames)
+smplwise.services.ha_sync.STATE_WORKER
 smplwise.services.ha_user_auth.STORE
 smplwise.services.intercom_adapter.ADAPTER
 smplwise.services.intercom_calls.BOOK

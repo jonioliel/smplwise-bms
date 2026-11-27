@@ -22,6 +22,7 @@ from ..errors import ApiError
 from .nvr import _client, _get
 from .nvr_write import _put, _record, apply_change
 from ..error_text import tpl
+from ..test_reset import register_reset
 
 TIME_PATH = "/ISAPI/System/time"
 NTP_PATH = "/ISAPI/System/time/ntpServers/1"
@@ -296,6 +297,14 @@ def pulse_outcome_unknown(exc: ApiError) -> bool:
 PULSE_DEDUPE_SECONDS = 120.0
 _PULSE_LOCK = threading.Lock()
 _PULSE_SEEN: dict[tuple[str, str, int, str], tuple[float, dict[str, Any] | ApiError]] = {}
+
+
+def _reset_pulse_seen() -> None:
+    with _PULSE_LOCK:
+        _PULSE_SEEN.clear()
+
+
+register_reset(__name__, ("_PULSE_SEEN",), _reset_pulse_seen)  # tests/test_singletons_registered.py: the VD-04 dedupe table
 
 
 def _pulse_key(principal: Any, settings: Settings, output_id: int, request_id: str) -> tuple[str, str, int, str]:

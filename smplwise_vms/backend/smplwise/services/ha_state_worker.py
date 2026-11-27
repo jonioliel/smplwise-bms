@@ -27,6 +27,8 @@ import threading
 import time
 from typing import Any, Callable
 
+from ..test_reset import register_reset
+
 log = logging.getLogger("smplwise.ha")
 
 STATE_QUEUE_MAX = 20000  # frames waiting for the worker; the same order as ha_sync.HELD_STATES_MAX (a connect snapshot's window)
@@ -116,6 +118,15 @@ class StateWorker:
 _DELIVERY = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ha-rule-delivery")
 _delivery_lock = threading.Lock()
 DELIVERY = {"queued": 0, "done": 0, "skipped_old": 0, "dropped_full": 0}
+
+
+def _reset_delivery_counts() -> None:
+    with _delivery_lock:
+        for key in DELIVERY:
+            DELIVERY[key] = 0
+
+
+register_reset(__name__, ("DELIVERY",), _reset_delivery_counts)  # tests/test_singletons_registered.py: the CD-04 delivery counters
 # CD-04: a notify / announce that waited longer than this is stale ("door open" minutes late is worse than none): it is skipped,
 # counted and logged. The queue is bounded too: past DELIVERY_MAX_QUEUE waiting deliveries a new one is dropped, counted and logged.
 # The in-app notification rows are not affected (the notifier thread is still woken).
