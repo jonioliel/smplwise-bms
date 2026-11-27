@@ -1356,6 +1356,9 @@ export class DevicesBuilding extends LitElement {
   }
 
   private fitKey = '';
+  /** HOME-FIT-FOLLOWUPS-2550: the last measure's key parts a building switch leaves alone, and its level (see measureFit). */
+  private fitRest = '';
+  private fitLevel = '';
 
   /** Owner notes 2026-09-30, item 7: on a desktop-width screen the whole screen should fit the viewport without a vertical
    * scroll (for the owner's site: 3 floors, 8 areas, ~150 devices). The tiles and rows are packed tighter one step at a
@@ -1377,11 +1380,25 @@ export class DevicesBuilding extends LitElement {
       return;
     }
     const h = this.homeOf(t);
-    const key = [window.innerWidth, window.innerHeight, this.layout, this.selected, this.level, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
+    // HOME-FIT-FOLLOWUPS-2550: what a building switch leaves alone (`rest`) apart from what it changes (the level, the floor picked in
+    // it, the widgets that follow the building)
+    const rest = [window.innerWidth, window.innerHeight, this.layout, t.floors.length, t.floors.reduce((n, f) => n + f.areas.length, 0), h.direction, h.side, this.isPhone, h.config.phone_layout].join('|');
+    const key = [rest, this.selected, this.level, this.widgetItems(t, h).map((i) => `${i.id}${i.size}`).join(',')].join('|');
     const overflowing = () => {
       const sc = scrollParentOf(this);
       return !!sc && sc.scrollHeight - sc.clientHeight > 1;
     };
+    // HOME-FIT-FOLLOWUPS-2550: a building switch on a multi-building site (the level changed, nothing of `rest` did) is a new key, and the
+    // packing used to restart from its loosest step: the new building was drawn at fit 0 for a frame or two and the page overflowed by
+    // 5-9 px before it stepped back (RELEASE-2540-TRAIN section 6, B; since v2.53.0). Now, when the new building already fits at the step
+    // the screen is on, that step is kept (the key is taken as is, nothing re-renders); a building that does not fit there restarts as
+    // before. One comparison per measure, no new state that renders, no loop.
+    if (key !== this.fitKey && this.level !== this.fitLevel && rest === this.fitRest && !overflowing()) {
+      this.fitKey = key;
+      this.fitRechecks = 0;
+    }
+    this.fitRest = rest;
+    this.fitLevel = this.level;
     // HOME-SCROLL-FIX-2530: the fold restarts with the packing (a changed key)
     if (key !== this.fitKey && this.fitFold) this.fitFold = false;
     if (key !== this.fitKey && this.fitSqueeze) this.fitSqueeze = false; // HOME-SCROLL-2-2530: so does the squeeze
