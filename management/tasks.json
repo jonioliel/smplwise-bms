@@ -32489,7 +32489,8 @@
       "2026-11-27 (RELEASE-2550-TRAIN): LOWS-BACKEND-2550 7b068500b (row 5), LOWS-BRIDGE-GATE-2550 7a62d226c (row 6, bridge 0.10.10, both copies byte-identical; the lab's active bridge is 0.10.9 since 26.11, so 0.10.10 needs one more owner-approved HA restart); changelog a8f8acecf. PC re-run: generators / ratchets / mirror / release_check rows green except the not-rebuilt UI bundle and the tag; unused-exports OK; tsc / typecheck / lint / build 0; 23 backend files 333 passed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): LOWS-FRONTEND-2550 fdc0cb1fc (row 7; conflict msg/components.ts en - both blocks kept), DOCS-GUIDE-2550 907f9f446 (row 8; guide top-up for the remaining rows due at the end of the train). PC re-run: unused-exports OK; tsc / typecheck / lint / build 0; 13 unit files 171 passed; test_docs_settings_2550 11, test_docs_config_consistency 7 passed; guide up to date. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): the final 2.54.0 head 3a0f02036 merged ac6b2063e (generated board / status regenerated; www carries 2.54's final build c768bfc8a until the 2.55 rebuild; CHANGELOG 2.54.0 section byte-identical to 3a0f02036; version 2.55.0 kept); GATE-SPEED-2550 0d9e3f0ef (row 9, gate engine repo copies, NOT installed). Checks: PC generators / ratchets / lints / downgrade check green, release_check only the expected rows, unused-exports OK, tsc / typecheck / lint / build 0, test_gate_speed 18, test_gate2_select 17, test_gate_always_run 19 passed; gate self-tests from the tree on the runner 5 x pass (selftest_gate is Linux-only: WinError 2 on the PC, also at the 2.54 head). UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): I18N-ARRU-2550 aa8d6a41d (row 10); train fix 5b72073b9 (ar / ru for row 7's temperature key, found by the row's completeness spec: 3 failed -> 146 passed over 14 unit files); tsc / typecheck / lint / unused-exports 0. UI NOT rebuilt; gate NOT_RUN; nothing released."
+      "2026-11-27 (RELEASE-2550-TRAIN): I18N-ARRU-2550 aa8d6a41d (row 10); train fix 5b72073b9 (ar / ru for row 7's temperature key, found by the row's completeness spec: 3 failed -> 146 passed over 14 unit files); tsc / typecheck / lint / unused-exports 0. UI NOT rebuilt; gate NOT_RUN; nothing released.",
+      "2026-11-27 (RELEASE-2550-TRAIN): DATA-RULES-2-2550 51d1ac37e (row 11; billing golden merged cleanly with row 5, regenerated from the merged code byte-identical), A11Y-NEW-2550 5adf8c729 (row 12), HOME-PERMS-WARN-2550 1a72804a8 (row 13). PC: generators / ratchets / lints / downgrade check green; release_check only the expected rows; unused-exports OK; tsc / typecheck / lint / build 0; 5 unit files 23 passed; 18 backend files 250 passed. UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -32721,6 +32722,120 @@
     ],
     "owner": null,
     "commit": "553f10741",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "DATA-RULES-2-2550",
+    "title": "Data rules part 2: the generator battery system choice, the billing gap warning, reopening a period after a person's draft expires",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The generator settings offer Automatic / 12 V / 24 V for the starter battery; an account's status carries billing_gaps and the page warns per gap; a period whose person-made draft expired is reopened for the automatic bill without a second bill."
+    ],
+    "requirement_ids": [
+      "R-DATA-RULES-2-2550-1"
+    ],
+    "test_ids": [
+      "AT-DATA-RULES-2-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/DATA-RULES-2-2550, change note docs/changes/DATA-RULES-2-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/DATA-RULES-2-2550 head 360c077e7 merged 51d1ac37e into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 11; cut from release/2540-train f9217db8a); change note docs/changes/DATA-RULES-2-2550.md. Decisions all = a. The billing golden merged cleanly with row 5's refresh; regenerated from the merged code: byte identical. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "360c077e7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "A11Y-NEW-2550",
+    "title": "Accessibility of the new 2.52-2.55 screens: focus return after dialogs, keyboard-reachable tables",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "After a dialog, step-up, reconnect or install prompt on the new screens the focus returns to a sensible element; the legacy import table wraps instead of scrolling sideways; a11y-new-2550.spec.ts passes desktop and mobile."
+    ],
+    "requirement_ids": [
+      "R-A11Y-NEW-2550-1"
+    ],
+    "test_ids": [
+      "AT-A11Y-NEW-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P3",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/A11Y-NEW-2550, change note docs/changes/A11Y-NEW-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/A11Y-NEW-2550 head 6affb349c merged 5adf8c729 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 12; cut from this train at 5aa03829b); change note docs/changes/A11Y-NEW-2550.md. Decisions all = a; the a11y follow-ups deferred to a later row. 7 legacy-import-card baselines refreshed in the row. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "6affb349c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-PERMS-WARN-2550",
+    "title": "Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A person's home-interface card warns when a chosen category shows the whole site's data; the home-only electricity bill routes need the bills category and the person's electricity-bill selection; the room list says it is a display filter."
+    ],
+    "requirement_ids": [
+      "R-HOME-PERMS-WARN-2550-1"
+    ],
+    "test_ids": [
+      "AT-HOME-PERMS-WARN-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-PERMS-WARN-2550, change note docs/changes/HOME-PERMS-WARN-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/HOME-PERMS-WARN-2550 head fb5fdd17a merged 1a72804a8 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 13; cut from LOWS-BACKEND-2550 d65bbfd93 (row 5, in the train)); change note docs/changes/HOME-PERMS-WARN-2550.md. Decisions all = a (Q1 the server gate, Q2 the room-list line). Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "fb5fdd17a",
     "actual_cost_usd": null
   }
 ]

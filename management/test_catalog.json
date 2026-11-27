@@ -23051,5 +23051,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-DATA-RULES-2-2550-1",
+    "requirement_ids": [
+      "R-DATA-RULES-2-2550-1"
+    ],
+    "task_ids": [
+      "DATA-RULES-2-2550"
+    ],
+    "title": "Data rules part 2: the generator battery system choice, the billing gap warning, reopening a period after a person's draft expires",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The generator settings offer Automatic / 12 V / 24 V for the starter battery; an account's status carries billing_gaps and the page warns per gap; a period whose person-made draft expired is reopened for the automatic bill without a second bill.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-A11Y-NEW-2550-1",
+    "requirement_ids": [
+      "R-A11Y-NEW-2550-1"
+    ],
+    "task_ids": [
+      "A11Y-NEW-2550"
+    ],
+    "title": "Accessibility of the new 2.52-2.55 screens: focus return after dialogs, keyboard-reachable tables",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "After a dialog, step-up, reconnect or install prompt on the new screens the focus returns to a sensible element; the legacy import table wraps instead of scrolling sideways; a11y-new-2550.spec.ts passes desktop and mobile.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-PERMS-WARN-2550-1",
+    "requirement_ids": [
+      "R-HOME-PERMS-WARN-2550-1"
+    ],
+    "task_ids": [
+      "HOME-PERMS-WARN-2550"
+    ],
+    "title": "Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A person's home-interface card warns when a chosen category shows the whole site's data; the home-only electricity bill routes need the bills category and the person's electricity-bill selection; the room list says it is a display filter.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -14951,5 +14951,53 @@
     "test_ids": [
       "AT-I18N-ARRU-2550-1"
     ]
+  },
+  {
+    "id": "R-DATA-RULES-2-2550-1",
+    "title": "Data rules part 2: the generator battery system choice, the billing gap warning, reopening a period after a person's draft expires",
+    "statement": "The generator settings offer Automatic / 12 V / 24 V for the starter battery; an account's status carries billing_gaps and the page warns per gap; a period whose person-made draft expired is reopened for the automatic bill without a second bill.",
+    "task_ids": [
+      "DATA-RULES-2-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DATA-RULES-2-2550-1"
+    ]
+  },
+  {
+    "id": "R-A11Y-NEW-2550-1",
+    "title": "Accessibility of the new 2.52-2.55 screens: focus return after dialogs, keyboard-reachable tables",
+    "statement": "After a dialog, step-up, reconnect or install prompt on the new screens the focus returns to a sensible element; the legacy import table wraps instead of scrolling sideways; a11y-new-2550.spec.ts passes desktop and mobile.",
+    "task_ids": [
+      "A11Y-NEW-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-A11Y-NEW-2550-1"
+    ]
+  },
+  {
+    "id": "R-HOME-PERMS-WARN-2550-1",
+    "title": "Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11)",
+    "statement": "A person's home-interface card warns when a chosen category shows the whole site's data; the home-only electricity bill routes need the bills category and the person's electricity-bill selection; the room list says it is a display filter.",
+    "task_ids": [
+      "HOME-PERMS-WARN-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-PERMS-WARN-2550-1"
+    ]
   }
 ]

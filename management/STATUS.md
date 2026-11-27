@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T01:54:35.974852+00:00
+Generated: 2026-11-27T03:47:58.099647+00:00
 
-Tasks: 756 | Requirements: 870 | Tests: 887 | Screens: 32
+Tasks: 759 | Requirements: 873 | Tests: 890 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 195
+- REVIEW: 198
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 661
+- V1: 664
 - V2: 29
 - V3: 3
 
@@ -811,3 +811,6 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [DOCS-GUIDE-2550](tasks/DOCS-GUIDE-2550.md) | V1 | REVIEW | The user documentation brought up to 2.53, 2.54 and 2.55 | — |
 | [GATE-SPEED-2550](tasks/GATE-SPEED-2550.md) | V1 | REVIEW | Gate engine speed-ups: measured pixel estimate and chunks, heavy unit split, load-aware limit, fresh seeds | — |
 | [I18N-ARRU-2550](tasks/I18N-ARRU-2550.md) | V1 | REVIEW | Arabic and Russian for every key of the four-language catalogues; a completeness check | — |
+| [DATA-RULES-2-2550](tasks/DATA-RULES-2-2550.md) | V1 | REVIEW | Data rules part 2: the generator battery system choice, the billing gap warning, reopening a period after a person's draft expires | — |
+| [A11Y-NEW-2550](tasks/A11Y-NEW-2550.md) | V1 | REVIEW | Accessibility of the new 2.52-2.55 screens: focus return after dialogs, keyboard-reachable tables | — |
+| [HOME-PERMS-WARN-2550](tasks/HOME-PERMS-WARN-2550.md) | V1 | REVIEW | Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11) | — |

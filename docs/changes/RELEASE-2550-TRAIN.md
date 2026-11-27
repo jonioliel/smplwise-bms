@@ -43,6 +43,10 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | 9 | `pilot/GATE-SPEED-2550` | `14a353ce4` | `0d9e3f0ef` | `5aa03829b` (this train) | none | gate engine repo copies only (`release_gate.py`, `gate_budget.py` new, `gate2_select.py`, `release_gate2.sh`, `branch_check.sh`, `engine_sync.py` INSTALL_MAP, `gate_durations.json`, `gate2_costs.json`, `selftest_gate_speed_2550.py` new, `test_gate_speed.py`); no file overlaps row 6's `scripts/gate` changes; NOT installed (the lead, before the 2.55 gate); all questions = a |
 | - | registry / note / changelog | - | `18acfe3a0` / `7a6de3f7e` | - | - | row 9 registered; its changelog line |
 | 10 | `pilot/I18N-ARRU-2550` | `553f10741` | `aa8d6a41d` | `5aa03829b` (this train) | none | ar / ru packs of door automation, elevators, generator log, temperature; `docs/i18n/ARRU_COMPLETENESS.json`, `scripts/i18n_missing_keys.mjs`; the completeness spec found row 7's new temperature key without ar / ru -> train fix `5b72073b9`; all questions = a |
+| - | registry / note / changelog | - | `448681568` | - | - | row 10 registered |
+| 11 | `pilot/DATA-RULES-2-2550` | `360c077e7` | `51d1ac37e` | `f9217db8a` (release/2540-train) | none (see 1.4) | generator battery choice, billing gap warning, reopen after an expired person draft; `wire-consumption.ts` regenerated in the row; 16 Linux pixel baselines of its own; no migration; all questions = a |
+| 12 | `pilot/A11Y-NEW-2550` | `6affb349c` | `5adf8c729` | `5aa03829b` (this train) | none | new `components/focus-return.ts`, `a11y-new-2550.spec.ts`; 7 legacy-import-card baselines refreshed in the row; `sw-legacy-import.ts` merged cleanly with `8d6ce1665`; all = a, follow-ups deferred to a later row |
+| 13 | `pilot/HOME-PERMS-WARN-2550` | `fb5fdd17a` | `1a72804a8` | `d65bbfd93` (row 5, in the train) | none | the site-wide warning (`sw-home-admin.ts`), the home electricity bill gate (bills category + `energy.bills`), `wire-home-interface.ts` regenerated in the row; new backend tests and `home-perms-warn-2550.spec.ts` with Linux baselines; all = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -57,8 +61,7 @@ Conflict:
 - Row 7: `frontend/src/i18n/lang/en/i18n/msg/components.ts` - LEGACY-IMPORT-UI-2550's English block (row 2) and LOWS-FRONTEND-2550's
   SCR-52 line were both appended at the end of the map; both kept, HEAD first; no duplicate key in the file (checked).
 
-No other conflict (rows 5-8 included). More rows to come when the lead says: DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550,
-HOME-PERMS-WARN-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
+No other conflict (rows 5-8 included). More rows to come when the lead says: HOME-FIT-FOLLOWUPS-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
 touches `routers/settings.py`, `services/ha_sync.py`, `services/settings_store.py`, DOCS / DOCS_HE and its own test). 2.54 fixes made on
 `release/2540-train` after its gate are merged in when the lead says.
 
@@ -70,6 +73,15 @@ additive, with its own `Rollback:` note). No other branch on origin named `*2550
 --name-only --diff-filter=A origin/release/2540-train...<branch> -- migrations migrations_energy` over every such branch, including
 HA-STATE-RECONCILE-2550). **No collision, no renumbering**: 0227 stays. `migrations_energy/` unchanged. `release_check.py`: "migrations
 contiguous: 227 files, last 0227_mobile_unifiedpush.sql".
+
+### 1.4 The billing golden file (rows 5 and 11)
+
+`smplwise_vms/backend/tests/fixtures/bill_ledger_b_sql_golden.json` was regenerated on purpose by LOWS-BACKEND-2550 (row 5, D-08: the
+automatic run-row read) and by DATA-RULES-2-2550 (row 11). The two rows changed different statements, so git merged the file without a
+conflict. Checked against the merged code: `SW_BILL_LEDGER_GOLDEN_WRITE=1 pytest tests/test_bill_ledger_lifecycle_b.py` (the rows'
+way) rewrote it **byte-identical** to the merge result (no diff), and the normal run passes (25). Row 11's part of the diff: the
+draft-bill retention SELECT reads `id, account_id, period_start, period_end, origin, replaces_bill_id` (not only `id`), followed by a
+`DELETE FROM energy_auto_runs` / `water_auto_runs` of the period's `skipped` run rows (the reopen); row 5's run-row read stays as it was.
 
 ### 1.2 Version bump `32a3432bc`
 
@@ -232,6 +244,24 @@ row's pixel files (the row: no baseline refreshed, the Hebrew screens unchanged)
 | the same 14 files after `5b72073b9` | 0 | **146 passed** |
 | `tsc` app / `npm run typecheck` / `npm run lint` / `unused-exports --enforce` | 0 each | 0 errors / 0 errors / clean / OK |
 
+### 3.10 After rows 11-13 (at `1a72804a8`, PC, one process at a time)
+
+| check | exit | result |
+|---|---|---|
+| `gen_wire_types --check` (rows 11 and 13 regenerated `wire-consumption.ts` / `wire-home-interface.ts`) | 0 | match |
+| `api_inventory.py` / `error_contract_inventory --check` / `i18n_backend_errors` | 0 each | 1962 routes (unchanged) / 0 legacy 422 sites / 0 without English (2330 constant texts) |
+| `lint_spec_waits --new-since f9217db8a` / `design_ratchet` / `wire_ratchet` / `request_strict_ratchet` / `sync_integration` / `build_guide` / `migration_downgrade_check` | 0 each | 0 findings in 17 files / no count above the baseline / 897 / 144 / up to date / up to date / PASS |
+| `lint_backend --strict` / `ruff check smplwise` | 0 / 0 | 0 findings / clean |
+| `release_check.py` | 1 | only the expected rows: the UI bundle (2.54.0 build) x2 and the v2.55.0 tag |
+| `unused-exports --enforce` / `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` | 0 each | OK / 0 / 0 / clean / built |
+| unit (1 worker): `unit-data-rules-2-2550`, `unit-legacy-import-2550`, `unit-no-ha-branding-2443`, `unit-i18n-en-ratchet-2490`, `unit-i18n-arru-completeness-2550` | 0 | 23 passed |
+| **billing golden**: `SW_BILL_LEDGER_GOLDEN_WRITE=1 test_bill_ledger_lifecycle_b` (byte-identical, section 1.4), then `test_bill_ledger_lifecycle_b` 25, `test_bill_ledger_cross_kind` 11 | 0 each | passed |
+| backend, one process each: `test_data_rules_2_billing_2550` 5, `_generator_2550` 2, `_water_2550` 2, `test_data_rules_billing_2540` 5, `_generator_2540` 9, `_water_2540` 4, `test_generator` 49, `test_energy_billing_api` 37, `test_water_billing_s3` 20, `test_home_bills_gate_2550` 5, `test_home_perms_warn_2550` 3, `test_home_v3_p2` 42, `test_lows_backend_2550_domain` 8, `_security` 7, `test_wire_ratchet_2480` 7, `test_i18n_errors_en_2520` 9 (+ the two golden files above) | 0 each | **250 passed** in 18 files |
+
+NOT run on the PC: the rows' page / pixel specs (`a11y-new-2550`, `home-perms-warn-2550`, `pixel-data-rules-2-2550`,
+`data-rules-2-2550-shots`, the refreshed legacy-import baselines) - Linux-only baselines and a served build; the rows ran them on the
+runner.
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -246,8 +276,8 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 
 1. **The UI rebuild** (`npm run build:addon`, the build stamp) - NOT done; after the last 2.54 fix and HA-STATE-RECONCILE-2550. Until
    then `release_check.py` fails on "shipped UI bundle built for this version" and "built from these sources" (both say 2.54.0).
-2. **Rows still to come** (the lead says when each is ready): DATA-RULES-2-2550, HOME-FIT-FOLLOWUPS-2550, HOME-PERMS-WARN-2550,
-   HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
+2. **Rows still to come** (the lead says when each is ready): HOME-FIT-FOLLOWUPS-2550, HA-STATE-RECONCILE-2550 (no migration in
+   it). Each: merge, its CHANGELOG line, registry card, PC checks.
    - **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
      row's runner install steps (nightly script, crontab) are the lead's.
    - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): at the end of the train the coordinator adds a short section to
