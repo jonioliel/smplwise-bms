@@ -393,3 +393,14 @@ NOT_RUN on the train: the release gate (the lead's; the 2.55 engine is not insta
 3.3 and 3.5), the full Playwright suites beyond the specs named, the Node unit suite after runner run A (`51e390f86`), the page / pixel / evidence specs of rows 5-16 (the rows ran their own on the
 runner), tablet, every lab / Home
 Assistant / device / WisKey / push-server / phone check.
+
+## 9. Release gate result (lead, 27.11)
+
+| Run | Head | Mode | Wall | Verdict |
+|---|---|---|---|---|
+| 1 | `15ba75f92` | full (engine with GATE-TRUST + GATE-SPEED + LOWS-BRIDGE-GATE files) | 187 min | FAIL - 0 hard, 4 test failures, 2 causes (section 3.15) |
+| 2 | `15831f640` | `--after` run 1, 3 h cap | 19 min | **PASS** - 0 hard, 0 test failures, 0 flaky |
+
+Coverage anchor (TR-09): run 1 at `15ba75f92`, 3 commits / 0 h behind, 0 product files changed. Final bilingual CHANGELOG by the lead
+(DRAFT marker removed). Publishing waits for the owner's approval in chat. Bridge 0.10.10 loads in the lab only after one owner-approved
+Home Assistant restart (manual lab profile).
