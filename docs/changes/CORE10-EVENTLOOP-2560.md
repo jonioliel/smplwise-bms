@@ -134,3 +134,55 @@ soak run on the runner before merge": the two load rounds above are the short ve
       for 2 hours with this branch, plus the load test 10 times in a row (watch for a growing worker queue or thread count)
       **(recommended)**.
    b. The two load rounds of this row are enough.
+
+## Soak before merge (open question 3 = a) - CORE10-SOAK-2560
+
+Run on the runner, one job (`~/work/p2520_core10soak_run.sh`, slot B, throw-away worktree at `fa2cc83d4`, removed afterwards), 2026-11-27.
+(i) the load test 10 times in a row, then (ii) `tests/soak/soak_long.py --hours 2` through the guarded launcher
+(`scripts/soak/t068_long_soak.sh`; the runbook's 14 h setting replaced by 2 h; backend + fake NVR / Home Assistant (600 entities,
+20 state changes/s, restarts) / go2rtc, the full client mix). No product code was changed.
+
+### (i) Load test, 10 consecutive runs - 10 / 10 passed
+
+| Run | handler max (ms) | worker queue max | overflows / re-reads | loop lag max (ms) | reply max (ms) | socket backlog max | stored / notified | arrival -> stored max (s) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.3 | 1,999 | 0 / 0 | 3.1 | 4.7 | 50 | 5,000 / 10 | 1.8 |
+| 2 | 0.2 | 3,543 | 0 / 0 | 3.0 | 2.4 | 50 | 5,000 / 10 | 10.1 |
+| 3 | 0.6 | 3,417 | 0 / 0 | 3.1 | 3.4 | 50 | 5,000 / 10 | 3.9 |
+| 4 | 0.2 | 2,825 | 0 / 0 | 4.7 | 2.7 | 50 | 5,000 / 10 | 6.4 |
+| 5 | 0.2 | 3,666 | 0 / 0 | 3.0 | 2.2 | 50 | 5,000 / 10 | 14.7 |
+| 6 | 0.2 | 1,999 | 0 / 0 | 3.1 | 2.9 | 50 | 5,000 / 10 | 1.7 |
+| 7 | 0.5 | 3,814 | 0 / 0 | 2.7 | 3.1 | 50 | 5,000 / 10 | 29.1 |
+| 8 | 0.1 | 3,841 | 0 / 0 | 2.9 | 2.9 | 50 | 5,000 / 10 | 11.3 |
+| 9 | 1.2 | 3,002 | 0 / 0 | 3.1 | 3.7 | 50 | 5,000 / 10 | 3.9 |
+| 10 | 0.2 | 2,860 | 0 / 0 | 2.6 | 3.7 | 50 | 5,000 / 10 | 8.8 |
+
+Bounds (handler < 50 ms, loop < 250 ms, reply < 250 ms): worst handler 1.2 ms, worst loop 4.7 ms, worst reply 4.7 ms. The queue
+never exceeded 3,841 frames (bound 20,000) and drained every time; no refusals, no re-reads; every frame stored, last state
+correct, 10/10 notifications. No run got slower or deeper over the series (the spread is the shared runner's load).
+
+### (ii) Soak, 2 h (7,209 s, reason `duration`, backend ended by the harness's SIGTERM; no crash, no stuck client thread)
+
+The runner was heavily loaded by other jobs during the soak (host load1 up to 43, host available memory down to about 1 GB from
+minute 25 on); the soak is `nice 19` on two cores, so the latency numbers include that starvation.
+
+| Measure | Result |
+|---|---|
+| Backend RSS | 363 MB at 1 min, 406 MB at 30 min, then flat at 398-413 MB (398.5 MB at the end); no leak slope after warm-up |
+| Threads / fds / Python objects | 32 -> 36 threads (max 38, plateau from minute 30), fds 45 -> 56 (max 72, not growing), objects 787k -> 791k (max 843k); no growth over time |
+| Database / WAL | 6.9 -> 74 MB (the fake feeds' rows) / 4.2 -> 6.3 MB |
+| Frames | NVR alerts sent 42,924; HA state changes sent 124,387; ingest accepted 42,923, processed 28,698, coalesced 14,225, failed 0, dropped 0 |
+| Fake restarts | NVR 3, HA 2, go2rtc 1; every feed reconnected (`nvr_connected` = `ha_connected` = 1 at the end) |
+| Loop lag | 4 ms max at 1 min; under the runner's load p99 mostly 75-570 ms, max 0.2-4.9 s per 12-minute block |
+| API p95 | 33 ms at 1 min; 0.3-5 s per 12-minute block under load |
+| Write lock | 186,873 holds; 19 slow holds (> 3 s), longest 19.8 s by `ha_sync._write` (10:20Z); 13 x "database is locked", all in a burst around 10:20Z |
+| Errors | 2 x HTTP 500 (`ack`, `export_create`), 2 x `live_ws` ASGI exception (`database is locked`), 2 x push delivery failed, 1 x notification monitor fault, 1 x export worker `OperationalError` - all in the 10:20Z burst; log errors 4, warnings 50 |
+| Lost updates | The harness has no per-state lost-update check. Indirect only: no ingest drops, no overflow / resync warning in the backend log. NOT proven by comparing stored states. |
+
+Reading: no leak, no thread / fd / queue growth, no crash and no frame drop in 2 h with 124k state changes and 6 device restarts.
+One event needs a look: at 10:20Z `ha_sync._write` held the write lock for 16-20 s and other writers timed out (13 busy errors,
+2 x 500). It coincided with the runner's load1 of 28-43 and about 1 GB free memory, and there is no soak of the base for
+comparison, so it is neither attributed to this branch nor cleared. Recommendation: accept (no growth or loss signal), or repeat a
+2 h soak on a quiet runner once on the base `d65bbfd93` and once on the branch and compare the write-lock lines.
+
+Evidence (on the runner): `~/work/p2520_core10soak_results/` (`summary.txt`, `load_1..10.json/log`, `soak_run/summary.json`, `samples.csv`).
