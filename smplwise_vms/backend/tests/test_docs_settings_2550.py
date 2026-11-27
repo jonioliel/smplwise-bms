@@ -29,6 +29,7 @@ NEW_SETTINGS = {
     "security.push_approval": "off",  # 2.53, MFA-T095-REST-2530
     "security.step_up_alarm_pin": "off",  # 2.53, MFA-T095-REST-2530
     "access.station_media_direct_v2": "off",  # 2.53, WISKEY-MEDIA-V2-2530 (no screen)
+    "ha.state_reconcile_min": "10",  # 2.55, HA-STATE-RECONCILE-2550 (no screen; 0 = off)
 }
 NEW_KEYS = [*NEW_SETTINGS, "wiskey.schedule_execution_status", "onboarding.dismissed", "unifiedpush_servers"]
 
