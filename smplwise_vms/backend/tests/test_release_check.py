@@ -15,7 +15,8 @@ assert spec.loader
 spec.loader.exec_module(rc)
 
 
-def test_repository_is_release_consistent(tmp_path):
+def test_repository_is_release_consistent(tmp_path, monkeypatch):
+    monkeypatch.setenv("SW_RESULTS_DIR", str(tmp_path / "no-results-here"))  # GATE-NIGHTLY-2560: --tag requires a green report; none here = NOT_CHECKED (warning)
     res = rc.run_checks(ROOT)
     by = {c["name"]: c for c in res["checks"]}
     assert res["version"] and by["one version everywhere"]["ok"], by["one version everywhere"]["detail"]
