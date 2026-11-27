@@ -177,7 +177,7 @@ def set_switch(conn: sqlite3.Connection, on: bool) -> tuple[str, str]:
     return before, "on" if on else "off"
 
 
-def capabilities(conn: sqlite3.Connection, api: dict[str, Any] | None) -> dict[str, Any]:
+def capabilities(conn: sqlite3.Connection, api: dict[str, Any] | None, caps: Any = None) -> dict[str, Any]:
     """The three capabilities with their Hebrew reason. `push` needs WisKey's command AND the administrator's switch."""
     out: dict[str, Any] = {}
     for name in FEATURES:
@@ -187,14 +187,51 @@ def capabilities(conn: sqlite3.Connection, api: dict[str, Any] | None) -> dict[s
         out[name] = {"available": available, "reason": reason, "message": reason_text(reason)}
     out["push"]["switch"] = "on" if switch_on(conn) else "off"
     out["push"]["offered"] = feature_state(api, "push")[0]
-    out["visits"]["statuses"] = list_statuses(api)
+    out["visits"]["statuses"] = list_statuses(api, caps)
     return out
 
 
-def list_statuses(api: dict[str, Any] | None) -> list[str]:
-    """WISKEY-VISITS-ENDED-FILTER-2520: the `filters.status` values the connected WisKey accepts on `visits/list`. `ended` only when WisKey
-    lists the record command for the add-on's identity (`overview.api.commands`) - the list filter came with that command in WisKey's
-    source; no version label is read. No copy, unknown commands or rc.10: the six statuses every version takes (fail closed)."""
+FILTER_CONTRACT = "wiskey-visit-list-filters.v1"
+
+
+def contract_statuses(caps: Any) -> list[str] | None:
+    """WISKEY-VISIT-FILTERS-2560: the status filters WisKey's discovery contract `business_contracts["visits/list"]` declares, kept to the
+    ones Arx supports in the canonical order; None (= contract absent) when `visits/list` is not published on the connection, the entry is
+    missing, malformed or another contract, or the list is not strings / lacks `all`. Unknown filters are ignored; never raises."""
+    try:
+        if caps is None or not caps.lists(LIST):
+            return None
+        contracts = caps.business_contracts
+        entry = contracts.get(LIST) if hasattr(contracts, "get") else None
+        if not hasattr(entry, "get") or entry.get("contract") != FILTER_CONTRACT:
+            return None
+        declared = entry.get("status_filters")
+        if not isinstance(declared, (list, tuple)) or not all(isinstance(f, str) for f in declared) or "all" not in declared:
+            return None
+        return [f for f in (*LIST_STATUSES, ENDED_FILTER) if f in declared]
+    except Exception:  # noqa: BLE001 - a malformed discovery is "absent", never a crash
+        return None
+
+
+def direct_capabilities() -> Any:
+    """The direct connection's current discovery capabilities, or None."""
+    try:
+        from . import wiskey_direct_join
+
+        join = wiskey_direct_join.installed()
+        return getattr(join.session.discovery, "capabilities", None) if join is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def list_statuses(api: dict[str, Any] | None, caps: Any = None) -> list[str]:
+    """The `filters.status` values the connected WisKey accepts on `visits/list`. WISKEY-VISIT-FILTERS-2560: when WisKey publishes
+    `visits/list` with the `wiskey-visit-list-filters.v1` contract, exactly its filters Arx supports (`ended` no longer needs the record
+    command). Otherwise (WISKEY-VISITS-ENDED-FILTER-2520, older WisKey): `ended` only when the record command is listed
+    (`overview.api.commands`). No copy, unknown commands or rc.10: the six statuses every version takes (fail closed)."""
+    declared = contract_statuses(caps)
+    if declared is not None:
+        return declared
     return [*LIST_STATUSES, ENDED_FILTER] if feature_state(api, "push")[0] else list(LIST_STATUSES)
 
 
