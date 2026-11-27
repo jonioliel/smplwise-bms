@@ -260,7 +260,19 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   turning it on needs the password typed again. Prefer a Frigate go2rtc without credentials on a trusted LAN, or a dedicated
   read-only Frigate account for this.
 - Rollback after a bad upgrade: install the previous version from Home Assistant, then restore the
-  "לפני עדכון" backup with "החלפה".
+  "לפני עדכון" backup with "החלפה". Pick the automatic backup whose note reads "before upgrade <previous> -> <new>", not the
+  newest one (the downgrade itself writes one more, in the other direction). The pilot rollback runbook (2.55, Hebrew with an English
+  appendix) lists what is kept and lost, the bridge and WisKey steps and the check afterwards: `docs/operations/PILOT_ROLLBACK_RUNBOOK_HE.md`.
+- **Import from the legacy add-on (2.55).** Settings › General › Backup and restore › the import card (system administrator):
+  choose an unprotected full Home Assistant backup, a ZIP / TAR of the legacy add-on's files (1.5.27) or the export of
+  `scripts/migrate_legacy.py --export`. The dry run changes nothing (an audit row only) and reports every item grouped by area (copied,
+  the same, stays, needs a person). Apply needs the typed confirmation word; a project backup `auto-pre-legacy-import` is written first
+  (no backup, no change). Only camera aliases that are empty today are copied; passwords, PINs and addresses are never read out or kept;
+  nothing is written to the NVR, go2rtc or Home Assistant. Guide: `docs/operations/MIGRATION_FROM_LEGACY_HE.md`.
+- **Off-box copies are managed from the local network only (2.55).** In Settings › General › Backup and restore › "Off-box copies"
+  (S3 / SFTP), adding or editing a target, its connection test and the one-time key export answer 403 `offbox_local_only` over remote
+  access, with a denied audit row. The list, enable / disable, delete, a push to an existing target, the key rotation and import and the
+  restore are unchanged.
 
 - Everything lives in `/data` (SQLite database + original plan files + derived images) and is
   included in Home Assistant backups (`backup: hot`).
@@ -1065,6 +1077,13 @@ registered. No Google, Apple or SmplWise relay account is involved.
 - **Limits.** Not run against a real push server or a real phone yet; the Arx Android app has no UnifiedPush connector yet (the app
   team adds it per `docs/api/mobile-presence-contract.md` section 7.4). Delivery while the phone sleeps depends on the distributor
   app (battery optimisation exemption per phone brand). Public push servers have rate limits; a site with many phones should run its own.
+- **Owner steps (off until done).** (1) Pick a push server: a self-hosted ntfy reachable over https (for example through the same
+  Cloudflare tunnel) is recommended; the public ntfy.sh needs no account, but a third party then sees the timing and rate limits apply.
+  (2) Put its host name in the add-on option `unifiedpush_servers` (no `https://`, no IP address; commas between several; an optional
+  `:port`), save, and restart the add-on (Home Assistant itself needs no restart). `GET notify/stats` then reports `app_unifiedpush`
+  `ok`. (3) On each phone install a distributor (ntfy from F-Droid is recommended), exempt it from battery optimisation and sign in to
+  an Arx app version that has the connector (not released yet); the app registers itself. (4) To turn it off, empty the option and
+  restart the add-on: registrations are kept and count no failure, and nothing is sent.
 ## Android app download and the bundled APK
 
 The remote sign-in page can offer one quiet download link (with version and SHA-256), only on Android devices outside the app.
@@ -1679,6 +1698,9 @@ These shipped before 2.40.0; this is a short map of where they live.
   building or for the whole site; a shared building (parking, main electrical room) is listed last. The mapping assistant
   matches home-system areas to buildings and never writes to the home system. Inside a building every control reaches only
   that building's devices, and the server refuses another building's device (2.36.0). With one building nothing changes.
+  While the building permission counts the area mapping ("הרשאת בניין לפי" = "מפה + מיפוי אזורים", the default): moving an area out
+  of a building needs the permission at both places (2.36.0), and since 2.55 mapping an area that belonged to no building into one needs
+  the route's permission at installation scope; otherwise the write is rolled back with an audited 403.
 
 ## Releases 2.6.4 to 2.11.0: what is on, off and locked
 
@@ -1930,3 +1952,72 @@ pages, and the place is kept on a refresh or a resize; on a phone nothing change
 Interface design › "Long lists on the control screens" › scroll inside the list (it applies to every user). In the generator
 settings the unit (kW, kVA, bar, °C, %, V, Hz, hours, seconds, minutes, days) sits inside the input as in electricity and water,
 and in English the labels and units are English.
+
+## Releases 2.53.0 to 2.55.0: what changed for users
+
+2.53.0 and 2.54.0 have no new migration and keep bridge 0.10.9, so the home system needs no restart. 2.55.0 adds one additive migration
+(`0227_mobile_unifiedpush.sql`, backward compatible). From 2.54.0 an open page shows "גרסה חדשה של Arx זמינה" after an update
+("רענון" / "אחר כך"; nothing reloads by itself). Nothing new switches itself on. The end-user description (Hebrew, then English) is in
+`docs/user-guide/he/19-whats-new-2530-2550_HE.md`. The 2.54.0 and 2.55.0 CHANGELOG sections are still drafts.
+
+**New settings.**
+
+| Where | Key | Default | What it changes |
+|---|---|---|---|
+| Settings › General › Support › "רשימת תחילת העבודה" (2.53) | `onboarding.enabled` (installation); `onboarding.dismissed` (per user, `/me/prefs`) | `false` on an existing installation; `true` stored once on a fresh one | the getting-started list and its "Welcome" row (see "Getting started and support") |
+| Settings › Users and permissions › Two-step verification › "אישור לפני שינויים רגישים" (2.53) | `security.push_approval` | `off` | approve a step-up on the account's phone by typing the number the screen shows (number matching, signed by the phone key); never for once-actions or one's own factors |
+| the same card (2.53) | `security.step_up_alarm_pin` | `off` | the personal alarm code answers the step-up of one alarm disarm or zone bypass (same lockout as the alarm screen) |
+| WisKey › Schedules › "מצב הביצוע ב־WisKey" (2.53, system administrator) | `wiskey.schedule_execution_status` | `off` | read-only execution status of a schedule sent for the owner's approval in WisKey; Arx never approves or executes |
+| no screen; `PATCH /settings`, system administrator (2.53) | `access.station_media_direct_v2` | `off` | station video, talk and listen over the signed direct transport v2; only with bridge 0.10.9 or newer |
+| the new-version card › "אחר כך" (2.54) | browser storage `arx.pwa.update.later` | - | hides the card until the next new version, in this browser |
+| add-on option (2.55) | `unifiedpush_servers` | empty = off | Android push without Google (see "Phone app push without Google") |
+
+2.54.0 adds no setting: the confirmations before physical actions, the honest unknown states and the controlled switches are safety
+rules, not preferences.
+
+**Behaviour users will notice (2.54.0).**
+- *Honest unknown states.* An offline lock or one whose state is unknown is no longer counted or shown as an open door (home
+  interface, area row, floor header, building summary; `DeviceCounts.locks_unknown`), and an unavailable alarm panel no longer shows
+  "armed" (`alarms_unknown`). Unknown is grey "לא ידוע"; a wholly unavailable panel is "לא זמין".
+- *Physical actions confirm.* Pulsing an NVR alarm output names the output, the recorder and the pulse length, with the focus on
+  cancel; an outcome without an answer (no answer, time-out, 5xx) is amber "unknown, check on site", red only for a refusal. The
+  incoming-call card does not swap under the finger; a door opening with an unknown outcome holds its button. The automation device
+  test follows each device's record; a sensitive step and the restore need their own confirmation. Reverting an NVR change whose
+  setting changed on the device since then explains that nothing was written and offers "החזר בכל זאת" behind its own confirmation.
+- *Controlled switches.* Save-at-once switches (module settings, tickets settings, system settings, schedules, the security and
+  integration cards) move only from the saved answer; a refused save leaves them where they were. Device switches are unchanged.
+- *The update notice.* The `/me/ws` hello carries `build`; another version than the page's shows the card (also without a service
+  worker and on the wall display).
+- *Offline behaviour.* A plain read gets a 60 s deadline and ends as "no connection"; a stuck automatic refresh is re-armed. Over remote
+  access an unreachable sign-in service keeps the session ("אין חיבור לשרת" / "הכניסה שלך נשמרה. מנסה להתחבר שוב…" / "נסה עכשיו",
+  retries after 5, 10, 20 s, then every 30 s); the sign-in form shows only when the session really ended. The step-up dialog (when step-up
+  is on) names the action, closes after 90 s or on a route change, and a physical action is not replayed after 120 s.
+- *Generator mute rules.* Muting a critical alert needs `generator.manage` and lasts at most 4 hours (a longer request is shortened;
+  `muted_until` is the real end); other severities as before (`generator.view`, up to 7 days). An alert raised while muted is sent when
+  the mute ends; "ביטול ההשתקה" (`DELETE /generator/alerts/{id}/mute`, behind its own confirmation) ends a mute. A 24 V bank that sagged
+  below 16 V is judged as 24 V (latched once seen above 16 V); `battery_nominal_v` 12 / 24 can be set through the API only for now.
+- *Billing cycle rule.* Changing the cycle of an account with an issued, sent or paid bill starts the new cycle at the end of the last
+  sealed bill (no unbilled gap); a different explicit start is refused (409 `cycle_start_mismatch`) and so is a change while a draft or
+  correction is open (409 `cycle_change_open_draft`). An unreviewed automatic draft is no longer deleted by the 30-day draft retention;
+  water announces a ready automatic draft (`water.bill_draft`).
+- *DST.* Bookings on the change days are stored at the chosen wall-clock hour; the rooms timeline and the resident's time bar place
+  entries by the clock, hatch the skipped spring hour (not bookable) and mark the repeated autumn hour "×2". Cancelling one date of a
+  recurring entry asks "only this date" or "the whole series".
+- *Home screen fit.* 2.53: no page scroll at 1366x768, 1280x800 and 1024x768 in the default information style, in every direction and
+  view. 2.54: in the "cards" information style the large-card band folds on the squeeze step (1366x768, 1280x800, 1180 tablet).
+- Also: a late answer no longer overwrites a newer choice, a double tap runs once; camera walls and the kiosk re-read the camera list
+  every minute; the daily and manual backups no longer block writes while compressing; commands are stamped by the server's clock.
+
+**2.55.0.** The legacy import (see "Data and backups"), Android push without Google (see "Phone app push without Google"), the pilot
+rollback runbook and the release check's backward-compatible-migration rule. "Storage full" instead of "unexpected error" when the
+disk fills at save time; a clock jump no longer hides the "NVR disconnected" alert or drops a recording-coverage gap. With the low
+findings of the 2.52 deep review: off-box target administration from the local network only (see "Data and backups"); mapping an area
+that belonged to no building into one needs installation-scope permission (see "Calendars, presence and several buildings"); a
+confirmation before revoking a user's role, deleting a water price version or a scheduled temperature report; the map room card's "all
+off" says how many devices stayed on; the events centre says when it hit its 500-row limit; the audit log uses the installation's time
+zone; a server error without an error model reads as "the server refused the request (status)"; in the English home interface the
+dimmer fills from the left.
+
+**Admin notes.** Off-box administration is local-network only; mapping an unmapped area into a building needs installation-scope
+permission; Android push via UnifiedPush is off until the owner sets `unifiedpush_servers` (owner steps under "Phone app push without
+Google"); the WisKey station media v2 switch has no screen and changes nothing below bridge 0.10.9.
