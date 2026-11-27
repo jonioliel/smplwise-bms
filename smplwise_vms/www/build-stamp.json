@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "version": "2.56.0",
- "inputs_sha256": "966f831302944014edbc849d48caaef6e23354cd3ccdb7df0d9d5e8a5f22e6f1",
+ "inputs_sha256": "21529f8d2400152e9d34657fe7e2bb65530dadec31f5a333a74ba207a4fae8a3",
  "files": 2135,
  "inputs": [
   "frontend/src",
@@ -15,7 +15,7 @@
   "frontend/package-lock.json",
   "frontend/tsconfig.json"
  ],
- "source_commit": "fc170982fb6061827fa4fcc66b2c717cf391743c",
- "built_at": "2026-11-27T17:34:18.531Z",
+ "source_commit": "c93f776430789dda3745f7e23d8eac9edb527785",
+ "built_at": "2026-11-27T19:32:05.328Z",
  "tool": "frontend/scripts/build-stamp.mjs"
 }
