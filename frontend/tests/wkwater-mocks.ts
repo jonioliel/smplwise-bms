@@ -13,6 +13,8 @@ export interface WaterMockOptions {
   data?: 'ready' | 'empty' | 'error' | 'slow';
   /** the viewer's water rights; default: all */
   rights?: Partial<{ can_view: boolean; can_manage: boolean; can_configure: boolean; can_ack: boolean; can_bills: boolean }>;
+  /** DATA-RULES-2-2550: the account status names days between issued bills that no bill covers (`billing_gaps`); absent = none */
+  gaps?: { from: string; to: string }[];
 }
 
 const PERMS = ['water.view', 'water.manage', 'water.ack', 'water.bills', 'system.configure', 'energy.view', 'map.read'];
@@ -235,7 +237,7 @@ export async function installWaterMock(page: Page, opts: WaterMockOptions = {}):
     if (ac) {
       const a = ACCOUNTS.find((x) => x.id === ac[1]);
       if (!a) return err(route, 404, 'not_found', 'לא נמצא');
-      if (ac[2] === 'status') return json(route, status(a));
+      if (ac[2] === 'status') return json(route, opts.gaps ? { ...status(a), billing_gaps: opts.gaps } : status(a));
       if (ac[2] === 'history') return json(route, { periods: [{ ...PERIOD, m3: a.m3, status: 'open', source: 'readings', bill: null }, ...[9, 8, 7, 6, 5].map((mo) => ({ from: `2026-${String(mo).padStart(2, '0')}-01`, to: `2026-${String(mo).padStart(2, '0')}-28`, m3: (Number(a.m3) * (0.85 + mo / 40)).toFixed(2), status: 'measured', source: 'bill', bill: null }))] });
       if (ac[2] === 'bills') return json(route, { items: BILLS.filter((b) => b.acc === a.id).map(billSummary) });
       return json(route, account(a));

@@ -244,12 +244,15 @@ def update_device(device_id: str, body: DeviceBody, principal: Principal = Depen
             part[k] = v
         stored[device_id] = part
         core.jset(conn, "generator.thresholds", stored)
+    battery: dict[str, Any] | None = None
     if "battery_nominal_v" in sent:
+        # DATA-RULES-2-2550: the audit row names the choice before and after (the settings screen's "automatic / 12 V / 24 V")
+        battery = {"battery_nominal_v": body.battery_nominal_v, "battery_nominal_v_before": _battery_out(conn, device_id)["battery_nominal_v"]}
         core.set_battery_nominal(conn, device_id, body.battery_nominal_v)
     if sets:
         store.update_device(conn, device_id, sets)
     audit(conn, actor=principal, action="generator.device.update", decision="allowed", resource_type="generator_device", resource_id=device_id,
-          details={"battery_nominal_v": body.battery_nominal_v} if "battery_nominal_v" in sent else None)
+          details=battery)
     return _device_out(conn, _device(conn, device_id), detail=True)
 
 

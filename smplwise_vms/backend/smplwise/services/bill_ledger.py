@@ -487,6 +487,40 @@ def record_run(kind: BillKind, conn: sqlite3.Connection, acc_id: str, p: per.Per
     )
 
 
+def reopen_runs(kind: BillKind, conn: sqlite3.Connection, acc_id: str, start: str, end: str) -> int:
+    """DATA-RULES-2-2550: forget the `skipped` run rows of a live automatic account whose period overlaps [start, end) - the pass found
+    that period taken by a draft which is gone now - so the next pass looks at the period again (and skips it again when a bill still
+    covers it). Rows of a created / issued / failed run are never touched. Returns how many rows were removed."""
+    cur = conn.execute(
+        f"DELETE FROM {kind.runs_table} WHERE account_id = ? AND status = 'skipped' AND period_start < ? AND period_end > ? "
+        f"AND account_id IN (SELECT id FROM {kind.accounts_table} WHERE deleted_at IS NULL AND auto_mode != 'off')",
+        (acc_id, end, start))
+    return cur.rowcount or 0
+
+
+def billing_gaps(kind: BillKind, conn: sqlite3.Connection, aid: str) -> list[per.Period]:
+    """DATA-RULES-2-2550 (DATA-RULES-2540 open question 3, recommendation a): the days between the account's first and last sealed bill
+    (issued / sent / paid) that no bill covers - a void bill covers nothing; a draft or a correction waiting for review covers its days
+    (the period is being billed). Oldest first, `end` exclusive. Read for the account status only; never written into a bill's snapshot."""
+    rows = conn.execute(f"SELECT period_start, period_end, state FROM {kind.table} WHERE account_id = ? AND state != 'void' ORDER BY period_start, period_end",
+                        (aid,)).fetchall()
+    sealed = [r for r in rows if r["state"] in kind.issued_states]
+    if len(sealed) < 2:
+        return []
+    lo = dt.date.fromisoformat(min(r["period_start"] for r in sealed))
+    hi = dt.date.fromisoformat(max(r["period_end"] for r in sealed))
+    out: list[per.Period] = []
+    covered = lo
+    for r in rows:
+        s, e = dt.date.fromisoformat(r["period_start"]), dt.date.fromisoformat(r["period_end"])
+        if s > covered and covered < hi:
+            out.append(per.Period(covered, min(s, hi)))
+        covered = max(covered, e)
+        if covered >= hi:
+            break
+    return out
+
+
 def auto_generate(kind: BillKind, db: Any, now: dt.datetime, hooks: AutoHooks) -> AutoOutcome:
     """One pass of the automatic generation. Idempotent: the (account, period) run row is written in the same transaction as the draft,
     and the write re-checks it, so a second process, a double tick or a restart in the middle never makes a second bill. The computation
@@ -564,7 +598,13 @@ def retention(kind: BillKind, db: Any, now: dt.datetime, data_dir: Path | None =
 
     DATA-RULES-2540 (review D-05): an AUTOMATIC draft (origin `auto`) is not a draft somebody left: its run row settles the period for good,
     so deleting it would leave the period unbilled for ever, silently. It waits for review instead - it is kept until a person issues or
-    deletes it, and only the retention years remove it (a period that ended before the cut, as for an issued bill)."""
+    deletes it, and only the retention years remove it (a period that ended before the cut, as for an issued bill).
+
+    DATA-RULES-2-2550 (DATA-RULES-2540 open question 4, recommendation a): a draft a PERSON made on an automatic account settled the
+    automatic pass's period as `skipped` (the period was taken). When the 30 days remove that draft, the period's skipped run rows are
+    removed with it, in the same transaction, so the next pass makes the automatic draft (`reopen_runs`). The pass checks for an
+    overlapping bill again first, so a period an issued bill covers is skipped again - never a second bill. Corrections are not reopened
+    (their issued original covers the period)."""
     eb = _eb()
     with db.connection(label=f"{kind.name}.billing.retention") as conn:
         days = eb._int_setting(conn, "energy.draft_retention_days", 30, 7, 365)
@@ -572,17 +612,24 @@ def retention(kind: BillKind, db: Any, now: dt.datetime, data_dir: Path | None =
         draft_cut = eb._iso(now - dt.timedelta(days=days))
         today = per.local_date(now, "UTC")
         bill_cut = today.replace(year=today.year - years, day=1).isoformat()
-        drafts = [r["id"] for r in conn.execute(
-            f"SELECT id FROM {kind.table} WHERE state = 'draft' AND ((origin != 'auto' AND updated_at < ?) OR (origin = 'auto' AND period_end < ?))",
-            (draft_cut, bill_cut)).fetchall()]
+        rows = conn.execute(
+            f"SELECT id, account_id, period_start, period_end, origin, replaces_bill_id FROM {kind.table} WHERE state = 'draft' "
+            f"AND ((origin != 'auto' AND updated_at < ?) OR (origin = 'auto' AND period_end < ?))",
+            (draft_cut, bill_cut)).fetchall()
+        drafts = [r["id"] for r in rows]
         cols = f"id, {kind.pdf_column}" if kind.pdf_column else "id"
         old = conn.execute(f"SELECT {cols} FROM {kind.table} WHERE state != 'draft' AND period_end < ?", (bill_cut,)).fetchall()
         ids = drafts + [r["id"] for r in old]
         for bid in ids:
             conn.execute(f"DELETE FROM {kind.events_table} WHERE bill_id = ?", (bid,))
             conn.execute(f"DELETE FROM {kind.table} WHERE id = ?", (bid,))
+        reopened = sum(reopen_runs(kind, conn, r["account_id"], r["period_start"], r["period_end"])
+                       for r in rows if r["origin"] != "auto" and r["replaces_bill_id"] is None)
         if ids:
-            audit(kind, conn, None, "bill.retention", "*", None, {"drafts": len(drafts), "bills": len(old)})
+            details: dict[str, int] = {"drafts": len(drafts), "bills": len(old)}
+            if reopened:
+                details["reopened"] = reopened
+            audit(kind, conn, None, "bill.retention", "*", None, details)
     if data_dir is not None and kind.pdf_column:
         for r in old:
             if r[kind.pdf_column]:

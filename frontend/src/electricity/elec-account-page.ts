@@ -161,6 +161,7 @@ export class ElecAccountPage extends ElecBase {
       : html`<div class="tile" data-no-period><div class="k">${tr('תקופה')}</div><div class="v mut">${tr('אין עדיין תקופה פעילה')}</div></div>`;
     const main = html`${s.error ? alertBox('warn', s.error) : nothing}${s.stale ? alertBox('warn', html`<b>${s.stale.meter}</b> ${tr('לא מדווח')}${s.stale.since ? html` ${tr('מאז')} ${n(s.stale.since)}` : ''}. ${tr('הצריכה תיספר כשהמונה יחזור לדווח.')}`) : nothing}
       ${s.notes.map((t) => alertBox('warn', t.text_he))}
+      ${s.gaps.map((g) => alertBox('warn', html`<span data-billing-gap=${g.from}>${tr('פער בחיובים: הימים {from} - {to} נמצאים בין חיובים שהונפקו ואינם כלולים באף חיוב.', { from: fmtDate(g.from), to: fmtDate(g.to) })}</span>`))}
       <div class="tiles" data-elec-tiles>
         <div class="tile"><div class="k">${tr('צריכה בתקופה')}</div><div class="v">${n(f2or(s.kwh))}<span class="u">${tr('קוט״ש')}</span></div></div>
         ${dayTile}

@@ -233,6 +233,8 @@ class EnergyAccountStatus(WireModel):
     notes: list[EnergyNote]
     error_code: str = None
     amount_so_far: str = None
+    billing_gaps: list[EnergyPeriod] = []
+    """DATA-RULES-2-2550 (additive): the days between the account's issued bills that no bill covers (`to` inclusive), oldest first."""
 
 
 class EnergyBillList(WireModel):

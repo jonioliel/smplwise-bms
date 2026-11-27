@@ -121,7 +121,8 @@ export const getLive = (id: string) => get<LiveResponse>(`generator/devices/${en
 export const runDetect = () => post<Wire.GeneratorDetect>('generator/devices/detect');
 export const deviceCandidates = (text = '') => get<Wire.GeneratorDeviceCandidates>(`generator/device-candidates${q({ q: text })}`);
 export const addDevice = (ha_device_id: string, name?: string) => post<GenDevice>('generator/devices', { ha_device_id, name });
-export const updateDevice = (id: string, body: { name?: string; rated_kw?: number | null; rated_kva?: number | null; thresholds?: Record<string, number>; revision?: number }) =>
+// DATA-RULES-2-2550: `battery_nominal_v` - the starter battery's system (12 / 24; null = automatic, the default)
+export const updateDevice = (id: string, body: { name?: string; rated_kw?: number | null; rated_kva?: number | null; thresholds?: Record<string, number>; battery_nominal_v?: 12 | 24 | null; revision?: number }) =>
   put<GenDevice>(`generator/devices/${encodeURIComponent(id)}`, body);
 export const getRoles = (id: string) => get<Wire.GeneratorRoleMappings>(`generator/devices/${encodeURIComponent(id)}/roles`);
 export const putRoles = (id: string, roles: Record<string, string | null>) => put<GenDevice>(`generator/devices/${encodeURIComponent(id)}/roles`, { roles });

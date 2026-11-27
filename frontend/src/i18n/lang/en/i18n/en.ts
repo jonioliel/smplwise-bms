@@ -269,6 +269,8 @@ export const en = {
       mapDisabled: 'The sensor exists but is disabled at the source', mapCore: 'Required', mapAuto2: 'Automatic (default)', mapClear: 'No sensor', mapSave: 'Save the mapping',
       units: { kw: 'kW', kva: 'kVA', bar: 'bar', c: '°C', pct: '%', v: 'V', hz: 'Hz', h: 'hours', hAhead: 'hours ahead', s: 'seconds', min: 'minutes', days: 'days' },
       thIntro: 'Alert thresholds are set here and calculated by the system; they change nothing in the controller itself.', thDefault: 'Default {n}',
+      batSystem: 'Battery system', batAuto: 'Automatic', batHintAuto: 'Automatic: a battery once measured above 16 V counts as 24 V; until then each reading is judged by its value.',
+      batDetected: 'Detected: {v} V', batHintFixed: 'The battery threshold and the battery dial use a {v} V system.',
       th: { oil_min_bar: 'Minimum oil pressure', coolant_max_c: 'Maximum coolant temperature', rpm_max: 'Maximum RPM', fuel_low_pct: 'Low fuel', fuel_empty_pct: 'Fuel empty', overload_pct: 'Overload', v_min: 'Minimum voltage', v_max: 'Maximum voltage', hz_min: 'Minimum frequency', hz_max: 'Maximum frequency', battery_min_12v: 'Minimum 12V battery', battery_min_24v: 'Minimum 24V battery', service_warn_h: 'Service reminder', service_every_h: 'Service interval', running_rpm: 'RPM that counts as running' },
       retAlerts: 'Alert history', retHistory: 'Chart history', retStale: 'Time until "No communication" is shown', retInfo: 'Alert history is kept for {a} days; chart samples are kept for {h} days.',
       permsBody: 'Generator permissions are set in the roles: view and alerts, and management and settings.', permsLink: 'To users and permissions',
