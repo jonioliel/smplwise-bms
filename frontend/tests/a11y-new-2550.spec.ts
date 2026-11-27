@@ -42,8 +42,9 @@ test.beforeEach(({}, info) => {
 });
 
 /** axe-core over the whole document (open shadow roots included); the critical / serious findings whose target path names one of
- * `within` (a custom element tag, or an attribute / class of the element under test). */
-async function axe(page: Page, within: string[]): Promise<string[]> {
+ * `within` (a custom element tag, or an attribute / class of the element under test) and none of `outside` (a known older finding
+ * of the screen around it, reported in docs/changes/A11Y-NEW-2550.md). */
+async function axe(page: Page, within: string[], outside: string[] = []): Promise<string[]> {
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: AXE });
   const found = await page.evaluate(async () => {
     type V = { id: string; impact: string | null; nodes: { target: unknown; failureSummary?: string }[] };
@@ -56,7 +57,7 @@ async function axe(page: Page, within: string[]): Promise<string[]> {
       .filter((v) => v.impact === 'critical' || v.impact === 'serious')
       .flatMap((v) => v.nodes.map((n) => `${v.id}: ${JSON.stringify(n.target)} ${(n.failureSummary ?? '').split('\n').slice(1, 2).join(' ').trim()}`));
   });
-  return found.filter((line) => within.some((w) => line.includes(w)));
+  return found.filter((line) => within.some((w) => line.includes(w)) && !outside.some((o) => line.includes(o)));
 }
 
 /** Whether the focus (through the shadow roots) is inside an element matching `sel`. */
@@ -91,13 +92,16 @@ async function focusPageControl(page: Page): Promise<boolean> {
       }
     };
     walk(document.querySelector('sw-app') ?? document);
-    const el = seen[0] as HTMLElement | undefined;
-    if (!el) return false;
-    el.setAttribute('data-a11y-before', '');
-    el.focus();
-    let a: Element | null = document.activeElement;
-    while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
-    return a === el;
+    for (const el of seen as HTMLElement[]) {
+      el.focus();
+      let a: Element | null = document.activeElement;
+      while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+      if (a === el) {
+        el.setAttribute('data-a11y-before', '');
+        return true;
+      }
+    }
+    return false;
   });
 }
 
@@ -199,14 +203,14 @@ for (const scheme of SCHEMES) {
     await page.goto(genUrl('/infra/generator/alerts/al5', 'classic', scheme));
     const detail = page.locator(`${GEN} [data-detail]`);
     await detail.locator('[data-mute]').waitFor({ timeout: 30_000 });
-    expect(await axe(page, ['gen-alerts-page', 'data-detail'])).toEqual([]);
+    expect(await axe(page, ['gen-alerts-page', 'data-detail'], ['div[data-alert='])).toEqual([]);
     // mute by keyboard: the result line is said, the focus stays in the drawer
     await detail.locator('[data-mute] button').focus();
     await page.keyboard.press('Enter');
     await expect(detail.locator('[data-mute-info]')).toContainText('הושתקה רק עד');
     await expect(detail.locator('[data-mute-info]')).toHaveAttribute('role', 'status');
     expect(await focusLost(page), 'after the mute').toBe(false);
-    expect(await axe(page, ['gen-alerts-page', 'data-detail'])).toEqual([]);
+    expect(await axe(page, ['gen-alerts-page', 'data-detail'], ['div[data-alert='])).toEqual([]);
     // the un-mute question: the focus on cancel; Escape cancels and gives the focus back to its button; nothing is sent
     await detail.locator('[data-unmute] button').focus();
     await page.keyboard.press('Enter');
@@ -367,6 +371,16 @@ test('legacy import, English (LTR): axe on the report and the dialog', async ({ 
   await installLegacyMock(page, { lang: 'en' });
   const card = await legacyOpen(page, 'light');
   expect(await page.evaluate(() => document.documentElement.dir)).toBe('ltr');
+  // the items table never scrolls sideways (the card pages its rows); what is wider than the table, if anything, is named in the failure
+  const wide = await card.locator('sw-table[data-legacy-items]').evaluate((t) => {
+    const host = t as HTMLElement;
+    const out = [`table ${host.scrollWidth}/${host.clientWidth}`];
+    for (const el of host.shadowRoot?.querySelectorAll<HTMLElement>('th, td, table') ?? []) {
+      if (el.scrollWidth > el.clientWidth + 1) out.push(`${el.tagName.toLowerCase()} ${el.scrollWidth}/${el.clientWidth} "${(el.textContent ?? '').trim().slice(0, 40)}"`);
+    }
+    return out;
+  });
+  expect(wide[0], wide.join(' | ')).toMatch(/^table (\d+)\/\1$/);
   await card.locator('[data-legacy-apply-open]').click();
   await expect(card.locator('[data-legacy-confirm]')).toBeVisible();
   expect(await axe(page, [LEGACY])).toEqual([]);
@@ -405,9 +419,14 @@ for (const scheme of SCHEMES) {
     await mockRooms(page, { manage: true, entries: (date) => [
       { id: 'p1', start: localIso(date, 1), end: localIso(date, 1, 30) },
       { id: 'p2', start: localIso(date, 1, 0, 60), end: localIso(date, 1, 30, 60) },
+      { id: 'e10', start: localIso(date, 10), end: localIso(date, 11), title: 'ראיון' },
     ] });
     await openRooms(page, '/calendars/rooms?date=2026-10-25', '2026-10-20T00:30:00+03:00', scheme);
-    await expect(page.locator(`${ROOMS} [data-cal-entry="p2"]`)).toBeVisible();
+    // the phone opens on the night window (00-06: the repeated hour "01 ×2"); the desktop on 07-23
+    const phone = test.info().project.name === 'mobile';
+    await expect(page.locator(`${ROOMS} [data-cal-entry="${phone ? 'p2' : 'e10'}"]`)).toBeVisible();
+    // the phone's hour-window key: its name holds the hours it shows (label in name, WCAG 2.5.3)
+    if (phone) await expect(page.locator(`${ROOMS} [data-cal-window]`)).toHaveAccessibleName(/00:00–06:00/);
     expect(await axe(page, ['cal-view-rooms'])).toEqual([]);
   });
 }
