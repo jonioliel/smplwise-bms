@@ -1578,23 +1578,74 @@ def group_by_run(table):
 
 
 _COSTS = None
+_PCOSTS = None    # GATE-SPEED-2550: {spec file: {project: seconds}} from the same reports (the heavy-unit split of plan_pw_jobs)
+_PXWALL = None    # GATE-SPEED-2550: {pixel spec file: wall seconds of its own Playwright process} (pw_pixel_*.json stats.duration)
+
+
+def pw_report_costs(rep):
+    """({file: seconds}, {file: {project: seconds}}) of one Playwright JSON report: every result's duration (retries of the same
+    report included, as prior_costs() always counted them), summed per spec file and per spec file and project."""
+    costs, pcosts = {}, {}
+
+    def walk(s):
+        for sp in s.get("specs", []):
+            f = os.path.basename(sp.get("file", ""))
+            for t in sp.get("tests", []):
+                v = sum((r.get("duration") or 0) for r in t.get("results", [])) / 1000.0
+                costs[f] = costs.get(f, 0.0) + v
+                p = t.get("projectName") or ""
+                if p:
+                    pp = pcosts.setdefault(f, {})
+                    pp[p] = pp.get(p, 0.0) + v
+        for c in s.get("suites", []):
+            walk(c)
+    for s in rep.get("suites", []):
+        walk(s)
+    return costs, pcosts
+
+
+def pixel_report_wall(rep):
+    """(spec file, wall seconds) of a pixel job's report (one Playwright process per pixel spec file): stats.duration, the process
+    wall time including its start-up, which is what the pixel job really spends per file. (None, 0.0) when the report has neither."""
+    files = set()
+
+    def walk(s):
+        for sp in s.get("specs", []):
+            if sp.get("file"):
+                files.add(os.path.basename(sp["file"]))
+        for c in s.get("suites", []):
+            walk(c)
+    for s in rep.get("suites", []):
+        if s.get("file"):
+            files.add(os.path.basename(s["file"]))
+        walk(s)
+    try:
+        wall = float((rep.get("stats") or {}).get("duration") or 0) / 1000.0
+    except (TypeError, ValueError):
+        wall = 0.0
+    return (next(iter(files)) if len(files) == 1 else None), wall
 
 
 def prior_costs():
     """Seconds per spec file from the earlier gates' Playwright reports (summed over tests and projects, the retry reports
     excluded; per file the newest gate that ran it wins, the last 10 gates are read): the weights the `--workers=1` chunks are
     balanced by. Files no gate has timed fall back to gate_durations.json next to this script (a committed seed, refreshed after
-    each release). {} when there is neither."""
-    global _COSTS
+    each release). {} when there is neither. GATE-SPEED-2550: the same pass fills _PCOSTS (per project) and _PXWALL (the wall of
+    each pixel spec file's own process, pw_pixel_*.json; seed fallback `pixel_seconds`)."""
+    global _COSTS, _PCOSTS, _PXWALL
     if _COSTS is not None:
+        if _PCOSTS is None:
+            _PCOSTS = {}
+        if _PXWALL is None:
+            _PXWALL = {}
         return _COSTS
-    _COSTS = {}
+    _COSTS, _PCOSTS, _PXWALL = {}, {}, {}
     mine = f"gate_{TAG}_{STATE['sha']}.logs"
     roots = [RES] + ([Path(COSTS_DIR)] if COSTS_DIR and Path(COSTS_DIR).resolve() != RES.resolve() else [])
     dirs = sorted((d for r in roots for d in r.glob("gate_*.logs") if d.is_dir() and not (r == RES and d.name == mine)),
                   key=lambda d: d.stat().st_mtime, reverse=True)
     for d in dirs[:10]:
-        costs = {}
+        costs, pcosts, pxwall = {}, {}, {}
         for jp in d.glob("pw_*.json"):
             if "_retry_" in jp.name:
                 continue
@@ -1602,25 +1653,46 @@ def prior_costs():
                 rep = json.loads(jp.read_text())
             except Exception:
                 continue
-
-            def walk(s):
-                for sp in s.get("specs", []):
-                    f = os.path.basename(sp.get("file", ""))
-                    for t in sp.get("tests", []):
-                        costs[f] = costs.get(f, 0.0) + sum((r.get("duration") or 0) for r in t.get("results", [])) / 1000.0
-                for c in s.get("suites", []):
-                    walk(c)
-            for s in rep.get("suites", []):
-                walk(s)
+            c1, p1 = pw_report_costs(rep)
+            for f, v in c1.items():
+                costs[f] = costs.get(f, 0.0) + v
+            for f, pp in p1.items():
+                dst = pcosts.setdefault(f, {})
+                for p, v in pp.items():
+                    dst[p] = dst.get(p, 0.0) + v
+            if jp.name.startswith("pw_pixel_"):
+                f, wall = pixel_report_wall(rep)
+                if f and wall > 0:
+                    pxwall[f] = pxwall.get(f, 0.0) + wall
         for f, v in costs.items():
             _COSTS.setdefault(f, v)
+        for f, v in pcosts.items():
+            _PCOSTS.setdefault(f, v)
+        for f, v in pxwall.items():
+            _PXWALL.setdefault(f, v)
     try:        # the tracked seed (gate_durations.json next to this script): only for files no earlier gate on this runner has timed
-        for f, v in (json.loads((HERE / DURATIONS_NAME).read_text(encoding="utf-8")).get("seconds") or {}).items():
+        seed = json.loads((HERE / DURATIONS_NAME).read_text(encoding="utf-8"))
+        for f, v in (seed.get("seconds") or {}).items():
             if isinstance(v, (int, float)) and v > 0:
                 _COSTS.setdefault(f, float(v))
+        for f, v in (seed.get("pixel_seconds") or {}).items():
+            if isinstance(v, (int, float)) and v > 0:
+                _PXWALL.setdefault(f, float(v))
     except Exception:
         pass
     return _COSTS
+
+
+def project_costs():
+    """{spec file: {project: seconds}} of the earlier gates (filled by prior_costs()); {} when nothing was recorded."""
+    prior_costs()
+    return _PCOSTS or {}
+
+
+def pixel_walls():
+    """{pixel spec file: wall seconds of its own process} of the earlier gates, else the seed's pixel_seconds (prior_costs())."""
+    prior_costs()
+    return _PXWALL or {}
 
 
 def balance(names, n):
@@ -1765,10 +1837,59 @@ def plan_pw_jobs(cat, table, costs, target, max_chunks, max_workers, base_worker
                                  "projects": list(projs), "workers": 1, "est": sum(costs.get(x, dflt) for x in part)})
         else:
             w = max(int(base_workers), min(max_workers, math.ceil(total / max(target, 1))))
+            heavy = heavy_units(names, projs, costs, project_costs(), max(total / w, 0.0))
+            for k, (f, hp, sec) in enumerate(heavy):   # GATE-SPEED-2550: a heavy (file, project) unit runs as its own 1-worker job
+                jobs.append({"kind": "pw", "cat": cat, "label": f"{tag}_h{k}", "names": [f], "projects": hp, "workers": 1, "est": sec,
+                             "heavy": True})
+            gone = {f for f, _, _ in heavy}
+            names = [x for x in names if x not in gone]
+            if not names:
+                continue
+            total = sum(costs.get(x, dflt) for x in names)
+            w = max(int(base_workers), min(max_workers, math.ceil(total / max(target, 1))))
             unit = max((costs.get(x, dflt) / max(1, len(projs)) for x in names), default=0.0)
             jobs.append({"kind": "pw", "cat": cat, "label": tag, "names": sorted(names), "projects": list(projs), "workers": w,
                          "est": max(total / w, unit)})
     return jobs
+
+
+def heavy_units(names, projs, costs, pcosts, group_wall):
+    """GATE-SPEED-2550: the (file, projects, seconds) jobs to take out of ONE parallel group so the group does not hold all its
+    worker slots while one worker finishes a long file (measured: dev_desktop held 4 slots for ~500 s while layout-electricity
+    (1008 s, desktop) ran alone, ~1190 idle slot-seconds per full gate). A (file, project) unit is heavy when its recorded seconds
+    reach max(GATE_HEAVY_SPLIT_SECS, GATE_HEAVY_SPLIT_FRAC x the group's expected wall). A heavy file leaves the group whole: one job
+    per heavy project, plus one job with its other projects of the group (so every (file, project) of the group still runs exactly
+    once, with the same server, grep and project set as before). Only recorded costs count (an untimed file never moves); at most
+    GATE_HEAVY_MAX_JOBS jobs per group, heaviest first. GATE_HEAVY_SPLIT_SECS=0 (the v1 default) switches it off."""
+    floor = knob("GATE_HEAVY_SPLIT_SECS", 0, 300, float)
+    if floor <= 0 or len(names) < 2:
+        return []
+    frac = knob("GATE_HEAVY_SPLIT_FRAC", 0.25, 0.25, float)
+    cap = knob("GATE_HEAVY_MAX_JOBS", 6, 6)
+    thr = max(floor, frac * float(group_wall or 0.0))
+    projs = list(projs)
+
+    def unit(f, p):
+        pp = pcosts.get(f) or {}
+        if p in pp:
+            return float(pp[p])
+        return float(costs[f]) / max(1, len(projs)) if (f in costs and not pp) else 0.0
+
+    cands = []
+    for f in sorted(names):
+        hp = [p for p in projs if unit(f, p) >= thr]
+        if hp:
+            cands.append((max(unit(f, p) for p in hp), f, hp))
+    out = []
+    for _, f, hp in sorted(cands, key=lambda c: (-c[0], c[1])):
+        rest = [p for p in projs if p not in hp]
+        need = len(hp) + (1 if rest else 0)
+        if len(out) + need > cap:
+            continue
+        out += [(f, [p], unit(f, p)) for p in hp]
+        if rest:
+            out.append((f, rest, sum(unit(f, p) for p in rest)))
+    return out
 
 
 def _fits(cost, free, slots):
@@ -1801,6 +1922,69 @@ def load1():
 
 
 RESOURCES = {"samples": 0, "max_load1": None, "min_mem_available_mb": None}
+_CPU_LAST = {}   # the previous /proc/stat sample {"busy", "idle", "t"} (GATE-SPEED-2550)
+
+
+def parse_proc_stat(text):
+    """(busy jiffies, idle jiffies, cpu count) from /proc/stat text: idle = idle + iowait, busy = the other columns of the `cpu` line
+    except guest / guest_nice (already inside user / nice). None when the text has no `cpu` line."""
+    busy = idle = None
+    ncpu = 0
+    for ln in (text or "").splitlines():
+        parts = ln.split()
+        if not parts:
+            continue
+        if parts[0] == "cpu":
+            try:
+                v = [int(x) for x in parts[1:]]
+            except ValueError:
+                return None
+            v += [0] * (8 - len(v))
+            idle = v[3] + v[4]
+            busy = v[0] + v[1] + v[2] + v[5] + v[6] + v[7]
+        elif parts[0].startswith("cpu") and parts[0][3:].isdigit():
+            ncpu += 1
+    return None if busy is None else (busy, idle, max(1, ncpu))
+
+
+def cpu_sample(text=None, t=None, last=None, res=None):
+    """GATE-SPEED-2550: one CPU sample. Adds the idle core-seconds since the previous sample to res["idle_core_s"] and appends the
+    busy percentage to res["cpu_busy_pct"] (one int per heartbeat), so a report shows whether the run was CPU-bound and how much of
+    the machine stood idle (the measured 2.53 / 2.54 gates had no such record: the idle tail had to be inferred). No /proc: nothing."""
+    last = _CPU_LAST if last is None else last
+    res = RESOURCES if res is None else res
+    if text is None:
+        try:
+            text = Path("/proc/stat").read_text()
+        except OSError:
+            return None
+    p = parse_proc_stat(text)
+    if p is None:
+        return None
+    busy, idle, ncpu = p
+    t = time.time() if t is None else t
+    pct = None
+    if last:
+        db, di, dt = busy - last["busy"], idle - last["idle"], t - last["t"]
+        if db + di > 0 and dt > 0:
+            frac_idle = di / (db + di)
+            pct = int(round(100 * (1 - frac_idle)))
+            res["idle_core_s"] = round(res.get("idle_core_s", 0.0) + frac_idle * ncpu * dt, 1)
+            res.setdefault("cpu_busy_pct", []).append(pct)
+            res["cpus"] = ncpu
+    last.update(busy=busy, idle=idle, t=t)
+    return pct
+
+
+def cpu_summary(res=None):
+    """'' or a short text: average busy %, idle core-minutes, and the busy % of the last tenth of the run (the tail)."""
+    res = RESOURCES if res is None else res
+    s = res.get("cpu_busy_pct") or []
+    if not s:
+        return ""
+    tail = s[-max(1, len(s) // 10):]
+    return (f"CPU {res.get('cpus', '?')} cores: busy {sum(s) / len(s):.0f} % on average, idle {res.get('idle_core_s', 0) / 60:.0f} core-min, "
+            f"last tenth of the run busy {sum(tail) / len(tail):.0f} %")
 
 
 def sample_resources():
@@ -1812,6 +1996,10 @@ def sample_resources():
             RESOURCES["max_load1"] = round(max(l, RESOURCES["max_load1"] or 0.0), 1)
         if m is not None:
             RESOURCES["min_mem_available_mb"] = m if RESOURCES["min_mem_available_mb"] is None else min(m, RESOURCES["min_mem_available_mb"])
+        try:
+            cpu_sample()
+        except Exception:
+            pass
 
 
 def simulate_pool(jobs, slots):
@@ -1881,8 +2069,7 @@ def v2_jobs(cls, costs, tier, skip_dev):
     if cls["dev"] and not skip_dev:
         jobs += plan_pw_jobs("dev", cls["dev"], costs, target, max_chunks, max_workers, int(PW_WORKERS))
     if tier == "L" and cls["pixel"]:
-        jobs.append({"kind": "pixel", "cat": "pixel", "label": "pixel", "names": list(cls["pixel"]), "projects": ["desktop", "mobile"],
-                     "workers": 1, "est": pixel_estimate(len(cls["pixel"]))})
+        jobs += pixel_jobs(list(cls["pixel"]), target)
     for gname, runs in (cls.get("fixture_groups") or {}).items():   # GATE-FIXTURE-LANE-2530: one job per fixture group (own backend)
         jobs.append({"kind": "fixture", "cat": "fixture", "label": f"fixture_{gname}", "group": gname, "names": list(runs), "projects": [],
                      "workers": 2 if (cls.get("fixture_defs") or {}).get(gname, {}).get("script") else 1,   # a backend + a browser
@@ -1898,11 +2085,48 @@ def fixture_group_estimate(cls, gname, costs):
     return 45.0 + (1 + len(g.get("then") or [])) * sum(costs.get(x, 75.0) for x in cls["fixture_groups"][gname])
 
 
-def pixel_estimate(nspecs):
-    """The pixel specs run one Playwright process per file, one worker: the seed's pixel_phase_seconds (the last gate's pixel
-    stretch), else 4 s per spec file (at least a minute)."""
+def pixel_estimate(nspecs, names=None):
+    """The pixel specs run one Playwright process per file, one worker. GATE-SPEED-2550: with `names`, the sum of each file's
+    measured process wall (pixel_walls(): the earlier gates' pw_pixel_*.json stats.duration, else the seed's pixel_seconds; a file
+    nobody timed weighs the median of the timed ones) - the old seed value (710 s) was 2.4-3.4 x too low in the 2.53 / 2.54 gates
+    (1728-2386 s measured), so the job started last and ran alone at the end. Without names, or with no timed file: the seed's
+    pixel_phase_seconds (the last gate's pixel stretch), else 4 s per spec file (at least a minute)."""
+    walls = pixel_walls() if names else {}
+    known = sorted(walls[n] for n in (names or []) if n in walls)
+    if known:
+        med = known[len(known) // 2]
+        return float(sum(walls.get(n, med) for n in names))
     v = _seed().get("pixel_phase_seconds")
     return float(v) if isinstance(v, (int, float)) and v > 0 else max(60.0, 4.0 * nspecs)
+
+
+def pixel_jobs(names, target):
+    """GATE-SPEED-2550: the pixel job(s). One job ("pixel") as before, or - when the measured pixel stretch is longer than the chunk
+    target - GATE_PIXEL_CHUNKS jobs ("pixel_c<i>", one worker each, files balanced by measured wall), so the pixel files no longer run
+    one after another in a single slot at the end of the pool. Every job keeps the global file index (`pixel_index`), so the log
+    names pw_pixel_<i>.json stay unique and stable. GATE_PIXEL_CHUNKS: 1 = one job (the v1 default), 0 = auto (v2 default:
+    ceil(estimate / target), at most GATE_PIXEL_MAX_CHUNKS, 3), N = N jobs."""
+    names = list(names)
+    index = {n: i for i, n in enumerate(names)}
+    est = pixel_estimate(len(names), names)
+    want = knob("GATE_PIXEL_CHUNKS", 1, 0)
+    if want <= 0:
+        want = math.ceil(est / max(float(target), 1.0))
+        want = min(want, knob("GATE_PIXEL_MAX_CHUNKS", 3, 3))
+    n = max(1, min(int(want), len(names)))
+    walls = pixel_walls()
+    known = sorted(walls[x] for x in names if x in walls)
+    dflt = known[len(known) // 2] if known else est / max(1, len(names))
+    if n == 1:
+        return [{"kind": "pixel", "cat": "pixel", "label": "pixel", "names": names, "projects": ["desktop", "mobile"], "workers": 1,
+                 "est": est, "pixel_index": index}]
+    bins = [[0.0, i, []] for i in range(n)]
+    for x in sorted(names, key=lambda x: (-walls.get(x, dflt), index[x])):
+        b = min(bins, key=lambda b: (b[0], b[1]))
+        b[0] += walls.get(x, dflt)
+        b[2].append(x)
+    return [{"kind": "pixel", "cat": "pixel", "label": f"pixel_c{i}", "names": sorted(part, key=index.get), "projects": ["desktop", "mobile"],
+             "workers": 1, "est": w, "pixel_index": index} for w, i, part in bins if part]
 
 
 def v1_estimate(cls, costs, tier, skip_dev, pixel_est):
@@ -1957,12 +2181,13 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
             return []
         if j["kind"] == "pixel":
             out = []
+            index = j.get("pixel_index") or {}
             for i, name in enumerate(j["names"]):
                 snap = fe / "tests" / f"{name}-snapshots"
                 if not (snap.is_dir() and any(snap.glob("*-linux.png"))):
                     count("pixel", "skipped"); item("pixel", name, "SKIPPED_NO_BASELINE", "no *-linux.png baseline in " + snap.name)
                     continue
-                lab = f"pixel_{i}"
+                lab = f"pixel_{index.get(name, i)}"   # GATE-SPEED-2550: the global index, unique across the pixel chunks
                 rows, rc, to = run_pw(fe, [name], ["desktop", "mobile"], urls["pixel"], logd, lab, workers=1, grep="pixel-stable", timeout=left())
                 out.append(("pixel", rows, rc, to, lab))
             return out
@@ -2442,7 +2667,8 @@ def write_reports(sha, verdict, extra):
     md += ["", f"- תזמון (schedule): {extra.get('schedule', 'v1')}"]
     if extra.get("resources"):
         r = extra["resources"]
-        md += [f"- resources (every 30 s, {r['samples']} samples): max load1 {r['max_load1']}, min MemAvailable {r['min_mem_available_mb']} MB"]
+        md += [f"- resources (every 30 s, {r['samples']} samples): max load1 {r['max_load1']}, min MemAvailable {r['min_mem_available_mb']} MB"
+               + (f"; {cpu_summary(r)}" if cpu_summary(r) else "")]
     if extra.get("backend_shards"):
         md += [f"- backend: {len(extra['backend_shards'])} shards, scratch: {extra.get('backend_scratch', 'disk')}"]
     if extra.get("pool"):
@@ -2827,7 +3053,7 @@ def plan(root, tier):
     lines = [f"plan for {root} (tier {tier}); {len(costs)} spec files timed; schedule knobs from the environment",
              f"classification: rest {len(cls['rest'])}, dev {len(cls['dev'])}, fixture {len(cls['fixture'])}, pixel {len(cls['pixel'])}, "
              f"tablet dropped (E4) {len(cls['tablet_dropped'])}"]
-    pix = pixel_estimate(len(cls["pixel"]))
+    pix = pixel_estimate(len(cls["pixel"]), cls["pixel"])
     v1_fe = v1_estimate(cls, costs, tier, SKIP_DEV, pix)
     btot, bsrc = last_backend_seconds()
     files = [(os.path.basename(f), os.path.getsize(f)) for f in sorted(glob.glob(str(bd / "tests" / "test_*.py")))]
@@ -2867,7 +3093,7 @@ def plan(root, tier):
 def seed_from(logs_dir, source):
     """--seed-from <gate_*.logs> ["<source line>"]: the refreshed gate_durations.json (stdout) from one gate's logs: Playwright
     seconds per spec file (pw_*.json, retries excluded, as prior_costs()), backend seconds per test file (backend_s*.xml, v2
-    gates), the shards' summed pytest seconds; pixel_phase_seconds is kept from the current seed (a v2 report has it per job)."""
+    gates), the shards' summed pytest seconds; GATE-SPEED-2550: pixel_seconds (each pixel file's process wall) and pixel_phase_seconds (their sum) from pw_pixel_*.json, else kept."""
     d = Path(logs_dir)
     sec = {}
     for jp in sorted(d.glob("pw_*.json")):
@@ -2903,6 +3129,19 @@ def seed_from(logs_dir, source):
         doc["backend_seconds"] = {k: round(v, 1) for k, v in sorted(bsec.items()) if round(v, 1) > 0}
     if tot:
         doc["backend_shard_seconds_total"] = round(tot, 1)
+    pxs = {}     # GATE-SPEED-2550: each pixel spec file's own process wall (pw_pixel_*.json stats.duration) and their sum
+    for jp in sorted(d.glob("pw_pixel_*.json")):
+        if "_retry_" in jp.name:
+            continue
+        try:
+            f, wall = pixel_report_wall(json.loads(jp.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+        if f and wall > 0:
+            pxs[f] = pxs.get(f, 0.0) + wall
+    if pxs:
+        doc["pixel_seconds"] = {k: round(v, 1) for k, v in sorted(pxs.items())}
+        doc["pixel_phase_seconds"] = round(sum(pxs.values()))
     print(json.dumps(doc, indent=2, ensure_ascii=False))
     return 0
 

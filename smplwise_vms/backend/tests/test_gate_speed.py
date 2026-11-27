@@ -139,8 +139,16 @@ def test_v2_jobs_cover_exactly_the_v1_specs_and_projects(g):
             assert len(flags) == 1, j["label"]                      # a job never mixes --workers=1 specs with parallel ones
             if flags == {True}:
                 assert j["workers"] == 1, j["label"]                # the header's --workers=1 is kept
-            assert all(j["projects"] == table[n]["projects"] for n in j["names"]), j["label"]
-    assert [j for j in jobs if j["kind"] == "pixel"][0]["names"] == cls["pixel"]
+            if j.get("heavy"):
+                # GATE-SPEED-2550: a heavy unit of a parallel group runs alone: one file, a subset of its projects, one worker
+                assert len(j["names"]) == 1 and j["workers"] == 1, j["label"]
+                assert set(j["projects"]) <= set(table[j["names"][0]]["projects"]), j["label"]
+            else:
+                assert all(j["projects"] == table[n]["projects"] for n in j["names"]), j["label"]
+    # GATE-SPEED-2550: the pixel specs may be split over several jobs (measured pixel stretch > the chunk target); together they run
+    # every pixel spec exactly once, in the classification's order inside each job
+    pixel = [n for j in jobs if j["kind"] == "pixel" for n in j["names"]]
+    assert sorted(pixel) == sorted(cls["pixel"]) and len(pixel) == len(set(pixel))
     # GATE-FIXTURE-LANE-2530: one fixture job per fixture group (its own fake backend), not one job for every fixture spec; together the
     # groups run exactly the fixture specs of the classification (a spec may run in two groups: evidence-wiskey-people, wiskey + no_ha)
     fixture_jobs = [j for j in jobs if j["kind"] == "fixture"]
