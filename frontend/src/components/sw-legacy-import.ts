@@ -12,6 +12,7 @@ import type { TableColumn } from './sw-table';
 import type { StateKind } from './sw-badge';
 import { ApiError, describeError } from '../api/client';
 import { focusIfLost } from './focus-return';
+import { announce } from './announcer';
 import { fmtBytes } from '../api/backup';
 import { dayMonthTimeText } from '../api/day-format';
 import {
@@ -124,6 +125,13 @@ export class SwLegacyImport extends LitElement {
   @state() private phone = typeof matchMedia === 'function' && matchMedia(PHONE_MQ).matches;
   private phoneMq: MediaQueryList | null = null;
   private readonly onPhoneMq = (e: MediaQueryListEvent) => { this.phone = e.matches; };
+
+  /** A11Y-FOLLOWUPS-2560: the import result and the refusals go through the app's one announcer. */
+  protected updated(c: Map<string, unknown>) {
+    if (c.has('result') && this.result) announce(this.result.already_applied ? tr('הקובץ הזה כבר יובא: לא השתנה דבר ולא נכתב גיבוי.') : tr('הייבוא הסתיים: הועתקו {n} כינויים, {m} נשארו כמו שהם.', { n: this.result.applied, m: this.result.unchanged }));
+    if (c.has('err') && this.err) announce(this.err, 'assertive');
+    if (c.has('dialogErr') && this.dialogErr) announce(this.dialogErr, 'assertive');
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -303,7 +311,7 @@ export class SwLegacyImport extends LitElement {
 
   private renderResult(out: LegacyApplyResult) {
     const chans = out.cameras.map((c) => c.channel).join(', ');
-    return html`<div class="msg ok" role="status" data-legacy-result>
+    return html`<div class="msg ok" data-legacy-result>
         <sw-icon name="check" size=${13}></sw-icon>${out.already_applied ? tr('הקובץ הזה כבר יובא: לא השתנה דבר ולא נכתב גיבוי.') : tr('הייבוא הסתיים: הועתקו {n} כינויים, {m} נשארו כמו שהם.', { n: out.applied, m: out.unchanged })}
       </div>
       <dl class="facts" data-legacy-result-facts>
@@ -337,7 +345,7 @@ export class SwLegacyImport extends LitElement {
     return html`<sw-dialog open heading=${tr('ייבוא מהמערכת הישנה')} subheading=${this.file?.name ?? ''} data-legacy-dialog @close=${() => { if (this.busy !== 'apply') this.dialog = false; }}>
       <div class="msg ok" role="note" data-legacy-dialog-backup><sw-icon name="history" size=${13}></sw-icon>${tr('לפני כל שינוי ייכתב גיבוי של הפרויקט ({kind}). אם הגיבוי לא נכתב - שום דבר לא משתנה.', { kind })}</div>
       <div class="muted" data-legacy-dialog-what>${tr('ישתנו ב־Arx {n} כינויי מצלמות שריקים היום. כינוי קיים לא נדרס. ב־NVR, במערכת הבית וב־go2rtc לא ישתנה דבר.', { n: writeCount(r) })}</div>
-      ${this.dialogErr ? html`<div class="msg err" role="alert" data-legacy-dialog-error><sw-icon name="warning" size=${13}></sw-icon>${this.dialogErr}</div>` : nothing}
+      ${this.dialogErr ? html`<div class="msg err" data-legacy-dialog-error><sw-icon name="warning" size=${13}></sw-icon>${this.dialogErr}</div>` : nothing}
       <label class="muted cw" for="legacy-confirm">${tr('לאישור הקלידו')} <b class="word" data-legacy-word>${word}</b></label>
       <input id="legacy-confirm" class="confirm-in" dir="auto" autocomplete="off" data-legacy-confirm placeholder=${word} .value=${this.confirm}
         @input=${(e: Event) => (this.confirm = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && ok) void this.apply(); }} />
@@ -355,7 +363,7 @@ export class SwLegacyImport extends LitElement {
         : !s
           ? html`<sw-state-panel compact state="loading"></sw-state-panel>`
           : html`${this.result ? this.renderResult(this.result) : this.renderPick()}
-              ${this.err ? html`<div class="msg err" role="alert" data-legacy-error><sw-icon name="warning" size=${13}></sw-icon><span>${this.err}</span>
+              ${this.err ? html`<div class="msg err" data-legacy-error><sw-icon name="warning" size=${13}></sw-icon><span>${this.err}</span>
                 ${this.stale ? html`<sw-button size="sm" icon="refresh" data-legacy-rerun @click=${() => void this.check()}>${tr('להריץ את הבדיקה שוב')}</sw-button>` : nothing}</div>` : nothing}
               ${this.busy === 'check' ? html`<sw-state-panel compact state="loading" data-legacy-checking></sw-state-panel>` : nothing}
               ${this.report && !this.result ? this.renderReport(this.report) : nothing}

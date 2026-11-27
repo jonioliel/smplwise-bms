@@ -102,6 +102,7 @@ import { modalKeydown } from '../components/a11y-keys';
 import { removeLayer, syncLayer } from '../components/modal-stack';
 import { FrameCoalescer } from '../components/frame-coalescer';
 import { devicesBuildingStyles } from './devices-building-css';
+import { srOnlyStyles } from '../styles/fragments';
 // CR-G1-HOME-AREA-2440 (06:DUP-10): the pieces the area screen and the quick sheet share live in devices-shared.ts (the area screen no
 // longer imports this module for five small helpers); they stay exported from here for any older importer.
 import { alarmTone, findArea as areaById, FIT_MIN_WIDTH, fitStep, jsonClone, REFRESH_WINDOW_MS, ReloadThrottle, routeDevicePush, scrollParentOf, STRUCTURE_FLASH_MS, withConnected, type FitLevel } from './devices-shared';
@@ -1658,7 +1659,7 @@ export class DevicesBuilding extends LitElement {
     if (!this.fitTimer) this.fitTimer = window.requestAnimationFrame(this.measureFit);
   };
 
-  static styles = devicesBuildingStyles;
+  static styles = [...devicesBuildingStyles, srOnlyStyles]; // A11Y-FOLLOWUPS-2560: `.sr` = the area row's spoken tail
 
   connectedCallback() {
     super.connectedCallback();
@@ -2388,12 +2389,15 @@ export class DevicesBuilding extends LitElement {
     // A11Y-NEW-2550: the link's own name replaces its content, so the grey "N לא ידוע" of an unknown lock / alarm (AREA-HONEST-COUNT-2540)
     // was never read; the row's name now says it with the indicator's own title, when the row draws its indicators
     const unknownSaid = where === 'card' && !quickRow && c.entities > 0 ? areaIndicators(a, this.rows.area).filter((i) => i.unknown).map((i) => i.title).join(' · ') : '';
+    // A11Y-FOLLOWUPS-2560: the link is named by its own content (WCAG 2.5.3: the visible name and counts are in the accessible name), followed by
+    // a visually hidden tail that says what the bare numbers are and where the link goes; it replaces the old aria-label, which left the counts out
+    const spoken = unknownSaid ? tr('· {entities} התקנים · {unknown} · כניסה לאזור', { entities: c.entities, unknown: unknownSaid }) : tr('· {entities} התקנים · כניסה לאזור', { entities: c.entities });
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
     const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label=${tr('סיכום האזור')}
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
-        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${unknownSaid ? tr('{name} · {entities} התקנים · {unknown} · כניסה לאזור', { name: a.name, entities: c.entities, unknown: unknownSaid }) : tr('{name} · {entities} התקנים · כניסה לאזור', { name: a.name, entities: c.entities })} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}</a>
+        <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} @click=${(e: MouseEvent) => this.onAreaLink(e, a.area_id)}>${body}<span class="sr">${spoken}</span></a>
       </devices-bulk-menu>`;
     if (quickRow) {
       return html`<div class="arow-q" data-area-quick-row=${a.area_id} ?data-lit=${on && !this.offline && !bad} ?data-bad=${bad}>${menu}${this.renderQuick(a, rowQuickMax(window.innerWidth), true)}</div>`;

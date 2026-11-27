@@ -35,6 +35,10 @@ export class CalViewRooms extends LitElement {
     .tl { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; }
     .tl-row { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 10px; min-block-size: 0; }
     .tl-row.head { block-size: 26px; flex: none; }
+    /* A11Y-FOLLOWUPS-2560: the one line that explains the skipped / the repeated hour (the resident bar's note, same ink and size) */
+    .dst { text-align: center; font-size: var(--sw-fs-xs); color: var(--sw-text-2); flex: none; }
+    .tl-axis i { font-style: normal; }
+    .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .rows { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; }
     .rows .tl-row { flex: 1 1 0; max-block-size: 86px; min-block-size: 52px; }
     .tl-room { display: flex; align-items: center; gap: 10px; padding-inline: 12px; background: var(--sw-surface-2); border-radius: var(--sw-r-lg); min-inline-size: 0; }
@@ -285,14 +289,26 @@ export class CalViewRooms extends LitElement {
       const label = `${pad(h)}${phone ? '' : ':00'}`;
       return kind === 'repeated'
         ? html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${h} data-cal-hour-kind="repeated" style=${`left:${x}%`}
-            title=${tr('השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)', { h: `${pad(h)}:00` })}>${label} ×2</span>`
+            title=${tr('השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)', { h: `${pad(h)}:00` })}>${label}<i class="x2" aria-hidden="true"> ×2</i><i class="sr">, ${tr('פעמיים')}</i></span>`
         : html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${h} style=${`left:${x}%`}>${label}</span>`;
     });
     const pillAt = fit.pillLeftPx === null ? `left:${nowL}%` : `left:${fit.pillLeftPx}px`;
     return html`<div class="tl" data-cal-timeline>
+      ${this.dstNote(win)}
       <div class="tl-row head"><div></div><div class="tl-axis">${axis}${showNow ? html`<span class=${`tl-nowlab num${fit.pillLeftPx === null ? '' : ' placed'}`} data-cal-now style=${pillAt}>${hm(ctx.now)}</span>` : nothing}</div></div>
       <div class="rows">${rooms.map((r) => this.row(r, win, showNow ? nowL : -1))}</div>
     </div>`;
+  }
+
+  /** A11Y-FOLLOWUPS-2560: on a DST-change day the window that holds the skipped or the repeated hour says so in one line above the axis
+   * (the same line the resident's bar shows); the axis leaves the skipped hour out and marks the repeated one "×2" (read "01, twice"). */
+  private dstNote(win: { from: number; to: number }) {
+    const odd = axisHours(this.day, win.from, win.to).find((x) => x.k < win.to - win.from && x.kind !== 'plain');
+    if (!odd) return nothing;
+    const h = `${pad(odd.h)}:00`;
+    return html`<div class="dst" role="note" data-cal-dst=${odd.kind}>${odd.kind === 'missing'
+      ? tr('השעה {h} לא קיימת ביום הזה (השעון זז שעה קדימה)', { h })
+      : tr('השעה {h} עוברת פעמיים ביום הזה (השעון זז שעה אחורה)', { h })}</div>`;
   }
 
   private row(r: RoomDay, win: { from: number; to: number }, nowL: number) {
