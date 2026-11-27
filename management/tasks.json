@@ -32490,7 +32490,8 @@
       "2026-11-27 (RELEASE-2550-TRAIN): LOWS-FRONTEND-2550 fdc0cb1fc (row 7; conflict msg/components.ts en - both blocks kept), DOCS-GUIDE-2550 907f9f446 (row 8; guide top-up for the remaining rows due at the end of the train). PC re-run: unused-exports OK; tsc / typecheck / lint / build 0; 13 unit files 171 passed; test_docs_settings_2550 11, test_docs_config_consistency 7 passed; guide up to date. UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): the final 2.54.0 head 3a0f02036 merged ac6b2063e (generated board / status regenerated; www carries 2.54's final build c768bfc8a until the 2.55 rebuild; CHANGELOG 2.54.0 section byte-identical to 3a0f02036; version 2.55.0 kept); GATE-SPEED-2550 0d9e3f0ef (row 9, gate engine repo copies, NOT installed). Checks: PC generators / ratchets / lints / downgrade check green, release_check only the expected rows, unused-exports OK, tsc / typecheck / lint / build 0, test_gate_speed 18, test_gate2_select 17, test_gate_always_run 19 passed; gate self-tests from the tree on the runner 5 x pass (selftest_gate is Linux-only: WinError 2 on the PC, also at the 2.54 head). UI NOT rebuilt; gate NOT_RUN; nothing released.",
       "2026-11-27 (RELEASE-2550-TRAIN): I18N-ARRU-2550 aa8d6a41d (row 10); train fix 5b72073b9 (ar / ru for row 7's temperature key, found by the row's completeness spec: 3 failed -> 146 passed over 14 unit files); tsc / typecheck / lint / unused-exports 0. UI NOT rebuilt; gate NOT_RUN; nothing released.",
-      "2026-11-27 (RELEASE-2550-TRAIN): DATA-RULES-2-2550 51d1ac37e (row 11; billing golden merged cleanly with row 5, regenerated from the merged code byte-identical), A11Y-NEW-2550 5adf8c729 (row 12), HOME-PERMS-WARN-2550 1a72804a8 (row 13). PC: generators / ratchets / lints / downgrade check green; release_check only the expected rows; unused-exports OK; tsc / typecheck / lint / build 0; 5 unit files 23 passed; 18 backend files 250 passed. UI NOT rebuilt; gate NOT_RUN; nothing released."
+      "2026-11-27 (RELEASE-2550-TRAIN): DATA-RULES-2-2550 51d1ac37e (row 11; billing golden merged cleanly with row 5, regenerated from the merged code byte-identical), A11Y-NEW-2550 5adf8c729 (row 12), HOME-PERMS-WARN-2550 1a72804a8 (row 13). PC: generators / ratchets / lints / downgrade check green; release_check only the expected rows; unused-exports OK; tsc / typecheck / lint / build 0; 5 unit files 23 passed; 18 backend files 250 passed. UI NOT rebuilt; gate NOT_RUN; nothing released.",
+      "2026-11-27 (RELEASE-2550-TRAIN): HOME-FIT-FOLLOWUPS-2550 e39d511e4 (row 14; evidence-multibuilding-home-2330 keeps the 2.54 gate fix 7accbe97d and the row's appended test). PC: unused-exports OK, tsc / typecheck / lint / build 0, design ratchet holds, spec lint 0. Only HA-STATE-RECONCILE-2550 left. UI NOT rebuilt; gate NOT_RUN; nothing released."
     ],
     "owner": null,
     "commit": null,
@@ -32836,6 +32837,44 @@
     ],
     "owner": null,
     "commit": "fb5fdd17a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "HOME-FIT-FOLLOWUPS-2550",
+    "title": "Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The home screen packs itself in the same frame when the page area above it grows, a building switch shows no frame of overflow, and the settings direction picker test no longer fails under load; evidence-home-screen and evidence-multibuilding-home-2330 pass."
+    ],
+    "requirement_ids": [
+      "R-HOME-FIT-FOLLOWUPS-2550-1"
+    ],
+    "test_ids": [
+      "AT-HOME-FIT-FOLLOWUPS-2550-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P3",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/HOME-FIT-FOLLOWUPS-2550, change note docs/changes/HOME-FIT-FOLLOWUPS-2550.md, tests"
+    ],
+    "evidence": [
+      "2026-11-26 (RELEASE-2550-TRAIN): Registered at the merge. pilot/HOME-FIT-FOLLOWUPS-2550 head ac45a3308 merged e39d511e4 into release/2550-train (cut from origin/release/2540-train f9217db8a; docs/changes/RELEASE-2550-TRAIN.md on the train) (train row 14; cut from release/2540-train f9217db8a); change note docs/changes/HOME-FIT-FOLLOWUPS-2550.md. Decisions all = a. evidence-multibuilding-home-2330: the 2.54 gate fix 7accbe97d and this row's appended test both kept. Merged into the 2.55.0 train, NOT released (no gate yet). Target 2.55.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2550-TRAIN.md section 3)."
+    ],
+    "owner": null,
+    "commit": "ac45a3308",
     "actual_cost_usd": null
   }
 ]

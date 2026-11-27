@@ -47,6 +47,8 @@ quotes PILOT-ROLLBACK-2550's finding and is already in this branch's history).
 | 11 | `pilot/DATA-RULES-2-2550` | `360c077e7` | `51d1ac37e` | `f9217db8a` (release/2540-train) | none (see 1.4) | generator battery choice, billing gap warning, reopen after an expired person draft; `wire-consumption.ts` regenerated in the row; 16 Linux pixel baselines of its own; no migration; all questions = a |
 | 12 | `pilot/A11Y-NEW-2550` | `6affb349c` | `5adf8c729` | `5aa03829b` (this train) | none | new `components/focus-return.ts`, `a11y-new-2550.spec.ts`; 7 legacy-import-card baselines refreshed in the row; `sw-legacy-import.ts` merged cleanly with `8d6ce1665`; all = a, follow-ups deferred to a later row |
 | 13 | `pilot/HOME-PERMS-WARN-2550` | `fb5fdd17a` | `1a72804a8` | `d65bbfd93` (row 5, in the train) | none | the site-wide warning (`sw-home-admin.ts`), the home electricity bill gate (bills category + `energy.bills`), `wire-home-interface.ts` regenerated in the row; new backend tests and `home-perms-warn-2550.spec.ts` with Linux baselines; all = a |
+| - | registry / note / changelog | - | `e5819c35b` | - | - | rows 11-13 registered |
+| 14 | `pilot/HOME-FIT-FOLLOWUPS-2550` | `ac45a3308` | `e39d511e4` | `f9217db8a` (release/2540-train) | none | `devices-building.ts` (page-area ResizeObserver) merged cleanly with rows 5, 7, 12, 13; `evidence-multibuilding-home-2330.spec.ts`: both sides kept - the 2.54 gate's `7accbe97d` (every line checked present) and this row's test appended at the end; `evidence-home-screen.spec.ts` (the picker test); all = a |
 
 Conflict:
 - Row 1: `contracts/API_INVENTORY.md` - the train's version line (2.54.0, 1959 routes) against the row's three new `migration` routes
@@ -61,7 +63,7 @@ Conflict:
 - Row 7: `frontend/src/i18n/lang/en/i18n/msg/components.ts` - LEGACY-IMPORT-UI-2550's English block (row 2) and LOWS-FRONTEND-2550's
   SCR-52 line were both appended at the end of the map; both kept, HEAD first; no duplicate key in the file (checked).
 
-No other conflict (rows 5-8 included). More rows to come when the lead says: HOME-FIT-FOLLOWUPS-2550. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
+No other conflict (rows 5-8 included). All rows but one are merged. HA-STATE-RECONCILE-2550 is still running (the lead says when to merge it; checked now: it adds no migration - it
 touches `routers/settings.py`, `services/ha_sync.py`, `services/settings_store.py`, DOCS / DOCS_HE and its own test). 2.54 fixes made on
 `release/2540-train` after its gate are merged in when the lead says.
 
@@ -262,6 +264,16 @@ NOT run on the PC: the rows' page / pixel specs (`a11y-new-2550`, `home-perms-wa
 `data-rules-2-2550-shots`, the refreshed legacy-import baselines) - Linux-only baselines and a served build; the rows ran them on the
 runner.
 
+### 3.11 After row 14 (at `e39d511e4`, PC)
+
+| check | exit | result |
+|---|---|---|
+| `unused-exports --enforce` / `tsc` app / `npm run typecheck` / `npm run lint` / `npm run build` | 0 each | OK / 0 / 0 / clean / built |
+| `design_ratchet` / `lint_spec_waits --new-since f9217db8a` | 0 / 0 | no count above the baseline / 0 findings in 17 files |
+
+NOT run on the PC: the row's evidence specs (`evidence-home-screen`, `evidence-multibuilding-home-2330`) - a served build and the
+runner's fixture lane; the row ran them on the runner.
+
 The migration script is a throw-away check in the coordinator's scratchpad (`migtest.py`: `smplwise.db.Database.migrate()` with
 `MIGRATIONS_DIR` pointed at a `git archive` of `release/2540-train`'s migrations, then at the train's); no file of it is in the branch.
 
@@ -276,8 +288,7 @@ scripts/project_status.py --write`: PASS (750 tasks, 864 requirements).
 
 1. **The UI rebuild** (`npm run build:addon`, the build stamp) - NOT done; after the last 2.54 fix and HA-STATE-RECONCILE-2550. Until
    then `release_check.py` fails on "shipped UI bundle built for this version" and "built from these sources" (both say 2.54.0).
-2. **Rows still to come** (the lead says when each is ready): HOME-FIT-FOLLOWUPS-2550, HA-STATE-RECONCILE-2550 (no migration in
-   it). Each: merge, its CHANGELOG line, registry card, PC checks.
+2. **Row still to come** (the lead says when it is ready): HA-STATE-RECONCILE-2550 (no migration in it). Each: merge, its CHANGELOG line, registry card, PC checks.
    - **Bridge 0.10.10 in the lab** needs one more owner-approved Home Assistant restart after the 2.55.0 install (section 1.3); the
      row's runner install steps (nightly script, crontab) are the lead's.
    - **The guide top-up** (DOCS-GUIDE-2550 Q1 = a): at the end of the train the coordinator adds a short section to

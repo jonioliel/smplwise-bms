@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-27T03:47:58.099647+00:00
+Generated: 2026-11-27T05:24:36.368644+00:00
 
-Tasks: 759 | Requirements: 873 | Tests: 890 | Screens: 32
+Tasks: 760 | Requirements: 874 | Tests: 891 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 6
-- REVIEW: 198
+- REVIEW: 199
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 664
+- V1: 665
 - V2: 29
 - V3: 3
 
@@ -814,3 +814,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [DATA-RULES-2-2550](tasks/DATA-RULES-2-2550.md) | V1 | REVIEW | Data rules part 2: the generator battery system choice, the billing gap warning, reopening a period after a person's draft expires | — |
 | [A11Y-NEW-2550](tasks/A11Y-NEW-2550.md) | V1 | REVIEW | Accessibility of the new 2.52-2.55 screens: focus return after dialogs, keyboard-reachable tables | — |
 | [HOME-PERMS-WARN-2550](tasks/HOME-PERMS-WARN-2550.md) | V1 | REVIEW | Home permissions page: a warning when a category shows the whole site's data; the home electricity bill gate (D-11) | — |
+| [HOME-FIT-FOLLOWUPS-2550](tasks/HOME-FIT-FOLLOWUPS-2550.md) | V1 | REVIEW | Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test | — |

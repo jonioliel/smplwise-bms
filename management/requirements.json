@@ -14999,5 +14999,21 @@
     "test_ids": [
       "AT-HOME-PERMS-WARN-2550-1"
     ]
+  },
+  {
+    "id": "R-HOME-FIT-FOLLOWUPS-2550-1",
+    "title": "Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test",
+    "statement": "The home screen packs itself in the same frame when the page area above it grows, a building switch shows no frame of overflow, and the settings direction picker test no longer fails under load; evidence-home-screen and evidence-multibuilding-home-2330 pass.",
+    "task_ids": [
+      "HOME-FIT-FOLLOWUPS-2550"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HOME-FIT-FOLLOWUPS-2550-1"
+    ]
   }
 ]

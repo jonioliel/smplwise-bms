@@ -23126,5 +23126,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-HOME-FIT-FOLLOWUPS-2550-1",
+    "requirement_ids": [
+      "R-HOME-FIT-FOLLOWUPS-2550-1"
+    ],
+    "task_ids": [
+      "HOME-FIT-FOLLOWUPS-2550"
+    ],
+    "title": "Home screen fit: growth above the screen packed at once, a building switch without an overflow frame; the picker test",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The home screen packs itself in the same frame when the page area above it grows, a building switch shows no frame of overflow, and the settings direction picker test no longer fails under load; evidence-home-screen and evidence-multibuilding-home-2330 pass.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-26 (RELEASE-2550-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
