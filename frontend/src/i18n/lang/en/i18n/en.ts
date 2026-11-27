@@ -231,7 +231,7 @@ export const en = {
       metrics: { load_pct: 'Load', gen_kw: 'Power', gen_v_l1: 'Generator voltage', gen_v_l2: 'Generator voltage', gen_v_l3: 'Generator voltage', fuel_pct: 'Fuel level', battery_v: 'Battery voltage', coolant_temp: 'Coolant temperature', oil_pressure: 'Oil pressure' },
     },
     alerts: {
-      active: 'Active alerts', unacked: '{n} not acknowledged', acked: '{n} acknowledged', ackAll: 'Acknowledge all', ack: 'Acknowledge', details: 'Details', ackedBy: 'Acknowledged', repeated: 'Repeated {n} times',
+      active: 'Active alerts', unacked: '{n} not acknowledged', acked: '{n} acknowledged', ackAll: 'Acknowledge all', ackAllTitle: 'Acknowledge all alerts', ackAllBody: 'Every open generator alert that is not yet acknowledged is acknowledged, including the ones not on screen now. On screen now: {n}.', ack: 'Acknowledge', details: 'Details', ackedBy: 'Acknowledged', repeated: 'Repeated {n} times',
       emptyTitle: 'No active alerts', toHistory: 'To history', loadMore: 'More',
       sev: { critical: 'Critical', alert: 'Alert', info: 'Info' }, cleared: 'Cleared', open: 'Active', pending: 'Pending', notNeeded: 'Not needed', durationMin: 'Lasted {n} min', durationH: 'Lasted {n} h',
     },

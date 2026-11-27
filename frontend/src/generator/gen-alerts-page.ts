@@ -135,6 +135,12 @@ export class GenAlertsPage extends LitElement {
     }
   }
 
+  /** SCR-22: "ack all" reaches every open alert of the device, also ones not on screen - only after a confirmation that says how many. */
+  private async ackAllNow(n: number) {
+    if (!(await confirmDialog({ heading: G.alerts.ackAllTitle, body: fill(G.alerts.ackAllBody, { n }), confirmLabel: G.alerts.ackAll, focusCancel: true }))) return;
+    await this.act(() => ackAll(this.device.id));
+  }
+
   /** RELEASE-2540-TRAIN (DATA-RULES-2540 D-03): mute for 24 h. The server refuses a critical alert without generator.manage (403) and
    * shortens a critical mute; both are said in the drawer, never a silent no-op. */
   private async mute(a: GenAlertDetail) {
@@ -196,7 +202,7 @@ export class GenAlertsPage extends LitElement {
     if (!list.length) return html`<div class="row"><span class="h2">${G.alerts.active}</span></div>
       <div class="card"><div class="empty" data-state="empty"><div class="ic"><sw-icon name="check" size="26"></sw-icon></div><h3>${G.alerts.emptyTitle}</h3><a class="btn ghost sm" href="#/infra/generator/history?device=${encodeURIComponent(this.device.id)}">${G.alerts.toHistory}</a></div></div>`;
     return html`<div class="row"><span class="h2">${G.alerts.active}</span>${c.unacked ? html`<span class="chip c-err">${fill(G.alerts.unacked, { n: c.unacked })}</span>` : nothing}${c.acked ? html`<span class="chip c-mut">${fill(G.alerts.acked, { n: c.acked })}</span>` : nothing}<div class="sp"></div>
-      ${c.unacked ? html`<sw-button icon="check" ?disabled=${this.busy} @click=${() => this.act(() => ackAll(this.device.id))} data-ack-all>${G.alerts.ackAll}</sw-button>` : nothing}</div>
+      ${c.unacked ? html`<sw-button icon="check" ?disabled=${this.busy} @click=${() => void this.ackAllNow(c.unacked)} data-ack-all>${G.alerts.ackAll}</sw-button>` : nothing}</div>
       <div class="list" data-state="ready" style="flex-direction:column">${list.map((a) => this.card(a))}</div>`;
   }
 

@@ -17,7 +17,7 @@ import {
 } from './home-api';
 import {
   MODES, PRESETS, activeRooms, activeText, defaultFavs, doorNotLocked, doorOpen, doorState, doorTone, doorsText, doorsTone, favHeight, favOk, favWidth, floorName, greeting, homeBarText,
-  doorNoOpenText, homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, paged, roomLights, sameFav, shadeText, zoneOn,
+  doorNoOpenText, homeScenes, keepHiddenFavs, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, paged, roomLights, sameFav, shadeText, zoneOn,
   type FavWorld,
 } from './home-logic';
 import * as act from './home-actions';
@@ -423,7 +423,8 @@ export class SwHome extends LitElement implements P3Host {
     void putHomePrefs({ layout: patch }).catch((err) => this.toast(describeError(err)));
   }
 
-  private saveFavs(key: string, list: Fav[]) {
+  private saveFavs(key: string, visible: Fav[]) {
+    const list = keepHiddenFavs(this.favs(key), visible, this.world()); // SCR-08: hidden favourites are kept
     this.prefs = { ...this.prefs, favourites: { ...this.prefs.favourites, [key]: list } };
     this.favSaves.push(key, list);
   }

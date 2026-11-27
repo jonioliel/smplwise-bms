@@ -32,6 +32,7 @@ import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayTimeText } from '../api/day-format';
 import { agoText } from './investigate-time';
 import { tr } from '../i18n/msg/investigate';
+import { confirmDialog } from '../components/confirm-dialog';
 import { errLineStyles, ltrStyles, okLineStyles } from '../styles/fragments';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
@@ -883,6 +884,13 @@ export class InvestigateCaseDetail extends LitElement {
     return dayTimeText(new Date(iso), { timeZone: this.tz, seconds: true });
   }
 
+  /** SCR-25: removing an item deletes its stored file - only after the shared confirmation (danger, focus on cancel, names the item). */
+  private async removeItem(d: CaseDetail, it: CaseItem) {
+    const what = [it.kind === 'clip' ? tr('קטע הקלטה') : it.kind === 'snapshot' ? tr('תמונה') : it.kind === 'event' ? tr('אירוע') : tr('הערה'), it.camera_name, it.from_at ? this.fmt(it.from_at) : ''].filter(Boolean).join(' · ');
+    if (!(await confirmDialog({ heading: tr('הסרת פריט מהתיק'), body: tr('הפריט "{what}" יוסר מהתיק, והקובץ השמור שלו יימחק. ההקלטה במקליט נשארת.', { what }), confirmLabel: tr('הסר מהתיק'), danger: true, focusCancel: true }))) return;
+    await this.run(() => removeCaseItem(d.id, it.id).then(() => undefined));
+  }
+
   private async run(action: () => Promise<void>, okInfo = '') {
     this.busy = true;
     this.error = '';
@@ -1012,7 +1020,7 @@ export class InvestigateCaseDetail extends LitElement {
         ${it.event_id ? html`<sw-button size="sm" variant="ghost" icon="bell" @click=${() => navigate(`/investigate/events/${it.event_id}`)}>${tr('אירוע')}</sw-button>` : nothing}
         ${d.can_manage && it.kind !== 'note' && (pres === 'nvr_only' || pres === 'unknown') ? html`<sw-button size="sm" icon="download" data-item-preserve ?disabled=${this.busy} @click=${() => void this.run(() => preserveCaseItem(d.id, it.id).then(() => undefined), tr('עבודת שימור נוצרה; הפריט יסומן כשמור כשההעתקה תסתיים'))}>${tr('שמור עותק')}</sw-button>` : nothing}
         ${it.export?.download_ready ? html`<a href=${exportDownloadUrl(it.export.id)} download><sw-button size="sm" variant="ghost" icon="download">${tr('הורדה')}</sw-button></a>` : nothing}
-        ${d.can_manage && !it.imported ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('הסר מהתיק')} data-item-remove ?disabled=${this.busy} @click=${() => void this.run(() => removeCaseItem(d.id, it.id).then(() => undefined))}></sw-button>` : nothing}
+        ${d.can_manage && !it.imported ? html`<sw-button size="sm" variant="ghost" iconOnly icon="close" label=${tr('הסר מהתיק')} data-item-remove ?disabled=${this.busy} @click=${() => void this.removeItem(d, it)}></sw-button>` : nothing}
       </div>
     </div>`;
   }
