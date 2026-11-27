@@ -28,7 +28,26 @@ Cards, rows and the step-up dialog draw exactly as before. No colour, size or to
 
 ## Tests
 
-TESTS_PLACEHOLDER
+Runner, slot B, `~/work/p2520_a11yfu_run.sh` (`vite build` + `vite preview`); the spec is `frontend/tests/a11y-new-2550.spec.ts`
+(extended: 18 new tests x desktop + phone where not phone-only; the role assertions of the migrated lines now check the announcer regions).
+
+| Run | Command | Exit | Result |
+|---|---|---|---|
+| before | the extended spec on the base `11bfcad19` | 1 | 32 failed (all the new tests and the migrated-line checks: DST note, "01, twice", announcer, alert cards, area row, passkey-only step-up), 30 passed, 2 skipped |
+| after, first run | the spec at `86c8b7aaf` | 1 | 58 passed, 4 failed: only my own area-row test compared the visible text and the spoken text with different whitespace; the axe check of the same test passed. Fixed in `0f6ca47f9` (compares the content order) |
+| after (final) | the spec at `c7c92c09e` | 0 | **62 passed**, 2 skipped (phone-only DST tests on desktop) |
+| related evidence | `evidence-gen-mute-2540`, `evidence-nvr-undo-force-2540`, `evidence-physical-confirm-2540`, `legacy-import-ui-2550`, `evidence-dst-timeline-2540`, `evidence-area-honest-count-2540`, `evidence-client-resilience-2540`, `evidence-generator`, `a11y-dialog-focus-2310`, `a11y-polished-2342` (desktop + mobile) at `86c8b7aaf` | 0 each | 6, 6, 10, 16, 9, 12, 18, 16, 8, 14 passed (the rest skipped by design) |
+| pixels | `pixel-area-honest-count-2540`, `pixel-legacy-import-2550`, `pixel-nvr-undo-force-2540` at `86c8b7aaf` | 0 each | 4, 6, 4 passed, baselines unchanged |
+| pixels | `pixel-dst-timeline-2540` at `86c8b7aaf` | 1 | 1 failed (phone, autumn, light: the new note line), 7 passed - refreshed with `-u` on the runner at `c7c92c09e` (exit 0, 8 passed): one Linux baseline rewritten, `dst-rooms-autumn-light-mobile-linux.png` |
+| unit | `-c playwright.unit.config.ts` `unit-step-up-ui`, `unit-a11y-polished-lint`, `unit-round4-leftovers-2390`, `unit-area-row`, `unit-generator`, `unit-i18n-lang-packs-2443`, `unit-i18n-en-ratchet-2490`, `unit-modal-stack-2441` at `c7c92c09e` | 0 | 87 passed |
+| types | `npx tsc --noEmit -p tsconfig.json`; `npm run typecheck` | 0 / 0 | 0 errors |
+| lint | `npx eslint` on the 10 touched source files | 0 | clean |
+| ratchets | `scripts/design_ratchet.py`; `node scripts/unused-exports.mjs --enforce` | 0 / 0 | no count above the baseline. (The first run caught 5 new px literals - the hidden-text styles of the announcer and `sw-button` - and an unused exported type; fixed by `em` sizes, the shared `srOnlyStyles` fragment and a file-local type) |
+
+Compare page: `private/planning/a11y-followups-2560_compare_2026-11-27.html` (local, not in Git).
+
+NOT_RUN: a real screen-reader pass (NVDA / VoiceOver); the full sweep `a11y-sweep-2490`; the tablet project; the whole release gate; the
+dark-scheme and spring-day pixel baselines of the DST screen are unchanged (their windows hold no extra line, or were already passing).
 
 ## Open questions (recommendation first)
 
