@@ -26,7 +26,7 @@ from conftest import as_user
 
 from smplwise.db import Database
 from smplwise.errors import ApiError, forbidden
-from smplwise.rbac import Principal, audited_refusal
+from smplwise.rbac import Principal
 from smplwise.services import playback_groups as pg
 
 API = "/api/v1"
@@ -36,6 +36,8 @@ ROUTERS = Path(__file__).resolve().parents[1] / "smplwise" / "routers"
 
 
 def test_helper_audits_and_returns_the_same_error(settings, client):
+    from smplwise.rbac import audited_refusal  # imported here: the route tests below also run against a tree without the helper
+
     client.get(f"{API}/me", headers=as_user("eve"))
     db = Database(settings.db_path)
     exc = forbidden("נבדק.", permission="x.y")

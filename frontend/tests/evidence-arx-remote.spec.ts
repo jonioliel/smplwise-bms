@@ -240,6 +240,9 @@ test('evidence screenshots for the owner', async ({ page }) => {
   await page.locator('system-access sw-table').getByText('דנה כהן').first().click();
   await expect(page.locator('system-access [data-remote-access-toggle]')).toBeVisible();
   await page.screenshot({ path: path.join(EVIDENCE, '07-user-remote-access-toggle.png') });
+  // FIX-SECURITY2-2570 (SA2-05 c): the user's drawer covers the rail (it intercepted the avatar's click); leave the screen before signing out
+  await page.goto(`${ARX}#/live/cameras`);
+  await expect(page.locator('system-access')).toHaveCount(0);
   await signOut(page);
   await expect(page.locator('arx-login')).toBeVisible();
 });

@@ -122,11 +122,14 @@ test('enrol, sign in with the code, no replay, administrator reset', async ({ br
   adminDev.page.on('pageerror', (e) => errors.push(e.message));
   await credentials(adminDev.page, 'joni', 'pw-joni');
   await expect(adminDev.page.locator('sw-app')).toBeVisible();
+  // FIX-SECURITY2-2570 (SA2-05 c, the spec joined the gate): since MFA-RESET-HARDENING-2510 the administrator types the user's name
+  // (`{"confirm"}`), and the answer also names each factor kind removed (MFA-SECFIX-2500 SR-2)
   const reset = await adminDev.page.evaluate(async () => {
-    const r = await fetch('api/v1/auth/second-factor/users/u-viewer', { method: 'DELETE' });
+    const r = await fetch('api/v1/auth/second-factor/users/u-viewer', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'dana' }) });
     return { status: r.status, body: await r.json() };
   });
-  expect(reset).toEqual({ status: 200, body: { user_id: 'u-viewer', removed: true } });
+  expect(reset.status, JSON.stringify(reset.body)).toBe(200);
+  expect(reset.body).toMatchObject({ user_id: 'u-viewer', removed: true });
   const audit = await adminDev.page.evaluate(async () => (await fetch('api/v1/audit?prefix=auth.second_factor&limit=20')).json());
   expect(JSON.stringify(audit)).toContain('auth.second_factor.reset');
 
