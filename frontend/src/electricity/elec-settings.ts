@@ -21,6 +21,7 @@ import './elec-bill-paper';
 import './elec-tou-editor';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
 import { cloneDef, heOrEn, israelTemplate, type TouDefinition, touName } from './elec-tou';
+import { tariffEditPlan } from './tariff-edit';
 import { dateInputLang } from '../api/day-format';
 import { tr } from '../i18n/msg/electricity';
 import '../components/sw-table';
@@ -171,11 +172,16 @@ export class ElecSettingsPrices extends ElecBase {
     try {
       const body = { name: f.name.trim(), price: tou ? '' : f.price, price_mode: f.mode, effective_from: f.from, definition: tou ? this.tDef : null };
       if (this.tEdit) {
-        // a correction (or a new price on an existing date) is shown once for confirmation before anything is written
-        const r = await elec().correctTariffVersion(this.tEdit.id, body, { replaceId: this.tVer?.id ?? null, base: this.tVer, confirm: !!this.tPlan });
-        if (!r.applied && r.plan) {
-          this.tPlan = r.plan;
-          return;
+        // FIX-UTIL-A-2570 (CU2-08): a rename alone never posts a price version; an unchanged form writes nothing
+        const what = tariffEditPlan(this.tEdit, f, this.tVer, tou ? this.tDef : null);
+        if (what === 'rename') await elec().renameTariff(this.tEdit.id, body.name);
+        else if (what === 'version') {
+          // a correction (or a new price on an existing date) is shown once for confirmation before anything is written
+          const r = await elec().correctTariffVersion(this.tEdit.id, body, { replaceId: this.tVer?.id ?? null, base: this.tVer, confirm: !!this.tPlan });
+          if (!r.applied && r.plan) {
+            this.tPlan = r.plan;
+            return;
+          }
         }
       } else await elec().createTariff(body);
       this.tPlan = null;
@@ -338,6 +344,11 @@ export class ElecSettingsBusiness extends ElecBase {
     this.terms = { ...s.payment_terms };
     this.delay = String(s.auto.delay_hours);
   }
+  /** FIX-UTIL-A-2570 (review CU2-28 c): a logo upload / removal takes the server's new state (logo, revision) but keeps the business
+   * fields and payment terms the user typed and has not saved yet - it used to throw them away. */
+  private keepEdits(s: BillingSettings) {
+    this.s = s;
+  }
 
   private validate(): boolean {
     const e: Record<string, string> = {};
@@ -375,7 +386,7 @@ export class ElecSettingsBusiness extends ElecBase {
     }
     try {
       await elec().uploadLogo(file);
-      this.apply(await elec().getSettings());
+      this.keepEdits(await elec().getSettings());
     } catch (e) {
       this.error = elecErrorText(e);
     }
@@ -383,7 +394,7 @@ export class ElecSettingsBusiness extends ElecBase {
   private async removeLogo() {
     try {
       await elec().removeLogo();
-      this.apply(await elec().getSettings());
+      this.keepEdits(await elec().getSettings());
     } catch (e) {
       this.error = elecErrorText(e);
     }

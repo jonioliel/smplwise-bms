@@ -80,7 +80,7 @@ export class TempReport extends LitElement {
     table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-xs); }
     td, th { border-block-end: 1px solid var(--sw-border); padding: 4px; text-align: start; }
     tr[data-verdict='exc'] td { color: var(--sw-danger-text); }
-    tr[data-verdict='none'] td { color: var(--sw-text-3); }
+    tr[data-verdict='none'] td, tr[data-verdict='partial'] td { color: var(--sw-text-3); }
     th { color: var(--sw-text-2); }
     .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-block-start: 12px; }
     .sig div { border-block-start: 1px solid var(--sw-text); padding-block-start: 4px; font-size: var(--sw-fs-xs); }
@@ -292,7 +292,7 @@ export class TempReport extends LitElement {
       </tbody></table>` : nothing}
       ${u.daily ? html`<table data-rep-daily><thead><tr><th>${T('dailyTitle')}</th><th>${T('statMin')}</th><th>${T('statMax')}</th><th>${T('statOut')}</th><th>${T('coverage')}</th><th></th></tr></thead><tbody>
         ${u.daily.slice(0, 8).map((d) => html`<tr data-verdict=${d.verdict}><td dir="ltr">${d.day.slice(8, 10)}.${d.day.slice(5, 7)}</td><td dir="ltr">${deg(d.min)}</td><td dir="ltr">${deg(d.max)}</td>
-          <td>${d.out_min ? durationText(d.out_min) : '0'}</td><td dir="ltr">${Math.round(d.coverage)}%</td><td>${T(d.verdict === 'ok' ? 'dayOk' : d.verdict === 'exc' ? 'dayExc' : 'dayNone')}</td></tr>`)}
+          <td>${d.out_min ? durationText(d.out_min) : '0'}</td><td dir="ltr">${Math.round(d.coverage)}%</td><td>${T(d.verdict === 'ok' ? 'dayOk' : d.verdict === 'exc' ? 'dayExc' : d.verdict === 'partial' ? 'dayPartial' : 'dayNone')}</td></tr>`)}
         ${u.daily.length > 8 ? html`<tr><td colspan="6" class="hint" dir="ltr">+${u.daily.length - 8}</td></tr>` : nothing}
       </tbody></table>` : nothing}
       ${this.samplesBlock(m, u, T, lang)}`}

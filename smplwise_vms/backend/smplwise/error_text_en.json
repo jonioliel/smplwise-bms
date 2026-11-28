@@ -2345,5 +2345,7 @@
 "תשתית המערכת החזירה תשובה שאינה JSON.": "The platform returned a response that is not JSON.",
 "תשתית המערכת לא החזירה את הרישום המלא; המבנה הקודם נשמר. נסו שוב בעוד רגע.": "The platform did not return the full registry; the previous building was kept. Try again in a moment.",
 "תשתית המערכת לא ענתה בזמן; הרענון ממשיך ברקע - נסו שוב בעוד רגע.": "The platform did not respond in time; the refresh is continuing in the background - try again in a moment.",
-"תשתית המערכת עסוקה כרגע. נסו שוב מאוחר יותר.": "The platform is busy right now. Try again later."
+"תשתית המערכת עסוקה כרגע. נסו שוב מאוחר יותר.": "The platform is busy right now. Try again later.",
+"הערך עמום: פסיק יכול להפריד אלפים. יש להקליד בלי פסיק, ועם נקודה עשרונית אם צריך.": "The value is ambiguous: a comma may separate thousands. Type it without a comma, with a decimal point if needed.",
+"הדוח גדול מדי; יש לצמצם טווח או יחידות.": "The report is too large; narrow the range or the units."
 }

@@ -9,6 +9,7 @@ service call, nothing written to the infrastructure). Readings go to water.db in
 database is only read, except the rare pause of a meter whose unit changed."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -100,21 +101,27 @@ class Sampler:
     def start(self, db: Database, settings: Settings, *, assume_on: bool = False) -> bool:
         """Start the thread when the module is on (and the process allows samplers). Returns whether it runs now. `assume_on`: the
         switch route turning the module on inside its own (not yet committed) transaction; every tick still checks the switch."""
-        if os.environ.get("SW_WATER_SAMPLER", os.environ.get("SW_ENERGY_SAMPLER", "1")) == "0" or self.running:
+        if os.environ.get("SW_WATER_SAMPLER", os.environ.get("SW_ENERGY_SAMPLER", "1")) == "0":
             return self.running
+        if self.running and not self.stop_evt.is_set():
+            return True
         if not assume_on:
             with db.connection(mode="read", label="water.sampler.start") as conn:
                 if not ws.enabled(conn):
                     return False
-        self.stop_evt.clear()
-        self.thread = threading.Thread(target=self._run, args=(db, settings), name="water-sampler", daemon=True)
+        # FIX-UTIL-A-2570 (review CU2-26): a fresh stop event per thread. A module OFF then ON while the old thread is still inside its
+        # tick used to find it "running" and return True without clearing the stop - the old thread then ended after the tick and nothing
+        # sampled until a restart. Now the stopping thread keeps its own (set) event and ends; the new one starts with a clear event.
+        self.stop_evt = threading.Event()
+        self.thread = threading.Thread(target=self._run, args=(db, settings, self.stop_evt), name="water-sampler", daemon=True)
         self.thread.start()
         return True
 
-    def _run(self, db: Database, settings: Settings) -> None:
-        while not self.stop_evt.is_set():
+    def _run(self, db: Database, settings: Settings, stop: threading.Event | None = None) -> None:
+        stop = stop or self.stop_evt
+        while not stop.is_set():
             wait = POLL_S - (time.time() % POLL_S) + 0.5
-            if self.stop_evt.wait(wait):
+            if stop.wait(wait):
                 return
             try:
                 self.last = tick(db, settings)
@@ -145,6 +152,7 @@ def retention(db: Database, settings: Settings, now: float | None = None) -> dic
             return {"skipped": "module_off"}
         vals = ws.values(conn)
         tz = wm.tz_of(conn)
+        keeps = _draft_keeps(conn, tz)
     raw_before = t - int(vals["water.raw_retention_days"]) * 86400
     intervals_before = t - int(int(vals["water.interval_retention_months"]) * 30.44 * 86400)
     intervals_before -= intervals_before % st.BUCKET_S
@@ -154,8 +162,27 @@ def retention(db: Database, settings: Settings, now: float | None = None) -> dic
         daily_before = today.replace(year=today.year - years)
     except ValueError:  # 29 February
         daily_before = today.replace(year=today.year - years, day=28)
-    removed = wm.store_for(settings).prune(raw_before=raw_before, intervals_before=intervals_before, daily_before=daily_before)
-    return {"removed": removed, "raw_before": raw_before, "intervals_before": intervals_before, "daily_before": daily_before.isoformat()}
+    removed = wm.store_for(settings).prune(raw_before=raw_before, intervals_before=intervals_before, daily_before=daily_before, keep_intervals=keeps)
+    return {"removed": removed, "raw_before": raw_before, "intervals_before": intervals_before, "daily_before": daily_before.isoformat(), "kept_drafts": len(keeps)}
+
+
+def _draft_keeps(conn: Any, tz: Any) -> list[tuple[str, int, int]]:
+    """(meter id, start, end) of every open DRAFT water bill (FIX-UTIL-A-2570, review CU2-27 a; electricity's energy_sampler._draft_keeps):
+    the quarter-hours a draft will be issued from are never pruned under it. [] before the billing tables exist."""
+    out: list[tuple[str, int, int]] = []
+    try:
+        rows = conn.execute("""SELECT am.meter_id, b.period_start, b.period_end FROM water_bills b JOIN water_account_meters am ON am.account_id = b.account_id
+                               WHERE b.state = 'draft'""").fetchall()
+    except sqlite3.OperationalError:
+        return []
+    for r in rows:
+        try:
+            a = dt.date.fromisoformat(str(r[1])[:10])
+            b = dt.date.fromisoformat(str(r[2])[:10])
+        except ValueError:
+            continue
+        out.append((r[0], st.day_bounds(a, tz)[0], st.day_bounds(b, tz)[0]))
+    return out
 
 
 def janitor(db: Database, settings: Settings, now: float | None = None) -> dict[str, Any] | None:

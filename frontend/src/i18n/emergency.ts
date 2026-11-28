@@ -53,6 +53,7 @@ const he = {
   banner_fire_service: 'פיקוד כבאים פעיל - אירוע בעיצומו',
   banner_door_incident: 'אירוע חירום פתוח בדלתות',
   banner_on_load: 'הגנרטור נושא את העומס כרגע',
+  banner_no_mains: 'אין חשמל מהרשת והגנרטור אינו נושא את העומס',
   setModule: 'מוכנות לחירום',
   viewList: 'רשימת בדיקה',
   viewContacts: 'אנשי קשר לחירום',

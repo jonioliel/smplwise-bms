@@ -188,7 +188,8 @@ def test_page_shape_redaction_and_verdict_parity(ew: EW) -> None:
     ew.on()
     admin = ew.c.get(E, headers=ew.h("joni")).json()
     narrow = ew.c.get(E, headers=ew.h("tom")).json()
-    assert len(admin["items"]) == 20 and admin["verdict"] in ("ready", "ready_with_gaps", "not_ready")
+    # FIX-UTIL-A-2570 (review CU2-33): the verdict itself - nothing is bound, so the critical E03 is red and the building is NOT ready
+    assert len(admin["items"]) == 20 and admin["verdict"] == "not_ready"
     assert admin["verdict"] == narrow["verdict"]                                    # the verdict never looks better to a narrow role
     assert narrow["counts"]["hidden"] > 0
     hidden = [i for i in narrow["items"] if i["redacted"]]

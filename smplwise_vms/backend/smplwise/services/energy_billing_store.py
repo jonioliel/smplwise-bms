@@ -85,6 +85,12 @@ def tariff_version_from(conn: sqlite3.Connection, tid: str, effective_from: dt.d
     return conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from = ?", (tid, effective_from.isoformat())).fetchone()
 
 
+def tariff_version_in_force(conn: sqlite3.Connection, tid: str, day: dt.date) -> sqlite3.Row | None:
+    """The version that prices `day` (the latest one starting on or before it); None before the first version."""
+    return conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1",
+                        (tid, day.isoformat())).fetchone()
+
+
 def tou_drafts_on(conn: sqlite3.Connection, day: dt.date) -> int:
     """Draft bills of time-of-use accounts whose period contains `day` (they show the old day type until recalculated)."""
     return conn.execute("""SELECT COUNT(*) FROM energy_bills b JOIN energy_accounts a ON a.id = b.account_id JOIN energy_tariffs t ON t.id = a.tariff_id

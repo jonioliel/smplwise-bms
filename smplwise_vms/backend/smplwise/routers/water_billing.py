@@ -83,11 +83,20 @@ class TariffPatch(_Body):
     name: str = Field(min_length=1, max_length=120)
 
 
+class VersionBase(_Body):
+    """FIX-UTIL-A-2570 (CU2-24, additive): the version as the editor saw it - a correction against changed values is a revision conflict."""
+    effective_from: dt.date
+    water_price: str | int | float
+    sewage_price: str | int | float = "0"
+    price_mode: Literal["ex_vat", "inc_vat"]
+
+
 class VersionIn(_Body):
     effective_from: dt.date
     water_price: str | int | float
     sewage_price: str | int | float = "0"
     price_mode: Literal["ex_vat", "inc_vat"] | None = None
+    base: VersionBase | None = None  # PATCH only (a correction); ignored on a new version
 
 
 class BillCreate(_Body):
@@ -185,7 +194,8 @@ def create_customer(request: Request, principal: Principal = Depends(_manage), r
     body = _parse(request, raw, CustomerCreate)
     cid = eb.create_customer(conn, principal.user_id, body.model_dump())
     _a(conn, principal, "customer.create", "energy_customer", cid, request)
-    return wb.customer_dict(conn, eb.get_customer(conn, cid), True, _has(conn, principal, BILLS))
+    money = _has(conn, principal, BILLS)  # FIX-UTIL-A-2570 (CU2-23): contact fields and money - water.bills only, as get_customer
+    return wb.customer_dict(conn, eb.get_customer(conn, cid), money, money)
 
 
 @router.get(f"{API}/customers/{{cid}}", **wire(W.WaterCustomer))
@@ -203,7 +213,8 @@ def patch_customer(cid: str, request: Request, principal: Principal = Depends(_m
     body = _parse(request, raw, CustomerPatch)
     changed = eb.update_customer(conn, cid, body.model_dump(exclude_unset=True))
     _a(conn, principal, "customer.update", "energy_customer", cid, request, {"fields": changed})
-    return wb.customer_dict(conn, eb.get_customer(conn, cid), True, _has(conn, principal, BILLS))
+    money = _has(conn, principal, BILLS)  # FIX-UTIL-A-2570 (CU2-23): contact fields and money - water.bills only, as get_customer
+    return wb.customer_dict(conn, eb.get_customer(conn, cid), money, money)
 
 
 @router.delete(f"{API}/customers/{{cid}}", status_code=204)
@@ -222,7 +233,8 @@ def _prices(water: Any, sewage: Any) -> tuple[px.Decimal, px.Decimal]:
 @router.get(f"{API}/tariffs", **wire(W.WaterTariffList))
 def list_tariffs(principal: Principal = Depends(_money_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     today = _today(_tz(conn))
-    return {"items": [wb.tariff_dict(conn, r, today) for r in store.tariffs(conn)]}
+    sealed = wb.sealed_version_ids(conn)
+    return {"items": [wb.tariff_dict(conn, r, today, sealed) for r in store.tariffs(conn)]}
 
 
 @router.post(f"{API}/tariffs", status_code=201, **wire(W.WaterTariff))
@@ -269,7 +281,8 @@ def patch_version(tid: str, vid: str, request: Request, principal: Principal = D
     body = _parse(request, raw, VersionIn)
     wb.get_tariff(conn, tid)
     water, sewage = _prices(body.water_price, body.sewage_price)
-    wb.update_version(conn, tid, vid, body.effective_from, water, sewage, body.price_mode or eb.read_settings(conn)["default_price_mode"])
+    base = None if body.base is None else {**body.base.model_dump(), "effective_from": body.base.effective_from.isoformat()}
+    wb.update_version(conn, tid, vid, body.effective_from, water, sewage, body.price_mode or eb.read_settings(conn)["default_price_mode"], base)
     _a(conn, principal, "tariff.version.correct", "water_tariff", tid, request, {"version_id": vid})
     out = wb.tariff_dict(conn, wb.get_tariff(conn, tid), _today(_tz(conn)))
     out["drafts"] = wb.recompute_drafts(conn, _provider(conn, request), tid, principal, _rid(request))

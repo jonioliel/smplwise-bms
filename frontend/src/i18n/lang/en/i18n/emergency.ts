@@ -51,6 +51,7 @@ export const en = {
   banner_fire_service: 'Fire service is active - an event is in progress',
   banner_door_incident: 'An emergency incident is open on the doors',
   banner_on_load: 'The generator is carrying the load right now',
+  banner_no_mains: 'No mains power and the generator is not carrying the load',
   setModule: 'Emergency readiness',
   viewList: 'Checklist',
   viewContacts: 'Emergency contacts',
@@ -84,8 +85,8 @@ export const EN_TITLES = {
 };
 
 export const EN_SUMMARY = {
-  no_generator: 'No generator detected', generator_test: 'Generator test status', generator_state: 'Generator fuel and state', on_load: 'The generator is carrying the load',
-  on_mains: 'The building is on the mains', unbound: 'No ledger task is bound to this item', ledger_off: 'The certificates ledger is off', evacuation: 'Evacuation round status',
+  no_generator: 'No generator detected', generator_test: 'Generator test status', generator_state: 'Generator fuel and state', on_load: 'The generator is carrying the load', no_mains: 'No mains power and the generator is not carrying the load',
+  on_mains: 'The building is on the mains', clock_unread: 'A recorder clock was not read; the timestamps cannot be verified', unbound: 'No ledger task is bound to this item', ledger_off: 'The certificates ledger is off', evacuation: 'Evacuation round status',
   doors_off: 'Door emergency control is off', door_faults: 'Door faults and open emergency incidents', doors_ready: 'Door emergency controls', contacts: 'Emergency contact list',
   suppliers: 'Service suppliers', deliveries: 'Notification delivery', backup: 'Backup status', recorders: 'Recorder status', cameras: 'Cameras online', clock: 'Recorder clocks',
   elevator_inspection: 'Elevator inspections', elevator_live: 'Elevator monitoring', tickets: 'Open fire-safety requests', none_open: 'No open fire-safety requests',

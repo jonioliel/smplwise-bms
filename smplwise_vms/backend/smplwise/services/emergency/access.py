@@ -4,7 +4,11 @@ The page is an INSTALLATION-level view. Opening it needs `maintenance.view` (the
 `emergency.view` (owner q202: "a grantable permission to view and edit"); changing its configuration (slot binding, thresholds, emergency cameras,
 not-applicable marks, the contact list) needs `maintenance.manage` OR `emergency.manage`. Each ROW's detail needs the permission of the source it
 reads (CR section 5); a row the caller may not see is replaced by a redacted row that still counts in the verdict, so the verdict never looks
-better to a narrow role. Arx RBAC is the only authority: no client flag, no Home Assistant admin flag, no WisKey claim widens anything."""
+better to a narrow role. Arx RBAC is the only authority: no client flag, no Home Assistant admin flag, no WisKey claim widens anything.
+
+FIX-UTIL-A-2570 (review CU2-04): every one of these permissions is judged AT THE INSTALLATION (the bindings whose scope is the
+installation itself), never "held anywhere": a manager bound to one floor must not mark a building-wide item not applicable, raise a
+threshold or read the contact list. `permissions_anywhere` stays the shell's navigation rule only."""
 from __future__ import annotations
 
 import sqlite3
@@ -13,7 +17,7 @@ from typing import Callable
 
 from ...db import get_setting
 from ...errors import ApiError
-from ...rbac import Principal, permissions_anywhere
+from ...rbac import INSTALLATION, Principal, effective_permissions
 
 FEATURE_KEY = "emergency_readiness.enabled"
 VIEW_KEYS = ("maintenance.view", "emergency.view")
@@ -81,7 +85,8 @@ class Viewer:
             from ..active_users import is_disabled
 
             active = not is_disabled(self.conn, self.uid)  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
-            self._held = frozenset(permissions_anywhere(self.conn, self.principal)) if active else frozenset()
+            # FIX-UTIL-A-2570 (CU2-04): installation scope, an installation-wide deny included (effective_permissions)
+            self._held = frozenset(effective_permissions(self.conn, self.principal, INSTALLATION)) if active else frozenset()
         return self._held
 
     def has_any(self, keys: tuple[str, ...]) -> bool:
@@ -109,7 +114,8 @@ class Viewer:
     def _deny(self, permission: str) -> None:
         from ...audit import audit
 
-        audit(self.conn, actor=self.principal, action=permission, decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
+        audit(self.conn, actor=self.principal, action=permission, decision="denied", resource_type="installation", resource_id="*",
+              reason="no_installation_binding")
         raise ApiError(403, "forbidden", "אין הרשאה למוכנות לחירום.", details={"permission": permission})
 
 

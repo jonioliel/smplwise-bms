@@ -9,6 +9,7 @@ the state mirror (`ha_entities`), readings come from water.db. No valve, no shut
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -152,8 +153,15 @@ def to_ml(state: Any, factor_ul: int) -> int | None:
 
 def typed_ml(value: Any, unit: str) -> int:
     """A typed reading (litres or m3, decimal text or number) in mL; 422 when it is not a non-negative number."""
+    text = str(value).strip()
+    # FIX-UTIL-A-2570 (review CU2-28 a): "1,500" is one thousand five hundred in Israeli usage but was read as 1.5 - a comma followed by
+    # exactly three digits (a thousands group) is ambiguous and refused; "4,5" (a decimal comma) still reads as 4.5
+    if re.fullmatch(r"\d{1,3}(,\d{3})+", text):
+        raise ApiError(422, "validation", "הערך עמום: פסיק יכול להפריד אלפים. יש להקליד בלי פסיק, ועם נקודה עשרונית אם צריך.",
+                       details={"fields": ["value"], "code": "ambiguous_comma",
+                                "message_en": "The value is ambiguous: a comma may separate thousands. Type it without a comma, with a decimal point if needed."})
     try:
-        v = Decimal(str(value).strip().replace(",", "."))
+        v = Decimal(text.replace(",", "."))
     except InvalidOperation:
         v = Decimal(-1)
     if not v.is_finite() or v < 0 or v > Decimal("1e12"):

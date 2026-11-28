@@ -177,6 +177,28 @@ def stale_after(conn: sqlite3.Connection) -> dt.timedelta:
         return dt.timedelta(minutes=120)
 
 
+def billed_until(conn: sqlite3.Connection, meter_id: str) -> int | None:
+    """FIX-UTIL-A-2570 (review CU2-07): electricity's billed guard for water (energy_calibration.billed_until). The end (UTC epoch seconds) of
+    the last issued / sent / paid water bill whose sealed snapshot contains the meter; None = never billed. A manual reading may not move
+    volume between quarter-hours before it, and an undo that would do so is refused: an issued bill stays reproducible."""
+    marks = ",".join("?" * len(ISSUED_STATES))
+    try:
+        row = conn.execute(
+            f"""SELECT MAX(json_extract(b.snapshot_json, '$.period.end_utc')) FROM water_bills b
+                WHERE b.state IN ({marks})
+                  AND EXISTS (SELECT 1 FROM json_each(b.snapshot_json, '$.meters') j WHERE json_extract(j.value, '$.meter_id') = ?)""",
+            (*ISSUED_STATES, meter_id),
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    if not row or not row[0]:
+        return None
+    from .timeutil import epoch_or_none
+
+    ts = epoch_or_none(row[0])
+    return int(ts) if ts is not None else None
+
+
 # ====================================================================== customers (the shared card, water's view of it)
 
 def water_accounts_of(conn: sqlite3.Connection, cid: str) -> list[sqlite3.Row]:
@@ -245,9 +267,11 @@ def _inc_vat(water: Decimal, sewage: Decimal, mode: str, rate: Decimal | None) -
     return str(px.r2(unit if mode == "inc_vat" else unit * (1 + rate / px.HUNDRED)))
 
 
-def tariff_dict(conn: sqlite3.Connection, row: sqlite3.Row, today: dt.date) -> dict[str, Any]:
+def tariff_dict(conn: sqlite3.Connection, row: sqlite3.Row, today: dt.date, sealed: set[str] | None = None) -> dict[str, Any]:
+    """`sealed`: the locked version ids when the caller lists many tariffs (FIX-UTIL-A-2570, review CU2-27 c: computed once per request,
+    not once per tariff - 20 tariffs x 2,000 bills was 40,000 JSON parses per listing)."""
     vat = px.in_force(vat_rates(conn), today)
-    sealed = _sealed_version_ids(conn)
+    sealed = _sealed_version_ids(conn) if sealed is None else sealed
     vs = [{"id": v.id, "effective_from": v.effective_from.isoformat(), "water_price": str(v.water), "sewage_price": str(v.sewage), "price_mode": v.mode,
            "price_inc_vat": _inc_vat(v.water, v.sewage, v.mode, vat.rate if vat else None), "locked": v.id in sealed}
           for v in price_versions(conn, row["id"])]
@@ -258,6 +282,10 @@ def tariff_dict(conn: sqlite3.Connection, row: sqlite3.Row, today: dt.date) -> d
     used = conn.execute("SELECT COUNT(*) FROM water_accounts WHERE tariff_id = ? AND deleted_at IS NULL", (row["id"],)).fetchone()[0]
     return {"id": row["id"], "name": row["name"], "currency": row["currency"], "versions": vs, "current": cur, "used_by": used,
             "vat_rate_percent": px.pct_str(vat.rate) if vat else None}
+
+
+def sealed_version_ids(conn: sqlite3.Connection) -> set[str]:
+    return _sealed_version_ids(conn)
 
 
 def _sealed_version_ids(conn: sqlite3.Connection) -> set[str]:
@@ -295,12 +323,27 @@ def _version_row(conn: sqlite3.Connection, tid: str, vid: str) -> sqlite3.Row:
     return row
 
 
-def update_version(conn: sqlite3.Connection, tid: str, vid: str, effective_from: dt.date, water: Decimal, sewage: Decimal, mode: str) -> int:
+def update_version(conn: sqlite3.Connection, tid: str, vid: str, effective_from: dt.date, water: Decimal, sewage: Decimal, mode: str,
+                   base: dict[str, Any] | None = None) -> int:
     """Correct a version no issued bill used (a sealed bill never changes: such a version is locked; add a later version instead).
-    Returns the number of draft bills that should be recalculated (the caller recomputes them)."""
-    _version_row(conn, tid, vid)
+    Returns the number of draft bills that should be recalculated (the caller recomputes them).
+
+    FIX-UTIL-A-2570 (review CU2-24), electricity's two other guards: (1) moving the date EARLIER reprices days that the previous version
+    priced - refused when an issued bill of the tariff covers any of them (its later corrections would be repriced silently); (2) `base` =
+    the values the editor saw - a mismatch is a `revision_conflict` (two managers editing the same version: no silent last write)."""
+    row = _version_row(conn, tid, vid)
     if vid in _sealed_version_ids(conn):
         raise conflict("tariff_period_sealed", "חיובים שכבר הונפקו נשענים על המחיר הזה ולא ניתן לתקן אותו. הוסיפו מחיר חדש מתאריך מאוחר יותר.")
+    if base is not None and (base.get("effective_from") != row["effective_from"] or base.get("price_mode") != row["price_mode"]
+                             or _dec_or_none(base.get("water_price")) != Decimal(row["water_price"])
+                             or _dec_or_none(base.get("sewage_price")) != Decimal(row["sewage_price"])):
+        raise conflict("revision_conflict", "המחיר שונה בינתיים. יש לרענן ולנסות שוב.")
+    old_from = row["effective_from"]
+    if effective_from.isoformat() < old_from:
+        sealed = conn.execute("""SELECT 1 FROM water_bills WHERE number IS NOT NULL AND json_extract(snapshot_json, '$.account.tariff.id') = ?
+                                 AND period_start < ? AND period_end > ? LIMIT 1""", (tid, old_from, effective_from.isoformat())).fetchone()
+        if sealed:
+            raise conflict("tariff_period_sealed", "חיובים שכבר הונפקו נשענים על המחיר הזה ולא ניתן לתקן אותו. הוסיפו מחיר חדש מתאריך מאוחר יותר.")
     clash = conn.execute("SELECT 1 FROM water_tariff_versions WHERE tariff_id = ? AND effective_from = ? AND id != ?", (tid, effective_from.isoformat(), vid)).fetchone()
     if clash:
         raise conflict("version_exists", "כבר קיים מחיר מהתאריך הזה. יש לערוך אותו במקום.")
@@ -308,6 +351,13 @@ def update_version(conn: sqlite3.Connection, tid: str, vid: str, effective_from:
                  (effective_from.isoformat(), str(water), str(sewage), mode, vid))
     conn.execute("UPDATE water_tariffs SET updated_at = ? WHERE id = ?", (now_iso(), tid))
     return len(drafts_on_tariff(conn, tid))
+
+
+def _dec_or_none(v: Any) -> Decimal | None:
+    try:
+        return Decimal(str(v).strip()) if v is not None else None
+    except InvalidOperation:
+        return None
 
 
 def drafts_on_tariff(conn: sqlite3.Connection, tid: str) -> list[sqlite3.Row]:

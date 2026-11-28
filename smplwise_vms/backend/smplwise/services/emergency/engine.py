@@ -96,10 +96,25 @@ def _generators(ctx: Ctx) -> list[dict[str, Any]]:
         alerts = [r["severity"] for r in ctx.conn.execute("SELECT severity FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (d["id"],)).fetchall()]
         ledger = ctx.conn.execute("SELECT MAX(last_done_at) AS t FROM maint_tasks WHERE generator_id = ? AND category = 'generator' AND deleted_at IS NULL", (d["id"],)).fetchone()["t"] \
             if ctx.maint_on else None
+        # FIX-UTIL-A-2570 (review CU2-16): the age of the ledger test is from the date it was PERFORMED (a test recorded today for three
+        # months ago is three months old), not from the time it was typed in; `last_done_at` only when no done record has a date
+        performed = ctx.conn.execute("""SELECT MAX(r.performed_on) AS d FROM maint_records r JOIN maint_tasks t ON t.id = r.task_id
+                                        WHERE t.generator_id = ? AND t.category = 'generator' AND t.deleted_at IS NULL AND r.status = 'done'""",
+                                     (d["id"],)).fetchone()["d"] if ctx.maint_on else None
         newest = max((_iso_to_dt(x.get("updated_at")) for x in v.values() if x.get("updated_at")), default=None, key=lambda t: t or dt.datetime.min.replace(tzinfo=dt.timezone.utc))
         age = (ctx.now - newest).total_seconds() if newest else None
-        out.append({"id": d["id"], "name": d["name"], "values": v, "avail": avail, "alerts": alerts, "ledger_done": ledger, "age_s": age, "stale_s": stale_s})
+        out.append({"id": d["id"], "name": d["name"], "values": v, "avail": avail, "alerts": alerts, "ledger_done": ledger, "ledger_on": performed, "age_s": age, "stale_s": stale_s})
     return out
+
+
+def _ledger_days(ctx: Ctx, g: dict[str, Any]) -> float | None:
+    """Days since the generator's last ledger test: the local date it was performed against the ledger's local today; else the recording time."""
+    if g.get("ledger_on"):
+        try:
+            return float(max(0, (ctx.today - dt.date.fromisoformat(str(g["ledger_on"])[:10])).days))
+        except ValueError:
+            pass
+    return model.age_days(g["ledger_done"], ctx.now_iso) if g["ledger_done"] else None
 
 
 def e01(ctx: Ctx) -> dict[str, Any]:
@@ -116,7 +131,7 @@ def e01(ctx: Ctx) -> dict[str, Any]:
         from .. import generator_catalog as cat
 
         result_ok = None if not res_raw else (False if cat.FAIL_RESULT.search(str(res_raw)) else True)
-        led_days = model.age_days(g["ledger_done"], ctx.now_iso) if g["ledger_done"] else None
+        led_days = _ledger_days(ctx, g)
         stale = g["avail"] != "online" or (g["age_s"] is not None and g["age_s"] > 36 * 3600)
         if stale and days is None and led_days is None:
             st = "unknown"
@@ -159,17 +174,31 @@ def e02(ctx: Ctx) -> dict[str, Any]:
     return _row(st, text, facts, age_s=max(ages) if ages else None, href=HREF["generator"], code="generator_state")
 
 
+def _fresh_value(g: dict[str, Any], role: str) -> Any:
+    """A role's value only when the reading can be trusted now: the generator is online, its newest value is within `stale_after_s`, and the
+    role itself is available. Anything else is None (unknown), never a guess (FIX-UTIL-A-2570, review CU2-05)."""
+    if g["avail"] != "online" or (g["age_s"] is not None and g["age_s"] > g["stale_s"]):
+        return None
+    x = g["values"].get(role) or {}
+    return x.get("value") if x.get("available") else None
+
+
 def e02b(ctx: Ctx) -> dict[str, Any]:
-    """Information only: the generator carrying the load is a banner (amber, not a fault)."""
+    """Information only (not critical): the generator carrying the load is a banner (amber, not a fault). FIX-UTIL-A-2570 (CU2-05): mains reported
+    DOWN while no generator carries the load is red ("no mains and the generator is not carrying") plus a banner - never "the building is on the
+    mains"; stale or unavailable values are unknown, and green needs a fresh mains = on with no fresh mains = off."""
     gens = _generators(ctx)
     if not gens:
         return _unknown("לא זוהה גנרטור במערכת", HREF["generator"], "no_generator")
-    carrying = [g["name"] for g in gens if g["avail"] == "online" and ((g["values"].get("on_load") or {}).get("value") is True or (g["values"].get("ats_position") or {}).get("value") == "generator")]
-    mains = [(g["values"].get("mains_available") or {}).get("value") for g in gens if g["avail"] == "online"]
+    carrying = [g["name"] for g in gens if _fresh_value(g, "on_load") is True or _fresh_value(g, "ats_position") == "generator"]
+    mains = [_fresh_value(g, "mains_available") for g in gens]
     if carrying:
         return _row("amber", "הגנרטור נושא את העומס כרגע", [{"key": "generator_on_load", "value": len(carrying)}], href=HREF["generator"], code="on_load")
-    if not mains or all(m is None for m in mains):
-        return _unknown("מצב הרשאות הרשת לא נקרא", HREF["generator"])
+    if any(m is False for m in mains):
+        return _row("red", "אין חשמל מהרשת והגנרטור אינו נושא את העומס", [{"key": "mains_down", "value": sum(1 for m in mains if m is False)}],
+                    href=HREF["generator"], code="no_mains")
+    if not any(m is True for m in mains):
+        return _unknown("מצב אספקת החשמל מהרשת לא נקרא", HREF["generator"])
     return _row("green", "הבניין על הרשת", href=HREF["generator"], code="on_mains")
 
 
@@ -503,11 +532,17 @@ def emergency_camera_ids(conn: sqlite3.Connection) -> list[str]:
 def e18(ctx: Ctx) -> dict[str, Any]:
     rows = ctx.conn.execute("SELECT id, status FROM cameras WHERE enabled = 1").fetchall()
     marked = set(emergency_camera_ids(ctx.conn))
+    # FIX-UTIL-A-2570 (review CU2-15): a marked emergency camera that was disabled or deleted since is not "fine" - it counts as offline
+    live_marked = {r["id"] for r in rows if r["id"] in marked}
+    gone = len(marked - live_marked)
     if not rows:
-        return _unknown("אין מצלמות מוגדרות", HREF["health"], "no_cameras") | {"critical": bool(marked)}
+        if marked:
+            return _row("red", "מצלמות חירום מנותקות או רוב המצלמות לא מחוברות", [{"key": "marked", "value": len(marked)}, {"key": "marked_offline", "value": gone}],
+                        href=HREF["health"], critical=True, code="cameras")
+        return _unknown("אין מצלמות מוגדרות", HREF["health"], "no_cameras") | {"critical": False}
     online = sum(1 for r in rows if r["status"] == "online")
     pct = 100.0 * online / len(rows)
-    mk_off = sum(1 for r in rows if r["id"] in marked and r["status"] != "online")
+    mk_off = sum(1 for r in rows if r["id"] in marked and r["status"] != "online") + gone
     st = model.cameras(pct, mk_off, ctx.th)
     text = {"green": "המצלמות מחוברות", "amber": "חלק מהמצלמות לא מחוברות", "red": "מצלמות חירום מנותקות או רוב המצלמות לא מחוברות"}[st]
     return _row(st, text, [{"key": "online_pct", "value": round(pct, 1)}, {"key": "marked", "value": len(marked)}, {"key": "marked_offline", "value": mk_off}], href=HREF["health"],
@@ -525,6 +560,11 @@ def e19(ctx: Ctx) -> dict[str, Any]:
     order = {"ok": 0, "warn": 1, "error": 2}
     w = max((c["status"] for c in checks), key=lambda s: order.get(s, 0))
     st = model.clock(w)
+    # FIX-UTIL-A-2570 (review CU2-15): a clock that was never read is "ok, unread" in the health report - here it is unknown, never green
+    unread = sum(1 for c in checks if not (c.get("meta") or {}).get("known"))
+    if st == "green" and unread:
+        return _row("unknown", "שעון מקליט לא נקרא; לא ניתן לאמת את חותמות הזמן", [{"key": "recorders", "value": len(checks)}, {"key": "unread", "value": unread}],
+                    href=HREF["health"], code="clock_unread")
     text = {"green": "שעון המקליטים תקין", "amber": "שעון מקליט שונה משעון הבניין", "red": "שעון מקליט שגוי; חותמות הזמן בראיות לא אמינות"}[st]
     return _row(st, text, [{"key": "recorders", "value": len(checks)}], href=HREF["health"], code="clock")
 
@@ -558,8 +598,11 @@ def banners(ctx: Ctx) -> list[dict[str, Any]]:
     except Exception:  # noqa: BLE001
         pass
     try:
-        if e02b(ctx)["code"] == "on_load":
+        code = e02b(ctx)["code"]
+        if code == "on_load":
             out.append({"code": "on_load", "text": "הגנרטור נושא את העומס כרגע"})
+        elif code == "no_mains":  # FIX-UTIL-A-2570 (CU2-05): the worst power case is a banner too
+            out.append({"code": "no_mains", "text": "אין חשמל מהרשת והגנרטור אינו נושא את העומס"})
     except Exception:  # noqa: BLE001
         pass
     return out

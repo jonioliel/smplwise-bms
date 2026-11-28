@@ -144,6 +144,9 @@ class VersionCreate(_Body):
     replace_version_id: str | None = Field(default=None, max_length=64)  # a correction of this version (the date may change)
     base: VersionBase | None = None  # the values the editor saw; a mismatch means someone changed them meanwhile
     confirm: bool = False
+    # FIX-UTIL-A-2570 (review CU2-08, additive): a rename that travels WITH the price change - written in the same transaction, and only
+    # when the change is written (never by a preview, never before a refusal)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
 
 
 class TouCheck(_Body):
@@ -565,6 +568,14 @@ def delete_tariff(tid: str, request: Request, principal: Principal = Depends(_ma
     return Response(status_code=204)
 
 
+def _rename_with(conn: sqlite3.Connection, principal: Principal, request: Request, tid: str, name: str | None) -> None:
+    """FIX-UTIL-A-2570 (CU2-08): the rename of a version request, audited as the PATCH rename is; nothing when the name is unchanged."""
+    if name is None or not name.strip() or name.strip() == eb.get_tariff(conn, tid)["name"]:
+        return
+    store.rename_tariff(conn, tid, name.strip(), eb.now_iso())
+    audit(conn, actor=principal, action="energy.tariff.update", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request))
+
+
 def _base_changed(base: VersionBase, target: sqlite3.Row) -> bool:
     if base.effective_from.isoformat() != target["effective_from"] or base.price_mode != target["price_mode"]:
         return True
@@ -591,6 +602,15 @@ def add_version(tid: str, request: Request, principal: Principal = Depends(_mana
     else:
         target = store.tariff_version_from(conn, tid, body.effective_from)
     if not target:
+        # FIX-UTIL-A-2570 (review CU2-08): the same price, mode (and hours) as the version already in force on that date is not a new
+        # version - adding one would split every later bill period at that date with a "price change" note
+        in_force = store.tariff_version_in_force(conn, tid, body.effective_from)
+        if in_force is not None and mode == in_force["price_mode"]:
+            old_def = json.loads(in_force["definition_json"]) if in_force["definition_json"] else None
+            same = (old_def is not None and tou.definition_sha256(old_def) == definition.sha256()) if definition is not None else                 (old_def is None and in_force["price"] is not None and price == px.Decimal(in_force["price"]))
+            if same:
+                raise ApiError(409, "nothing_changed", "לא בוצע שינוי במחיר.")
+        _rename_with(conn, principal, request, tid, body.name)
         vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode, definition)
         audit(conn, actor=principal, action="energy.tariff.version.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
               details={"version_id": vid, "effective_from": body.effective_from.isoformat()})
@@ -600,6 +620,7 @@ def add_version(tid: str, request: Request, principal: Principal = Depends(_mana
     plan = eb.plan_version_change(conn, tid, target, body.effective_from, price, mode, definition)
     if not body.confirm:
         return JSONResponse({"applied": False, "plan": plan}, status_code=200)
+    _rename_with(conn, principal, request, tid, body.name)
     vid = eb.apply_version_change(conn, tid, principal.user_id, target, plan)
     audit(conn, actor=principal, action="energy.tariff.version.correct", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
           details={"version_id": vid, "corrected_version_id": target["id"], "kind": plan["kind"], "applies_from": plan["applies_from"], "old": plan["old"], "new": plan["new"]})

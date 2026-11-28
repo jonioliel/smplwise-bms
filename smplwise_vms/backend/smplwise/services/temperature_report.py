@@ -49,7 +49,7 @@ LABELS: dict[str, dict[str, str]] = {
            "defrost": "מחזור הפשרה", "ack": "התראה אושרה", "mute": "השתקה", "sev_alarm": "אזעקה", "sev_warning": "אזהרה", "sev_info": "מידע",
            "open": "פתוח", "site": "SmplWise Arx",
            "haccp": "דוח תאימות (HACCP)", "daily": "טבלה יומית", "day": "תאריך", "coverage": "כיסוי נתונים", "verdict": "תוצאה",
-           "v_ok": "תקין", "v_exc": "חריגה", "v_none": "אין נתונים", "maint": "חלון תחזוקה: {r}", "by": "על ידי {n}", "days_ok": "ימים תקינים",
+           "v_ok": "תקין", "v_exc": "חריגה", "v_none": "אין נתונים", "v_partial": "נתונים חלקיים", "maint": "חלון תחזוקה: {r}", "by": "על ידי {n}", "days_ok": "ימים תקינים",
            "sign_name": "שם המנהל", "predict": "חריגה צפויה", "battery": "סוללת חיישן חלשה", "frozen": "ערך קפוא בחיישן",
            "recovery": "התאוששות איטית אחרי דלת", "duty": "זמן פעולת מדחס עולה",
            "samples": "פירוט כל הדגימות", "s_unit": "יחידה", "s_flags": "סימונים", "f_defrost": "הפשרה", "f_door": "דלת פתוחה", "f_off": "כבוי",
@@ -65,7 +65,7 @@ LABELS: dict[str, dict[str, str]] = {
            "defrost": "Defrost cycle", "ack": "Alert acknowledged", "mute": "Muted", "sev_alarm": "Alarm", "sev_warning": "Warning", "sev_info": "Info",
            "open": "open", "site": "SmplWise Arx",
            "haccp": "Compliance report (HACCP)", "daily": "Daily table", "day": "Date", "coverage": "Data coverage", "verdict": "Result",
-           "v_ok": "OK", "v_exc": "Excursion", "v_none": "No data", "maint": "Maintenance window: {r}", "by": "by {n}", "days_ok": "Days in range",
+           "v_ok": "OK", "v_exc": "Excursion", "v_none": "No data", "v_partial": "Partial data", "maint": "Maintenance window: {r}", "by": "by {n}", "days_ok": "Days in range",
            "sign_name": "Manager name", "predict": "Predicted excursion", "battery": "Sensor battery low", "frozen": "Frozen sensor value",
            "recovery": "Slow recovery after the door", "duty": "Compressor run time rising",
            "samples": "Every sample", "s_unit": "Unit", "s_flags": "Flags", "f_defrost": "Defrost", "f_door": "Door open", "f_off": "Off",
@@ -91,6 +91,19 @@ def _downsample(points: list[list[Any]], n: int) -> list[list[Any]]:
     return [points[int(i * step)] for i in range(n)]
 
 
+HACCP_MIN_COVERAGE = 90.0  # FIX-UTIL-A-2570 (review CU2-14): below this share of the day with a live reading, an in-band day is not "OK"
+
+
+def _day_verdict(st: dict[str, Any], coverage: float) -> str:
+    """none (no sample) | exc (out of band or an alarm - whatever the coverage) | partial (in band, but the data covers less than
+    HACCP_MIN_COVERAGE % of the day: a sensor offline for 23 h with one good sample is not a compliant day) | ok."""
+    if not st["samples"]:
+        return "none"
+    if st["out_min"] or st["alarms"]:
+        return "exc"
+    return "ok" if coverage >= HACCP_MIN_COVERAGE else "partial"
+
+
 def daily(conn: sqlite3.Connection, u: sqlite3.Row, rules: dict[str, Any], lo: int, hi: int, tz: ZoneInfo, now_ts: float, door_visible: bool) -> list[dict[str, Any]]:
     """Phase 3 (idea 3, the HACCP compliance report): one row per LOCAL day of lo..hi - min / max / average, minutes out of the band (defrost
     excluded per the unit's setting), alarms, door openings and the data coverage (the share of the day with a live reading)."""
@@ -106,7 +119,7 @@ def daily(conn: sqlite3.Connection, u: sqlite3.Row, rules: dict[str, Any], lo: i
             cov = min(100.0, round(100 * st["samples"] * per / max(1, (b - a) / 60), 1))
             out.append({"day": day.isoformat(), "min": st["min"], "max": st["max"], "avg": st["avg"], "out_min": st["out_min"], "out_min_raw": st["out_min_raw"],
                         "alarms": st["alarms"], "door_opens": st["door_opens"] if door_visible else None, "coverage": cov,
-                        "verdict": "none" if not st["samples"] else ("ok" if st["out_min"] == 0 and st["alarms"] == 0 else "exc")})
+                        "verdict": _day_verdict(st, cov)})
         day += dt.timedelta(days=1)
     return out
 
@@ -370,7 +383,7 @@ h2 {{ font-size: 10.5pt; margin: 10pt 0 4pt; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 8.5pt; }}
 th, td {{ border-bottom: 0.5pt solid #e3e8f0; padding: 3pt 4pt; text-align: start; }} th {{ color: #5b6a85; font-weight: 700; }}
 .n {{ direction: ltr; unicode-bidi: isolate; white-space: nowrap; }}
-table.daily td, table.daily th {{ padding: 2pt 4pt; font-size: 8pt; }} table.daily tr.exc td {{ color: #b91c1c; }} table.daily tr.none td {{ color: #8a94a8; }}
+table.daily td, table.daily th {{ padding: 2pt 4pt; font-size: 8pt; }} table.daily tr.exc td {{ color: #b91c1c; }} table.daily tr.none td, table.daily tr.partial td {{ color: #8a94a8; }}
 table.samples td, table.samples th {{ padding: 1pt 4pt; font-size: 7.5pt; }} table.samples tr {{ break-inside: avoid; }} table.samples tr.out td {{ color: #b91c1c; }}
 table.samples thead {{ display: table-header-group; }} .nodata {{ border: 0.6pt dashed #8a94a8; border-radius: 4pt; padding: 6pt 8pt; margin: 6pt 0; color: #5b6a85; }}
 .sig {{ display: flex; gap: 24pt; margin-top: 22pt; }} .sig div {{ flex: 1; border-top: 0.8pt solid #1d2433; padding-top: 3pt; font-size: 8.5pt; }}

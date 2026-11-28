@@ -429,6 +429,8 @@ export interface ElecBackend {
   /** a fixed tariff (price) or, with `definition`, a time-of-use tariff */
   createTariff(body: TariffVersionBody): Promise<Tariff>;
   addTariffVersion(id: string, body: TariffVersionBody): Promise<Tariff>;
+  /** FIX-UTIL-A-2570 (CU2-08): a rename alone - the price versions are not touched */
+  renameTariff(id: string, name: string): Promise<Tariff>;
   /** EL5: the time-of-use templates (empty prices) */
   touTemplates(): Promise<TouTemplate[]>;
   /** EL5: validate a definition without saving (the day grid also when only prices are missing) */
@@ -644,13 +646,13 @@ const rest: ElecBackend = {
     post<Tariff>(`${E}tariffs`, b.definition
       ? { name: b.name, kind: 'tou', definition: b.definition, price_mode: b.price_mode, effective_from: b.effective_from }
       : { name: b.name, price: b.price, price_mode: b.price_mode, effective_from: b.effective_from }),
-  addTariffVersion: async (id, b) => {
-    await patch(`${E}tariffs/${id}`, { name: b.name });
-    return post<Tariff>(`${E}tariffs/${id}/versions`, { effective_from: b.effective_from, ...valueOf(b), price_mode: b.price_mode });
-  },
+  // FIX-UTIL-A-2570 (CU2-08): the new name travels IN the version request (one transaction on the server; nothing renamed by a preview
+  // or before a refusal) - no separate rename first
+  addTariffVersion: (id, b) => post<Tariff>(`${E}tariffs/${id}/versions`, { effective_from: b.effective_from, ...valueOf(b), price_mode: b.price_mode, name: b.name.trim() }),
+  renameTariff: (id, name) => patch<Tariff>(`${E}tariffs/${id}`, { name: name.trim() }),
   correctTariffVersion: async (id, b, o) => {
-    if (o.confirm) await patch(`${E}tariffs/${id}`, { name: b.name });
     const r = await post<{ applied?: boolean; plan?: TariffVersionPlan }>(`${E}tariffs/${id}/versions`, {
+      name: b.name.trim(),
       effective_from: b.effective_from,
       ...valueOf(b),
       price_mode: b.price_mode,

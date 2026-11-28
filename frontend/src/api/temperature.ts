@@ -347,7 +347,7 @@ interface ReportUnit {
    * with the flag bits 1 defrost, 2 door open, 4 switched off, 8 out of range, 16 alert open, 32 five-minute average (older than the raw history) */
   samples?: { rows: [number, number, number][]; total: number; shown: number; capped: boolean; cap: number };
   /** phase 3: the HACCP daily table (layout haccp only) */
-  daily?: { day: string; min: number | null; max: number | null; avg: number | null; out_min: number; out_min_raw: number; alarms: number; door_opens: number | null; coverage: number; verdict: 'ok' | 'exc' | 'none' }[];
+  daily?: { day: string; min: number | null; max: number | null; avg: number | null; out_min: number; out_min_raw: number; alarms: number; door_opens: number | null; coverage: number; verdict: 'ok' | 'exc' | 'partial' | 'none' }[];
 }
 export type ReportModel = Omit<Wire.TempReportPreview, 'units'> & { units: ReportUnit[] };
 export interface ReportRecipient {

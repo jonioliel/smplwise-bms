@@ -293,197 +293,232 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, *, connected: bool) -> dic
     chain = temperature_alerts.load(conn)["escalation"]
     areas: dict[str, str] | None = None
     for u in rows:
-        if not u["enabled"]:
-            out["closed"] += close_all(conn, u, now_ts, "disabled")
-            continue
-        rules = t.effective(defaults, t.overrides_of(u["rules_json"]))
-        te = ents.get(u["temp_entity_id"])
-        reading = t.reading_of(te)
-        v = reading["value"]
-        low, high = t.band_of(u, reading, rules)
-        switched_off = t.is_off(reading, rules)
-        de = ents.get(u["door_entity_id"]) if u["door_entity_id"] else None
-        door = t.door_of(de["state"], invert=bool(u["door_invert"]), available=de["available"], removed=de["removed_at"], disabled=de["disabled"]) if de is not None else None
-        pw = t.power_of(ents.get(u["power_entity_id"])) if u["power_entity_id"] else None
-        wins = t.unit_windows(u, learned)
-        defrost = t.in_defrost(wins, minute)
-        quiet = t.in_quiet(rules, minute)
-        muted = bool(u["muted_until"] and u["muted_until"] > now)
-        maint_end = _ts(u["maint_until"])
-        maint = maint_end is not None and maint_end > now_ts
-        if u["maint_until"] and not maint:
-            end_maintenance(conn, u, maint_end or now_ts)  # the window ran out: its log row closes at its own end
-        held, held_alarm = holds(rules, quiet=quiet, muted=muted, maint=maint)
-        hard_max = high + float(rules["defrost_hard_margin"])
-        flags = (1 if defrost else 0) | (2 if door else 0) | (4 if switched_off else 0)
-        if v is not None and t.record_sample(conn, u["id"], int(now_ts), v, flags, reading["setpoint"], pw=pw, on_w=float(rules["compressor_on_w"])):
-            out["sampled"] += 1
-        door_since = _door_track(conn, u, door, de["last_changed"] if de is not None else None, now_ts) if u["door_entity_id"] else None
-        evs = open_events(conn, u["id"])
-        if areas is None:
-            areas = _area_names(conn)
-        area = areas.get(u["area_id"] or "")
-        touched: list[dict[str, Any]] = []
+        # FIX-UTIL-A-2570 (review CU2-18): one unit per SAVEPOINT - a bad row (a broken rules blob, a source that raises) rolls back that
+        # unit only and is logged; it no longer rolls back the samples, events and notifications of every other unit, every minute
+        before = dict(out)
+        conn.execute("SAVEPOINT temp_unit")
+        try:
+            if not u["enabled"]:
+                out["closed"] += close_all(conn, u, now_ts, "disabled")
+                continue
+            rules = t.effective(defaults, t.overrides_of(u["rules_json"]))
+            te = ents.get(u["temp_entity_id"])
+            reading = t.reading_of(te)
+            v = reading["value"]
+            low, high = t.band_of(u, reading, rules)
+            switched_off = t.is_off(reading, rules)
+            de = ents.get(u["door_entity_id"]) if u["door_entity_id"] else None
+            door = t.door_of(de["state"], invert=bool(u["door_invert"]), available=de["available"], removed=de["removed_at"], disabled=de["disabled"]) if de is not None else None
+            pw = t.power_of(ents.get(u["power_entity_id"])) if u["power_entity_id"] else None
+            wins = t.unit_windows(u, learned)
+            defrost = t.in_defrost(wins, minute)
+            quiet = t.in_quiet(rules, minute)
+            muted = bool(u["muted_until"] and u["muted_until"] > now)
+            maint_end = _ts(u["maint_until"])
+            maint = maint_end is not None and maint_end > now_ts
+            if u["maint_until"] and not maint:
+                end_maintenance(conn, u, maint_end or now_ts)  # the window ran out: its log row closes at its own end
+            held, held_alarm = holds(rules, quiet=quiet, muted=muted, maint=maint)
+            hard_max = high + float(rules["defrost_hard_margin"])
+            flags = (1 if defrost else 0) | (2 if door else 0) | (4 if switched_off else 0)
+            if v is not None and t.record_sample(conn, u["id"], int(now_ts), v, flags, reading["setpoint"], pw=pw, on_w=float(rules["compressor_on_w"])):
+                out["sampled"] += 1
+            door_since = _door_track(conn, u, door, de["last_changed"] if de is not None else None, now_ts) if u["door_entity_id"] else None
+            evs = open_events(conn, u["id"])
+            if areas is None:
+                areas = _area_names(conn)
+            area = areas.get(u["area_id"] or "")
+            touched: list[dict[str, Any]] = []
 
-        # -- the sensor reports / does not report
-        off = evs.get("offline")
-        if v is not None and off is not None:
-            _resolve_current(conn, u, off, now_ts, "החיישן חזר לדווח")
-            off.update(ended_at=now, value=v)
-            touched.append(off)
-            out["closed"] += 1
-        elif v is None and off is None and rules["offline_warn"]:
-            last = _last_live(conn, u)
-            if now_ts - last >= int(rules["offline_min"]) * 60:
-                last_v = conn.execute("SELECT v FROM infra_temp_samples WHERE unit_id = ? ORDER BY ts DESC LIMIT 1", (u["id"],)).fetchone()
-                off = _open(conn, u["id"], "offline", "warning", _iso(last), value=last_v[0] if last_v else None, warned=now)
-                evs["offline"] = off
+            # -- the sensor reports / does not report
+            off = evs.get("offline")
+            if v is not None and off is not None:
+                _resolve_current(conn, u, off, now_ts, "החיישן חזר לדווח")
+                off.update(ended_at=now, value=v)
                 touched.append(off)
-                out["opened"] += 1
-        elif off is not None:
-            touched.append(off)
+                out["closed"] += 1
+            elif v is None and off is None and rules["offline_warn"]:
+                last = _last_live(conn, u)
+                if now_ts - last >= int(rules["offline_min"]) * 60:
+                    last_v = conn.execute("SELECT v FROM infra_temp_samples WHERE unit_id = ? ORDER BY ts DESC LIMIT 1", (u["id"],)).fetchone()
+                    off = _open(conn, u["id"], "offline", "warning", _iso(last), value=last_v[0] if last_v else None, warned=now)
+                    evs["offline"] = off
+                    touched.append(off)
+                    out["opened"] += 1
+            elif off is not None:
+                touched.append(off)
 
-        # -- a climate unit switched off (owner 2026-10-19): a state, not an alarm - its band rows end (unless `alert_when_off`)
-        if switched_off:
-            for kind in ("high", "low", "defrost"):
-                ev = evs.pop(kind, None)
-                if ev is not None:
-                    _resolve_current(conn, u, ev, now_ts, "היחידה כובתה")
-                    ev["ended_at"] = now
-                    ev["detail"] = {**ev.get("detail", {}), "closed": "off"}
-                    _save(conn, ev)
-                    out["closed"] += 1
+            # -- a climate unit switched off (owner 2026-10-19): a state, not an alarm - its band rows end (unless `alert_when_off`)
+            if switched_off:
+                for kind in ("high", "low", "defrost"):
+                    ev = evs.pop(kind, None)
+                    if ev is not None:
+                        _resolve_current(conn, u, ev, now_ts, "היחידה כובתה")
+                        ev["ended_at"] = now
+                        ev["detail"] = {**ev.get("detail", {}), "closed": "off"}
+                        _save(conn, ev)
+                        out["closed"] += 1
 
-        # -- the band (judged only on a live reading; with none, open rows stay as they are and do not escalate)
-        if v is not None and not switched_off:
-            for kind, outside, back, thr, alarm_on, alarm_min in (
-                ("high", v > high, v <= high - rules["hysteresis"], high, rules["high_alarm"], rules["high_alarm_min"]),
-                ("low", v < low, v >= low + rules["hysteresis"], low, rules["low_alarm"], rules["low_alarm_min"]),
-            ):
-                in_def = kind == "high" and defrost and rules["defrost_suppress"] and v <= hard_max
-                ev = evs.get(kind)
-                if ev is None:
-                    if outside and not in_def:
-                        ev = _open(conn, u["id"], kind, "warning", now, value=v, threshold=thr, warned=now if rules["warn_on_excursion"] else None,
-                                   detail={"hard_max": True} if (kind == "high" and defrost and v > hard_max) else None)
-                        evs[kind] = ev
+            # -- the band (judged only on a live reading; with none, open rows stay as they are and do not escalate)
+            if v is not None and not switched_off:
+                for kind, outside, back, thr, alarm_on, alarm_min in (
+                    ("high", v > high, v <= high - rules["hysteresis"], high, rules["high_alarm"], rules["high_alarm_min"]),
+                    ("low", v < low, v >= low + rules["hysteresis"], low, rules["low_alarm"], rules["low_alarm_min"]),
+                ):
+                    in_def = kind == "high" and defrost and rules["defrost_suppress"] and v <= hard_max
+                    ev = evs.get(kind)
+                    if ev is None:
+                        if outside and not in_def:
+                            ev = _open(conn, u["id"], kind, "warning", now, value=v, threshold=thr, warned=now if rules["warn_on_excursion"] else None,
+                                       detail={"hard_max": True} if (kind == "high" and defrost and v > hard_max) else None)
+                            evs[kind] = ev
+                            touched.append(ev)
+                            out["opened"] += 1
+                        elif outside and in_def and "defrost" not in evs:
+                            evs["defrost"] = _open(conn, u["id"], "defrost", "info", now, value=v, threshold=thr, detail={"window": True})
+                            out["opened"] += 1
+                        continue
+                    ev["value"] = v
+                    ev["peak"] = max(ev["peak"] if ev["peak"] is not None else v, v) if kind == "high" else min(ev["peak"] if ev["peak"] is not None else v, v)
+                    if back:
+                        _resolve_current(conn, u, ev, now_ts, "הטמפרטורה חזרה לטווח")
+                        ev["ended_at"] = now
+                        out["closed"] += 1
                         touched.append(ev)
-                        out["opened"] += 1
-                    elif outside and in_def and "defrost" not in evs:
-                        evs["defrost"] = _open(conn, u["id"], "defrost", "info", now, value=v, threshold=thr, detail={"window": True})
-                        out["opened"] += 1
-                    continue
-                ev["value"] = v
-                ev["peak"] = max(ev["peak"] if ev["peak"] is not None else v, v) if kind == "high" else min(ev["peak"] if ev["peak"] is not None else v, v)
-                if back:
-                    _resolve_current(conn, u, ev, now_ts, "הטמפרטורה חזרה לטווח")
-                    ev["ended_at"] = now
-                    out["closed"] += 1
-                elif not in_def and alarm_on and ev["alarmed_at"] is None and now_ts - (_ts(ev["started_at"]) or now_ts) >= int(alarm_min) * 60:
-                    _resolve_current(conn, u, ev, now_ts)  # the warning gives way to the alarm
-                    ev["severity"], ev["alarmed_at"], ev["suppressed"] = "alarm", now, None
-                    out["alarmed"] += 1
-                touched.append(ev)
-            dfr = evs.get("defrost")
-            if dfr is not None:
-                dfr["value"] = v
-                dfr["peak"] = max(dfr["peak"] if dfr["peak"] is not None else v, v)
-                if not defrost or v <= high:
-                    dfr["ended_at"] = now
-                    out["closed"] += 1
-                conn.execute("UPDATE infra_temp_events SET value = ?, peak = ?, ended_at = ? WHERE id = ?", (dfr["value"], dfr["peak"], dfr["ended_at"], dfr["id"]))
+                        continue
+                    # FIX-UTIL-A-2570 (review CU2-06): the alarm timer counts only the minutes the reading is OUTSIDE the band. Inside the band but
+                    # not yet past the hysteresis the row stays open (no flapping) and the timer pauses; it never escalates on a reading that is
+                    # already back inside. `outside_from` = start of the current stretch outside (None while inside), `outside_s` = the earlier
+                    # stretches. A row opened before this rule had neither: its stretch started at `started_at`.
+                    det = dict(ev.get("detail") or {})
+                    start_ts = _ts(det["outside_from"]) if "outside_from" in det else (_ts(ev["started_at"]) or now_ts)
+                    spent = float(det.get("outside_s") or 0)
+                    if outside:
+                        if start_ts is None:
+                            start_ts = now_ts
+                            det["outside_from"] = now
+                        outside_for = spent + max(0.0, now_ts - start_ts)
+                    else:
+                        if start_ts is not None:
+                            spent += max(0.0, now_ts - start_ts)
+                        det["outside_from"], det["outside_s"] = None, round(spent, 1)
+                        outside_for = spent
+                    ev["detail"] = det
+                    if outside and not in_def and alarm_on and ev["alarmed_at"] is None and outside_for >= int(alarm_min) * 60:
+                        _resolve_current(conn, u, ev, now_ts)  # the warning gives way to the alarm
+                        ev["severity"], ev["alarmed_at"], ev["suppressed"] = "alarm", now, None
+                        out["alarmed"] += 1
+                    touched.append(ev)
+                dfr = evs.get("defrost")
+                if dfr is not None:
+                    dfr["value"] = v
+                    dfr["peak"] = max(dfr["peak"] if dfr["peak"] is not None else v, v)
+                    if not defrost or v <= high:
+                        dfr["ended_at"] = now
+                        out["closed"] += 1
+                    conn.execute("UPDATE infra_temp_events SET value = ?, peak = ?, ended_at = ? WHERE id = ?", (dfr["value"], dfr["peak"], dfr["ended_at"], dfr["id"]))
 
-        # -- the door
-        dev = evs.get("door")
-        if u["door_entity_id"]:
-            if dev is None and door is True and door_since is not None and rules["door_alarm"] and now_ts - door_since >= int(rules["door_alarm_min"]) * 60:
-                dev = _open(conn, u["id"], "door", "alarm", _iso(door_since), threshold=float(rules["door_alarm_min"]), alarmed=now)
-                out["opened"] += 1
-                out["alarmed"] += 1
-            elif dev is not None and (door is False or not rules["door_alarm"]):
-                _resolve_current(conn, u, dev, now_ts, "הדלת נסגרה")
+            # -- the door
+            dev = evs.get("door")
+            if u["door_entity_id"]:
+                if dev is None and door is True and door_since is not None and rules["door_alarm"] and now_ts - door_since >= int(rules["door_alarm_min"]) * 60:
+                    dev = _open(conn, u["id"], "door", "alarm", _iso(door_since), threshold=float(rules["door_alarm_min"]), alarmed=now)
+                    out["opened"] += 1
+                    out["alarmed"] += 1
+                elif dev is not None and (door is False or not rules["door_alarm"]):
+                    _resolve_current(conn, u, dev, now_ts, "הדלת נסגרה")
+                    dev["ended_at"] = now
+                    out["closed"] += 1
+            elif dev is not None:
+                _resolve_current(conn, u, dev, now_ts, "חיישן הדלת הוסר")
                 dev["ended_at"] = now
                 out["closed"] += 1
-        elif dev is not None:
-            _resolve_current(conn, u, dev, now_ts, "חיישן הדלת הוסר")
-            dev["ended_at"] = now
-            out["closed"] += 1
-        if dev is not None:
-            touched.append(dev)
+            if dev is not None:
+                touched.append(dev)
 
-        # -- phase 3, idea 5: an EARLY warning before the excursion (`predict_warn`, default off - the card shows the projection anyway); never
-        #    while the door is open or inside a defrost window (expected rises), never next to an open excursion
-        pev = evs.get("predict")
-        calm = v is not None and not switched_off and not door and not defrost and "high" not in evs and "low" not in evs
-        if calm and rules["predict_enabled"] and rules["predict_warn"]:
-            horizon = int(rules["predict_warn_min"])  # the early warning's own lead time (owner 2026-10-20), not the display horizon
-            rate = t.rate_per_min(conn, u["id"], now_ts)
-            # a row opens inside the horizon and stays while the crossing is within 1.5x of it (no flapping on the edge)
-            pr = t.predict(v, rate, low, high, horizon if pev is None else int(horizon * 1.5) + 5)
-        else:
-            pr = None
-        if pev is None and pr is not None:
-            pev = _open(conn, u["id"], "predict", "warning", now, value=v, threshold=pr["threshold"], warned=now,
-                        detail={"side": pr["side"], "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]})
-            touched.append(pev)
-            out["opened"] += 1
-        elif pev is not None:
-            if pr is None:
-                _resolve_current(conn, u, pev, now_ts, "החריגה החלה" if ("high" in evs or "low" in evs) else "התחזית התבטלה")
-                pev["ended_at"] = now
-                out["closed"] += 1
+            # -- phase 3, idea 5: an EARLY warning before the excursion (`predict_warn`, default off - the card shows the projection anyway); never
+            #    while the door is open or inside a defrost window (expected rises), never next to an open excursion
+            pev = evs.get("predict")
+            calm = v is not None and not switched_off and not door and not defrost and "high" not in evs and "low" not in evs
+            if calm and rules["predict_enabled"] and rules["predict_warn"]:
+                horizon = int(rules["predict_warn_min"])  # the early warning's own lead time (owner 2026-10-20), not the display horizon
+                rate = t.rate_per_min(conn, u["id"], now_ts)
+                # a row opens inside the horizon and stays while the crossing is within 1.5x of it (no flapping on the edge)
+                pr = t.predict(v, rate, low, high, horizon if pev is None else int(horizon * 1.5) + 5)
             else:
-                pev["value"] = v
-                pev["detail"] = {**pev.get("detail", {}), "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]}
-            touched.append(pev)
-
-        # -- phase 3, ideas 2 / 6 / 8: sensor health and a suspected cooling fault (warnings of the `health` kind; each a setting)
-        hl = ti.health(conn, u["id"], te, reading["source"], rules, now_ts) if rules["health_warn"] else None
-        ins = insights.get(u["id"]) or {}
-        door_ins = ins.get("door") or {}
-        duty_ins = ins.get("duty") or {}
-        wanted = {
-            "battery": (bool(hl and hl["battery_low"]), {"battery": hl["battery"]} if hl else {}, now),
-            "frozen": (bool(hl and hl["frozen_since"]), {}, (hl or {}).get("frozen_since") or now),
-            "recovery": (bool(rules["recovery_alert"] and door_ins.get("slow")), {"median_recovery_min": door_ins.get("median_recovery_min")}, now),
-            "duty": (bool(rules["duty_alert"] and u["power_entity_id"] and duty_ins.get("rising")), {"recent": duty_ins.get("recent"), "before": duty_ins.get("before")}, now),
-        }
-        for kind, (active, detail, since) in wanted.items():
-            hev = evs.get(kind)
-            if active and hev is None:
-                hev = _open(conn, u["id"], kind, "warning", since, value=v, warned=now, detail=detail)
-                touched.append(hev)
+                pr = None
+            if pev is None and pr is not None:
+                pev = _open(conn, u["id"], "predict", "warning", now, value=v, threshold=pr["threshold"], warned=now,
+                            detail={"side": pr["side"], "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]})
+                touched.append(pev)
                 out["opened"] += 1
-            elif hev is not None and not active:
-                _resolve_current(conn, u, hev, now_ts, "הבעיה נפתרה")
-                hev["ended_at"] = now
-                touched.append(hev)
-                out["closed"] += 1
-            elif hev is not None:
-                hev["value"] = v if v is not None else hev["value"]
-                touched.append(hev)
+            elif pev is not None:
+                if pr is None:
+                    _resolve_current(conn, u, pev, now_ts, "החריגה החלה" if ("high" in evs or "low" in evs) else "התחזית התבטלה")
+                    pev["ended_at"] = now
+                    out["closed"] += 1
+                else:
+                    pev["value"] = v
+                    pev["detail"] = {**pev.get("detail", {}), "eta_min": pr["eta_min"], "rate_h": pr["rate_h"]}
+                touched.append(pev)
 
-        # -- phase 3, idea 4: the escalation chain of an alarm nobody acknowledged (never while alarms are held - by default they never are)
-        if chain["enabled"] and rules["escalation_enabled"] and held_alarm is None:
+            # -- phase 3, ideas 2 / 6 / 8: sensor health and a suspected cooling fault (warnings of the `health` kind; each a setting)
+            hl = ti.health(conn, u["id"], te, reading["source"], rules, now_ts) if rules["health_warn"] else None
+            ins = insights.get(u["id"]) or {}
+            door_ins = ins.get("door") or {}
+            duty_ins = ins.get("duty") or {}
+            wanted = {
+                "battery": (bool(hl and hl["battery_low"]), {"battery": hl["battery"]} if hl else {}, now),
+                "frozen": (bool(hl and hl["frozen_since"]), {}, (hl or {}).get("frozen_since") or now),
+                "recovery": (bool(rules["recovery_alert"] and door_ins.get("slow")), {"median_recovery_min": door_ins.get("median_recovery_min")}, now),
+                "duty": (bool(rules["duty_alert"] and u["power_entity_id"] and duty_ins.get("rising")), {"recent": duty_ins.get("recent"), "before": duty_ins.get("before")}, now),
+            }
+            for kind, (active, detail, since) in wanted.items():
+                hev = evs.get(kind)
+                if active and hev is None:
+                    hev = _open(conn, u["id"], kind, "warning", since, value=v, warned=now, detail=detail)
+                    touched.append(hev)
+                    out["opened"] += 1
+                elif hev is not None and not active:
+                    _resolve_current(conn, u, hev, now_ts, "הבעיה נפתרה")
+                    hev["ended_at"] = now
+                    touched.append(hev)
+                    out["closed"] += 1
+                elif hev is not None:
+                    hev["value"] = v if v is not None else hev["value"]
+                    touched.append(hev)
+
+            # -- phase 3, idea 4: the escalation chain of an alarm nobody acknowledged (never while alarms are held - by default they never are)
+            if chain["enabled"] and rules["escalation_enabled"] and held_alarm is None:
+                for ev in touched:
+                    if ev["severity"] != "alarm" or ev["ended_at"] is not None or ev.get("ack_at"):
+                        continue
+                    if ev["kind"] in ("high", "low") and "outside_from" in (ev.get("detail") or {}) and ev["detail"]["outside_from"] is None:
+                        continue  # FIX-UTIL-A-2570 (CU2-06): the reading is back inside the band (within the hysteresis) - the chain waits
+                    lvl = int(ev.get("escalation_level") or 0)
+                    if lvl >= len(chain["steps"]):
+                        continue
+                    step = chain["steps"][lvl]
+                    if now_ts - (_ts(ev.get("alarmed_at")) or now_ts) < int(step["after_min"]) * 60:
+                        continue
+                    res = _emit(conn, _esc_signal(u, ev, lvl + 1, now_ts, area))
+                    ev["escalation_level"], ev["escalated_at"] = lvl + 1, now
+                    log_act(conn, u["id"], "escalate", now, None, {"event": ev["id"], "level": lvl + 1, "of": ev["kind"],
+                                                                   "notified": bool(res and res.action in ("created", "folded", "renotified"))})
+                    out["escalated"] += 1
+
             for ev in touched:
-                if ev["severity"] != "alarm" or ev["ended_at"] is not None or ev.get("ack_at"):
-                    continue
-                lvl = int(ev.get("escalation_level") or 0)
-                if lvl >= len(chain["steps"]):
-                    continue
-                step = chain["steps"][lvl]
-                if now_ts - (_ts(ev.get("alarmed_at")) or now_ts) < int(step["after_min"]) * 60:
-                    continue
-                res = _emit(conn, _esc_signal(u, ev, lvl + 1, now_ts, area))
-                ev["escalation_level"], ev["escalated_at"] = lvl + 1, now
-                log_act(conn, u["id"], "escalate", now, None, {"event": ev["id"], "level": lvl + 1, "of": ev["kind"],
-                                                               "notified": bool(res and res.action in ("created", "folded", "renotified"))})
-                out["escalated"] += 1
-
-        for ev in touched:
-            if ev["ended_at"] is None:
-                _notify(conn, u, ev, now_ts, held=held, held_alarm=held_alarm, area=area, out=out)
-            _save(conn, ev)
+                if ev["ended_at"] is None:
+                    _notify(conn, u, ev, now_ts, held=held, held_alarm=held_alarm, area=area, out=out)
+                _save(conn, ev)
+        except Exception:  # noqa: BLE001 - one unit never stops the pass
+            conn.execute("ROLLBACK TO temp_unit")
+            out.clear()
+            out.update(before)
+            out["failed"] = out.get("failed", 0) + 1
+            log.warning("temperature evaluation of one unit failed", exc_info=True)
+        finally:
+            conn.execute("RELEASE temp_unit")
     return out
 
 

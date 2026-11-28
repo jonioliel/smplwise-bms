@@ -587,6 +587,7 @@ const he = {
   dayOk: 'תקין',
   dayExc: 'חריגה',
   dayNone: 'אין נתונים',
+  dayPartial: 'נתונים חלקיים',
   coverage: 'כיסוי',
   repSignName: 'שם המנהל',
   widgetName: 'טמפרטורות',

@@ -578,6 +578,7 @@ export const ar = {
   dayOk: 'سليم',
   dayExc: 'تجاوز',
   dayNone: 'لا توجد بيانات',
+  dayPartial: 'بيانات جزئية',
   coverage: 'التغطية',
   repSignName: 'اسم المدير',
   wAllOk: 'كل الوحدات سليمة',

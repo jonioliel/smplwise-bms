@@ -34,6 +34,8 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import energy_counter as ec
 from ..services import energy_store as st
 from ..services import water_alerts as wa
+from ..services import water_billing as wb
+from ..services.energy_calibration import UNDO_WINDOW_S
 from ..services import water_meters as wm
 from ..services import water_meters_store as wstore
 from ..services import water_runtime as wr
@@ -563,7 +565,10 @@ def add_manual(meter_id: str, request: Request, principal: Principal = Depends(_
     tz = wm.tz_of(conn)
     if not body.dry_run:
         MANUAL_LIMIT.check(principal.user_id or principal.username or "-")
-    plan = store.manual_reading(meter_id, ts=ts, raw_wh=ml, max_kw=float(row["max_flow_lph"]), epoch_lo=lo, epoch_hi=hi, billed_until=None, tz=tz, dry_run=body.dry_run)
+    # FIX-UTIL-A-2570 (review CU2-07): electricity's billed guard - inside an issued / sent / paid bill's span the reading is recorded only
+    # (`record` / `billed`), never allocated, so an issued bill and the next one always add up to the counter
+    billed = wb.billed_until(conn, meter_id)
+    plan = store.manual_reading(meter_id, ts=ts, raw_wh=ml, max_kw=float(row["max_flow_lph"]), epoch_lo=lo, epoch_hi=hi, billed_until=billed, tz=tz, dry_run=body.dry_run)
     out ={"effect": plan.effect, "reason": plan.reason, "litres": wm.litres(ml), "dry_run": body.dry_run}
     if body.dry_run:
         return out
@@ -587,10 +592,20 @@ def undo_manual(meter_id: str, reading_id: str, request: Request, principal: Pri
         raise wm.not_found()
     if r["voided_at"]:
         raise _err(409, "reading_voided", "הקריאה כבר בוטלה.", "The reading was already undone.")
+    # FIX-UTIL-A-2570 (review CU2-07): electricity's two undo guards - the 24-hour window and "already billed"
+    if int(time.time()) > int(parse_utc(r["created_at"]).timestamp()) + UNDO_WINDOW_S:
+        raise _err(409, "undo_window_passed", "עבר הזמן שבו אפשר לבטל את הקריאה (24 שעות).", "The time to undo the reading has passed (24 hours).")
     if r["effect"] == "allocation":
         ts = int(parse_utc(r["read_at"]).timestamp())
         _e, lo, hi = _epoch_bounds(conn, meter_id, ts)
-        why = wm.store_for(settings_of(request)).undo_manual_reading(meter_id, ts=ts, raw_wh=int(r["value_ml"]), epoch_lo=lo, epoch_hi=hi, tz=wm.tz_of(conn))
+        store = wm.store_for(settings_of(request))
+        billed = wb.billed_until(conn, meter_id)
+        if billed is not None:
+            before, _after = store.reading_around(meter_id, ts - 1)  # the span the reading split starts at the reading before it
+            if billed > (before[0] if before is not None and before[0] >= lo else ts):
+                raise _err(409, "reading_billed", "הצריכה שהקריאה שינתה כבר חויבה, ולכן אי אפשר לבטל אותה.",
+                           "The consumption this reading changed is already billed, so it cannot be undone.")
+        why = store.undo_manual_reading(meter_id, ts=ts, raw_wh=int(r["value_ml"]), epoch_lo=lo, epoch_hi=hi, tz=wm.tz_of(conn))
         if why is not None:
             raise _err(409, "reading_undo_refused", "אי אפשר לבטל את הקריאה: המונה המשיך מאז.", "The reading cannot be undone: the counter moved on.", reason=why)
     wstore.void_manual_reading(conn, reading_id, at=now_iso(), by=principal.user_id, reason=body.reason)

@@ -578,6 +578,7 @@ export const ru = {
   dayOk: 'Норма',
   dayExc: 'Отклонение',
   dayNone: 'Нет данных',
+  dayPartial: 'Неполные данные',
   coverage: 'Полнота',
   repSignName: 'Имя руководителя',
   wAllOk: 'Все блоки в норме',

@@ -445,6 +445,20 @@ def _report_units(conn: sqlite3.Connection, principal: Principal, ids: list[str]
     return rows, {i for i in ids if vis[i][1]}
 
 
+HACCP_MAX_UNIT_DAYS = 3000  # FIX-UTIL-A-2570 (review CU2-22): one HACCP report is at most units x days = 3,000 (30 units for 100 days)
+
+
+def _haccp_cap(layout: str, rows: list[sqlite3.Row], lo: int, hi: int) -> None:
+    """The HACCP layout computes a verdict per unit per day (several queries each): bounded, an honest 422 above the cap."""
+    if layout != "haccp":
+        return
+    days = max(1, -(-(int(hi) - int(lo)) // 86400))
+    if len(rows) * days > HACCP_MAX_UNIT_DAYS:
+        raise ApiError(422, "report_too_large", "הדוח גדול מדי; יש לצמצם טווח או יחידות.",
+                       details={"fields": ["range", "units"], "max_unit_days": HACCP_MAX_UNIT_DAYS, "unit_days": len(rows) * days,
+                                "message_en": "The report is too large; narrow the range or the units."})
+
+
 def _wa_error(e: Any) -> ApiError:
     return ApiError(422, e.code, e.message, details={"fields": e.fields, "message_en": e.message_en})
 
@@ -461,6 +475,7 @@ def report_preview(units: str = Query(..., max_length=2000), range: str = Query(
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
+    _haccp_cap(layout, rows, lo, hi)
     model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples))
     return {**rep.preview_trim(model), "range_text": rep.range_text(model), "text_summary": rep.text_summary(model, external=bool(external)), "filename": rep.filename(model)}
 
@@ -474,6 +489,7 @@ def _render_pdf(conn: sqlite3.Connection, principal: Principal, units: str, rang
     ts = now_ts()
     lo, hi = _report_range(conn, range, start, end, ts)
     rows, doors = _report_units(conn, principal, [u for u in units.split(",") if u])
+    _haccp_cap(layout, rows, lo, hi)
     model = rep.build(conn, rows, doors, lo, hi, lang, ts, chart=bool(chart), events=bool(events), signature=bool(signature), layout=layout, samples=bool(samples),
                       people=people)
     try:

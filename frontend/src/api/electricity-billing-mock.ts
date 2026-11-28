@@ -792,6 +792,14 @@ export const mockBackend: ElecBackend = {
     t.versions = [newVersion(b), ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
     return tariff(id);
   },
+  async renameTariff(id, name) {
+    await tick();
+    guardManage();
+    const t = tariffs.find((x) => x.id === id);
+    if (!t) throw err(404, 'not_found', 'התעריף לא נמצא.');
+    t.name = name.trim();
+    return tariff(id);
+  },
   async correctTariffVersion(id, b, o) {
     await tick();
     guardManage();
@@ -802,7 +810,11 @@ export const mockBackend: ElecBackend = {
     const target = o.replaceId ? t.versions.find((v) => v.id === o.replaceId) : t.versions.find((v) => v.effective_from === b.effective_from);
     if (o.replaceId && !target) throw err(404, 'not_found', 'גרסת המחיר לא נמצאה.');
     if (!target) {
-      if (o.confirm) t.name = b.name.trim();
+      // FIX-UTIL-A-2570 (CU2-08): the server's rule - the same value as the version in force on that date is not a new version
+      const inForce = t.versions.filter((v) => v.effective_from <= b.effective_from).sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1))[0];
+      const same = inForce && inForce.price_mode === b.price_mode && (b.definition ? JSON.stringify(b.definition) === JSON.stringify(inForce.definition) : Number(b.price) === Number(inForce.price));
+      if (same) throw err(409, 'nothing_changed', 'לא בוצע שינוי במחיר.');
+      t.name = b.name.trim();
       t.versions = [newVersion(b), ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
       return { applied: true, plan: null };
     }

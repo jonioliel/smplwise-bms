@@ -572,6 +572,7 @@ export const en = {
   dayOk: 'OK',
   dayExc: 'Excursion',
   dayNone: 'No data',
+  dayPartial: 'Partial data',
   coverage: 'Coverage',
   repSignName: 'Manager name',
   widgetName: 'Temperatures',

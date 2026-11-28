@@ -6,12 +6,14 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 from typing import Any
 
 from ...audit import audit
 from ...config import Settings
 from ...db import get_setting, new_id, set_setting
 from ...errors import ApiError, field_error
+from ...test_reset import register_reset
 from ..maintenance import access as maccess
 from . import access, engine, model
 from .access import Viewer
@@ -344,6 +346,16 @@ def delete_contact(conn: sqlite3.Connection, viewer: Viewer, cid: str, request_i
 
 # ---------------------------------------------------------------- history (owner q207 c; kept one year, editable: q284)
 
+def _unchanged(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> bool:
+    """The newest history row already says this (same verdict, same item statuses) and is under a day old."""
+    items = {r["id"]: r["status"] for r in rows}
+    last = conn.execute("SELECT taken_at, verdict, items_json FROM emergency_readiness_history ORDER BY taken_at DESC LIMIT 1").fetchone()
+    if last is None:
+        return False
+    same = last["verdict"] == model.verdict(rows) and json.loads(last["items_json"] or "{}") == items
+    return same and (model.age_days(last["taken_at"], access.now_iso()) or 0) < 1
+
+
 def snapshot(conn: sqlite3.Connection, settings: Settings | None, *, force: bool = False) -> bool:
     """Store the installation-level truth when the verdict or any item's status changed (or at least once a day). Returns True when a row was written.
     Item ids and statuses only - never a fact, a name or a number."""
@@ -352,12 +364,9 @@ def snapshot(conn: sqlite3.Connection, settings: Settings | None, *, force: bool
     _ctx, rows = compute(conn, settings)
     items = {r["id"]: r["status"] for r in rows}
     verdict = model.verdict(rows)
-    last = conn.execute("SELECT taken_at, verdict, items_json FROM emergency_readiness_history ORDER BY taken_at DESC LIMIT 1").fetchone()
     now = access.now_iso()
-    if last is not None and not force:
-        same = last["verdict"] == verdict and json.loads(last["items_json"] or "{}") == items
-        if same and (model.age_days(last["taken_at"], now) or 0) < 1:
-            return False
+    if not force and _unchanged(conn, rows):
+        return False
     conn.execute("INSERT INTO emergency_readiness_history(id, taken_at, verdict, counts_json, items_json) VALUES (?,?,?,?,?)",
                  (new_id(), now, verdict, json.dumps(model.counts(rows)), json.dumps(items, sort_keys=True)))
     keep = int(model.merged_thresholds(_jload(conn, access.THRESHOLDS_KEY, {}))["history_keep_days"])
@@ -375,7 +384,31 @@ def history(conn: sqlite3.Connection, viewer: Viewer, days: int) -> dict[str, An
     return {"keep_days": keep, "days": days, "points": [{"at": r["taken_at"], "verdict": r["verdict"], "counts": json.loads(r["counts_json"] or "{}")} for r in rows]}
 
 
-def janitor(db: Any, settings: Settings | None) -> None:
-    """Called from the periodic housekeeping: nothing while the module is off."""
-    with db.connection() as conn:
+JANITOR_EVERY_S = 300
+_LAST: dict[str, float] = {"janitor": 0.0}
+
+
+def janitor(db: Any, settings: Settings | None, now: float | None = None) -> None:
+    """Called from the periodic housekeeping (every 30 s): nothing while the module is off. FIX-UTIL-A-2570 (review CU2-17): at most every
+    five minutes, the switch and the pass (which opens every backup's manifest) on a READ connection, and the installation-wide write lock
+    only when a history row is due."""
+    t = time.time() if now is None else now
+    if t - _LAST["janitor"] < JANITOR_EVERY_S:
+        return
+    _LAST["janitor"] = t
+    with db.connection(mode="read", label="emergency.janitor.read") as conn:
+        if not access.module_on(conn):
+            return
+        _ctx, rows = compute(conn, settings)
+        if _unchanged(conn, rows):
+            return
+    with db.connection(label="emergency.janitor") as conn:
         snapshot(conn, settings)
+
+
+def _reset_for_tests() -> None:
+    """Test seam: the janitor's throttle as a freshly started process has it (smplwise.test_reset; product code never calls it)."""
+    _LAST.update(janitor=0.0)
+
+
+register_reset(__name__, ("_LAST",), _reset_for_tests)

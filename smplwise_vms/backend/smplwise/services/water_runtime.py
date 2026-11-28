@@ -262,6 +262,14 @@ def _night_seen(conn: sqlite3.Connection, meter_id: str, window_start: str) -> b
     return False
 
 
+BASELINE_MIN_COVERAGE = 0.9
+
+
+def _day_s(day: dt.date, tz: Any) -> int:
+    a, b = st.day_bounds(day, tz)
+    return int(b - a)
+
+
 def judge_abnormal(store: st.EnergyStore, m: Any, rules: dict[str, Any], due: int, tz: Any) -> dict[str, Any] | None:
     """Today so far vs the median of the same weekday over the baseline (None = no rule: young meter, or no baseline day)."""
     created = _ts(m["created_at"]) or due
@@ -271,7 +279,10 @@ def judge_abnormal(store: st.EnergyStore, m: Any, rules: dict[str, Any], due: in
     start = st.day_bounds(today, tz)[0]
     days = int(rules["baseline_days"])
     rows = store.daily(m["id"], today - dt.timedelta(days=days), today)
-    base = [r[0] for d, r in rows.items() if d.weekday() == today.weekday() and r[1] > 0]
+    # FIX-UTIL-A-2570 (review CU2-25): a baseline day must be (almost) fully covered - a day the sampler or the meter was down for hours
+    # (or the meter's first, partial day) would pull the median down and raise a false "abnormal" warning; the day's length is the local
+    # day's (DST days are 23 / 25 hours)
+    base = [r[0] for d, r in rows.items() if d.weekday() == today.weekday() and r[1] >= BASELINE_MIN_COVERAGE * _day_s(d, tz)]
     if not base:
         return None
     median = float(statistics.median(base))
