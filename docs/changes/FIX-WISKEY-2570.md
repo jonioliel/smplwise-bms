@@ -52,9 +52,10 @@ Runner job `~/work/p2570_fixwiskey_run.sh` at `8751812d3` (the generated wire ty
 | eslint on the changed sources | - | rc=0 |
 | ruff on the changed backend files (PC) | - | clean |
 
-NOT_RUN: `tests/evidence-fix-wiskey-2570.spec.ts` (screenshots for the compare page) - queued on the runner
-(`~/work/p2570_fixwiskey_shots.sh`), not finished when this note was written; the compare page is therefore not made yet.
+`tests/evidence-fix-wiskey-2570.spec.ts` (runner job `~/work/p2570_fixwiskey_shots.sh`, desktop + phone, light + dark): after 8 passed;
+before (base sources) the banner and schedule tests fail on the missing new line, as expected. All 16 before / after screenshots taken.
 Full backend / e2e suites: NOT_RUN (the train gate runs them).
 
 ## Look
-Only new lines in failure states; no existing look changes, so no pixel baseline changes. Compare page: NOT made yet - the screenshot job is still queued on the runner (it writes `~/work/fixwiskey2570_shots/{before,after}`).
+Only new lines in failure states; no existing look changes, so no pixel baseline changes. Compare page (local, not committed): `private/planning/fix_wiskey_2570_compare_2026-11-28.html` with the screenshots in
+`private/planning/fix_wiskey_2570_shots/` (desktop + phone, light + dark, before / after).
