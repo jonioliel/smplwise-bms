@@ -186,6 +186,10 @@ def main_part_tr09():
     r = ge.anchor_check(res("crashed_bare", {f"gate_release-2540-train_{shas[2]}.json": bare_doc}), repo, head, BR, after_self, NOW,
                         quarantine=TMP / "no_quarantine.json")
     check("CD2-01 ... but not when the shard item names no files (a report of an older engine): FULL tier", not r["ok"] and "names no files" in r["why"], r)
+    # FIX-GATE-2570 (SA2-05 a): a full run whose test interpreter lacked a product requirement skipped those tests - no anchor
+    req_doc = report(shas[2], verdict="fail", items=[{"category": "requirements", "id": "paramiko: not installed", "status": "FAIL"}])
+    r = run(res("req_missing", {f"gate_release-2540-train_{shas[2]}.json": req_doc}))
+    check("SA2-05a a full run with a product requirement missing from the test interpreter is not an anchor", not r["ok"], r)
     nobe = {f"gate_release-2540-train_{shas[2]}.json": report(shas[2], backend=0)}
     check("TR-09 a full run in which the backend did not run is not an anchor", not run(res("nobe", nobe))["ok"])
     ngreen = {f"nightly/gate_main_{shas[1]}.json": report(shas[1], branch="main", hours_ago=10)}
