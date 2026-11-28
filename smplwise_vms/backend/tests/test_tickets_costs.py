@@ -556,3 +556,21 @@ def test_cost_submitted_and_cost_missing_notify_managers_with_costs_view_without
     assert _notes(s4, "ticket.cost_missing")[0]["state"] == "resolved", "a submission ends the 'not submitted' row"
     assert decide(s4, t["id"], "approve").status_code == 200
     assert _notes(s4, "ticket.cost_submitted")[0]["state"] == "resolved", "the decision ends the review row"
+
+
+def test_adjust_keeps_the_vat_rate_frozen_in_the_vendors_revision_tk2_01(s4):
+    """TK2-01: the VAT rate changes between the vendor's submission and the manager's correction; the corrected revision keeps the
+    rate of the revision it corrects (the dialog previews that rate), it is not re-taxed at today's setting."""
+    t, token, client, _ = done(s4)
+    assert submit(client, token).status_code == 201
+    base = _claim(s4, t["id"])["revisions"][0]
+    assert base["vat_rate_bp"] == 1800
+    r = s4.c.get(f"{API}/tickets/settings")
+    assert s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "costs": {"vat_rate_bp": 1700}}).status_code == 200
+    r = decide(s4, t["id"], "adjust", lines=[{"kind": "labor", "hours": "2", "rate": "150"}], amounts_include_vat=False, reason="תיקון שורה")
+    assert r.status_code == 200, r.text
+    c = _claim(s4, t["id"])
+    adj = c["revisions"][-1]
+    assert adj["kind"] == "adjustment" and adj["vat_rate_bp"] == 1800
+    assert (adj["subtotal_minor"], adj["vat_minor"], adj["total_minor"]) == (30000, 5400, 35400)
+    assert c["approved_total_minor"] == 35400
