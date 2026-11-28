@@ -43,7 +43,7 @@ function load(h: HomeHost, tab: AccountTab): void {
 /** The personal menu's "החשבון שלי" row. */
 export function accountMenuRow(h: HomeHost) {
   if (!accountOk(h)) return nothing;
-  return html`<button class="mrow" data-act="accOpen" data-home-account>${hi('shield')}<span>${tr('החשבון שלי')}</span>${hi('fwd')}</button>`;
+  return html`<button class="mrow" data-act="accOpen" data-home-account>${hi('shield')}<span>${tr('החשבון שלי')}</span>${hi('fwd', 'flip')}</button>`;
 }
 
 function body(tab: AccountTab) {

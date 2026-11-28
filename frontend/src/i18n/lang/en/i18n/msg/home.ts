@@ -895,7 +895,7 @@ export const en = {
   'מיזוג: ': 'Air conditioning: ',
   'מצלמה: ': 'Camera: ',
   'כל האורות': 'All the lights',
-  'חשמל היום': 'Electricity today',
+  'חשמל היום': 'Used today', // FIX-MAPS2-2570 (MH2-09): fits the tile at 360 px ("Electricity today" wrapped and was clipped)
   'הפעולה לא הצליחה.': 'The action did not succeed.',
   'חלק מהכיבוי לא הצליח.': 'Part of the switch-off did not succeed.',
   'האור כובה': 'The light was turned off',

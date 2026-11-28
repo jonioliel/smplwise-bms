@@ -69,6 +69,7 @@ import { confirmDialog } from '../components/confirm-dialog';
 import { explorePlanEditorStyles } from './explore-plan-editor-css';
 import { ToastController } from '../components/toast-controller';
 import { tr } from '../i18n/msg/plan-editor';
+import { PinSaveFlight, savePinsOnce } from './pin-save';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -177,6 +178,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private bundle: MapBundle | null = null;
   @state() private anchors: Anchor[] = [];
   @state() private dirty = new Set<string>();
+  /** FIX-MAPS2-2570 (MH2-03): the save button and Ctrl+S share one pin save at a time. */
+  private readonly pinSaves = new PinSaveFlight();
   @state() private undo: Anchor[][] = [];
   @state() private redo: Anchor[][] = [];
   @state() private selectedId: string | null = null;
@@ -1128,37 +1131,37 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
-  private async save(): Promise<boolean> {
+  private save(): Promise<boolean> {
+    return this.pinSaves.run(() => this.saveOnce(), () => this.dirty.size > 0);
+  }
+
+  private async saveOnce(): Promise<boolean> {
     if (!this.bundle || this.bundle.source === 'demo') {
       this.toaster.show(tr('נתוני הדגמה: השינויים נשמרים רק במסך זה.'), { ms: 0 });
       this.dirty = new Set();
       return true;
     }
     if (!this.dirty.size) return true;
+    const floorId = this.bundle.floorId;
     this.busy = true;
     this.error = '';
-    let conflict = false;
     try {
-      for (const id of this.dirty) {
-        const a = this.anchors.find((x) => x.id === id);
-        if (!a) continue;
-        try {
-          const saved = await updateAnchor(id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label,
-            coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null, label_pos: a.label_pos ?? 'auto', level_id: a.level_id ?? '',
-            mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null }, a.shared ? this.bundle.floorId : undefined);
-          this.anchors = this.anchors.map((x) => (x.id === id ? { ...x, revision: saved.revision } : x));
-        } catch (err) {
-          if (err instanceof ApiError && err.code === 'stale_revision') conflict = true;
-          else throw err;
-        }
-      }
+      const { conflict } = await savePinsOnce<Anchor>({
+        dirty: () => this.dirty,
+        anchor: (id) => this.anchors.find((x) => x.id === id),
+        send: async (a) => (await updateAnchor(a.id, { revision: a.revision, x: a.position.x, y: a.position.y, rotation_degrees: a.rotation_degrees, field_of_view_degrees: a.field_of_view_degrees, label: a.label,
+          coverage_radius: a.coverage_radius ?? null, coverage_polygon: a.coverage_polygon ?? null, label_pos: a.label_pos ?? 'auto', level_id: a.level_id ?? '',
+          mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null }, a.shared ? floorId : undefined)).revision,
+        landed: (id, revision) => (this.anchors = this.anchors.map((x) => (x.id === id ? { ...x, revision } : x))),
+        setDirty: (next) => (this.dirty = next),
+      });
       if (conflict) {
         this.error = tr('חלק מהפריטים השתנו בינתיים על ידי עורך אחר; המפה נטענה מחדש בלי לדרוס את השינוי שלו.');
         await this.load();
         return false;
       }
-      this.dirty = new Set();
-      this.flash(tr('המיקומים נשמרו'), 2500);
+      // MH2-03: a pin moved while the save ran stays unsaved (its mark stays) - the message says so instead of "saved"
+      this.flash(this.dirty.size ? tr('המיקומים נשמרו, חוץ ממה שהוזז בזמן השמירה - הוא עדיין לא נשמר.') : tr('המיקומים נשמרו'), 2500);
       return true;
     } catch (err) {
       this.error = describeError(err);

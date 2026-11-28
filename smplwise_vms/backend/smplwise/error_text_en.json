@@ -1696,6 +1696,7 @@
 "מסך הפתיחה אינו מוכר.": "Unknown start screen.",
 "מסך הקיר לא נמצא.": "The wall screen was not found.",
 "מסך הקיר נעול לחדר שלו. היציאה ממנו סגורה בהגדרות ההתקנה.": "The wall screen is locked to its room. Exiting it is closed off in the installation settings.",
+"מסך הקיר נשמר בינתיים על ידי מנהל אחר. טענו מחדש והחילו שוב את השינוי.": "The wall display was saved meanwhile by another administrator. Reload and apply your change again.",
 "מסך קיר אינו מקבל הרשאה לפתיחת דלתות.": "A wall screen is not granted permission to open doors.",
 "מסך קיר צריך חדר קבוע.": "A wall screen needs a fixed room.",
 "מסכה פעילה צריכה לפחות אזור אחד.": "An active mask needs at least one area.",

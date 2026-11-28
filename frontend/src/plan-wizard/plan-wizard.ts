@@ -25,6 +25,7 @@ import { fromResult, rescale, type CandidateSet } from '../map/candidates';
 import { effectiveScale, type GeometryDoc } from '../map/geometry';
 import { buildScene, type SceneDescription } from '../map/scene-builder';
 import { MATERIALS } from '../map/material-resolve';
+import { areaOfName, otherBuildingArea, saveWizardRooms } from './wizard-rooms';
 import { wizardBackend, type CreatedRoom, type Draft, type PublishResult, type ResumeInfo, type SceneCatalog, type UploadedPlan, type VersionInfo, type WizardBackend } from './wizard-backend';
 import {
   CAMERA_PLACED_HE, KITS, OPENING_CHOICES, ROOM_TYPES, WALL_CHOICES, WHERE_HE, WIZARD_DEFAULTS, applyKit, bandCounts, bandOf, cameraPlacements, detectedChoice, detectedText,
@@ -107,7 +108,10 @@ export class PlanWizardScreen extends LitElement {
   @state() private roomFocus: number | null = null;
   @state() private existingAuto = 0;
   @state() private replaceAuto = false;
-  @state() private areas: { area_id: string; name: string }[] = [];
+  @state() private areas: { area_id: string; name: string; building_id?: string | null }[] = [];
+  /** FIX-MAPS2-2570 (MH2-04): the floor's building (rooms link only to its areas) and the names of every building (for the hint). */
+  private buildingId: string | null = null;
+  private buildingNames = new Map<string, string>();
   @state() private created: CreatedRoom[] = [];
   // style
   @state() private kit: KitId = 'apartment';
@@ -170,6 +174,8 @@ export class PlanWizardScreen extends LitElement {
       this.kit = prefs.kit;
       this.furniture = prefs.furniture && prefs.kit !== 'empty';
       const hit = findFloor(tree, this.floorId);
+      this.buildingId = hit?.building.id ?? null;
+      this.buildingNames = new Map(tree.sites.flatMap((st) => (st.buildings ?? []).map((bd) => [bd.id, bd.name] as const)));
       if (hit) {
         this.floor = {
           name: hit.floor.name, crumb: `${hit.site.name} · ${hit.building.name}`, hasPlan: hit.floor.has_plan,
@@ -466,8 +472,13 @@ export class PlanWizardScreen extends LitElement {
   // ------------------------------------------------------------ step 4: rooms
 
   private areaOf(name: string): string | null {
-    const n = name.trim();
-    return n ? (this.areas.find((a) => a.name === n)?.area_id ?? null) : null;
+    return areaOfName(this.areas, name, this.buildingId);
+  }
+
+  /** MH2-04: the name of another building whose area has exactly this name (it is not linked; the field says why). */
+  private otherBuildingOf(name: string): string | null {
+    const a = otherBuildingArea(this.areas, name, this.buildingId);
+    return a?.building_id ? (this.buildingNames.get(a.building_id) ?? a.building_id) : null;
   }
 
   private setRoom(i: number, patch: Partial<RoomRow>) {
@@ -491,10 +502,8 @@ export class PlanWizardScreen extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const list = this.rooms.map((r, i) => ({ polygon: r.polygon, name: r.name.trim() || fallbackRoomName(i), kind: roomType(r.typeId).kind }));
-      const made = await b.acceptRooms(list, this.replaceAuto, this.created.map((c) => c.id));
-      for (let i = 0; i < made.length; i++) await b.tagRoom(made[i], roomType(this.rooms[i]?.typeId).tags, this.areaOf(this.rooms[i]?.name ?? ''));
-      this.created = made;
+      const rows = this.rooms.map((r, i) => ({ polygon: r.polygon, name: r.name.trim() || fallbackRoomName(i), kind: roomType(r.typeId).kind, tags: roomType(r.typeId).tags, areaId: this.areaOf(r.name) }));
+      await saveWizardRooms(b, rows, this.replaceAuto, this.created, (made) => (this.created = made));
       this.step = 5;
       void this.loadThree();
     } catch (err) {
@@ -931,12 +940,13 @@ export class PlanWizardScreen extends LitElement {
     const page = Math.min(this.roomsPage, pages - 1);
     const unnamed = this.rooms.filter((r) => !r.name.trim()).length;
     return html`<h2>${tr('שמות החדרים')}</h2><p>${this.rooms.length ? tr('נמצאו {n} חדרים סגורים. תן שם לכל אחד, או בחר שם של אזור שכבר קיים במערכת כדי לקשר אליו.', { n: this.rooms.length }) : tr('לא נמצאו חדרים סגורים. אפשר להמשיך ולסמן חדרים אחר כך בסטודיו.')}</p>
-      <datalist id="wz-areas">${this.areas.map((a) => html`<option value=${a.name}></option>`)}</datalist>
+      <datalist id="wz-areas">${this.areas.filter((a) => !this.buildingId || !a.building_id || a.building_id === this.buildingId).map((a) => html`<option value=${a.name}></option>`)}</datalist>
       <div class="rooms" data-wz-rooms>${this.rooms.slice(page * size, page * size + size).map((r, k) => {
         const i = page * size + k;
         const linked = !!this.areaOf(r.name);
+        const elsewhere = linked ? null : this.otherBuildingOf(r.name);
         return html`<div class="rrow"><i style="background:${roomColour(i)}"></i>
-          <input type="text" list="wz-areas" data-room-name=${i} class="${r.name.trim() ? (linked ? 'linked' : '') : 'empty'}" .value=${r.name} placeholder=${tr('{room}: שם', { room: fallbackRoomName(i) })} aria-label=${tr('שם חדר {n}', { n: i + 1 })} title=${linked ? tr('מקושר לאזור קיים') : ''}
+          <input type="text" list="wz-areas" data-room-name=${i} class="${r.name.trim() ? (linked ? 'linked' : '') : 'empty'}" .value=${r.name} placeholder=${tr('{room}: שם', { room: fallbackRoomName(i) })} aria-label=${tr('שם חדר {n}', { n: i + 1 })} title=${linked ? tr('מקושר לאזור קיים') : elsewhere ? tr('יש אזור בשם הזה ב{building} - החדר לא יקושר אליו', { building: elsewhere }) : ''} data-wz-elsewhere=${elsewhere ?? nothing}
             @focus=${() => (this.roomFocus = i)} @input=${(e: Event) => this.setRoom(i, { name: (e.target as HTMLInputElement).value })} />
           <select aria-label=${tr('סוג חדר {n}', { n: i + 1 })} .value=${r.typeId} @change=${(e: Event) => this.setRoom(i, { typeId: (e.target as HTMLSelectElement).value })}>${ROOM_TYPES.map((t) => html`<option value=${t.id} ?selected=${t.id === r.typeId}>${t.id === 'other' ? tr('סוג') : t.he}</option>`)}</select>
         </div>`;

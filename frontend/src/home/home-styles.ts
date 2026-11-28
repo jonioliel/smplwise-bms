@@ -128,7 +128,11 @@ sw-segmented::part(key):focus-visible {outline: 3px solid var(--hs-focus); outli
 .bar.wrap {flex-wrap: wrap;}
 .hs h2, .ovl h2 {font-size: var(--f-h2); font-weight: 600; color: var(--hs-heading); line-height: 1.3;}
 .pager {display: flex; align-items: center; justify-content: center; gap: 14px; flex: none;}
-.pager .pg {font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 76px; text-align: center; direction: rtl;}
+.pager .pg {font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 76px; text-align: center;}
+/* FIX-MAPS2-2570 (MH2-08): the pager's words follow the language (right to left in Hebrew, "1 out of 2" left to right in English; the numbers
+   are isolated .num spans), and a directional chevron (hi(name, 'flip'): back / forward, previous / next) is drawn for right to left
+   and mirrored in English. Only these icons: video and map geometry are never mirrored, nor are the keypads' delete keys. */
+.hi.flip:dir(ltr) {scale: -1 1;}
 .empty {flex: 1; display: grid; justify-items: center; align-content: center; gap: 8px; text-align: center; color: var(--hs-text-2); padding: 24px; grid-column: 1 / -1; grid-row: 1 / -1;}
 .empty .hi {inline-size: 44px; block-size: 44px; color: var(--hs-text-3); margin-block-end: 6px;}
 .empty p {max-inline-size: 36ch; font-size: var(--f-body);}
@@ -861,6 +865,8 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .hs.v2 .dial-wrap {inline-size: min(100%, 26vh);}
 .hs-head .acts .hbtn {max-inline-size: 38vw;}
 .wg-c.en1 .wg-k {font-size: 12px;}
+/* FIX-MAPS2-2570 (MH2-09): the label stays on one line inside the tile (a longer language ends with an ellipsis, never clipped) */
+.wg-c.en1 {grid-template-columns: minmax(0, 1fr);}
 .wg-c.en1 .muted {font-size: 12px;}
 }
 .nb-ml {font-size: var(--f-sm); color: var(--hs-text-2); flex: none;}

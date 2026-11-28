@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import Database, get_setting, now_iso, set_setting
-from ..errors import ApiError, field_error, forbidden, not_found, validation_payload
+from ..errors import ApiError, conflict, field_error, forbidden, not_found, validation_payload
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services import revocation, wall, wall_alerts, wall_photos
 from ..services import wall_store as store
@@ -186,6 +186,9 @@ class ProfilePatch(BaseModel):
     # every device.
     desktop: StrictBool | None = None
     config: dict[str, Any] | None = None  # a partial WallConfig, merged and validated in full
+    # FIX-MAPS2-2570 (deep review 2.57 MH2-05): the profile version the dialog loaded. Sent -> a profile saved meanwhile is a 409
+    # `stale_version` and nothing is written; absent -> exactly as before (additive).
+    version: int | None = Field(default=None, ge=1)
 
 
 class WallSettingsPatch(BaseModel):
@@ -348,6 +351,11 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
     row = wall.profile_row(conn, user_id)
     if row is None:
         raise not_found("מסך הקיר לא נמצא.")
+    if body.version is not None and body.version != int(row["version"]):
+        audit(conn, actor=principal, action="wall.profile.update", decision="denied", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
+              reason="stale_version", details={"sent_version": body.version, "current_version": int(row["version"])})
+        raise conflict("stale_version", "מסך הקיר נשמר בינתיים על ידי מנהל אחר. טענו מחדש והחילו שוב את השינוי.",
+                       current_version=int(row["version"]), sent_version=body.version)
     old_cfg = wall.config_of(row)
     cfg = old_cfg
     if body.config is not None:

@@ -62,7 +62,8 @@ export const listWallProfiles = () => get<Omit<Wire.WallProfiles, 'profiles' | '
 export const patchWallSettings = (body: { foldable_open: WallFoldableOpen }) => patch<Wire.WallSettings>('wall/settings', body);
 export const wallCandidates = () => get<Wire.WallCandidates>('wall/candidates');
 export const createWallProfile = (body: { user_id: string; title: string; floor_id?: string | null; area_id?: string | null; cameras?: string[] }) => post<WallProfile>('wall/profiles', body);
-export const patchWallProfile = (userId: string, body: { title?: string; area_id?: string | null; enabled?: boolean; remote_allowed?: boolean; desktop?: boolean; config?: Partial<Record<keyof WallConfig, unknown>> }) =>
+/** `version` (FIX-MAPS2-2570, MH2-05): the profile version the dialog loaded - a profile saved meanwhile answers 409 `stale_version`. */
+export const patchWallProfile = (userId: string, body: { title?: string; area_id?: string | null; enabled?: boolean; remote_allowed?: boolean; desktop?: boolean; config?: Partial<Record<keyof WallConfig, unknown>>; version?: number }) =>
   patch<WallProfile>(`wall/profiles/${encodeURIComponent(userId)}`, body);
 export const removeWallProfile = (userId: string) => del(`wall/profiles/${encodeURIComponent(userId)}`);
 

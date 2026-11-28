@@ -91,8 +91,12 @@ def list_entities(
     include_disabled: bool = False,
     limit: int = Query(500, ge=1, le=2000),
     building: str | None = Query(None, max_length=120),
+    area_buildings: bool = False,
 ) -> dict[str, Any]:
     """The catalogue: everything for installation-wide readers, only placed entities on visible floors otherwise.
+    FIX-MAPS2-2570 (deep review 2.57 MH2-04): `area_buildings=true` adds each listed area's `building_id` - the building the building cut
+    puts it in (services/building_scope.area_buildings), null = no building yet - so the plan wizard links a room only to an area of its
+    own building. Read-only, the areas the caller already sees; without the parameter the answer is as before.
     MULTI-BUILDING-NEXT-2500: on a multi-building site `building` keeps the entities whose area serves that building (the plan editor's
     device search; services/building_filter - display only, after the visibility rule above, never widens)."""
     wide, floors = _visible_floors(conn, principal, "entity.state.read")
@@ -138,6 +142,9 @@ def list_entities(
             if r["area_id"] is not None:
                 seen_areas[r["area_id"]] = {"area_id": r["area_id"], "area_name": r["area_name"]}
         areas = sorted(seen_areas.values(), key=lambda a: a["area_name"] or "")
+    if area_buildings and areas:
+        where = building_scope.area_buildings(conn)
+        areas = [{**a, "building_id": where.get(a["area_id"])} for a in areas]
     answer: dict[str, Any] = {"entities": out, "domains": domains, "areas": areas, "sync": ha_sync.STATE.as_dict(), "can_control": authorize(conn, principal, "ha.entity.control", INSTALLATION).allowed or bool(_visible_floors(conn, principal, "ha.entity.control")[1])}
     bf = building_filter.prepare(conn, building)
     if bf is not None:
