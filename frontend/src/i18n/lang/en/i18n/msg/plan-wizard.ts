@@ -231,4 +231,9 @@ export const en = {
   'ברירת המחדל: מעל 80% נכנס, בין 50% ל־80% לבדיקה ונכנס כמו שזוהה אם דילגת, מתחת ל־50% לא נכנס בלי אישור.':
     'The default: above 80% is included, between 50% and 80% is for review and included as detected if you skipped it, below 50% is not included without approval.',
   'ברירת מחדל': 'Default',
+  // FIX-MAPS2-2570
+  'החדרים נשמרו, אבל {n} מהם נשארו בלי סוג או קישור לאזור ({names}): {error}. שמירה נוספת תחליף אותם, בלי כפילות.':
+    'The rooms were saved, but {n} of them were left without a type or an area link ({names}): {error}. Saving again replaces them, without duplicates.',
+  'יש אזור בשם הזה ב{building} - החדר לא יקושר אליו':
+    'An area of this name is in {building} - the room will not be linked to it',
 };

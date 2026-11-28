@@ -161,7 +161,8 @@ export interface HaIntegrationStatus {
 export interface HaCatalogue {
   entities: HaEntity[];
   domains: Record<string, number>;
-  areas: { area_id: string; area_name: string | null }[];
+  /** `building_id` (FIX-MAPS2-2570): only with `areaBuildings` - the building the server's building cut puts the area in, null = none. */
+  areas: { area_id: string; area_name: string | null; building_id?: string | null }[];
   sync: HaSyncState;
   can_control: boolean;
   /** MULTI-BUILDING-NEXT-2500: only on a multi-building site, when the request named a building or the entities sit in two or more. */
@@ -169,7 +170,7 @@ export interface HaCatalogue {
 }
 
 /** `building` (MULTI-BUILDING-NEXT-2500): keep one building's entities - the server ignores it while the multi-building filter is off. */
-export function listEntities(opts: { domain?: string; q?: string; area?: string; placed?: boolean; includeDisabled?: boolean; limit?: number; building?: string } = {}) {
+export function listEntities(opts: { domain?: string; q?: string; area?: string; placed?: boolean; includeDisabled?: boolean; limit?: number; building?: string; areaBuildings?: boolean } = {}) {
   const p = new URLSearchParams();
   if (opts.domain) p.set('domain', opts.domain);
   if (opts.building) p.set('building', opts.building);
@@ -178,6 +179,7 @@ export function listEntities(opts: { domain?: string; q?: string; area?: string;
   if (opts.placed !== undefined) p.set('placed', String(opts.placed));
   if (opts.includeDisabled) p.set('include_disabled', 'true');
   if (opts.limit) p.set('limit', String(opts.limit));
+  if (opts.areaBuildings) p.set('area_buildings', 'true');
   const qs = p.toString();
   return get<HaCatalogue>(`ha/entities${qs ? `?${qs}` : ''}`);
 }

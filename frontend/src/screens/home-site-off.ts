@@ -10,7 +10,7 @@ import { BULK_KIND_LABEL, followBulk, previewBulk, runBulk, type BulkKind, type 
 import type { BulkTarget } from '../api/home-site';
 import { ltrNum } from '../i18n/bidi';
 import { tr } from '../i18n/msg/screens';
-import { siteOffHeadline, startSiteRuns } from './site-off-run';
+import { SiteRunError, siteOffHeadline, startSiteRuns } from './site-off-run';
 
 /** One building of the dialog: its requests (api/home-site.ts bulkTargets) and the tree's hint of what is on. */
 export interface SiteOffBuilding {
@@ -44,6 +44,8 @@ export class HomeSiteOff extends LitElement {
   @state() private previews: { b: string; p: BulkPreview }[] = [];
   @state() private records: BulkRecord[] = [];
   @state() private error = '';
+  /** MH2-02: a later building's request failed after earlier buildings' runs were started: what was and was not sent. */
+  @state() private failNote = '';
   private follow: { stopped: boolean } | null = null;
 
   static styles = css`
@@ -177,6 +179,7 @@ export class HomeSiteOff extends LitElement {
     this.previews = [];
     this.records = [];
     this.error = '';
+    this.failNote = '';
     this.phase = 'pick';
     if (o.single) void this.load();
   }
@@ -214,19 +217,45 @@ export class HomeSiteOff extends LitElement {
   private async confirm() {
     if (this.phase !== 'confirm' || !isApi() || (!this.single && this.chosen().length > 1 && !this.ack)) return;
     this.phase = 'running';
+    this.failNote = '';
+    let first: BulkRecord[];
     try {
-      const first = await startSiteRuns(this.previews, (p) => runBulk(p.scope, p.id, this.kind, p.digest, undefined, undefined, undefined, p.building_id), (r) => (this.records = r));
+      first = await startSiteRuns(this.previews, (p) => runBulk(p.scope, p.id, this.kind, p.digest, undefined, undefined, undefined, p.building_id), (r) => (this.records = r));
+    } catch (err) {
+      const why = err instanceof SiteRunError ? err.reason : err;
+      const text = why instanceof ApiError && why.code === 'target_changed'
+        ? tr('רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן חלק מהפקודות לא נשלחו. פתחו את הפעולה מחדש.')
+        : describeError(why);
+      if (!(err instanceof SiteRunError) || !err.started.length) {
+        this.error = text;
+        this.phase = 'error';
+        this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
+        return;
+      }
+      // MH2-02: earlier buildings' runs are already on their way on the server - they are shown and followed to the end; the buildings
+      // from the failed one on got nothing (no retry, no queue)
+      first = err.started;
+      const sentTo = [...new Set(this.previews.slice(0, err.started.length).map((x) => x.b))];
+      const rest = err.notSent.filter((b) => b !== err.building && !sentTo.includes(b));
+      this.failNote = [
+        tr('נשלח אל: {sent}.', { sent: this.namesOf(sentTo) }),
+        tr('הבקשה של {failed} נכשלה, וממנה והלאה לא נשלח דבר: {error}', { failed: this.namesOf([err.building]), error: text }),
+        rest.length ? tr('לא נשלח דבר אל: {names}.', { names: this.namesOf(rest) }) : '',
+      ].filter(Boolean).join(' ');
+    }
+    try {
       this.follow = { stopped: false };
       await Promise.all(first.map((r, i) => followBulk(r, (n) => (this.records = this.records.map((o, j) => (j === i ? n : o))), this.follow!)));
       this.phase = 'result';
-      this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
     } catch (err) {
-      this.error = err instanceof ApiError && err.code === 'target_changed'
-        ? tr('רשימת ההתקנים השתנתה מאז שנפתח החלון, ולכן חלק מהפקודות לא נשלחו. פתחו את הפעולה מחדש.')
-        : describeError(err);
+      this.error = [this.failNote, describeError(err)].filter(Boolean).join(' ');
       this.phase = 'error';
-      this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
     }
+    this.dispatchEvent(new CustomEvent('bulk-done', { bubbles: true, composed: true }));
+  }
+
+  private namesOf(ids: readonly string[]): string {
+    return ids.map((id) => this.buildings.find((b) => b.id === id)?.name ?? id).join(', ');
   }
 
   disconnectedCallback() {
@@ -282,6 +311,7 @@ export class HomeSiteOff extends LitElement {
         ${head.text}
       </div>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${ok} aria-label=${tr('אושרו')}><div style=${`inline-size:${pct}%`}></div></div>
+      ${this.failNote ? html`<div class="err" data-site-off-not-sent>${this.failNote}</div>` : nothing}
       <div class="muted">${done ? tr('התקן ייחשב כבוי רק כשיתקבל דיווח על כך.') : tr('אפשר לסגור את החלון; הפעולה ממשיכה בשרת.')}</div>
       <div class="actions">${cancel(tr('סגור'))}</div>`;
   }

@@ -698,4 +698,7 @@ export const en = {
   'התקנים · {ents}': 'Devices · {ents}',
   'אזורים · {zonesCount}': 'Zones · {zonesCount}',
   'אזור': 'Zone',
+  // FIX-MAPS2-2570
+  'המיקומים נשמרו, חוץ ממה שהוזז בזמן השמירה - הוא עדיין לא נשמר.':
+    'The positions were saved, except what was moved during the save - it is not saved yet.',
 };

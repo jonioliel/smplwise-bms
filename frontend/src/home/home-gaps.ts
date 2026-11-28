@@ -20,7 +20,7 @@ export function gapAlertActs(h: HomeHost) {
 /** The personal menu's "ההתראות שלי" row (not on a locked wall panel: it has no phone of its own). */
 export function gapMenuRow(h: HomeHost) {
   if (!h.extFor('notif') || h.kioskLocked()) return nothing;
-  return html`<a class="mrow" href=${h.href('notif')} data-act="closeNav" data-gap-menu-notif>${hi('bell')}<span>${tr('ההתראות שלי')}</span>${hi('fwd')}</a>`;
+  return html`<a class="mrow" href=${h.href('notif')} data-act="closeNav" data-gap-menu-notif>${hi('bell')}<span>${tr('ההתראות שלי')}</span>${hi('fwd', 'flip')}</a>`;
 }
 
 /** "פתח פנייה לאינסטלטור" / "דווח על תקלה": shown only when a ticket can be opened from here. */

@@ -411,4 +411,9 @@ export const en = {
   'מסדרון מזרחי': 'East corridor',
   'חניה': 'Parking',
   'יוני': 'Yoni',
+  // FIX-MAPS2-2570
+  'נשלח אל: {sent}.': 'Sent to: {sent}.',
+  'הבקשה של {failed} נכשלה, וממנה והלאה לא נשלח דבר: {error}':
+    'The request for {failed} failed, and nothing was sent from there on: {error}',
+  'לא נשלח דבר אל: {names}.': 'Nothing was sent to: {names}.',
 };

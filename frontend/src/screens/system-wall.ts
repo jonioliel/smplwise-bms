@@ -244,7 +244,8 @@ export class SystemWall extends LitElement {
     if (!this.editing || !this.draft) return;
     this.busy = true;
     try {
-      await patchWallProfile(this.editing.user_id, { title: this.draft.title.trim() || this.editing.title, enabled: this.draft.enabled, remote_allowed: this.draft.remote, desktop: this.draft.desktop, config: this.draft.config as unknown as Record<string, unknown> });
+      // FIX-MAPS2-2570 (MH2-05): the version the dialog loaded - another administrator's save in between is a 409, never undone silently
+      await patchWallProfile(this.editing.user_id, { title: this.draft.title.trim() || this.editing.title, enabled: this.draft.enabled, remote_allowed: this.draft.remote, desktop: this.draft.desktop, config: this.draft.config as unknown as Record<string, unknown>, version: this.editing.version });
       this.editing = null;
       this.draft = null;
       await this.load(true);

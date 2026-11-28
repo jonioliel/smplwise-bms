@@ -95,7 +95,8 @@ export interface WizardBackend {
   detectRooms(): Promise<{ rooms: RoomCandidateIn[]; existingAuto: number }>;
   acceptRooms(rooms: { polygon: { x: number; y: number }[]; name: string; kind: ZoneKind }[], replaceAuto: boolean, dropFirst: string[]): Promise<CreatedRoom[]>;
   tagRoom(room: CreatedRoom, tags: string[], areaId: string | null): Promise<void>;
-  areas(): Promise<{ area_id: string; name: string }[]>;
+  /** FIX-MAPS2-2570 (MH2-04): `building_id` = the building the server puts the area in (null = none yet; absent from an older server). */
+  areas(): Promise<{ area_id: string; name: string; building_id?: string | null }[]>;
   saveDraft(versionId: string, doc: GeometryDoc, revision: number): Promise<Draft>;
   entities(): Promise<PlaceEntity[]>;
   catalog(): Promise<SceneCatalog>;
@@ -168,8 +169,8 @@ class ApiBackend implements WizardBackend {
     await updateZone(room.id, { revision: room.revision, tags, ...(areaId ? { area_id: areaId } : {}) });
   }
   async areas() {
-    const r = await listEntities({ limit: 1 });
-    return r.areas.filter((a) => a.area_name).map((a) => ({ area_id: a.area_id, name: a.area_name as string }));
+    const r = await listEntities({ limit: 1, areaBuildings: true });
+    return r.areas.filter((a) => a.area_name).map((a) => ({ area_id: a.area_id, name: a.area_name as string, building_id: a.building_id ?? null }));
   }
   async saveDraft(versionId: string, doc: GeometryDoc, revision: number) {
     const r = await saveGeometryDraft(versionId, doc, revision);

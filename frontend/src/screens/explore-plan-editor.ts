@@ -1160,7 +1160,8 @@ export class ExplorePlanEditor extends LitElement {
         await this.load();
         return false;
       }
-      this.flash(tr('המיקומים נשמרו'), 2500);
+      // MH2-03: a pin moved while the save ran stays unsaved (its mark stays) - the message says so instead of "saved"
+      this.flash(this.dirty.size ? tr('המיקומים נשמרו, חוץ ממה שהוזז בזמן השמירה - הוא עדיין לא נשמר.') : tr('המיקומים נשמרו'), 2500);
       return true;
     } catch (err) {
       this.error = describeError(err);

@@ -112,6 +112,8 @@ class HaEntitiesEntity(ExactModel):
 class HaEntitiesArea(ExactModel):
     area_id: str
     area_name: str
+    # FIX-MAPS2-2570 (MH2-04): only with `area_buildings=true` - the area's building, null = none yet
+    building_id: str | None = None
 
 
 class HaEntitiesSync(ExactModel):

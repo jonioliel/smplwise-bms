@@ -62,7 +62,11 @@ def _last_test(conn: sqlite3.Connection) -> dict[str, Any] | None:
 
 @router.get("/skins/status")
 def skins_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """Everything the settings section shows - never the key, only whether it is configured."""
+    """Everything the settings section shows - never the key, only whether it is configured.
+    FIX-MAPS2-2570 (deep review 2.57 MH2-06): system settings information (the render key's presence, the provider, the budget and the
+    last connection test) - `system.configure` on the installation, like the test and the settings it describes; anyone else (a viewer,
+    an editor, a wall / kiosk user, a home-only resident) gets the audited 403."""
+    require(conn, principal, P_SYSTEM, INSTALLATION)
     s = read_settings(conn)
     key_configured = bool(settings_of(request).openai_api_key)
     p = prov.OpenAIImageProvider(None, s["skins.model"])  # describes itself only; without a key it cannot send
