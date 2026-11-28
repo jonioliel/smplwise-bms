@@ -28,13 +28,13 @@ All on the runner (slot B). "Before" = commit `dd3aac4ab` (the extraction step: 
 | What | Before | After |
 |---|---|---|
 | `tests/unit-fix-maps2-2570.spec.ts` (8 tests, MH2-01..04) | 8 failed (at `dd3aac4ab`) | 8 passed (at `681223b43`) |
-| `tests/test_fix_maps2_2570.py` (5 tests, MH2-04/05/06) | 4 failed, 1 passed (the no-version wall save, by design) | at `681223b43`: 4 passed, 1 failed (test bug: `empty_room` has no entities, so it is not in the area list); test corrected in `e24f6c1f9` - its re-run was queued, NOT_RUN at the time of this note |
+| `tests/test_fix_maps2_2570.py` (5 tests, MH2-04/05/06) | 4 failed, 1 passed (the no-version wall save, by design) | 5 passed at the final head `f65f94aa5` (with `test_ha.py`: 10 passed) |
 | Evidence checks MH2-08 / MH2-09 (`evidence-fix-maps2-2570.spec.ts`, phone 360 px) | 2 failed (base `6d2a01ad4`) | 2 passed |
 | Full node unit lane (`playwright.unit.config.ts --workers=2`) | - | 5556 passed, 16 skipped, 0 failed (at `681223b43`) |
 | `tsc` app + tests, `eslint` on the changed files | - | exit 0 / 0 / 0 |
 | `gen_wire_types.py` | - | no diff after regeneration (`wire-ha.ts` committed) |
-| Backend related files (SW_WIRE_STRICT=1): `test_wall` + `test_wall_alerts`; `test_plan_skins` + `test_secrets_store` | - | 23 passed; 45 passed |
-| Backend `test_mb_next_2500`, `test_building_scope_control_2351`, `test_plan_wizard_api_2434`, `test_i18n_errors_en_2520`, wire drift / ratchet / route coverage | - | passed at `88197cea7` (15 / 14 / 27 passed); the `681223b43` re-run was still running - NOT_RUN for the final head |
+| Backend related files (SW_WIRE_STRICT=1): `test_wall` + `test_wall_alerts`; `test_plan_skins` + `test_secrets_store` | - | at `f65f94aa5`: 23 passed; 45 passed |
+| Backend `test_mb_next_2500` + `test_building_scope_control_2351`; `test_plan_wizard_api_2434` + `test_i18n_errors_en_2520`; wire drift / ratchet / route coverage | - | at `f65f94aa5`: 15 passed; 14 passed; 27 passed |
 | Pixel specs: `pixel-home-*` (5 files), `pixel-plan-wizard-2433/2434`, `pixel-wall-followups-2390` | - | 78 passed, 54 skipped (Hebrew look unchanged, no baseline refreshed) |
 
 NOT_RUN: page-driving unit specs (`SW_UNIT_PAGES=1`), the full evidence / layout suites, the full backend suite, tablet size.
@@ -48,3 +48,4 @@ Compare page: `private/planning/fix_maps2_2570_compare_2026-11-28.html` (desktop
 - The site turn-off dialog pictures on the compare page are rendered from a state set on the element (the flow itself is covered by the
   unit spec); the home pictures are the real screen with the home mocks.
 - Rollback: revert the branch's commits; the API additions are optional parameters / keys (an older client never sends them).
+- Lead decisions 28.11: the English energy label stays "Used today"; the final head was re-run before merge (all green above).
