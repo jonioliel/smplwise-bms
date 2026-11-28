@@ -83,14 +83,14 @@ test.describe('FIX-VIDEO-2570 camera OSD (SCR-29)', () => {
     await expect.poll(() => m.puts.length).toBe(1);
     expect(m.puts[0]).toEqual({ date_style: 'DD-MM-YYYY' });
     await expect(cam(page).locator('[data-osd-msg]')).toContainText('סירב');
-    await expect(cam(page).locator('[data-osd-msg]')).toHaveAttribute('data-osd-outcome', 'refused');
     await expect(sel).toBeEnabled();
     await expect(sel).toHaveValue('YYYY-MM-DD');
+    await expect(cam(page).locator('[data-osd-msg]')).toHaveAttribute('data-osd-outcome', 'refused');
     // an accepted change shows the new format (read back from the NVR)
     m.mode = 'ok';
     await sel.selectOption('DD-MM-YYYY');
     await expect.poll(() => m.puts.length).toBe(2);
-    await expect(cam(page).locator('[data-osd-msg]')).toHaveAttribute('data-osd-outcome', 'ok');
+    await expect(cam(page).locator('[data-osd-msg]')).toContainText('נכתב למקליט');
     await expect(sel).toHaveValue('DD-MM-YYYY');
   });
 
@@ -105,10 +105,10 @@ test.describe('FIX-VIDEO-2570 camera OSD (SCR-29)', () => {
       await btn.click();
       await expect.poll(() => m.puts.length).toBe(before.puts + 1);
       const msg = cam(page).locator('[data-osd-msg]');
-      await expect(msg).toHaveAttribute('data-osd-outcome', 'unknown');
       await expect(msg).toContainText('לא ידוע');
       await expect(msg).not.toContainText('נכשל');
       await expect.poll(() => m.gets).toBeGreaterThan(before.gets); // the switch shows what the NVR reports now
+      await expect(msg).toHaveAttribute('data-osd-outcome', 'unknown');
       await expect(btn).toBeEnabled();
       await expect(btn).toHaveAttribute('aria-checked', 'false');
       await page.waitForTimeout(500);
@@ -124,7 +124,7 @@ test.describe('FIX-VIDEO-2570 camera OSD (SCR-29)', () => {
     await btn.click();
     await btn.click({ force: true }).catch(() => undefined); // a second tap while the first write is on its way
     await cam(page).locator('[data-osd-name-enabled]').locator('xpath=..').click({ force: true }).catch(() => undefined); // and a tap on the label text
-    await expect(cam(page).locator('[data-osd-msg]')).toHaveAttribute('data-osd-outcome', 'ok');
+    await expect(cam(page).locator('[data-osd-msg]')).toContainText('נכתב למקליט');
     expect(m.puts).toEqual([{ name_enabled: true }]);
     await expect(btn).toHaveAttribute('aria-checked', 'true');
   });
