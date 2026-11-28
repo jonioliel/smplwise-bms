@@ -9,6 +9,7 @@ export interface BuildingPresenceAreaPresenceLine {
   line: boolean;
   sensors: BuildingPresenceAreaPresenceLineSensors | null;
   people: BuildingPresenceAreaPresenceLinePeople | null;
+  time_zone?: string;
 }
 
 export interface BuildingPresenceAreaPresenceLinePeople {
@@ -68,6 +69,7 @@ export interface BuildingPresenceBuildingSnapshot {
   empty_minutes?: unknown;
   empty_reached?: boolean;
   at?: string;
+  time_zone?: string;
 }
 
 export interface BuildingPresenceBuildingSnapshotRoom {

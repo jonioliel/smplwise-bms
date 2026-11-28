@@ -109,7 +109,7 @@ test.describe('BV1 tiles', () => {
     await l.locator('[data-home-launch="scene:scene.evening"]').click();
     await expect.poll(() => st.launches.length).toBe(1);
     expect(st.launches[0]).toEqual({ kind: 'scene', id: 's-evening' });
-    await expect(l.locator('[data-home-launch-note]')).toHaveText('הסצנה הופעלה');
+    await expect(l.locator('[data-home-launch-note]')).toHaveText('הבקשה נשלחה');
     // a script
     await l.locator('[data-home-launch="script:script.goodnight"]').click();
     await expect.poll(() => st.launches.length).toBe(2);

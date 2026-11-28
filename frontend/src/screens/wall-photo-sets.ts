@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-field';
+import { confirmDialog } from '../components/confirm-dialog';
 import { describeError } from '../api/client';
 import {
   createPhotoSet,
@@ -27,6 +28,8 @@ export class SwWallPhotoSets extends LitElement {
   @state() private limits = { max_files: 200, max_bytes: 8 * 1024 * 1024 };
   @state() private current = '';
   @state() private photos: { id: string; w: number; h: number }[] = [];
+  /** FIX-FE2-2570 (FE2-05): the folder `photos` belongs to (a late answer for another folder is dropped; a delete targets this one). */
+  @state() private photosOf = '';
   @state() private name = '';
   @state() private busy = false;
   @state() private progress = '';
@@ -42,6 +45,7 @@ export class SwWallPhotoSets extends LitElement {
     .sets { display: flex; gap: 6px; flex-wrap: wrap; }
     .set { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
     .set[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; }
+    .set:disabled, .ph button:disabled { opacity: 0.55; cursor: default; }
     .muted { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     .warn { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     input[type='text'] { font: inherit; color: inherit; background: transparent; border: 0; outline: 0; inline-size: 100%; }
@@ -65,7 +69,12 @@ export class SwWallPhotoSets extends LitElement {
   }
 
   private async loadPhotos(): Promise<void> {
-    this.photos = this.current ? (await listSetPhotos(this.current)).photos : [];
+    // FIX-FE2-2570 (FE2-05): the answer is used only while its folder is still the one shown (click A then B: A's late answer is dropped)
+    const id = this.current;
+    const photos = id ? (await listSetPhotos(id)).photos : [];
+    if (id !== this.current) return;
+    this.photos = photos;
+    this.photosOf = id;
   }
 
   private async create(): Promise<void> {
@@ -83,15 +92,20 @@ export class SwWallPhotoSets extends LitElement {
     }
   }
 
+  /** FIX-FE2-2570 (FE2-02): every file of one upload goes to the folder the upload STARTED in (it read `this.current` per file, so
+   * a folder switch mid-way sent the rest - a private set - to another folder, e.g. a lobby wall's). The folder buttons, "new folder"
+   * and the folder delete are disabled while it runs, and the progress line names the folder. */
   private async upload(files: FileList | null): Promise<void> {
-    if (!files || !this.current) return;
+    const setId = this.current;
+    if (!files || !setId || this.busy) return;
+    const setName = this.sets.find((s) => s.id === setId)?.name ?? '';
     this.busy = true;
     this.error = '';
     const list = [...files];
     let done = 0;
     const problems: string[] = [];
     for (const f of list) {
-      this.progress = tr('מעלה {n} מתוך {total}', { n: ++done, total: list.length });
+      this.progress = tr('מעלה {n} מתוך {total} לתיקייה "{set}"', { n: ++done, total: list.length, set: setName });
       if (!OK_TYPES.includes(f.type)) {
         problems.push(tr('{name}: רק JPEG, PNG או WebP', { name: f.name }));
         continue;
@@ -101,7 +115,7 @@ export class SwWallPhotoSets extends LitElement {
         continue;
       }
       try {
-        await uploadSetPhoto(this.current, f);
+        await uploadSetPhoto(setId, f);
       } catch (e) {
         problems.push(`${f.name}: ${describeError(e)}`);
       }
@@ -112,9 +126,15 @@ export class SwWallPhotoSets extends LitElement {
     if (problems.length) this.error = problems.slice(0, 3).join(' · ');
   }
 
+  /** FIX-FE2-2570 (FE2-05): a stored photo is deleted for good - asked first (as the folder delete), and always in the folder the
+   * shown photos belong to. */
   private async removePhoto(id: string): Promise<void> {
+    const setId = this.photosOf;
+    if (!setId || this.busy) return;
+    if (!(await confirmDialog({ heading: tr('מחיקת תמונה'), body: tr('למחוק את התמונה מהתיקייה? אי אפשר לשחזר אותה.'), confirmLabel: tr('מחיקה'), danger: true }))) return;
+    if (setId !== this.photosOf) return; // the folder changed while the question was open
     try {
-      await deleteSetPhoto(this.current, id);
+      await deleteSetPhoto(setId, id);
       await this.refresh();
     } catch (e) {
       this.error = describeError(e);
@@ -122,6 +142,7 @@ export class SwWallPhotoSets extends LitElement {
   }
 
   private async removeSet(): Promise<void> {
+    if (this.busy) return;
     this.busy = true;
     try {
       await deletePhotoSet(this.current);
@@ -144,7 +165,7 @@ export class SwWallPhotoSets extends LitElement {
     if (!this.open) return nothing;
     const cur = this.sets.find((s) => s.id === this.current);
     return html`<sw-dialog open heading=${tr('תמונות למסכי קיר')} data-wall-photos-dialog @close=${() => this.close()}>
-      <div class="sets" data-wall-photo-sets>${this.sets.map((s) => html`<button class="set" aria-pressed=${s.id === this.current} data-wall-set=${s.id} @click=${() => { this.current = s.id; this.confirmDelete = false; void this.loadPhotos(); }}>${s.name} · ${s.count}</button>`)}</div>
+      <div class="sets" data-wall-photo-sets>${this.sets.map((s) => html`<button class="set" aria-pressed=${s.id === this.current} data-wall-set=${s.id} ?disabled=${this.busy} @click=${() => { if (this.busy) return; this.current = s.id; this.confirmDelete = false; void this.loadPhotos().catch((e) => (this.error = describeError(e))); }}>${s.name} · ${s.count}</button>`)}</div>
       <div class="row"><sw-field label=${tr('תיקייה חדשה')}><input type="text" maxlength="40" aria-label=${tr('שם תיקייה חדשה')} data-wall-new-set .value=${this.name} @input=${(e: Event) => (this.name = (e.target as HTMLInputElement).value)} /></sw-field>
         <sw-button size="sm" data-wall-create-set ?disabled=${this.busy || !this.name.trim()} @click=${() => void this.create()}>${tr('הוספה')}</sw-button></div>
       ${cur
@@ -152,10 +173,10 @@ export class SwWallPhotoSets extends LitElement {
           <div class="row"><input type="file" multiple accept="image/jpeg,image/png,image/webp" aria-label=${tr('העלאת תמונות')} data-wall-upload ?disabled=${this.busy} @change=${(e: Event) => { const el = e.target as HTMLInputElement; void this.upload(el.files).then(() => (el.value = '')); }} />
             ${this.progress ? html`<span class="muted" data-wall-progress>${this.progress}</span>` : nothing}</div>
           <div class="muted">${tr('JPEG, PNG או WebP · עד 8MB לתמונה · התמונות נשמרות בשרת בלבד (בגודל מסך), בלי נתוני מיקום')}</div>
-          <div class="grid" data-wall-photo-grid>${this.photos.map((p) => html`<div class="ph" data-wall-photo=${p.id}><img loading="lazy" alt="" src=${photoPreviewUrl(cur.id, p.id)} /><button aria-label=${tr('מחיקת תמונה')} data-wall-photo-del=${p.id} @click=${() => void this.removePhoto(p.id)}>×</button></div>`)}</div>
+          <div class="grid" data-wall-photo-grid>${(this.photosOf === cur.id ? this.photos : []).map((p) => html`<div class="ph" data-wall-photo=${p.id}><img loading="lazy" alt="" src=${photoPreviewUrl(cur.id, p.id)} /><button aria-label=${tr('מחיקת תמונה')} data-wall-photo-del=${p.id} ?disabled=${this.busy} @click=${() => void this.removePhoto(p.id)}>×</button></div>`)}</div>
           ${this.confirmDelete
             ? html`<div class="row"><span class="warn">${tr('למחוק את התיקייה וכל התמונות שבה?')}${cur.used_by.length ? tr(' מסגרת התמונות במסכים שמשתמשים בה תכבה.') : ''}</span><sw-button size="sm" variant="danger" data-wall-set-delete-confirm ?disabled=${this.busy} @click=${() => void this.removeSet()}>${tr('מחיקה')}</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.confirmDelete = false)}>${tr('ביטול')}</sw-button></div>`
-            : html`<sw-button size="sm" variant="ghost" data-wall-set-delete @click=${() => (this.confirmDelete = true)}>${tr('מחיקת התיקייה')}</sw-button>`}`
+            : html`<sw-button size="sm" variant="ghost" data-wall-set-delete ?disabled=${this.busy} @click=${() => (this.confirmDelete = true)}>${tr('מחיקת התיקייה')}</sw-button>`}`
         : html`<p class="muted" data-wall-photos-empty>${tr('אין תיקיות עדיין. הוסיפו תיקייה והעלו אליה תמונות.')}</p>`}
       ${this.error ? html`<div class="warn" role="alert" data-wall-photos-error>${this.error}</div>` : nothing}
       <sw-button slot="footer" variant="primary" @click=${() => this.close()}>${tr('סגירה')}</sw-button>

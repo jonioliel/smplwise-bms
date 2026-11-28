@@ -8,6 +8,12 @@ export const ru = {
   enforce: 'Отправлять только по списку',
   enforceOff: 'Выключено: сообщения можно слать любому получателю',
   blocksAll: 'Проверка включена, список пуст: ни одно сообщение не будет отправлено',
+  // FIX-FE2-2570 (review FE2-08): the confirmations before a change that stops delivery
+  confirmBlockAllTitle: 'Остановить все сообщения?',
+  confirmBlockAll: 'Проверка включится при пустом списке: ни одно сообщение WhatsApp не будет отправлено, пока не добавят получателя.',
+  confirmRemoveTitle: 'Убрать {name}?',
+  confirmRemove: 'Проверка включена: {name} больше не будет получать сообщения. Чтобы вернуть, нужен полный номер.',
+  confirmYes: 'Да, продолжить',
   phone: 'Номер (с кодом страны)',
   label: 'Имя',
   role: 'Роль',

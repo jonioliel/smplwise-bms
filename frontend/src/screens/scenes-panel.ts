@@ -9,10 +9,14 @@ import { autoApi } from '../api/automations-demo';
 import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
-  activateScene, createItem, deleteItem, mapAutomationError, replaceItem,
+  activateScene, createItem, deleteItem, mapAutomationError, needsConfirmation, replaceItem,
   type AutomationCatalog, type AutomationsStatus, type CatalogEntity, type Item, type ItemDetail, type SceneDraft, type SceneMember,
 } from '../api/automations';
 import { groupScenes, hiddenScenes, isIntegrationScene, sceneLine } from './automations-logic';
+import { runConfirmed } from '../api/run-confirm';
+import { physicalOutcome } from '../api/physical-outcome';
+import { confirmDialog } from '../components/confirm-dialog';
+import { askRun } from './run-confirm-ask';
 import type { DrawerResult } from './automation-drawer';
 import type { SceneCapture } from '../components/scene-capture';
 import { SkinController } from '../design/skin';
@@ -266,22 +270,28 @@ export class ScenesPanel extends LitElement {
     if (!this.isConnected) return; // a drawer closes itself while the screen is torn down (a route change): that is not the user's close
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
-  private say(text: string, tone: 'ok' | 'error' = 'ok', action?: DrawerResult['action']) {
+  private say(text: string, tone: DrawerResult['tone'] = 'ok', action?: DrawerResult['action']) {
     this.fire<DrawerResult>('result', { text, tone, action });
   }
 
   // ------------------------------------------------------------------------------------------------ cards
 
+  /** FIX-FE2-2570 (FE2-01): a sensitive scene (a lock, the alarm, a siren, a door step) asks first, as the scripts panel; the server's
+   * `confirmation_required` opens the same question and, on yes, the request goes ONE more time with `confirm: true`. FE2-04: the card
+   * then says "נשלחה" - the server accepted the request (202), the devices' outcome is not known. */
   private async activate(i: Item) {
     if (this.busy.has(i.id)) return;
     this.busy = new Set([...this.busy, i.id]);
     try {
-      await activateScene(i.id);
+      const r = await runConfirmed(i, (o) => activateScene(i.id, o), askRun);
+      if (!r.sent) return;
       this.done = new Set([...this.done, i.id]);
       window.setTimeout(() => (this.done = new Set([...this.done].filter((x) => x !== i.id))), 2200);
       this.fire('changed', { id: i.id });
     } catch (err) {
-      this.say(mapAutomationError(err).message, 'error');
+      // FIX-FE2-2570 (VD2-05): no answer / a time-out = the scene may have run - amber "unknown, check on site", never "not activated"
+      if (physicalOutcome(err) === 'unknown') this.say(tr('לא ידוע אם הסצנה הופעלה · בדקו במקום'), 'warn');
+      else this.say(mapAutomationError(err).message, 'error');
     } finally {
       this.busy = new Set([...this.busy].filter((x) => x !== i.id));
     }
@@ -311,7 +321,7 @@ export class ScenesPanel extends LitElement {
       <h3>${bidi(i.name)}</h3>
       <div class="sub" data-scene-sub>${sceneLine(i, this.now, undefined, native ? i.targets.length || undefined : undefined)}</div>
       <div class="acts">
-        <button type="button" class=${`btn primary${done ? ' ok' : ''}`} data-scene-activate ?disabled=${this.busy.has(i.id) || hidden} @click=${() => void this.activate(i)}>${done ? aIcon('check') : aIcon('play')}${done ? tr('הופעלה') : tr('הפעל')}</button>
+        <button type="button" class=${`btn primary${done ? ' ok' : ''}`} data-scene-activate ?disabled=${this.busy.has(i.id) || hidden} @click=${() => void this.activate(i)}>${done ? aIcon('check') : aIcon('play')}${done ? tr('נשלחה') : tr('הפעל')}</button>
         ${native && i.can.edit ? html`<button type="button" class="btn" data-scene-edit @click=${() => this.fire('open-scene', { id: i.id })}>${aIcon('edit')}${tr('עריכה')}</button>` : nothing}
       </div>
     </article>`;
@@ -363,9 +373,16 @@ export class ScenesPanel extends LitElement {
     this.saving = true;
     this.editorError = '';
     const draft: SceneDraft = { name: e.detail.name, icon: this.detail ? (this.detail.draft as SceneDraft).icon : null, members: e.detail.members };
+    const write = (confirm?: boolean) => (this.detail ? replaceItem('scene', this.detail.id, draft, this.detail.revision, { confirm }) : createItem('scene', draft, { enabled: true, confirm }));
     try {
-      if (this.detail) await replaceItem('scene', this.detail.id, draft, this.detail.revision);
-      else await createItem('scene', draft, { enabled: true });
+      try {
+        await write();
+      } catch (err) {
+        // FIX-FE2-2570 (VD2-05): a scene with a lock / alarm / siren is saved only with an explicit confirmation - asked, then sent once more
+        if (!needsConfirmation(err)) throw err;
+        if (!(await confirmDialog({ heading: tr('לשמור סצנה רגישה?'), body: tr('הסצנה כוללת פעולה רגישה (מנעול, אזעקה, צופר או דלת). כל מי שיפעיל אותה יתבקש לאשר.'), confirmLabel: tr('שמירה') }))) return;
+        await write(true);
+      }
       this.say(tr('נשמר'));
       this.fire('changed', {});
       this.fire('close-scene');

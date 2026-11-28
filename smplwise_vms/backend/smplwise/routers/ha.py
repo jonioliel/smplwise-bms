@@ -71,7 +71,10 @@ def status(request: Request, principal: Principal = Depends(current_principal_ro
     return {
         "configured": ha_client.configured(settings),
         "sync": ha_sync.STATE.as_dict(),
-        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": store.directory_user_count(conn), "last_directory_at": get_setting(conn, "bridge.directory_at") or None},
+        "bridge": {"paired": ha_bridge.is_paired_secret(conn) and bool(paired_at), "paired_at": paired_at, "directory_users": store.directory_user_count(conn), "last_directory_at": get_setting(conn, "bridge.directory_at") or None,
+                   # FIX-FE2-2570 (review FE2-13): the version the bridge itself reported (stored, never sent before) - the support card
+                   # shows it when the add-on's own integration copy is not the active one (a bridge installed by hand)
+                   "integration_version": get_setting(conn, "bridge.integration_version") or None},
         "integration": bridge_install.status(conn=conn),
         "can_configure": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
     }

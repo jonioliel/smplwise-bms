@@ -997,4 +997,14 @@ export const en = {
   'ההחזרה כוללת {n} פעולות רגישות (מנעול, אזעקה או צופר). הן יופעלו עכשיו באמת, בזהות שלך, ויירשמו באודיט.': 'Putting the devices back includes {n} sensitive actions (a lock, an alarm or a siren). They will now really run, under your identity, and are recorded in the audit log.',
   'לא כל ההתקנים הוחזרו: {why}': 'Not every device was put back: {why}',
   'לא ידוע אם כל ההתקנים חזרו למצב הקודם · בדקו במקום': 'It is not known whether every device went back to its previous state · check on site',
+  // FIX-FE2-2570 (FE2-01, FE2-04)
+  'נשלחה': 'Sent',
+  'הבקשה להפעלת הסקריפט נשלחה': 'The request to run the script was sent',
+  'להפעיל את "{name}"?': 'Activate "{name}"?',
+  'כולל פעולה שדורשת אישור מפורש, למשל פתיחת דלת.': 'Includes an action that needs explicit confirmation, such as opening a door.',
+  // FIX-FE2-2570 (VD2-05)
+  'לא ידוע אם הסצנה הופעלה · בדקו במקום': 'Not known whether the scene ran · check on site',
+  'לא ידוע אם הסקריפט הופעל · בדקו במקום': 'Not known whether the script ran · check on site',
+  'לשמור סצנה רגישה?': 'Save a sensitive scene?',
+  'הסצנה כוללת פעולה רגישה (מנעול, אזעקה, צופר או דלת). כל מי שיפעיל אותה יתבקש לאשר.': 'The scene includes a sensitive action (a lock, an alarm, a siren or a door). Whoever runs it will be asked to confirm.',
 };

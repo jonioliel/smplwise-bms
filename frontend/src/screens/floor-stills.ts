@@ -69,12 +69,20 @@ interface BakeContext {
 /** The editor's whole bake: returns the Hebrew line the host shows when it ends. Never throws. */
 export async function runFloorBake(ctx: BakeContext): Promise<string> {
   const b = ctx.bundle;
+  // FIX-FE2-2570 (review FE2-11): the job this browser claimed and has not finished yet - a throw after the claim (a chunk that no longer
+  // loads after an update, a renderer that cannot start) reports it failed, so it is not left locked for the 10-minute lease
+  let open: string | null = null;
+  const finish = async (id: string, status: 'done' | 'failed' | 'cancelled', why?: string) => {
+    open = null;
+    await finishBake(b.floorId, id, status, why);
+  };
   try {
     const info = await floorBakes(b.floorId);
     if (!info.bake_key) return tr('לקומה אין מבנה מפורסם — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.');
     if (b.geometryRef?.doc_hash !== info.doc_hash) return tr('המפה מציגה טיוטה — תמונות מוכנות נוצרות מהמבנה המפורסם בלבד.');
     const req = await requestBake(b.floorId, {});
     await claimBake(b.floorId, req.job.id);
+    open = req.job.id;
     const base: SceneInput = { doc: ctx.geometry, width: b.width, height: b.height, entityStates: {}, circuitStates: {}, catalog: ctx.catalog, anchors: [],
       zones: b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null })) };
     const memo = new Map<StillVariant, SceneDescription>();
@@ -96,19 +104,21 @@ export async function runFloorBake(ctx: BakeContext): Promise<string> {
       heartbeat: async () => { await claimBake(b.floorId, req.job.id); },
     });
     if (outcome.cancelled) {
-      await finishBake(b.floorId, req.job.id, 'cancelled', 'left the page').catch(() => undefined);
+      await finish(req.job.id, 'cancelled', 'left the page').catch(() => undefined);
       return tr('ההכנה הופסקה; מה שנשמר נשאר.');
     }
     if (outcome.failed.length || outcome.left.length) {
       const why = outcome.left.length ? 'no WebGL in this browser' : outcome.failed[0].error;
-      await finishBake(b.floorId, req.job.id, 'failed', why).catch(() => undefined);
+      await finish(req.job.id, 'failed', why).catch(() => undefined);
       return outcome.left.length
         ? tr('בדפדפן הזה אין תלת־ממד: נשמרה מפת התאורה בלבד; התמונות יוכנו בדפדפן של עורך אחר.')
         : tr('חלק מהקבצים לא נשמרו ({n}): {error}', { n: outcome.failed.length, error: outcome.failed[0].error });
     }
-    await finishBake(b.floorId, req.job.id, 'done');
+    await finish(req.job.id, 'done');
     return tr('התמונות המוכנות ומפת התאורה נשמרו ({n} קבצים).', { n: outcome.done.length });
   } catch (err) {
+    const claimed: string | null = open;
+    if (claimed) await finish(claimed, 'failed', String((err as Error)?.message ?? err).slice(0, 200)).catch(() => undefined);
     return describeError(err);
   }
 }

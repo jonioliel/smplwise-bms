@@ -6,6 +6,7 @@ import {
   type HomeConfig, type HomeData, type LaunchItemCfg, type WeatherField, type WeatherGlyph, type WidgetItem,
 } from '../api/home-config';
 import { idLabel, launchAllowed, launchIcon, launchRoute, runLaunch, type LaunchItem } from '../api/launcher';
+import { physicalOutcome } from '../api/physical-outcome';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { tr } from '../i18n/msg/screens';
 
@@ -344,6 +345,9 @@ export const BV1_STYLES = css`
   .l-note.bad {
     color: var(--sw-danger-text);
   }
+  .l-note.warn {
+    color: var(--sw-warning-text);
+  }
   :host([data-skin='bubble']) .lb .lr {
     border: 0;
     background: var(--sw-layer-2, var(--sw-surface-2));
@@ -528,6 +532,11 @@ function launchLabel(item: LaunchItemCfg, names: Map<string, string>): string {
   return names.get(item.id) ?? idLabel(item.id);
 }
 
+/** FIX-FE2-2570 (FE2-04): the note after a scene / script launch - the request was sent; nothing more is known. */
+const LAUNCH_SENT = () => tr('הבקשה נשלחה');
+/** FIX-FE2-2570 (VD2-05): the launch had no answer - it may have run. */
+const LAUNCH_UNKNOWN = () => tr('לא ידוע אם הופעל · בדקו במקום');
+
 export interface LaunchState {
   busy: Set<string>;
   done: Set<string>;
@@ -551,16 +560,20 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
     h.setLaunchNote('');
     requestUpdate();
     try {
-      await runLaunch(x as LaunchItem);
+      // FIX-FE2-2570 (FE2-01): a sensitive scene / script asks first (the shared confirmation; loaded with the first press, PERF-2490);
+      // FE2-04: the server accepted the request (202) - "sent", the devices' outcome is not known
+      const r = await runLaunch(x as LaunchItem, (target) => import('./run-confirm-ask').then((m) => m.askRun(target)));
+      if (r !== 'sent') return;
       st.done.add(key(x));
-      h.setLaunchNote(x.kind === 'scene' ? tr('הסצנה הופעלה') : tr('הסקריפט הופעל'));
+      h.setLaunchNote(LAUNCH_SENT());
       window.setTimeout(() => {
         st.done.delete(key(x));
         h.setLaunchNote('');
         requestUpdate();
       }, 2500);
     } catch (err) {
-      h.setLaunchNote(tr('לא הופעל: {reason}', { reason: (err as { user_message?: string; message?: string }).user_message ?? (err as Error).message ?? '' }).trim());
+      // FIX-FE2-2570 (VD2-05): no answer / a time-out = it may have run - amber "unknown, check on site"; "not run" only for a refusal
+      h.setLaunchNote(physicalOutcome(err) === 'unknown' ? LAUNCH_UNKNOWN() : tr('לא הופעל: {reason}', { reason: (err as { body?: { user_message?: string }; message?: string }).body?.user_message ?? (err as Error).message ?? '' }).trim());
       window.setTimeout(() => {
         h.setLaunchNote('');
         requestUpdate();
@@ -580,5 +593,5 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
   };
   return h.shell(it, 'wg-launcher', {}, html`${h.head(it, GRID_ICON)}
     <div class="lg" data-home-launcher role="group" aria-label=${it.title}>${items.map(btn)}</div>
-    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, bad: h.launchNote !== tr('הסצנה הופעלה') && h.launchNote !== tr('הסקריפט הופעל') })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
+    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, warn: h.launchNote === LAUNCH_UNKNOWN(), bad: h.launchNote !== LAUNCH_SENT() && h.launchNote !== LAUNCH_UNKNOWN() })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
 }

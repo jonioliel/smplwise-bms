@@ -181,12 +181,14 @@ export class ScenariosPanel extends LitElement {
     }
     try {
       const s = await getScenario(id);
+      if (this.loadedId !== id) return; // FIX-FE2-2570 (FE2-09): another scenario was opened meanwhile - its own answer fills the drawer
       this.editing = s;
       this.name = s.name;
       this.description = s.description;
       this.draft = s.definition ? structuredClone(s.definition) : emptyDraft();
       this.draft.options = this.draft.options ?? {};
     } catch {
+      if (this.loadedId !== id) return;
       this.say(sct('loadError'), 'error');
       this.close();
     }
@@ -361,13 +363,19 @@ export class ScenariosPanel extends LitElement {
 
   private async runDry() {
     if (!this.editing) return;
+    const opened = this.loadedId;
+    const id = this.editing.id;
     this.busy = true;
     this.errors = [];
     try {
-      const unsaved = !this.editing.id || this.dirty();
-      this.dry = unsaved ? await simulateScenario(this.draft, this.overrides()) : await testScenario(this.editing.id, this.overrides());
-      if (!unsaved && this.editing) this.editing = { ...this.editing, tested_version: true };
+      const unsaved = !id || this.dirty();
+      const dry = unsaved ? await simulateScenario(this.draft, this.overrides()) : await testScenario(id, this.overrides());
+      // FIX-FE2-2570 (FE2-09): the answer belongs to the scenario that was open when the test started; another one is never marked tested
+      if (this.loadedId !== opened) return;
+      this.dry = dry;
+      if (!unsaved && this.editing?.id === id) this.editing = { ...this.editing, tested_version: true };
     } catch (e) {
+      if (this.loadedId !== opened) return;
       this.fail(e);
     } finally {
       this.busy = false;
@@ -422,8 +430,10 @@ export class ScenariosPanel extends LitElement {
     }
   }
 
+  /** FIX-FE2-2570 (FE2-09): one DELETE per confirmation - a double click no longer sends a second one that reports "not found". */
   private async removeScenario() {
-    if (!this.editing?.id) return;
+    if (!this.editing?.id || this.busy) return;
+    this.busy = true;
     try {
       await deleteScenario(this.editing.id);
       this.say(sct('deleted'));
@@ -432,15 +442,21 @@ export class ScenariosPanel extends LitElement {
       this.close();
     } catch (e) {
       this.fail(e);
+    } finally {
+      this.busy = false;
     }
   }
 
   private async showRuns() {
-    if (!this.editing?.id) return;
+    const id = this.editing?.id;
+    if (!id) return;
     this.view = 'runs';
     try {
-      this.runs = (await scenarioRuns(this.editing.id)).runs.slice(0, 12);
+      const runs = (await scenarioRuns(id)).runs.slice(0, 12);
+      if (this.editing?.id !== id) return; // FIX-FE2-2570 (FE2-09): another scenario is open now
+      this.runs = runs;
     } catch (e) {
+      if (this.editing?.id !== id) return;
       this.fail(e);
     }
   }
@@ -525,7 +541,7 @@ export class ScenariosPanel extends LitElement {
   private dialogs(): TemplateResult | typeof nothing {
     const e = this.editing;
     if (this.dialog === 'delete' && e) {
-      return html`<sw-dialog open heading=${sct('confirmDelete')} @close=${() => (this.dialog = '')}><div class="foot"><button type="button" class="btn" @click=${() => (this.dialog = '')}>${sct('cancel')}</button><button type="button" class="btn primary" data-dialog-ok @click=${() => void this.removeScenario()}>${sct('delete')}</button></div></sw-dialog>`;
+      return html`<sw-dialog open heading=${sct('confirmDelete')} @close=${() => (this.dialog = '')}><div class="foot"><button type="button" class="btn" @click=${() => (this.dialog = '')}>${sct('cancel')}</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.removeScenario()}>${sct('delete')}</button></div></sw-dialog>`;
     }
     if (this.dialog === 'confirm-enable' && e) {
       const n = e.definition?.options?.max_tickets_per_day ?? 20;

@@ -5,6 +5,7 @@
  * The socket and the clock exist only while something listens. A failure keeps the last list (never invents sessions).
  */
 import { subscribeHa } from '../api/ha';
+import { serverNow } from '../api/server-clock';
 import { castSessions, type CastSession } from '../api/cast';
 import { canAnywhere, isApi } from '../api/session';
 import { isOpen } from '../screens/cast-logic';
@@ -15,7 +16,7 @@ class CastStore {
   sessions: CastSession[] = [];
   max = 2;
   loaded = false;
-  now = Date.now();
+  now = serverNow(); // FIX-FE2-2570 (review FE2-10): the countdown compares the server's expires_at with the SERVER's clock
   private listeners = new Set<Listener>();
   private stopWs: (() => void) | null = null;
   private clock = 0;
@@ -44,7 +45,7 @@ class CastStore {
     });
     void this.refresh();
     this.clock = window.setInterval(() => {
-      this.now = Date.now();
+      this.now = serverNow();
       if (this.sessions.some(isOpen)) this.emit();
     }, 1000);
   }
@@ -78,7 +79,7 @@ class CastStore {
       this.loaded = true;
     } finally {
       this.busy = false;
-      this.now = Date.now();
+      this.now = serverNow();
       this.emit();
       if (this.again) {
         this.again = false;
@@ -92,7 +93,7 @@ class CastStore {
     const i = this.sessions.findIndex((x) => x.session_id === s.session_id);
     if (i >= 0) this.sessions = this.sessions.map((x, j) => (j === i ? s : x));
     else if (isOpen(s)) this.sessions = [...this.sessions, s];
-    this.now = Date.now();
+    this.now = serverNow();
     this.emit();
     void this.refresh();
   }

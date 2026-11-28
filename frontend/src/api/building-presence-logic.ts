@@ -11,6 +11,18 @@ import {
 
 interface ChipView { show: boolean; tone: 'ok' | 'neutral'; text: string }
 
+/** FIX-FE2-2570 (review FE2-06): the installation's IANA zone the server sent with the answer (`time_zone`); Asia/Jerusalem only when an
+ * older server did not send it. Every formatter below defaults to it, so no caller shows "empty since HH:MM" on a fixed zone. */
+export const zoneOf = (s: { time_zone?: string } | null | undefined): string => (s?.time_zone && validZone(s.time_zone) ? s.time_zone : 'Asia/Jerusalem');
+function validZone(z: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: z });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Local clock text (HH:MM, 24 h) of an ISO instant in the given zone; '' for anything unparsable. */
 export function clockText(iso: string | null | undefined, zone = 'Asia/Jerusalem'): string {
   if (!iso) return '';
@@ -20,7 +32,7 @@ export function clockText(iso: string | null | undefined, zone = 'Asia/Jerusalem
 }
 
 /** Nothing at all unless the server says sensors are tagged (`configured`); a stale or unknown answer never reads as empty. */
-export function chipView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): ChipView {
+export function chipView(s: BuildingSnapshot | null | undefined, zone = zoneOf(s)): ChipView {
   if (!s || !s.configured) return { show: false, tone: 'neutral', text: '' };
   if (s.settings?.home_display === 'card' || s.settings?.home_display === 'off') return { show: false, tone: 'neutral', text: '' };
   if (s.status === 'occupied') {
@@ -36,6 +48,10 @@ export function chipView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Je
 
 /** The chip's polling gap: a quiet 30 s while visible. */
 export const POLL_MS = 30_000;
+/** FIX-FE2-2570 (review FE2-12): how many reads in a row may fail before the last answer is no longer shown (3 x POLL_MS = 90 s). */
+export const STALE_FAILS = 3;
+/** The snapshot a view keeps after `fails` failed reads in a row: the last one for a moment, then none (nothing is shown, nothing invented). */
+export const keptSnapshot = <T>(last: T | null, fails: number): T | null => (fails >= STALE_FAILS ? null : last);
 
 export interface SettingsProblem { field: 'hold_seconds' | 'empty_minutes' | 'retention_days'; }
 
@@ -78,7 +94,7 @@ interface CardRoom { name: string; text: string; tone: 'ok' | 'neutral' | 'unkno
 interface CardView { show: boolean; tone: 'ok' | 'neutral'; big: string; sub: string; rooms: CardRoom[] }
 
 /** The overview card (display = card): the state word, one quiet line and the rooms with a sensor. Nothing unless the server says configured. */
-export function cardView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CardView {
+export function cardView(s: BuildingSnapshot | null | undefined, zone = zoneOf(s)): CardView {
   const none: CardView = { show: false, tone: 'neutral', big: '', sub: '', rooms: [] };
   if (!s || !s.configured || s.settings?.home_display !== 'card') return none;
   const rooms = (s.rooms ?? []).filter((r) => r.name);
@@ -241,7 +257,7 @@ function names(list: readonly CompactRoom[], cap: number): string {
 }
 
 /** Everything the compact card draws. `show` is false unless the widget exists (see `presenceWidgetAvailable`). */
-export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CompactView {
+export function compactView(s: BuildingSnapshot | null | undefined, zone = zoneOf(s)): CompactView {
   const opts = cardOptions(s?.settings);
   const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', lastRoom: null, floors: [], rest: '', tip: '', ticks: [], floorOrder: [], hasFloors: false };
   if (!s || !presenceWidgetAvailable(s)) return base;
@@ -296,7 +312,7 @@ export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia
 
 /** PRESENCE-COMPACT-2310 (answer 4): the area window's quiet part of the sub-line - "פעיל" / "ריק מ־HH:MM" / "אין מידע". Shown while tracking
  * is on and the room has a tagged sensor; the map's own switch does not hide it (it is not the map). */
-export function areaPresence(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = 'Asia/Jerusalem'): { text: string; tone: 'ok' | 'clear' | 'unknown' } | null {
+export function areaPresence(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = zoneOf(s)): { text: string; tone: 'ok' | 'clear' | 'unknown' } | null {
   if (!s || !s.configured || !areaId) return null;
   const r = (s.rooms ?? []).find((x) => x.area_id === areaId);
   if (!r) return null;
@@ -313,7 +329,7 @@ export function areaPresence(s: BuildingSnapshot | null | undefined, areaId: str
  * the map option is off, when nothing is configured, or when no tagged sensor sits in the room. No legend filter (owner decision): the list is
  * in the settings only.
  */
-export function zoneChip(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = 'Asia/Jerusalem'): string | null {
+export function zoneChip(s: BuildingSnapshot | null | undefined, areaId: string | null | undefined, zone = zoneOf(s)): string | null {
   if (!s || !s.configured || s.settings?.map_tint === false || !areaId) return null;
   const r = (s.rooms ?? []).find((x) => x.area_id === areaId);
   if (!r) return null;
@@ -364,7 +380,7 @@ export interface AreaLineView {
 export const AREA_LINE_NAMES = 3;
 
 /** What the area line draws. Nothing unless the administrator switched the line on and the caller may see at least one part that exists. */
-export function areaLineView(a: AreaPresence | null | undefined, zone = 'Asia/Jerusalem'): AreaLineView {
+export function areaLineView(a: AreaPresence | null | undefined, zone = zoneOf(a)): AreaLineView {
   const none: AreaLineView = { show: false, tone: 'quiet', room: '', people: '', names: [], rest: 0, title: '' };
   if (!a || !a.line || (!a.sensors && !a.people)) return none;
   let room = '';
@@ -401,7 +417,7 @@ export function areaLineView(a: AreaPresence | null | undefined, zone = 'Asia/Je
 export function quickSheetPresence(
   roomWord: { text: string; tone: 'ok' | 'clear' | 'unknown' } | null | undefined,
   a: AreaPresence | null | undefined,
-  zone = 'Asia/Jerusalem',
+  zone = zoneOf(a),
 ): { line: AreaLineView; subWord: { text: string; tone: 'ok' | 'clear' | 'unknown' } | null } {
   const line = areaLineView(a, zone);
   return { line, subWord: line.show ? null : roomWord ?? null };

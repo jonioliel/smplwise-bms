@@ -35,6 +35,7 @@ class HaStatusBridge(ExactModel):
     paired_at: str | None
     directory_users: Num
     last_directory_at: str | None
+    integration_version: str | None = None  # FIX-FE2-2570 (FE2-13): the version the bridge reported (None: never reported)
 
 
 class HaStatusIntegrationWiskeyNative(ExactModel):

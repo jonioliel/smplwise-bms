@@ -291,6 +291,7 @@ export interface HaStatusBridge {
   paired_at: string | null;
   directory_users: number;
   last_directory_at: string | null;
+  integration_version?: string | null;
 }
 
 export interface HaStatusIntegration {
