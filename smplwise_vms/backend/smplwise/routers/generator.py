@@ -289,9 +289,12 @@ def put_roles(device_id: str, body: RolesBody, principal: Principal = Depends(_m
             raise ApiError(422, "role_unmapped", "החיישן לא נמצא.", details={"fields": [f"roles.{role}"]})
     stored = core.jget(conn, "generator.role_overrides", {})
     stored = stored if isinstance(stored, dict) else {}
+    battery_moved = "battery_v" in body.roles and body.roles["battery_v"] != (stored.get(device_id) or {}).get("battery_v")
     stored.setdefault(device_id, {}).update(body.roles)
     core.jset(conn, "generator.role_overrides", stored)
     core.remap(conn, device_id)
+    if battery_moved:  # CU-03: the old sensor's readings and latch do not carry over to the new one
+        core.battery_mapping_changed(conn, device_id)
     audit(conn, actor=principal, action="generator.roles.update", decision="allowed", resource_type="generator_device", resource_id=device_id, details={"roles": sorted(body.roles)})
     return _device_out(conn, _device(conn, device_id), detail=True)
 

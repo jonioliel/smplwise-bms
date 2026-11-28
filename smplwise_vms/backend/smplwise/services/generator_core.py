@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import sqlite3
+import time
 from typing import Any
 
 from ..db import get_setting, new_id, now_iso, set_setting
@@ -106,19 +107,40 @@ def battery_system(known: int | None, reading: float) -> int:
     return known if known in BATTERY_SYSTEMS else (24 if reading > BATTERY_SPLIT_V else 12)
 
 
-def battery_history_max(conn: sqlite3.Connection, device_id: str) -> float | None:
-    """The highest battery reading the stored history holds (raw minutes and the five-minute rollup), None without history."""
-    a = conn.execute("SELECT MAX(v) FROM generator_samples WHERE device_id = ? AND role = 'battery_v'", (device_id,)).fetchone()[0]
-    b = conn.execute("SELECT MAX(v_max) FROM generator_samples_5m WHERE device_id = ? AND role = 'battery_v'", (device_id,)).fetchone()[0]
+def battery_history_max(conn: sqlite3.Connection, device_id: str, since_ts: float | None = None) -> float | None:
+    """The highest battery reading the stored history holds (raw minutes and the five-minute rollup), None without history. `since_ts`
+    (epoch seconds, CU-03): only readings from then on - what was stored before the sensor mapping changed belongs to another sensor."""
+    since = int(since_ts or 0)
+    a = conn.execute("SELECT MAX(v) FROM generator_samples WHERE device_id = ? AND role = 'battery_v' AND ts >= ?", (device_id, since)).fetchone()[0]
+    b = conn.execute("SELECT MAX(v_max) FROM generator_samples_5m WHERE device_id = ? AND role = 'battery_v' AND ts >= ?", (device_id, since)).fetchone()[0]
     vals = [float(x) for x in (a, b) if x is not None]
     return max(vals) if vals else None
 
 
 def set_battery_nominal(conn: sqlite3.Connection, device_id: str, nominal: int | None) -> None:
-    """The administrator's choice: 12 or 24, or None = detect (the latch stays)."""
+    """The administrator's choice: 12 or 24, or None = detect. CU-03: choosing "automatic" starts the detection afresh - the 24 V latch is
+    cleared and the stored history before this moment no longer counts (the bank is learned again from what it reads from now on)."""
     store = battery_store(conn)
     entry = dict(store.get(device_id) or {})
     entry["nominal"] = nominal if nominal in BATTERY_SYSTEMS else None
+    if entry["nominal"] is None:
+        forget_battery_latch(entry)
+    store[device_id] = entry
+    jset(conn, BATTERY_KEY, store)
+
+
+def forget_battery_latch(entry: dict[str, Any]) -> None:
+    """CU-03: clears the learned 24 V latch of one stored entry (in place) and fences the history: only samples from now on may latch it again."""
+    entry["seen_24"] = False
+    entry.pop("seen_at", None)
+    entry["history_from"] = int(time.time())
+
+
+def battery_mapping_changed(conn: sqlite3.Connection, device_id: str) -> None:
+    """CU-03: the `battery_v` sensor mapping changed - what the old sensor read must not decide the bank's system."""
+    store = battery_store(conn)
+    entry = dict(store.get(device_id) or {})
+    forget_battery_latch(entry)
     store[device_id] = entry
     jset(conn, BATTERY_KEY, store)
 
