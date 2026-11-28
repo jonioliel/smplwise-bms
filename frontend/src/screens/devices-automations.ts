@@ -85,7 +85,8 @@ function writeView(v: AutoView) {
   }
 }
 
-interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } }
+/** FIX-FE2-2570 (VD2-05): `warn` = the outcome of a run is not known (amber, never "failed"). */
+interface Note { text: string; tone: 'ok' | 'error' | 'warn'; action?: { label: string; run: () => void } }
 
 /**
  * CR-017 "אוטומציות": the third tab of the home area (`#/devices/automations`, mockup `docs/design/mockups/automations/index.html`, always the glass

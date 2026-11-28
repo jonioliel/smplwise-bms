@@ -636,7 +636,7 @@ export const areaQuickSheetStyles = [
         color: var(--sw-text-2);
       }
       .scene-note.bad {
-        color: var(--sw-danger);
+        color: var(--sw-danger-text);
       }
       .scene-note.warn {
         color: var(--sw-warning-text);
