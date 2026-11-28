@@ -426,3 +426,21 @@ def test_the_text_builders_are_clean(w):
     assert "evil.example" not in t and "2026-09" in t and len(t) <= 700
     mail = dl.email_message(model, "https://arx.test")
     assert mail.subject.endswith("2026-09") and "בקשות שירות" in mail.html and "arx.test" in mail.html
+
+
+def test_a_delivery_switched_off_or_a_channel_dropped_after_the_plan_sends_nothing_and_never_later(w, mail):
+    """Review CD2-15: only the report switch was re-checked before a planned row left; turning the DELIVERY off (or its e-mail channel)
+    let the planned / retried rows go out anyway. Now they are settled `skipped`, so a later enable never sends that month retroactively."""
+    enable(w)
+    _fake_enabled_at(w, "2026-09-15T00:00:00Z")
+    now = ts(2026, 10, 1, 6, 0)
+    with w["db"].connection() as conn:
+        assert dl.plan(conn, "2026-09", now) == 2
+    assert put(w, {"enabled": False}).status_code == 200
+    out = dl.process(w["db"], now)
+    assert out["sent"] == 0 and mail == [] and out["skipped"] == 2
+    with w["db"].connection(mode="read") as conn:
+        got = {(r["status"], r["reason"]) for r in conn.execute("SELECT status, reason FROM insights_report_sends").fetchall()}
+    assert got == {("skipped", "delivery_off")}
+    assert put(w, {"enabled": True}).status_code == 200
+    assert dl.process(w["db"], now + 120)["sent"] == 0 and mail == [], "re-enabling never sends the old month"

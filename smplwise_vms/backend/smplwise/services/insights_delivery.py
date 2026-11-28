@@ -459,6 +459,32 @@ def _deliver_whatsapp(db: Database, row: dict[str, Any], ts: float, now: dt.date
     out["sent" if status == "sent" else "failed"] += 1
 
 
+def _still_wanted(db: Database, rows: list[dict[str, Any]], cfg: dict[str, Any] | None, ts: float, out: dict[str, int]) -> list[dict[str, Any]]:
+    """Review CD2-15: a planned row leaves only while the delivery is still ON and its channel still chosen (a WhatsApp row: its user still
+    on the list). Anything else is settled `skipped` - not kept for later, so turning the delivery on again never sends an old month
+    retroactively (the `enabled_at` rule)."""
+    if not rows or cfg is None:
+        return rows
+    keep: list[dict[str, Any]] = []
+    users = {str(u) for u in (cfg.get("users") or [])}
+    for r in rows:
+        why = None
+        if not cfg["enabled"]:
+            why = "delivery_off"
+        elif r["channel"] == "email" and not cfg.get("email"):
+            why = "channel_off"
+        elif r["channel"] == "whatsapp" and not cfg.get("whatsapp"):
+            why = "channel_off"
+        elif r["channel"] == "whatsapp" and str(r.get("user_id") or "") not in users:
+            why = "not_chosen"
+        if why:
+            _finish(db, r["id"], "skipped", why, ts)
+            out["skipped"] += 1
+        else:
+            keep.append(r)
+    return keep
+
+
 def process(db: Database, now_ts: float | None = None, store: Any = None) -> dict[str, int]:
     """One pass: plan the month when it is due, then send the due rows (WhatsApp only inside the installation's send hours)."""
     from .tickets import hours
@@ -478,8 +504,10 @@ def process(db: Database, now_ts: float | None = None, store: Any = None) -> dic
             window, tz = tmsg.send_window(conn, None), tmsg.time_zone(conn)
             if rows and not ic.switch_on(conn, ic.SW_REPORT):
                 rows = []  # the report was switched off after the plan: nothing leaves
+            cfg = load(conn) if rows else None
         except sqlite3.Error:
             return out
+    rows = _still_wanted(db, rows, cfg, ts, out)
     for r in rows:
         if r["channel"] == "whatsapp" and not hours.in_window(now, window, tz):
             _finish(db, r["id"], "held", "send_hours", ts, not_before=iso_utc(hours.next_opening(now, window, tz)))

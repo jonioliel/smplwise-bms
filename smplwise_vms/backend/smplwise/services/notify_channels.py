@@ -518,7 +518,7 @@ def housekeeping(db: Any) -> None:
     """Retention: notifications for the configured days, deliveries for 14, spent action tokens, stale outbox rows."""
     with db.connection(label="notify.retention") as conn:
         notify.retention_sweep(conn)
-    notify_email.recover_orphans(db)  # e-mail rows left in `retry` by a process that is gone (CR-018 S4)
+    notify_email.recover_orphans(db)  # e-mail rows left `queued` / `retry` by a process that is gone (CR-018 S4, review CD2-06): failed, never re-sent
     notify_whatsapp.recover_orphans(db)  # WhatsApp rows left `queued` / `retry` by a process that is gone (NOTIFWA): failed, never re-sent
     notify_whatsapp.number_change_sweep(db)  # NOTIFWA re-review R2: tell a user once when the number behind their opt-in changed
 

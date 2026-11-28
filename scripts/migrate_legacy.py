@@ -15,7 +15,8 @@ octet so the report can be shared.
 Usage:
   python scripts/migrate_legacy.py --options options.json [--override hikvision_nvr_override.json]
       [--events hikvision_nvr_event_store.jsonl] [--vms-cameras cameras.json | --vms-url http://127.0.0.1:8099]
-      [--vms-options vms_options.json] [--nvr-utc-offset-minutes 120] [--apply-aliases] [--keep DIR]
+      [--vms-options vms_options.json] [--zone Asia/Jerusalem] [--date YYYY-MM-DD] [--nvr-utc-offset-minutes N]
+      [--apply-aliases] [--keep DIR]
       [--json out.json] [--markdown out.md] [--export legacy_export.json]
   python scripts/migrate_legacy.py --backup <home-assistant-backup.tar | copy.zip | copy.tar.gz> --export legacy_export.json
 
@@ -33,10 +34,13 @@ import json
 import re
 import shutil
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+DEFAULT_ZONE = "Asia/Jerusalem"  # the product's default zone (settings › time.zone)
 SECRET_KEYS = {"nvr_password", "app_pin", "technician_pin", "go2rtc_api_password"}
 IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 
@@ -125,6 +129,27 @@ def count_jsonl(path: Path | None) -> dict[str, Any]:
     return {"present": True, "rows": rows, "first": first, "last": last}
 
 
+def zone_offsets(zone: str, on: dt.date) -> dict[str, Any]:
+    """The installation zone's UTC offsets ON a date, from the IANA rules (review CD2-21: never a fixed number): the true offset of that
+    day (DST included) and the zone's standard offset that day. Raises SystemExit for an unknown zone."""
+    try:
+        tz = ZoneInfo(zone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise SystemExit(f"unknown time zone {zone!r}: {exc}")
+    noon = dt.datetime(on.year, on.month, on.day, 12, tzinfo=tz)
+    utc = noon.utcoffset() or dt.timedelta(0)
+    dst = noon.dst() or dt.timedelta(0)
+    return {"zone": zone, "date": on.isoformat(), "utc_offset_minutes": int(utc.total_seconds() // 60),
+            "standard_offset_minutes": int((utc - dst).total_seconds() // 60), "dst": bool(dst)}
+
+
+def legacy_auto_minutes(offsets: dict[str, Any]) -> int:
+    """DEVICE QUIRK, kept apart from the time conversion (docs/legacy/KNOWN_QUIRKS.md T1): the NVR's `/ISAPI/System/time` localTime suffix
+    is the zone's STANDARD offset even during DST, and the legacy 'auto' offset was read from that suffix. So what 'auto' resolved to is
+    the standard offset of the zone on the date - not the true offset of that day."""
+    return int(offsets["standard_offset_minutes"])
+
+
 def effective_offset(override: dict[str, Any], nvr_utc_offset_minutes: int) -> dict[str, Any]:
     mode = str(override.get("recording_display_offset_mode", "auto_plus_manual") or "auto_plus_manual")
     if mode not in ("auto", "manual", "auto_plus_manual"):
@@ -190,18 +215,32 @@ def plan_cameras(override: dict[str, Any], vms_cameras: list[dict[str, Any]]) ->
 
 
 def apply_aliases(rows: list[dict[str, Any]], vms_url: str, dev_user: str | None, force: bool = False) -> list[dict[str, Any]]:
-    """VMS-local writes only: PATCH /api/v1/cameras/{id} with the legacy alias (never the NVR)."""
+    """VMS-local writes only: PATCH /api/v1/cameras/{id} with the legacy alias (never the NVR). Review CD2-21: each camera is judged on its
+    own - an HTTP or network error is a `failed` row (the HTTP status or the error class, never a response body) and the next camera is
+    still tried; an interrupt (Ctrl+C) stops the writes and marks the rest `not_attempted`. The caller always writes the report, so what
+    was already written is never lost. The aliases before the write are in each row's `before` (and the report's `cameras[].vms_alias`)."""
     done: list[dict[str, Any]] = []
-    for r in rows:
-        if r["action"] == "set_alias" or (force and r["action"] == "keep_vms_alias"):
-            body = json.dumps({"alias": r["legacy_alias"]}).encode("utf-8")
-            req = urllib.request.Request(vms_url.rstrip("/") + f"/api/v1/cameras/{r['vms_camera_id']}", data=body, method="PATCH", headers={"Content-Type": "application/json", **({"X-SW-Dev-User": dev_user} if dev_user else {})})
+    todo = [r for r in rows if r["action"] == "set_alias" or (force and r["action"] == "keep_vms_alias")]
+    for i, r in enumerate(todo):
+        row = {"channel": r["channel"], "camera_id": r["vms_camera_id"], "alias": r["legacy_alias"], "before": r.get("vms_alias")}
+        body = json.dumps({"alias": r["legacy_alias"]}).encode("utf-8")
+        req = urllib.request.Request(vms_url.rstrip("/") + f"/api/v1/cameras/{r['vms_camera_id']}", data=body, method="PATCH", headers={"Content-Type": "application/json", **({"X-SW-Dev-User": dev_user} if dev_user else {})})
+        try:
             with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 - local VMS
-                done.append({"channel": r["channel"], "camera_id": r["vms_camera_id"], "alias": r["legacy_alias"], "status": resp.status})
+                done.append({**row, "status": resp.status, "result": "written"})
+        except urllib.error.HTTPError as exc:
+            done.append({**row, "status": exc.code, "result": "failed", "error": f"http_{exc.code}"})
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            done.append({**row, "status": None, "result": "failed", "error": type(exc).__name__})
+        except KeyboardInterrupt:
+            done.extend({"channel": x["channel"], "camera_id": x["vms_camera_id"], "alias": x["legacy_alias"], "before": x.get("vms_alias"), "status": None,
+                         "result": "not_attempted", "error": "interrupted"} for x in todo[i:])
+            break
     return done
 
 
-def build_report(options: dict[str, Any], override: dict[str, Any], events: dict[str, Any], vms_cameras: list[dict[str, Any]] | None, vms_settings: dict[str, Any] | None, vms_options: dict[str, Any] | None, nvr_utc_offset_minutes: int) -> dict[str, Any]:
+def build_report(options: dict[str, Any], override: dict[str, Any], events: dict[str, Any], vms_cameras: list[dict[str, Any]] | None, vms_settings: dict[str, Any] | None, vms_options: dict[str, Any] | None, nvr_utc_offset_minutes: int | None = None,
+                 zone: str = DEFAULT_ZONE, on: dt.date | None = None) -> dict[str, Any]:
     warnings: list[str] = []
     # effective legacy connection = options + override (the override wins, like the legacy did)
     eff = dict(options)
@@ -231,7 +270,12 @@ def build_report(options: dict[str, Any], override: dict[str, Any], events: dict
             warnings.append("the VMS points at a different NVR host than the legacy add-on")
         if not same_ports:
             warnings.append("the VMS uses different NVR ports than the legacy add-on")
-    time_info = effective_offset(override, nvr_utc_offset_minutes)
+    offsets = zone_offsets(zone, on or dt.datetime.now(dt.timezone.utc).date())
+    auto_given = nvr_utc_offset_minutes is not None
+    time_info = effective_offset(override, int(nvr_utc_offset_minutes) if auto_given else legacy_auto_minutes(offsets))
+    time_info.update(offsets)
+    time_info["auto_source"] = ("given (--nvr-utc-offset-minutes)" if auto_given
+                                else "the zone's standard offset on the date (device quirk: KNOWN_QUIRKS T1, the NVR reports standard time)")
     time_info["vms"] = "the VMS shows the NVR's wall-clock times as they are, in settings › time.zone" + (f" ({vms_settings.get('time.zone')})" if vms_settings else "") + " — no display offset (T014)"
     if time_info["effective_minutes"] != 0:
         warnings.append(f"the legacy displayed recordings shifted by {time_info['effective_minutes']:+d} minutes; the VMS does not shift — confirm one known event's time on both before the switch")
@@ -310,6 +354,8 @@ def to_markdown(rep: dict[str, Any]) -> str:
     t = rep["time"]
     L.append("## Time")
     L.append(f"- legacy display offset: mode `{t['mode']}`, direction `{t['direction']}`, {t['minutes']} min → auto {t['auto_minutes']:+d} + manual {t['manual_minutes']:+d} = **{t['effective_minutes']:+d} min**")
+    if "zone" in t:
+        L.append(f"- zone {t['zone']} on {t['date']}: UTC{t['utc_offset_minutes']:+d} min ({'daylight saving' if t['dst'] else 'standard time'}; standard UTC{t['standard_offset_minutes']:+d} min) · legacy auto = {t['auto_source']}")
     L.append(f"- {t['vms']}")
     L.append("")
     u = rep["users"]
@@ -318,6 +364,13 @@ def to_markdown(rep: dict[str, Any]) -> str:
     L.append(f"- VMS: {u['vms']}")
     L.extend(f"  - {r}" for r in u["recommended"])
     L.append("")
+    if rep.get("applied_aliases"):
+        L.append("## Alias writes")
+        L.append("| channel | alias | before | result | detail |")
+        L.append("|---|---|---|---|---|")
+        for a in rep["applied_aliases"]:
+            L.append(f"| {a['channel']} | {a['alias']} | {a.get('before') or '—'} | {a.get('result', 'written')} | {a.get('error') or a.get('status') or ''} |")
+        L.append("")
     L.append("## Not migrated")
     L.append(f"- manual recording rows: {rep['manual_recording']['rows']} — {rep['manual_recording']['vms']}")
     e = rep["events"]
@@ -390,7 +443,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--vms-url", help="a running VMS to compare with (and to write aliases to with --apply-aliases)")
     ap.add_argument("--vms-dev-user", help="X-SW-Dev-User for a developer backend")
     ap.add_argument("--vms-options", help="the VMS add-on options.json (host / port comparison; never printed)")
-    ap.add_argument("--nvr-utc-offset-minutes", type=int, default=120, help="what the legacy 'auto' offset resolved to (Israel standard time: 120)")
+    ap.add_argument("--zone", default=DEFAULT_ZONE, help=f"the installation's IANA time zone (default {DEFAULT_ZONE}, as Arx's settings › time.zone)")
+    ap.add_argument("--date", type=dt.date.fromisoformat, default=None, help="the date the offsets are computed for, YYYY-MM-DD (default: today, UTC)")
+    ap.add_argument("--nvr-utc-offset-minutes", type=int, default=None,
+                    help="what the legacy 'auto' offset resolved to; default: derived from --zone on --date (the zone's standard offset, KNOWN_QUIRKS T1)")
     ap.add_argument("--apply-aliases", action="store_true", help="write empty VMS camera aliases from the legacy names (VMS-local)")
     ap.add_argument("--force-aliases", action="store_true", help="with --apply-aliases: overwrite differing VMS aliases too")
     ap.add_argument("--keep", help="copy the legacy files into this directory as an archive before anything else")
@@ -424,12 +480,17 @@ def main(argv: list[str] | None = None) -> int:
     elif args.vms_url:
         vms_cameras, vms_settings = fetch_vms(args.vms_url, args.vms_dev_user)
     vms_options = load_json(Path(args.vms_options)) if args.vms_options else None
-    rep = build_report(options, override, events, vms_cameras, vms_settings, vms_options, args.nvr_utc_offset_minutes)
+    rep = build_report(options, override, events, vms_cameras, vms_settings, vms_options, args.nvr_utc_offset_minutes, zone=args.zone, on=args.date)
+    rc = 0
     if args.apply_aliases:
         if not args.vms_url:
             raise SystemExit("--apply-aliases needs --vms-url")
-        rep["applied_aliases"] = apply_aliases(rep["cameras"], args.vms_url, args.vms_dev_user, force=args.force_aliases)
-        rep["writes"]["vms"] = f"{len(rep['applied_aliases'])} camera aliases written"
+        rep["applied_aliases"] = applied = apply_aliases(rep["cameras"], args.vms_url, args.vms_dev_user, force=args.force_aliases)
+        n = {k: sum(1 for a in applied if a.get("result") == k) for k in ("written", "failed", "not_attempted")}
+        rep["writes"]["vms"] = f"{n['written']} camera aliases written" + "".join(f", {v} {k.replace('_', ' ')}" for k, v in n.items() if k != "written" and v)
+        if n["failed"] or n["not_attempted"]:
+            rep["warnings"].append(f"alias writes incomplete: {n['failed']} failed, {n['not_attempted']} not attempted - see 'Alias writes'; a re-run writes only the aliases still empty")
+            rc = 130 if n["not_attempted"] else 1
     md = to_markdown(rep)
     if args.json:
         Path(args.json).write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -441,7 +502,7 @@ def main(argv: list[str] | None = None) -> int:
         except AttributeError:
             pass
         print(md)
-    return 0
+    return rc
 
 
 if __name__ == "__main__":

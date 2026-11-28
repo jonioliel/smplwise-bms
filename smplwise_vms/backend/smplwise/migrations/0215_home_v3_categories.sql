@@ -11,8 +11,12 @@
 --     category ("דלתות ואינטרקום"), so a person whose administrator hid the doors keeps the intercom hidden too (no newly shown screen).
 -- Every category is still shown only where its own module is on and the person holds its own permission (checked by its own route):
 -- the list restricts, it never grants. A list that is not a valid JSON array is left untouched (services/home_interface reads it as
--- "every category"). The previous version refuses no stored value it does not know (it only validates on write), so rollback = leave
--- the rows; an administrator who saves a person's policy on the previous version simply drops the names that version does not know.
+-- "every category").
+-- Rollback: the rows keep the added names. 2.43.0 and older read a stored list as is and show only the categories they know (a new
+--   name is ignored, nothing extra is shown), but their admin page sends the whole stored list back when one category of that person
+--   is ticked, and the older server refuses names it does not know (422 "ערך לא מוכר ברשימת הקטגוריות"): that person's category list
+--   cannot be edited on the older version (restore that version's pre-upgrade backup, or move forward again to edit it).
+--   (Review CD2-20: comment-only note, added in 2.57; the statement below is unchanged.)
 UPDATE home_interface_policy SET modules_json = (
     SELECT json_group_array(value) FROM (
         SELECT j.value AS value, 0 AS grp, CAST(j.key AS INTEGER) AS ord FROM json_each(home_interface_policy.modules_json) AS j

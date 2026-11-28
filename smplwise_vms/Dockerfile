@@ -1,4 +1,8 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
+# The default is the MULTI-ARCHITECTURE HA python base (linux/amd64 + linux/arm64, the same per-arch images as build.yaml's
+# {arch}-base-python of the same tag): Supervisors from 2026.04 no longer pass BUILD_FROM and read this default, so an aarch64 host must
+# not get an amd64-only image here (review CD2-08). build.yaml keeps the per-arch names for older Supervisors; release_check.py holds the
+# two in step (same tag).
+ARG BUILD_FROM=ghcr.io/home-assistant/base-python:3.12-alpine3.22
 FROM ${BUILD_FROM}
 
 # poppler-utils provides pdftoppm/pdfinfo: PDF pages are rasterized in a separate, time-bounded process.

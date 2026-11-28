@@ -137,3 +137,112 @@ def test_backup_export_writes_a_secret_free_document_arx_reads_back(tmp_path, ca
     meta["protected"] = True
     backup.write_bytes(tar({"./backup.json": json.dumps(meta).encode()}, False))
     assert ml.main(["--backup", str(backup)]) == 2
+
+
+# ---- review CD2-21: an alias write that fails half-way still leaves a full report; the time offset comes from the IANA zone + date
+
+def _fake_vms(monkeypatch, fail_ids: set[str]):
+    import io
+    import urllib.error
+
+    sent: list[str] = []
+
+    class Resp:
+        status = 200
+
+        def __init__(self, body: bytes = b"{}"):
+            self._b = body
+
+        def read(self):
+            return self._b
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    cams = {"cameras": [{"id": "c1", "channel": 1, "name": "Camera 01", "alias": None}, {"id": "c2", "channel": 2, "name": "Lobby", "alias": None},
+                        {"id": "c7", "channel": 7, "name": "Parking", "alias": None}]}
+
+    def fake_urlopen(req, timeout=30):  # noqa: ARG001
+        url = req.full_url
+        if req.get_method() == "GET":
+            body = cams if url.endswith("/api/v1/cameras") else {"settings": {"time.zone": "Asia/Jerusalem"}}
+            return Resp(json.dumps(body).encode("utf-8"))
+        cid = url.rsplit("/", 1)[1]
+        sent.append(cid)
+        if cid in fail_ids:
+            raise urllib.error.HTTPError(url, 500, "server error", {}, io.BytesIO(b"secret server text"))
+        return Resp()
+
+    monkeypatch.setattr(ml.urllib.request, "urlopen", fake_urlopen)
+    return sent
+
+
+def test_a_failing_alias_write_is_a_failed_row_the_others_are_still_written_and_the_report_is_written(tmp_path, monkeypatch):
+    _write(tmp_path)
+    sent = _fake_vms(monkeypatch, {"c2"})
+    out_json, out_md = tmp_path / "r.json", tmp_path / "r.md"
+    rc = ml.main(["--options", str(tmp_path / "options.json"), "--override", str(tmp_path / "override.json"), "--vms-url", "http://vms.local:8099",
+                  "--apply-aliases", "--json", str(out_json), "--markdown", str(out_md)])
+    assert rc == 1, "an incomplete write is not a success"
+    assert sent == ["c1", "c2", "c7"], "the camera after the failure is still tried"
+    rep = json.loads(out_json.read_text(encoding="utf-8"))
+    by = {a["channel"]: a for a in rep["applied_aliases"]}
+    assert by[1]["result"] == "written" and by[7]["result"] == "written"
+    assert by[2]["result"] == "failed" and by[2]["error"] == "http_500" and by[2]["before"] is None
+    assert rep["writes"]["vms"] == "2 camera aliases written, 1 failed"
+    assert any("alias writes incomplete" in w for w in rep["warnings"])
+    md = out_md.read_text(encoding="utf-8")
+    assert "## Alias writes" in md and "secret server text" not in md and "secret server text" not in out_json.read_text(encoding="utf-8")
+
+
+def test_an_interrupt_stops_the_writes_and_still_reports_what_was_written(monkeypatch):
+    rows, _ = ml.plan_cameras({"camera_names": {"1": "a", "2": "b", "3": "c"}}, [{"id": f"c{i}", "channel": i, "alias": None} for i in (1, 2, 3)])
+    calls: list[str] = []
+
+    class Resp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=30):  # noqa: ARG001
+        calls.append(req.full_url)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return Resp()
+
+    monkeypatch.setattr(ml.urllib.request, "urlopen", fake_urlopen)
+    done = ml.apply_aliases(rows, "http://vms.local:8099", None)
+    assert [(d["channel"], d["result"]) for d in done] == [(1, "written"), (2, "not_attempted"), (3, "not_attempted")]
+    assert len(calls) == 2
+
+
+def test_the_legacy_auto_offset_comes_from_the_zone_and_the_date_not_a_fixed_120(tmp_path):
+    _write(tmp_path)
+    ov = {**OVERRIDE, "recording_display_offset_mode": "auto"}
+    (tmp_path / "override.json").write_text(json.dumps(ov), encoding="utf-8")
+
+    def time_of(*extra):
+        out = tmp_path / "t.json"
+        assert ml.main(["--options", str(tmp_path / "options.json"), "--override", str(tmp_path / "override.json"), "--json", str(out),
+                        "--markdown", str(tmp_path / "t.md"), *extra]) == 0
+        return json.loads(out.read_text(encoding="utf-8"))["time"]
+
+    summer = time_of("--zone", "Asia/Jerusalem", "--date", "2026-07-15")
+    assert summer["utc_offset_minutes"] == 180 and summer["dst"] is True, "the true offset of a summer day, from the IANA rules"
+    assert summer["standard_offset_minutes"] == 120 and summer["auto_minutes"] == 120, "the device quirk (T1): the NVR reports standard time"
+    assert "KNOWN_QUIRKS T1" in summer["auto_source"]
+    winter = time_of("--zone", "Asia/Jerusalem", "--date", "2026-01-15")
+    assert winter["utc_offset_minutes"] == 120 and winter["dst"] is False and winter["auto_minutes"] == 120
+    ny = time_of("--zone", "America/New_York", "--date", "2026-07-15")
+    assert ny["auto_minutes"] == -300 and ny["utc_offset_minutes"] == -240 and ny["effective_minutes"] == -300, "another zone is not +120"
+    given = time_of("--nvr-utc-offset-minutes", "60", "--date", "2026-07-15")
+    assert given["auto_minutes"] == 60 and given["auto_source"].startswith("given")
+    md = (tmp_path / "t.md").read_text(encoding="utf-8")
+    assert "zone Asia/Jerusalem on 2026-07-15: UTC+180 min (daylight saving" in md

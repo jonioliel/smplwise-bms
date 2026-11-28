@@ -912,3 +912,149 @@ def test_loopback_and_link_local_hosts_are_refused_but_lan_hosts_and_names_are_a
         r = world.c.put(f"{API}/notify/email", json=world.body(smtp, host=host))
         assert r.status_code == 200, (host, r.text)
     assert notify_email.refused_host("127.0.0.1") and not notify_email.refused_host("172.16.5.20")
+
+
+# ---------------------------------------------------------------- FIX-CORE2-2570: the second deep review (CD2-06, 12, 13, 14, 17)
+
+def _restart(world):
+    """What an add-on restart does to the e-mail channel: the worker (its queue, heap and digest) and the live bookkeeping are gone."""
+    notify_email.reset_state()
+    world.notifier = push_svc.PushNotifier()
+    world.notifier.db = world.db
+
+
+def test_queued_rows_left_by_a_restart_are_failed_as_interrupted_and_never_sent(world, smtp, monkeypatch):
+    """CD2-06: a dispatch handed to the worker but not yet run when the add-on restarts stayed `queued` for good (the sweep looked at
+    `retry` only): never sent, never failed, invisible in the failures panel. It is failed honestly and NOT re-sent (it may have been in
+    the middle of its SMTP session)."""
+    monkeypatch.setattr(notify_email, "ORPHAN_GRACE_S", 0.0)
+    world.configure(smtp, recipients=[OWNER, SECOND])
+    monkeypatch.setattr(notify_email.EmailWorker, "submit", lambda self, fn: True)   # accepted, then the process dies before it runs
+    nid = world.emit(key="q1")
+    notify_channels.process_outbox(world.notifier)
+    assert [r["status"] for r in world.rows()] == ["queued", "queued"]
+    notify_channels.housekeeping(world.db)   # while this process still holds the hand-over: left alone
+    assert [r["status"] for r in world.rows()] == ["queued", "queued"]
+    _restart(world)
+    notify_channels.housekeeping(world.db)
+    assert [(r["status"], r["reason"]) for r in world.rows()] == [("failed", "interrupted")] * 2
+    assert smtp.messages == [], "never sent a second time"
+    with world.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notification_events WHERE notification_id = ? AND kind = 'delivery_failed' AND channel = 'email'", (nid,)).fetchone()[0] == 2
+    notify_channels.housekeeping(world.db)
+    assert [r["status"] for r in world.rows()] == ["failed", "failed"]
+
+
+def test_a_live_queued_hand_over_is_never_taken_for_an_orphan(world, smtp, monkeypatch):
+    """The other side of CD2-06: a row still waiting in THIS process's worker queue (here: a slow server) is not failed by the sweep."""
+    monkeypatch.setattr(notify_email, "ORPHAN_GRACE_S", 0.0)
+    monkeypatch.setattr(notify_email, "TIMEOUT_S", 8.0)
+    world.configure(smtp)
+    smtp.greeting_delay = 1.5
+    world.emit(key="q2")
+    notify_channels.process_outbox(world.notifier)
+    assert world.rows()[0]["status"] == "queued"
+    assert notify_email.recover_orphans(world.db) == 0
+    assert world.worker.drain(20) and world.rows()[0]["status"] == "sent" and len(smtp.messages) == 1
+
+
+def test_the_orphan_sweep_never_overwrites_a_row_that_was_settled_meanwhile(world, smtp, monkeypatch):
+    """CD2-12: the sweep read the rows, then wrote `failed` unconditionally - a retry that finished in between was overwritten."""
+    monkeypatch.setattr(notify_email, "ORPHAN_GRACE_S", 0.0)
+    world.configure(smtp)
+    smtp.drop = True
+    nid = world.emit(key="o12")
+    world.outbox()
+    did = world.rows()[0]["id"]
+    _restart(world)
+    real = notify_email._LOCK
+
+    class SettlesOnFirstUse:
+        """The lock the sweep takes between its read and its write: the row is settled `sent` exactly there."""
+        fired = False
+
+        def __enter__(self):
+            if not SettlesOnFirstUse.fired:
+                SettlesOnFirstUse.fired = True
+                with world.db.connection() as conn:
+                    conn.execute("UPDATE notification_deliveries SET status = 'sent', reason = NULL WHERE id = ?", (did,))
+            return real.__enter__()
+
+        def __exit__(self, *a):
+            return real.__exit__(*a)
+
+    monkeypatch.setattr(notify_email, "_LOCK", SettlesOnFirstUse())
+    assert notify_email.recover_orphans(world.db) == 0
+    assert (world.rows()[0]["status"], world.rows()[0]["reason"]) == ("sent", None)
+    with world.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM notification_events WHERE notification_id = ? AND kind = 'delivery_failed'", (nid,)).fetchone()[0] == 0
+
+
+def test_a_retry_job_that_raises_gives_its_rows_to_the_orphan_sweep(world, smtp, monkeypatch):
+    """CD2-13: a job that raised left its rows `retry` and in the live set for good. Now they leave the live set; the sweep fails them."""
+    monkeypatch.setattr(notify_email, "ORPHAN_GRACE_S", 0.0)
+    world.configure(smtp)
+    smtp.drop = True
+    world.emit(key="o13")
+    world.outbox()
+    assert world.rows()[0]["status"] == "retry" and len(world.worker.retries) == 1
+
+    def boom(self, db):
+        raise RuntimeError("database gone")
+
+    monkeypatch.setattr(notify_email.MailJob, "recheck", boom)
+    world.tick()
+    assert not world.worker.retries
+    notify_channels.housekeeping(world.db)
+    assert (world.rows()[0]["status"], world.rows()[0]["reason"]) == ("failed", "unavailable")
+
+
+def test_the_rate_limit_counts_mails_not_notifications(world, smtp, monkeypatch):
+    """CD2-14: one slot was taken per notification however many addresses it went to (up to ten): up to 60 mails a minute against 6."""
+    monkeypatch.setattr(notify_email, "MAX_MAILS_PER_MIN", 3)
+    world.configure(smtp, recipients=[OWNER, SECOND])
+    world.emit(key="r1")
+    world.emit(key="r2")
+    world.outbox()
+    assert len(smtp.messages) == 2, "two mails (one notification to two addresses) fit; the next two would make four"
+    rows = world.rows()
+    assert [r["status"] for r in rows[:2]] == ["sent", "sent"] and {(r["status"], r["reason"]) for r in rows[2:]} == {("retry", "rate_limited")}
+
+
+def test_a_notification_to_more_addresses_than_the_window_passes_on_an_empty_window(world, smtp, monkeypatch):
+    monkeypatch.setattr(notify_email, "MAX_MAILS_PER_MIN", 3)
+    world.configure(smtp, recipients=[f"r{i}@example.test" for i in range(5)])
+    world.emit(key="big")
+    world.emit(key="next")
+    world.outbox()
+    assert len(smtp.messages) == 5, "never held for ever: it fills an empty window"
+    assert {r["status"] for r in world.rows()[5:]} == {"retry"}, "the next one waits for the digest"
+
+
+def test_a_name_that_resolves_to_this_machine_is_refused_at_send_time(world, smtp, monkeypatch):
+    """CD2-17: the validator judged only the text; `mail.lan` resolving to 127.0.0.1 reached the local machine (a port probe)."""
+    monkeypatch.setattr(notify_email, "ALLOW_LOOPBACK_HOST", False)
+    seen: list[str] = []
+    monkeypatch.setattr(notify_email, "_resolve", lambda host, port: seen.append(host) or ["127.0.0.1"])
+    cfg = notify_email.MailConfig("mail.lan", smtp.port, "none", "", SENDER, (OWNER,))
+    with pytest.raises(notify_email.MailError) as e:
+        notify_email.smtp_send(cfg, OWNER, notify_email.compose_test("Asia/Jerusalem"))
+    assert e.value.kind == "invalid" and seen == ["mail.lan"] and smtp.connections == 0
+    for bad in (["::1"], ["169.254.169.254"], ["10.0.0.5", "127.0.0.2"], ["fe80::1%eth0"]):
+        monkeypatch.setattr(notify_email, "_resolve", lambda host, port, bad=bad: bad)
+        assert notify_email.refused_target("mail.lan", 25), bad
+    monkeypatch.setattr(notify_email, "_resolve", lambda host, port: ["192.168.1.20"])
+    assert not notify_email.refused_target("mail.lan", 25), "a LAN mail server stays allowed"
+
+
+def test_the_test_button_has_one_overall_deadline(world, smtp, monkeypatch):
+    """CD2-17: `send_test` had no overall deadline (~10 s per step per recipient)."""
+    monkeypatch.setattr(notify_email, "TIMEOUT_S", 8.0)
+    monkeypatch.setattr(notify_email, "TEST_DEADLINE_S", 1.2)
+    smtp.greeting_delay = 0.5
+    cfg = notify_email.MailConfig("127.0.0.1", smtp.port, "none", "", SENDER, tuple(f"t{i}@example.test" for i in range(6)))
+    t0 = time.monotonic()
+    ok, detail, delivered, total = notify_email.send_test(cfg, "Asia/Jerusalem")
+    took = time.monotonic() - t0
+    assert not ok and detail == "timeout" and total == 6 and 1 <= delivered < 6, (ok, detail, delivered)
+    assert took < 3.0, f"the test took {took:.2f}s"
