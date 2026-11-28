@@ -445,6 +445,7 @@ def test_vd2_01_a_scene_with_no_readable_members_needs_the_strongest_rights(auto
     item = _yaml_scene(app, fake, "scene.mystery", "yaml-mystery", None)
     r = _apply(c, item, confirm=True)
     assert r.status_code == 403 and r.json()["details"]["reason"] == "scene_members_unknown", r.text  # no door.unlock installation-wide
+    assert "לא ידוע אילו מכשירים הסצנה מפעילה" in r.json()["user_message"], r.text  # RELEASE-2570-TRAIN: its own sentence, not the generic one
     grant(c, "joni", "דלתות", ["door.unlock"], "installation", "*")
     r = _apply(c, item)
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text  # the administrator: allowed, with the confirmation

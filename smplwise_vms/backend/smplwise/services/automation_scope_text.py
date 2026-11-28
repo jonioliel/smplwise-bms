@@ -29,6 +29,9 @@ AUTOMATION: dict[str, tuple[str, str]] = {
     "no_control_of": ("אין לך הרשאת שליטה ב־{name}.", "You do not have permission to control {name}."),
     "unknown_effects": ("לפריט פעולות שאינן ידועות מראש; הרצה דורשת הרשאה בכל ההתקנה.",
                         "The item has actions that are not known in advance; running it needs the permission for the whole installation."),
+    # RELEASE-2570-TRAIN (FIX-AUTOMATION-2570 VD2-01): 403 forbidden, details.reason = scene_members_unknown
+    "scene_members_unknown": ("לא ידוע אילו מכשירים הסצנה מפעילה (ההגדרה שלה אינה קריאה). הפעלתה דורשת הרשאה לשלוט במכשירים, לפתוח דלתות ולנטרל את האזעקה בכל ההתקנה.",
+                              "It is not known which devices this scene sets (its definition cannot be read). Running it needs the permissions to control devices, open doors and disarm the alarm in the whole installation."),
 }
 
 SCHEDULE: dict[str, tuple[str, str]] = {

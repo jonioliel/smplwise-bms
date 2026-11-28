@@ -406,7 +406,7 @@ def unknown_scene_reasons(ctx: Ctx, entity_id: str | None) -> list[dict[str, Any
     """VD2-01: a scene with unknown members runs only for a caller holding control, `door.unlock` and `alarm.disarm` installation-wide."""
     if all(ctx.access.wide(p) for p in UNKNOWN_SCENE_PERMS):
         return []
-    return [reason("no_permission", entity_id, t("ascope.unknown_effects"), unknown_members=True)]
+    return [reason("no_permission", entity_id, t("ascope.scene_members_unknown"), unknown_members=True)]
 
 
 def scene_member_steps(ctx: Ctx, members: list[str]) -> list[dict[str, Any]]:
