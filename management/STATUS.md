@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-28T20:35:43.980998+00:00
+Generated: 2026-11-28T20:49:44.285541+00:00
 
-Tasks: 795 | Requirements: 909 | Tests: 926 | Screens: 32
+Tasks: 796 | Requirements: 910 | Tests: 927 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 8
-- REVIEW: 232
+- REVIEW: 233
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 700
+- V1: 701
 - V2: 29
 - V3: 3
 
@@ -850,3 +850,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-PHONEKEY-2570](tasks/FIX-PHONEKEY-2570.md) | V1 | REVIEW | Second deep review SA2-01, SA2-02: phone key registration in the Android app, the phone prompt shows the signed payload (app 2.1.0) | — |
 | [FIX-UTIL-B-2570](tasks/FIX-UTIL-B-2570.md) | V1 | REVIEW | Second deep review comms / utilities fixes CU2-09..CU2-11, CU2-19, CU2-21, CU2-33: presence settings atomic and validated, notice TV recovers, insights claim before send, maintenance file deletes | — |
 | [FIX-CALENDAR-2570](tasks/FIX-CALENDAR-2570.md) | V1 | REVIEW | Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision | — |
+| [FIX-GATE-2570](tasks/FIX-GATE-2570.md) | V1 | REVIEW | Second deep review gate trust fixes CD2-01, CD2-03, CD2-09, CD2-10, SA2-05 a: process-level failures carry their files, all-skipped processes fail, requirements and pins checked, nightly arm64 base check | — |

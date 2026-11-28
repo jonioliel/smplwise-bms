@@ -24026,5 +24026,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-GATE-2570-1",
+    "requirement_ids": [
+      "R-FIX-GATE-2570-1"
+    ],
+    "task_ids": [
+      "FIX-GATE-2570"
+    ],
+    "title": "Second deep review gate trust fixes CD2-01, CD2-03, CD2-09, CD2-10, SA2-05 a: process-level failures carry their files, all-skipped processes fail, requirements and pins checked, nightly arm64 base check",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review gate trust fixes CD2-01, CD2-03, CD2-09, CD2-10, SA2-05 a: process-level failures carry their files, all-skipped processes fail, requirements and pins checked, nightly arm64 base check; merged into the 2.57.0 train, change note docs/changes/FIX-GATE-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

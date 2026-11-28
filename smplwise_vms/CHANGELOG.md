@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570, FIX-UTIL-B-2570, FIX-CALENDAR-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570, FIX-UTIL-B-2570, FIX-CALENDAR-2570, FIX-GATE-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -60,6 +60,10 @@
 - Monthly reports: a report is marked as taken before it is sent, so a restart never sends it twice; an error after the send began is "may have left", never a retry.
 - Maintenance: deleting a task also deletes its files; file bytes are removed only after the delete is saved.
 - Install on aarch64 (64-bit ARM) hosts: the add-on image now defaults to the multi-architecture base, so newer Supervisors no longer pull the amd64 image there.
+
+### Release checks (internal)
+- The release gate trusts less: a crashed or timed-out test process re-runs its own files, a run where every test skipped itself is a failure for fixture and pixel processes, a broken fixture list fails, and the test interpreter must have every product requirement at its pinned version.
+- The nightly run adds a report-only check that the add-on's default base image exists for 64-bit ARM.
 
 ### API change
 - Schedule execution job view: new additive `reviews_unread: bool`; the status read can answer `{outcome: "ok", code: "reviews_unread"}`.

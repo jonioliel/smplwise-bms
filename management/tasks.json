@@ -34211,5 +34211,43 @@
     "owner": null,
     "commit": "90db3dec0",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-GATE-2570",
+    "title": "Second deep review gate trust fixes CD2-01, CD2-03, CD2-09, CD2-10, SA2-05 a: process-level failures carry their files, all-skipped processes fail, requirements and pins checked, nightly arm64 base check",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review gate trust fixes CD2-01, CD2-03, CD2-09, CD2-10, SA2-05 a: process-level failures carry their files, all-skipped processes fail, requirements and pins checked, nightly arm64 base check; merged into the 2.57.0 train, change note docs/changes/FIX-GATE-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-GATE-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-GATE-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-GATE-2570, change note docs/changes/FIX-GATE-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-GATE-2570 head 23720c40a merged 2bfaac195 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-GATE-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "23720c40a",
+    "actual_cost_usd": null
   }
 ]
