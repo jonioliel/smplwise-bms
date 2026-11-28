@@ -272,7 +272,7 @@ export const en = {
   'ריק = השם מהמקליט': 'Empty = the name from the recorder',
   'נכתב למקליט ונרשם.': 'written to the recorder and logged.',
   'לא ידוע אם השינוי נכתב למקליט': 'it is not known whether the change was written to the recorder',
-  'לא ניתן היה לקרוא מחדש את המצב במקליט': 'the recorder's state could not be read again',
+  'לא ניתן היה לקרוא מחדש את המצב במקליט': 'the state on the recorder could not be read again',
   'שם במקליט:': 'Name on the recorder:',
   '(זהה לשם ב־Arx)': '(same as the name in Arx)',
   'ב־Arx: {name}': 'in Arx: {name}',
