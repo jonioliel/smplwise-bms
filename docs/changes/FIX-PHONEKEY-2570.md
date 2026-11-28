@@ -63,7 +63,7 @@ real phone before the capability is announced.
 - `docs/user-guide/he/82-second-factor_HE.md`, `docs/user-guide/en/82-second-factor_EN.md`: how a key is added, what the phone shows,
   that phone-key sign-in is not available yet, where the switch is.
 - Owner's real-phone acceptance steps (Hebrew): `private/planning/phone_key_owner_steps_2026-11-28_HE.md` (not in Git).
-- Compare page: `private/planning/fix_phonekey_2570_compare_2026-11-28.html` (not in Git).
+- Compare page: `private/planning/fix_phonekey_2570_compare_2026-11-28.html` (not in Git; 16 pictures in `private/planning/fix_phonekey_2570_shots/`).
 
 ## Tests
 
@@ -86,16 +86,17 @@ changed test files copied in; "after" = this branch at `244cc18b2` (the later co
 | Android build of 2.1.0 (APK) | - | **NOT_RUN** (no toolchain; no app-store build by rule) |
 | real phone (Keystore key, prompt text, attestation, step-up, approval, new fingerprint) | - | **NOT_RUN** - the owner's acceptance steps: `private/planning/phone_key_owner_steps_2026-11-28_HE.md` |
 | backend | - | not changed; no backend test run |
+| compare shots (`evidence-fix-phonekey-2570` -g shots, `SW_SHOTS_DIR`; app + browser, desktop + phone, light + dark) | PASS, 8 pictures at `9a7540f68` + this row's spec / mock | PASS, 8 pictures at `39175f51b` |
 
 Not claimed: that anything works on a real phone. The capability must not be announced before the owner's steps pass.
 
 ## Open questions
 
-1. The "approve on the phone" switch in a desktop browser: (a, built) shown only in the app that registers keys and wherever it is on,
+1. (lead: a) The "approve on the phone" switch in a desktop browser: (a, built) shown only in the app that registers keys and wherever it is on,
    a line otherwise; (b) always shown, with a hint line. Recommendation: a (the owner's brief).
-2. App version: (a, built) `gradle.properties` 2.0.2 (3) -> 2.1.0 (4) in this row; (b) leave the number to the lead and change
+2. (lead: a) App version: (a, built) `gradle.properties` 2.0.2 (3) -> 2.1.0 (4) in this row; (b) leave the number to the lead and change
    `PHONE_KEY_APP_VERSION` with it. Recommendation: a.
-3. Phone key as a sign-in factor (Q51): (a) a later row with its own screen and a real-phone test; (b) drop the server part.
+3. (lead: a) Phone key as a sign-in factor (Q51): (a) a later row with its own screen and a real-phone test; (b) drop the server part.
    Recommendation: a.
 
 ## Rollback
