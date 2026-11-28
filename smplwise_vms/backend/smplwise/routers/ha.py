@@ -280,6 +280,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_media_managed(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_door_chain(conn, principal, request, entity_id, body.allowed_action_id)
+    scene_steps = _scene_member_gate(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -310,6 +311,12 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         # MFA-STEPUP-GATES-2490: an unlock, a disarm or a bypass arming needs a fresh step-up proof - after its grant and confirmation,
         # before anything is recorded or sent
         step_up.guard_action(conn, request, principal, su_action)
+    if scene_steps:
+        from ..services import automation_ops
+
+        # CD2-02: a scene that disarms / bypass-arms / unlocks asks the step-up proof of that manual action (after the grants and the confirmation)
+        for su in dict.fromkeys(automation_ops.SCENE_STEP_UP[s["action"]] for s in scene_steps if s.get("action") in automation_ops.SCENE_STEP_UP):
+            step_up.guard_action(conn, request, principal, su)
     if not service_identity.identity_ok(principal, settings):  # CR-008: the Arx remote channel is the same HA user; USR2 P3: a local one, the service identity
         raise ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן.")
     if (spec["domain"], spec["service"]) == ("script", "turn_on") and service_identity.is_local(principal) and service_identity.extended_on(conn):
@@ -514,6 +521,25 @@ def _refuse_door_chain(conn: sqlite3.Connection, principal: Principal, request: 
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
               request_id=_rid(request), details={"action": action_id})
         raise
+
+
+def _scene_member_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> list[dict[str, Any]]:
+    """CD2-02: `scene.turn_on` from a tile or a map card checked control of the scene entity only, so a scene holding an alarm panel (or a lock, a
+    siren, a door-class cover) ran without the panel's arm / disarm grant. Every sensitive member now needs what its own manual action needs
+    (services/automation_scope.scene_member_reasons); refused = the audited 403 (`grant_required`, `entity_not_controllable` or the remote
+    channel's alarm code), before anything is recorded or sent. The confirmation is the route's own (`confirmation_grant: "confirmed"`, every
+    scene is an "attention" action). Returns the sensitive member steps (their step-up is asked after the confirmation)."""
+    if action_id != "scene.turn_on":
+        return []
+    from ..services import automation_ops, automation_scope
+
+    steps, reasons = automation_scope.scene_member_reasons(conn, principal, entity_id)
+    if reasons:
+        err = automation_ops.reason_error(reasons[0])
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=err.code,
+              request_id=_rid(request), details={"action": action_id, "member": reasons[0].get("entity_id"), "grant": reasons[0].get("grant")})
+        raise err
+    return steps
 
 
 def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:

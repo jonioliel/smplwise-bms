@@ -13,6 +13,7 @@ import re
 import sqlite3
 from typing import Any
 
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import automation_draft as drafts
@@ -63,7 +64,8 @@ def runs_list(ctx: scope.Ctx, kind: str, item_id: str) -> dict[str, Any]:
     cid = _config_id(row)
     tz = zone(ctx.tz_name)
     try:
-        reply = tr.get_transport().ws("trace/list", domain=domain, item_id=cid)
+        with unlocked(ctx.conn):  # CD2-07: a Home Assistant round trip never holds the request's write lock
+            reply = tr.get_transport().ws("trace/list", domain=domain, item_id=cid)
     except ApiError:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True) from None
     ok, code = store.is_json_error(reply)
@@ -136,7 +138,8 @@ def _prefetch_details(conn: sqlite3.Connection, kind: str, item_id: str, config_
     for s in summaries[:5]:
         if s["result"] in SETTLED and _recent(s["at"], now) and RUN_ID_RE.match(s["run_id"]):
             try:
-                reply = tr.get_transport().ws("trace/get", domain=kind, item_id=config_id, run_id=s["run_id"])
+                with unlocked(conn):  # CD2-07: never under the write lock (the runs route's request connection, the mirror's run check)
+                    reply = tr.get_transport().ws("trace/get", domain=kind, item_id=config_id, run_id=s["run_id"])
             except ApiError:
                 continue
             ok, _ = store.is_json_error(reply)
@@ -213,7 +216,8 @@ def run_detail(ctx: scope.Ctx, kind: str, item_id: str, run_id: str) -> dict[str
     if not RUN_ID_RE.match(run_id):
         raise ApiError(404, "item_not_found", "הפריט לא נמצא.")
     try:
-        reply = tr.get_transport().ws("trace/get", domain=domain, item_id=cid, run_id=run_id)
+        with unlocked(ctx.conn):  # CD2-07
+            reply = tr.get_transport().ws("trace/get", domain=domain, item_id=cid, run_id=run_id)
     except ApiError:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True) from None
     ok, code = store.is_json_error(reply)

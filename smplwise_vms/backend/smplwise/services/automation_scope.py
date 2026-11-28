@@ -332,8 +332,9 @@ def facts_of(ctx: Ctx, kind: str, rd: dict[str, Any], *, entity_id: str | None =
     if kind == "scene":
         for m in d["members"]:
             f["targets"].append(m["entity_id"])
-            if m["entity_id"].startswith("lock."):
-                f["steps"].append({"path": "members", "action": "lock.lock" if m["state"] == "locked" else "lock.unlock", "entity_id": m["entity_id"], "role": "device", "sens": "lock"})
+            step = scene_member_step(ctx, m["entity_id"], m["state"])
+            if step is not None:
+                f["steps"].append(step)
         return _finish(ctx, f)
     f["trigger_entities"] = model.trigger_entities(d) if kind == "automation" else []
     f["condition_entities"] = model.condition_entities(d) if kind == "automation" else []
@@ -365,6 +366,58 @@ def facts_of(ctx: Ctx, kind: str, rd: dict[str, Any], *, entity_id: str | None =
     return _finish(ctx, f, entity_id=entity_id, depth=depth, draft=d)
 
 
+# CD2-02: the action Home Assistant's reproduce-state sends for the state a scene sets on an alarm panel
+_ALARM_STATE_ACTION = {"disarmed": "alarm_control_panel.alarm_disarm", "armed_home": "alarm_control_panel.alarm_arm_home",
+                       "armed_away": "alarm_control_panel.alarm_arm_away", "armed_night": "alarm_control_panel.alarm_arm_night",
+                       "armed_vacation": "alarm_control_panel.alarm_arm_vacation", "armed_custom_bypass": "alarm_control_panel.alarm_arm_custom_bypass"}
+
+
+def scene_member_step(ctx: Ctx, entity_id: str, state: str | None) -> dict[str, Any] | None:
+    """CD2-02: the sensitive step one scene member stands for, judged exactly as the same manual action: a lock (lock / unlock), an alarm panel
+    (the arm mode or the disarm its state names; a state that names neither - triggered, pending, unknown, a member whose state is not known -
+    counts as a disarm, the strictest grant), a siren and a door-class cover (control and a confirmation). None for an ordinary member."""
+    dom = entity_id.split(".", 1)[0]
+    st = (state or "").strip()
+    if dom == "lock":
+        return {"path": "members", "action": "lock.lock" if st == "locked" else "lock.unlock", "entity_id": entity_id, "role": "device", "sens": "lock"}
+    if dom == "alarm_control_panel":
+        return {"path": "members", "action": _ALARM_STATE_ACTION.get(st, "alarm_control_panel.alarm_disarm"), "entity_id": entity_id, "role": "device", "sens": "alarm"}
+    if dom == "siren":
+        return {"path": "members", "action": "siren.turn_off" if st == "off" else "siren.turn_on", "entity_id": entity_id, "role": "device", "sens": "siren"}
+    if dom == "cover" and ctx.door_cover(entity_id):
+        return {"path": "members", "action": "cover.close_cover" if st == "closed" else "cover.open_cover", "entity_id": entity_id, "role": "device",
+                "sens": ctx.entity_class(entity_id) or "door"}
+    return None
+
+
+def scene_member_steps(ctx: Ctx, members: list[str]) -> list[dict[str, Any]]:
+    """CD2-02: the sensitive steps of a scene known only by its member list (no readable config: the states it sets are not known)."""
+    return [s for s in (scene_member_step(ctx, e, None) for e in members) if s is not None]
+
+
+def scene_member_reasons(conn: sqlite3.Connection, principal: Principal, scene_entity_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """CD2-02: (the sensitive member steps, why the caller may NOT activate the scene) for the device-control route's `scene.turn_on`, which checks
+    control of the scene entity only: every sensitive member needs what its own manual action needs - control of a lock / siren / door-class
+    cover, `door.unlock` for an unlock, `alarm.arm` / `alarm.disarm` (own scope) and the remote channel's alarm rule for a panel. The members
+    come from the scene's readable config (the states it sets), else from its state's member list (each judged as its strictest action)."""
+    ctx = Ctx(conn, principal)
+    steps: list[dict[str, Any]] | None = None
+    row = conn.execute("SELECT config_json FROM ha_config_items WHERE kind = 'scene' AND entity_id = ?", (scene_entity_id,)).fetchone()
+    if row is not None and row["config_json"]:
+        try:
+            cfg = json.loads(row["config_json"])
+        except ValueError:
+            cfg = None
+        if isinstance(cfg, dict):
+            rd = drafts.read("scene", cfg, ctx.model_ctx(code_view=False, scoped=False))
+            steps = facts_of(ctx, "scene", rd, entity_id=scene_entity_id)["steps"]
+    if steps is None:
+        members = ((ctx.entity(scene_entity_id) or {}).get("attributes") or {}).get("entity_id")
+        steps = scene_member_steps(ctx, [m for m in members if isinstance(m, str)]) if isinstance(members, list) else []
+    sens = [s for s in steps if s.get("sens") and s["role"] == "device"]
+    return sens, control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))) + grant_reasons(ctx, sens)
+
+
 def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth: int = 0, draft: dict[str, Any] | None = None) -> dict[str, Any]:
     """Expand the references: a scene's members, a script's effects (recursively, depth 3); a reference that cannot be resolved is an unknown effect."""
     for ref in f["refs"]:
@@ -384,8 +437,8 @@ def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth:
     classes: list[str] = []
     if draft is not None:
         classes = model.sensitive_classes(draft, ctx.entity_class)
-    else:  # a scene: the lock members
-        classes = ["lock"] if any(s.get("sens") for s in f["steps"]) else []
+    else:  # a scene: the classes of its sensitive members (lock, alarm, siren, door-class covers - CD2-02)
+        classes = list(dict.fromkeys(s["sens"] for s in f["steps"] if s.get("sens")))
     f["sensitive_classes"] = classes
     f["sensitive"] = bool(classes) or any(s.get("sens") for s in f["steps"])
     return f
@@ -557,6 +610,11 @@ def run_reasons(ctx: Ctx, kind: str, facts: dict[str, Any], *, entity_id: str | 
         if source == "integration":
             if not (entity_id and a.control(entity_id)):
                 out.append(reason("entity_not_controllable", entity_id, t("ascope.no_control_of", name=ctx.name_of(entity_id or ""))))
+                return out
+            # CD2-02: a sensitive member the scene's state lists still needs what its own manual action needs (control, the grant, the remote rule)
+            sens = [s for s in facts["steps"] if s.get("sens") and s["role"] == "device"]
+            out.extend(control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))))
+            out.extend(grant_reasons(ctx, sens))
             return out
         out.extend(control_reasons(ctx, facts["targets"]))
         out.extend(grant_reasons(ctx, facts["steps"]))

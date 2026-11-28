@@ -800,15 +800,15 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         w.details.update(entities=[e for _, e, _ in pairs], classes=cls["sensitive_classes"], sensitive=cls["sensitive"], lowering=cls["lowering"], slot_index=slot_index, skip_conditions=bool(skip_conditions))
         verify_creator_codes(w, pairs, alarm_code)
         alarm_code = None
-        with _RATE_LOCK:
+        if not str(core["entity_id"] or "").startswith("switch."):
+            raise ApiError(422, "validation", "לתזמון אין מתג; אי אפשר להריץ אותו.")  # the component answers a run of a missing entity with a silent success
+        at = _slot_time(core, slot_index, w)
+        with _RATE_LOCK:  # CD2-19: taken after the refusals above - a refused run-now never blocks the next one
             last = _LAST_RUN.get(schedule_id)
             now = time.monotonic()
             if last is not None and now - last < RUN_MIN_GAP_S:
                 raise ApiError(429, "run_too_soon", "התזמון הורץ ממש עכשיו; נסו שוב בעוד כמה שניות.", retryable=True)
             _LAST_RUN[schedule_id] = now
-        if not str(core["entity_id"] or "").startswith("switch."):
-            raise ApiError(422, "validation", "לתזמון אין מתג; אי אפשר להריץ אותו.")  # the component answers a run of a missing entity with a silent success
-        at = _slot_time(core, slot_index, w)
         op_id, again = _begin(w, client_request_id, "run", schedule_id, "run")
         if again:
             with _RATE_LOCK:
@@ -925,14 +925,17 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
                 store.finish_op(w.conn, op_id, "failed", error="split_incomplete")
                 raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": new_id}) from None
             raise
+        orig_warnings: list[dict[str, str]] = []
+        new_warnings: list[dict[str, str]] = []
         if not core["enabled"]:
             try:
                 bridge_call(w, "disable", op_id, schedule_id=new_id, schedule_entity_id=new_entity, sensitive=cls["sensitive"])
-            except ApiError:
-                pass
+            except ApiError as exc:  # CD2-11: never silent - audited, and said in the answer
+                w.audit("schedule.disable", "denied", new_id, exc.code)
+                new_warnings.append({"path": "enabled", "code": "not_disabled", "message": "התזמון נוצר אך לא הושבת; השביתו אותו ידנית."})
         orig_row, new_row = reread(w, schedule_id), reread(w, new_id)
         if not core["enabled"]:  # both halves keep the source's state
-            keep_disabled(w, op_id, schedule_id, core["entity_id"], cls["sensitive"])
+            orig_warnings = keep_disabled(w, op_id, schedule_id, core["entity_id"], cls["sensitive"])
             orig_row = store.cache_row(w.conn, schedule_id)
         store.finish_op(w.conn, op_id, "ok", error=json.dumps({**meta, "created": new_id}), schedule_id=schedule_id)
         store.note_arx_write(w.conn, schedule_id, w.principal)
@@ -940,7 +943,10 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         w.audit("schedule.split", "allowed", schedule_id, **op_details(w, op_id, ev, row["revision"], orig_row["revision"] if orig_row is not None else None), created_id=new_id)
         if orig_row is None or new_row is None:
             raise ApiError(502, "split_incomplete", "הפיצול לא הושלם; בדקו את שני התזמונים.", details={"original_id": schedule_id, "created_id": new_id})
-        return 200, {"original": visible_view(w, orig_row), "created": visible_view(w, new_row)}
+        original, created = visible_view(w, orig_row), visible_view(w, new_row)
+        original["warnings"] = original["warnings"] + orig_warnings
+        created["warnings"] = created["warnings"] + new_warnings
+        return 200, {"original": original, "created": created}
 
 
 # ---------------------------------------------------------------- delete, copy (§3.11, §3.12)
@@ -1038,13 +1044,14 @@ def copy(w: W, schedule_id: str, name: str, client_request_id: str, confirm_lowe
             return _unknown(w, op_id, meta, "schedule.copy")
         sid, _entity = learned
         new_row = reread(w, sid)
+        warnings: list[dict[str, str]] = []
         if not core["enabled"]:
-            keep_disabled(w, op_id, sid, _entity, cls["sensitive"])  # a copy of a disabled schedule stays disabled
+            warnings = keep_disabled(w, op_id, sid, _entity, cls["sensitive"])  # a copy of a disabled schedule stays disabled (CD2-11: a failure is said)
         new_row = store.cache_row(w.conn, sid) or new_row
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)
         w.audit("schedule.copy", "allowed", sid, **op_details(w, op_id, ev, row["revision"], new_row["revision"] if new_row is not None else None), source_id=schedule_id)
-        status, body = _created(w, new_row, op_id)
+        status, body = _created(w, new_row, op_id, warnings)
         return (status, {"schedule": body["schedule"]}) if status == 201 else (status, body)
 
 
@@ -1143,11 +1150,13 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
             w.conn.execute("UPDATE schedule_trash SET restored_at = ? WHERE id = ?", (f"~unknown:{store.stamp()}", trash_id))  # released after the adoption window, or finalised by an adoption
             return _unknown(w, op_id, meta, "schedule.restore")
         sid, entity = learned
+        warnings: list[dict[str, str]] = []
         if not core["enabled"]:
             try:
                 bridge_call(w, "disable", op_id, schedule_id=sid, schedule_entity_id=entity, sensitive=ev.sensitive)
-            except ApiError:
-                pass
+            except ApiError as exc:  # CD2-11: never silent - audited, and said in the answer (as create says it)
+                w.audit("schedule.disable", "denied", sid, exc.code)
+                warnings.append({"path": "enabled", "code": "not_disabled", "message": "התזמון נוצר אך לא הושבת; השביתו אותו ידנית."})
         row = reread(w, sid)
         store.finish_op(w.conn, op_id, "ok", schedule_id=sid)
         store.note_arx_write(w.conn, sid, w.principal, created=True)
@@ -1160,7 +1169,7 @@ def restore(w: W, trash_id: str, client_request_id: str, confirm_lowering: bool,
         w.conn.execute("UPDATE schedule_meta SET folder_id = ?, sort_key = ?, pinned = ? WHERE schedule_id = ?", (folder, m.get("sort_key"), int(m.get("pinned") or 0), sid))
         w.conn.execute("UPDATE schedule_trash SET restored_at = ?, restored_schedule_id = ? WHERE id = ?", (store.stamp(), sid, trash_id))
         w.audit("schedule.restore", "allowed", trash_id, **op_details(w, op_id, ev, None, row["revision"] if row is not None else None), restored_schedule_id=sid)
-        status, body = _created(w, row, op_id)
+        status, body = _created(w, row, op_id, warnings)
         return (status, {"schedule": body["schedule"]}) if status == 201 else (status, body)
 
 
@@ -1328,14 +1337,19 @@ def org_put(w: W, folders: list[dict[str, Any]], items: list[dict[str, Any]]) ->
         for i, f in enumerate(folders):
             fid = f.get("id") if isinstance(f.get("id"), str) and _FOLDER_ID.match(f["id"]) else None
             fid = fid or "fo" + uuid.uuid4().hex[:10]
-            keep.append((fid, names[i], int(f.get("position", i))))
+            pos = f.get("position")
+            keep.append((fid, names[i], i if pos is None else int(pos)))  # CD2-16: a folder sent without a position keeps its place in the list
         ids = {k[0] for k in keep}
         if len(ids) != len(keep):
             raise ApiError(422, "validation", "מזהי תיקיות כפולים.", details={"path": "folders"})
         if any(it.get("folder_id") is not None and it["folder_id"] not in ids for it in items if it.get("schedule_id") in visible):
             raise ApiError(422, "validation", "תיקייה לא קיימת.", details={"path": "items"})  # checked before anything is written
         now = store.stamp()
+        wide = w.ctx.access.wide(view.MANAGE)
         for fid in existing - ids:
+            # CD2-16: a manager scoped to part of the installation removes only a folder that holds nothing they cannot see
+            if not wide and any(r[0] not in visible for r in w.conn.execute("SELECT schedule_id FROM schedule_meta WHERE folder_id = ?", (fid,)).fetchall()):
+                continue
             w.conn.execute("UPDATE schedule_meta SET folder_id = NULL WHERE folder_id = ?", (fid,))
             w.conn.execute("DELETE FROM schedule_folders WHERE id = ?", (fid,))
         for fid, name, pos in keep:

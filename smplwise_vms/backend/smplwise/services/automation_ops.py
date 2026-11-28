@@ -737,9 +737,22 @@ def copy_item(w: W, kind: str, item_id: str, name: str, client_request_id: str) 
         if kind in ("automation", "scene"):
             cfg["id"] = new_id
         cfg["name" if kind == "scene" else "alias"] = name
-        j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=new_id, creating=True)
-        _raise_judgement(w, kind, j, True, creating=True)  # the copy shows no more than the source did: confirmation is the caller's
-        return _write_new(w, kind, new_id, j, True, client_request_id, "copy", "automation.copy")
+        j = _judge_new_copy(w, kind, cfg, new_id)
+        # CD2-04: a copied automation is written DISABLED - it goes live only through the enable route (its confirmation, the door guard, the review)
+        return _write_new(w, kind, new_id, j, False, client_request_id, "copy", "automation.copy")
+
+
+def _judge_new_copy(w: W, kind: str, cfg: dict[str, Any], item_id: str) -> Judgement:
+    """The judgement of a copied / restored config (it shows no more than the source did: the confirmation is the enable route's, CD2-04). A
+    self-triggering automation is written in single-run mode, exactly as create / update write it."""
+    j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
+    _raise_judgement(w, kind, j, True, creating=True)
+    if j.self_trigger:
+        single = {k: v for k, v in cfg.items() if k != "max"}
+        single["mode"] = "single"
+        j = judge(w, kind, draft=None, config_in=single, stored=None, item_id=item_id, creating=True, force_single=True)
+        _raise_judgement(w, kind, j, True, creating=True)
+    return j
 
 
 # ================================================================ delete / trash / restore
@@ -860,12 +873,12 @@ def restore_trash(w: W, trash_id: str, client_request_id: str, confirm: bool = F
         cfg = model.to_new_schema(kind, cfg, _mctx(w))
         if kind in ("automation", "scene"):
             cfg["id"] = item_id
-        j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
-        _raise_judgement(w, kind, j, True, creating=True)
+        j = _judge_new_copy(w, kind, cfg, item_id)
         if w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ? AND restored_at IS NULL", (f"~restoring:{store.stamp()}", trash_id)).rowcount != 1:
             raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
         try:
-            status, body = _write_new(w, kind, item_id, j, True, client_request_id, "restore", "automation.restore", trash_id=trash_id)
+            # CD2-04: a restored automation comes back DISABLED - it goes live only through the enable route (confirmation, door guard, review)
+            status, body = _write_new(w, kind, item_id, j, False, client_request_id, "restore", "automation.restore", trash_id=trash_id)
         except ApiError as exc:
             w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "config_timeout" else f"~unknown:{store.stamp()}", trash_id))
             raise
@@ -1141,6 +1154,7 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         if not row.entity_id:
             raise ApiError(404, "item_not_found", "הפריט לא נמצא.")
+        scene_step_up(w, facts["steps"])  # CD2-02: a member that disarms / bypass-arms / unlocks asks the step-up proof its manual action asks
         w.details.update(entities=facts["targets"], classes=facts["sensitive_classes"], sensitive=facts["sensitive"])
         key = f"scene:{item_id}"
         gap_check(key, float(w.ctx.limits["scene_apply_interval_s"]), "run_too_soon")
@@ -1156,6 +1170,19 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         w.audit("automation.run", "allowed", "scene", item_id, op_id=op_id, applied=True)
         return 202, _with_doors(w, plan, op_id, {"run_id": None, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה."})
+
+
+# CD2-02 / MFA-STEPUP-GATES-2490: the step-up action of a scene member's manual action (routers/ha.py STEP_UP_GRANTS / STEP_UP_ACTIONS)
+SCENE_STEP_UP = {"alarm_control_panel.alarm_disarm": "alarm.disarm", "alarm_control_panel.alarm_arm_custom_bypass": "alarm.bypass", "lock.unlock": "door.open"}
+
+
+def scene_step_up(w: W, steps: list[dict[str, Any]]) -> None:
+    """CD2-02: applying a scene that disarms an alarm panel, arms it with the bypass set or unlocks a lock needs the same fresh step-up proof as that
+    manual action (off unless the administrator turned step-up on) - after the grants and the confirmation, before anything is recorded or sent."""
+    from . import step_up
+
+    for action in dict.fromkeys(SCENE_STEP_UP[s["action"]] for s in steps if s.get("role") == "device" and s.get("action") in SCENE_STEP_UP):
+        step_up.guard_action(w.conn, w.request, w.principal, action)
 
 
 def _door_plan(w: W, kind: str, item_id: str, confirm: bool) -> "door_run_guard.RunPlan | None":
