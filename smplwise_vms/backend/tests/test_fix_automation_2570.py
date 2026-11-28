@@ -314,7 +314,8 @@ def test_cd2_07_the_runs_routes_call_home_assistant_with_the_write_lock_free(aut
     it = item_by_name(c, "תאורה בפרוזדור בתנועה")
     assert c.get(f"{API}/automations/automation/{it['id']}/runs").status_code == 200
     c.get(f"{API}/automations/automation/{it['id']}/runs/run-1")
-    assert [m for m, _ in seen] == ["trace/list", "trace/get"], seen
+    traces = [(m, free) for m, free in seen if m.startswith("trace/")]
+    assert [m for m, _ in traces] == ["trace/list", "trace/get"], seen
     assert all(free for _, free in seen), seen
 
 
@@ -426,6 +427,9 @@ def test_vd2_01_a_yaml_scene_with_a_lock_needs_the_unlock_grant_and_the_confirma
     app, s, c, fake, tr = autos_app
     item = _yaml_scene(app, fake, "scene.arrival", "yaml-arrival", ["lock.front_door", "light.office"])
     r = _apply(c, item)
+    assert r.status_code == 403 and r.json()["details"]["grant"] == "door.unlock", r.text  # the administrator holds no door.unlock (never implied)
+    grant(c, "joni", "דלתות", ["door.unlock"], "installation", "*")
+    r = _apply(c, item)
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text
     ids = seed_tree(c)
     place(c, ids["floor2"], "light.office", "lock.front_door")
@@ -433,11 +437,15 @@ def test_vd2_01_a_yaml_scene_with_a_lock_needs_the_unlock_grant_and_the_confirma
     r = _apply(c, item, OMER, confirm=True)
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "door.unlock", r.text
     assert not any(x.get("op") == "apply_scene" for x in tr.bridge_calls), "nothing was sent"
+    assert _apply(c, item, confirm=True).status_code == 202
 
 
 def test_vd2_01_a_scene_with_no_readable_members_needs_the_strongest_rights(autos_app, executed):
     app, s, c, fake, tr = autos_app
     item = _yaml_scene(app, fake, "scene.mystery", "yaml-mystery", None)
+    r = _apply(c, item, confirm=True)
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "scene_members_unknown", r.text  # no door.unlock installation-wide
+    grant(c, "joni", "דלתות", ["door.unlock"], "installation", "*")
     r = _apply(c, item)
     assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text  # the administrator: allowed, with the confirmation
     grant(c, "omer", "מנהל סצנות", ["devices.read", "entity.state.read", "devices.control", "ha.entity.control", "scene.manage", "alarm.view", "alarm.arm"],

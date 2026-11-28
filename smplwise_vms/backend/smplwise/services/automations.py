@@ -695,9 +695,9 @@ def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
     with db.connection(label="automations janitor") as conn:
         now = MIRROR.now()
         out["trash"] = conn.execute("DELETE FROM automation_trash WHERE expires_at <= ?", (_iso(now),)).rowcount
-        out["expired"] = expire_pending_ops(conn, now, "automation_ops")
         out["runs"] = conn.execute("DELETE FROM automation_runs WHERE at < ?", (_iso(now - dt.timedelta(days=RUN_KEEP_DAYS)),)).rowcount
         out["ops"] = conn.execute("DELETE FROM automation_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount
+        out["expired"] = expire_pending_ops(conn, now, "automation_ops")  # CD2-05: after the prune - a settled op is pruned on a later pass, never in this one
         conn.execute("UPDATE automation_trash SET restored_at = NULL WHERE restored_at LIKE '~%' AND substr(restored_at, instr(restored_at, ':') + 1) < ?", (_iso(now - dt.timedelta(hours=1)),))
     return out
 

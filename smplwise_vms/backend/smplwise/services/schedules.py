@@ -847,15 +847,15 @@ def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
     out = {"trash": 0, "runs": 0, "ops": 0, "settled": 0, "released": 0, "expired": 0}
     with db.connection(label="schedules janitor") as conn:
         now = MIRROR.now()
-        from .automations import expire_pending_ops
-
-        out["expired"] = expire_pending_ops(conn, now, "schedule_ops")  # CD2-05: before the prune below, which skips pending rows
         out["trash"] = conn.execute("DELETE FROM schedule_trash WHERE expires_at <= ?", (_iso(now),)).rowcount
         # a claim ('~restoring:<stamp>' / '~unknown:<stamp>') that nothing finished or adopted within the hour goes back to the trash
         out["released"] = conn.execute("UPDATE schedule_trash SET restored_at = NULL WHERE restored_at LIKE '~%' AND substr(restored_at, instr(restored_at, ':') + 1) < ?", (_iso(now - dt.timedelta(hours=1)),)).rowcount
         days = int(settings.get("schedules.runs_retention_days") or 90)
         out["runs"] = conn.execute("DELETE FROM schedule_runs WHERE started_at < ? AND result != 'pending'", (_iso(now - dt.timedelta(days=days)),)).rowcount
         out["ops"] = conn.execute("DELETE FROM schedule_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount
+        from .automations import expire_pending_ops
+
+        out["expired"] = expire_pending_ops(conn, now, "schedule_ops")  # CD2-05: after the prune - a settled op is pruned on a later pass, never in this one
         if feature_on(conn):
             out["settled"] = settle_runs(conn, now)
     return out

@@ -34,6 +34,31 @@ skips `alarm_control_panel.*`; the device route checked control of the scene ent
 - Schedules that run a scene judge it through the same `run_reasons`, so they inherit the member grants.
 - No retry, no queue; an unknown outcome stays unknown (the send paths are unchanged).
 
+## VD2-01 (high, review DEEP-REVIEW-2570-VIDEO-DEVICES) - a scene whose definition cannot be read fails closed
+
+- A native scene with no readable config (a YAML / package scene, a scene without id, any scene read while the config API was
+  down) whose state lists its members: each sensitive member gets its strictest step (CD2-02 above: a lock = unlock ->
+  `door.unlock`, a panel = disarm -> `alarm.disarm`), so the grant, the confirmation and the step-up apply.
+- When even the member list is missing and the scene is not a device integration's own (platform `homeassistant`, or one the
+  mirror could not classify): `unknown_effects`. Chosen rule (safer of the two offered): the confirmation (`confirm: true`) AND
+  the strongest rights - `ha.entity.control`, `door.unlock` and `alarm.disarm` all installation-wide - else **403 `forbidden`
+  with `details.reason = "scene_members_unknown"`** (audited); the step-up of a disarm and of a door opening is asked. Refusing
+  outright would also block the installation administrator from his own YAML scenes; this keeps them usable for exactly the
+  people who could do every member's action by hand anyway. Integration scenes (Hue etc.) are unchanged (control of the scene).
+- The device route's `scene.turn_on` applies the same rule.
+
+## VD2-03 (medium, review DEEP-REVIEW-2570-VIDEO-DEVICES) - "may have run" is unknown and keeps the run gap
+
+`automation_ops.bridge_call` for the run ops (`trigger`, `run_script`, `apply_scene`): a 504 `config_timeout`, a transport error
+after the connection was made (`ha_unavailable` whose `details.error` is not `ConnectError` / `ConnectTimeout` / `PoolTimeout`) and
+a bridge `ok: false` naming an exception class (the service raised after it started) record the op `unknown` (never `failed`) and
+answer **504 `config_timeout`** (the code the automations client already reads as "may have happened"), `retryable: false`,
+`details: {outcome: "unknown", error}`. The `audited` wrapper writes such a call as `allowed` with `outcome: unknown` (it is not a
+refusal). The per-item run gap (`run_interval_s`, `scene_apply_interval_s`) is kept after an unknown outcome, so an immediate
+re-press answers 429 `run_too_soon` instead of running twice; a policy refusal (lower-case bridge code) or a connect error stays
+`failed` and gives the gap back. A 504 on a write op is audited `allowed / unknown` too (it already recorded the op `unknown`).
+New text (he + en in `error_text_en.json`): the "not known whether it ran" message.
+
 ## CD2-04 (medium) - copy / restore never go live on their own
 
 `copy_item` and `restore_trash` write the new automation DISABLED (the same disable step create uses for `enabled: false`; a
