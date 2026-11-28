@@ -351,6 +351,7 @@ def test_connect_dns_and_timeout_classes(world, smtp, monkeypatch):
         notify_email.smtp_send(cfg, OWNER, notify_email.compose_test("Asia/Jerusalem"))
     assert ei.value.kind == "dns" and ei.value.retryable
     monkeypatch.undo()
+    monkeypatch.setattr(notify_email, "ALLOW_LOOPBACK_HOST", True)   # undo() also reverted the fixture's switch; smtp_send now re-checks the target (CD2-17)
     # timeout: the server accepts and never answers
     smtp.hang = True
     monkeypatch.setattr(notify_email, "TIMEOUT_S", 0.3)
