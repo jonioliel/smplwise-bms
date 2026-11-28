@@ -26,4 +26,47 @@ CD2-11, CD2-16, CD2-19 (automation / schedules - FIX-AUTOMATION-2570); CD2-22 (`
 
 ## Tests
 
-RESULTS_PLACEHOLDER
+All on the runner (`~/work/p2570_fixcore2`, slot B, one pytest process per group, `-o addopts= -q -p no:cacheprovider`).
+
+New tests BEFORE the fix (base sources at `6ea807b2e`, new tests) and AFTER (branch):
+
+| Test | Before | After |
+|---|---|---|
+| `test_notify_email.py::test_queued_rows_left_by_a_restart_are_failed_as_interrupted_and_never_sent` (CD2-06) | FAILED | passed |
+| `test_notify_email.py::test_a_live_queued_hand_over_is_never_taken_for_an_orphan` (CD2-06 guard) | passed (guard: the old code also left it alone) | passed |
+| `test_notify_email.py::test_the_orphan_sweep_never_overwrites_a_row_that_was_settled_meanwhile` (CD2-12) | FAILED | passed |
+| `test_notify_email.py::test_a_retry_job_that_raises_gives_its_rows_to_the_orphan_sweep` (CD2-13) | FAILED | passed |
+| `test_notify_email.py::test_the_rate_limit_counts_mails_not_notifications` (CD2-14) | FAILED | passed |
+| `test_notify_email.py::test_a_notification_to_more_addresses_than_the_window_passes_on_an_empty_window` (CD2-14) | FAILED | passed |
+| `test_notify_email.py::test_a_name_that_resolves_to_this_machine_is_refused_at_send_time` (CD2-17) | FAILED | passed |
+| `test_notify_email.py::test_the_test_button_has_one_overall_deadline` (CD2-17) | FAILED | passed |
+| `test_insight215_slice3.py::test_a_delivery_switched_off_or_a_channel_dropped_after_the_plan_sends_nothing_and_never_later` (CD2-15) | FAILED | passed |
+| `test_access_digest_dst_2570.py` (2 tests, CD2-18) | 2 FAILED | 2 passed |
+| `test_migrate_legacy.py::test_a_failing_alias_write_is_a_failed_row_the_others_are_still_written_and_the_report_is_written` (CD2-21) | FAILED | passed |
+| `test_migrate_legacy.py::test_an_interrupt_stops_the_writes_and_still_reports_what_was_written` (CD2-21) | interrupted (the KeyboardInterrupt escaped `apply_aliases` and stopped pytest) | passed |
+| `test_migrate_legacy.py::test_the_legacy_auto_offset_comes_from_the_zone_and_the_date_not_a_fixed_120` (CD2-21) | FAILED | passed |
+| `test_supervisor_build_check.py::test_dockerfile_default_must_be_the_multi_arch_base_of_the_build_yaml_tag` (CD2-08) | FAILED | passed |
+| `test_supervisor_build_check.py::test_the_shipped_dockerfile_default_is_the_multi_arch_base` (CD2-08) | FAILED | passed |
+| `test_migration_downgrade_check.py::test_a_rollback_to_2_43_0_is_judged_0215_carries_its_rollback_note` (CD2-20) | FAILED | passed |
+
+After, whole files (branch):
+- `test_notify_email`, `test_notify_recipient_lang_2520`, `test_notify_whatsapp`, `test_delayed_worker_2440`: 191 passed, 1 failed on the first run
+  (`test_connect_dns_and_timeout_classes`: its `monkeypatch.undo()` also reverted the fixture's `ALLOW_LOOPBACK_HOST`, and `smtp_send` now
+  re-checks the target - the test re-arms the switch after `undo()`); re-run `test_notify_email` + `test_supervisor_build_check`: 75 passed.
+- `test_insight215_slice3`, `test_access_digest_dst_2570`, `test_elevator_alert_recipients_295`: 47 passed.
+- `test_migrate_legacy`, `test_legacy_import_2550`, `test_legacy_parity_t070`, `test_supervisor_build_check`, `test_gate_addon_build`,
+  `test_release_check`, `test_release_check_green_2560`: 84 passed.
+- `test_migration_downgrade_check`, `test_migrations`, `test_home_v3_followup_a`, `test_singletons_registered`: 45 passed.
+
+Other checks:
+- `docker buildx build --check --platform linux/arm64 smplwise_vms` and `--platform linux/amd64` with NO build args (what a Supervisor
+  that passes no `BUILD_FROM` does): "Check complete, no warnings found" for both; the default resolves to
+  `base-python:3.12-alpine3.22@sha256:c21c674f...` on linux/arm64 (= `aarch64-base-python:3.12-alpine3.22`) and `@sha256:d3253dc4...` on
+  linux/amd64 (= `amd64-base-python:3.12-alpine3.22`, the image every amd64 build used so far).
+- `scripts/migration_downgrade_check.py --chain v2.43.0,v2.43.9,v2.56.0,HEAD`: v2.43.0 -> HEAD PASS (0215 with its note), v2.43.9 -> v2.56.0
+  PASS, v2.56.0 -> HEAD PASS; the historical step v2.43.0 -> v2.43.9 still FAILS because it compares two old tags whose 0215 text has no
+  note (cannot change; the range to this tree is what a rollback meets).
+- ruff (backend config) on the changed backend files: only the 2 findings already present at the base in `test_notify_email.py`.
+
+NOT_RUN: an actual aarch64 image build (the runner has no qemu-aarch64 binfmt; a `RUN` step cannot execute for arm64 there), a
+Supervisor install on aarch64, Playwright (no UI change), any lab / HA / NVR / go2rtc contact, a real `--apply-aliases` against a VMS.
