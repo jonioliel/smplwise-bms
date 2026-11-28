@@ -4,8 +4,8 @@
 // the newest target asked for and the turn-on in flight: a setpoint that waited is sent only by the NEWEST tap, with the newest value.
 // Nothing is retried; a failed turn-on is the answer of every tap that waited for it.
 export interface TargetOutcome { ok: boolean; note: string | null }
-export type TargetSend = (key: string, id: string, action: string, args: Record<string, unknown>) => Promise<TargetOutcome>;
-export interface TargetZone { id: string; min: number; max: number }
+type TargetSend = (key: string, id: string, action: string, args: Record<string, unknown>) => Promise<TargetOutcome>;
+interface TargetZone { id: string; min: number; max: number }
 
 export function makeTargetSender(send: TargetSend, onModeFor: (z: TargetZone & { modes: string[] }) => string | null) {
   const want = new Map<string, { target: number }>();

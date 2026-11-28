@@ -17,7 +17,8 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 3 | `pilot/FIX-FE-2570` | `0c10305a3` | `a754be9bf` | none | FE-02, FE-05, FE2-17 guard; frontend only |
 | 4 | `pilot/FIX-HOME-MAPS-2570` | `feaf0ba5f` | `2754db344` | none | MH-02..MH-04 |
 | 5 | `pilot/FIX-CORE-DATA-2570` | `da32ee97c` | `72969b780` | none (`error_text_en.json` auto-merged, JSON valid) | CD-05, CD-02 second path, health-report counters, TR-08 part (`scripts/gate/nightly_tests.sh`: install step, section 5) |
-| - | train fix | - | `d8cf27b59` | - | section 2 |
+| 6 | `pilot/FIX-FE2-2570` | `ac155879e` | `d6c7a0799` | none (`screens/devices-automations.ts` auto-merged with FIX-FE-2570's `decodeSegment`) | FE2-01..FE2-16, VD2-05; `api/run-confirm.ts`; additive `time_zone`, `bridge.integration_version`; regenerated wire types |
+| - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
 | - | registry | - | `d832d0166` | - | section 4 |
 
@@ -25,6 +26,12 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 
 - `d8cf27b59`: FIX-HOME-MAPS-2570's last commit (`feaf0ba5f`) also committed `m5.txt` at the repository root - the text of its own
   commit message (a leftover of `git commit -F`). Removed; nothing refers to it.
+- unused-exports ratchet (runner, at `9a7540f68`): FIX-HOME-MAPS-2570 added three exports used only in their own file -
+  `doorJammed` (`home/home-logic.ts`), `TargetSend` / `TargetZone` (`home/home-target.ts`). The `export` keyword dropped (file-local), as
+  on the 2.56 train; no caller outside the file, none in the tests.
+- PENDING (lead, 28.11; after FIX-MAPS2-2570 is merged): the simple home screen's scene buttons (`home/home-actions.ts`) move to
+  FIX-FE2-2570's `api/run-confirm.ts` and the unknown-outcome classification (a lost answer = amber unknown, not a failure; after a run
+  "request sent", not "scene ... ran"), with a unit test.
 
 ## 3. Checks
 

@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-5 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-6 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -22,6 +22,12 @@
 - Floor map: turning off a room while another room's turn-off is still running now says so on the room card (nothing is sent).
 - Import from the old NVR add-on: an archive that unpacks to far more than its size is stopped after 512 MB of unpacking and refused with its own message, instead of keeping the server busy for minutes.
 - Home Assistant feed: at a reconnect while the previous connection's updates are still being stored, the fresh listing is stored after them, so an older update no longer overwrites a newer state; entities Home Assistant does not register are no longer removed after a re-read.
+- Scenes and scripts: a scene that touches doors, locks or unknown devices asks before it runs from the scenes panel, the home launcher and the area quick sheet (also when the server asks for it), and one that does may now be saved; when no answer comes back the result reads amber "not known whether it ran - check on site" instead of "did not run", and a run says "request sent".
+- Wall photos: an upload stays with the folder it started in, deleting a photo asks first, and a late answer for another folder is dropped.
+- Extra verification: a confirmation that arrives late asks to press again instead of showing a raw refusal; a queued request does not open after the screen changed.
+- Messaging policy: turning enforcement on with an empty list, or removing a recipient while it is on, asks first; the pacing card shows what is saved after a refused save.
+- Scenarios: an answer for a scenario that is no longer open is dropped, and delete sends once.
+- Presence times follow the building's time zone; the presence chip hides after three failed reads in a row; floor stills, the cast clock and the tab-mode preferences no longer keep a stale or wrong state after a failure.
 
 ### API change
 - Schedule execution job view: new additive `reviews_unread: bool`; the status read can answer `{outcome: "ok", code: "reviews_unread"}`.
@@ -30,6 +36,7 @@
 - Area counts: jammed / locking / unlocking locks are counted in `locks_unknown` (no new field).
 - Import from the old NVR add-on: an archive that unpacks past the reader's caps is answered 422 `legacy_source_too_large_unpacked` (`details.reason` kept).
 - Health report: the `ha_sync` check carries `meta.delivery` and `meta.state_feed` counters (additive; `meta` is a free object).
+- Presence: `GET presence/building` and `GET presence/area/{id}` carry `time_zone`; `GET ha/status` carries `bridge.integration_version` (both additive).
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 

@@ -15399,5 +15399,21 @@
     "test_ids": [
       "AT-FIX-CORE-DATA-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-FE2-2570-1",
+    "title": "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone",
+    "statement": "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone; merged into the 2.57.0 train, change note docs/changes/FIX-FE2-2570.md.",
+    "task_ids": [
+      "FIX-FE2-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-FE2-2570-1"
+    ]
   }
 ]

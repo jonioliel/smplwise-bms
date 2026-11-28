@@ -33791,5 +33791,43 @@
     "owner": null,
     "commit": "da32ee97c",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-FE2-2570",
+    "title": "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone; merged into the 2.57.0 train, change note docs/changes/FIX-FE2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-FE2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-FE2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-FE2-2570, change note docs/changes/FIX-FE2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-FE2-2570 head ac155879e merged d6c7a0799 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-FE2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "ac155879e",
+    "actual_cost_usd": null
   }
 ]

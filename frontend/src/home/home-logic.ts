@@ -49,7 +49,7 @@ export const doorPhaseOf = (state: string | null, available: boolean): DoorPhase
 /** A door that is open now (its state is known, it is not locked, and it is not jammed or moving - those are never announced as open). */
 export const doorOpen = (d: Pick<HDoor, 'known' | 'locked'> & { phase?: DoorPhase | null }): boolean => d.known && !d.locked && !d.phase;
 /** A door that is jammed (its own warning: the lock cannot say whether the door is locked). */
-export const doorJammed = (d: { phase?: DoorPhase | null }): boolean => d.phase === 'jammed';
+const doorJammed = (d: { phase?: DoorPhase | null }): boolean => d.phase === 'jammed';
 /** A door the screen cannot vouch for as locked: open, or its state is unknown (the "לא נעולות" filter keeps both). */
 export const doorNotLocked = (d: Pick<HDoor, 'known' | 'locked'>): boolean => !d.known || !d.locked;
 type DoorTone = 'ok' | 'warn' | 'neutral';
