@@ -14,6 +14,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -330,3 +331,44 @@ def test_a_run_whose_environment_lacked_a_product_requirement_is_no_anchor():
     doc = {**RED, "items": [{"category": "requirements", "id": "paramiko: not installed", "status": "FAIL", "reason": "x"}]}
     ok, why = ge.full_run_completed(doc, is_after=True)
     assert not ok and "requirements" in why
+
+
+# ------------------------------------------------------------------------------------------------ lead 28.11: the nightly arm64 check
+
+FAKE_DOCKER = """#!/bin/bash
+echo "$*" >> "$FAKE_DOCKER_LOG"
+case "$1 $2" in
+  "buildx version") echo "github.com/docker/buildx 0.30.1"; exit 0;;
+  "buildx build") echo "Check complete, no warnings found."; exit 0;;
+  "buildx imagetools")
+    echo "MediaType: application/vnd.oci.image.index.v1+json"; echo "  Platform:    linux/amd64"
+    case "$4" in *amd64-*) ;; *) echo "  Platform:    linux/arm64";; esac; exit 0;;
+esac
+exit 3
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32" or not shutil.which("bash"), reason="the nightly runs on the Linux runner")
+@pytest.mark.parametrize(("base", "want"), [("ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22", "FAIL - the default base image"),
+                                            ("ghcr.io/home-assistant/base-python:3.12-alpine3.22", "OK - default base")])
+def test_the_nightly_arm64_check_reads_the_default_base_without_build_args(tmp_path, base, want):
+    tree = tmp_path / "tree"
+    (tree / "smplwise_vms").mkdir(parents=True)
+    (tree / "smplwise_vms" / "Dockerfile").write_text(f"ARG BUILD_FROM={base}\nFROM ${{BUILD_FROM}}\nRUN true\n", encoding="utf-8")
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "docker").write_text(FAKE_DOCKER, encoding="utf-8")
+    (bin_ / "docker").chmod(0o755)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("SW_NIGHTLY")}
+    env.update(HOME=str(tmp_path), PATH=f"{bin_}:{env.get('PATH', '')}", FAKE_DOCKER_LOG=str(tmp_path / "docker.log"),
+               SW_NIGHTLY_ARM64_LOGD=str(tmp_path))
+    r = subprocess.run(["bash", str(ROOT / "scripts" / "gate" / "nightly_tests.sh"), f"--arm64-check={tree}"], capture_output=True,
+                       text=True, timeout=60, env=env)
+    assert r.returncode == 0 and want in r.stdout and r.stdout.startswith("- arm64 Dockerfile check (report only):"), r.stdout + r.stderr
+    calls = (tmp_path / "docker.log").read_text(encoding="utf-8")
+    assert "buildx build --check --platform linux/arm64 -f Dockerfile ." in calls and "--build-arg" not in calls
+    assert f"buildx imagetools inspect {base}" in calls
+    (tree / "smplwise_vms" / "Dockerfile").unlink()
+    r = subprocess.run(["bash", str(ROOT / "scripts" / "gate" / "nightly_tests.sh"), f"--arm64-check={tree}"], capture_output=True,
+                       text=True, timeout=60, env=env)
+    assert "NOT_RUN (no smplwise_vms/Dockerfile" in r.stdout

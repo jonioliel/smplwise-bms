@@ -56,8 +56,8 @@ def test_cli_refuses_an_unknown_schedule(g):
 
 def test_backend_command_v1_unchanged_v2_adds_junit_and_retention(g, tmp_path):
     v1 = g.backend_cmd(["test_a.py"], tmp_path, 1, tmp_path / "tmp_b1", False)
-    # GATELANES-297: a gate run (GATE_LANE unset) deselects the non-blocking timing lane
-    assert v1[1:] == ["-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(tmp_path / "tmp_b1"),
+    # GATELANES-297: a gate run (GATE_LANE unset) deselects the non-blocking timing lane; FIX-GATE-2570: -rfEs prints the skip reasons
+    assert v1[1:] == ["-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfEs", "--basetemp", str(tmp_path / "tmp_b1"),
                       "-m", "not timing_lane", "tests/test_a.py"]
     v2 = g.backend_cmd(["test_a.py"], tmp_path, 2, tmp_path / "tmp_b2", True)
     assert "tmp_path_retention_policy=failed" in v2 and str(tmp_path / "backend_s2.xml") in v2 and v2[-1] == "tests/test_a.py"
