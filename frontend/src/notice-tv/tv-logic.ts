@@ -506,8 +506,8 @@ export function netOf(s: NetState, nowMs: number): Net {
 
 /** CU2-11: a "not found" answer (the board or the module is switched off for a while) must never end the polling: while gone the screen
  * keeps asking, slowly - 1, 2, 4, 8 minutes, then every 10 - far under the server's 20-misses-per-10-minutes limit, and a 200 brings it back. */
-export const GONE_PROBE_MS = 60_000;
-export const GONE_PROBE_MAX_MS = 10 * 60_000;
+const GONE_PROBE_MS = 60_000;
+const GONE_PROBE_MAX_MS = 10 * 60_000;
 export function nextPollMs(s: NetState, normalMs: number): number {
   if (!s.gone) return normalMs;
   return Math.min(GONE_PROBE_MAX_MS, GONE_PROBE_MS * 2 ** Math.max(0, Math.min((s.goneProbes ?? 1) - 1, 6)));
