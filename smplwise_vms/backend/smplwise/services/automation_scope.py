@@ -390,6 +390,25 @@ def scene_member_step(ctx: Ctx, entity_id: str, state: str | None) -> dict[str, 
     return None
 
 
+def members_unknown(ctx: Ctx, scene_entity_id: str | None, source: str | None) -> bool:
+    """VD2-01: a scene whose members Arx cannot read at all (no readable config and no member list in its state) that is not a device
+    integration's own scene (a Home Assistant scene: `platform: homeassistant`, or one the mirror could not classify): fail closed."""
+    if not scene_entity_id:
+        return True
+    platform = (ctx.entity(scene_entity_id) or {}).get("platform")
+    return source != "integration" or platform in (None, "homeassistant")
+
+
+UNKNOWN_SCENE_PERMS = ("ha.entity.control", "door.unlock", "alarm.disarm")  # VD2-01: whoever may do every member's manual action anywhere
+
+
+def unknown_scene_reasons(ctx: Ctx, entity_id: str | None) -> list[dict[str, Any]]:
+    """VD2-01: a scene with unknown members runs only for a caller holding control, `door.unlock` and `alarm.disarm` installation-wide."""
+    if all(ctx.access.wide(p) for p in UNKNOWN_SCENE_PERMS):
+        return []
+    return [reason("no_permission", entity_id, t("ascope.unknown_effects"), unknown_members=True)]
+
+
 def scene_member_steps(ctx: Ctx, members: list[str]) -> list[dict[str, Any]]:
     """CD2-02: the sensitive steps of a scene known only by its member list (no readable config: the states it sets are not known)."""
     return [s for s in (scene_member_step(ctx, e, None) for e in members) if s is not None]
@@ -413,9 +432,21 @@ def scene_member_reasons(conn: sqlite3.Connection, principal: Principal, scene_e
             steps = facts_of(ctx, "scene", rd, entity_id=scene_entity_id)["steps"]
     if steps is None:
         members = ((ctx.entity(scene_entity_id) or {}).get("attributes") or {}).get("entity_id")
-        steps = scene_member_steps(ctx, [m for m in members if isinstance(m, str)]) if isinstance(members, list) else []
+        if isinstance(members, list):
+            steps = scene_member_steps(ctx, [m for m in members if isinstance(m, str)])
+        else:
+            src = conn.execute("SELECT source FROM ha_config_items WHERE kind = 'scene' AND entity_id = ?", (scene_entity_id,)).fetchone()
+            if members_unknown(ctx, scene_entity_id, src["source"] if src is not None else None):
+                # VD2-01: nothing is known of what it sets - the strongest rights, and the step-up of a disarm and of a door opening
+                return list(UNKNOWN_SCENE_STEPS), unknown_scene_reasons(ctx, scene_entity_id)
+            steps = []
     sens = [s for s in steps if s.get("sens") and s["role"] == "device"]
     return sens, control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))) + grant_reasons(ctx, sens)
+
+
+# VD2-01: the step-up a scene of unknown members asks (it may disarm or open a door)
+UNKNOWN_SCENE_STEPS = ({"path": "members", "action": "alarm_control_panel.alarm_disarm", "entity_id": "", "role": "device", "sens": "alarm"},
+                       {"path": "members", "action": "lock.unlock", "entity_id": "", "role": "device", "sens": "lock"})
 
 
 def _finish(ctx: Ctx, f: dict[str, Any], *, entity_id: str | None = None, depth: int = 0, draft: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -615,9 +646,13 @@ def run_reasons(ctx: Ctx, kind: str, facts: dict[str, Any], *, entity_id: str | 
             sens = [s for s in facts["steps"] if s.get("sens") and s["role"] == "device"]
             out.extend(control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))))
             out.extend(grant_reasons(ctx, sens))
+            if facts.get("unknown_effects"):
+                out.extend(unknown_scene_reasons(ctx, entity_id))  # VD2-01
             return out
         out.extend(control_reasons(ctx, facts["targets"]))
         out.extend(grant_reasons(ctx, facts["steps"]))
+        if facts.get("unknown_effects"):
+            out.extend(unknown_scene_reasons(ctx, entity_id))  # VD2-01: members not known - the strongest rights
         return out
     perm = MANAGE if kind == "automation" else SCRIPT_RUN
     perms = (perm,) if kind == "automation" else (SCRIPT_RUN, SCRIPT_MANAGE)

@@ -402,3 +402,113 @@ def test_scene_step_up_table_matches_the_device_route():
     assert automation_ops.SCENE_STEP_UP["lock.unlock"] == ha_router.STEP_UP_GRANTS["door.unlock"]
     assert automation_ops.SCENE_STEP_UP["alarm_control_panel.alarm_arm_custom_bypass"] == ha_router.STEP_UP_ACTIONS["alarm_control_panel.alarm_arm_custom_bypass"]
     assert ha_bridge.ACTIONS["scene.turn_on"]["sensitive"] is True  # the device route's confirmation covers every scene
+
+
+# ================================================================ VD2-01 - a scene whose members cannot be read fails closed
+
+def _yaml_scene(app, fake, eid, cid, members):
+    """A scene kept in a YAML file / package: in Home Assistant's registry (platform homeassistant, its id) but not in scenes.yaml, so the
+    config API answers 404 and Arx caches it with no config (source `yaml`). `members` None = a state without the member list."""
+    attrs = {"friendly_name": eid.split(".", 1)[1].replace("_", " ").title(), "id": cid}
+    if members is not None:
+        attrs["entity_id"] = list(members)
+    fake.states[eid] = {"entity_id": eid, "state": "unknown", "last_changed": fake.iso(), "attributes": attrs}
+    fake.registry.append(fake._reg_row(eid, platform="homeassistant", unique_id=cid))
+    seed_mirror(app.state.db, fake)
+    automations.MIRROR.pull(None, "test")
+    with app.state.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT item_id, source, config_json FROM ha_config_items WHERE entity_id = ?", (eid,)).fetchone()
+    assert row is not None and row["config_json"] is None and row["source"] != "ui", dict(row) if row else None
+    return row["item_id"]
+
+
+def test_vd2_01_a_yaml_scene_with_a_lock_needs_the_unlock_grant_and_the_confirmation(autos_app):
+    app, s, c, fake, tr = autos_app
+    item = _yaml_scene(app, fake, "scene.arrival", "yaml-arrival", ["lock.front_door", "light.office"])
+    r = _apply(c, item)
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text
+    ids = seed_tree(c)
+    place(c, ids["floor2"], "light.office", "lock.front_door")
+    grant(c, "omer", "בן בית", ["devices.read", "entity.state.read", "devices.control", "ha.entity.control"], "floor", ids["floor2"])  # control, no door.unlock
+    r = _apply(c, item, OMER, confirm=True)
+    assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "door.unlock", r.text
+    assert not any(x.get("op") == "apply_scene" for x in tr.bridge_calls), "nothing was sent"
+
+
+def test_vd2_01_a_scene_with_no_readable_members_needs_the_strongest_rights(autos_app, executed):
+    app, s, c, fake, tr = autos_app
+    item = _yaml_scene(app, fake, "scene.mystery", "yaml-mystery", None)
+    r = _apply(c, item)
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text  # the administrator: allowed, with the confirmation
+    grant(c, "omer", "מנהל סצנות", ["devices.read", "entity.state.read", "devices.control", "ha.entity.control", "scene.manage", "alarm.view", "alarm.arm"],
+          "installation", "*")
+    r = _apply(c, item, OMER, confirm=True)
+    assert r.status_code == 403 and r.json()["details"]["reason"] == "scene_members_unknown", r.text
+    assert _turn_on(c, "scene.mystery", OMER).status_code == 403 and executed == []  # the device route too
+    assert _apply(c, item, confirm=True).status_code == 202
+
+
+# ================================================================ VD2-03 - "may have run": unknown, audited allowed, the gap stays
+
+def _audit_rows(app, action):
+    with app.state.db.connection(mode="read") as conn:
+        return [(r["decision"], r["reason"], json.loads(r["details_json"] or "{}").get("outcome")) for r in
+                conn.execute("SELECT decision, reason, details_json FROM audit_log WHERE action = ? ORDER BY id", (action,)).fetchall()]
+
+
+def test_vd2_03_a_timed_out_scene_apply_is_unknown_and_keeps_the_gap(autos_app):
+    app, s, c, fake, tr = autos_app
+    native = item_by_name(c, "ערב בסלון", "scene")
+    tr.fail_next["timeout"] = True
+    r = _apply(c, native["id"])
+    assert r.status_code == 504 and r.json()["code"] == "config_timeout" and r.json()["details"]["outcome"] == "unknown", r.text
+    assert _audit_rows(app, "automation.run")[-1] == ("allowed", "config_timeout", "unknown")
+    again = _apply(c, native["id"])
+    assert again.status_code == 429 and again.json()["code"] == "run_too_soon", again.text  # an immediate re-press never runs it twice
+    assert sum(1 for x in tr.bridge_calls if x.get("op") == "apply_scene") == 1
+
+
+def test_vd2_03_a_service_that_raised_mid_run_is_unknown_not_failed(autos_app):
+    app, s, c, fake, tr = autos_app
+    native = item_by_name(c, "ערב בסלון", "scene")
+    tr.fail_next["answer"] = {"ok": False, "error": "TimeoutError"}
+    r = _apply(c, native["id"])
+    assert r.status_code == 504 and r.json()["details"] == {"outcome": "unknown", "error": "TimeoutError"}, r.text
+    with app.state.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT status FROM automation_ops ORDER BY requested_at DESC, rowid DESC LIMIT 1").fetchone()[0] == "unknown"
+    assert _apply(c, native["id"]).status_code == 429
+
+
+def test_vd2_03_a_policy_refusal_or_a_connect_error_is_still_failed_and_frees_the_gap(autos_app, monkeypatch):
+    app, s, c, fake, tr = autos_app
+    native = item_by_name(c, "ערב בסלון", "scene")
+    tr.fail_next["answer"] = {"ok": False, "error": "not_found"}
+    r = _apply(c, native["id"])
+    assert r.status_code != 504 and r.json()["code"] != "config_timeout", r.text
+    assert _audit_rows(app, "automation.run")[-1][0] == "denied"
+    real = tr.bridge
+
+    def refused(payload):
+        tr.bridge = real
+        raise ApiError(503, "ha_unavailable", "x", retryable=True, details={"error": "ConnectError"})
+
+    tr.bridge = refused
+    assert _apply(c, native["id"]).json()["code"] == "ha_unavailable"
+    assert _apply(c, native["id"]).status_code == 202  # nothing ran: the gap was given back
+
+
+def test_vd2_03_a_dropped_link_after_the_send_is_unknown_for_a_script_run(autos_app):
+    app, s, c, fake, tr = autos_app
+    sc = item_by_name(c, "קירור עם פרמטרים")
+    real = tr.bridge
+
+    def dropped(payload):
+        tr.bridge = real
+        raise ApiError(503, "ha_unavailable", "x", retryable=True, details={"error": "ReadError"})
+
+    tr.bridge = dropped
+    body = {"client_request_id": rid(), "fields": {"temp": 22}}
+    r = c.post(f"{API}/automations/script/{sc['id']}/run", json=body)
+    assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown" and r.json()["retryable"] is False, r.text
+    again = c.post(f"{API}/automations/script/{sc['id']}/run", json={**body, "client_request_id": rid()})
+    assert again.status_code == 429, again.text
