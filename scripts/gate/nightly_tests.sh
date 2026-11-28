@@ -36,9 +36,16 @@
 # (default 60) minutes or what is left before the engine's end mark (RUN_END), whichever is less, and not at all with less than
 # 20 minutes left. Its shards: SW_NIGHTLY_COVERAGE_SHARDS (default 2). The summary gets one line: the report path, TIMEOUT or
 # NOT_RUN with the reason. Expected: the backend in 2 shards with the stdlib recorder, about 40-60 min next to a ~160 min engine run.
+#
+# arm64 Dockerfile check (FIX-GATE-2570, deep review CD2-08): on main, after the coverage lane, a STATIC check of the add-on
+# Dockerfile for the aarch64 image - `docker buildx build --check --platform linux/arm64` in smplwise_vms/ with NO build args, the way
+# a Supervisor that passes no BUILD_FROM reads it (nothing is built or pushed; BuildKit only evaluates the Dockerfile and its build
+# checks, e.g. a base image of another platform). Report only, never the verdict: one line in the summary (OK, the warnings, FAIL with
+# the first error line, TIMEOUT or NOT_RUN with the reason), the full output in arm64_check.log. Bounded by SW_NIGHTLY_ARM64_CHECK_SECS
+# (default 300) or what is left before the end mark; SW_NIGHTLY_ARM64_CHECK=off switches it off.
 set -uo pipefail
-BO=0; FO=0; ND=0; DRY=0; LOCAL_HOUR=""; ARGS=(); ORIG=("$@")
-for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; --dry-run) DRY=1;; --local-hour=*) LOCAL_HOUR="${a#--local-hour=}";; *) ARGS+=("$a");; esac; done
+BO=0; FO=0; ND=0; DRY=0; LOCAL_HOUR=""; ARM64_ONLY=""; ARGS=(); ORIG=("$@")
+for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; --dry-run) DRY=1;; --local-hour=*) LOCAL_HOUR="${a#--local-hour=}";; --arm64-check=*) ARM64_ONLY="${a#--arm64-check=}";; *) ARGS+=("$a");; esac; done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 # LOWS-BRIDGE-GATE-2550 (deep review 2.52 TR-14): the runner's cron ignores CRON_TZ=Asia/Jerusalem, so `0 2 * * *` started at 02:00 UTC
 # (04:00 local in winter) and held the tests lock into the morning. --local-hour=HH runs only when it IS HH:xx in Asia/Jerusalem and
@@ -74,11 +81,59 @@ coverage_today() { # prints "run", or "skip: <reason>"
        if [ "$d" = "$COV_DAY" ]; then echo "run"; else echo "skip: weekly lane on day $COV_DAY, today is day $d"; fi;;
   esac
 }
+# FIX-GATE-2570 (CD2-08): the static arm64 Dockerfile check (see the header). Prints ONE summary line; never changes the verdict.
+# Uses DIR (the tree under test, checked out at the branch), SHA, LOGD and RUN_END of the caller.
+ARM64_MODE="${SW_NIGHTLY_ARM64_CHECK:-on}"; ARM64_SECS="${SW_NIGHTLY_ARM64_CHECK_SECS:-300}"
+case "$ARM64_SECS" in ''|*[!0-9]*) ARM64_SECS=300;; esac
+arm64_base_image() { # the image of the Dockerfile's first FROM with the ARG defaults filled in (what a Supervisor without build args uses)
+  awk '
+    function lit(str, from, to,   i) { while ((i = index(str, from)) > 0) str = substr(str, 1, i - 1) to substr(str, i + length(from)); return str }
+    toupper($1) == "ARG" { n = index($2, "="); if (n > 1) def[substr($2, 1, n - 1)] = substr($2, n + 1); next }
+    toupper($1) == "FROM" { img = $2; if ($2 ~ /^--platform/) img = $3
+      for (k in def) { img = lit(img, "${" k "}", def[k]); if (img == "$" k) img = def[k] }
+      print img; exit }' "$1"
+}
+arm64_check_line() {
+  local df="$DIR/smplwise_vms/Dockerfile" log="$LOGD/arm64_check.log" cap="$ARM64_SECS" left rc img plat
+  left=$(( ${RUN_END:-$(( $(date +%s) + cap ))} - $(date +%s) )); [ "$cap" -gt "$left" ] && cap=$left
+  if [ "$ARM64_MODE" = "off" ]; then echo "- arm64 Dockerfile check: NOT_RUN (SW_NIGHTLY_ARM64_CHECK=off)"; return; fi
+  if [ ! -f "$df" ]; then echo "- arm64 Dockerfile check: NOT_RUN (no smplwise_vms/Dockerfile at ${SHA:-?})"; return; fi
+  if ! docker buildx version >/dev/null 2>&1; then echo "- arm64 Dockerfile check: NOT_RUN (docker buildx is not available)"; return; fi
+  if [ "$cap" -lt 30 ]; then echo "- arm64 Dockerfile check: NOT_RUN (only ${left} s left of the ${MAX_MIN} min limit)"; return; fi
+  # 1) BuildKit's static checks for linux/arm64 with NO --build-arg (the Dockerfile's own defaults); --check builds nothing
+  ( cd "$DIR/smplwise_vms" && timeout -k 10 "$cap" docker buildx build --check --platform linux/arm64 -f Dockerfile . ) > "$log" 2>&1; rc=$?
+  # 2) --check does NOT compare the base image's platforms (an amd64-only default passes it - runner, 28.11): the default base image
+  #    must itself list linux/arm64 (registry manifest only, nothing pulled)
+  img="$(arm64_base_image "$df")"; plat=""
+  if [ -n "$img" ] && [ "$rc" -ne 124 ] && [ "$rc" -ne 137 ]; then
+    { echo; echo "== docker buildx imagetools inspect $img"; } >> "$log"
+    timeout -k 10 120 docker buildx imagetools inspect "$img" >> "$log" 2>&1 && plat="$(sed -n '/== docker buildx imagetools inspect/,$p' "$log" | grep -oE 'Platform: +[a-z0-9]+/[a-z0-9]+' | awk '{print $2}' | sort -u | tr '\n' ' ')"
+  fi
+  case "$rc" in
+    124|137) echo "- arm64 Dockerfile check (report only): TIMEOUT after ${cap} s; see $log"; return;;
+  esac
+  local chk="build checks OK"
+  if [ "$rc" -ne 0 ] || grep -qiE '^WARNING|[1-9][0-9]* warnings? found' "$log"; then
+    chk="build checks rc=$rc: $(grep -m1 -iE 'warnings? found|^WARNING|error' "$log" | cut -c1-160)"
+  fi
+  if [ -z "$img" ]; then echo "- arm64 Dockerfile check (report only): FAIL - no FROM image found; $chk; see $log"
+  elif [ -z "$plat" ]; then echo "- arm64 Dockerfile check (report only): FAIL - the default base image $img could not be inspected; $chk; see $log"
+  elif ! printf '%s' " $plat" | grep -q ' linux/arm64 '; then
+    echo "- arm64 Dockerfile check (report only): FAIL - the default base image $img has no linux/arm64 (platforms: ${plat% }) - an aarch64 Supervisor without BUILD_FROM builds on it; $chk; see $log"
+  elif [ "$chk" = "build checks OK" ]; then echo "- arm64 Dockerfile check (report only): OK - default base $img has linux/arm64; build checks found nothing (nothing built)"
+  else echo "- arm64 Dockerfile check (report only): WARNINGS - default base $img has linux/arm64; $chk; see $log"
+  fi
+}
+if [ -n "$ARM64_ONLY" ]; then   # FIX-GATE-2570: the check alone on a checkout (selftest / by hand); prints the summary line
+  DIR="$ARM64_ONLY"; SHA="$(git -C "$DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"; LOGD="${SW_NIGHTLY_ARM64_LOGD:-$(mktemp -d)}"
+  arm64_check_line; exit 0
+fi
 if [ "$DRY" -eq 1 ]; then
   if [ "$#" -gt 0 ]; then echo "branches: $*"; else echo "branches: main"; fi
   echo "flags: backend-only=$BO frontend-only=$FO no-dev=$ND; hard limit ${MAX_MIN} min; per-branch engine budget ${BRANCH_MAX_MIN} min; schedule ${SCHEDULE}; lock wait ${SW_NIGHTLY_LOCK_WAIT:-10800} s"
   echo "engine: $ENGINE ($([ -f "$ENGINE" ] && echo present || echo MISSING)); workers per Playwright process: ${GATE_PW_WORKERS:-3}"
-  echo "coverage lane: $(coverage_today) (mode $COV_MODE, day $COV_DAY, cap ${COV_MAX_MIN} min, main only, after the engine)"; exit 0
+  echo "coverage lane: $(coverage_today) (mode $COV_MODE, day $COV_DAY, cap ${COV_MAX_MIN} min, main only, after the engine)"
+  echo "arm64 Dockerfile check: $ARM64_MODE (cap ${ARM64_SECS} s, main only, after the coverage lane, report only)"; exit 0
 fi
 mkdir -p "$RESULTS"
 # Lock wait (2026-10-06): used to be `flock -n || exit 3`, so the 02:00 run silently did not happen on 4-6 Oct whenever
@@ -283,6 +338,10 @@ P
         *) echo "- coverage lane (report only, never the verdict): $COVOUT/coverage.md ($(( ($(date +%s) - C0) / 60 )) min)";;
       esac >> "$OUT"
     fi
+  fi
+  # FIX-GATE-2570 (CD2-08): the static arm64 Dockerfile check, report only, bounded (see the header); one line in the summary
+  if [ "$BR" = "main" ]; then
+    arm64_check_line >> "$OUT"
   fi
   cd "$DIR"
 done

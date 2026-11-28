@@ -2,7 +2,8 @@
 running in-process on 127.0.0.1 with a temporary folder as its disk. Proves: key authentication, the pinned host key (line or SHA256
 fingerprint) checked before authentication (a different key is refused and no file is written), a wrong client key is `auth_failed`,
 a closed port is `destination_unavailable`, a full push / verify / prune with atomic rename, and the connection test's marker.
-Needs paramiko (smplwise_vms/backend/requirements.txt); skipped when the test environment lacks it."""
+Needs paramiko (smplwise_vms/backend/requirements.txt). FIX-GATE-2570 (deep review SA2-05 a): a plain import - a test environment
+without this product requirement FAILS here (it used to skip all six tests, green, on the runner)."""
 from __future__ import annotations
 
 import io
@@ -13,12 +14,11 @@ import socket
 import threading
 from pathlib import Path
 
+import paramiko
 import pytest
 
-paramiko = pytest.importorskip("paramiko")
-
-from smplwise.services import backup_offbox as ob  # noqa: E402
-from smplwise.services import offbox_sftp  # noqa: E402
+from smplwise.services import backup_offbox as ob
+from smplwise.services import offbox_sftp
 
 
 class _Handle(paramiko.SFTPHandle):

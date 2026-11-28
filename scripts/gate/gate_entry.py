@@ -43,7 +43,12 @@ the head, at most --max-commits commits and --max-hours hours behind it, with at
 (frontend/src, smplwise_vms/backend/smplwise, custom_components) changed since. It qualifies when it is
   * a nightly judged green (or red only through quarantined tests), or
   * a release-gate FULL run that completed (the backend ran, no engine-level failure, no count-drop failure) and is either green or
-    a run of the SAME branch (its failures are what the --after chain re-runs).
+    the --after report ITSELF (its failures are exactly what the targeted run re-selects). FIX-GATE-2570 (lead 28.11): before, any
+    red full run of the same branch qualified, and its failures were re-run only if they also failed in the --after report.
+    FIX-GATE-2570 (CD2-01): a run with a PROCESS-LEVEL failure (a crashed / timed-out backend shard, a Playwright process with no
+    report / a timeout / zero tests, a fixture group that never started, a crashed pool job) did not run that process's tests. It
+    qualifies only when it IS the --after report and every such item names the files its process owned (`files`, written by the
+    engine since 2.57): those files are then re-selected whole by the targeted run. Otherwise it is no anchor.
 The --after report's own sha must be an ancestor of the head as well. No anchor -> rc 1, and release_gate2.sh runs the FULL tier
 instead, with the reason printed and stored in gate_<b>_<sha>.anchor.json (gate2_verdict.py puts it into the gate-2 summary).
 --accept "<reason>" (release_gate2.sh --accept-no-anchor) keeps the targeted run, with the reason on record.
@@ -54,6 +59,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -244,19 +250,49 @@ def run_reports(results: Path) -> list[tuple[dt.datetime, dict, str, str]]:
     return sorted(out, key=lambda t: t[0], reverse=True)
 
 
-def full_run_completed(doc: dict) -> tuple[bool, str]:
+_TEST_ID = re.compile(r"^(tests/test_[^:]+\.py|[\w.-]+\.spec\.ts)")
+
+
+def process_failures(doc: dict) -> list[dict]:
+    """FIX-GATE-2570 (CD2-01): the FAIL items of a test category that name no test (`shard 3`, `preview_desktop_c2: timeout`,
+    `fixture g: seed`, `vite preview`, a crashed job): a process whose tests did not (all) run. Visual cases are tests."""
+    out = []
+    for i in doc.get("items", []):
+        if i.get("status") != "FAIL" or i.get("category") not in TEST_CATS or i.get("category") == "visual":
+            continue
+        if not _TEST_ID.match(str(i.get("id", ""))):
+            out.append(i)
+    return out
+
+
+def full_run_completed(doc: dict, is_after: bool = False) -> tuple[bool, str]:
     """A FULL tier-L run that really ran the suite: not a selection, the backend ran, no engine-level (`gate`) failure and no
-    count-drop (`baseline`) failure. Its verdict may be red (its failures are listed)."""
+    count-drop (`baseline`) failure. Its verdict may be red (its failures are listed).
+    FIX-GATE-2570 (CD2-01): a process-level failure means that process's tests ran in no run - such a run is an anchor only when it
+    is the --after report itself (`is_after`) and every such item names its files (the targeted run re-selects them whole)."""
     if doc.get("tier") != "L":
         return False, f"tier {doc.get('tier')}"
     if gb.mode_of(doc) != "full":
         return False, "a diff selection"
     if ((doc.get("counts") or {}).get("backend") or {}).get("pass", 0) <= 0:
         return False, "the backend did not run"
-    bad = [i for i in doc.get("items", []) if i.get("status") == "FAIL" and i.get("category") in ("gate", "baseline")]
+    # FIX-GATE-2570 (SA2-05 a): `requirements` = a product requirement missing from the test interpreter: its tests did not run
+    bad = [i for i in doc.get("items", []) if i.get("status") == "FAIL" and i.get("category") in ("gate", "baseline", "requirements")]
     if bad:
         return False, f"incomplete ({bad[0].get('category')}: {str(bad[0].get('id'))[:80]})"
+    for i in process_failures(doc):
+        if not is_after:
+            return False, (f"incomplete (process-level failure {i.get('category')}: {str(i.get('id'))[:80]} - its tests ran in no run; "
+                           "only the --after report itself, with the files named, can be the anchor)")
+        if not (isinstance(i.get("files"), list) and i["files"]):
+            return False, (f"incomplete (process-level failure {i.get('category')}: {str(i.get('id'))[:80]} names no files - "
+                           "the targeted run could not re-select them)")
     return True, "complete"
+
+
+def _same_report(doc: dict, adoc: dict) -> bool:
+    """FIX-GATE-2570: `doc` is the --after report (same branch, sha and finish time)."""
+    return bool(adoc) and all(doc.get(k) == adoc.get(k) for k in ("branch", "sha", "finished")) and bool(doc.get("sha"))
 
 
 def anchor_check(results: Path, repo: Path, head: str, branch: str, after, now=None, max_commits: int = ANCHOR_MAX_COMMITS,
@@ -268,6 +304,7 @@ def anchor_check(results: Path, repo: Path, head: str, branch: str, after, now=N
     limits = {"max_commits": max_commits, "max_hours": max_hours, "max_product_files": max_product_files}
     out: dict = {"ok": False, "head": head, "branch": branch, "limits": limits, "rejected": [], "checked_at": now.isoformat()}
     entries, _ = g2v.load_quarantine(Path(quarantine) if quarantine else HERE / "gate2_quarantine.json", now.date())
+    adoc: dict = {}
     if after is not None:
         try:
             adoc = json.loads(Path(after).read_text(encoding="utf-8"))
@@ -288,9 +325,17 @@ def anchor_check(results: Path, repo: Path, head: str, branch: str, after, now=N
             j = judge_nightly(doc, fin, now, entries, max_hours)
             qual, what = j["state"] in ("green", "explained"), f"nightly {j['state']}"
         else:
-            qual, what = full_run_completed(doc)
-            if qual and doc.get("verdict") != "pass" and doc.get("branch") != branch:
-                qual = False
+            is_after = _same_report(doc, adoc if isinstance(adoc, dict) else {})
+            qual, what = full_run_completed(doc, is_after=is_after)
+            if qual and doc.get("verdict") != "pass" and not is_after:
+                # FIX-GATE-2570 (lead 28.11, Q1 a): a RED full run is the anchor only when it IS the --after report - only then are its
+                # failures exactly what the targeted run re-selects; another red run's failures would be re-run by nobody
+                qual, what = False, "a red full run that is not the --after report (its failures are re-run by nobody)"
+            if not qual and ("process-level failure" in what or "not the --after report" in what):   # say why it is not the anchor
+                if len(out["rejected"]) < 5:
+                    out["rejected"].append({"report": name, "kind": kind, "sha": doc.get("sha"), "branch": doc.get("branch"),
+                                            "verdict": doc.get("verdict"), "problems": [what]})
+                nearest = nearest or f"{name} @ {doc.get('sha')}: {what}"
             what = f"full run, verdict {doc.get('verdict')}"
         if not qual:
             continue
