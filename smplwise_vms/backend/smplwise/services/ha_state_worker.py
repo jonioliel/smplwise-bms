@@ -194,3 +194,15 @@ def deliver_later(fired: list[dict[str, Any]]) -> None:
 
     _count("queued")
     _DELIVERY.submit(run)
+
+
+def delivery_view() -> dict[str, int]:
+    """FIX-CORE-DATA-2570: the CD-04 delivery counters for the HA sync health (since start): `queued` handed to the delivery thread,
+    `done` sent (or tried), `skipped_old` skipped as older than DELIVERY_MAX_AGE_S, `dropped_full` dropped at DELIVERY_MAX_QUEUE,
+    `waiting` still in the queue; plus the two limits."""
+    with _delivery_lock:
+        d = dict(DELIVERY)
+    d["waiting"] = max(0, d["queued"] - d["done"] - d["skipped_old"])
+    d["max_queue"] = DELIVERY_MAX_QUEUE
+    d["max_age_s"] = int(DELIVERY_MAX_AGE_S)
+    return d

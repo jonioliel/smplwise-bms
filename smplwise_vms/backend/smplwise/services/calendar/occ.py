@@ -62,8 +62,18 @@ def _parse_local(s: str) -> dt.datetime:
     return dt.datetime.strptime(s, "%Y-%m-%dT%H:%M")
 
 
+FAR_MAX_OCCURRENCES = 50_000  # CU-04: the cap of a far conflict expansion (a daily series for ~137 years); past it the check is reported incomplete
+
+
+class CheckIncomplete(RuleError):
+    """CU-04: the collision check past the cache could not be completed (the expansion is larger than FAR_MAX_OCCURRENCES): never "no conflict"."""
+
+    def __init__(self) -> None:
+        super().__init__("series_check_failed")
+
+
 def event_occurrences(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[str, Any], now: dt.datetime, *, window_days: int | None = None,
-                      window: tuple[dt.datetime, dt.datetime] | None = None) -> list[Occ]:
+                      window: tuple[dt.datetime, dt.datetime] | None = None, max_occ: int | None = None) -> list[Occ]:
     """Expanded occurrences of one event row (a series expands its rule minus replaced occurrences; an override row is one entry).
     `window` (UTC) replaces the cache window [now - 30 d, now + horizon] of a series (D-04: a conflict check far ahead)."""
     ls, le = _parse_local(ev["local_start"]), _parse_local(ev["local_end"])
@@ -74,7 +84,8 @@ def event_occurrences(conn: sqlite3.Connection, ev: sqlite3.Row, settings: dict[
     hol = holidays_between(conn, settings, w0.date() - dt.timedelta(days=2), w1.date() + dt.timedelta(days=2)) if ev["holiday_skip"] else None
     skip = set(json.loads(ev["exdates_json"] or "[]"))
     skip |= {r[0] for r in conn.execute("SELECT override_start FROM cal_events WHERE override_of = ?", (ev["id"],)).fetchall() if r[0]}
-    return expand(parse_rule(ev["rrule"]), ls, le, ev["tz"], window_start=w0, window_end=w1, exdates=skip, holidays=hol)
+    return expand(parse_rule(ev["rrule"]), ls, le, ev["tz"], window_start=w0, window_end=w1, exdates=skip, holidays=hol,
+                  **({"max_occ": max_occ} if max_occ is not None else {}))
 
 
 def rebuild(conn: sqlite3.Connection, event_id: str, settings: dict[str, Any], now: dt.datetime) -> int:
@@ -156,7 +167,7 @@ def cache_edge(conn: sqlite3.Connection, settings: dict[str, Any], now: dt.datet
 
 
 def _series_beyond_cache(conn: sqlite3.Connection, holder: sqlite3.Row, spans: list[tuple[dt.datetime, dt.datetime]], settings: dict[str, Any],
-                         now: dt.datetime, st: tuple[str, ...], margin: dt.timedelta) -> list[tuple[str, str, str, str, str]]:
+                         now: dt.datetime, st: tuple[str, ...], margin: dt.timedelta, strict: bool = False) -> list[tuple[str, str, str, str, str]]:
     """D-04: the occurrences of the holder's open series inside the spans that reach past the cache edge, expanded on the fly (the expander
     is pure; only the spans' own window is expanded). Rows as `rebuild` would cache them: (event_id, occ_start, occ_end, state, local_start) -
     the event's own calendar at the event's state, a room half at the room's state."""
@@ -176,8 +187,12 @@ def _series_beyond_cache(conn: sqlite3.Connection, holder: sqlite3.Row, spans: l
         if ev["half_state"] not in st:
             continue
         try:
-            occs = event_occurrences(conn, ev, settings, now, window=(lo, hi))
-        except (RuleError, ValueError):  # a stored rule the expander refuses is cached by nobody either: nothing to compare
+            occs = event_occurrences(conn, ev, settings, now, window=(lo, hi), max_occ=FAR_MAX_OCCURRENCES)
+        except RuleError as exc:
+            if strict and exc.code == "series_too_large":  # CU-04: too large to compare is not "no conflict"
+                raise CheckIncomplete() from exc
+            continue  # a stored rule the expander refuses is cached by nobody either: nothing to compare
+        except ValueError:
             continue
         for o in occs:
             if any(o.start_utc < e + margin and o.end_utc > s - margin for s, e in far):
@@ -197,14 +212,18 @@ def spans_past_window(conn: sqlite3.Connection, holder: sqlite3.Row, ev_like: di
         return []
     try:
         far = model.parse_utc(row[0], "occ_end") + dt.timedelta(minutes=holder["buffer_before_min"] + holder["buffer_after_min"])
-        occs = event_occurrences(conn, ev_like, settings, now, window=(w1, far))  # type: ignore[arg-type]
-    except (RuleError, ValueError, model.Invalid):
+        occs = event_occurrences(conn, ev_like, settings, now, window=(w1, far), max_occ=FAR_MAX_OCCURRENCES)  # type: ignore[arg-type]
+    except RuleError as exc:
+        if exc.code == "series_too_large":  # CU-04: fail closed - the booking is refused as "check incomplete", never accepted unchecked
+            raise CheckIncomplete() from exc
+        return []
+    except (ValueError, model.Invalid):
         return []
     return [(o.start_utc, o.end_utc) for o in occs]
 
 
 def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tuple[dt.datetime, dt.datetime]], settings: dict[str, Any], *,
-             exclude: Iterable[str] = (), states: tuple[str, ...] | None = None, now: dt.datetime | None = None) -> list[dict[str, Any]]:
+             exclude: Iterable[str] = (), states: tuple[str, ...] | None = None, now: dt.datetime | None = None, strict: bool = False) -> list[dict[str, Any]]:
     """Occurrences on `holder` that collide with any span, buffers of the calendar on both sides (touching is not a collision): the cached
     rows and, past the cache edge, the holder's open series expanded on the fly (D-04)."""
     if holder["conflict_policy"] != "exclusive":
@@ -225,7 +244,7 @@ def blockers(conn: sqlite3.Connection, holder: sqlite3.Row, spans: Iterable[tupl
             if held:
                 row["held"] = True  # the approved slot of a booking whose change waits for a decision
             found[(eid, r["local_start"])] = row
-    for eid, s0, e0, state, key in _series_beyond_cache(conn, holder, spans, settings, now or dt.datetime.now(UTC), st, margin):
+    for eid, s0, e0, state, key in _series_beyond_cache(conn, holder, spans, settings, now or dt.datetime.now(UTC), st, margin, strict):
         if eid not in skip and (eid, key) not in found:
             found[(eid, key)] = {"event_id": eid, "calendar_id": holder["id"], "start": s0, "end": e0, "state": state}
     return sorted(found.values(), key=lambda c: (c["start"], c["event_id"]))

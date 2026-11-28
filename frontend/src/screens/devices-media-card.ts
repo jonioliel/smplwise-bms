@@ -13,7 +13,7 @@ import { describeError } from '../api/client';
 import { getBulk, followBulk, bulkHeadline, OUTCOME_LABEL, type BulkRecord } from '../api/device-bulk';
 import { canAnywhere, isApi } from '../api/session';
 import { commandId } from '../api/request-id';
-import { bulkCandidates, isOn, media, type BulkPreview, type MediaDevice } from '../api/media-screens';
+import { bulkCandidates, expiry, isOn, media, type BulkPreview, type MediaDevice } from '../api/media-screens';
 import { PLAYER_KINDS, isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/devices';
@@ -249,7 +249,7 @@ export class MediaAreaCard extends LitElement {
     this.phase = 'sending';
     this.stop = { stopped: false };
     try {
-      const r = await media().bulkRun('area', this.areaId, commandId(), new Date(Date.now() + 15_000).toISOString());
+      const r = await media().bulkRun('area', this.areaId, commandId(), expiry()); // FIX-VIDEO-2570 (VD-03): 15 s on the server's clock
       if (isApi()) {
         const rec = await followBulk(await getBulk(r.bulk_id), (x) => (this.record = x), this.stop);
         this.record = rec;

@@ -1254,6 +1254,13 @@ export const en = {
   'מצב המערכת לא ידוע כרגע.': "The system's state is unknown right now.",
   'מצב {name} לא ידוע': '{name}: state unknown',
   'מצב הדלתות לא ידוע': "The doors' state is unknown",
+  // FIX-HOME-MAPS-2570 (MH-03)
+  '{name} תקועה': '{name} is jammed',
+  '{length} מנעולים תקועים': '{length} locks are jammed',
+  '{length} דלתות בתנועה': '{length} doors are moving',
+  'ננעלת…': 'Locking…',
+  'נפתחת…': 'Unlocking…',
+  'תקועה': 'Jammed',
   'מצב {length} דלתות לא ידוע': '{length} doors: state unknown',
   // TIME-CORRECT-2540 (SCR-34)
   'נדחקה בגלל תחזוקה': 'Displaced by maintenance',

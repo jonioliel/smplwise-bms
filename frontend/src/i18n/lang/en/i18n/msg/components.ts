@@ -1035,4 +1035,7 @@ export const en = {
   'להריץ את הבדיקה שוב': 'Run the check again',
   // LOWS-FRONTEND-2550 (review SCR-52)
   '{failed} מתוך {total} לא כובו': '{failed} of {total} were not turned off',
+  // FIX-HOME-MAPS-2570 (MH-04)
+  'הכיבוי של החדר עדיין רץ - אפשר ללחוץ שוב כשיסתיים': 'This room is still being turned off - tap again when it finishes',
+  'כיבוי של חדר אחר עדיין רץ - לא נשלח דבר. אפשר ללחוץ שוב כשיסתיים': 'Another room is still being turned off - nothing was sent. Tap again when it finishes',
 };

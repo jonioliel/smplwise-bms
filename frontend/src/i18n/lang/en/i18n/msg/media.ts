@@ -1299,4 +1299,7 @@ export const en = {
   'עובר יחד עם הקומה': 'Moves with the floor',
   // I18N-REST-2520: leftover texts
   'קומה 0': 'Floor 0',
+  // FIX-FE2-2570 (FE2-02, FE2-05): the wall photos dialog
+  'מעלה {n} מתוך {total} לתיקייה "{set}"': 'Uploading {n} of {total} to the folder "{set}"',
+  'למחוק את התמונה מהתיקייה? אי אפשר לשחזר אותה.': 'Delete the picture from the folder? It cannot be restored.',
 };

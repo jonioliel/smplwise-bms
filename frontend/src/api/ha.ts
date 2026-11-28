@@ -140,7 +140,8 @@ export interface HaSyncState {
 export interface HaStatus {
   configured: boolean;
   sync: HaSyncState;
-  bridge: { paired: boolean; paired_at: string | null; directory_users: number; last_directory_at: string | null; integration_version?: string | null };
+  /** FIX-FE2-2570 (review FE2-13 / FE2-14): the generated model (wire/ha.py `HaStatusBridge`), so tsc sees a field the server does not send. */
+  bridge: import('./generated/wire-ha').HaStatusBridge;
   integration?: HaIntegrationStatus;
 }
 

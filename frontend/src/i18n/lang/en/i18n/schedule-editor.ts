@@ -135,6 +135,7 @@ export const en = {
   sx_readAt: 'Checked {t}',
   sx_statusFailed: 'The status check did not succeed ({reason}). What was known before stays as it was.',
   sx_steps: '{v} of {n} steps verified',
+  sx_reviewsUnread: "WisKey's approvals could not be read now - the last complete state read is shown.",
   sx_p_not_read: 'Not checked',
   sx_p_waiting_owner: 'Waiting for the owner',
   sx_p_review_pending: 'Waiting for approval',

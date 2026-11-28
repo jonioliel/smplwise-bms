@@ -4,6 +4,7 @@
  */
 import type { CalendarsApi, Calendar } from '../api/calendars';
 import type { CalAccess } from './access';
+import { decodeSegment, type RouteState } from '../router';
 
 export type CalView = 'cal' | 'rooms' | 'approvals' | 'maint' | 'manage';
 export const CAL_VIEWS: CalView[] = ['cal', 'rooms', 'approvals', 'maint', 'manage'];
@@ -73,6 +74,13 @@ export interface NewMaintDetail { rooms?: string[]; start?: string; end?: string
 
 export function emit(el: HTMLElement, name: string, detail?: unknown): void {
   el.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
+}
+
+/** The sub-address of a calendars view (`#/calendars/<view>/<id>`, or `#/devices/calendars/<view>/<id>` as a tab of the home area),
+ * decoded. FIX-FE-2570 (deep review FE-05 class): a broken escape (`50%`, a pasted or cut link) is kept as written instead of throwing. */
+export function calSub(route: Pick<RouteState, 'mode' | 'segments'> | null | undefined): string {
+  const s = route?.segments ?? [];
+  return decodeSegment((route?.mode === 'devices' ? s[3] : s[2]) ?? '');
 }
 
 /** The calendars a filter leaves: the floor chip (rooms on that floor; calendars without a floor stay) and the search. */

@@ -917,6 +917,9 @@ export class AutomationsMockStore implements AutomationsAdapter {
           if (ENT[m.entity_id]?.cls === 'lock' && !this.user.grants.has(GRANT_OF_CLASS.lock)) this.err(403, 'grant_required', { grant: GRANT_OF_CLASS.lock, path: `members.${m.entity_id}`, name: nameOf(m.entity_id), action: 'שליטה במנעול' });
         }
       }
+      // FIX-FE2-2570 (FE2-01): as the server (automation_ops.apply_scene) - a sensitive scene runs only with an explicit confirmation
+      const item = this.itemOf(e);
+      if ((item.sensitive || item.unknown_effects) && !body.confirm) this.err(409, 'confirmation_required');
       this.tooSoon(`scene:${e.id}`, this.settingsValue.limits.scene_apply_interval_s);
       this.markRun(e, 'ok');
       this.audited('scene.run', e);

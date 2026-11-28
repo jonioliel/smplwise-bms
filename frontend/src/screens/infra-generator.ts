@@ -15,7 +15,7 @@ import { glt } from '../i18n/generator-log';
 import type { TabItem } from '../components/sw-tabs';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { RouteState } from '../router';
-import { navigate } from '../router';
+import { decodeSegment, navigate } from '../router'; // FIX-FE-2570 (FE-05): decodeSegment - a broken `%` link must not throw in render
 import { describeError } from '../api/client';
 import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
@@ -202,7 +202,7 @@ export class InfraGenerator extends LitElement {
     else if (page === 'live') body = html`<gen-live-page .device=${d} ?manage=${this.access.manage}></gen-live-page>`;
     else if (page === 'log') body = this.list?.log_enabled ? html`<gen-log-page .device=${d}></gen-log-page>` : html`<sw-state-panel icon="list" state="empty" heading=${glt('off')} data-state="log-off"></sw-state-panel>`;
     else if (page === 'charts') body = html`<gen-charts-page .device=${d} .params=${this.route?.params ?? new URLSearchParams()}></gen-charts-page>`;
-    else body = html`<gen-alerts-page .device=${d} .mode=${page} .alertId=${this.route?.segments[3] ? decodeURIComponent(this.route.segments[3]) : ''} ?manage=${this.access.manage} @alerts-changed=${() => void this.loadDevice(d.id)}></gen-alerts-page>`;
+    else body = html`<gen-alerts-page .device=${d} .mode=${page} .alertId=${this.route?.segments[3] ? decodeSegment(this.route.segments[3]) : ''} ?manage=${this.access.manage} @alerts-changed=${() => void this.loadDevice(d.id)}></gen-alerts-page>`;
     // the page row follows the tab mode: in the dropdown form the shell draws it as the second chip, beside the area's chip (shell/infra-pages.ts)
     const asChip = infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip(tr('עמודים'), items, page, (id) => navigate(`/infra/generator/${id}`, d ? { device: d.id } : undefined)) : null;

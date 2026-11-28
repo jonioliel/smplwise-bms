@@ -14,7 +14,7 @@ interface NotifyChannel {
   smart_center: number;
 }
 export interface NotifyStatus { channels: NotifyChannel[]; permission: string; can_write: boolean; labels: Record<string, string>; /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on (`can*` flags already include it). */ writes_enabled?: boolean }
-interface NotifyResult { results: { channel: number; type: string; status: string; reason?: string; change_id?: string }[]; applied: number; unchanged: number; skipped: number; failed: number }
+interface NotifyResult { results: { channel: number; type: string; status: string; reason?: string; change_id?: string }[]; applied: number; unchanged: number; skipped: number; failed: number; /** FIX-VIDEO-2570 (VD-02): sent, no answer (absent before 2.57) */ unknown?: number }
 export interface NvrChange {
   id: string;
   kind: string;

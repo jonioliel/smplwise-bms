@@ -439,7 +439,7 @@ def known_all() -> list[dict[str, Any]]:
 
 
 def _view(job_id: str, phase: str, code: str | None, now: datetime, status: dict[str, Any] | None = None,
-          reviews: Mapping[str, int] | None = None, reviews_read: bool = False) -> dict[str, Any]:
+          reviews: Mapping[str, int] | None = None, reviews_read: bool = False, reviews_unread: bool = False) -> dict[str, Any]:
     job = status["job"] if status else None
     dep = status["deployment"] if status else None
     steps = dep["steps"] if dep else []
@@ -455,6 +455,7 @@ def _view(job_id: str, phase: str, code: str | None, now: datetime, status: dict
         "steps_verified": sum(1 for s in steps if s["state"] == "verified"),
         "reviews": {k: int((reviews or {}).get(k, 0)) for k in REVIEW_STATES},
         "reviews_read": reviews_read,
+        "reviews_unread": reviews_unread,
         "physical_result": "unproven",
         "read_at": _iso(now),
         "final": phase in FINAL_PHASES,
@@ -513,21 +514,32 @@ def _check(job_id: str, port: Port, listed: frozenset[str], sup: dict[str, Any],
             return answer("error", exc.code, _view(job_id, "unknown", exc.code, now_of()))
         return answer("error", exc.code)
     counts = {k: 0 for k in REVIEW_STATES}
-    reviews_read = False
+    reviews_read = reviews_unread = False
     if status["deployment"] is None and status["job"]["status"] not in ("cancelled", "failed", "verified") and PENDING in listed:
-        reviews_read = _read_reviews(port, job_id, counts, review_timeout)
+        read = _read_reviews(port, job_id, review_timeout)
+        if read is not None:
+            counts, reviews_read = read, True
+        else:
+            # FIX-WISKEY-2570 (review WA-02): a review read that failed half way never leaves half the counts behind (a `rejected` read
+            # first and an unread `pending` / `approved` second showed "rejected"). The counts are the last COMPLETE review read of this
+            # job (zero when there was none) and `reviews_unread` says this check could not read them.
+            reviews_unread = True
+            if prior is not None and (prior["reviews_read"] or prior.get("reviews_unread")):
+                counts = {k: int(prior["reviews"].get(k, 0)) for k in REVIEW_STATES}
     phase, code = phase_of(status, counts)
-    return answer("ok", None, _view(job_id, phase, code, now_of(), status, counts, reviews_read))
+    return answer("ok", "reviews_unread" if reviews_unread else None,
+                  _view(job_id, phase, code, now_of(), status, counts, reviews_read, reviews_unread))
 
 
-def _read_reviews(port: Port, job_id: str, counts: dict[str, int], timeout: float) -> bool:
-    """The pending reviews of this job (WisKey's dual approval). True when they were read; a failed read leaves the counts at zero
-    and the phase falls back to `waiting_owner` (which is what the owner's screen will show too)."""
+def _read_reviews(port: Port, job_id: str, timeout: float) -> dict[str, int] | None:
+    """The pending reviews of this job (WisKey's dual approval): their counts when EVERY read of this check succeeded; None when any
+    read failed (the caller then keeps the last complete counts - never a part of this check's reads)."""
     try:
         rows = read_pending(port.call(PENDING, {}, timeout=timeout))
     except (PortFailure, SchemaError) as exc:
         log.info("wiskey schedule execution pending: %s", getattr(exc, "code", exc))
-        return False
+        return None
+    counts = {k: 0 for k in REVIEW_STATES}
     mine = [r for r in rows if r["operation_id"] == job_id][:MAX_REVIEW_READS]
     for row in mine:
         try:
@@ -535,8 +547,9 @@ def _read_reviews(port: Port, job_id: str, counts: dict[str, int], timeout: floa
         except PortFailure as f:
             if f.outcome == "refused" and f.code == "review_expired":
                 continue  # expired between the two reads: no longer a review
-            return False
+            log.info("wiskey schedule execution review: %s (%s)", f.outcome, f.code)
+            return None
         except SchemaError:
-            return False
+            return None
         counts[state] += 1
-    return True
+    return counts

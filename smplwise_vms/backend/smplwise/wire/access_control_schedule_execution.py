@@ -29,7 +29,8 @@ class ScheduleExecutionReviews(ExactModel):
 class ScheduleExecutionJob(ExactModel):
     """The last status read of one WisKey job (memory only). `phase`: waiting_owner / review_pending / approved / rejected / executing /
     attention / executed / failed / cancelled / not_found / unknown. `physical_result` is always `unproven` (WisKey's own word);
-    `final`: executed or cancelled - not read again."""
+    `final`: executed or cancelled - not read again. `reviews_unread` (FIX-WISKEY-2570): the review reads of this check failed, so
+    `reviews` (and the phase) are the last complete review read of the job, or zero when there was none."""
     job_id: str
     phase: str
     code: str | None
@@ -41,6 +42,7 @@ class ScheduleExecutionJob(ExactModel):
     steps_verified: int
     reviews: ScheduleExecutionReviews
     reviews_read: bool
+    reviews_unread: bool
     physical_result: str
     read_at: str
     final: bool

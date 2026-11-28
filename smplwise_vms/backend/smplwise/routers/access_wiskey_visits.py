@@ -99,7 +99,11 @@ def visits(request: Request, principal: Principal = Depends(current_principal_ro
     if not available:
         raise _unavailable("visits", reason)
     if status not in wv.list_statuses(api, wv.direct_capabilities()):  # WISKEY-VISITS-ENDED-FILTER-2520: `ended` only when WisKey offers it; refused before any call
-        raise _unavailable("ended_filter", "ended_filter_not_offered")
+        if status == "ended":
+            raise _unavailable("ended_filter", "ended_filter_not_offered")
+        # FIX-WISKEY-2570 (review WA-03): WisKey's filter contract (WISKEY-VISIT-FILTERS-2560) may offer fewer than the six statuses - a
+        # status it leaves out is refused with its own reason, never the ended filter's
+        raise _unavailable("status_filter", "status_filter_not_offered")
     needle = " ".join(query.split())
     reply = intercom_sync.SYNC.command(settings_of(request), "visits", lambda call: wv.list_visits(call, offset=offset, limit=limit, status=status, query=needle),
                                        wv.project_visit_page, who=principal.user_id, channel=wv.READ_CHANNEL)

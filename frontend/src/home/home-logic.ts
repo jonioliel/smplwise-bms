@@ -42,21 +42,32 @@ export function homeBarText(rs: HRoom[]): string {
 const LOCK_STATES = new Set(['locked', 'unlocked', 'open', 'opening', 'locking', 'unlocking', 'jammed']);
 /** Whether a lock row's state is one the home interface can say (available, and a lock state it knows). */
 export const lockKnown = (state: string | null, available: boolean): boolean => available && state != null && LOCK_STATES.has(state);
-/** A door that is open now (its state is known and it is not locked). */
-export const doorOpen = (d: Pick<HDoor, 'known' | 'locked'>): boolean => d.known && !d.locked;
+/** FIX-HOME-MAPS-2570 (MH-03): the three known lock states that are neither "locked" nor "open" - jammed (a warning of its own) and the
+ * two transitions. null = an ordinary locked / unlocked / open state (or an unknown one). */
+export type DoorPhase = 'jammed' | 'locking' | 'unlocking';
+export const doorPhaseOf = (state: string | null, available: boolean): DoorPhase | null => (available && (state === 'jammed' || state === 'locking' || state === 'unlocking') ? state : null);
+/** A door that is open now (its state is known, it is not locked, and it is not jammed or moving - those are never announced as open). */
+export const doorOpen = (d: Pick<HDoor, 'known' | 'locked'> & { phase?: DoorPhase | null }): boolean => d.known && !d.locked && !d.phase;
+/** A door that is jammed (its own warning: the lock cannot say whether the door is locked). */
+const doorJammed = (d: { phase?: DoorPhase | null }): boolean => d.phase === 'jammed';
 /** A door the screen cannot vouch for as locked: open, or its state is unknown (the "לא נעולות" filter keeps both). */
 export const doorNotLocked = (d: Pick<HDoor, 'known' | 'locked'>): boolean => !d.known || !d.locked;
 type DoorTone = 'ok' | 'warn' | 'neutral';
 /** The tone of a door's own icon and state: locked = ok, open = warn, unknown = neutral. */
-export const doorTone = (d: Pick<HDoor, 'known' | 'locked'>): DoorTone => (!d.known ? 'neutral' : d.locked ? 'ok' : 'warn');
+export const doorTone = (d: Pick<HDoor, 'known' | 'locked'> & { phase?: DoorPhase | null }): DoorTone =>
+  !d.known ? 'neutral' : d.phase === 'jammed' ? 'warn' : d.phase ? 'neutral' : d.locked ? 'ok' : 'warn';
 /** The tone of the doors' summary: an open door warns; otherwise a door in an unknown state (or no door) is neutral; all locked = ok. */
-export const doorsTone = (doors: Pick<HDoor, 'known' | 'locked'>[]): DoorTone =>
-  doors.some(doorOpen) ? 'warn' : !doors.length || doors.some((d) => !d.known) ? 'neutral' : 'ok';
+export const doorsTone = (doors: (Pick<HDoor, 'known' | 'locked'> & { phase?: DoorPhase | null })[]): DoorTone =>
+  doors.some(doorOpen) || doors.some(doorJammed) ? 'warn' : !doors.length || doors.some((d) => !d.known) ? 'neutral' : 'ok';
 
 export function doorsText(doors: HDoor[]): string {
   const u = doors.filter(doorOpen);
   if (!doors.length) return tr('אין דלתות מחוברות');
   if (u.length) return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? tr('פתוח') : tr('פתוחה')}` : tr('{length} דלתות פתוחות', { length: u.length });
+  const jam = doors.filter(doorJammed);
+  if (jam.length) return jam.length === 1 ? tr('{name} תקועה', { name: jam[0].name }) : tr('{length} מנעולים תקועים', { length: jam.length });
+  const mv = doors.filter((d) => d.phase);
+  if (mv.length) return mv.length === 1 ? `${mv[0].name} ${mv[0].phase === 'locking' ? tr('ננעלת…') : tr('נפתחת…')}` : tr('{length} דלתות בתנועה', { length: mv.length });
   const k = doors.filter((d) => !d.known);
   if (!k.length) return tr('כל הדלתות נעולות');
   if (k.length === doors.length) return k.length === 1 ? tr('מצב {name} לא ידוע', { name: k[0].name }) : tr('מצב הדלתות לא ידוע');
@@ -70,7 +81,7 @@ const DOOR_NO_OPEN: Record<string, string> = {
 };
 export const doorNoOpenText = (reason: string): string => DOOR_NO_OPEN[reason] ?? tr('אי אפשר לפתוח מכאן כרגע');
 export const doorState = (d: HDoor): string =>
-  !d.ok ? tr('לא זמינה כרגע') : !d.known ? tr('לא ידוע') : d.kind === 'gate' ? (d.locked ? tr('סגור') : tr('פתוח')) : d.locked ? tr('נעולה') : tr('פתוחה');
+  !d.ok ? tr('לא זמינה כרגע') : !d.known ? tr('לא ידוע') : d.phase === 'jammed' ? tr('תקועה') : d.phase === 'locking' ? tr('ננעלת…') : d.phase === 'unlocking' ? tr('נפתחת…') : d.kind === 'gate' ? (d.locked ? tr('סגור') : tr('פתוח')) : d.locked ? tr('נעולה') : tr('פתוחה');
 
 export function shadeText(pos: number | null, moving = false, state: string | null = null): string {
   if (moving) return state === 'closing' ? tr('נסגר') : tr('נפתח');

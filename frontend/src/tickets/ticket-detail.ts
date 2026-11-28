@@ -27,6 +27,7 @@ import {
   fromLocalInput, listHref, marksInternal, moveTo, priorityTone, ticketHref, toLocalInput, type TicketsRoute,
 } from './model';
 import { tt } from './text';
+import { stillOn } from './late-answer'; // TK2-03
 import { tIcon } from './icons';
 import { ticketDetailStyles, ticketFormStyles } from './styles';
 import { onTicketNames } from './naming';
@@ -498,12 +499,17 @@ export class TicketDetailView extends LitElement {
   private async run(fn: () => Promise<TicketDetail | { view: 'none' }>, done?: string): Promise<boolean> {
     if (this.busy) return false;
     this.busy = true;
+    const asked = this.ticketId; // TK2-03: the answer belongs to the ticket the action was pressed on
     try {
       const next = await fn();
       if ('view' in next && next.view === 'none') {
-        this.dispatchEvent(new CustomEvent('ticket-gone', { detail: { id: this.ticketId }, bubbles: true, composed: true }));
-        this.gone = true;
-        this.t = null;
+        this.dispatchEvent(new CustomEvent('ticket-gone', { detail: { id: asked }, bubbles: true, composed: true }));
+        if (stillOn(asked, this.ticketId)) {
+          this.gone = true;
+          this.t = null;
+        }
+      } else if (!stillOn(asked, this.ticketId)) {
+        return true; // done on the server, but another ticket is on screen now: keep it, no stale drawer, no stale event
       } else {
         this.t = next as Detail;
         this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
@@ -815,8 +821,10 @@ export class TicketDetailView extends LitElement {
     try {
       await conversationApi().vendorMessage(id, text, { notify: false });
       const next = await ticketsApi().get(id);
-      this.t = next as Detail;
-      this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
+      if (stillOn(id, this.ticketId)) {
+        this.t = next as Detail;
+        this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
+      }
     } catch {
       this.say(tt('asgMsgFailed'), 'bad');
     } finally {
@@ -902,7 +910,7 @@ export class TicketDetailView extends LitElement {
       this.uploading += 1;
       try {
         const next = await ticketsApi().upload(t.id, f, external);
-        this.t = next as Detail;
+        if (stillOn(t.id, this.ticketId)) this.t = next as Detail; // TK2-03: a photo of ticket A never puts A back over B
       } catch (err) {
         failed += 1;
         this.say(describeError(err), 'bad');
@@ -910,7 +918,7 @@ export class TicketDetailView extends LitElement {
         this.uploading -= 1;
       }
     }
-    if (this.t) this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
+    if (this.t && stillOn(t.id, this.ticketId)) this.dispatchEvent(new CustomEvent('ticket-changed', { detail: { ticket: this.t }, bubbles: true, composed: true }));
     if (failed > 1) this.say(tt('photosFailed', { n: failed }), 'bad');
   }
 

@@ -85,7 +85,7 @@ def test_the_line_is_off_by_default_and_reads_nothing(world, monkeypatch):
     monkeypatch.setattr(people_svc, "people_view", lambda *a, **k: called.append(1) or {})
     monkeypatch.setattr(bp, "snapshot", lambda *a, **k: called.append(1) or {})
     out = line(c).json()
-    assert out == {"area_id": AREA, "line": False, "sensors": None, "people": None} and called == []
+    assert out == {"area_id": AREA, "line": False, "sensors": None, "people": None, "time_zone": "Asia/Jerusalem"} and called == []  # FIX-FE2-2570: + the zone
 
 
 def test_the_setting_is_validated_and_audited(world):

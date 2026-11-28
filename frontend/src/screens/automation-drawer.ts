@@ -22,7 +22,8 @@ import { t } from '../i18n/he';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 import { dialogRowStyles } from '../styles/fragments';
 
-export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
+/** FIX-FE2-2570 (VD2-05): `warn` = the outcome of a physical run is not known (no answer / a time-out): amber, never "failed", never "done". */
+export type DrawerResult = { text: string; tone: 'ok' | 'error' | 'warn'; action?: { label: string; run: () => void } };
 
 const MODE_CHIP: Record<Mode, string> = { single: tr('התעלם'), restart: tr('התחל מחדש'), queued: tr('המתן בתור'), parallel: tr('הרץ במקביל') };
 const LIST_LABEL: Record<string, string> = { conditions: tr('אם'), if: tr('אם'), then: tr('אז'), else: tr('אחרת'), default: tr('אחרת'), sequence: tr('אז') };
@@ -488,7 +489,7 @@ export class AutomationDrawer extends LitElement {
     try {
       if (it.kind === 'script') await runScriptNow(it.id, this.values, { confirm: confirmed || undefined });
       else await runAutomation(it.id, { skip_condition: true, confirm: confirmed || undefined });
-      this.say(it.kind === 'script' ? tr('הסקריפט הופעל') : tr('האוטומציה הורצה'));
+      this.say(it.kind === 'script' ? tr('הבקשה להפעלת הסקריפט נשלחה') : tr('האוטומציה הורצה')); // FIX-FE2-2570 (FE2-04): 202 = request sent
       this.fire('changed', { id: it.id });
       window.setTimeout(() => void this.load(true), 250);
     } catch (err) {

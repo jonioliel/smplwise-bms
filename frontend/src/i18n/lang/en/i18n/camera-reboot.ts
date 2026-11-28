@@ -22,4 +22,5 @@ export const en = {
   errorUnavailable: 'The NVR is not reachable right now. The camera was not restarted.',
   errorForbidden: 'You are not allowed to do this.',
   errorGeneric: 'The action failed. The camera was not restarted.',
+  errorUnknown: 'It is not known whether the camera restarted: the link dropped after the command was sent. Check the picture before pressing again.',
 };

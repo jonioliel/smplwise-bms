@@ -14,6 +14,12 @@ const he = {
   enforce: 'לשלוח רק לרשימה',
   enforceOff: 'כבוי: כל נמען יקבל הודעה',
   blocksAll: 'האכיפה פעילה והרשימה ריקה: שום הודעה לא תישלח',
+  // FIX-FE2-2570 (review FE2-08): the confirmations before a change that stops delivery
+  confirmBlockAllTitle: 'לעצור את כל ההודעות?',
+  confirmBlockAll: 'האכיפה תופעל והרשימה תהיה ריקה: שום הודעת וואטסאפ לא תישלח עד שיתווסף נמען.',
+  confirmRemoveTitle: 'להסיר את {name}?',
+  confirmRemove: 'האכיפה פעילה: {name} לא יקבל יותר הודעות. כדי להחזיר צריך את המספר המלא.',
+  confirmYes: 'כן, להמשיך',
   phone: 'מספר (עם קידומת מדינה)',
   label: 'שם',
   role: 'תפקיד',

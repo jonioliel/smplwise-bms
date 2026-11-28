@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type CSSResultGroup, type TemplateResul
 import { customElement, state } from 'lit/decorators.js';
 import './sw-icon';
 import './wk-action-button';
-import { ApiError, describeError } from '../api/client';
+import { describeError } from '../api/client';
 import { intercomSnapshotUrl, releaseIntercomDoor, signalIntercomCall, subscribeIntercom } from '../api/intercom';
 import { getActiveCalls, stationDrawerHref, type ActiveCalls, type IncomingCall } from '../api/intercom-calls';
 import { canAnywhere, isApi, onSession } from '../api/session';
@@ -14,7 +14,7 @@ import { wkIcon } from '../screens/wiskey-stations-icons';
 import { armRingTone, Ringer, ringBlocked } from '../wiskey/ring-tone';
 import { openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps } from '../wiskey/talk-session';
-import { answerPlan, clockText, doorFailure, doorLabel, elapsedNow, frontCall, frontSettled, pollDelay, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
+import { answerPlan, clockText, doorFailure, doorLabel, elapsedNow, frontCall, frontSettled, pollDelay, pollFailure, shouldRing, talkReasonText, visibleCalls } from './incoming-call-logic';
 import { srOnlyStyles } from '../styles/fragments';
 
 const HIDDEN_KEY = 'sw.calls.hidden';
@@ -67,6 +67,8 @@ export class SwIncomingCall extends LitElement {
   protected holdTimer = 0;
   @state() protected picture = Date.now();
   protected fetchedAt = 0;
+  /** FIX-WISKEY-2570 (SCR-51): the last read of the call list failed (not a 403) - what is shown is the last state read. */
+  @state() protected unread = false;
   protected hiddenCalls = new Set<string>();
   protected talking = new Set<string>();
   /** Calls whose "answer" opened the station (no talk here): kept in view with the reason, even over their open drawer. */
@@ -369,13 +371,16 @@ export class SwIncomingCall extends LitElement {
       const prev = new Set((this.active?.calls ?? []).map((c) => c.call_id));
       this.active = await getActiveCalls();
       this.fetchedAt = Date.now();
+      this.unread = false;
       const now = new Set(this.active.calls.map((c) => c.call_id));
       for (const id of prev) if (!now.has(id)) this.ended(id);
       const live = new Set(this.active.calls.map((c) => c.station_id));
       for (const id of [...this.media.keys()]) if (!live.has(id)) this.media.delete(id); // read again at the next call (the setting may change)
       for (const c of this.active.calls) void this.mediaOf(c.station_id);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
+      const failure = pollFailure(err);
+      this.unread = failure === 'unread'; // the last list stays, its buttons live (owner: LOWS-FRONTEND-2550 Q2 a); the banner says so
+      if (failure === 'forbidden') {
         // the call right was removed: quiet until the next check. LOWS-FRONTEND-2550 (review SCR-51): every call it showed ends here too -
         // a live talk session (microphone open) used to stay with no banner and no hang-up until the server closed it
         for (const id of new Set([...this.sessions.keys(), ...(this.active?.calls ?? []).map((c) => c.call_id)])) this.ended(id);
@@ -685,6 +690,7 @@ export class SwIncomingCall extends LitElement {
       </div>
       ${this.picture_(c)}
       ${n ? html`<p class="line" data-tone=${n.tone} role="status" data-call-note=${n.tone}>${n.text}</p>` : nothing}
+      ${this.unread ? html`<p class="line" data-tone="warn" role="status" data-call-unread>${t.unread}</p>` : nothing}
       ${st === 'ringing' ? this.soundLine() : this.talkLine(c)}
       ${this.doorPart(c)}
       <div class="acts">

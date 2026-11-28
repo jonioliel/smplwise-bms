@@ -33563,5 +33563,347 @@
     "owner": null,
     "commit": "cb16e5c14",
     "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2570-TRAIN",
+    "title": "RELEASE-2570-TRAIN - the 2.57.0 train",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The 2.57.0 train on release/2570-train (cut from v2.56.0 6ea807b2e) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2570-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2570-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Train merges, version bump, draft changelog, PC checks, the UI rebuild at the end; the release gate and the tag are the lead's"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): release/2570-train at v2.56.0 6ea807b2e. Merged: FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570 (no conflicts; m5.txt stray file dropped); version 2.57.0, DRAFT changelog. Checks in docs/changes/RELEASE-2570-TRAIN.md. More fix rows to come from the lead. UI NOT rebuilt; gate NOT_RUN; nothing released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-WISKEY-2570",
+    "title": "Deep review fixes WA-02, WA-03, SCR-51 (part): WisKey schedule execution counts, visit status filter refusal, call banner unread line",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes WA-02, WA-03, SCR-51 (part): WisKey schedule execution counts, visit status filter refusal, call banner unread line; merged into the 2.57.0 train, change note docs/changes/FIX-WISKEY-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-WISKEY-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-WISKEY-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-WISKEY-2570, change note docs/changes/FIX-WISKEY-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-WISKEY-2570 head 56a044e00 merged db08ae675 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-WISKEY-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "56a044e00",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-COMMS-2570",
+    "title": "Deep review fixes CU-01..CU-04: generator mute delays events, no late tell for acked alerts, 24 V latch reset, far calendar series check fails closed",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes CU-01..CU-04: generator mute delays events, no late tell for acked alerts, 24 V latch reset, far calendar series check fails closed; merged into the 2.57.0 train, change note docs/changes/FIX-COMMS-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-COMMS-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-COMMS-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-COMMS-2570, change note docs/changes/FIX-COMMS-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-COMMS-2570 head f7f91d216 merged 4cb3985b9 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-COMMS-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "f7f91d216",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-FE-2570",
+    "title": "Deep review fixes FE-02, FE-05 (+ FE2-17 guard): home admin switches controlled, route segments decoded with decodeSegment",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes FE-02, FE-05 (+ FE2-17 guard): home admin switches controlled, route segments decoded with decodeSegment; merged into the 2.57.0 train, change note docs/changes/FIX-FE-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-FE-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-FE-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-FE-2570, change note docs/changes/FIX-FE-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-FE-2570 head 0c10305a3 merged a754be9bf into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-FE-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "0c10305a3",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-HOME-MAPS-2570",
+    "title": "Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off; merged into the 2.57.0 train, change note docs/changes/FIX-HOME-MAPS-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-HOME-MAPS-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-HOME-MAPS-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-HOME-MAPS-2570, change note docs/changes/FIX-HOME-MAPS-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-HOME-MAPS-2570 head feaf0ba5f merged 2754db344 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-HOME-MAPS-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "feaf0ba5f",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-CORE-DATA-2570",
+    "title": "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane; merged into the 2.57.0 train, change note docs/changes/FIX-CORE-DATA-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-CORE-DATA-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-CORE-DATA-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-CORE-DATA-2570, change note docs/changes/FIX-CORE-DATA-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-CORE-DATA-2570 head da32ee97c merged 72969b780 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-CORE-DATA-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "da32ee97c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-FE2-2570",
+    "title": "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone; merged into the 2.57.0 train, change note docs/changes/FIX-FE2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-FE2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-FE2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-FE2-2570, change note docs/changes/FIX-FE2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-FE2-2570 head ac155879e merged d6c7a0799 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-FE2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "ac155879e",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-VIDEO-2570",
+    "title": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page; merged into the 2.57.0 train, change note docs/changes/FIX-VIDEO-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-VIDEO-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-VIDEO-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-VIDEO-2570, change note docs/changes/FIX-VIDEO-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-VIDEO-2570 head 5a73eb616 merged 62e1ed6d7 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-VIDEO-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "5a73eb616",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-TICKETS2-2570",
+    "title": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped; merged into the 2.57.0 train, change note docs/changes/FIX-TICKETS2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-TICKETS2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-TICKETS2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-TICKETS2-2570, change note docs/changes/FIX-TICKETS2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-TICKETS2-2570 head be7dce69a merged 20744741d into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-TICKETS2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "be7dce69a",
+    "actual_cost_usd": null
   }
 ]

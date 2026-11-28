@@ -27,6 +27,15 @@
 # net of diff selection: it has to FINISH.
 # One run at a time (flock): a second start waits or exits. Never kills processes by name (only the PIDs/process groups it started).
 # Writes a summary per branch to ~/smplwise-results/<date>_<branch>.md (the dashboard reads the newest 20*.md).
+#
+# Coverage lane (FIX-CORE-DATA-2570, deep review TR-08): after the engine, on main only (not with --backend-only / --frontend-only), the
+# report-only coverage lane scripts/gate/coverage_lane.sh of the tree under test runs (backend line coverage in shards, the gate
+# tooling's selftests, the list of live-only specs; it never changes the verdict). Its runtime is bounded so the nightly stays inside
+# its hard limit: it runs once a week by default (SW_NIGHTLY_COVERAGE=weekly, on SW_NIGHTLY_COVERAGE_DAY, `date +%u` in
+# Asia/Jerusalem, default 6 = the Saturday 02:00 run; =daily every night; =off never), under `timeout` of SW_NIGHTLY_COVERAGE_MAX_MIN
+# (default 60) minutes or what is left before the engine's end mark (RUN_END), whichever is less, and not at all with less than
+# 20 minutes left. Its shards: SW_NIGHTLY_COVERAGE_SHARDS (default 2). The summary gets one line: the report path, TIMEOUT or
+# NOT_RUN with the reason. Expected: the backend in 2 shards with the stdlib recorder, about 40-60 min next to a ~160 min engine run.
 set -uo pipefail
 BO=0; FO=0; ND=0; DRY=0; LOCAL_HOUR=""; ARGS=(); ORIG=("$@")
 for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; --dry-run) DRY=1;; --local-hour=*) LOCAL_HOUR="${a#--local-hour=}";; *) ARGS+=("$a");; esac; done
@@ -53,10 +62,23 @@ BRANCH_MAX_MIN="${SW_NIGHTLY_BRANCH_MAX_MIN:-225}"   # engine budget per branch 
 # specs and their alone-retries) pushed the run into the 225 min engine budget ("budget exhausted"). v2 (6 backend shards, one
 # Playwright pool, dev specs as pool jobs, largest first) has been the release gates' schedule in the 2.23.0 to 2.25.0 gates (full runs 84-131 min).
 SCHEDULE="${SW_NIGHTLY_SCHEDULE:-v2}"
+# FIX-CORE-DATA-2570 (TR-08): the coverage lane's schedule and time cap (see the header)
+COV_MODE="${SW_NIGHTLY_COVERAGE:-weekly}"; COV_DAY="${SW_NIGHTLY_COVERAGE_DAY:-6}"; COV_MAX_MIN="${SW_NIGHTLY_COVERAGE_MAX_MIN:-60}"
+case "$COV_MAX_MIN" in ''|*[!0-9]*) COV_MAX_MIN=60;; esac
+case "$COV_DAY" in [1-7]) ;; *) COV_DAY=6;; esac
+coverage_today() { # prints "run", or "skip: <reason>"
+  case "$COV_MODE" in
+    off) echo "skip: SW_NIGHTLY_COVERAGE=off";;
+    daily) echo "run";;
+    *) local d; d=$(TZ=Asia/Jerusalem date -d "@${SW_NIGHTLY_NOW:-$(date +%s)}" +%u)
+       if [ "$d" = "$COV_DAY" ]; then echo "run"; else echo "skip: weekly lane on day $COV_DAY, today is day $d"; fi;;
+  esac
+}
 if [ "$DRY" -eq 1 ]; then
   if [ "$#" -gt 0 ]; then echo "branches: $*"; else echo "branches: main"; fi
   echo "flags: backend-only=$BO frontend-only=$FO no-dev=$ND; hard limit ${MAX_MIN} min; per-branch engine budget ${BRANCH_MAX_MIN} min; schedule ${SCHEDULE}; lock wait ${SW_NIGHTLY_LOCK_WAIT:-10800} s"
-  echo "engine: $ENGINE ($([ -f "$ENGINE" ] && echo present || echo MISSING)); workers per Playwright process: ${GATE_PW_WORKERS:-3}"; exit 0
+  echo "engine: $ENGINE ($([ -f "$ENGINE" ] && echo present || echo MISSING)); workers per Playwright process: ${GATE_PW_WORKERS:-3}"
+  echo "coverage lane: $(coverage_today) (mode $COV_MODE, day $COV_DAY, cap ${COV_MAX_MIN} min, main only, after the engine)"; exit 0
 fi
 mkdir -p "$RESULTS"
 # Lock wait (2026-10-06): used to be `flock -n || exit 3`, so the 02:00 run silently did not happen on 4-6 Oct whenever
@@ -245,6 +267,22 @@ P
   if [ "$BR" = "main" ] && [ -f "$SEL" ] && [ -f "$REP.json" ] && ls "$RESULTS"/gate_*.selection.json >/dev/null 2>&1; then
     python3 "$SEL" audit --nightly "$REP.json" --selections-dir "$RESULTS" --out "$RESULTS/$(date +%F)_selection-audit.md" \
       >> "$LOGD/engine.log" 2>&1 && echo "- selection audit: $RESULTS/$(date +%F)_selection-audit.md" >> "$OUT"
+  fi
+  # FIX-CORE-DATA-2570 (deep review TR-08): the report-only coverage lane, bounded (see the header); one line in the summary
+  if [ "$BR" = "main" ] && [ "$FO" -eq 0 ]; then
+    COV="$(coverage_today)"; COVSH="$DIR/scripts/gate/coverage_lane.sh"
+    LEFT=$(( RUN_END - $(date +%s) )); CAP=$(( COV_MAX_MIN * 60 )); [ "$CAP" -gt "$LEFT" ] && CAP=$LEFT
+    if [ "$COV" != "run" ]; then echo "- coverage lane: NOT_RUN (${COV#skip: })" >> "$OUT"
+    elif [ ! -f "$COVSH" ]; then echo "- coverage lane: NOT_RUN (no scripts/gate/coverage_lane.sh at $SHA)" >> "$OUT"
+    elif [ "$CAP" -lt 1200 ]; then echo "- coverage lane: NOT_RUN (only $(( LEFT / 60 )) min left of the ${MAX_MIN} min limit)" >> "$OUT"
+    else
+      COVOUT="$RESULTS/coverage/$(date +%F)_$SHA"; C0=$(date +%s)
+      ( cd "$DIR" && timeout -k 30 "$CAP" bash "$COVSH" --root "$DIR" --out "$COVOUT" --shards "${SW_NIGHTLY_COVERAGE_SHARDS:-2}" ) > "$LOGD/coverage_lane.log" 2>&1; CRC=$?
+      case "$CRC" in
+        124|137) echo "- coverage lane: TIMEOUT after $(( CAP / 60 )) min (report only; partial files in $COVOUT)";;
+        *) echo "- coverage lane (report only, never the verdict): $COVOUT/coverage.md ($(( ($(date +%s) - C0) / 60 )) min)";;
+      esac >> "$OUT"
+    fi
   fi
   cd "$DIR"
 done

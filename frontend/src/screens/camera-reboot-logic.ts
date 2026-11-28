@@ -32,6 +32,9 @@ export function rebootView(s: CameraRebootState | null, busy = false): RebootVie
 export function rebootErrorText(err: unknown): string {
   const status = typeof err === 'object' && err !== null && 'status' in err ? Number((err as { status: unknown }).status) : 0;
   const code = typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code ?? '') : '';
+  // FIX-VIDEO-2570 (second review, VD-02): the command may have reached the camera - say "unknown", never "not restarted"
+  const outcome = (err as { body?: { details?: { outcome?: unknown } } } | null)?.body?.details?.outcome;
+  if (outcome === 'unknown' || code === 'action_outcome_unknown' || err instanceof TypeError) return crt('errorUnknown');
   if (code === 'nvr_writes_off') return crt('reasonWritesOff');
   if (code === 'camera_reboot_not_supported' || code === 'nvr_not_supported') return crt('reasonNotSupported');
   if (code === 'rate_limited' || status === 429) return crt('errorRateLimited');

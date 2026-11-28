@@ -194,6 +194,9 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel], secret_fields: 
     return body, secrets_
 
 
+EXPIRY_MAX_S = 300.0  # an arm / disarm / bypass may be stamped at most 5 minutes ahead (server clock)
+
+
 def _envelope(client_request_id: str, expires_at: str) -> None:
     try:
         expires = parse_utc(expires_at)
@@ -202,8 +205,9 @@ def _envelope(client_request_id: str, expires_at: str) -> None:
     now = dt.datetime.now(dt.timezone.utc)
     if expires < now:
         raise ApiError(409, "expired", "הבקשה פגה; נסו שוב.")
-    if expires > now + dt.timedelta(minutes=5):
-        raise ApiError(422, "validation", "expires_at רחוק מדי (עד 5 דקות).")
+    if expires > now + dt.timedelta(seconds=EXPIRY_MAX_S):
+        # FIX-VIDEO-2570: the same code and text as every other command route (routers/ha.py, devices, WisKey); `fields` kept for old readers
+        raise ApiError(422, "expires_too_far", tpl("תוקף הבקשה חייב להסתיים תוך {expiry_max_s} שניות.", expiry_max_s=int(EXPIRY_MAX_S)), details={"fields": ["expires_at"]})
 
 
 class ActionBody(BaseModel):

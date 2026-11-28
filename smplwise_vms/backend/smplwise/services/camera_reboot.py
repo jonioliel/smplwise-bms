@@ -31,7 +31,7 @@ from ..config import Settings
 from ..errors import ApiError
 from . import nvr_write_switch
 from .nvr import _client
-from .nvr_write import _record, response_status
+from .nvr_write import NOT_SENT_TRANSPORT_ERRORS, _record, response_status
 
 PERMISSION = "nvr.camera.reboot"
 KIND = "camera_reboot"
@@ -62,8 +62,8 @@ def _since(seconds: int) -> str:
 
 
 def cooldown_left(conn: sqlite3.Connection, camera_id: str) -> int:
-    """Seconds until this camera may be rebooted again (0 = now). Counts commands the NVR accepted."""
-    r = conn.execute("SELECT created_at FROM nvr_changes WHERE kind = ? AND camera_id = ? AND status IN ('applied', 'sending') ORDER BY created_at DESC LIMIT 1",
+    """Seconds until this camera may be rebooted again (0 = now). Counts commands the NVR accepted, or may have (FIX-VIDEO-2570: unknown)."""
+    r = conn.execute("SELECT created_at FROM nvr_changes WHERE kind = ? AND camera_id = ? AND status IN ('applied', 'sending', 'unknown') ORDER BY created_at DESC LIMIT 1",
                      (KIND, camera_id)).fetchone()
     if r is None:
         return 0
@@ -78,7 +78,7 @@ def cooldown_left(conn: sqlite3.Connection, camera_id: str) -> int:
 def user_count(conn: sqlite3.Connection, user_id: str | None) -> int:
     if not user_id:
         return 0
-    return int(conn.execute("SELECT COUNT(*) FROM nvr_changes WHERE kind = ? AND actor_id = ? AND created_at >= ? AND status IN ('applied', 'failed', 'sending')",
+    return int(conn.execute("SELECT COUNT(*) FROM nvr_changes WHERE kind = ? AND actor_id = ? AND created_at >= ? AND status IN ('applied', 'failed', 'sending', 'unknown')",
                             (KIND, user_id, _since(USER_WINDOW_S))).fetchone()[0])
 
 
@@ -114,8 +114,9 @@ def _send(c: httpx.Client, path: str) -> tuple[bool, str, int]:
             method_used = "PUT"
             r = c.put(path, content=b"", headers={"Content-Type": "application/xml"})
             code, sub = response_status(r.text)
-    except httpx.HTTPError:
-        return False, "source_unavailable", 0
+    except httpx.HTTPError as exc:
+        # FIX-VIDEO-2570 (second review, VD-02): no connection = nothing sent; any other transport failure came after the request left
+        return False, ("source_unavailable" if type(exc).__name__ in NOT_SENT_TRANSPORT_ERRORS else UNKNOWN), 0
     if r.status_code == 200 and (code is None or code == 1):
         return True, method_used, 200
     if r.status_code in (401, 403) and sub not in NOT_EXECUTED_SUB:
@@ -123,6 +124,15 @@ def _send(c: httpx.Client, path: str) -> tuple[bool, str, int]:
     if sub in NOT_EXECUTED_SUB or r.status_code == 405:
         return False, "nvr_not_supported", r.status_code
     return False, "nvr_rejected", r.status_code
+
+
+UNKNOWN = "action_outcome_unknown"
+UNKNOWN_TEXT = "לא ידוע אם המצלמה הופעלה מחדש: הקשר עם ה־NVR נפסק אחרי שהפקודה נשלחה. בדקו את התמונה לפני לחיצה חוזרת."
+
+
+def outcome_unknown(detail: str, status: int) -> bool:
+    """FIX-VIDEO-2570: the command left and no good answer came back (a transport failure after sending, or a 5xx from the NVR)."""
+    return detail == UNKNOWN or (detail == "nvr_rejected" and status >= 500)
 
 
 MESSAGES = {
@@ -180,6 +190,12 @@ def finish(settings: Settings, conn: sqlite3.Connection, principal: Any, ticket:
     """The outcome on the change-log row and the audit row; a refusal raises (never retried)."""
     ok, detail, status = outcome
     cid, camera_id, path = ticket["change_id"], ticket["camera_id"], ticket["path"]
+    if not ok and outcome_unknown(detail, status):
+        # FIX-VIDEO-2570 (second review, VD-02): unknown, not failed / denied; it counts for the cooldown like a delivered command
+        conn.execute("UPDATE nvr_changes SET status = 'unknown', error = ? WHERE id = ?", (detail, cid))
+        audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="camera", resource_id=camera_id, reason=detail, request_id=request_id,
+              details={"kind": KIND, "path": path, "change_id": cid, "status": status, "outcome": "unknown"})
+        raise ApiError(504, UNKNOWN, UNKNOWN_TEXT, retryable=False, details={"change_id": cid, "outcome": "unknown"})
     if not ok:
         conn.execute("UPDATE nvr_changes SET status = 'failed', error = ? WHERE id = ?", (detail, cid))
         audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="camera", resource_id=camera_id, reason=detail, request_id=request_id,

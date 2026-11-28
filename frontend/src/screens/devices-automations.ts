@@ -34,7 +34,7 @@ import { sct } from '../i18n/scenarios';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/devices';
-import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
+import { decodeSegment, onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import {
   mapAutomationError, needsConfirmation, toggleAutomation, visibleKinds,
@@ -85,7 +85,8 @@ function writeView(v: AutoView) {
   }
 }
 
-interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } }
+/** FIX-FE2-2570 (VD2-05): `warn` = the outcome of a run is not known (amber, never "failed"). */
+interface Note { text: string; tone: 'ok' | 'error' | 'warn'; action?: { label: string; run: () => void } }
 
 /**
  * CR-017 "אוטומציות": the third tab of the home area (`#/devices/automations`, mockup `docs/design/mockups/automations/index.html`, always the glass
@@ -541,7 +542,7 @@ export class DevicesAutomations extends LitElement {
     if (r.segments[0] !== 'devices' || r.segments[1] !== 'automations') return;
     const scen = r.segments[2] === 'scenarios';
     this.scenView = scen;
-    this.scenId = scen ? decodeURIComponent(r.segments[3] ?? '') : '';
+    this.scenId = scen ? decodeSegment(r.segments[3] ?? '') : ''; // FIX-FE-2570 (FE-05): a broken `%` link must not throw
     const next = parseAutomationsRoute(scen ? ['devices', 'automations'] : r.segments, r.params);
     const incoming = r.params.toString();
     if (incoming !== this.lastWritten) {
@@ -1023,7 +1024,7 @@ export class DevicesAutomations extends LitElement {
       : nothing}
     ${this.editorSheet()}
     ${this.dialogs()}
-    ${this.note ? html`<div class=${`toast${this.note.tone === 'error' ? ' bad' : ''}`} popover="manual" role="status" data-auto-note>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}${this.note.text}${this.note.action ? html`<button type="button" class="btn sm" data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}`;
+    ${this.note ? html`<div class=${`toast${this.note.tone === 'error' ? ' bad' : this.note.tone === 'warn' ? ' warn' : ''}`} popover="manual" role="status" data-auto-note data-tone=${this.note.tone}>${aIcon(this.note.tone === 'ok' ? 'check' : 'warning')}${this.note.text}${this.note.action ? html`<button type="button" class="btn sm" data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}`;
   }
 }
 

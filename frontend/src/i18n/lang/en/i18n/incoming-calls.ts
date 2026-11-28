@@ -41,6 +41,7 @@ export const en = {
     failed: 'The command was not carried out: {why}',
     answeredElsewhere: 'Answered elsewhere',
     ended: 'The call ended',
+    unread: 'The call state cannot be read right now · showing the last state read',
     mic: { talking: 'Microphone open', muted: 'Microphone muted', starting: 'Opening talk…', mute: 'Mute', unmute: 'Unmute' },
   },
   log: {

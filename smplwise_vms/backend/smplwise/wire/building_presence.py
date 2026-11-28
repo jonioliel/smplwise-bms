@@ -43,6 +43,7 @@ class BuildingPresenceBuildingSnapshot(ExactModel):
     empty_minutes: Any = None
     empty_reached: bool = None
     at: str = None
+    time_zone: str = None  # FIX-FE2-2570 (FE2-06): the installation's IANA zone (the screens' clock times)
 
 
 class BuildingPresenceAreaPresenceLineSensors(ExactModel):
@@ -64,6 +65,7 @@ class BuildingPresenceAreaPresenceLine(ExactModel):
     line: bool
     sensors: BuildingPresenceAreaPresenceLineSensors | None
     people: BuildingPresenceAreaPresenceLinePeople | None
+    time_zone: str = None  # FIX-FE2-2570 (FE2-06): the installation's IANA zone (the line's clock times)
 
 
 class BuildingPresenceBuildingSensorsSensor(ExactModel):

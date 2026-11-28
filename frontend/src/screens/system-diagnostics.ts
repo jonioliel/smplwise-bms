@@ -1882,7 +1882,7 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading=${tr('בריאות המערכת')} subheading=${tr('מצב נפרד לכל רכיב, לא נורה אחת')}>
         <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? tr('הכל תקין') : r.status === 'warn' ? tr('יש מה לבדוק') : tr('יש תקלה')}></sw-badge><span>${tr('גרסה')} <span class="ltr">${r.version}</span> ${tr('· פעיל {fmtUptime} · נבדק', { fmtUptime: fmtUptime(r.uptime_s) })} <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? tr('בודק…') : tr('בדוק עכשיו')}</sw-button></div>
         ${r.installation && !r.installation.supported ? html`<div class="hcard error" role="alert" data-health-unsupported=${r.installation.reason ?? ""}><div class="hh"><span>${tr('התקנה לא נתמכת')}</span></div><div class="hd">${r.installation.message} ${r.installation.action}</div></div>` : nothing}
-        <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
+        <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}${this.renderFeedCounters(c)}</div>`)}</div>
         <div class="muted" style="margin-block-start:10px">${tr('בדיקות המכשירים (NVR, go2rtc) נשמרות {probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.', { probe_ttl_s: r.probe_ttl_s })}</div>
       </sw-card>
       ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
@@ -1895,6 +1895,33 @@ export class SystemDiagnostics extends LitElement {
    * checks system.configure); also under a health report that failed to load, when the file is needed most. */
   private renderLogExport() {
     return this.canEdit ? html`<health-log-export></health-log-export>` : nothing;
+  }
+
+  /** FIX-CORE-DATA-2570: under the HA sync card, the counters of the state feed (`meta.state_feed`: refused frames, full re-reads, the
+   * last state reconcile) and of the rule notifications sent to the home system (`meta.delivery`: queued, waiting, dropped by the bound,
+   * skipped as too old). Shown only when the server sends them (an older server: nothing). */
+  private renderFeedCounters(c: HealthReport['checks'][number]) {
+    if (c.id !== 'ha_sync') return nothing;
+    const obj = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+    const n = (o: Record<string, unknown>, k: string): number => (typeof o[k] === 'number' ? (o[k] as number) : 0);
+    const delivery = obj(c.meta.delivery);
+    const feed = obj(c.meta.state_feed);
+    if (!delivery && !feed) return nothing;
+    const lines: ReturnType<typeof html>[] = [];
+    if (feed) {
+      lines.push(html`<li data-ha-feed-state>${tr('עדכוני מצב: {overflows} לא נכנסו לתור · {resyncs} קריאות מחדש מלאות · {dropped} לא הגיעו למסכים פתוחים', { overflows: n(feed, 'state_overflows'), resyncs: n(feed, 'state_resyncs'), dropped: n(feed, 'dropped_frames') })}</li>`);
+      const last = obj(feed.last_reconcile);
+      const at = last && typeof last.at === 'string' ? timeText(new Date(last.at)) : '';
+      lines.push(!last
+        ? html`<li data-ha-feed-reconcile="none">${tr('השוואת מצבים תקופתית: עוד לא רצה')}</li>`
+        : typeof last.skipped === 'string'
+          ? html`<li data-ha-feed-reconcile="skipped">${tr('השוואת מצבים אחרונה ({at}): דולגה', { at })}</li>`
+          : html`<li data-ha-feed-reconcile="done">${tr('השוואת מצבים אחרונה ({at}): {read} נקראו · {repaired} תוקנו · {older} חדשים יותר נשמרו · {live} עודכנו בזמן אמת · {failed} לא נכתבו', { at, read: n(last, 'read'), repaired: n(last, 'repaired'), older: n(last, 'older'), live: n(last, 'live'), failed: n(last, 'failed') })}</li>`);
+    }
+    if (delivery) {
+      lines.push(html`<li data-ha-feed-delivery>${tr('התראות של כללים: {queued} נשלחו לתור · {waiting} ממתינות · {dropped} נזרקו כשהתור היה מלא · {skipped} דולגו כי התיישנו', { queued: n(delivery, 'queued'), waiting: n(delivery, 'waiting'), dropped: n(delivery, 'dropped_full'), skipped: n(delivery, 'skipped_old') })}</li>`);
+    }
+    return html`<ul class="hd" data-ha-feed-counters style="margin:6px 0 0;padding-inline-start:18px">${lines}</ul>`;
   }
 
   /** CR-008 D7: under the "וידאו ב־WebRTC" card, the settings hint of each camera whose main stream will not play there. */

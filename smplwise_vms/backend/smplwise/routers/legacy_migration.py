@@ -62,6 +62,9 @@ def _read(conn: sqlite3.Connection, principal: Principal, request: Request, data
         if exc.code == "protected_backup":
             raise ApiError(422, "legacy_backup_protected", "הגיבוי מוצפן. יש להעלות את קובצי המערכת הישנה עצמם או ייצוא שלהם.",
                            details={"reason": exc.code}) from None
+        if exc.code == "too_large_unpacked":  # FIX-CORE-DATA-2570 (CD-05): a readable archive that unpacks past the reader's caps
+            raise ApiError(422, "legacy_source_too_large_unpacked", "הקובץ נפרס לנפח גדול מדי לקריאה. אפשר להעלות את קובצי המערכת הישנה עצמם או ייצוא שלהם.",
+                           details={"reason": exc.code}) from None
         raise ApiError(422, "legacy_source_invalid", "הקובץ אינו קובץ של המערכת הישנה שאפשר לקרוא.", details={"reason": exc.code}) from None
 
 

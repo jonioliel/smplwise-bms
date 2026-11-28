@@ -1,5 +1,50 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
+
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-8 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+
+תקציר בעברית: (המוביל כותב בשחרור)
+
+### Improved
+- System diagnostics: the Home Assistant sync card lists the state-update and rule-notification counters and the last state reconcile.
+
+### Fixed
+- WisKey schedule execution: when an approvals read fails after a good one, the row no longer shows half-read counts; it shows the last complete state read, with a line saying the approvals could not be read now.
+- WisKey visits: a status filter the installed access control system does not offer is refused before anything is sent ("ended" keeps its own message).
+- Incoming-call banner: when the call state cannot be read (other than a permission refusal) an amber line says so; the last list and its buttons stay, nothing is sent again.
+- Generator: a muted alert type also holds back its event alerts (test failed, mains restored, ...) and tells them once when the mute ends; a late notice is not sent for an alert that was already acknowledged; choosing "automatic" battery voltage or changing the battery-voltage mapping resets the learned 24 V setting.
+- Calendars: the conflict check of a long recurring series looks much further ahead; if even that cannot finish, the booking is refused instead of being taken as conflict-free.
+- Home administration: the save-at-once switches (visitor invitations, wall rest / night, the per-person switches) go back to the saved state after a refused or failed save.
+- Addresses with a broken escape (such as "50%") no longer break the automations, schedules, generator alert, home recordings and calendars screens.
+- Home A/C: the newest temperature tap wins, and no temperature is sent after a failed turn-on.
+- Locks: a jammed or moving lock never reads as open ("jammed" in a warning tone, "locking..." / "unlocking..."); the area counts put it with the unknown locks.
+- Floor map: turning off a room while another room's turn-off is still running now says so on the room card (nothing is sent).
+- Import from the old NVR add-on: an archive that unpacks to far more than its size is stopped after 512 MB of unpacking and refused with its own message, instead of keeping the server busy for minutes.
+- Home Assistant feed: at a reconnect while the previous connection's updates are still being stored, the fresh listing is stored after them, so an older update no longer overwrites a newer state; entities Home Assistant does not register are no longer removed after a re-read.
+- Scenes and scripts: a scene that touches doors, locks or unknown devices asks before it runs from the scenes panel, the home launcher and the area quick sheet (also when the server asks for it), and one that does may now be saved; when no answer comes back the result reads amber "not known whether it ran - check on site" instead of "did not run", and a run says "request sent".
+- Wall photos: an upload stays with the folder it started in, deleting a photo asks first, and a late answer for another folder is dropped.
+- Extra verification: a confirmation that arrives late asks to press again instead of showing a raw refusal; a queued request does not open after the screen changed.
+- Messaging policy: turning enforcement on with an empty list, or removing a recipient while it is on, asks first; the pacing card shows what is saved after a refused save.
+- Scenarios: an answer for a scenario that is no longer open is dropped, and delete sends once.
+- Presence times follow the building's time zone; the presence chip hides after three failed reads in a row; floor stills, the cast clock and the tab-mode preferences no longer keep a stale or wrong state after a failure.
+- NVR: a settings write, a recorder restart, a disk check or a camera restart whose answer was lost is shown as "not known whether it was done - check" (amber) instead of "failed", and is never sent again; an unknown camera restart keeps the camera's cooldown.
+- Camera overlay (OSD): after a write that did not succeed the recorder is read again, so a refused date format does not stay on screen; a lost answer says it is not known whether it was written.
+- Schedules: the bulk bar acts only on the selected schedules on the page on screen.
+- Multimedia card: "all off" for an area uses the server clock for its expiry.
+- Tickets: "approve with correction" keeps the VAT rate of the vendor's revision, so the preview and the approved amount agree; the requests-for-quote list says when its counts cover only the loaded requests and keeps them on refresh; a late answer for another ticket or department is dropped.
+
+### API change
+- Schedule execution job view: new additive `reviews_unread: bool`; the status read can answer `{outcome: "ok", code: "reviews_unread"}`.
+- WisKey visits list: a status the WisKey filter contract leaves out is refused with 409 `wiskey_visits_unsupported`, details `{feature: "status_filter", reason: "status_filter_not_offered"}`.
+- Calendar bookings: 422 `series_check_failed` when the far conflict check of a series passes 50,000 occurrences.
+- Area counts: jammed / locking / unlocking locks are counted in `locks_unknown` (no new field).
+- Import from the old NVR add-on: an archive that unpacks past the reader's caps is answered 422 `legacy_source_too_large_unpacked` (`details.reason` kept).
+- Health report: the `ha_sync` check carries `meta.delivery` and `meta.state_feed` counters (additive; `meta` is a free object).
+- Presence: `GET presence/building` and `GET presence/area/{id}` carry `time_zone`; `GET ha/status` carries `bridge.integration_version` (both additive).
+- NVR writes (settings, notify, reboot, disk check, camera reboot): a command sent with no good answer is answered 504 `action_outcome_unknown` with `details.outcome = "unknown"` and the `change_id` (was a refusal); `PUT /nvr/notify` gains an additive `unknown` count.
+- Alarm arm / disarm / bypass: an `expires_at` more than 5 minutes ahead is 422 `expires_too_far` (was `validation`; `details.fields` kept).
+
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 
 

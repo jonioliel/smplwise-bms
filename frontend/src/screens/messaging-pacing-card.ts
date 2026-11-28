@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-card';
 import '../components/sw-toggle';
 import '../components/sw-button';
@@ -90,6 +91,8 @@ export class MessagingPacingCard extends LitElement {
       this.okTimer = window.setTimeout(() => (this.ok = ''), 2500);
     } catch (e) {
       this.error = describeError(e);
+      // FIX-FE2-2570 (review FE2-07): the controls go back to what is saved (the `live` bindings below re-write them); the red line says why
+      this.edited = {};
     } finally {
       this.busy = false;
     }
@@ -165,7 +168,7 @@ export class MessagingPacingCard extends LitElement {
       ${this.error ? html`<div class="msg err" role="alert" data-error>${this.error}</div>` : nothing}
       ${this.ok ? html`<div class="msg ok" role="status" data-ok>${this.ok}</div>` : nothing}
       <div class="row"><span class="lbl">${mp('mode')}</span>
-        <span class="ctl"><select class="in" data-pacing-mode aria-label=${mp('mode')} ?disabled=${!this.editable || this.busy}
+        <span class="ctl"><select class="in" data-pacing-mode aria-label=${mp('mode')} .value=${live(v.mode)} ?disabled=${!this.editable || this.busy}
           @change=${(e: Event) => void this.save({ mode: (e.target as HTMLSelectElement).value as PacingMode })}>
           ${PACING_MODES.map((m) => html`<option value=${m} ?selected=${m === v.mode}>${mp(`mode_${m}` as MpKey)}</option>`)}
         </select></span></div>
@@ -174,13 +177,13 @@ export class MessagingPacingCard extends LitElement {
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ wiskey_shared: e.detail.checked })}></sw-toggle></div>
       <div class="row stack"><span class="lbl">${mp('perMinute')} / ${mp('burstLbl')}</span>
         <div class="waits" data-pacing-rate>
-          <label>${mp('perMinute')}<input class="in" inputmode="numeric" data-rate="per_minute" .value=${String(v.budget?.per_minute ?? '')} ?disabled=${!this.editable || this.busy || !v.budget}
+          <label>${mp('perMinute')}<input class="in" inputmode="numeric" data-rate="per_minute" .value=${live(String(v.budget?.per_minute ?? ''))} ?disabled=${!this.editable || this.busy || !v.budget}
             @change=${(e: Event) => this.commitRate('per_minute', (e.target as HTMLInputElement).value)}></label>
-          <label>${mp('burstLbl')}<input class="in" inputmode="numeric" data-rate="burst" .value=${String(v.budget?.burst ?? '')} ?disabled=${!this.editable || this.busy || !v.budget}
+          <label>${mp('burstLbl')}<input class="in" inputmode="numeric" data-rate="burst" .value=${live(String(v.budget?.burst ?? ''))} ?disabled=${!this.editable || this.busy || !v.budget}
             @change=${(e: Event) => this.commitRate('burst', (e.target as HTMLInputElement).value)}></label></div></div>
       <div class="row stack"><span class="lbl">${mp('limits')}</span>
         <div class="waits" data-pacing-limits>${PACING_CLASSES.map((k) => html`<label>${mp(`cls_${k}` as MpKey)}
-          <input class="in" inputmode="numeric" data-wait=${k} .value=${this.edited[k] ?? String(v.max_wait_min[k])} ?disabled=${!this.editable || this.busy}
+          <input class="in" inputmode="numeric" data-wait=${k} .value=${live(this.edited[k] ?? String(v.max_wait_min[k]))} ?disabled=${!this.editable || this.busy}
             @input=${(e: Event) => (this.edited = { ...this.edited, [k]: (e.target as HTMLInputElement).value })} @change=${() => this.commitWaits()}></label>`)}</div></div>
       <div data-pacing-accounts>${v.accounts.length ? repeat(v.accounts, (a) => a.account_key, (a) => this.accountRow(a)) : html`<p class="muted" data-no-accounts>${mp('noAccounts')}</p>`}</div>
     </sw-card>`;

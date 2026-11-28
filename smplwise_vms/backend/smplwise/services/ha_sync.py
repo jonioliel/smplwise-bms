@@ -847,11 +847,84 @@ def apply_resync(db: Database, listing: list[dict[str, Any]], seen: str, touched
     older than the stored one is kept, and an entity in `touched` (a state frame that arrived from the moment the re-read was asked
     for until now) is left to that frame - the socket reader may hand newer frames to the worker before this job is submitted."""
     _rows, counts = reconcile_states(db, listing, seen, set(touched or ()))
+    # FIX-CORE-DATA-2570: STATE.last_snapshot_at moves to `seen` below, and the registry refresh keeps an entity HA never registered
+    # only while its `state_seen_at` is at least that stamp (_tombstone). A listed state the reconcile left as stored (older / same /
+    # live / no readable time) was not written, so it is stamped here as seen - else the next refresh tombstoned it.
+    _stamp_seen(db, listing, seen)
     log.info("HA sync: re-read applied: %d repaired, %d older kept, %d unchanged, %d updated live, %d not written",
              counts["repaired"], counts["older"], counts["same"], counts["live"], counts["failed"])
     STATE.last_snapshot_at = seen
     STATE.state_resyncs += 1
     log.warning("HA sync: every state re-read after %d state change(s) did not fit the queue (%d entities)", STATE.state_overflows, len(listing))
+    publish({"type": "structure_changed", "reason": "resync", "changed": True, "last_registry_at": STATE.last_registry_at})
+
+
+def _listed_ids(listing: list[Any]) -> list[str]:
+    return [st["entity_id"] for st in listing if isinstance(st, dict) and isinstance(st.get("entity_id"), str) and "." in st["entity_id"]
+            and st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
+
+
+def _stamp_seen(db: Database, listing: list[Any], seen: str) -> None:
+    """Every entity of a full listing that is not tombstoned and holds a state is "seen" at `seen` (never moved back: a frame
+    applied after the listing may have stamped a later instant). Only `state_seen_at`; the state itself is not touched."""
+    for chunk in _chunks(_listed_ids(listing)):
+        def _write(chunk=chunk) -> None:
+            with db.connection(durable=False) as conn:
+                conn.executemany("UPDATE ha_entities SET state_seen_at = ? WHERE entity_id = ? AND removed_at IS NULL AND state_seen_at < ?",
+                                 [(seen, eid, seen) for eid in chunk])
+        try:
+            _busy_retry(_write)
+        except Exception as exc:  # noqa: BLE001 - the next snapshot / reconcile stamps again; never costs the re-read
+            log.warning("HA sync: the seen stamp of a re-read was not written: %s", type(exc).__name__)
+            return
+
+
+def store_states_newest(db: Database, states: list[dict[str, Any]], seen: str) -> dict[str, int]:
+    """CD-02, second path (FIX-CORE-DATA-2570): the connect snapshot when an earlier session's frames were still being stored after
+    DRAIN_S. It runs as a control job on the state worker, behind those frames, and is written like store_states (a tombstoned entity
+    HA lists again comes back, every listed entity is seen at `seen`) with the reconcile rule's time compare: a stored state whose
+    `last_updated` is strictly NEWER than the listing's is kept (only its seen stamp moves). Returns {"written", "older", "failed"}."""
+    counts = {"written": 0, "older": 0, "failed": 0}
+    rows = [st for st in states if isinstance(st, dict) and isinstance(st.get("entity_id"), str) and "." in st["entity_id"]
+            and st["entity_id"].split(".", 1)[0] not in STATE_DOMAINS_SKIP]
+    for chunk in _chunks(rows):
+        def _write(chunk=chunk) -> dict[str, int]:
+            local = {"written": 0, "older": 0, "failed": 0}  # fresh on every retry of the chunk
+            with db.connection(durable=False) as conn:
+                for st in chunk:
+                    eid = st["entity_id"]
+                    stored = conn.execute("SELECT last_updated, removed_at FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
+                    if stored is not None and stored["removed_at"] is None:
+                        snap_t, stored_t = _ha_time(st.get("last_updated")), _ha_time(stored["last_updated"])
+                        if snap_t is not None and stored_t is not None and snap_t < stored_t:
+                            conn.execute("UPDATE ha_entities SET state_seen_at = ? WHERE entity_id = ? AND (state_seen_at IS NULL OR state_seen_at < ?)",
+                                         (seen, eid, seen))
+                            local["older"] += 1
+                            continue
+                    conn.execute("SAVEPOINT state_row")
+                    try:
+                        upsert_state(conn, st, seen)
+                        local["written"] += 1
+                    except DATA_ERRORS as exc:
+                        conn.execute("ROLLBACK TO state_row")
+                        local["failed"] += 1
+                        log.warning("state of %s not stored: %s", eid, type(exc).__name__)
+                    finally:
+                        conn.execute("RELEASE state_row")
+            return local
+        for k, v in _busy_retry(_write).items():
+            counts[k] += v
+    with db.connection(mode="read") as conn:
+        STATE.entities = count_entities(conn)
+    return counts
+
+
+def apply_connect_snapshot(db: Database, listing: list[dict[str, Any]], seen: str) -> None:
+    """CD-02, second path: on the state worker, behind the earlier session's frames (FIFO) and ahead of this session's held ones."""
+    counts = store_states_newest(db, listing, seen)
+    STATE.last_snapshot_at = seen
+    log.info("HA sync: the connect snapshot was stored behind the earlier session's frames: %d written, %d newer stored states kept, %d not written",
+             counts["written"], counts["older"], counts["failed"])
     publish({"type": "structure_changed", "reason": "resync", "changed": True, "last_registry_at": STATE.last_registry_at})
 
 
@@ -1309,11 +1382,17 @@ class HaSync:
             listing = states.get("result") or []
             seen = now_iso()
             # CORE-10: a frame of an earlier session still queued would be applied after this snapshot and overwrite it
-            if not await loop.run_in_executor(None, STATE_WORKER.wait_idle, DRAIN_S):
-                log.warning("HA sync: earlier state changes still being stored after %.0f s; the snapshot is stored anyway", DRAIN_S)
+            drained = await loop.run_in_executor(None, STATE_WORKER.wait_idle, DRAIN_S)
             await loop.run_in_executor(None, _note_connect_gap, db)  # DEVHIST: before the snapshot overwrites "the last state seen"
-            await loop.run_in_executor(None, store_states, db, listing, seen)
-            STATE.last_snapshot_at = seen
+            if drained:
+                await loop.run_in_executor(None, store_states, db, listing, seen)
+                STATE.last_snapshot_at = seen
+            else:
+                # CD-02, second path (FIX-CORE-DATA-2570): stored concurrently, the snapshot was overwritten by the older frames still
+                # being applied. Now it is a control job behind them (FIFO) with the time compare, and the held frames of this session
+                # are queued behind it below; the session does not wait for it (a stuck worker must not keep the session from connecting)
+                log.warning("HA sync: earlier state changes still being stored after %.0f s; the snapshot is stored behind them", DRAIN_S)
+                STATE_WORKER.submit(apply_connect_snapshot, db, listing, seen, bounded=False)
             STATE.connected = True
             STATE.last_error = None
             STATE.auth_refusals, STATE.next_attempt_at = 0, None
@@ -1804,3 +1883,15 @@ class HaSync:
 
 
 SYNC = HaSync()
+
+
+def feed_view() -> dict[str, Any]:
+    """FIX-CORE-DATA-2570: the state feed's counters for the HA sync health (additive; since start): frames the full state queue
+    refused and the full re-reads that made up for them (CORE-10), frames a full /ha/ws subscriber queue lost (CORE-06), the state
+    worker's numbers, and the last periodic state reconcile (its count per outcome; None until one ran)."""
+    w = STATE_WORKER
+    last = SYNC.last_reconcile
+    return {"state_overflows": STATE.state_overflows, "state_resyncs": STATE.state_resyncs, "dropped_frames": STATE.dropped_frames,
+            "worker": {"depth": w.depth(), "max_depth": w.max_depth, "refused": w.refused, "done": w.done, "failed": w.failed,
+                       "max_wait_ms": int(w.max_wait_s * 1000)},
+            "last_reconcile": dict(last) if isinstance(last, dict) else None}

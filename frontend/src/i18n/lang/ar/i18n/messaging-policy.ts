@@ -8,6 +8,12 @@ export const ar = {
   enforce: 'الإرسال إلى القائمة فقط',
   enforceOff: 'متوقف: يمكن مراسلة أي مستلم',
   blocksAll: 'التطبيق مفعّل والقائمة فارغة: لن تُرسل أي رسالة',
+  // FIX-FE2-2570 (review FE2-08): the confirmations before a change that stops delivery
+  confirmBlockAllTitle: 'إيقاف كل الرسائل؟',
+  confirmBlockAll: 'سيُفعَّل التطبيق والقائمة فارغة: لن تُرسل أي رسالة واتساب حتى تُضاف جهة.',
+  confirmRemoveTitle: 'إزالة {name}؟',
+  confirmRemove: 'التطبيق مفعّل: لن يتلقى {name} رسائل بعد الآن. لإعادته يلزم الرقم الكامل.',
+  confirmYes: 'نعم، متابعة',
   phone: 'الرقم (مع رمز الدولة)',
   label: 'الاسم',
   role: 'الدور',
