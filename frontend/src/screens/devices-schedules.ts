@@ -36,7 +36,7 @@ import { SEGMENTS, itemPath } from './automations-logic';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/devices';
-import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
+import { decodeSegment, onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { DEMO_SUN } from '../api/schedules-mock';
 import {
@@ -336,7 +336,7 @@ export class DevicesSchedules extends LitElement {
   private onRoute(r: RouteState) {
     if (r.segments[0] !== 'devices' || r.segments[1] !== 'schedules') return;
     const raw = r.segments[2] ?? '';
-    const sub = raw === 'new' ? '' : decodeURIComponent(raw);
+    const sub = raw === 'new' ? '' : decodeSegment(raw); // FIX-FE-2570 (FE-05): a broken `%` link must not throw
     const incoming = r.params.toString();
     if (incoming !== this.lastWritten && (incoming || this.lastWritten)) {
       this.filters = parseFilters(r.params);

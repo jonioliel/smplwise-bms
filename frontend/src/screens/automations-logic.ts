@@ -1,4 +1,5 @@
 import { uiLocale } from '../i18n/locale';
+import { decodeSegment } from '../router';
 import {
   filterItems, itemChips, manageRight, saveBlocker, visibleKinds,
   type AutomationsStatus, type Item, type ItemChip, type ItemKind, type RunSummary, type SceneMember, type ScriptField,
@@ -43,7 +44,7 @@ export interface AutomationsRoute {
 /** `#/devices/automations`, `/scenes[/<id>]`, `/scripts[/<id>]`, `/trash`, `/<automation id>` (also CR-018's deep link), `...?view=trace&run=<id>`. */
 export function parseAutomationsRoute(segments: readonly string[], params: URLSearchParams): AutomationsRoute {
   const out: AutomationsRoute = { segment: 'automations', id: '', trash: false, view: 'detail', run: '', edit: false };
-  const rest = segments.slice(2).map((s) => decodeURIComponent(s));
+  const rest = segments.slice(2).map(decodeSegment); // FIX-FE-2570 (FE-05): a broken escape (`50%`) is kept as written, not thrown
   if (rest[rest.length - 1] === 'edit') { out.edit = true; rest.pop(); }
   const head = rest[0] ?? '';
   if (head === 'scenes' || head === 'scripts') { out.segment = head; out.id = rest[1] ?? ''; }

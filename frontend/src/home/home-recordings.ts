@@ -16,6 +16,7 @@ import { tr } from '../i18n/msg/home';
 import { isoZ } from '../api/day-format';
 import { SeekCoalescer } from '../api/seek-coalescer';
 import { playerMinute } from './home-playback-clock';
+import { decodeSegment } from '../router';
 
 interface PbEvent { at: number; text: string; icon: string }
 
@@ -166,7 +167,7 @@ registerScreen((h: HomeHost) => ({
   back: () => 'cameras',
   navCur: () => 'more',
   enter(_name, arg) {
-    const raw = decodeURIComponent(arg || '');
+    const raw = decodeSegment(arg || ''); // FIX-FE-2570 (FE-05): a broken `%` link must not throw
     const k = raw.lastIndexOf('@');
     const id = k > 0 ? raw.slice(0, k) : raw;
     const at = k > 0 ? new Date(+raw.slice(k + 1) * 1000) : null;
