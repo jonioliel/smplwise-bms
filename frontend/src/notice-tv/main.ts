@@ -28,7 +28,7 @@ import { LOGO_SCALE, chooseCompanyLogo } from '../design/brand-choice';
 import {
   AMBIENT_SPOTS, CYCLE_WASH_MS, DRIFT, DRIFT_MS, HEADERS, NEWS_SPEED, POLL_MS, SAVERS, SEV_LOOK, SIZES, bandNotice, clockIn, dimBrightness, esc, num, gridPlanExtra, headerOf, heldIndex, logoLayoutOf, netOf, nightDim,
   nightLogoMode, nightLogoOf, onPoll, othersMax, playlist, remoteKey, withSlides, saverOf, sevLabel, slugFrom, spaceExtra, spaceGrow, spaceOf, str, takeoverNotice, themeOf, tickerItemHtml, timeText, tokenFrom, tx, updatedOf, weatherDaysOf, whenText, withTransit,
-  idleLogoOf, updatedLineParts,
+  idleLogoOf, updatedLineParts, nextPollMs,
   type Clock, type Display, type Feed, type FeedNotice, type FeedSlide, type HeaderLayout, type Item, type LogoLayout, type NetState, type Saver, type UpdatedLine,
   BOARD_LAYOUTS, CO_SIZE_PX, tv2Of, type BoardLayout, type Design,
 } from './tv-logic';
@@ -1438,8 +1438,8 @@ function restartRotation(): void {
 }
 
 async function poll(force = false): Promise<void> {
-  if (net.gone && !PREVIEW) return;
-  let status = 0;
+  let status = 0; // CU2-11: a gone board is still probed (slowly, see nextPollMs), never abandoned
+
   let doc: Feed | null = null;
   try {
     let r: Response;
@@ -1519,7 +1519,7 @@ void poll(true).then(() => {
 if (!FIXED && !NOW_Q) {
   // the board asks every 30 s, or every `announce_poll_s` seconds while it is an announcement screen (an announcement is not worth waiting half a minute for)
   const pollLoop = (): void => {
-    window.setTimeout(() => void poll().finally(pollLoop), pollMs(feed?.board.announce_poll_s, POLL_MS));
+    window.setTimeout(() => void poll().finally(pollLoop), nextPollMs(net, pollMs(feed?.board.announce_poll_s, POLL_MS)));
   };
   pollLoop();
   setInterval(tickClock, 5000);

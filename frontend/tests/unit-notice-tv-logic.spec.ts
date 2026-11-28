@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  autoTheme, bandNotice, clockIn, dimBrightness, gridPlan, heldIndex, netOf, nightDim, onPoll, playlist, remoteKey, slugFrom, takeoverNotice, ticks, tokenFrom, tx, whenText,
+  autoTheme, bandNotice, clockIn, dimBrightness, gridPlan, heldIndex, netOf, nextPollMs, nightDim, onPoll, playlist, remoteKey, slugFrom, takeoverNotice, ticks, tokenFrom, tx, whenText,
   type FeedNotice,
 } from '../src/notice-tv/tv-logic';
 import { audienceOf, inputOf, kpiCounts, matches, newDraft, seenState, suggestSlug, validate, windowText } from '../src/notices/model';
@@ -83,6 +83,21 @@ test('network: stale after 3 missed polls, offline after 10 minutes, gone on 404
   expect(netOf(s, 1000 + 10 * 60_000)).toBe('offline');
   expect(netOf(onPoll(s, 304, 7000), 7001)).toBe('live');
   expect(netOf(onPoll(s, 404, 7000), 7001)).toBe('gone');
+});
+
+test('CU2-11: a gone board keeps being probed with a bounded back-off, and a 200 clears it', () => {
+  let s = onPoll({ lastOk: 0, misses: 0, gone: false }, 200, 1000);
+  expect(nextPollMs(s, 30_000)).toBe(30_000);
+  const waits: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    s = onPoll(s, 404, 2000 + i);
+    waits.push(nextPollMs(s, 30_000));
+  }
+  expect(waits).toEqual([60_000, 120_000, 240_000, 480_000, 600_000, 600_000, 600_000, 600_000]); // bounded: at most 10 minutes, never "never"
+  expect(Math.min(...waits)).toBeGreaterThanOrEqual(60_000); // far under the server's 20-misses-per-10-minutes limit
+  s = onPoll(s, 200, 9000);
+  expect(netOf(s, 9001)).toBe('live');
+  expect(nextPollMs(s, 30_000)).toBe(30_000);
 });
 
 test('window wording: own text, urgent "until", one day with hours, a range', () => {

@@ -188,7 +188,11 @@ def test_page_shape_redaction_and_verdict_parity(ew: EW) -> None:
     ew.on()
     admin = ew.c.get(E, headers=ew.h("joni")).json()
     narrow = ew.c.get(E, headers=ew.h("tom")).json()
-    assert len(admin["items"]) == 20 and admin["verdict"] in ("ready", "ready_with_gaps", "not_ready")
+    from smplwise.services.emergency import model as em
+
+    assert len(admin["items"]) == 20
+    assert admin["verdict"] == em.verdict(admin["items"])                          # CU2-33: derived from the items themselves, not "any verdict"
+    assert admin["verdict"] == ("not_ready" if any(i["status"] == "red" and i["critical"] for i in admin["items"]) else admin["verdict"])
     assert admin["verdict"] == narrow["verdict"]                                    # the verdict never looks better to a narrow role
     assert narrow["counts"]["hidden"] > 0
     hidden = [i for i in narrow["items"] if i["redacted"]]

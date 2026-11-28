@@ -277,13 +277,13 @@ const STRINGS = {
   he: {
     // i18n-keep-start: a module that cannot read the language packs (separate notice-tv bundle) with its own he / en table: the Hebrew side beside English
     welcome: 'ברוכים הבאים', urgent: 'הודעה דחופה', alert: 'חשוב', paused: 'מושהה', news: 'חדשות', empty: 'אין הודעות כרגע', niceDay: 'יום נעים',
-    gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
+    gone: 'הלוח אינו פעיל', goneHint: 'פנו להנהלת הבניין · המסך ממשיך לבדוק', offline: 'הלוח מנותק מהמערכת · מוצגות ההודעות האחרונות', staleFrom: 'לא מעודכן מ-{t}',
     updated: 'עודכן', more: 'ועוד {n} הודעות', permanent: 'קבוע', next: 'בהמשך', ofN: '{i} מתוך {n}', slideWord: 'שקופית', infoWord: 'מידע', annUrgent: 'הודעה קולית דחופה', annNormal: 'הודעה קולית', shownUntil: 'מוצג עד {t}', until: 'עד {d}', today: 'היום', tomorrow: 'מחר', candles: 'כניסת שבת {t}', urgentWord: 'דחוף', greetMorning: 'בוקר טוב', greetNoon: 'צהריים טובים', greetEvening: 'ערב טוב', greetNight: 'לילה טוב', fromMgmt: 'מהנהלת הבניין', poweredBy: 'מופעל על ידי SmplWise Arx',
     // i18n-keep-end
   },
   en: {
     welcome: 'Welcome', urgent: 'Urgent notice', alert: 'Important', paused: 'Paused', news: 'News', empty: 'No notices right now', niceDay: 'Have a nice day',
-    gone: 'This board is not active', goneHint: 'Please contact the building management', offline: 'The board is offline · showing the last notices',
+    gone: 'This board is not active', goneHint: 'Please contact the building management · this screen keeps checking', offline: 'The board is offline · showing the last notices',
     staleFrom: 'Not updated since {t}', updated: 'Updated', more: '{n} more notices', permanent: 'Ongoing', next: 'Up next', ofN: '{i} of {n}', slideWord: 'Slide', infoWord: 'Info', annUrgent: 'Urgent voice announcement', annNormal: 'Voice announcement', shownUntil: 'Shown until {t}', until: 'Until {d}', today: 'today',
     tomorrow: 'tomorrow', candles: 'Candle lighting {t}', urgentWord: 'Urgent', greetMorning: 'Good morning', greetNoon: 'Good afternoon', greetEvening: 'Good evening', greetNight: 'Good night', fromMgmt: 'From the building management', poweredBy: 'Powered by SmplWise Arx',
   },
@@ -494,6 +494,7 @@ export interface NetState {
   lastOk: number; // ms of the last good poll
   misses: number;
   gone: boolean;
+  goneProbes?: number; // consecutive 404 answers while gone (CU2-11): spaces the slow probe
 }
 
 export function netOf(s: NetState, nowMs: number): Net {
@@ -503,9 +504,18 @@ export function netOf(s: NetState, nowMs: number): Net {
   return 'live';
 }
 
+/** CU2-11: a "not found" answer (the board or the module is switched off for a while) must never end the polling: while gone the screen
+ * keeps asking, slowly - 1, 2, 4, 8 minutes, then every 10 - far under the server's 20-misses-per-10-minutes limit, and a 200 brings it back. */
+export const GONE_PROBE_MS = 60_000;
+export const GONE_PROBE_MAX_MS = 10 * 60_000;
+export function nextPollMs(s: NetState, normalMs: number): number {
+  if (!s.gone) return normalMs;
+  return Math.min(GONE_PROBE_MAX_MS, GONE_PROBE_MS * 2 ** Math.max(0, Math.min((s.goneProbes ?? 1) - 1, 6)));
+}
+
 export function onPoll(s: NetState, status: number, nowMs: number): NetState {
   if (status === 200 || status === 304) return { lastOk: nowMs, misses: 0, gone: false };
-  if (status === 404) return { ...s, gone: true };
+  if (status === 404) return { ...s, gone: true, goneProbes: (s.goneProbes ?? 0) + 1 };
   return { ...s, misses: s.misses + 1 };
 }
 

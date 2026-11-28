@@ -1747,6 +1747,7 @@
 "מצב המיפוי גדול מדי.": "The mapping state is too large.",
 "מצב הקלטה לא מוכר.": "Unknown recording mode.",
 "מצב השקט כבר הסתיים.": "Quiet mode has already ended.",
+"חיישן נדרש חייב להיות ברשימת החיישנים המאושרים: {v}": "A required sensor must be on the approved sensors list: {v}",
 "מצב התאמת Wi-Fi: בטלפון או בשרת.": "Wi-Fi matching mode: on the phone or on the server.",
 "מצב חירום פעיל - יש לשחרר אותו תחילה.": "An emergency state is active - release it first.",
 "מצב ייבוא לא מוכר.": "Unknown import mode.",

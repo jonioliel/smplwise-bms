@@ -190,6 +190,16 @@ export const listPresenceDevices = () => get<{ devices: PresenceDevice[] }>('pre
 export const myPresenceGate = () => get<{ gate: PresenceGate | null }>('presence/gate');
 
 /** Pure: the policy the save sends - the sensors a policy requires must be allowed, or the phone could never satisfy it. */
+/** CU2-09: the problems that must stop a save (the server refuses them too): a policy with no sensor, or with a sensor that is not approved. The
+ * "sharing is off" note is only a warning and never blocks. */
+export function policyBlocker(s: PresenceSettings): string | null {
+  const p = s.required_sensors;
+  if (!p.enabled) return null;
+  if (!p.sensors.length) return tr('בחרו לפחות חיישן אחד שנדרש.');
+  const notAllowed = p.sensors.filter((k) => !s.sensors_allowed.includes(k));
+  return notAllowed.length ? tr('חיישן נדרש חייב להיות מאושר: {v}', { v: notAllowed.map((k) => SENSOR_LABEL[k]).join(', ') }) : null;
+}
+
 export function policyProblem(s: PresenceSettings): string | null {
   const p = s.required_sensors;
   if (!p.enabled) return null;

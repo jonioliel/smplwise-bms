@@ -470,9 +470,13 @@ def delete_task(viewer: Viewer, task_id: str, rid: str | None) -> dict[str, Any]
     conn.execute("UPDATE maint_records SET status = 'cancelled', finished_at = ? WHERE task_id = ? AND status = 'open'", (now, task_id))
     tags = conn.execute("UPDATE maint_tags SET revoked_at = ?, revoked_by = ? WHERE target_kind = 'task' AND target_id = ? AND revoked_at IS NULL",
                         (now, viewer.uid, task_id)).rowcount
+    # CU2-21: the task's certificates and policies went unreachable but stayed on disk: mark the rows deleted here, in the same
+    # transaction; the caller removes the bytes AFTER the commit (`_file_paths` is for the router and never reaches the client).
+    paths = [r["path"] for r in conn.execute("SELECT path FROM maint_files WHERE task_id = ? AND deleted_at IS NULL", (task_id,)).fetchall()]
+    conn.execute("UPDATE maint_files SET deleted_at = ? WHERE task_id = ? AND deleted_at IS NULL", (now, task_id))
     audit(conn, actor=viewer.principal, action="maintenance.task.delete", decision="allowed", resource_type="maint_task", resource_id=task_id, request_id=rid,
-          details={"tags_revoked": tags})
-    return {"id": task_id, "deleted": True, "tags_revoked": tags}
+          details={"tags_revoked": tags, "files_deleted": len(paths)})
+    return {"id": task_id, "deleted": True, "tags_revoked": tags, "files_deleted": len(paths), "_file_paths": paths}
 
 
 # ---------------------------------------------------------------- completion (ledger, plans, documents)

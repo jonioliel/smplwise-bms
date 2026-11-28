@@ -191,6 +191,47 @@ def test_a_pdf_and_a_picture_are_attached_listed_and_downloaded(mw, settings):
     assert "תסקיר" not in audit and "scan" not in audit, "the audit never carries a file name"
 
 
+def test_deleting_a_task_deletes_its_files_rows_and_bytes_after_the_commit(mw, settings, monkeypatch):
+    """CU2-21: the certificates of a deleted task used to stay on disk unreachable; the bytes now go only after the commit."""
+    mw.on()
+    t = _doc(mw)
+    f = _upload(mw, t["id"], PDF).json()
+    folder = settings.data_dir / "maintenance" / t["id"]
+    assert len(list(folder.iterdir())) == 1
+    seen: list[object] = []
+    real = mfiles.remove
+
+    def watch(data_dir, rel):
+        with mw.db.connection(mode="read") as conn:  # a separate connection: it sees only what is committed
+            seen.append(conn.execute("SELECT deleted_at FROM maint_files WHERE id = ?", (f["id"],)).fetchone()[0])
+        real(data_dir, rel)
+
+    monkeypatch.setattr(mfiles, "remove", watch)
+    r = mw.c.delete(f"{M}/tasks/{t['id']}", headers=mw.h("joni"))
+    assert r.status_code == 200 and r.json()["files_deleted"] == 1 and "_file_paths" not in r.json()
+    assert mw.rows("SELECT COUNT(*) FROM maint_files WHERE task_id = ? AND deleted_at IS NULL", (t["id"],))[0][0] == 0
+    assert list(folder.iterdir()) == [], "no file left behind"
+    assert seen and all(x is not None for x in seen), "the bytes were removed only after the row's deletion was committed"
+
+
+def test_a_single_file_delete_removes_the_bytes_only_after_the_commit(mw, settings, monkeypatch):
+    mw.on()
+    t = _doc(mw)
+    f = _upload(mw, t["id"], PDF).json()
+    seen: list[object] = []
+    real = mfiles.remove
+
+    def watch(data_dir, rel):
+        with mw.db.connection(mode="read") as conn:
+            seen.append(conn.execute("SELECT deleted_at FROM maint_files WHERE id = ?", (f["id"],)).fetchone()[0])
+        real(data_dir, rel)
+
+    monkeypatch.setattr(mfiles, "remove", watch)
+    assert mw.c.delete(f"{M}/tasks/{t['id']}/files/{f['id']}", headers=mw.h("joni")).status_code == 200
+    assert seen and all(x is not None for x in seen)
+    assert list((settings.data_dir / "maintenance" / t["id"]).iterdir()) == []
+
+
 def test_unsafe_or_wrong_files_are_refused_and_nothing_is_stored(mw, settings):
     mw.on()
     t = _doc(mw)
