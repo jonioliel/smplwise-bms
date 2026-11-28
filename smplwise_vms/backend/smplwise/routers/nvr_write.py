@@ -148,11 +148,16 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
                                                      request_id=_rid(request), client=client, camera_id=cam_of_ch)
                     results.append({"channel": ch, "type": t, "status": rec["status"], "change_id": rec["id"]})
                 except ApiError as exc:
-                    results.append({"channel": ch, "type": t, "status": "failed", "reason": exc.code})
+                    # FIX-VIDEO-2570 (VD-02): a document sent with no good answer is "unknown" (with its change record), never "failed"
+                    if (exc.details or {}).get("outcome") == "unknown":
+                        results.append({"channel": ch, "type": t, "status": "unknown", "reason": (exc.details or {}).get("cause") or exc.code, "change_id": (exc.details or {}).get("change_id")})
+                    else:
+                        results.append({"channel": ch, "type": t, "status": "failed", "reason": exc.code})
     finally:
         client.close()
     return {"results": results, "applied": sum(1 for r in results if r["status"] == "applied"), "unchanged": sum(1 for r in results if r["status"] == "unchanged"),
-            "skipped": sum(1 for r in results if r["status"] == "skipped"), "failed": sum(1 for r in results if r["status"] == "failed")}
+            "skipped": sum(1 for r in results if r["status"] == "skipped"), "failed": sum(1 for r in results if r["status"] == "failed"),
+            "unknown": sum(1 for r in results if r["status"] == "unknown")}
 
 
 class MotionIn(_Body):

@@ -604,9 +604,24 @@ export class DevicesSchedules extends LitElement {
     this.selected = next;
   }
 
-  /** LOWS-FRONTEND-2550 (review SCR-54): the selection the current filter shows (`pickedShown`) - never a selected schedule it hides. */
+  /** LOWS-FRONTEND-2550 (review SCR-54): the selection the current filter shows (`pickedShown`) - never a selected schedule it hides.
+   * FIX-VIDEO-2570 (SCR-54, the rest): and only on the page on screen - a schedule picked on another page of the same filter is not
+   * acted on (nor counted in the bar) until the person goes back to it. */
   private pickedNow(): Schedule[] {
-    return pickedShown(this.shownRows(this.scopedItems()), this.selected);
+    return pickedShown(this.pageView(this.shownRows(this.scopedItems())).items, this.selected);
+  }
+
+  /** The page of the list on screen (POLISH-295 / FIX2200 / PAGING-SETTING-2439): the sorted rows cut to the current page - what
+   * `renderList` draws and what the bulk bar acts on (one computation, so the two never disagree). */
+  private pageView(rows: Schedule[]): { items: Schedule[]; page: number; pages: number } {
+    const sort = this.filters.sort;
+    const sorted = this.sortedMemo.get([rows, sort], () => sortSchedules(rows, sort));
+    const setting = this.phone ? this.perPage.phone : this.perPage.wide;
+    // FIX2200 / NOSCROLL-295: the rows, table and cards views take no more than fit the screen's height (measureFit); the setting is the maximum
+    // PAGING-SETTING-2439: the long lists scroll -> every schedule on one page (no pager)
+    const per = perPageFor(this.lists.paged, !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting, sorted.length);
+    const page = clampPage(this.page, sorted.length, per);
+    return { items: pageSlice(sorted, page, per), page, pages: pageCount(sorted.length, per) };
   }
 
   /** The schedules the current filter shows (all pages), memoised on the list and the filters. */
@@ -956,15 +971,8 @@ export class DevicesSchedules extends LitElement {
       return html`<schedules-week-view .schedules=${rows} .sun=${isApi() ? null : DEMO_SUN} .snap=${this.status?.settings.snap_minutes ?? 15} @open-schedule=${(e: CustomEvent<{ id: string }>) => this.go(e.detail.id)}></schedules-week-view>`;
     }
     // POLISH-295: one page at a time (control screens never scroll): the sorted list is cut to the page, then grouped
-    const sort = this.filters.sort;
-    const sorted = this.sortedMemo.get([rows, sort], () => sortSchedules(rows, sort));
-    const setting = this.phone ? this.perPage.phone : this.perPage.wide;
-    // FIX2200 / NOSCROLL-295: the rows, table and cards views take no more than fit the screen's height (measureFit); the setting is the maximum
-    // PAGING-SETTING-2439: the long lists scroll -> every schedule on one page (no pager)
-    const per = perPageFor(this.lists.paged, !this.filters.group ? fittedPageSize(setting, this.fitRows) : setting, sorted.length);
-    const pages = pageCount(sorted.length, per);
-    const page = clampPage(this.page, sorted.length, per);
-    const groups = groupSchedules(pageSlice(sorted, page, per), this.filters.group);
+    const { items: pageItems, page, pages } = this.pageView(rows);
+    const groups = groupSchedules(pageItems, this.filters.group);
     const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : this.view === 'rows' ? this.renderRows(items) : html`<div class="cgrid" data-sched-grid>${repeat(items, (s) => s.id, (s) => this.renderCard(s))}</div>`);
     const pager = pages > 1 ? html`<div class="lfoot" data-sched-pager><sw-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => { this.page = e.detail.page; this.menuFor = ''; }}></sw-pager></div>` : nothing;
     if (!this.filters.group) return html`<div class="groups"><section class="fsec group" data-group="">${body(groups[0]?.items ?? [])}</section>${pager}</div>`;

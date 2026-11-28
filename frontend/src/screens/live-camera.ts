@@ -32,7 +32,8 @@ import { cachedVideoPolicy, setPersonalTransport } from '../api/video-transport'
 import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { playerPlan, remoteVideo, remoteVideoFor } from '../api/video-policy';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
+import { live } from 'lit/directives/live.js';
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import '../components/sw-cast-picker';
@@ -92,6 +93,8 @@ export class LiveCamera extends LitElement {
   @state() private smartBusy = false;
   @state() private smartMsg = '';
   @state() private osdMsg = '';
+  /** FIX-VIDEO-2570 (SCR-29): what the last OSD write came to (`data-osd-outcome` on the message). */
+  @state() private osdOutcome: '' | 'ok' | 'refused' | 'unknown' = '';
   /** Owner request (2026-09-18): rename the camera from its own screen (the VMS alias; the NVR name stays unless OSD writes it). */
   @state() private renameTo: string | null = null;
   @state() private renameBusy = false;
@@ -135,6 +138,7 @@ export class LiveCamera extends LitElement {
     this.osd = null;
     this.osdBusy = false;
     this.osdMsg = '';
+    this.osdOutcome = '';
     this.sched = null;
     this.schedError = '';
     this.schedEdit = null;
@@ -509,15 +513,39 @@ export class LiveCamera extends LitElement {
     const gen = this.camGen;
     this.osdBusy = true;
     this.osdMsg = '';
+    this.osdOutcome = '';
     try {
       await run();
       if (gen !== this.camGen) return;
+      this.osdOutcome = 'ok';
       this.osdMsg = `${label}: ${tr('נכתב למקליט ונרשם.')}`;
       await this.loadOsd();
     } catch (err) {
-      if (gen === this.camGen) this.osdMsg = `${label}: ${describeError(err)}`;
+      if (gen !== this.camGen) return;
+      // FIX-VIDEO-2570 (review SCR-29): a write that did not succeed is followed by a fresh read of the recorder, so the switches and the
+      // date-format list show what the NVR holds (a refused choice never stays on screen); a write whose answer was lost says "unknown"
+      // and is never re-sent. A failed re-read keeps the card and says so. Unknown: no answer at all, the server's own `outcome: unknown`
+      // (services/nvr_write.apply_change), or an answer without the server's error model (a proxy's 502 / 504 - the server may have written).
+      const unknown = !(err instanceof ApiError) || err.body?.details?.outcome === 'unknown' || err.body.code.startsWith('http_');
+      const reread = await this.rereadOsd(gen);
+      if (gen !== this.camGen) return;
+      const why = unknown ? tr('לא ידוע אם השינוי נכתב למקליט') : describeError(err);
+      this.osdOutcome = unknown ? 'unknown' : 'refused';
+      this.osdMsg = `${label}: ${why}${reread ? '' : ` · ${tr('לא ניתן היה לקרוא מחדש את המצב במקליט')}`}`;
     } finally {
       if (gen === this.camGen) this.osdBusy = false;
+    }
+  }
+
+  /** FIX-VIDEO-2570 (SCR-29): read the NVR's OSD again after a write that did not succeed; false (the card kept as it was) when the read fails. */
+  private async rereadOsd(gen: number): Promise<boolean> {
+    if (!this.cam) return false;
+    try {
+      const osd = await osdStatus(this.cam.id);
+      if (gen === this.camGen) this.osd = osd;
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -532,8 +560,8 @@ export class LiveCamera extends LitElement {
       <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction(tr('שם הערוץ'), () => writeChannelName(this.cam!.id))}>${tr('כתוב את השם מ־Arx למקליט')}</sw-button>
       ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" controlled labelHidden in-label label=${tr('שם על התמונה')} data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: toggled(e) }))}></sw-toggle> ${tr('שם על התמונה')}</label>` : nothing}
       ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><sw-toggle size="sm" controlled labelHidden in-label label=${tr('חותמת זמן')} data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: toggled(e) }))}></sw-toggle> ${tr('חותמת זמן')}</label>
-        <sw-field><select aria-label=${tr('פורמט תאריך')} data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('פורמט תאריך'), () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
-      ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
+        <sw-field><select aria-label=${tr('פורמט תאריך')} data-osd-date-style .value=${live(o.datetime.date_style)} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('פורמט תאריך'), () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
+      ${this.osdMsg ? html`<span data-osd-msg data-osd-outcome=${this.osdOutcome}>${this.osdMsg}</span>` : nothing}
     </div>`;
   }
 
