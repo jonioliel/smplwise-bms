@@ -32,6 +32,9 @@ class FakeAdapter:
         self.revoked = 0
         self.pushed: dict[str, OutEvent] = {}  # what each external event was last given (title, notes, location ...)
         self.health_state = Health("ok")
+        # FIX-CALENDAR-2570 (CU2-01): a real provider's full listing is windowed (Google: ends after now - 30 d; Graph / iCal: overlaps
+        # [now - 30 d, now + 400 d]). None = the fake lists everything (the old contract tests); a test sets a (lo, hi) span to model it.
+        self.window: tuple[dt.datetime | None, dt.datetime | None] | None = None
 
     # ------------------------------------------------------------ test controls (the provider side)
     # test-only: test seam / test double - product code never calls it; used by tests/test_calendar_sync_2300.py. Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
@@ -100,7 +103,11 @@ class FakeAdapter:
         if ref not in self.calendars:
             raise SyncError("unknown calendar", code="not_found")
         if since_token is None:
-            return PullResult([r.ev for r in self._events[ref].values()], f"t{self._seq}")
+            if self.window is None:
+                return PullResult([r.ev for r in self._events[ref].values()], f"t{self._seq}")
+            lo, hi = self.window
+            listed = [r.ev for r in self._events[ref].values() if (lo is None or r.ev.end > lo) and (hi is None or r.ev.start < hi)]
+            return PullResult(listed, f"t{self._seq}", window=self.window)
         try:
             since = int(since_token[1:])
         except ValueError:

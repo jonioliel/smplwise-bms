@@ -323,13 +323,14 @@ export class SystemCalendarSync extends LitElement {
 
   private async saveRule(k: keyof CalSettings, v: string): Promise<void> {
     if (!this.s || !this.api || this.s[k] === v) return;
-    const before = this.s;
+    const was = this.s[k];
     this.s = { ...this.s, [k]: v } as CalSettings;
     try {
-      this.s = (await this.api.saveSettings(this.s)).settings;
+      // FIX-CALENDAR-2570 (CU2-30): the changed key only, laid over the stored document (another administrator's change stays)
+      this.s = (await this.api.patchSettings({ [k]: v } as Partial<CalSettings>)).settings;
       void refreshCalendars();
     } catch (e) {
-      this.s = before;
+      if (this.s) this.s = { ...this.s, [k]: was } as CalSettings;
       this.actionError = describeError(e);
     }
   }

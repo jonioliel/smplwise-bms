@@ -102,11 +102,14 @@ class ExtEvent:
     arx_id: str | None = None  # our marker (Google extendedProperties.private.arx_id / Graph extension / ICS X-ARX-ID) when we pushed it
     updated: dt.datetime | None = None
     status: Literal["confirmed", "cancelled"] = "confirmed"
+    series_uid: str | None = None  # FIX-CALENDAR-2570 (CU2-02): the provider's id of the series this instance belongs to (Google recurringEventId /
+    # Graph seriesMasterId); None for a single event. The series row of the map holds THIS id, never an instance id.
 
 
 @dataclass(frozen=True)
 class ExtDeletion:
     ext_uid: str
+    series_uid: str | None = None  # FIX-CALENDAR-2570 (CU2-02): one occurrence of this series was removed (not the series itself)
 
 
 @dataclass
@@ -114,6 +117,9 @@ class PullResult:
     changes: list[ExtEvent | ExtDeletion] = field(default_factory=list)
     next_token: str | None = None
     full_resync_required: bool = False  # the sync token is no longer valid (HTTP 410): the engine re-pulls the window from scratch
+    # FIX-CALENDAR-2570 (CU2-01): the span a FULL listing covered (UTC; None = unbounded on that side). A full listing proves only that an
+    # event overlapping this span is gone; None for the whole result = the listing has no window (it lists everything).
+    window: tuple[dt.datetime | None, dt.datetime | None] | None = None
 
 
 @dataclass(frozen=True)

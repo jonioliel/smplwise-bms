@@ -365,7 +365,10 @@ def access_token(provider: str, cid: str, *, force: bool = False) -> str:
         raise SyncError(code="provider_error")
     rotated = body.get("refresh_token")
     if isinstance(rotated, str) and rotated and rotated != refresh and len(rotated) <= 8192:
-        credentials.RUNTIME.store_refresh(cid, rotated)
+        # FIX-CALENDAR-2570 (CU2-13): stored only while the connection still holds the token this refresh used (a disconnect, a client
+        # change or a new authorisation meanwhile wins); a dropped rotation is not cached either - the access token serves this call only
+        if not credentials.RUNTIME.store_refresh(cid, rotated, replaces=refresh):
+            return token
     credentials.remember_access(cid, token, _int(body.get("expires_in"), 0, 0, 86400))
     return token
 

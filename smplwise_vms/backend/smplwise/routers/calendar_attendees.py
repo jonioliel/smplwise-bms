@@ -292,11 +292,13 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
 
 
 @router.put("/calendar/attendee-settings", **wire(W.CalendarAttendeesPutSettings))
-def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+                 merge: bool = Query(False, description="FIX-CALENDAR-2570 (CU2-30): true = the body holds only the changed keys; the others keep their stored value")) -> dict[str, Any]:
     require(conn, principal, model.PERM_CONFIGURE, INSTALLATION)
     with cal_router._errors(conn, principal, request):
         old = att.read_settings(conn)
-        new = att.settings_doc(cal_router._body(body))
+        doc = cal_router._body(body)
+        new = att.settings_doc({**old, **doc} if merge else doc)
         changed = sorted(k for k in new if new[k] != old.get(k))
         if changed:
             att.write_settings(conn, new)

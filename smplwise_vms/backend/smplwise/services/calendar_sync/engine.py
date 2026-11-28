@@ -13,6 +13,14 @@ Owner rules (round 6, contract C8/C9), all of them settings:
   waits for the provider - a short write takes the lease, the pulls run with no transaction open, one write applies them and plans
   the pushes, the pushes run with no transaction open, one write records their results, the state and frees the lease;
 * no step here opens a network connection: that is the adapter's business.
+
+FIX-CALENDAR-2570 (second deep review of 2.57, CU2-01 / CU2-02 / CU2-12):
+* a FULL listing (first pull, a lost sync token) is windowed at every real provider: an entry that was not listed is treated as deleted
+  outside Arx only when it overlaps the window the provider actually listed (with a one-day margin); everything else is left alone;
+* a recurring series goes out as ONE provider event and comes back as instances: an instance is linked to the series by the provider's
+  series id (`ExtEvent.series_uid`), never by replacing the series' map row; a known link is never replaced by a second copy;
+* the end of a run writes its state only when the connection was not changed meanwhile (pause, resume, a new authorisation: the
+  revision moved); the run holds its lease with its own holder id and renews it between steps, so a long run is never taken over.
 """
 from __future__ import annotations
 
@@ -20,9 +28,11 @@ import datetime as dt
 import hashlib
 import json
 import logging
+import secrets
 import sqlite3
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from ...audit import audit
@@ -39,6 +49,9 @@ log = logging.getLogger(__name__)
 BUSY_TITLE = "תפוס"
 UNTITLED = "(ללא כותרת)"
 LEASE_MIN = 10
+RENEW_AFTER_S = 120  # a run renews its lease when this long passed since the last renewal (CU2-12)
+WINDOW_MARGIN = dt.timedelta(days=1)  # CU2-01: an entry this close to the edge of a listed window is never judged "gone"
+MONO: Callable[[], float] = time.monotonic  # test seam: the elapsed time of one run
 SOURCE_OF = {"ics_in": "ics", "ics_out": "ics", "google": "google", "microsoft": "microsoft"}
 GONE_STATES = ("cancelled", "rejected", "withdrawn", "expired")
 
@@ -74,15 +87,30 @@ def _lease_key(cid: str) -> str:
     return f"calendar.sync.lease.{cid}"
 
 
-def acquire_lease(conn: sqlite3.Connection, cid: str, now: dt.datetime) -> bool:
+def _lease_value(until: dt.datetime, holder: str | None) -> str:
+    """The expiry (fixed-width ISO text, so the text order is the time order) and, for a run that renews, `|<holder>`."""
+    return model.iso(until) + (f"|{holder}" if holder else "")
+
+
+def acquire_lease(conn: sqlite3.Connection, cid: str, now: dt.datetime, holder: str | None = None) -> bool:
     """One sync per connection at a time: the row holds the lease expiry; an expired row is taken over."""
     cur = conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value < ?",
-                       (_lease_key(cid), model.iso(now + dt.timedelta(minutes=LEASE_MIN)), model.iso(now)))
+                       (_lease_key(cid), _lease_value(now + dt.timedelta(minutes=LEASE_MIN), holder), model.iso(now)))
     return cur.rowcount == 1
 
 
-def release_lease(conn: sqlite3.Connection, cid: str) -> None:
-    conn.execute("DELETE FROM settings WHERE key = ?", (_lease_key(cid),))
+def renew_lease(conn: sqlite3.Connection, cid: str, holder: str, now: dt.datetime) -> bool:
+    """CU2-12: pushes the expiry of a lease this run still holds; False = another run took it over (this run must stop)."""
+    cur = conn.execute("UPDATE settings SET value = ? WHERE key = ? AND value LIKE ?",
+                       (_lease_value(now + dt.timedelta(minutes=LEASE_MIN), holder), _lease_key(cid), f"%|{holder}"))
+    return cur.rowcount == 1
+
+
+def release_lease(conn: sqlite3.Connection, cid: str, holder: str | None = None) -> None:
+    if holder:  # only a lease this run still holds (a run that was taken over leaves the new holder's lease alone)
+        conn.execute("DELETE FROM settings WHERE key = ? AND value LIKE ?", (_lease_key(cid), f"%|{holder}"))
+    else:
+        conn.execute("DELETE FROM settings WHERE key = ?", (_lease_key(cid),))
 
 
 def _jitter_min(cid: str, poll: int) -> float:
@@ -94,22 +122,32 @@ def _failures(row: sqlite3.Row) -> int:
     return int(t.split("=", 1)[1]) if t.startswith("failures=") and t.split("=", 1)[1].isdigit() else 0
 
 
-def _ok(conn: sqlite3.Connection, row: sqlite3.Row, settings: dict[str, Any], now: dt.datetime) -> None:
+def _state_now(conn: sqlite3.Connection, cid: str) -> str | None:
+    r = conn.execute("SELECT state FROM cal_connections WHERE id = ?", (cid,)).fetchone()
+    return r["state"] if r is not None else None
+
+
+def _ok(conn: sqlite3.Connection, row: sqlite3.Row, settings: dict[str, Any], now: dt.datetime) -> bool:
+    """CU2-12: written only when the connection is still the one the run started with (`revision`): a pause, a resume or a new
+    authorisation while the run waited on the provider stays as the owner left it. False = not written."""
     nxt = now + dt.timedelta(minutes=settings["sync_poll_min"] + _jitter_min(row["id"], settings["sync_poll_min"]))
-    conn.execute("UPDATE cal_connections SET state = 'ok', last_sync_at = ?, next_sync_at = ?, error_code = NULL, error_text = NULL WHERE id = ?",
-                 (model.iso(now), model.iso(nxt), row["id"]))
+    return conn.execute("UPDATE cal_connections SET state = 'ok', last_sync_at = ?, next_sync_at = ?, error_code = NULL, error_text = NULL WHERE id = ? AND revision = ?",
+                        (model.iso(now), model.iso(nxt), row["id"], row["revision"])).rowcount == 1
 
 
 def _failed(conn: sqlite3.Connection, row: sqlite3.Row, settings: dict[str, Any], now: dt.datetime, err: SyncError) -> dict[str, Any]:
     n = _failures(row) + 1
     if isinstance(err, NeedsReauth):
-        conn.execute("UPDATE cal_connections SET state = 'needs_reauth', next_sync_at = NULL, error_code = ?, error_text = NULL WHERE id = ?", (err.code, row["id"]))
+        if conn.execute("UPDATE cal_connections SET state = 'needs_reauth', next_sync_at = NULL, error_code = ?, error_text = NULL WHERE id = ? AND revision = ?",
+                        (err.code, row["id"], row["revision"])).rowcount == 0:
+            return {"state": _state_now(conn, row["id"]), "code": err.code}  # CU2-12: changed meanwhile (a new authorisation): kept
         return {"state": "needs_reauth", "code": err.code}
     wait = min(60.0, settings["sync_poll_min"] * (2 ** n))
     if isinstance(err, RateLimited) and err.retry_after_s:
         wait = max(wait, min(60.0, err.retry_after_s / 60))
-    conn.execute("UPDATE cal_connections SET state = 'error', next_sync_at = ?, error_code = ?, error_text = ? WHERE id = ?",
-                 (model.iso(now + dt.timedelta(minutes=wait)), err.code[:40], f"failures={n}", row["id"]))
+    if conn.execute("UPDATE cal_connections SET state = 'error', next_sync_at = ?, error_code = ?, error_text = ? WHERE id = ? AND revision = ?",
+                    (model.iso(now + dt.timedelta(minutes=wait)), err.code[:40], f"failures={n}", row["id"], row["revision"])).rowcount == 0:
+        return {"state": _state_now(conn, row["id"]), "code": err.code}  # CU2-12: paused / resumed meanwhile: the owner's state stays
     return {"state": "error", "code": err.code, "failures": n, "retry_in_min": wait}
 
 
@@ -119,7 +157,8 @@ def _new_report() -> dict[str, Any]:
     return {"pulled": 0, "created": 0, "updated": 0, "cancelled": 0, "flagged": 0, "echo": 0, "pushed": 0, "deleted_out": 0, "resync": 0, "bindings": 0}
 
 
-def _preamble(conn: sqlite3.Connection, settings: dict[str, Any], cid: str, now: dt.datetime, adapter: SyncAdapter | None) -> tuple[sqlite3.Row | None, SyncAdapter | None, dict[str, Any] | None]:
+def _preamble(conn: sqlite3.Connection, settings: dict[str, Any], cid: str, now: dt.datetime, adapter: SyncAdapter | None,
+              holder: str | None = None) -> tuple[sqlite3.Row | None, SyncAdapter | None, dict[str, Any] | None]:
     """(row, adapter, None) when the sync may run (the lease is taken), else (.., .., the skip answer)."""
     row = conn.execute("SELECT * FROM cal_connections WHERE id = ?", (cid,)).fetchone()
     if row is None:
@@ -133,7 +172,7 @@ def _preamble(conn: sqlite3.Connection, settings: dict[str, Any], cid: str, now:
         conn.execute("UPDATE cal_connections SET state = 'error', error_code = 'adapter_unavailable', error_text = NULL, next_sync_at = ? WHERE id = ?",
                      (model.iso(now + dt.timedelta(minutes=60)), cid))
         return row, None, {"skipped": "adapter_unavailable"}
-    if not acquire_lease(conn, cid, now):
+    if not acquire_lease(conn, cid, now, holder):
         return row, ad, {"skipped": "busy"}
     return row, ad, None
 
@@ -173,8 +212,7 @@ def sync_connection(conn: sqlite3.Connection, data_dir: Path, settings: dict[str
                 for op in _plan_push(conn, b):
                     _apply_push(conn, b, op, _exec(ad, info, b, op), now, rep)
             rep["bindings"] += 1
-        _ok(conn, row, settings, now)
-        rep["state"] = "ok"
+        rep["state"] = "ok" if _ok(conn, row, settings, now) else _state_now(conn, cid)
     except SyncError as err:
         rep.update(_fail_audit(conn, row, settings, now, err))
     finally:
@@ -186,10 +224,22 @@ def run_connection(db: Any, data_dir: Path, cid: str, now: dt.datetime, *, adapt
     """The same sync, with NO transaction open while the adapter talks to the provider (CALCONNECT-2330). Pulls of every binding are
     fetched first and applied together; a provider failure before the apply changes nothing (the tokens stay). Pushes are planned in the
     apply transaction, sent with no transaction open and recorded afterwards (a push that fails stops the rest; what went out is kept).
-    An Arx entry edited while its push was in flight carries a newer revision than the one recorded, so the next run sends it again."""
+    An Arx entry edited while its push was in flight carries a newer revision than the one recorded, so the next run sends it again.
+    CU2-12: the run holds the lease as `holder` and renews it after each pull, in the apply and every RENEW_AFTER_S during the pushes;
+    a run whose lease was taken over applies nothing more and leaves the state to the run that holds it."""
+    holder = secrets.token_hex(8)
+    t0 = MONO()
+
+    def at() -> dt.datetime:
+        return now + dt.timedelta(seconds=max(0.0, MONO() - t0))
+
+    def renew() -> bool:
+        with db.connection(label="calendar.sync.lease") as c:
+            return renew_lease(c, cid, holder, at())
+
     with db.connection(label="calendar.sync.begin") as conn:
         settings = model.read_settings(conn)
-        row, ad, skip = _preamble(conn, settings, cid, now, adapter)
+        row, ad, skip = _preamble(conn, settings, cid, now, adapter, holder)
         if skip is not None or row is None or ad is None:
             return skip or {"skipped": "unknown_connection"}
         info = connection_info(row)
@@ -203,13 +253,22 @@ def run_connection(db: Any, data_dir: Path, cid: str, now: dt.datetime, *, adapt
                 with db.connection(label="calendar.sync.state") as conn:
                     rep.update(_failed(conn, row, settings, now, NeedsReauth(code=h.code or "needs_reauth")))
                 return rep
-            pulled = {b.id: _fetch_pull(ad, info, b, token, rep) for b, token in bindings if _pulls(b, settings)}
+            pulled: dict[str, tuple[Any, bool]] = {}
+            for b, token in bindings:
+                if _pulls(b, settings):
+                    pulled[b.id] = _fetch_pull(ad, info, b, token, rep)
+                    if not renew():
+                        rep["skipped"] = "lease_lost"
+                        return rep
         except SyncError as err:
             with db.connection(label="calendar.sync.state") as conn:
                 rep.update(_fail_audit(conn, row, settings, now, err))
             return rep
         plans: list[tuple[Binding, list[dict[str, Any]]]] = []
         with db.connection(label="calendar.sync.apply") as conn:
+            if not renew_lease(conn, cid, holder, at()):
+                rep["skipped"] = "lease_lost"
+                return rep
             for b, _token_ in bindings:
                 if conn.execute("SELECT 1 FROM cal_sync_bindings WHERE id = ?", (b.id,)).fetchone() is None:
                     continue  # unbound while the pull was on its way
@@ -220,28 +279,36 @@ def run_connection(db: Any, data_dir: Path, cid: str, now: dt.datetime, *, adapt
                 rep["bindings"] += 1
         done: list[tuple[Binding, dict[str, Any], Any]] = []
         failure: SyncError | None = None
+        lost = False
+        renewed = MONO()
         for b, ops in plans:
             for op in ops:
+                if MONO() - renewed >= RENEW_AFTER_S:
+                    if not renew():
+                        lost = True
+                        break
+                    renewed = MONO()
                 try:
                     done.append((b, op, _exec(ad, info, b, op)))
                 except SyncError as err:
                     failure = err
                     break
-            if failure is not None:
+            if failure is not None or lost:
                 break
         with db.connection(label="calendar.sync.finish") as conn:
-            for b, op, res in done:
+            for b, op, res in done:  # what went out is always recorded (a later run must not send it twice)
                 if conn.execute("SELECT 1 FROM cal_sync_bindings WHERE id = ?", (b.id,)).fetchone() is not None:
                     _apply_push(conn, b, op, res, now, rep)
-            if failure is not None:
+            if lost:
+                rep["skipped"] = "lease_lost"  # the run that holds the lease now writes the state
+            elif failure is not None:
                 rep.update(_fail_audit(conn, row, settings, now, failure))
             else:
-                _ok(conn, row, settings, now)
-                rep["state"] = "ok"
+                rep["state"] = "ok" if _ok(conn, row, settings, now) else _state_now(conn, cid)
         return rep
     finally:
         with db.connection(label="calendar.sync.lease") as conn:
-            release_lease(conn, cid)
+            release_lease(conn, cid, holder)
 
 
 def _due(conn: sqlite3.Connection, now: dt.datetime) -> list[str]:
@@ -310,18 +377,53 @@ def _apply_pull(conn: sqlite3.Connection, data_dir: Path, settings: dict[str, An
     cal = conn.execute("SELECT * FROM cal_calendars WHERE id = ?", (b.calendar_id,)).fetchone()
     for ch in res.changes:
         rep["pulled"] += 1
+        if ch.series_uid and _mapped(conn, b, ch.series_uid):
+            seen.add(ch.series_uid)  # CU2-02: an instance of a series we know proves the series is there
         if isinstance(ch, ExtDeletion) or ch.status == "cancelled":
+            if ch.series_uid and ch.series_uid != ch.ext_uid and _mapped(conn, b, ch.series_uid):
+                continue  # CU2-02: ONE occurrence removed outside Arx; the series stays (occurrence edits outside: contract 12.4 note)
             _external_delete(conn, settings, crow, b, ch.ext_uid, now, rep)
             continue
         seen.add(ch.ext_uid)
         _external_upsert(conn, settings, crow, cal, b, ch, now, rep)
-    if full:  # a full listing carries no deletions: whatever we mapped and the provider no longer lists is gone
-        for m in conn.execute("SELECT ext_uid FROM cal_sync_map WHERE binding_id = ?", (b.id,)).fetchall():
-            if m["ext_uid"] not in seen:
+    if full:  # a full listing carries no deletions: whatever we mapped and the provider no longer lists is gone - inside the listed window only
+        window = getattr(res, "window", None)
+        for m in conn.execute("SELECT ext_uid, event_id FROM cal_sync_map WHERE binding_id = ?", (b.id,)).fetchall():
+            if m["ext_uid"] not in seen and _inside_listing(conn, settings, m["event_id"], window, now):
                 _external_delete(conn, settings, crow, b, m["ext_uid"], now, rep)
     refresh_flags(conn, settings, b.calendar_id, now)
     sealed = connection_store.seal_calendar_sync(data_dir, b.id, "token", res.next_token) if res.next_token else None
     conn.execute("UPDATE cal_sync_bindings SET sync_token_sealed = ? WHERE id = ?", (sealed, b.id))
+
+
+def _mapped(conn: sqlite3.Connection, b: Binding, ext_uid: str) -> bool:
+    return conn.execute("SELECT 1 FROM cal_sync_map WHERE binding_id = ? AND ext_uid = ?", (b.id, ext_uid)).fetchone() is not None
+
+
+def _inside_listing(conn: sqlite3.Connection, settings: dict[str, Any], event_id: str, window: tuple[dt.datetime | None, dt.datetime | None] | None,
+                    now: dt.datetime) -> bool:
+    """CU2-01: may a full listing that did NOT list this entry be read as "deleted outside Arx"? Only when the provider listed everything
+    (no window) or the entry overlaps the listed window by more than WINDOW_MARGIN on each side. A past booking older than the window,
+    or one beyond its end, is simply not in the listing: it is left alone (never cancelled, its rooms never released)."""
+    if window is None:
+        return True
+    row = conn.execute("SELECT * FROM cal_events WHERE id = ?", (event_id,)).fetchone()
+    if row is None:
+        return True  # the Arx side is gone already: forgetting the link changes nothing
+    lo = window[0] + WINDOW_MARGIN if window[0] is not None else dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+    hi = window[1] - WINDOW_MARGIN if window[1] is not None else None
+    if hi is not None and hi <= lo:
+        return False
+    if row["rrule"] and not row["override_of"]:
+        # a series: listed as its instances, so it is "gone" only if one of its occurrences falls inside the window
+        far = hi if hi is not None else max(lo, now) + dt.timedelta(days=settings["series_horizon_days"])
+        try:
+            spans = [(o.start_utc, o.end_utc) for o in occ.event_occurrences(conn, row, settings, now, window=(lo, far))]
+        except Exception:  # noqa: BLE001 - an expansion that cannot be completed never cancels anything
+            return False
+    else:
+        spans = [(model.parse_utc(row["starts_at"], "s"), model.parse_utc(row["ends_at"], "e"))]
+    return any(e > lo and (hi is None or s < hi) for s, e in spans)
 
 
 def _filtered(ev: ExtEvent, detail: str) -> tuple[str, str]:
@@ -339,12 +441,29 @@ def _local(utc: dt.datetime, tz: str) -> str:
 
 def _external_upsert(conn: sqlite3.Connection, settings: dict[str, Any], crow: sqlite3.Row, cal: sqlite3.Row, b: Binding, ev: ExtEvent, now: dt.datetime, rep: dict[str, Any]) -> None:
     stamp = model.iso(now)
+    if ev.series_uid:  # CU2-02: one instance of a provider series
+        if _mapped(conn, b, ev.series_uid):
+            rep["echo"] += 1  # the series row is the link; occurrence edits made outside Arx are a later refinement (contract 12.4 note)
+            return
+        own = conn.execute("SELECT id, revision FROM cal_events WHERE id = ? AND calendar_id = ?", (ev.arx_id, b.calendar_id)).fetchone() if ev.arx_id else None
+        if own is not None:
+            # our series without its series row (binding recreated), or a row 2.56 overwrote with one instance's id: the row points at the
+            # series again; a push still owed (another revision) stays owed
+            conn.execute("INSERT INTO cal_sync_map(event_id, binding_id, ext_uid, ext_etag, last_pushed_revision, last_pulled_at, origin) VALUES (?,?,?,?,?,?, 'arx') "
+                         "ON CONFLICT(event_id, binding_id) DO UPDATE SET ext_uid = excluded.ext_uid, ext_etag = COALESCE(cal_sync_map.ext_etag, excluded.ext_etag), "
+                         "last_pulled_at = excluded.last_pulled_at",
+                         (own["id"], b.id, ev.series_uid, ev.etag, own["revision"], stamp))
+            rep["echo"] += 1
+            return
     m = conn.execute("SELECT * FROM cal_sync_map WHERE binding_id = ? AND ext_uid = ?", (b.id, ev.ext_uid)).fetchone()
     if m is None and ev.arx_id:  # our marker without a map row (binding recreated): re-link instead of duplicating
         own = conn.execute("SELECT id, revision FROM cal_events WHERE id = ? AND calendar_id = ?", (ev.arx_id, b.calendar_id)).fetchone()
         if own is not None:
-            conn.execute("INSERT OR REPLACE INTO cal_sync_map(event_id, binding_id, ext_uid, ext_etag, last_pushed_revision, last_pulled_at, origin) VALUES (?,?,?,?,?,?, 'arx')",
-                         (own["id"], b.id, ev.ext_uid, ev.etag, own["revision"], stamp))
+            linked = conn.execute("SELECT 1 FROM cal_sync_map WHERE binding_id = ? AND event_id = ?", (b.id, own["id"])).fetchone()
+            if linked is None:
+                conn.execute("INSERT INTO cal_sync_map(event_id, binding_id, ext_uid, ext_etag, last_pushed_revision, last_pulled_at, origin) VALUES (?,?,?,?,?,?, 'arx')",
+                             (own["id"], b.id, ev.ext_uid, ev.etag, own["revision"], stamp))
+            # else CU2-02: the entry is linked already (a second copy at the provider): the link we know is kept, never replaced
             rep["echo"] += 1
             return
     if ev.end <= ev.start:
@@ -524,4 +643,5 @@ def validate_binding(provider: str, direction: str, detail: str, dedicated: bool
         raise model.Invalid("exporting needs a read_write connection", "direction", "connection_read_only")
 
 
-__all__ = ["sync_connection", "run_connection", "run_due", "run_due_db", "resolve_flag", "refresh_flags", "validate_binding", "map_out", "binding_of", "connection_info", "open_ref"]
+__all__ = ["sync_connection", "run_connection", "run_due", "run_due_db", "resolve_flag", "refresh_flags", "validate_binding", "map_out", "binding_of", "connection_info", "open_ref",
+           "acquire_lease", "renew_lease", "release_lease"]

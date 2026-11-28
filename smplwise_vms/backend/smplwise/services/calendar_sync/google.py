@@ -3,6 +3,7 @@
 * list_calendars: `calendarList` (reader or better); can_write = writer / owner.
 * pull: `events.list` with `singleEvents=true` (recurrences arrive expanded, contract 12.4 note) and `showDeleted=true`; the first listing
   starts 30 days back (`timeMin`), later ones use the stored `nextSyncToken`; HTTP 410 = the token is gone -> full_resync_required.
+  FIX-CALENDAR-2570: an instance carries its series' id (`recurringEventId`, CU2-02) and a full listing reports its window (CU2-01).
 * push: insert / update with our marker `extendedProperties.private.arx_id`; an Arx series goes out as RRULE + EXDATE; an update of an
   event deleted at Google (404 / 410) inserts it again.
 * delete: 404 / 410 count as done. revoke: Google's revoke endpoint with the refresh token (best effort).
@@ -54,8 +55,9 @@ def to_ext(item: dict[str, Any], tz: str) -> ExtEvent | ExtDeletion | None:
     uid = item.get("id")
     if not isinstance(uid, str) or not uid:
         return None
+    series = item.get("recurringEventId") if isinstance(item.get("recurringEventId"), str) and item.get("recurringEventId") else None
     if item.get("status") == "cancelled":
-        return ExtDeletion(uid)
+        return ExtDeletion(uid, series)
     s, e = _parse_when(item.get("start"), tz), _parse_when(item.get("end"), tz)
     if s is None or e is None:
         return None
@@ -67,7 +69,8 @@ def to_ext(item: dict[str, Any], tz: str) -> ExtEvent | ExtDeletion | None:
         except ValueError:
             upd = None
     return ExtEvent(uid, str(item.get("etag") or ""), str(item.get("summary") or ""), s[0], e[0], str(item.get("description") or ""), s[1],
-                    (item.get("start") or {}).get("timeZone") or None, priv.get("arx_id") if isinstance(priv.get("arx_id"), str) else None, upd)
+                    (item.get("start") or {}).get("timeZone") or None, priv.get("arx_id") if isinstance(priv.get("arx_id"), str) else None, upd,
+                    series_uid=series)
 
 
 def to_body(ev: OutEvent) -> dict[str, Any]:
@@ -120,10 +123,13 @@ class GoogleAdapter:
 
     def pull(self, connection: ConnectionInfo, binding: Binding, since_token: str | None) -> PullResult:
         base: dict[str, str] = {"singleEvents": "true", "showDeleted": "true", "maxResults": "250"}
+        window: tuple[dt.datetime | None, dt.datetime | None] | None = None
         if since_token:
             base["syncToken"] = since_token
         else:
-            base["timeMin"] = _iso(CLOCK() - dt.timedelta(days=PAST_DAYS))
+            lo = CLOCK() - dt.timedelta(days=PAST_DAYS)
+            base["timeMin"] = _iso(lo)
+            window = (lo, None)  # CU2-01: a full listing holds only events that end after timeMin
         params = dict(base)
         changes: list[ExtEvent | ExtDeletion] = []
         for _ in range(MAX_PAGES):
@@ -140,7 +146,7 @@ class GoogleAdapter:
             if isinstance(b.get("nextPageToken"), str):
                 params = {**base, "pageToken": b["nextPageToken"]}
                 continue
-            return PullResult(changes, b.get("nextSyncToken") if isinstance(b.get("nextSyncToken"), str) else None)
+            return PullResult(changes, b.get("nextSyncToken") if isinstance(b.get("nextSyncToken"), str) else None, window=window)
         raise SyncError(code="too_many_pages")
 
     def push(self, connection: ConnectionInfo, binding: Binding, event: OutEvent, ext_uid: str | None, etag: str | None) -> PushResult:

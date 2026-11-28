@@ -350,7 +350,9 @@ class IcsInAdapter:
         if since_token is not None:
             _LAST[connection.id] = (body, time.monotonic())
             return PullResult(full_resync_required=True)  # changed: read it whole, so vanished events are noticed
-        return PullResult(list(events_of(body)), digest)
+        now = CLOCK()
+        # FIX-CALENDAR-2570 (CU2-01): the feed is read inside [now - 30 d, now + 400 d]; only an entry overlapping that span can be "gone"
+        return PullResult(list(events_of(body, now)), digest, window=(now - dt.timedelta(days=PAST_DAYS), now + dt.timedelta(days=AHEAD_DAYS)))
 
     def push(self, connection: ConnectionInfo, binding: Binding, event: OutEvent, ext_uid: str | None, etag: str | None) -> PushResult:
         raise SyncError(code="read_only")

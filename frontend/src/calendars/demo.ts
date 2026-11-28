@@ -303,6 +303,12 @@ export const demoCalendars: CalendarsApi = {
     s.settings = { ...s.settings, ...doc };
     return { settings: clone(s.settings), erase_preview: lower ? 6 : 0 };
   },
+  patchSettings: async (p) => {
+    const s = st();
+    const lower = p.guest_retention_days !== undefined && p.guest_retention_days < s.settings.guest_retention_days;
+    s.settings = { ...s.settings, ...p };
+    return { settings: clone(s.settings), erase_preview: lower ? 6 : 0 };
+  },
   purgeGuests: async () => {
     const s = st();
     const n = s.guests;

@@ -114,11 +114,15 @@ def get_settings(principal: Principal = Depends(current_principal_ro), conn: sql
 
 
 @open_router.put("/calendar/settings", **wire(W.CalSettingsSaved))
-def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_settings(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+                 merge: bool = Query(False, description="FIX-CALENDAR-2570 (CU2-30): true = the body holds only the changed keys; the others keep their stored value")) -> dict[str, Any]:
+    """The whole settings document (missing keys read as defaults), or - `?merge=true` - only the keys the screen changed, laid over the stored
+    document, so one administrator's save never reverts another one's earlier change (the settings screens send changed keys only)."""
     require(conn, principal, model.PERM_CONFIGURE, INSTALLATION)
     with _errors(conn, principal, request):
         old = model.read_settings(conn)
-        new = model.settings_doc(_body(body))
+        doc = _body(body)
+        new = model.settings_doc({**old, **doc} if merge else doc)
         now = _now()
         changed = sorted(k for k in new if new[k] != old.get(k))
         preview = guests.erase_preview(conn, new, now) if "guest_retention_days" in changed else 0

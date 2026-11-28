@@ -91,6 +91,16 @@ def clear_all(conn: sqlite3.Connection, cid: str) -> None:
     conn.execute("DELETE FROM settings WHERE key LIKE ? ESCAPE '\\'", (_key(cid, "").replace("_", "\\_").replace("%", "\\%") + "%",))
 
 
+def purge_orphans(conn: sqlite3.Connection) -> int:
+    """FIX-CALENDAR-2570 (CU2-13): removes credentials whose connection row is gone (a rotated token an older build wrote back after a
+    disconnect). Returns the number of keys removed."""
+    live = {r[0] for r in conn.execute("SELECT id FROM cal_connections").fetchall()}
+    gone = [k for (k,) in conn.execute("SELECT key FROM settings WHERE key LIKE 'calendar.conn.%'").fetchall() if k[len(PREFIX):].split(".", 1)[0] not in live]
+    for k in gone:
+        conn.execute("DELETE FROM settings WHERE key = ?", (k,))
+    return len(gone)
+
+
 def status(conn: sqlite3.Connection, data_dir: Path, cid: str) -> dict[str, Any]:
     """What a route may say about the credentials: flags, never a value."""
     c = client(conn, cid)
@@ -145,16 +155,25 @@ class Runtime:
             return {**c, "client_secret": secret(conn, data_dir, cid, "client_secret"), "refresh_token": secret(conn, data_dir, cid, "refresh_token"),
                     "feed_url": secret(conn, data_dir, cid, "feed_url")}
 
-    def store_refresh(self, cid: str, token: str) -> None:
-        """A provider that rotates refresh tokens (Microsoft) hands a new one on every refresh: sealed at once."""
+    def store_refresh(self, cid: str, token: str, replaces: str | None = None) -> bool:
+        """A provider that rotates refresh tokens (Microsoft) hands a new one on every refresh: sealed at once.
+        FIX-CALENDAR-2570 (CU2-13): with `replaces` (the token the refresh was made with) it is stored only while the connection still
+        exists and still holds exactly that token - a disconnect, a client change (which drops the authorisation) or a new authorisation
+        that happened while the refresh was on its way wins, and the rotated token is dropped. True = stored."""
         db, data_dir = self._need()
         with db.write_aside(label="calendar.conn.refresh") as conn:
+            if replaces is not None:
+                if conn.execute("SELECT 1 FROM cal_connections WHERE id = ?", (cid,)).fetchone() is None:
+                    return False
+                if secret(conn, data_dir, cid, "refresh_token") != replaces:
+                    return False
             set_secret(conn, data_dir, cid, "refresh_token", token)
+            return True
 
 
 RUNTIME = Runtime()
 
-__all__ = ["RUNTIME", "client", "set_client", "secret", "has_secret", "set_secret", "clear_secret", "clear_all", "status",
+__all__ = ["RUNTIME", "client", "set_client", "secret", "has_secret", "set_secret", "clear_secret", "clear_all", "purge_orphans", "status",
            "cached_access", "remember_access", "forget_access"]
 
 
