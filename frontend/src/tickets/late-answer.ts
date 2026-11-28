@@ -18,7 +18,7 @@ export class Latest {
   }
 }
 
-export interface CursorPage<T> {
+interface CursorPage<T> {
   items: T[];
   next_cursor: string | null;
 }

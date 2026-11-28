@@ -42,6 +42,8 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
   לפתוח דלתות ולנטרל את האזעקה בכל ההתקנה." / "It is not known which devices this scene sets (its definition cannot be read). Running it
   needs the permissions to control devices, open doors and disarm the alarm in the whole installation." `unknown_scene_reasons` uses
   it; `test_vd2_01_...` asserts it (one added line).
+- unused-exports ratchet (runner run 2 at `553194542`): two more file-local exports - `RunConfirmed` (`api/run-confirm.ts`, FIX-FE2-2570)
+  and `CursorPage` (`tickets/late-answer.ts`, FIX-TICKETS2-2570); `export` dropped (types used only inside their file).
 - Design ratchet (PC at `553194542`): px-literal 25513 -> 25516 - FIX-FE2-2570's `.scene-note` (`margin-block-start: 6px`,
   `screens/area-quick-sheet-css.ts`) and FIX-CORE-DATA-2570's counters list (`margin:6px ...;padding-inline-start:18px`,
   `screens/system-diagnostics.ts`). Written on the spacing scale with the same values (`calc(var(--sw-s-1) * 1.5)` = 6px,

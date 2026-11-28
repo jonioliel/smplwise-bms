@@ -16,7 +16,7 @@ export type RunTarget = Pick<Item, 'id' | 'name' | 'sensitive' | 'unknown_effect
 export type RunSend<T> = (opts: { confirm?: boolean; client_request_id: string }) => Promise<T>;
 /** Shows the confirmation (what will happen) and answers true only on an explicit yes. */
 export type RunAsk = (item: RunTarget) => Promise<boolean>;
-export type RunConfirmed<T> = { sent: true; result: T } | { sent: false };
+type RunConfirmed<T> = { sent: true; result: T } | { sent: false };
 
 export async function runConfirmed<T>(item: RunTarget, send: RunSend<T>, ask: RunAsk): Promise<RunConfirmed<T>> {
   const client_request_id = commandId();
