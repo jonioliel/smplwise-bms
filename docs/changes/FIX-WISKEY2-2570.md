@@ -69,6 +69,13 @@ that a new start is admitted (200 with a session) - the station's reservation wa
 
 ## Tests (runner, slot B, job `~/work/p2570_fixwk2_be.sh`, one pytest process per file, `SW_WIRE_STRICT=1`)
 
-RESULTS_PLACEHOLDER
+| What | Result |
+|---|---|
+| `tests/test_fix_wiskey2_2570.py` (18 tests) at the fix (`9c39e3c75`) | 18 passed |
+| Same file with the five service files reset to the base (BEFORE) | 13 failed, 5 passed - every WA2-01..04 test that proves a change fails; the 5 that pass before are the ones that must hold either way (a starter who lost the permission and releases himself is refused; an unknown release id is Unauthorized; a new process still recovers a dead one's rows; a crashed run with Core started again is left alone; the WA2-05 guard) |
+| First AFTER run at `15fbfbfe5` | 17 passed, 1 failed - the recovery test's job fixture lacked `finished_at` (the job view's wire model requires it); fixture fixed in `9c39e3c75`, rerun above |
+| `tests/test_intercom_capture_lease.py` (WA2-06) | 15 passed |
+| Regression: `test_wkcap_295` 42, `test_t06_admission_295` 64 + 3 xfailed (marked in the file), `test_wkr5_295_emergency` 4, `test_door_emergency` 26, `test_wiskey_managed_install_2382` 73, `test_wkwrite_295` 29, `test_wkwrite_295_crash` 6, `test_wkjoin_295` 23, `test_wiskey_join_live_2382` 38, `test_wiskey_mac_adopt_298_review` 40 | 345 passed, 3 xfailed, 0 failed |
+| `ruff check` of the five changed product files | clean |
 
 NOT_RUN: frontend (no frontend file changed), the rest of the area's backend files, anything against WisKey / Home Assistant / the lab.
