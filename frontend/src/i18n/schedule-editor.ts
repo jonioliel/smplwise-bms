@@ -138,6 +138,7 @@ const he = {
   sx_readAt: 'נבדק {t}',
   sx_statusFailed: 'בדיקת המצב לא הצליחה ({reason}). מה שידוע קודם נשאר כמו שהוא.',
   sx_steps: '{v} מתוך {n} שלבים אומתו',
+  sx_reviewsUnread: 'לא ניתן היה לקרוא עכשיו את האישורים ב־WisKey - מוצג המצב המלא האחרון שנקרא.',
   sx_p_not_read: 'לא נבדק',
   sx_p_waiting_owner: 'ממתין לבעל המערכת',
   sx_p_review_pending: 'ממתין לאישור',

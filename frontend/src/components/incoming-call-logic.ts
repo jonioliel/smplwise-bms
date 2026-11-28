@@ -139,3 +139,11 @@ export function doorFailure(err: unknown): { unknown: boolean; holdMs: number } 
   const s = err instanceof ApiError ? Number(err.body?.details?.retry_after_s) : NaN;
   return { unknown, holdMs: Number.isFinite(s) && s >= 0 ? Math.ceil(s * 1000) : DOOR_HOLD_FALLBACK_MS };
 }
+
+/** FIX-WISKEY-2570 (review SCR-51): what a failed read of the call list means. A 403 (the call right was removed): every call it showed
+ * ends here, talk sessions included. Anything else (no answer, a time-out, 5xx, another refusal): the last list stays with its buttons
+ * (owner 26.11, LOWS-FRONTEND-2550 question 2 a - the server refuses an answer or a door for a call that ended, and a talk session keeps
+ * its own server-side expiry) and the banner says that it shows the last state read. Nothing is sent again because of it. */
+export function pollFailure(err: unknown): 'forbidden' | 'unread' {
+  return err instanceof ApiError && err.status === 403 ? 'forbidden' : 'unread';
+}

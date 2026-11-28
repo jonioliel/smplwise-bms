@@ -35,7 +35,7 @@ test.describe('SCR-51 the call banner and the station permissions', () => {
   test('a 403 on the banner\'s read ends every talk session it showed (microphone closed), then goes quiet', () => {
     const s = src('components/sw-incoming-call.ts');
     const refresh = s.slice(s.indexOf('protected async refresh()'), s.indexOf('protected ended(callId: string)'));
-    expect(refresh).toMatch(/err\.status === 403\) \{\s*\n[^\n]*\n[^\n]*\n\s*for \(const id of new Set\(\[\.\.\.this\.sessions\.keys\(\), \.\.\.\(this\.active\?\.calls \?\? \[\]\)\.map\(\(c\) => c\.call_id\)\]\)\) this\.ended\(id\);\s*\n\s*this\.active = null;/);
+    expect(refresh).toMatch(/failure === 'forbidden'\) \{\s*\n[^\n]*\n[^\n]*\n\s*for \(const id of new Set\(\[\.\.\.this\.sessions\.keys\(\), \.\.\.\(this\.active\?\.calls \?\? \[\]\)\.map\(\(c\) => c\.call_id\)\]\)\) this\.ended\(id\);\s*\n\s*this\.active = null;/);
   });
 
   test('station permissions: one busy slot per station; the result line stays with its own person', () => {

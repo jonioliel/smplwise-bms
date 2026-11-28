@@ -50,6 +50,7 @@ export function execRead(jobId: string, phase: string, over: Record<string, any>
     steps_verified: 0,
     reviews: { pending: 0, approved: 0, rejected: 0 },
     reviews_read: true,
+    reviews_unread: false,
     physical_result: 'unproven',
     read_at: '2026-09-27T10:29:00Z',
     final: phase === 'executed' || phase === 'cancelled',

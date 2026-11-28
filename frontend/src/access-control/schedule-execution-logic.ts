@@ -87,6 +87,12 @@ export function visibleJobs<T extends { id: string }>(jobs: readonly T[]): { row
   return { rows, more: Math.max(0, jobs.length - rows.length) };
 }
 
+/** FIX-WISKEY-2570 (review WA-02): the last check could not read WisKey's approvals of this job - the phase shown comes from the last
+ * COMPLETE approvals read (or none), never from a part of them; the row says so. */
+export function reviewsUnread(job: ScheduleExecutionJob | null | undefined): boolean {
+  return job?.reviews_unread === true;
+}
+
 /** True when the switch is on and a status read showed at least one job executed (WisKey's own read-back). */
 export function anyExecuted(view: ScheduleExecutionView | null | undefined): boolean {
   return !!view?.enabled && (view.jobs ?? []).some((j) => j.phase === 'executed');
