@@ -103,7 +103,7 @@ for (const scheme of ['light', 'dark'] as const) {
           : 'Sent to: Building A. The request for Building B failed, and nothing was sent from there on: The device list changed after this window opened, so some commands were not sent. Open the action again. Nothing was sent to: Building C.';
         el.phase = 'running';
       }, { side: SIDE, he });
-      await page.locator('home-site-off sw-dialog[open]').waitFor();
+      await page.locator('home-site-off sw-dialog[open]').waitFor({ state: 'attached' });
       await page.waitForTimeout(500);
       await shot(page, `siteoff-${lang}-${scheme}`, info.project.name);
       await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -134,8 +134,11 @@ test('MH2-09: the English energy tile label stays on one line at 360 px', async 
     if (!k) return null;
     const label = [...k.childNodes].map((n) => n.textContent ?? '').join('').trim();
     const fs = parseFloat(getComputedStyle(k).fontSize);
-    return { label, h: k.getBoundingClientRect().height, fs };
+    const r = k.getBoundingClientRect();
+    const tile = (k.closest('[data-ft]') ?? k.parentElement!).getBoundingClientRect();
+    return { label, h: r.height, fs, inside: r.left >= tile.left - 1 && r.right <= tile.right + 1 };
   });
   test.skip(!box, 'no energy tile on the main screen');
   expect(box!.h).toBeLessThan(box!.fs * 2.2); // one line (the 20 px icon sets the row height), not two
+  expect(box!.inside).toBe(true); // and not wider than its tile (no clipped word)
 });

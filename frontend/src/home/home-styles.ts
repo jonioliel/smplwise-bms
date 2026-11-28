@@ -865,6 +865,8 @@ sw-segmented {--sw-seg-key-flex: 1 0 auto; --sw-seg-key-min-w: 48px; --sw-seg-ke
 .hs.v2 .dial-wrap {inline-size: min(100%, 26vh);}
 .hs-head .acts .hbtn {max-inline-size: 38vw;}
 .wg-c.en1 .wg-k {font-size: 12px;}
+/* FIX-MAPS2-2570 (MH2-09): the label stays on one line inside the tile (a longer language ends with an ellipsis, never clipped) */
+.wg-c.en1 {grid-template-columns: minmax(0, 1fr);}
 .wg-c.en1 .muted {font-size: 12px;}
 }
 .nb-ml {font-size: var(--f-sm); color: var(--hs-text-2); flex: none;}
