@@ -1694,4 +1694,10 @@ export const en = {
   // LOWS-FRONTEND-2550 (review SCR-49)
   'לבטל את השיוך שלך "{role} · {scope}"? ייתכן שתאבד הרשאות, כולל הגישה למסך הזה.': 'Remove your own assignment "{role} · {scope}"? You may lose permissions, including access to this screen.',
   'לבטל את השיוך "{role} · {scope}" של {name}?': 'Remove the assignment "{role} · {scope}" of {name}?',
+  // FIX-CORE-DATA-2570: the state feed and rule notification counters under the HA sync card of the health report
+  'עדכוני מצב: {overflows} לא נכנסו לתור · {resyncs} קריאות מחדש מלאות · {dropped} לא הגיעו למסכים פתוחים': 'State updates: {overflows} did not fit the queue · {resyncs} full re-reads · {dropped} did not reach open screens',
+  'השוואת מצבים תקופתית: עוד לא רצה': 'Periodic state reconcile: not run yet',
+  'השוואת מצבים אחרונה ({at}): דולגה': 'Last state reconcile ({at}): skipped',
+  'השוואת מצבים אחרונה ({at}): {read} נקראו · {repaired} תוקנו · {older} חדשים יותר נשמרו · {live} עודכנו בזמן אמת · {failed} לא נכתבו': 'Last state reconcile ({at}): {read} read · {repaired} repaired · {older} newer kept · {live} updated live · {failed} not written',
+  'התראות של כללים: {queued} נשלחו לתור · {waiting} ממתינות · {dropped} נזרקו כשהתור היה מלא · {skipped} דולגו כי התיישנו': 'Rule notifications: {queued} queued · {waiting} waiting · {dropped} dropped (queue full) · {skipped} skipped (too old)',
 };
