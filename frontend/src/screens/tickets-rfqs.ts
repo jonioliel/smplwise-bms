@@ -28,6 +28,7 @@ import { rfqError } from '../tickets/rfq-new';
 import { questionBadge } from '../tickets/rfq-questions';
 import { rIcon } from '../tickets/rfq-icons';
 import { tt, ticketsLang } from '../tickets/text';
+import { Latest, readPages } from '../tickets/late-answer'; // TK2-02
 import { loct } from '../tickets/org-locations-text';
 import { showOnMapHref } from '../tickets/org-locations-model'; // ORGPLAN2-291
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
@@ -61,6 +62,9 @@ export class TicketsRfqsPage extends LitElement {
   @state() private meta: RfqMeta | null = null;
   @state() private items: RfqSummary[] = [];
   @state() private next: string | null = null;
+  /** TK2-02: how many pages of the list are on screen (a quiet refresh re-reads that many) and the newest-read guard. */
+  private pagesLoaded = 0;
+  private readonly loads = new Latest();
   @state() private failed = '';
   @state() private q = '';
   @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
@@ -189,13 +193,26 @@ export class TicketsRfqsPage extends LitElement {
   /** One page of every visible request (`state=all`): the strip's counts and the filters are read from it. */
   private async load(quiet: boolean, more = false): Promise<void> {
     if (!quiet && !this.items.length) this.screen = 'loading';
+    const token = this.loads.begin();
     try {
-      const page = await ticketsRfqApi().list({ state: 'all', limit: 200, cursor: more ? this.next : null });
-      this.items = more ? [...this.items, ...page.items] : page.items;
-      this.next = page.next_cursor;
+      const fetchPage = (cursor: string | null) => ticketsRfqApi().list({ state: 'all', limit: 200, cursor });
+      if (more) {
+        const page = await fetchPage(this.next);
+        if (!this.loads.current(token)) return;
+        this.items = [...this.items, ...page.items];
+        this.next = page.next_cursor;
+        this.pagesLoaded += 1;
+      } else {
+        // a quiet refresh keeps the pages the viewer loaded with "load more" (TK2-02); a first / loud read starts from page 1
+        const got = await readPages(fetchPage, quiet ? this.pagesLoaded : 1, () => this.loads.current(token));
+        if (!got) return;
+        this.items = got.items;
+        this.next = got.next;
+        this.pagesLoaded = got.pages;
+      }
       this.screen = 'ready';
     } catch (e) {
-      if (quiet) return;
+      if (quiet || !this.loads.current(token)) return;
       if (e instanceof ApiError && e.status === 403) this.screen = 'forbidden';
       else {
         this.failed = rfqError(e);
@@ -341,6 +358,7 @@ export class TicketsRfqsPage extends LitElement {
       return html`${this.stateBox('note', rt('emptyAll'), 'empty', this.canCreate() ? html`<button type="button" class="btn sm primary" @click=${() => go(rfqHref({ creating: true }))}>${tIcon('plus')}${rt('newShort')}</button>` : undefined)}`;
     }
     return html`${this.tiles()}
+      ${this.next ? html`<p class="mut" data-rfq-loaded-only role="note">${rt('loadedOnly', { n: this.items.length })}</p>` : nothing}
       ${rows.length ? html`<ul class="rlist" aria-label=${rt('listAria')} data-rfq-list>${repeat(rows, (i) => i.id, (i) => this.row(i, now))}</ul>`
         : this.stateBox('search', rt('emptyFiltered'), 'no-match', html`<button type="button" class="btn sm" data-rfq-clear @click=${() => { this.q = ''; go(rfqHref({})); }}>${rt('clearFilters')}</button>`)}
       ${this.next ? html`<div class="more"><button type="button" class="btn sm" data-rfq-more @click=${() => void this.load(true, true)}>${rt('loadMore')}</button></div>` : nothing}`;
