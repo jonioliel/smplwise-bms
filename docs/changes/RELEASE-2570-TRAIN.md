@@ -24,6 +24,7 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 10 | `pilot/FIX-WISKEY2-2570` | `9e5eb8f97` | `24cf3d2e9` | none | backend only: emergency release by the releaser, managed install restart, write lineage |
 | 11 | `pilot/FIX-CORE2-2570` | `4bee4fbbf` | `077b7b87e` | none (`Dockerfile` auto-merged: the 2.57.0 label and the multi-arch default both present) | e-mail, monthly reports, access digest DST, legacy aliases, multi-arch `BUILD_FROM` default + `release_check.py` base-image rule, 0215 comment-only rollback note |
 | 12 | `pilot/FIX-MAPS2-2570` | `f65f94aa5` | `3875ea848` | none (auto-merged: `routers/ha.py`, `wire/ha.py`, generated `wire-ha.ts`, `api/ha.ts`, `home/home-recordings.ts` (FE-05 `decodeSegment` and MH2-08 `flip` both kept), en `msg/screens.ts`, `error_text_en.json`); `gen_wire_types --check` 0 on the PC after the merge | MH2-01..MH2-09; based on FIX-HOME-MAPS-2570 |
+| 13 | `pilot/FIX-VIDEO2-2570` | `164279e7d` | `768d0447b` | none (`routers/nvr_write.py` auto-merged: FIX-VIDEO-2570's settings-write outcome and FIX-VIDEO2's `set_smart` / `smart_partial_error` both present); `gen_wire_types --check` 0 on the PC after the merge | VD2-02, VD2-04, VD2-06..VD2-11 |
 | - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
 | - | registry | - | `d832d0166` | - | section 4 |
@@ -112,6 +113,6 @@ regenerated views committed.
 
 ## 6. Open points
 
-1. Rows still to come (the lead's list, 28.11): FIX-GATE-2570, FIX-VIDEO2-2570, FIX-AUTOMATION2-2570 (based on FIX-AUTOMATION), FIX-CALENDAR-2570 and FIX-UTIL-A-2570 (both based on FIX-COMMS), FIX-UTIL-B-2570, FIX-SECURITY2-2570, FIX-PHONEKEY-2570; each adds CHANGELOG lines and a registry entry.
+1. Rows still to come (the lead's list, 28.11): FIX-GATE-2570, FIX-AUTOMATION2-2570 (based on FIX-AUTOMATION), FIX-CALENDAR-2570 and FIX-UTIL-A-2570 (both based on FIX-COMMS), FIX-UTIL-B-2570, FIX-SECURITY2-2570, FIX-PHONEKEY-2570; each adds CHANGELOG lines and a registry entry.
 2. UI rebuild (`npm run build:addon` on the runner) only after the lead's "all rows in", then the gate (the lead's).
 3. RELEASE-2560-TRAIN is still IN_PROGRESS in the registry although 2.56.0 is released; left to the lead.

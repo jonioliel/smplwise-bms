@@ -34057,5 +34057,43 @@
     "owner": null,
     "commit": "f65f94aa5",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-VIDEO2-2570",
+    "title": "Second deep review video / devices fixes VD2-02, VD2-04, VD2-06..VD2-11: detect listen outside the lock, recordings across the repeated hour, schedule actions across midnight, smart partial write, saved views keep hidden cameras, per-recorder review marks",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review video / devices fixes VD2-02, VD2-04, VD2-06..VD2-11: detect listen outside the lock, recordings across the repeated hour, schedule actions across midnight, smart partial write, saved views keep hidden cameras, per-recorder review marks; merged into the 2.57.0 train, change note docs/changes/FIX-VIDEO2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-VIDEO2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-VIDEO2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-VIDEO2-2570, change note docs/changes/FIX-VIDEO2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-VIDEO2-2570 head 164279e7d merged 768d0447b into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-VIDEO2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "164279e7d",
+    "actual_cost_usd": null
   }
 ]

@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -38,6 +38,12 @@
 - Camera overlay (OSD): after a write that did not succeed the recorder is read again, so a refused date format does not stay on screen; a lost answer says it is not known whether it was written.
 - Schedules: the bulk bar acts only on the selected schedules on the page on screen.
 - Multimedia card: "all off" for an area uses the server clock for its expiry.
+- Recordings across the autumn clock change: a file in the repeated hour is placed with the zone's rules (both readings of that hour), a search inside the second occurrence finds its files, and the answer says the coverage is partial instead of complete; a recording schedule action that ends on a later day is read and written per day.
+- Recordings: an impossible date is refused with a clear message instead of a server error; a recorder that repeats a page gives a partial answer with a note.
+- Smart rules (line crossing / intrusion): when the first rule was written and the second failed, the message says which one was written (and can be rolled back) and why the other failed.
+- Saved views: editing a view keeps the cameras the editor may not watch, in their places; editing a shared view needs the right to manage shared views.
+- Detect by pressing: the listen no longer holds the database (other writes go on), and a second listen of the same person is refused while one runs.
+- Reviews: marking events as reviewed across several recorders reverts only the ones whose recorder failed, and keeps them selected.
 - Tickets: "approve with correction" keeps the VAT rate of the vendor's revision, so the preview and the approved amount agree; the requests-for-quote list says when its counts cover only the loaded requests and keeps them on refresh; a late answer for another ticket or department is dropped.
 - Scenes: a scene that sets an alarm panel, a lock, a siren or a door is checked like the same action done by hand (permission, confirmation, extra verification), from the scenes list and from device tiles; a scene whose devices cannot be read runs only for someone who may control devices, open doors and disarm the alarm in the whole installation.
 - Automations, scripts and scenes: a run whose answer was lost is recorded as "not known whether it ran" and keeps the wait before the next run, so a quick second press does not run it twice; a copied or restored automation starts switched off; an operation stuck as pending is settled after 10 minutes.
@@ -60,6 +66,7 @@
 - Scenes (`POST /automations/scene/{id}/apply`, and `scene.turn_on` on `POST /ha/entities/{id}/actions`): sensitive members now give 403 `grant_required` (`details.grant`, `entity_id`, `path: "members"`), 409 `confirmation_required` (send `confirm: true`), 403 `step_up_required`, or 403 `forbidden` with `details.reason = "scene_members_unknown"`; `sensitive_classes` lists every class.
 - Automation run ops (trigger, run script, apply scene): a lost answer is 504 `config_timeout` with `details.outcome = "unknown"`, `retryable: false`.
 - `GET /ha/entities?area_buildings=true` adds `building_id` to each listed area (additive); `PATCH /wall/profiles/{id}` takes an optional `version` (409 `stale_version` when it differs); `GET /skins/status` needs `system.configure` (403 otherwise).
+- Recordings search: `coverage: partial` with a note around the repeated hour or for unplaced files; playback sessions carry an optional `clock_change_note`; `?date=` that does not exist is 422 `validation` (`invalid_date`); smart rules partial write is `smart_partial_write` (`details.applied`, `details.failed`, `details.cause`, `details.outcome`); a second detect-by-pressing listen is 409 `listen_running`.
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 
