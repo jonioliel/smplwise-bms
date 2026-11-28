@@ -13,7 +13,7 @@ A *second factor* is something only you have, on top of the password. Arx knows 
 | **Authenticator-app code** | a 6-digit code that changes every 30 s (Google Authenticator, Microsoft Authenticator, ...) | remote sign-in, step-up, removing your own factor |
 | **Recovery codes** | 10 one-time codes `XXXX-XXXX`, for a lost phone | instead of the code at sign-in, when removing the factor, and for an ordinary step-up (not for every action - see below) |
 | **Passkey** | fingerprint, face or device PIN through the browser | step-up. For Arx-only accounts also sign-in; for home-system users step-up only |
-| **Phone key** | a key the Android app keeps in the phone, unlocked by fingerprint or screen lock | inside the app: remote sign-in and step-up |
+| **Phone key** | a key the Android app (version 2.1.0 or later) keeps in the phone, unlocked by fingerprint or screen lock | inside the app: step-up and approve on the phone |
 
 On top of them, three administrator settings:
 
@@ -68,12 +68,18 @@ phone key in the app). For Arx-only accounts (accounts created in Arx itself) a 
 
 ### Phone key (Android app)
 
-1. A key is added **from the Android app** (its security screen). The phone asks for a fingerprint or the screen lock. From outside a
-   fresh sign-in is needed here too (also for a further key). Revoking a key tells every device of yours.
-2. From then on, signing in from inside the app, the phone signs instead of you typing a code, and step-up offers "Confirm with the phone key".
+1. A key is added **from the Arx Android app, version 2.1.0 or later**: in the app, My account > Security > "Phone keys" > an optional
+   name > **"Add a key on this phone"**. The phone shows "Register the phone key with the account" and asks for a fingerprint, face or the
+   screen lock. If you already have another method, "Confirm identity" opens first; from outside a fresh sign-in is needed. A browser
+   has no add button (the screen says a key is added from the app); an older app is asked to update. Revoking a key tells every device of yours.
+2. From then on, step-up inside the app offers "Confirm with the phone key", and a request from another screen can be approved on the
+   phone ("Approve on the phone", below). The phone itself shows **what is actually signed** - for example "Changing permissions" or
+   "Approve a request from another screen · number 42" - never a text the screen sends. If it is not what you asked for, cancel. Signing
+   in with the phone key (instead of the code) is not available yet.
 3. "Security" > "Phone keys" lists what unlocks each key, whether it is "hardware-attested" or a "software key", when it was added and
    last used. **Revoke** removes a key (a lost phone). A key marked "does not count" must be registered again.
-4. The phone key works only inside the app; in a browser use the code or a passkey.
+4. The phone key works only inside the app; in a browser use the code or a passkey. A phone holds one key per server: to replace this
+   phone's key, revoke it in the list (it is marked "This phone") and add it again.
 
 ### Typing a code
 
@@ -110,7 +116,7 @@ Card **"Confirm before sensitive changes"**:
 | **Ask for confirmation before changes** | on / off | **off** (sign-in only) |
 | **Confirmation lasts (minutes)** | 0 to 30; 0 = every change | 5 |
 | **On the local network too** | on / off | off - the local network stays the way back into the system |
-| **Approve on the phone** | on / off | off - when on, another screen can be approved on the phone with the phone key (typing the on-screen number) |
+| **Approve on the phone** | on / off | off - when on, another screen can be approved on the phone with the phone key (typing the on-screen number). The switch is shown in the Android app (2.1.0 or later), where phone keys are registered; a browser shows a line that says so instead (while it is on it is shown everywhere, so it can be switched off) |
 | **Personal alarm code as confirmation** | on / off | off - when on, the personal code confirms one alarm disarm or zone bypass |
 
 - It applies only to users with a method (code, passkey or phone key). Users without one are not asked. With **Personal alarm code as

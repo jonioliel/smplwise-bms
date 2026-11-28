@@ -34,7 +34,6 @@ object DeviceKeyPolicy {
     const val AUTH_ANY = "biometric_or_screen_lock" // owner q23 b: a fingerprint / face OR the phone's screen code (the default)
     val PURPOSES = setOf("register", "step_up", "sign_in")
     const val MAX_PAYLOAD = 400
-    const val MAX_PROMPT_TEXT = 120
 
     private val keyIdRe = Regex("^dk_[0-9a-f]{24}$")
     private val nonceRe = Regex("^dkn_[A-Za-z0-9_-]{40,60}$")
@@ -80,9 +79,39 @@ object DeviceKeyPolicy {
         return "arx_device_key_v1_" + digest.take(12).joinToString("") { "%02x".format(it) }
     }
 
-    /** The text under the prompt's title: the page's action text, trimmed, or the generic line. */
-    fun promptText(text: String?, fallback: String): String =
-        text?.replace(Regex("[\\p{Cntrl}]"), " ")?.trim()?.take(MAX_PROMPT_TEXT)?.takeIf { it.isNotEmpty() } ?: fallback
+    /**
+     * FIX-PHONEKEY-2570 (second deep review SA2-02): what the phone's prompt says. Built from the SIGNED payload only - its purpose and
+     * its action (for a phone approval `auth.push_approval.n<NN>`, the number inside the signed bytes) - never from a text the page
+     * passes: a script in the page cannot have the person confirm "open the door" while the key signs a permission change. The kinds
+     * are mapped to the app's strings by WebActivity (R.string.device_key_prompt_*); [Prompt.arg] is the approval number or, for an
+     * action of no known family, the signed action name itself.
+     */
+    enum class PromptKind { REGISTER, SIGN_IN, IDENTITY, APPROVAL, DISARM, BYPASS, ALARM, DOOR, PERMISSIONS, USERS, FACTORS, BACKUP, BRIDGE, SETTINGS, OTHER }
+
+    data class Prompt(val kind: PromptKind, val arg: String? = null)
+
+    private val approvalRe = Regex("^auth\\.push_approval\\.n([0-9]{2})$")
+
+    fun promptOf(p: Payload): Prompt {
+        if (p.purpose == "register") return Prompt(PromptKind.REGISTER)
+        if (p.purpose == "sign_in") return Prompt(PromptKind.SIGN_IN)
+        val a = p.action
+        if (a == "-") return Prompt(PromptKind.IDENTITY)
+        approvalRe.matchEntire(a)?.let { return Prompt(PromptKind.APPROVAL, it.groupValues[1]) }
+        return when {
+            a == "alarm.disarm" -> Prompt(PromptKind.DISARM)
+            a == "alarm.bypass" -> Prompt(PromptKind.BYPASS)
+            a.startsWith("alarm.") -> Prompt(PromptKind.ALARM)
+            a.startsWith("door.") || a.startsWith("access.") -> Prompt(PromptKind.DOOR)
+            a.startsWith("rbac.") -> Prompt(PromptKind.PERMISSIONS)
+            a.startsWith("identity.") || a.startsWith("users.") -> Prompt(PromptKind.USERS)
+            a.startsWith("auth.") -> Prompt(PromptKind.FACTORS)
+            a.startsWith("backup.") -> Prompt(PromptKind.BACKUP)
+            a.startsWith("bridge.") -> Prompt(PromptKind.BRIDGE)
+            a.startsWith("system.") || a.endsWith(".configure") -> Prompt(PromptKind.SETTINGS)
+            else -> Prompt(PromptKind.OTHER, a)
+        }
+    }
 
     fun b64u(bytes: ByteArray): String = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
 

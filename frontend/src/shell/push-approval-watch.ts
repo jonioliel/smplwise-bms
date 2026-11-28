@@ -62,21 +62,40 @@ export function resetPushApprovalWatchForTests(): void {
   shown.clear();
 }
 
-function schedule(keyId: string, next: number | false) {
+/** The phone key the watcher looks with (FIX-PHONEKEY-2570: it changes when this app's key is registered while the page is open). */
+let watchingKey: string | null = null;
+
+function schedule(next: number | false) {
   if (timer) clearTimeout(timer);
-  timer = next === false ? null : setTimeout(() => void look(keyId).then((again) => schedule(keyId, again)), next);
+  const key = watchingKey;
+  timer = next === false || !key ? null : setTimeout(() => void look(key).then((again) => schedule(again)), next);
+}
+
+const run = () => {
+  if (watchingKey) void look(watchingKey).then((next) => schedule(next));
+};
+
+/** FIX-PHONEKEY-2570 (second deep review SA2-01, improvement on push-approval-watch.ts:74-75): read the app's key id again and, when
+ * there is one, look with it. Called at start and whenever this page registered the app's key (DEVICE_KEY_CHANGED) - an enrolment
+ * starts the watcher without a reload. Without a key nothing is ever requested. */
+async function begin(keyIdOf: () => Promise<string | null>): Promise<void> {
+  const keyId = await keyIdOf();
+  if (!keyId || keyId === watchingKey) return;
+  const first = watchingKey === null;
+  watchingKey = keyId;
+  if (first) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') run();
+    });
+  }
+  run();
 }
 
 export function installPushApprovalWatch(): void {
   if (started || typeof window === 'undefined' || !inAndroidShell()) return;
   started = true;
-  void import('../api/factor-screens').then(async ({ appDeviceKeyId }) => {
-    const keyId = await appDeviceKeyId();
-    if (!keyId) return;
-    const run = () => void look(keyId).then((next) => schedule(keyId, next));
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') run();
-    });
-    run();
+  void import('../api/factor-screens').then(({ appDeviceKeyId, DEVICE_KEY_CHANGED }) => {
+    window.addEventListener(DEVICE_KEY_CHANGED, () => void begin(appDeviceKeyId));
+    void begin(appDeviceKeyId);
   });
 }

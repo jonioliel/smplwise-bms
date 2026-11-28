@@ -302,7 +302,11 @@ test('step-up dialog: the phone key inside the Android app - the app signs the s
   await expect(tab.locator('[data-fp-message]')).toBeVisible();
   expect(mock.verifies).toEqual([{ method: 'device_key', challenge_id: 'dkc_mock1', key_id: 'dk_pixel000000000000001', signature: GOOD_SIGNATURE, action: 'system.configure' }]);
   expect(mock.calls.filter((c) => c.path === 'auth/device-keys/challenge').map((c) => c.body)).toEqual([{ purpose: 'step_up', key_id: 'dk_pixel000000000000001', action: 'system.configure' }]);
-  expect(await page.evaluate(() => (window as unknown as { __signed: unknown[] }).__signed)).toEqual([['arx-device-key|step_up|mock', 'אישור זהות']]);
+  // FIX-PHONEKEY-2570 (SA2-02): the phone is told the words of the SIGNED action (system.configure -> "changing settings"), not the dialog's heading
+  const signed = await page.evaluate(() => (window as unknown as { __signed: [string, string][] }).__signed);
+  expect(signed).toHaveLength(1);
+  expect(signed[0][0]).toMatch(/^arx-device-key\|v1\|step_up\|http:\/\/[^|]+\|u-admin\|dk_pixel000000000000001\|system\.configure\|dkn_/);
+  expect(signed[0][1]).toBe('שינוי הגדרות');
 });
 
 test('step-up dialog: phone key listed but not in the app - the code only, no phone-key button', async ({ page }) => {

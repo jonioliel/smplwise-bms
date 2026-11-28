@@ -52,17 +52,22 @@ interface Mock {
   /** the step-up methods the gate's 403 lists (the shell dialog offers what it can of them) */
   methods: string[];
   verifies: Record<string, unknown>[];
+  /** FIX-PHONEKEY-2570: the registrations sent (`POST auth/device-keys`), how many looks at the approvals list the phone made, and
+   * whether a registration first needs a step-up proof (the server's 403 for a user who has another factor) */
+  registers: Record<string, unknown>[];
+  approvalLooks: number;
+  registerNeedsProof: boolean;
   /** RELEASE-2510-TRAIN: the reset preflight's refusal (`last_admin`, `rate_limited`, ...); undefined = allowed */
   resetRefusal?: 'self' | 'user_unknown' | 'local_only' | 'reauth' | 'last_admin' | 'rate_limited'; // reauth: MFA-FACTOR-HARDEN-2520
 }
 
 const USERNAMES: Record<string, string> = { 'u-admin': 'admin', 'u-dana': 'dana', 'u-ron': 'ron', 'u-maya': 'maya' };
 
-export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader' | 'methods' | 'resetRefusal'>> = {}): Promise<Mock> {
+export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'settings' | 'reader' | 'methods' | 'resetRefusal' | 'deviceKeys' | 'registerNeedsProof'>> = {}): Promise<Mock> {
   const st: Mock = {
     calls: [],
     settings: { 'ui.design': 'a', 'security.factor_policy': 'admins', 'security.factor_policy_mode': 'report', 'security.factor_wall_exempt': 'on', 'security.remote_long_lived_tokens': 'allow', 'security.step_up': 'off', 'security.step_up_minutes': 5, 'security.step_up_local': 'off', ...(over.settings ?? {}) },
-    deviceKeys: [
+    deviceKeys: over.deviceKeys ?? [
       { id: 'dk_pixel000000000000001', label: 'Pixel 8 של דנה', auth_kind: 'biometric', attested: 'hardware', counts: true },
       { id: 'dk_tablet00000000000002', label: 'טאבלט בכניסה', auth_kind: 'biometric_or_screen_lock', attested: 'software', counts: true },
     ],
@@ -77,6 +82,9 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     resetRefusal: over.resetRefusal,
     methods: over.methods ?? ['totp'],
     verifies: [],
+    registers: [],
+    approvalLooks: 0,
+    registerNeedsProof: over.registerNeedsProof ?? false,
   };
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.routeWebSocket(/\/me\/ws/, () => undefined);
@@ -136,8 +144,26 @@ export async function installMfaMock(page: Page, over: Partial<Pick<Mock, 'setti
     }
     if (p === 'auth/step-up' && method === 'GET')
       return json(route, { enabled: st.settings['security.step_up'] === 'on', minutes: 5, local_channel: false, applies: st.settings['security.step_up'] === 'on', reason: st.settings['security.step_up'] === 'on' ? null : 'off', methods: ['totp'], valid_until: st.proof ? '2026-11-24T10:05:00+00:00' : null });
-    if (p === 'auth/device-keys/challenge' && method === 'POST')
-      return json(route, { challenge_id: 'dkc_mock1', purpose: 'step_up', payload: 'arx-device-key|step_up|mock', expires_in: 60, auth_kind: 'biometric_or_screen_lock', allowed_auth_kinds: ['biometric', 'biometric_or_screen_lock'], attestation: 'preferred' });
+    if (p === 'auth/device-keys/challenge' && method === 'POST') {
+      // FIX-PHONEKEY-2570: the server's payload shape (services/device_keys.payload), so the phone's line comes from the signed action
+      const b = (body ?? {}) as { purpose?: string; key_id?: string; action?: string };
+      const register = b.purpose === 'register';
+      const payload = `arx-device-key|v1|${register ? 'register' : 'step_up'}|${url.origin}|u-admin|${register ? '-' : (b.key_id ?? '-')}|${register ? '-' : (b.action ?? '-')}|dkn_${'m'.repeat(43)}`;
+      return json(route, { challenge_id: register ? 'dkn_register_mock' : 'dkc_mock1', purpose: register ? 'register' : 'step_up', payload, expires_in: 60, auth_kind: 'biometric_or_screen_lock', allowed_auth_kinds: ['biometric', 'biometric_or_screen_lock'], attestation: 'preferred' });
+    }
+    if (p === 'auth/device-keys' && method === 'POST') {
+      if (st.registerNeedsProof && !st.proof)
+        return json(route, err('step_up_required', 'לפני הוספת מפתח טלפון צריך לאשר שוב את הזהות.', { action: 'auth.device_key.register', methods: ['totp'], minutes: 5, verify_path: 'auth/step-up/verify' }), 403);
+      const b = (body ?? {}) as { label?: string; auth_kind?: 'biometric' | 'biometric_or_screen_lock'; attestation?: string[] };
+      st.registers.push(body as Record<string, unknown>);
+      const row: DeviceKey = { id: `dk_${String(st.registers.length).padStart(24, '0')}`, label: b.label ?? '', auth_kind: b.auth_kind ?? 'biometric_or_screen_lock', attested: b.attestation?.length ? 'hardware' : 'none', counts: true };
+      st.deviceKeys = [...st.deviceKeys, row];
+      return json(route, { ...row, platform: 'android', created_at: '2026-11-28T08:00:00Z', last_used_at: null });
+    }
+    if (p === 'auth/push-approvals' && method === 'GET') {
+      st.approvalLooks += 1;
+      return json(route, { enabled: true, pending: [] });
+    }
     if (p === 'auth/step-up/verify' && method === 'POST') {
       const b = (body ?? {}) as { method?: string; code?: string; signature?: string; challenge_id?: string; key_id?: string };
       st.verifies.push(b);

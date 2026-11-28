@@ -117,5 +117,20 @@
     <!-- MFA-DEVICEKEY-2490: the phone key (DeviceKey.kt) -->
     <string name="device_key_prompt_title">אישור עם מפתח הטלפון</string>
     <string name="device_key_prompt_default">אישור הפעולה ב־SmplWise Arx</string>
+    <!-- FIX-PHONEKEY-2570 (SA2-02): the prompt's line from the SIGNED payload (DeviceKeyPolicy.promptOf), never the page's text -->
+    <string name="device_key_prompt_register">רישום מפתח הטלפון לחשבון</string>
+    <string name="device_key_prompt_sign_in">כניסה לחשבון</string>
+    <string name="device_key_prompt_approval">אישור בקשה ממסך אחר · מספר %1$s</string>
+    <string name="device_key_prompt_disarm">נטרול האזעקה</string>
+    <string name="device_key_prompt_bypass">עקיפת חיישן באזעקה</string>
+    <string name="device_key_prompt_alarm">פעולה באזעקה</string>
+    <string name="device_key_prompt_door">פתיחת דלת</string>
+    <string name="device_key_prompt_permissions">שינוי הרשאות</string>
+    <string name="device_key_prompt_users">שינוי משתמשים</string>
+    <string name="device_key_prompt_factors">שינוי דרכי האימות</string>
+    <string name="device_key_prompt_backup">שחזור גיבוי</string>
+    <string name="device_key_prompt_bridge">קוד חדש למפתח הגשר</string>
+    <string name="device_key_prompt_settings">שינוי הגדרות</string>
+    <string name="device_key_prompt_other">פעולה רגישה · %1$s</string>
     <string name="device_key_invalidated">מפתח הטלפון בוטל כי נוספה לטלפון טביעת אצבע או פנים חדשה. צריך לרשום אותו מחדש בחשבון שלי.</string>
 </resources>

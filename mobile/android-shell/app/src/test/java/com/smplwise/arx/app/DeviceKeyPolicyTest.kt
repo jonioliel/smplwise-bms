@@ -1,13 +1,14 @@
 package com.smplwise.arx.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** MFA-DEVICEKEY-2490 (+ MFA-DEVICEKEY-ATTEST-2490 attestation challenge): what the app agrees to sign with the phone key (DeviceKeyPolicy) and the bridge calls that reach it. */
+/** MFA-DEVICEKEY-2490 (+ MFA-DEVICEKEY-ATTEST-2490 attestation challenge, FIX-PHONEKEY-2570 prompt from the signed payload): what the app agrees to sign with the phone key (DeviceKeyPolicy) and the bridge calls that reach it. */
 class DeviceKeyPolicyTest {
     private val origin = "https://site.example.com"
     private val key = "dk_0123456789abcdef01234567"
@@ -61,11 +62,40 @@ class DeviceKeyPolicyTest {
         assertTrue(a.startsWith("arx_device_key_v1_") && a.length == "arx_device_key_v1_".length + 24)
     }
 
+    /** FIX-PHONEKEY-2570 (second deep review SA2-02): the prompt says what the SIGNED payload says - the page's text plays no part. */
+    private fun promptFor(payload: String) = DeviceKeyPolicy.promptOf(DeviceKeyPolicy.acceptable(payload, origin, key) ?: DeviceKeyPolicy.acceptable(payload, origin, null)!!)
+
     @Test
-    fun thePromptTextIsShortAndPlain() {
-        assertEquals("fallback", DeviceKeyPolicy.promptText("  ", "fallback"))
-        assertEquals("a b", DeviceKeyPolicy.promptText("a\nb", "fallback"))
-        assertEquals(DeviceKeyPolicy.MAX_PROMPT_TEXT, DeviceKeyPolicy.promptText("x".repeat(500), "f").length)
+    fun thePromptIsBuiltFromTheSignedPayloadOnly() {
+        val k = DeviceKeyPolicy.PromptKind
+        // a page that asks to sign a permission change while it shows "open the door" gets the permission change on the phone
+        assertEquals(DeviceKeyPolicy.Prompt(k.PERMISSIONS), promptFor(p("step_up", action = "rbac.assign")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.DOOR), promptFor(p("step_up", action = "door.open")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.DISARM), promptFor(p("step_up", action = "alarm.disarm")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.BYPASS), promptFor(p("step_up", action = "alarm.bypass")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.USERS), promptFor(p("step_up", action = "identity.local.manage")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.FACTORS), promptFor(p("step_up", action = "auth.second_factor.reset")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.SETTINGS), promptFor(p("step_up", action = "system.configure")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.SETTINGS), promptFor(p("step_up", action = "nvr.configure")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.BACKUP), promptFor(p("step_up", action = "backup.restore")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.OTHER, "tickets.manage"), promptFor(p("step_up", action = "tickets.manage")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.IDENTITY), promptFor(p("step_up")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.REGISTER), promptFor(p("register", k = "-")))
+        assertEquals(DeviceKeyPolicy.Prompt(k.SIGN_IN), promptFor(p("sign_in", user = "-")))
+    }
+
+    @Test
+    fun anApprovalShowsTheSignedNumber() { // the number inside the signed action, not one the page claims
+        assertEquals(DeviceKeyPolicy.Prompt(DeviceKeyPolicy.PromptKind.APPROVAL, "42"), promptFor(p("step_up", action = "auth.push_approval.n42")))
+        assertEquals(DeviceKeyPolicy.PromptKind.FACTORS, promptFor(p("step_up", action = "auth.push_approval.n4")).kind) // not a 2-digit number
+    }
+
+    @Test
+    fun theBridgeDoesNotPassThePagesTextToTheApp() {
+        val js = BridgeScript.source("2.1.0", "/arx/", "0123abcd")
+        assertTrue(js.contains("sign: function (payload) { return ask({ type: 'deviceKeySign', payload: String(payload) }); }"))
+        assertFalse(js.contains("text: String(text"))
+        assertTrue(js.contains("signedPrompt: true")) // the page offers the registration only to an app that does this
     }
 
     @Test
