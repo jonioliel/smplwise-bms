@@ -247,6 +247,10 @@ def is_dimmable(e: dict[str, Any]) -> bool:
 LOCK_KNOWN_STATES = frozenset({"locked", "unlocked", "open", "opening", "locking", "unlocking", "jammed"})
 
 
+# FIX-HOME-MAPS-2570 (MH-03): known lock states that say neither "locked" nor "open"
+LOCK_UNSETTLED_STATES = frozenset({"locking", "unlocking", "jammed"})
+
+
 def lock_known(e: dict[str, Any]) -> bool:
     """A lock entity whose state the area counts can say: available, and a lock state."""
     return e.get("available", True) is not False and e.get("state") in LOCK_KNOWN_STATES
@@ -311,7 +315,9 @@ def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
         counts["media_on"] += is_active(domain, state)
     elif domain == "lock":
         counts["locks"] += 1
-        if lock_known(e):
+        # FIX-HOME-MAPS-2570 (MH-03): a jammed lock, and one in the middle of locking / unlocking, can be vouched for neither as locked
+        # nor as open - they join `locks_unknown` (the "not locked" figure of the area row is locks - locked - unknown), never "open".
+        if lock_known(e) and e.get("state") not in LOCK_UNSETTLED_STATES:
             counts["locks_locked"] += is_active(domain, state)
         else:
             counts["locks_unknown"] += 1

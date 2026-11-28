@@ -98,6 +98,8 @@ export class SwRoomCard extends LitElement {
   @property() camera: RoomCardCamera = 'live';
   /** LOWS-FRONTEND-2550 (review SCR-52, owner Q1 a): the last "all off" of this room left some devices on - shown under the lights' title. */
   @property({ attribute: false }) bulkResult: { failed: number; total: number } | null = null;
+  /** FIX-HOME-MAPS-2570 (MH-04): this room's "all off" was not sent because a batch is still running (its own, or another room's). */
+  @property({ attribute: false }) bulkBusy: 'same' | 'other' | null = null;
   /** The sheet's height: low (the quick row and what is open) or full (tabs). */
   @property({ reflect: true }) sheet: 'peek' | 'full' = 'peek';
   @state() private tab: Tab = 'lights';
@@ -660,6 +662,7 @@ export class SwRoomCard extends LitElement {
       <h3>${tr('אורות · {v}', { v: m.lights.length ? tr('{on} מתוך {lightsCount} דולקים', { on, lightsCount: m.lights.length }) : tr('אין אורות בחדר') })}${off.length > 1
         ? html`<button type="button" class="act" data-room-all-off ?disabled=${m.stale} @click=${() => this.emit<RoomCardBulkDetail>('room-card-bulk', { label: tr('כבה הכול'), items: off.map((l) => ({ entityId: l.entityId, spec: l.spec! })) })}>${tr('כבה הכול')}</button>`
         : nothing}</h3>
+      ${this.bulkBusy ? html`<div class="empty bulk-left" role="status" data-room-bulk-busy>${this.bulkBusy === 'same' ? tr('הכיבוי של החדר עדיין רץ - אפשר ללחוץ שוב כשיסתיים') : tr('כיבוי של חדר אחר עדיין רץ - לא נשלח דבר. אפשר ללחוץ שוב כשיסתיים')}</div>` : nothing}
       ${this.bulkResult ? html`<div class="empty bulk-left" role="status" data-room-bulk-result>${tr('{failed} מתוך {total} לא כובו', { failed: this.bulkResult.failed, total: this.bulkResult.total })}</div>` : nothing}
       ${this.paged('lights', m.lights, per, (l) => html`<div class=${`r${l.on ? ' lit' : ''}${l.forbidden ? ' forbidden' : ''}`} data-room-light=${l.entityId}><sw-icon name="light" size=${18}></sw-icon><span class="l">${l.label}</span>
         ${l.forbidden ? html`<span class="no">${tr('אין הרשאה')}</span>` : html`<sw-toggle label=${l.label} labelHidden .checked=${live(!!l.on)} ?disabled=${!l.spec || l.on === null || m.stale || m.busy === l.entityId} @change=${() => l.spec && this.run(l.entityId, l.spec)}></sw-toggle>`}</div>`)}

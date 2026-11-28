@@ -8,6 +8,7 @@ import { followBulk, previewBulk, runBulk, type BulkScope } from '../api/device-
 import { httpAutomations } from '../api/automations';
 import { commandId } from '../api/request-id';
 import { describeError } from '../api/client';
+import { makeTargetSender } from './home-target';
 import type { HLight, HLoad, HRoom, HShade, HZone, HDoor, HScene } from './home-api';
 
 export type Outcome = { ok: boolean; note: string | null };
@@ -116,15 +117,8 @@ export function onModeFor(z: Pick<HZone, 'modes'>): string | null {
 
 /** A new target. A zone that WAS off (`wasOff`, read before the screen showed it on - SCR-31: the screen's own optimistic mode hid it, so
  * only the setpoint was sent and the unit stayed off) is turned on first with `onModeFor`, then gets the setpoint. */
-export async function setTarget(z: HZone, target: number, wasOff = z.mode === 'off'): Promise<Outcome> {
-  if (wasOff) {
-    const mode = onModeFor(z);
-    if (!mode) return { ok: false, note: null };
-    const o = await run(`home:${z.id}:mode`, z.id, 'climate.set_hvac_mode', { hvac_mode: mode });
-    if (!o.ok) return o;
-  }
-  return run(`home:${z.id}`, z.id, 'climate.set_temperature', { temperature: Math.max(z.min, Math.min(z.max, target)) });
-}
+const sendTarget = makeTargetSender((key, id, action, args) => run(key, id, action, args), onModeFor);
+export const setTarget = (z: HZone, target: number, wasOff = z.mode === 'off'): Promise<Outcome> => sendTarget(z, target, wasOff);
 
 export const setMode = (z: HZone, mode: string) =>
   mode === 'off' ? run(`home:${z.id}:mode`, z.id, 'climate.turn_off') : run(`home:${z.id}:mode`, z.id, 'climate.set_hvac_mode', { hvac_mode: mode });

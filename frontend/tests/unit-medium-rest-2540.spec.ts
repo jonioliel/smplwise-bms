@@ -255,7 +255,7 @@ test.describe('SCR-31: +/- on a zone that is off turns it on with the new target
     expect(body.indexOf('const wasOff')).toBeLessThan(body.indexOf('z.mode = mode'));
     expect(body).toContain('act.setTarget(z, z.target, wasOff)');
     const a = src('home/home-actions.ts');
-    expect(a).toContain('export async function setTarget(z: HZone, target: number, wasOff = z.mode === \'off\'): Promise<Outcome> {');
+    expect(a).toContain('export const setTarget = (z: HZone, target: number, wasOff = z.mode === \'off\'): Promise<Outcome> => sendTarget(z, target, wasOff);');
   });
 
   test('"room off" reads what is on before showing it off (the per-light path and the climate sent nothing)', () => {

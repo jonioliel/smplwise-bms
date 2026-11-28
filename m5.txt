@@ -1,0 +1,3 @@
+docs(changes): FIX-HOME-MAPS-2570 - test results and compare page
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
