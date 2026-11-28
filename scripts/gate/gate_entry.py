@@ -43,7 +43,8 @@ the head, at most --max-commits commits and --max-hours hours behind it, with at
 (frontend/src, smplwise_vms/backend/smplwise, custom_components) changed since. It qualifies when it is
   * a nightly judged green (or red only through quarantined tests), or
   * a release-gate FULL run that completed (the backend ran, no engine-level failure, no count-drop failure) and is either green or
-    a run of the SAME branch (its failures are what the --after chain re-runs).
+    the --after report ITSELF (its failures are exactly what the targeted run re-selects). FIX-GATE-2570 (lead 28.11): before, any
+    red full run of the same branch qualified, and its failures were re-run only if they also failed in the --after report.
     FIX-GATE-2570 (CD2-01): a run with a PROCESS-LEVEL failure (a crashed / timed-out backend shard, a Playwright process with no
     report / a timeout / zero tests, a fixture group that never started, a crashed pool job) did not run that process's tests. It
     qualifies only when it IS the --after report and every such item names the files its process owned (`files`, written by the
@@ -324,10 +325,13 @@ def anchor_check(results: Path, repo: Path, head: str, branch: str, after, now=N
             j = judge_nightly(doc, fin, now, entries, max_hours)
             qual, what = j["state"] in ("green", "explained"), f"nightly {j['state']}"
         else:
-            qual, what = full_run_completed(doc, is_after=_same_report(doc, adoc if isinstance(adoc, dict) else {}))
-            if qual and doc.get("verdict") != "pass" and doc.get("branch") != branch:
-                qual = False
-            if not qual and "process-level failure" in what:   # FIX-GATE-2570: say why a red full run is not the anchor
+            is_after = _same_report(doc, adoc if isinstance(adoc, dict) else {})
+            qual, what = full_run_completed(doc, is_after=is_after)
+            if qual and doc.get("verdict") != "pass" and not is_after:
+                # FIX-GATE-2570 (lead 28.11, Q1 a): a RED full run is the anchor only when it IS the --after report - only then are its
+                # failures exactly what the targeted run re-selects; another red run's failures would be re-run by nobody
+                qual, what = False, "a red full run that is not the --after report (its failures are re-run by nobody)"
+            if not qual and ("process-level failure" in what or "not the --after report" in what):   # say why it is not the anchor
                 if len(out["rejected"]) < 5:
                     out["rejected"].append({"report": name, "kind": kind, "sha": doc.get("sha"), "branch": doc.get("branch"),
                                             "verdict": doc.get("verdict"), "problems": [what]})

@@ -8,7 +8,8 @@ TR-05  the blocking backend lint lane lints the tree it is given (the gate's wor
        ~/smplwisebms, and release_gate2.sh runs the lane on its worktree after the checkout (for an --after run too).
 TR-07  the count-drop baseline: the tracked file is a floor, raised per category by the newest GREEN FULL run in the results
        directories; per-category thresholds (backend 0.90 ...); the 26.11 nightly case (31,941 of 44,902 backend) is RED.
-TR-09  a targeted --after run needs a coverage anchor: a completed full run (green, or red of the same branch) or a green nightly at an
+TR-09  a targeted --after run needs a coverage anchor: a completed full run (green, or red and the --after report itself - FIX-GATE-2570)
+       or a green nightly at an
        ancestor within N commits / H hours / F product files; otherwise release_gate2.sh runs the FULL tier and says why.
 """
 import datetime as dt
@@ -148,10 +149,16 @@ def main_part_tr09():
     sel_only = {f"gate_x_{shas[3]}.json": report(shas[3], full=False, verdict="fail"), f"gate_x_{shas[4]}.json": report(shas[4], full=False)}
     r = run(res("sel_only", sel_only))
     check("TR-09 only diff-selection runs behind the head (the 2.51.0 shape without its full run) -> no anchor", not r["ok"] and "no full run" in r["why"], r)
-    red_same = {f"gate_release-2540-train_{shas[2]}.json": report(shas[2], verdict="fail", hours_ago=5), **sel_only}
-    r = run(res("red_same", red_same))
-    check("TR-09 a completed RED full run of the same branch 3 commits back is the anchor (the normal full-red -> --after flow)",
+    red_doc = report(shas[2], verdict="fail", hours_ago=5)
+    red_same = {f"gate_release-2540-train_{shas[2]}.json": red_doc, **sel_only}
+    after_red = TMP / "anchor" / "after_red.json"
+    wj(after_red, red_doc)
+    r = ge.anchor_check(res("red_same", red_same), repo, head, BR, after_red, NOW, quarantine=TMP / "no_quarantine.json")
+    check("TR-09 a completed RED full run 3 commits back is the anchor when it IS the --after report (the normal full-red -> --after flow)",
           r["ok"] and r["anchor"]["sha"] == shas[2] and r["anchor"]["commits"] == 3 and r["anchor"]["product_files"] == 3, r)
+    r = run(res("red_same_other_after", red_same))
+    check("FIX-GATE-2570 Q1: a RED full run of the same branch is NOT the anchor of ANOTHER --after report (its failures are re-run by nobody)",
+          not r["ok"] and "not the --after report" in r["why"], r)
     red_other = {f"gate_release-2530-train_{shas[2]}.json": report(shas[2], branch="release/2530-train", verdict="fail")}
     r = run(res("red_other", red_other))
     check("TR-09 a RED full run of ANOTHER branch is not an anchor (its failures are re-run by nobody)", not r["ok"], r)
@@ -214,7 +221,7 @@ def main_part_tr09():
                        "--quarantine", str(TMP / "no_quarantine.json")])
         rec1 = json.loads(out.read_text(encoding="utf-8"))
         rc0 = ge.main(["anchor", "--results", str(TMP / "anchor" / "red_same"), "--repo", str(repo), "--head", head, "--branch", BR,
-                       "--after", str(after), "--json", str(out), "--now", NOW.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                       "--after", str(after_red), "--json", str(out), "--now", NOW.strftime("%Y-%m-%dT%H:%M:%S%z"),
                        "--quarantine", str(TMP / "no_quarantine.json")])
     finally:
         sys.stdout = old_out

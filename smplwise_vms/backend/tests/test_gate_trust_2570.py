@@ -372,3 +372,50 @@ def test_the_nightly_arm64_check_reads_the_default_base_without_build_args(tmp_p
     r = subprocess.run(["bash", str(ROOT / "scripts" / "gate" / "nightly_tests.sh"), f"--arm64-check={tree}"], capture_output=True,
                        text=True, timeout=60, env=env)
     assert "NOT_RUN (no smplwise_vms/Dockerfile" in r.stdout
+
+
+# ------------------------------------------------------------------------------------------------ lead 28.11: Q1 a, Q2 a, Q3 a
+
+def test_a_red_full_run_anchors_only_as_the_after_report_itself(tmp_path, monkeypatch):
+    monkeypatch.setattr(ge, "git_relation", lambda repo, a, b: {"ancestor": True, "commits": 2, "product_files": 1})
+    now = ge.parse_ts(RED["finished"])
+    red = {**RED, "items": [{"category": "preview", "id": "x.spec.ts:3 [desktop] t", "status": "FAIL", "reason": "assert"}]}
+    res = tmp_path / "results"
+    _write(res / "gate_release-2570-train_abc1234.json", red)
+    other_after = _write(tmp_path / "after_other.json", {**red, "sha": "def5678", "finished": "2026-11-28T11:00:00+0000",
+                                                         "selection": {"base": "v2.56.0", "reduced": {"backend": "1 of 2"}}})
+    r = ge.anchor_check(res, tmp_path, "head", RED["branch"], other_after, now, quarantine=tmp_path / "noq.json")
+    assert not r["ok"] and "not the --after report" in r["why"]                        # before: accepted (same branch)
+    self_after = _write(tmp_path / "after_self.json", red)
+    r = ge.anchor_check(res, tmp_path, "head", RED["branch"], self_after, now, quarantine=tmp_path / "noq.json")
+    assert r["ok"] and r["anchor"]["sha"] == "abc1234"
+
+
+def test_a_version_other_than_the_constraints_pin_is_a_hard_failure(rg, tmp_path):
+    import importlib.metadata as md
+    wt = tmp_path / "wt"
+    be = wt / "smplwise_vms" / "backend"
+    be.mkdir(parents=True)
+    (be / "requirements.txt").write_text("pytest>=7\n", encoding="utf-8")
+    real = md.version("pytest")
+    (be / "constraints.txt").write_text(f"# generated\npytest==0.0.1\niniconfig=={md.version('iniconfig')}\n"
+                                        "smplwise-not-installed-2570==1.0\n", encoding="utf-8")
+    logd = tmp_path / "logs"
+    logd.mkdir()
+    rg.PY = sys.executable
+    extra = {}
+    rg.product_requirements_check(wt, logd, extra)
+    fails = [i for i in rg.ITEMS if i["status"] == "FAIL"]
+    assert [i["id"] for i in fails] == ["pytest: version differs from the pin"] and fails[0]["category"] == "requirements"
+    assert f"pytest {real} (constraints.txt pins 0.0.1)" in fails[0]["reason"] and rg.compute_verdict([]) == "fail"
+    pr = extra["product_requirements"]
+    assert pr["state"] == "FAIL" and pr["constraints"] == 3 and pr["constraint_not_installed"] == ["smplwise-not-installed-2570"]
+    rg.COUNTS.clear(); rg.ITEMS.clear()
+    (be / "constraints.txt").write_text(f"pytest=={real}\n", encoding="utf-8")
+    rg.product_requirements_check(wt, logd, extra)
+    assert rg.compute_verdict([]) == "pass" and extra["product_requirements"]["state"] == "ok"
+
+
+def test_the_sftp_tests_import_paramiko_plainly():
+    src = (ROOT / "smplwise_vms" / "backend" / "tests" / "test_offbox_sftp.py").read_text(encoding="utf-8")
+    assert "\nimport paramiko\n" in src and "importorskip" not in src.split('"""', 2)[2]

@@ -15,7 +15,8 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     devices group; the fixture lane stops);
   * FIX-GATE-2570 (SA2-05 a): before the backend shards start, every product requirement of the branch
     (smplwise_vms/backend/requirements.txt, environment markers applied) must be installed AND importable in the test interpreter
-    (category `requirements`, a hard failure; a version other than the pin is listed in the report, not failed); and a backend
+    (category `requirements`, a hard failure; so is an installed package whose version differs from its pin in constraints.txt /
+    requirements.txt - the add-on image installs exactly those; a constrained package that is not installed is only listed); and a backend
     test skipped because a product requirement cannot be imported (pytest.importorskip, read from the shards' `-rs` summary) is a
     FAIL of that test file, never a silent skip;
   * each category's passed count is compared with its baseline; below the category's drop threshold of the baseline is a FAIL
@@ -796,7 +797,24 @@ try:
             rev.setdefault(re.sub(r"[-_.]+", "-", d).lower(), set()).add(mod)
 except Exception:
     pass
-out = {"checked": [], "missing": [], "broken": [], "mismatch": [], "skipped": [], "modules": {}}
+out = {"checked": [], "missing": [], "broken": [], "mismatch": [], "skipped": [], "modules": {}, "constraints": 0,
+       "constraint_not_installed": []}
+def applies(marker):
+    if not marker.strip():
+        return True
+    try:
+        return Marker(marker.strip()).evaluate() if Marker else (sys.platform != "win32" if "win32" in marker else True)
+    except Exception:
+        return True
+pins = {}
+if len(sys.argv) > 2:   # FIX-GATE-2570 (lead 28.11): constraints.txt fixes the exact version of every package, direct or transitive
+    for raw in open(sys.argv[2], encoding="utf-8"):
+        line = raw.split("#", 1)[0].strip()
+        req, _, marker = line.partition(";")
+        m = re.match(r"([A-Za-z0-9_.-]+)\s*==\s*([\w.+!-]+)\s*$", req.strip())
+        if m and applies(marker):
+            pins[re.sub(r"[-_.]+", "-", m.group(1)).lower()] = (m.group(1), m.group(2))
+    out["constraints"] = len(pins)
 for raw in open(sys.argv[1], encoding="utf-8"):
     line = raw.split("#", 1)[0].strip()
     if not line or line.startswith("-"):
@@ -806,14 +824,9 @@ for raw in open(sys.argv[1], encoding="utf-8"):
     if not m:
         continue
     name, spec = m.group(0), req.strip()[m.end():]
-    if marker.strip():
-        try:
-            applies = Marker(marker.strip()).evaluate() if Marker else (sys.platform != "win32" if "win32" in marker else True)
-        except Exception:
-            applies = True
-        if not applies:
-            out["skipped"].append(name)
-            continue
+    if not applies(marker):
+        out["skipped"].append(name)
+        continue
     key = re.sub(r"[-_.]+", "-", name).lower()
     out["checked"].append(name)
     try:
@@ -822,14 +835,22 @@ for raw in open(sys.argv[1], encoding="utf-8"):
         out["missing"].append(name)
         continue
     pin = re.search(r"==\s*([\w.]+)", spec)
-    if pin and pin.group(1) != ver:
-        out["mismatch"].append(f"{name} {ver} (pinned {pin.group(1)})")
+    if pin and pin.group(1) != ver and key not in pins:
+        out["mismatch"].append(f"{name} {ver} (requirements.txt pins {pin.group(1)})")
     for mod in sorted(x for x in rev.get(key, ()) if not x.startswith("_")):
         out["modules"][mod] = name
         try:
             importlib.import_module(mod)
         except Exception as exc:
             out["broken"].append(f"{name}: import {mod} -> {type(exc).__name__}: {str(exc)[:120]}")
+for key, (name, want) in sorted(pins.items()):
+    try:
+        ver = md.version(name)
+    except md.PackageNotFoundError:
+        out["constraint_not_installed"].append(name)
+        continue
+    if ver != want:
+        out["mismatch"].append(f"{name} {ver} (constraints.txt pins {want})")
 print(json.dumps(out))
 """
 # import names of requirements that are NOT installed (no metadata to read them from): the usual distribution -> module renames
@@ -863,7 +884,9 @@ def product_requirements_check(wt, logd, extra):
     for n in names:
         key = re.sub(r"[-_.]+", "-", n).lower()
         PRODUCT_MODULES[REQ_IMPORT_ALIASES.get(key, key.replace("-", "_"))] = n
-    rc, to = run([PY, "-c", REQ_CHECK_SCRIPT, str(req)], Path(wt) / "smplwise_vms" / "backend", logd / "requirements_check.log", timeout=300)
+    cons = req.with_name("constraints.txt")   # FIX-GATE-2570 (lead 28.11): a version other than its pin is a HARD failure
+    rc, to = run([PY, "-c", REQ_CHECK_SCRIPT, str(req)] + ([str(cons)] if cons.is_file() else []), Path(wt) / "smplwise_vms" / "backend",
+                 logd / "requirements_check.log", timeout=300)
     try:
         lines = [x for x in (logd / "requirements_check.log").read_text(errors="replace").splitlines() if x.startswith("{")]
         res = json.loads(lines[-1])
@@ -884,11 +907,18 @@ def product_requirements_check(wt, logd, extra):
     for b in res.get("broken", []):
         count("requirements", "fail")
         item("requirements", b.split(":", 1)[0] + ": does not import", "FAIL", b)
-    if not res.get("missing") and not res.get("broken"):
+    for v in res.get("mismatch", []):   # the add-on image installs exactly these versions: a test on another version proves less
+        count("requirements", "fail")
+        item("requirements", v.split(" ", 1)[0] + ": version differs from the pin", "FAIL", f"{v} in the test interpreter {PY}; install the "
+             "pinned set (pip install -r requirements.txt -c constraints.txt) and run the gate again")
+    bad = res.get("missing") or res.get("broken") or res.get("mismatch")
+    if not bad:
         count("requirements", "pass")
-    extra["product_requirements"] = {"state": "ok" if not res.get("missing") and not res.get("broken") else "FAIL",
-                                     "checked": len(res.get("checked", [])), "missing": res.get("missing", []),
-                                     "broken": res.get("broken", []), "version_differs": res.get("mismatch", []),
+    extra["product_requirements"] = {"state": "FAIL" if bad else "ok",
+                                     "checked": len(res.get("checked", [])), "constraints": res.get("constraints", 0),
+                                     "missing": res.get("missing", []), "broken": res.get("broken", []),
+                                     "version_differs": res.get("mismatch", []),
+                                     "constraint_not_installed": res.get("constraint_not_installed", []),
                                      "not_for_this_platform": res.get("skipped", [])}
 
 
@@ -2909,7 +2939,7 @@ def write_reports(sha, verdict, extra):
         md += [f"- product requirements in the test interpreter: {pr.get('state')}"
                + (f"; missing: {', '.join(pr['missing'])}" if pr.get("missing") else "")
                + (f"; not importable: {len(pr['broken'])}" if pr.get("broken") else "")
-               + (f"; version differs from the pin (not failed): {', '.join(pr['version_differs'])}" if pr.get("version_differs") else "")]
+               + (f"; version differs from the pin (FAIL): {', '.join(pr['version_differs'])}" if pr.get("version_differs") else "")]
     if extra.get("backend_shards"):
         md += [f"- backend: {len(extra['backend_shards'])} shards, scratch: {extra.get('backend_scratch', 'disk')}"]
     if extra.get("pool"):
