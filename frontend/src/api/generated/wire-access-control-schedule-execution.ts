@@ -13,7 +13,8 @@ export interface ScheduleExecutionCheck {
 /**
  * The last status read of one WisKey job (memory only). `phase`: waiting_owner / review_pending / approved / rejected / executing /
  * attention / executed / failed / cancelled / not_found / unknown. `physical_result` is always `unproven` (WisKey's own word);
- * `final`: executed or cancelled - not read again.
+ * `final`: executed or cancelled - not read again. `reviews_unread` (FIX-WISKEY-2570): the review reads of this check failed, so
+ * `reviews` (and the phase) are the last complete review read of the job, or zero when there was none.
  */
 export interface ScheduleExecutionJob {
   job_id: string;
@@ -27,6 +28,7 @@ export interface ScheduleExecutionJob {
   steps_verified: number;
   reviews: ScheduleExecutionReviews;
   reviews_read: boolean;
+  reviews_unread: boolean;
   physical_result: string;
   read_at: string;
   final: boolean;
