@@ -102,6 +102,7 @@ export interface HaEntities {
 export interface HaEntitiesArea {
   area_id: string;
   area_name: string;
+  building_id?: string | null;
 }
 
 export interface HaEntitiesBuildingFilter {

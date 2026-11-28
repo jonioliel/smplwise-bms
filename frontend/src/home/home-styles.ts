@@ -130,7 +130,7 @@ sw-segmented::part(key):focus-visible {outline: 3px solid var(--hs-focus); outli
 .pager {display: flex; align-items: center; justify-content: center; gap: 14px; flex: none;}
 .pager .pg {font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 76px; text-align: center;}
 /* FIX-MAPS2-2570 (MH2-08): the pager's words follow the language ("1 מתוך 2" right to left, "1 out of 2" left to right; the numbers
-   are isolated `.num` spans), and a directional chevron (hi(name, 'flip'): back / forward, previous / next) is drawn for right to left
+   are isolated .num spans), and a directional chevron (hi(name, 'flip'): back / forward, previous / next) is drawn for right to left
    and mirrored in English. Only these icons: video and map geometry are never mirrored, nor are the keypads' delete keys. */
 .hi.flip:dir(ltr) {scale: -1 1;}
 .empty {flex: 1; display: grid; justify-items: center; align-content: center; gap: 8px; text-align: center; color: var(--hs-text-2); padding: 24px; grid-column: 1 / -1; grid-row: 1 / -1;}
