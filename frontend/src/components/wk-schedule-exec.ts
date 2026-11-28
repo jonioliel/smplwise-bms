@@ -14,7 +14,7 @@ import {
   type ScheduleExecutionJob,
   type ScheduleExecutionView,
 } from '../api/schedule-execution';
-import { anyExecuted, canCheckExec, execPhase, execSupport, execTone, visibleJobs } from '../access-control/schedule-execution-logic';
+import { anyExecuted, canCheckExec, execPhase, execSupport, execTone, reviewsUnread, visibleJobs } from '../access-control/schedule-execution-logic';
 import type { Tone } from '../access-control/schedule-editor-logic';
 import { reasonOf, sed } from '../i18n/schedule-editor';
 
@@ -232,6 +232,7 @@ export class WkScheduleExec extends LitElement {
     const parts: string[] = [sed(`sx_h_${phase}` as Key)];
     if (read?.code && phase !== 'executed') parts.push(reasonOf(read.code));
     if (read && read.steps_total > 0) parts.push(sed('sx_steps', { v: read.steps_verified, n: read.steps_total }));
+    if (reviewsUnread(read)) parts.push(sed('sx_reviewsUnread'));
     const checkable = canCheckExec(read, this.view, !!this.busy);
     return html`<div class="row" data-sx-job=${j.id} data-phase=${phase}>
       <div class="main">

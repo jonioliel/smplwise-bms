@@ -18,6 +18,7 @@ function job(over: Partial<ScheduleExecutionJob> = {}): ScheduleExecutionJob {
     steps_verified: 0,
     reviews: { pending: 0, approved: 0, rejected: 0 },
     reviews_read: true,
+    reviews_unread: false,
     physical_result: 'unproven',
     read_at: '2026-11-25T08:00:00Z',
     final: false,
