@@ -158,7 +158,7 @@ test('FE2-16: A then B, B saved and A refused afterwards - the screen keeps B (t
   const T = await import('../src/shell/tabs-mode');
   let releaseA: (r: Reply) => void = () => undefined;
   const heldA = new Promise<Reply>((r) => (releaseA = r));
-  await withFetch((n, c) => {
+  await withFetch((_n, c) => {
     if (c.method === 'GET') return { status: 200, body: { prefs: {}, stored: [], updated_at: null } };
     const b = JSON.parse(c.body ?? '{}') as Record<string, unknown>;
     if (b['ui.dd_settings_nav'] === 'dropdown') return heldA; // A: answered last, refused
@@ -174,7 +174,7 @@ test('FE2-16: A then B, B saved and A refused afterwards - the screen keeps B (t
     expect(T.ownSettingsNav()).toBe('tabs');
   });
   // the last save refused: back to what the server holds
-  await withFetch((n, c) => (c.method === 'GET' ? { status: 200, body: { prefs: {}, stored: [], updated_at: null } } : { status: 422, body: { code: 'validation', user_message: 'x', retryable: false, correlation_id: 'c', details: {} } }), async () => {
+  await withFetch((_n, c) => (c.method === 'GET' ? { status: 200, body: { prefs: {}, stored: [], updated_at: null } } : { status: 422, body: { code: 'validation', user_message: 'x', retryable: false, correlation_id: 'c', details: {} } }), async () => {
     await T.loadTabsMode('u-fe2b', true);
     const out = await settle(T.saveOwnSettingsNav('dropdown'));
     expect(out).toBeInstanceOf(ApiError);

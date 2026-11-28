@@ -179,7 +179,7 @@ test('FE2-01: the home launcher asks before a sensitive scene and sends it with 
 test('FE2-01 (area quick sheet): a refused scene is SHOWN under the chips, not swallowed', async ({ page }) => {
   await setup(page, (s) => (/\/apply$/.test(s.path) ? fail('forbidden', 'אין לך הרשאה לפעולה הזו.', 403) : undefined));
   const note = await page.evaluate(async (it) => {
-    const el = document.createElement('area-quick-sheet') as HTMLElement & { runScene(i: unknown): Promise<void>; sceneNote?: { text: string; bad: boolean } | null };
+    const el = document.createElement('area-quick-sheet') as unknown as HTMLElement & { runScene(i: unknown): Promise<void>; sceneNote?: { text: string; bad: boolean } | null };
     await el.runScene(it);
     return el.sceneNote ?? null;
   }, scene({ sensitive: false, targets: [] }));
@@ -194,7 +194,7 @@ test.describe('VD2-05: a scene that got no answer is "unknown - check on site", 
     await setup(page, (s) => (/\/apply$/.test(s.path) ? fail('run_too_soon', 'הסצנה הופעלה ממש עכשיו.', 409) : undefined));
     await page.route(`${ORIGIN}/app/api/v1/automations/scene/entity%3Ascene.calm/apply`, (r) => r.abort('connectionreset'));
     const tones = await page.evaluate(async ([a, b]) => {
-      const el = document.createElement('scenes-panel') as HTMLElement & { items: unknown[]; activate(i: unknown): Promise<void> };
+      const el = document.createElement('scenes-panel') as unknown as HTMLElement & { items: unknown[]; activate(i: unknown): Promise<void> };
       const seen: string[] = [];
       el.addEventListener('result', (e) => seen.push((e as CustomEvent<{ tone: string }>).detail.tone));
       el.items = [a, b];
@@ -210,7 +210,7 @@ test.describe('VD2-05: a scene that got no answer is "unknown - check on site", 
     await setup(page, () => undefined);
     await page.route(`${ORIGIN}/app/api/v1/automations/**`, (r) => r.abort('connectionreset'));
     const note = await page.evaluate(async (it) => {
-      const el = document.createElement('area-quick-sheet') as HTMLElement & { runScene(i: unknown): Promise<void>; sceneNote?: { text: string; bad: boolean; warn?: boolean } | null };
+      const el = document.createElement('area-quick-sheet') as unknown as HTMLElement & { runScene(i: unknown): Promise<void>; sceneNote?: { text: string; bad: boolean; warn?: boolean } | null };
       await el.runScene(it);
       return el.sceneNote ?? null;
     }, scene({ sensitive: false, targets: [] }));
@@ -234,7 +234,7 @@ test.describe('VD2-05: a scene that got no answer is "unknown - check on site", 
       return { body: { items: [], total: 0 } };
     });
     const done = page.evaluate(async () => {
-      const el = document.createElement('scenes-panel') as HTMLElement & { onSave(e: CustomEvent): Promise<void> };
+      const el = document.createElement('scenes-panel') as unknown as HTMLElement & { onSave(e: CustomEvent): Promise<void> };
       document.body.append(el);
       await el.onSave(new CustomEvent('save', { detail: { name: 'יציאה', members: [{ entity_id: 'lock.front', state: 'locked', attributes: {} }] } }));
     });
@@ -372,7 +372,7 @@ test.describe('FE2-09: the scenario editor', () => {
     const slowA = held<{ status?: number; body?: unknown }>();
     await setup(page, (s) => (s.path === 'scenarios/A' ? slowA.promise : s.path === 'scenarios/B' ? { body: sc('B') } : undefined));
     const done = page.evaluate(async () => {
-      const el = document.createElement('scenarios-panel') as HTMLElement & { openEditor(id: string): Promise<void>; editing: { id: string } | null };
+      const el = document.createElement('scenarios-panel') as unknown as HTMLElement & { openEditor(id: string): Promise<void>; editing: { id: string } | null };
       (window as unknown as { panel: unknown }).panel = el;
       const a = el.openEditor('A');
       await el.openEditor('B');
@@ -387,7 +387,7 @@ test.describe('FE2-09: the scenario editor', () => {
   test('a double click on "delete" sends ONE delete', async ({ page }) => {
     const sent = await setup(page, (s) => (s.method === 'DELETE' ? { status: 204 } : { body: { scenarios: [], can_manage: true } }));
     await page.evaluate(async (s) => {
-      const el = document.createElement('scenarios-panel') as HTMLElement & { removeScenario(): Promise<void>; editing: unknown };
+      const el = document.createElement('scenarios-panel') as unknown as HTMLElement & { removeScenario(): Promise<void>; editing: unknown };
       el.editing = s;
       await Promise.all([el.removeScenario(), el.removeScenario()]);
     }, sc('S'));

@@ -7,6 +7,7 @@
 Synthetic data only."""
 from __future__ import annotations
 
+from conftest import seed_tree
 from fastapi.testclient import TestClient
 
 from smplwise.db import set_setting
@@ -17,7 +18,9 @@ API = "/api/v1"
 
 def _app(settings):
     app = create_app(settings)
-    return app, TestClient(app)
+    c = TestClient(app)
+    seed_tree(c)  # the first administrator's binding, as the presence tests
+    return app, c
 
 
 def test_presence_answers_carry_the_installation_zone(settings):

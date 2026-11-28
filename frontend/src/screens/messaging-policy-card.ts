@@ -114,7 +114,7 @@ export class MessagingPolicyCard extends LitElement {
     void this.run(() => messagingPolicyApi().setEnforce(on));
   }
 
-  private async remove(id: string, label: string): Promise<void> {
+  private async removeEntry(id: string, label: string): Promise<void> {
     const v = this.view;
     if (!v || this.busy || !this.editable) return;
     const b = blockingChange(v, { remove: true });
@@ -180,7 +180,7 @@ ${mw('blocksAll')}` : mw('confirmRemove', { name: label })))) return;
           <span class="tag" data-role=${e.role}>${mw(`role_${e.role}` as MwKey)}</span>
           <span class="tag ltr">${e.last4 ? `…${e.last4}` : '–'}</span>
           ${this.editable ? html`<sw-button size="sm" variant="ghost" data-remove ?disabled=${this.busy}
-            @click=${() => void this.remove(e.id, e.label)}>${mw('remove')}</sw-button>` : nothing}</div>`)
+            @click=${() => void this.removeEntry(e.id, e.label)}>${mw('remove')}</sw-button>` : nothing}</div>`)
           : html`<p class="muted" data-empty>${mw('empty')}</p>`}
         ${pg.pages > 1 ? html`<div class="pager" data-pager>
           <sw-button size="sm" variant="ghost" data-prev ?disabled=${pg.page === 0} @click=${() => (this.page = pg.page - 1)}>${mw('prev')}</sw-button>
