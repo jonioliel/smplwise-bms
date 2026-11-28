@@ -88,7 +88,7 @@ type Ovl =
   | { type: 'zones' }
   | { type: 'hold'; f: Fav; label: string }
   | { type: 'guard'; id: string }
-  | { type: 'ask'; title: string; text: string; yes: string; run: () => void }
+  | { type: 'ask'; title: string; text: string; yes: string; run: () => void; no?: () => void }
   | { type: 'kiosk'; code: string; error: string }
   | { type: 'code'; title: string; code: string; error: string; run: (code: string) => void }
   | { type: 'talk' }
@@ -166,8 +166,8 @@ export class SwHome extends LitElement implements P3Host {
   /** CR-CMP2-TOAST-2440 (07:F12): the message and its one timer (stopped when the home leaves the page); the undo rides beside it. */
   private readonly toaster = new ToastController(this, { ms: 5200 });
   private toastUndo: (() => void) | null = null;
-  private get toastMsg(): { text: string; undo: (() => void) | null } | null {
-    return this.toaster.visible ? { text: this.toaster.text, undo: this.toastUndo } : null;
+  private get toastMsg(): { text: string; undo: (() => void) | null; tone: string } | null {
+    return this.toaster.visible ? { text: this.toaster.text, undo: this.toastUndo, tone: this.toaster.tone } : null;
   }
   @state() private armed: string | null = null;
   @state() private sceneRun: string | null = null;
@@ -669,9 +669,9 @@ export class SwHome extends LitElement implements P3Host {
 
   // ---------------------------------------------------------------- toasts and commands
 
-  toast(text: string, undo: (() => void) | null = null) {
+  toast(text: string, undo: (() => void) | null = null, tone: '' | 'warn' = '') {
     this.toastUndo = undo;
-    this.toaster.show(text);
+    this.toaster.show(text, { tone });
   }
 
   private async outcome(p: Promise<act.Outcome>, okText?: string) {
@@ -917,16 +917,26 @@ export class SwHome extends LitElement implements P3Host {
   a_scene(el: HTMLElement) {
     const s = this.d.scenes.find((x) => x.id === el.dataset.scene);
     if (!s) return;
-    const runIt = () => {
+    // RELEASE-2570-TRAIN (FIX-FE2-2570 rule): asked here first for a sensitive scene; a 409 `confirmation_required` asks the same question
+    const ask = () => new Promise<boolean>((resolve) => {
+      this.ovl = { type: 'ask', title: tr('להפעיל את {name}?', { name: s.name }), text: tr('הסצנה הזו משנה גם דברים רגישים.'), yes: tr('כן, הפעל'), run: () => resolve(true), no: () => resolve(false) };
+    });
+    const runIt = (asked: boolean) => {
       this.sceneRun = s.id;
       window.setTimeout(() => { this.sceneRun = null; }, 620);
       this.lastScene = s.id;
       try { sessionStorage.setItem('home.lastScene', s.id); } catch { /* storage unavailable: this page only */ }
-      // HOME-FAVORITES-2500 (Q79): once it ran, a leaving / night scene may suggest locking the doors or arming (always asked, with the code)
-      void act.applyScene(s).then((o) => { void this.outcome(Promise.resolve(o), tr('סצנת {name} הופעלה', { name: s.name })); if (o.ok) void afterScene(this, s); });
+      // FE2-04: 202 = the request was accepted, the devices' outcome is not known; VD2-05: a lost answer is amber "unknown", never "did not run"
+      void act.applyScene(s, () => (asked ? Promise.resolve(true) : ask())).then((o) => {
+        if (!o.sent) return;
+        if (o.unknown) { this.toast(tr('לא ידוע אם הסצנה הופעלה · בדקו במקום'), null, 'warn'); this.scheduleRefresh(900); return; }
+        void this.outcome(Promise.resolve(o), tr('הבקשה להפעלת {name} נשלחה', { name: s.name }));
+        // HOME-FAVORITES-2500 (Q79): once it ran, a leaving / night scene may suggest locking the doors or arming (always asked, with the code)
+        if (o.ok) void afterScene(this, s);
+      });
     };
-    if (s.sensitive) this.ovl = { type: 'ask', title: tr('להפעיל את {name}?', { name: s.name }), text: tr('הסצנה הזו משנה גם דברים רגישים.'), yes: tr('כן, הפעל'), run: runIt };
-    else runIt();
+    if (s.sensitive || s.unknownEffects) this.ovl = { type: 'ask', title: tr('להפעיל את {name}?', { name: s.name }), text: tr('הסצנה הזו משנה גם דברים רגישים.'), yes: tr('כן, הפעל'), run: () => runIt(true) };
+    else runIt(false);
   }
   a_askYes() { const o = this.ovl; this.ovl = null; if (o?.type === 'ask') o.run(); }
   a_roomStep(el: HTMLElement) { this.stepRoom(+(el.dataset.d ?? 1)); }
@@ -1077,7 +1087,7 @@ export class SwHome extends LitElement implements P3Host {
     void notify().ack(a.id).then(() => { a.open = false; a.tone = 'ok'; this.requestUpdate(); this.toast(tr('טופל. תודה.')); }).catch((err) => this.toast(describeError(err)));
   }
   a_menu() { this.ovl = { type: 'menu' }; }
-  a_close() { this.ovl = null; }
+  a_close() { const o = this.ovl; this.ovl = null; if (o?.type === 'ask') o.no?.(); }
   a_closeNav() { this.ovl = null; return true; }
   a_face(el: HTMLElement) {
     const v = el.dataset.v === 'full' ? 'full' : 'home';
@@ -1888,7 +1898,7 @@ export class SwHome extends LitElement implements P3Host {
 
   private toasts() {
     const t = this.toastMsg;
-    return html`<div class="toasts" aria-live="polite">${t ? html`<div class="toast2"><span>${t.text}</span>${t.undo ? html`<button data-act="undo">${tr('ביטול')}</button>` : nothing}</div>` : nothing}</div>`;
+    return html`<div class="toasts" aria-live="polite">${t ? html`<div class="toast2" data-tone=${t.tone || nothing}><span>${t.text}</span>${t.undo ? html`<button data-act="undo">${tr('ביטול')}</button>` : nothing}</div>` : nothing}</div>`;
   }
 }
 

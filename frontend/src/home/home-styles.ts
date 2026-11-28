@@ -458,6 +458,8 @@ a.st-pill::after, button.st-pill::after {content: ""; position: absolute; inset:
 .ovl .still {transition: none !important;}
 .toasts {position: fixed; inset-inline: 0; inset-block-end: 24px; z-index: 60; display: grid; justify-items: center; pointer-events: none; padding-inline: 16px;}
 .toast2 {--hit: 56px; pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; min-block-size: 64px; padding-inline: 22px 6px; border-radius: 18px; background: var(--hs-toast-bg); color: var(--hs-toast-text); font-family: var(--hs-font); font-size: 17px; font-weight: 500; box-shadow: var(--hs-shadow-3); max-inline-size: 100%; transition: opacity 200ms ease, transform 240ms var(--hs-ease);}
+/* RELEASE-2570-TRAIN: an amber edge for "not known whether it ran" (a lost answer) - never the look of a failure */
+.toast2[data-tone="warn"] {outline: .15em solid var(--c); outline-offset: -.15em;}
 .toast2 > span {padding-inline-end: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
 .toasts .toast2 button {min-block-size: var(--hit); padding: 0 18px; border-radius: 14px; color: var(--hs-toast-act); font-weight: 700; font-size: 17px; cursor: pointer;}
 @starting-style { .toast2 {transform: translateY(14px);} }

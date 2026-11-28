@@ -907,7 +907,8 @@ export const en = {
   'כובה': 'Turned off',
   '{name}: האורות והמיזוג כובו': '{name}: the lights and the air conditioning were turned off',
   'האורות והמיזוג בכל הבית כובו': 'The lights and the air conditioning in the whole house were turned off',
-  'סצנת {name} הופעלה': 'The scene {name} was run',
+  'הבקשה להפעלת {name} נשלחה': 'The request to run {name} was sent', // RELEASE-2570-TRAIN (FE2-04 on the home screen)
+  'לא ידוע אם הסצנה הופעלה · בדקו במקום': 'Not known whether the scene ran · check on site', // RELEASE-2570-TRAIN (VD2-05)
   'להפעיל את {name}?': 'Run {name}?',
   'הסצנה הזו משנה גם דברים רגישים.': 'This scene also changes sensitive things.',
   'הוסר מהמועדפים': 'Removed from the favourites',

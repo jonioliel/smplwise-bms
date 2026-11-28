@@ -98,7 +98,7 @@ export interface HRoom {
 }
 export interface HFloor { id: string; name: string; short: string }
 export interface HCamera { id: string; name: string; ok: boolean; room: string | null }
-export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; icon: string; does: string; lastRun?: string | null }
+export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; unknownEffects?: boolean; icon: string; does: string; lastRun?: string | null }
 export interface HAlert { id: string; tone: 'warn' | 'info' | 'ok'; icon: string; text: string; when: string; open: boolean; canAck: boolean; link: string; door: Notification['door'] }
 interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number, string?][]; price: number | null }
 
@@ -185,7 +185,7 @@ export async function loadScenes(): Promise<HScene[]> {
       .filter((s: AutoItem) => !s.hidden && s.state !== 'invalid' && s.can.run)
       // HOME-FAVORITES-2500 (Q75): canEdit = the server's can.edit and scene.manage at ANY scope (a floor-scoped home manager; was installation only)
       .map((s: AutoItem) => ({
-        id: s.id, name: s.name, rooms: s.areas.map((a) => a.id), canRun: s.can.run, canEdit: s.can.edit && canAnywhere('scene.manage'), sensitive: s.sensitive,
+        id: s.id, name: s.name, rooms: s.areas.map((a) => a.id), canRun: s.can.run, canEdit: s.can.edit && canAnywhere('scene.manage'), sensitive: s.sensitive, unknownEffects: !!s.unknown_effects,
         icon: SCENE_ICON.find(([re]) => re.test(s.name))?.[1] ?? 'scenes', does: s.description || s.sentence || '', lastRun: s.last_run?.at ?? null,
       }));
   } catch {

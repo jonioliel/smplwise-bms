@@ -6,9 +6,10 @@
 import { debouncedCommand, runCommand, type CommandState } from '../api/device-commands';
 import { followBulk, previewBulk, runBulk, type BulkScope } from '../api/device-bulk';
 import { httpAutomations } from '../api/automations';
-import { commandId } from '../api/request-id';
 import { describeError } from '../api/client';
 import { makeTargetSender } from './home-target';
+import { runHomeScene, type SceneOutcome } from './home-scene-run';
+import type { RunAsk } from '../api/run-confirm';
 import type { HLight, HLoad, HRoom, HShade, HZone, HDoor, HScene } from './home-api';
 
 export type Outcome = { ok: boolean; note: string | null };
@@ -131,11 +132,8 @@ export const moveShade = (s: HShade, v: 'open' | 'close' | 'stop') =>
 export const openDoor = (d: HDoor) => run(`home:${d.id}`, d.id, 'lock.unlock', {}, true);
 export const lockDoor = (d: HDoor) => run(`home:${d.id}`, d.id, 'lock.lock', {}, true);
 
-export async function applyScene(s: HScene): Promise<Outcome> {
-  try {
-    await httpAutomations.applyScene(s.id, { confirm: s.sensitive ? true : undefined, client_request_id: commandId() });
-    return { ok: true, note: null };
-  } catch (err) {
-    return { ok: false, note: describeError(err) };
-  }
-}
+/** A scene (RELEASE-2570-TRAIN): the shared run-with-confirmation rule and the unknown-outcome reading (home-scene-run.ts); `ask` is the
+ * home screen's own question (already answered yes for a scene it asked about before the press). */
+export const applyScene = (s: HScene, ask: RunAsk): Promise<SceneOutcome> =>
+  runHomeScene({ id: s.id, name: s.name, sensitive: s.sensitive, unknown_effects: !!s.unknownEffects, targets: [] },
+    (o) => httpAutomations.applyScene(s.id, o), ask, describeError);
