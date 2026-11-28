@@ -1,4 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // FIX-SECURITY2-2570 (deep review 2.57 SA2-03): Settings > general > the installer branding and the brand colours. A failed first read of
 // the stored values was silent and left an editable default form that saved over them (the installer profile: all four fields; the
@@ -102,3 +104,32 @@ test.describe('FIX-SECURITY2-2570 SA2-03: branding cards after a failed read', (
     await expect.poll(() => m.patches).toEqual([{ 'ui.accent': 'teal' }]); // the stored switch colour is never rewritten
   });
 });
+
+// The compare-page pictures (both cards after a failed read; on the base build they show the silent, editable default form):
+//   SW_SHOTS_DIR=<dir> SW_UNIT_PAGES=1 SW_BASE_URL=... npx playwright test -c playwright.unit.config.ts tests/unit-brand-load-2570.spec.ts -g shots
+const SHOTS = process.env.SW_SHOTS_DIR || '';
+for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 390, height: 844 }]) {
+  test(`shots: the branding cards after a failed read, ${vp.name}`, async ({ page }) => {
+    test.skip(!SHOTS, 'compare-page pictures only (SW_SHOTS_DIR)');
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    const m: Mock = { failInstaller: true, failSettings: false, puts: [], patches: [] };
+    await mockApp(page, m);
+    await page.goto('/?design=a&look=performance:full#/live/cameras');
+    await page.waitForSelector('sw-app');
+    m.failSettings = true;
+    await page.evaluate(() => { window.location.hash = '#/system/diagnostics'; });
+    const cards = { installer: page.locator('sw-app system-brand-installer'), colors: page.locator('sw-app system-brand-colors') };
+    await expect(cards.installer).toBeVisible({ timeout: 20_000 });
+    await expect(cards.colors).toBeVisible({ timeout: 20_000 });
+    await page.waitForTimeout(800);
+    fs.mkdirSync(SHOTS, { recursive: true });
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+      await page.waitForTimeout(300);
+      for (const [name, el] of Object.entries(cards)) {
+        await el.scrollIntoViewIfNeeded();
+        await el.screenshot({ path: path.join(SHOTS, `sa2-03-${name}-${vp.name}-${scheme}.png`) });
+      }
+    }
+  });
+}
