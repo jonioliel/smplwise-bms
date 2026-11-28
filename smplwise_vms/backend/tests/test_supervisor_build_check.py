@@ -118,8 +118,7 @@ def test_dockerfile_default_must_be_the_multi_arch_base_of_the_build_yaml_tag(tm
 
 def test_the_shipped_dockerfile_default_is_the_multi_arch_base():
     df = (ROOT / "smplwise_vms" / "Dockerfile").read_text(encoding="utf-8")
-    assert f"ARG BUILD_FROM={MULTI}
-" in df, "the default must not name one architecture"
+    assert f"ARG BUILD_FROM={MULTI}" in df.splitlines(), "the default must not name one architecture"
     by = rc.parse_build_from((ROOT / "smplwise_vms" / "build.yaml").read_text(encoding="utf-8"))
     assert by == {"amd64": AMD, "aarch64": ARM}, "build.yaml keeps the per-arch names of the same tag for older Supervisors"
 
