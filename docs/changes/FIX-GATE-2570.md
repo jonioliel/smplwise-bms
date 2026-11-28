@@ -61,16 +61,19 @@ because `paramiko`, a pinned product requirement, was missing from the test inte
   test interpreter (`PY`) reads the branch's `smplwise_vms/backend/requirements.txt` (environment markers applied with
   `packaging.markers`), and every requirement must be installed (`importlib.metadata`) and each of its top-level modules must
   import. A missing or unimportable one is a FAIL of the new hard category `requirements` (not a test category: never
-  quarantined; the summary asks for a fix and a new gate). A version other than the `==` pin is listed in the report
-  (`product_requirements.version_differs`), not failed - on the runner today `uvloop 0.23.0` (pinned 0.22.1) and `pillow 12.3.0`
-  (pinned 13.0.0) differ (read-only probe, 28.11).
+  quarantined; the summary asks for a fix and a new gate).
+- Lead 28.11 (Q2 a): every INSTALLED package with an `==` pin in `constraints.txt` (or in `requirements.txt`) must have exactly that
+  version - otherwise `FAIL <name>: version differs from the pin` (category `requirements`, hard). A constrained package that is not
+  installed (a transitive pin the test environment does not need) is listed (`constraint_not_installed`), not failed.
+  **This needs the pinned install on the runner first:** `~/smplwisebms/.venv/bin/pip install -r smplwise_vms/backend/requirements.txt
+  -c smplwise_vms/backend/constraints.txt` - without it the 2.57 gate is red at once (the lead counted 15 differing packages on 28.11,
+  among them pillow 12.3.0 vs 13.0.0 and uvloop 0.23.0 vs 0.22.1; the check's own count is in the test table below).
 - The backend shards now run with `-rfEs` (the skip reasons are printed); `requirement_skips` reads the
   `SKIPPED [n] tests/test_x.py:L: could not import 'mod'` lines and a skip whose module is a product requirement (its import names
   from the check, or the usual rename table for an uninstalled one) is `FAIL tests/test_x.py: skipped - product requirement ...`
   with `files` = that test file (the `--after` re-run re-selects it). An optional tool's `importorskip` stays a skip.
 - `gate_entry.full_run_completed`: a run with a `requirements` failure is not a coverage anchor (its tests did not run).
-- Recommended for the owner of `tests/test_offbox_sftp.py` (not this row's file): replace the `importorskip` by a plain import, as
-  the review suggests; the gate now fails either way.
+- Lead 28.11 (Q3 a): `tests/test_offbox_sftp.py` imports `paramiko` plainly (no `importorskip`): without it the file FAILS.
 
 ## Nightly: report-only arm64 Dockerfile check (lead 28.11; deep review CD2-08)
 
@@ -89,22 +92,27 @@ time). Bounded: `SW_NIGHTLY_ARM64_CHECK_SECS` (300) or what is left before the e
 
 `scripts/release_check.py` is NOT touched by this row (FIX-CORE2-2570's base-image rule there is unaffected).
 
+## Lead 28.11 (Q1 a): a red full run anchors only as the `--after` report
+
+`gate_entry.anchor_check`: a RED full run is the coverage anchor only when it IS the `--after` report (same branch, sha, finish
+time) - only then are its failures exactly what the targeted run re-selects. Before, any red full run of the same branch qualified and
+its failures were re-run only if they also failed in the `--after` report. The rejected run is listed with the reason ("a red full run
+that is not the --after report"). `selftest_gate_trust.py`: the TR-09 "red full run of the same branch" case now passes the red report
+itself as `--after`; a new case pins that the same red run is no anchor for another `--after` report; the CLI case uses the red report.
+
 ## Not changed
 
 - `scripts/gate/gate_backcompare.py` (analysis tool) keeps its own re-implementation of `failed_files` without `files`: it only
   compares past reports, never selects tests.
-- A red full run of the same branch that is NOT the `--after` report still anchors with its TEST-level failures (TR-09 rule,
-  unchanged; pinned by `selftest_gate_trust.py`): those tests are re-run only if they also failed in the `--after` report. Raised as
-  an open question in the report.
 
 ## Installed engine files that change (for the lead's `engine_sync.py install` before the 2.57 gate)
 
 | repo file | installed as | change |
 |---|---|---|
-| `scripts/gate/release_gate.py` | `~/release_gate.py`, `~/gate2/release_gate.py`, `~/nightly-gate/release_gate.py` | engine (CD2-01 files on items, CD2-03) |
+| `scripts/gate/release_gate.py` | `~/release_gate.py`, `~/gate2/release_gate.py`, `~/nightly-gate/release_gate.py` | engine (CD2-01 files on items, CD2-03, SA2-05 a requirements + constraints pins) |
 | `scripts/gate/gate2_select.py` | `~/gate2/gate2_select.py` | `failed_files` / `select_gate2` / `rerun_only_selection` (CD2-01) |
-| `scripts/gate/gate_entry.py` | `~/gate2/gate_entry.py` | the coverage anchor (CD2-01) |
-| `scripts/gate/selftest_gate_trust.py` | `~/gate2/selftest_gate_trust.py` | three CD2-01 cases + one SA2-05 a case |
+| `scripts/gate/gate_entry.py` | `~/gate2/gate_entry.py` | the coverage anchor (CD2-01, Q1 a, SA2-05 a) |
+| `scripts/gate/selftest_gate_trust.py` | `~/gate2/selftest_gate_trust.py` | CD2-01, SA2-05 a and Q1 a cases |
 | `scripts/gate/nightly_tests.sh` | `~/nightly_tests.sh` | the arm64 Dockerfile check (on top of FIX-CORE-DATA-2570's version) |
 | `scripts/gate/fixture_lane.sh` | `~/fixture_lane.sh` | header comment only (optional) |
 
@@ -141,7 +149,16 @@ Every test / selftest command below was run on the runner through slot B (28.11)
 | selftests `selftest_gate`, `selftest_gate_trust`, `selftest_gate_speed_2550` | AFTER `b8dc4ebdd` | all 3 PASSED |
 | the real `nightly_tests.sh --arm64-check=` on this tree (v2.56.0 Dockerfile) | runner, real docker | `FAIL - the default base image ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22 has no linux/arm64 (platforms: linux/amd64 unknown/unknown) ...; build checks OK` |
 | `docker buildx build --check --platform linux/arm64` alone | v2.56.0 Dockerfile / FIX-CORE2-2570 Dockerfile | both rc 0 "Check complete, no warnings found." (why step 2 exists) |
-| the real `product_requirements_check` on this tree | runner venv | ok, 17 checked, none missing / broken; version differs: uvloop 0.23.0 (pin 0.22.1), pillow 12.3.0 (pin 13.0.0) |
+| the real `product_requirements_check` on this tree | runner venv, `b8dc4ebdd` (requirements.txt pins only) | ok, 17 checked, none missing / broken; version differs: uvloop 0.23.0 (pin 0.22.1), pillow 12.3.0 (pin 13.0.0) |
+| **Run 3 (lead Q1 a / Q2 a / Q3 a)** | | |
+| the three new tests (red anchor only as `--after`, constraints pin, plain paramiko import) | BEFORE: `c91b44e19` + the new test file | **3 failed** |
+| `selftest_gate_trust.py` (new copy) | BEFORE: `c91b44e19` | **1 BROKEN**: "a RED full run of the same branch is NOT the anchor of ANOTHER --after report" |
+| `tests/test_gate_trust_2570.py` | AFTER `ced224772` | 23 passed |
+| `test_offbox_sftp`, `test_gate2_select`, `test_gate_speed`, `test_select_tests` | AFTER `ced224772` | 62 passed (the SFTP tests run and pass with the plain import) |
+| hygiene / always_run / addon_build / tablet / visual group | AFTER `ced224772` | 218 passed |
+| fixture_job / coverage_lane / release_check / nightly / wire_route group | AFTER `ced224772` | 1 failed (`test_release_check.py::test_repository_is_release_consistent`), 50 passed - the same test fails identically on `origin/release/2570-train` @ `1c526b71b` itself (train state, not this row) |
+| all 7 gate selftests | AFTER `ced224772` | all PASSED |
+| the real `product_requirements_check` with constraints.txt | runner venv, before the lead's pinned install | **FAIL**: 17 requirements + 49 constraint pins checked, none missing, **15 versions differ** (anyio, brotli, certifi, click, ezdxf, fonttools, numpy, pillow 12.3.0 vs 13.0.0, pycparser, pydyf, starlette, typing-inspection, tzdata, uharfbuzz, uvloop 0.23.0 vs 0.22.1) - the expected red until the pinned install |
 
 NOT_RUN: the nightly arm64 test against the BASE script (the base has no `--arm64-check` option: it would take it as a branch name
 and start a real nightly); a real gate, fixture lane or nightly (never run by a fix row); Playwright; anything on the lab.
