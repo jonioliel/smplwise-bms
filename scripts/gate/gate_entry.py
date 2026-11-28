@@ -275,7 +275,8 @@ def full_run_completed(doc: dict, is_after: bool = False) -> tuple[bool, str]:
         return False, "a diff selection"
     if ((doc.get("counts") or {}).get("backend") or {}).get("pass", 0) <= 0:
         return False, "the backend did not run"
-    bad = [i for i in doc.get("items", []) if i.get("status") == "FAIL" and i.get("category") in ("gate", "baseline")]
+    # FIX-GATE-2570 (SA2-05 a): `requirements` = a product requirement missing from the test interpreter: its tests did not run
+    bad = [i for i in doc.get("items", []) if i.get("status") == "FAIL" and i.get("category") in ("gate", "baseline", "requirements")]
     if bad:
         return False, f"incomplete ({bad[0].get('category')}: {str(bad[0].get('id'))[:80]})"
     for i in process_failures(doc):

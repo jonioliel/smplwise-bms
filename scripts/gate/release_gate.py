@@ -13,6 +13,11 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     is a FAIL ("zero tests ran"); preview / dev processes may legitimately self-skip whole (environment-gated evidence specs) and are
     listed as SKIPPED_ALL instead; a fixture_specs.json that exists but does not parse is a FAIL (the gate still runs the built-in
     devices group; the fixture lane stops);
+  * FIX-GATE-2570 (SA2-05 a): before the backend shards start, every product requirement of the branch
+    (smplwise_vms/backend/requirements.txt, environment markers applied) must be installed AND importable in the test interpreter
+    (category `requirements`, a hard failure; a version other than the pin is listed in the report, not failed); and a backend
+    test skipped because a product requirement cannot be imported (pytest.importorskip, read from the shards' `-rs` summary) is a
+    FAIL of that test file, never a silent skip;
   * each category's passed count is compared with its baseline; below the category's drop threshold of the baseline is a FAIL
     unless the run started with --allow-count-drop "<reason>" (check_baselines()). GATE-TRUST-2540 (TR-07): the baseline of a category
     is the HIGHER of gate_baselines.json (a tracked floor) and that category's passed count in the newest GREEN FULL tier-L run of the
@@ -710,7 +715,7 @@ def backend_start(wt, logd, nshards=3, only=None):
             continue
         log = logd / f"backend_s{k}.log"
         SHARD_FILES[k] = [os.path.basename(f) for f in fl]   # FIX-GATE-2570 (CD2-01)
-        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")]
+        p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfEs", "--basetemp", str(logd / f"tmp_b{k}")]
                   + lane_pytest_args() + fl, bd, log)
         procs.append((k, p, log))
     return procs, len(files)
@@ -775,6 +780,136 @@ def retry_verdicts(todo, rc, timed_out, text):
     return out
 
 
+# ---------------------------------------------------------------- product requirements (FIX-GATE-2570, SA2-05 a)
+# Run by the TEST interpreter (PY) on the branch's requirements.txt: every requirement whose environment marker applies must be
+# installed (importlib.metadata) and its top-level modules must import. Prints one JSON line.
+REQ_CHECK_SCRIPT = r"""
+import importlib, importlib.metadata as md, json, re, sys
+try:
+    from packaging.markers import Marker
+except Exception:
+    Marker = None
+rev = {}
+try:
+    for mod, dists in md.packages_distributions().items():
+        for d in dists:
+            rev.setdefault(re.sub(r"[-_.]+", "-", d).lower(), set()).add(mod)
+except Exception:
+    pass
+out = {"checked": [], "missing": [], "broken": [], "mismatch": [], "skipped": [], "modules": {}}
+for raw in open(sys.argv[1], encoding="utf-8"):
+    line = raw.split("#", 1)[0].strip()
+    if not line or line.startswith("-"):
+        continue
+    req, _, marker = line.partition(";")
+    m = re.match(r"[A-Za-z0-9_.-]+", req.strip())
+    if not m:
+        continue
+    name, spec = m.group(0), req.strip()[m.end():]
+    if marker.strip():
+        try:
+            applies = Marker(marker.strip()).evaluate() if Marker else (sys.platform != "win32" if "win32" in marker else True)
+        except Exception:
+            applies = True
+        if not applies:
+            out["skipped"].append(name)
+            continue
+    key = re.sub(r"[-_.]+", "-", name).lower()
+    out["checked"].append(name)
+    try:
+        ver = md.version(name)
+    except md.PackageNotFoundError:
+        out["missing"].append(name)
+        continue
+    pin = re.search(r"==\s*([\w.]+)", spec)
+    if pin and pin.group(1) != ver:
+        out["mismatch"].append(f"{name} {ver} (pinned {pin.group(1)})")
+    for mod in sorted(x for x in rev.get(key, ()) if not x.startswith("_")):
+        out["modules"][mod] = name
+        try:
+            importlib.import_module(mod)
+        except Exception as exc:
+            out["broken"].append(f"{name}: import {mod} -> {type(exc).__name__}: {str(exc)[:120]}")
+print(json.dumps(out))
+"""
+# import names of requirements that are NOT installed (no metadata to read them from): the usual distribution -> module renames
+REQ_IMPORT_ALIASES = {"pillow": "PIL", "fpdf2": "fpdf", "python-multipart": "multipart", "pyyaml": "yaml", "beautifulsoup4": "bs4",
+                      "pymupdf": "fitz", "python-dateutil": "dateutil", "opencv-python": "cv2", "scikit-learn": "sklearn"}
+PRODUCT_MODULES = {}   # top-level import name -> product requirement (filled by product_requirements_check)
+
+
+def requirement_names(req_text):
+    """The distribution names of a requirements.txt text (comments, options and markers dropped)."""
+    out = []
+    for raw in req_text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        m = re.match(r"[A-Za-z0-9_.-]+", line)
+        if m:
+            out.append(m.group(0))
+    return out
+
+
+def product_requirements_check(wt, logd, extra):
+    """FIX-GATE-2570 (SA2-05 a): every product requirement installed and importable in the test interpreter; a hard FAIL
+    (category `requirements`) per missing / broken one. Fills PRODUCT_MODULES for the skip check of backend_finish()."""
+    req = Path(wt) / "smplwise_vms" / "backend" / "requirements.txt"
+    try:
+        names = requirement_names(req.read_text(encoding="utf-8"))
+    except OSError:
+        extra["product_requirements"] = {"state": "not checked (no smplwise_vms/backend/requirements.txt)"}
+        return
+    for n in names:
+        key = re.sub(r"[-_.]+", "-", n).lower()
+        PRODUCT_MODULES[REQ_IMPORT_ALIASES.get(key, key.replace("-", "_"))] = n
+    rc, to = run([PY, "-c", REQ_CHECK_SCRIPT, str(req)], Path(wt) / "smplwise_vms" / "backend", logd / "requirements_check.log", timeout=300)
+    try:
+        lines = [x for x in (logd / "requirements_check.log").read_text(errors="replace").splitlines() if x.startswith("{")]
+        res = json.loads(lines[-1])
+    except (OSError, ValueError, IndexError):
+        res = None
+    if res is None or rc != 0:
+        count("requirements", "fail")
+        item("requirements", "product requirements check", "FAIL", f"the check did not run (rc={rc}{', timeout' if to else ''}); "
+             "see requirements_check.log - a product requirement may be missing from the test environment")
+        extra["product_requirements"] = {"state": "check failed", "rc": rc}
+        return
+    PRODUCT_MODULES.update(res.get("modules") or {})
+    for n in res.get("missing", []):
+        count("requirements", "fail")
+        item("requirements", f"{n}: not installed", "FAIL", f"the product requirement {n} (smplwise_vms/backend/requirements.txt) is not installed "
+             f"in the test interpreter {PY}: its tests would be skipped or fail; install the pinned requirements (pip install -r "
+             "requirements.txt -c constraints.txt) and run the gate again")
+    for b in res.get("broken", []):
+        count("requirements", "fail")
+        item("requirements", b.split(":", 1)[0] + ": does not import", "FAIL", b)
+    if not res.get("missing") and not res.get("broken"):
+        count("requirements", "pass")
+    extra["product_requirements"] = {"state": "ok" if not res.get("missing") and not res.get("broken") else "FAIL",
+                                     "checked": len(res.get("checked", [])), "missing": res.get("missing", []),
+                                     "broken": res.get("broken", []), "version_differs": res.get("mismatch", []),
+                                     "not_for_this_platform": res.get("skipped", [])}
+
+
+SKIP_IMPORT_RE = re.compile(r"^SKIPPED \[\d+\] (?:\S+/)?(tests/test_[^:\s]+\.py)(?::\d+)?: could not import '([\w.]+)'")
+
+
+def requirement_skips(text):
+    """[(test file, module, requirement)] of the `-rs` lines of a shard log whose test was skipped because a PRODUCT requirement
+    could not be imported (pytest.importorskip). A module that is no product requirement (an optional tool) is not listed."""
+    out = []
+    for line in text.splitlines():
+        m = SKIP_IMPORT_RE.match(line.strip())
+        if not m:
+            continue
+        top = m.group(2).split(".", 1)[0]
+        req = PRODUCT_MODULES.get(top) or PRODUCT_MODULES.get(top.lower())
+        if req:
+            out.append((m.group(1), m.group(2), req))
+    return out
+
+
 def backend_finish(procs, wt, logd):
     allfails = []
     tot = {"passed": 0, "failed": 0, "skipped": 0, "error": 0}
@@ -790,6 +925,11 @@ def backend_finish(procs, wt, logd):
         c, fails = parse_pytest(text)
         for w in tot:
             tot[w] += c.get(w, 0)
+        for tf, mod, req in sorted(set(requirement_skips(text))):   # FIX-GATE-2570 (SA2-05 a): never a silent skip
+            count("backend", "fail")
+            item("backend", f"{tf}: skipped - product requirement {req} cannot be imported", "FAIL",
+                 f"pytest.importorskip('{mod}') skipped tests of {tf}, but {req} is a product requirement (requirements.txt): its tests "
+                 f"never ran; install it in the test interpreter; see {log.name}", files=[tf])
         rc = p.returncode
         if not c:
             item("backend", f"shard {k}", "FAIL", "no pytest summary (crash or timeout); see " + log.name, files=own)
@@ -1330,7 +1470,8 @@ def write_scratch_owner(d, tag):
 
 
 def backend_cmd(names, logd, k, basetemp, v2):
-    cmd = [PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(basetemp)] + lane_pytest_args()
+    # -rfEs: the skip reasons too (FIX-GATE-2570, SA2-05 a: a product requirement that cannot be imported is found in them)
+    cmd = [PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfEs", "--basetemp", str(basetemp)] + lane_pytest_args()
     if v2:   # per-file times for the next gate's split; a passed test's tmp_path is removed at its teardown
         cmd += ["-o", "tmp_path_retention_policy=failed", "--junitxml", str(logd / f"backend_s{k}.xml")]
     return cmd + ["tests/" + x for x in names]
@@ -2763,6 +2904,12 @@ def write_reports(sha, verdict, extra):
         r = extra["resources"]
         md += [f"- resources (every 30 s, {r['samples']} samples): max load1 {r['max_load1']}, min MemAvailable {r['min_mem_available_mb']} MB"
                + (f"; {cpu_summary(r)}" if cpu_summary(r) else "")]
+    if extra.get("product_requirements"):   # FIX-GATE-2570 (SA2-05 a)
+        pr = extra["product_requirements"]
+        md += [f"- product requirements in the test interpreter: {pr.get('state')}"
+               + (f"; missing: {', '.join(pr['missing'])}" if pr.get("missing") else "")
+               + (f"; not importable: {len(pr['broken'])}" if pr.get("broken") else "")
+               + (f"; version differs from the pin (not failed): {', '.join(pr['version_differs'])}" if pr.get("version_differs") else "")]
     if extra.get("backend_shards"):
         md += [f"- backend: {len(extra['backend_shards'])} shards, scratch: {extra.get('backend_scratch', 'disk')}"]
     if extra.get("pool"):
@@ -2935,6 +3082,7 @@ def main():
             if not need_modules(wt, logd / "npm.log"):
                 hard_fail.append("npm ci failed")
         if TIER in ("M", "L") and not SKIP_BACKEND and not backend_resumed:
+            product_requirements_check(wt, logd, extra)   # FIX-GATE-2570 (SA2-05 a): a few seconds, before the shards start
             if SCHEDULE == "v2":
                 n = max(1, knob("GATE_BACKEND_SHARDS", 3, 6))
                 with Phase("backend-start", f"backend: {n} shards started (v2)"):

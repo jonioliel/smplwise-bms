@@ -271,3 +271,62 @@ def test_fixture_job_with_nothing_to_run_fails(monkeypatch, capsys, tmp_path):
     assert fj.main(["--gate", "--no-build"]) == 1
     out = capsys.readouterr().out
     assert "nothing to run" in out and "FIXTURE_PASS" not in out
+
+
+# ------------------------------------------------------------------------------------------------ SA2-05 a: product requirements
+
+def test_a_missing_or_unimportable_product_requirement_fails_the_gate(rg, tmp_path):
+    wt = tmp_path / "wt"
+    (wt / "smplwise_vms" / "backend").mkdir(parents=True)
+    (wt / "smplwise_vms" / "backend" / "requirements.txt").write_text(
+        "# comment\npytest>=7\nsmplwise-no-such-pkg-2570==1.0\nuvloop==0.22.1; sys_platform == \"never-a-platform\"\n", encoding="utf-8")
+    logd = tmp_path / "logs"
+    logd.mkdir()
+    rg.PY = sys.executable
+    extra = {}
+    rg.product_requirements_check(wt, logd, extra)
+    fails = [i for i in rg.ITEMS if i["status"] == "FAIL"]
+    assert [i["id"] for i in fails] == ["smplwise-no-such-pkg-2570: not installed"] and fails[0]["category"] == "requirements"
+    assert rg.compute_verdict([]) == "fail" and extra["product_requirements"]["state"] == "FAIL"
+    assert extra["product_requirements"]["not_for_this_platform"] == ["uvloop"]      # its marker does not apply: not checked
+    assert rg.PRODUCT_MODULES["smplwise_no_such_pkg_2570"] == "smplwise-no-such-pkg-2570" and rg.PRODUCT_MODULES.get("pytest") == "pytest"
+    rg.COUNTS.clear(); rg.ITEMS.clear()
+    (wt / "smplwise_vms" / "backend" / "requirements.txt").write_text("pytest>=7\n", encoding="utf-8")
+    rg.product_requirements_check(wt, logd, extra)
+    assert rg.compute_verdict([]) == "pass" and rg.COUNTS["requirements"]["pass"] == 1 and extra["product_requirements"]["state"] == "ok"
+    assert "-rfEs" in rg.backend_cmd(["test_a.py"], logd, 1, tmp_path / "bt", True)   # the shards print their skip reasons
+
+
+def test_a_test_skipped_for_a_missing_product_requirement_is_a_fail(rg, tmp_path):
+    proj = tmp_path / "be"
+    (proj / "tests").mkdir(parents=True)
+    (proj / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (proj / "tests" / "test_req_skip.py").write_text(
+        "import pytest\n\nsftp = pytest.importorskip('smplwise_no_such_mod_2570')\n\n\ndef test_push():\n    assert sftp\n", encoding="utf-8")
+    (proj / "tests" / "test_optional_skip.py").write_text(
+        "import pytest\n\n\ndef test_tool():\n    pytest.importorskip('some_optional_tool_2570')\n", encoding="utf-8")
+    (proj / "tests" / "test_fine.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+    logd = tmp_path / "logs"
+    logd.mkdir()
+    rg.PY = sys.executable
+    cmd = rg.backend_cmd(["test_req_skip.py", "test_optional_skip.py", "test_fine.py"], logd, 1, tmp_path / "bt", False)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_")}
+    r = subprocess.run(cmd, cwd=str(proj), env=env, capture_output=True, text=True, timeout=120)
+    (logd / "backend_s1.log").write_text(r.stdout + r.stderr, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr                                      # pytest itself: green, 2 skipped
+    rg.PRODUCT_MODULES.update({"smplwise_no_such_mod_2570": "smplwise-no-such-mod-2570"})
+    assert rg.requirement_skips(r.stdout) == [("tests/test_req_skip.py", "smplwise_no_such_mod_2570", "smplwise-no-such-mod-2570")]
+    rg.DEADLINE = 10 ** 12
+    rg.SHARD_FILES[1] = ["test_req_skip.py", "test_optional_skip.py", "test_fine.py"]
+    rg.backend_finish([(1, _Proc(0), logd / "backend_s1.log")], tmp_path, logd)
+    fails = [i for i in rg.ITEMS if i["status"] == "FAIL"]
+    assert len(fails) == 1 and fails[0]["id"].startswith("tests/test_req_skip.py: skipped - product requirement smplwise-no-such-mod-2570")
+    assert fails[0]["files"] == ["test_req_skip.py"] and rg.compute_verdict([]) == "fail"
+    got = g2s.failed_files(_write(tmp_path / "r.json", {**RED, "items": rg.ITEMS}))
+    assert got["backend"] == {"test_req_skip.py"}                                      # the --after re-run re-checks that file
+
+
+def test_a_run_whose_environment_lacked_a_product_requirement_is_no_anchor():
+    doc = {**RED, "items": [{"category": "requirements", "id": "paramiko: not installed", "status": "FAIL", "reason": "x"}]}
+    ok, why = ge.full_run_completed(doc, is_after=True)
+    assert not ok and "requirements" in why
