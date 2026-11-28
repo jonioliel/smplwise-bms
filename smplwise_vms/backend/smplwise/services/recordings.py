@@ -14,11 +14,15 @@ import sqlite3
 import threading
 import time
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from ..config import Settings
 from ..errors import ApiError
 from . import nvr
-from .timeutil import UTC, iso_utc, nvr_wall_to_utc, utc_to_nvr_wall, zone
+from .timeutil import UTC, iso_utc, nvr_span_to_utc, utc_to_nvr_wall, zone
+from . import video_text  # noqa: F401 - registers `recordings.*` (FIX-VIDEO2-2570)
+from ..i18n import join as _join
+from ..i18n import t as _t
 from .ttl_cache import TtlCache
 from ..test_reset import register_reset
 
@@ -47,7 +51,7 @@ class SearchResult:
     pages: int
     searched_at: str
     timezone: str
-    note: str = ""
+    note: str = ""  # FIX-VIDEO2-2570: may be a `Msg` (or a join of them), rendered in the reader's language by the route
 
 
 # CR-HEALTH-POLLERS (03:F21): the shared TTL cache - bounded at 512 (the oldest quarter goes), one search per key at a time
@@ -77,8 +81,15 @@ def merge(segments: list[Segment]) -> list[Segment]:
 
 def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[nvr.SearchMatch], str, int]:
     """Raw NVR matches (one per recording file) for [start, end): paged, serialized, de-duplicated.
-    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached).
+    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached, or - FIX-VIDEO2-2570 VD2-06 - the
+    recorder still said MORE but sent a page it had already sent: the rest of the window was never read).
     CR-024: the search goes to the camera's own recorder."""
+    matches, coverage, pages, _reason = list_matches_why(settings, cam, start, end, tz_name)
+    return matches, coverage, pages
+
+
+def list_matches_why(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[nvr.SearchMatch], str, int, str]:
+    """`list_matches` plus why the coverage is partial: "" | "page_cap" | "repeated_page"."""
     from ..recorder_scope import camera_settings
 
     settings = camera_settings(settings, cam)
@@ -92,6 +103,7 @@ def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: 
     seen: set[tuple[int, str, str]] = set()
     pages = 0
     coverage = "complete"
+    reason = ""
     with _search_lock:  # KNOWN_QUIRKS S2: maxConcurrentSearches = 1
         import uuid
 
@@ -107,12 +119,15 @@ def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: 
                 seen.add(k)
                 new += 1
                 matches.append(m)
-            if page.status != "MORE" or not page.matches or new == 0:
+            if page.status == "MORE" and page.matches and new == 0:
+                coverage, reason = "partial", "repeated_page"  # VD2-06: "more" was promised, a page already read came back
+                break
+            if page.status != "MORE" or not page.matches:
                 break
         else:
-            coverage = "partial"
+            coverage, reason = "partial", "page_cap"
     matches.sort(key=lambda m: m.start_raw)
-    return matches, coverage, pages
+    return matches, coverage, pages, reason
 
 
 def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> SearchResult:
@@ -146,15 +161,34 @@ def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, e
         _cache.put(key, result, at=now)
         return result
     tz = zone(tz_name)
-    matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
+    matches, coverage, pages, reason = list_matches_why(settings, cam, start, end, tz_name)
     segments: list[Segment] = []
+    dropped = 0
+    ambiguous = False
     for m in matches:
-        s_utc = nvr_wall_to_utc(m.start_raw, tz)
-        e_utc = nvr_wall_to_utc(m.end_raw, tz)
-        if e_utc <= start or s_utc >= end or e_utc <= s_utc:
-            continue  # outside the window (devices may return boundary files) or malformed
+        # FIX-VIDEO2-2570 (VD2-04): the IANA zone with both readings of the hour the autumn change repeats (a file that crosses the
+        # change ends on the second occurrence); a file no reading can place is counted, never silently lost
+        span = nvr_span_to_utc(m.start_raw, m.end_raw, tz, start, end)
+        if span is None:
+            dropped += 1
+            continue
+        s_utc, e_utc, amb = span
+        if e_utc <= start or s_utc >= end:
+            continue  # outside the window (devices may return boundary files)
+        ambiguous = ambiguous or amb
         segments.append(Segment(start_at=iso_utc(max(s_utc, start)), end_at=iso_utc(min(e_utc, end)), kind=_kind(m.record_type), track_id=m.track_id, start_raw=m.start_raw, end_raw=m.end_raw))
-    note = f"page cap ({MAX_PAGES} × {PAGE_SIZE}) reached" if coverage == "partial" else ""
+    notes: list[Any] = []
+    if reason == "page_cap":
+        notes.append(f"page cap ({MAX_PAGES} × {PAGE_SIZE}) reached")
+    elif reason == "repeated_page":
+        notes.append(_t("recordings.repeated_page"))
+    if ambiguous:
+        notes.append(_t("recordings.repeated_hour"))
+    if dropped:
+        notes.append(_t("recordings.dropped", n=dropped))
+    if ambiguous or dropped:
+        coverage = "partial"  # AGENTS: partial coverage is never reported as complete
+    note = _join("; ", notes)
     result = SearchResult(segments=merge(segments), coverage=coverage, matches=len(matches), pages=pages, searched_at=iso_utc(dt.datetime.now(UTC)), timezone=tz_name, note=note)
     _cache.put(key, result, at=now)
     return result

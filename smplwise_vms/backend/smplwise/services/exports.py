@@ -34,7 +34,7 @@ from ..db import Database, get_setting, now_iso, retry_locked, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
 from .child_env import minimal_env
-from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
+from .timeutil import UTC, iso_utc, nvr_span_to_utc, parse_utc, zone
 from ..test_reset import register_reset
 from ..error_text import tpl
 
@@ -93,10 +93,15 @@ def _files_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, s
     matches, coverage, _pages = recordings.list_matches(settings, cam, start, end, tz_name)
     files: list[ExportFile] = []
     for m in matches:
-        s_utc = nvr_wall_to_utc(m.start_raw, tz)
-        e_utc = nvr_wall_to_utc(m.end_raw, tz)
+        span = nvr_span_to_utc(m.start_raw, m.end_raw, tz, start, end)  # FIX-VIDEO2-2570 (VD2-04): both readings of the repeated hour
+        if span is None:
+            coverage = "partial"  # a file no reading of the zone can place: counted as missing, never as "all files"
+            continue
+        s_utc, e_utc, ambiguous = span
         if e_utc <= start or s_utc >= end or not m.playback_uri:
             continue
+        if ambiguous:
+            coverage = "partial"
         q = parse_qs(urlsplit(m.playback_uri).query)
         size = q.get("size", [None])[0]
         name = q.get("name", [None])[0] or f"{m.track_id}_{m.start_raw}"

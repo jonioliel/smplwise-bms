@@ -29,6 +29,8 @@ TEXTS: dict[str, tuple[str, str]] = {
     "bridge_too_old": ("נדרש עדכון של רכיב החיבור כדי לשמור את החלק הזה", "The connection component must be updated to save this part"),
     "device_not_in_scope": ("המפסק אינו בהיקף ההרשאה שלך", "The switch is outside the scope of your permission"),
     "rate_limited": ("יותר מדי בקשות ברצף; נסו שוב בעוד רגע.", "Too many requests in a row; try again in a moment."),
+    "listen_running": ("זיהוי בלחיצה כבר פועל עבורך; לחצו על המפסק או המתינו לסיום ההאזנה.",
+                       "Detect by pressing is already running for you; press the switch or wait for the listen to end."),
 }
 
 # services/ha_bridge.ACTIONS labels (the device-control route's allow-list), as a schedule's test step names its action

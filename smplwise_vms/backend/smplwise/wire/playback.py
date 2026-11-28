@@ -21,7 +21,8 @@ class PlaybackCapabilities(WireModel):
 class PlaybackSession(WireModel):
     """One playback session. `actual_start_at` / `actual_end_at` / `media_anchor` stay null until a verified media anchor fills them
     (chapter 24); `media_handle` = the WebSocket path of this generation, null once the session is over. `moved_to_next_segment`
-    (create / seek only) = the asked time had no recording and the session starts at the next segment."""
+    (create / seek only) = the asked time had no recording and the session starts at the next segment. `clock_change_note` (create / seek
+    only, FIX-VIDEO2-2570) = the start is in the hour the autumn clock change repeats: the recorder may play the other occurrence."""
     id: str
     camera_id: str
     generation: int
@@ -39,6 +40,7 @@ class PlaybackSession(WireModel):
     bytes_down: int
     seconds: int
     moved_to_next_segment: bool = None
+    clock_change_note: str = None
 
 
 class PlaybackSessions(WireModel):

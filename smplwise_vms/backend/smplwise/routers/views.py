@@ -14,8 +14,10 @@ from pydantic import BaseModel, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import new_id, now_iso
-from ..errors import ApiError, forbidden, not_found
+from ..errors import ApiError, field_error, forbidden, not_found
+from ..i18n import t as _t
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import video_text  # noqa: F401 - `views.*` texts (FIX-VIDEO2-2570)
 from ..services import views_store as store
 from ..services.access import camera_allowed, visible_camera_ids
 from ..wire import wire
@@ -123,13 +125,39 @@ def update_view(view_id: str, body: ViewBody, request: Request, principal: Princ
     row = _load(conn, view_id)
     if not _can_edit(conn, principal, row):
         raise forbidden("רק בעל התצוגה או מנהל מערכת יכולים לערוך אותה.", permission="views.edit", target_type="view", target_id=view_id)
-    if body.shared and not bool(row["shared"]) and not _can_manage_shared(conn, principal):
+    # FIX-VIDEO2-2570 (VD2-10): a shared view is what every user sees - editing it (not only making it shared) needs the right to
+    # manage shared views, so an owner who lost `rbac.assign` no longer changes it for everybody
+    if (body.shared or bool(row["shared"])) and not _can_manage_shared(conn, principal):
         require(conn, principal, "rbac.assign", INSTALLATION)  # audited refusal
-    cameras = _check_cameras(conn, principal, body.cameras)
+    visible = visible_camera_ids(conn, principal, "video.live")
+    stored = [c for c in json.loads(row["cameras_json"] or "[]") if isinstance(c, str)]
+    hidden = [] if visible is None else [c for c in stored if c not in visible and store.camera_exists(conn, c)]
+    cameras = _keep_hidden(stored, hidden, _check_cameras(conn, principal, body.cameras))
+    if len(cameras) > MAX_CAMERAS:
+        raise field_error(_t("views.too_many_with_hidden", hidden=len(hidden), max=MAX_CAMERAS), ["cameras"],
+                          extra={"hidden_cameras": len(hidden), "max": MAX_CAMERAS})
     store.update_view(conn, view_id, body.name.strip(), json.dumps(cameras), body.cols, body.rows, int(body.shared), int(body.kiosk), now_iso())
     audit(conn, actor=principal, action="views.update", decision="allowed", resource_type="view", resource_id=view_id,
-          request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk})
-    return _view_dict(store.view(conn, view_id), None, _names(conn))
+          request_id=_rid(request), details={"name": body.name.strip(), "cameras": len(cameras), "shared": body.shared, "kiosk": body.kiosk,
+                                             **({"kept_hidden": len(hidden)} if hidden else {})})
+    return _view_dict(store.view(conn, view_id), visible, _names(conn))  # the editor sees what he may watch, the hidden ones counted
+
+
+def _keep_hidden(stored: list[str], hidden: list[str], chosen: list[str]) -> list[str]:
+    """FIX-VIDEO2-2570 (VD2-10): the editor saw (and sent) only the cameras he may watch; the ones he may not stay in the view at their
+    own places, and his cameras fill the other places in the order he sent them (extra ones at the end, fewer = places dropped)."""
+    hide = set(hidden)
+    out: list[str] = []
+    mine = iter(chosen)
+    for cid in stored:
+        if cid in hide:
+            out.append(cid)
+        else:
+            nxt = next(mine, None)
+            if nxt is not None:
+                out.append(nxt)
+    out.extend(mine)
+    return out
 
 
 @router.delete("/views/{view_id}", **wire(SavedViewDeleted))

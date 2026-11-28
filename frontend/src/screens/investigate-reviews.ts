@@ -25,7 +25,7 @@ import {
 import { createExport, getFirstWrites, getPolicy, isFirstWriteRefusal, type FirstWrites } from '../api/frigate-control';
 import { ROW_COLUMNS_CSS } from '../components/frigate-review-card';
 import { REVIEW_ITEMS, reviewDetail as demoDetail, reviewList as demoList, FRIGATE_CAMERAS } from '../fixtures/frigate';
-import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, nextReviewedValue, targetIds, toggleId, viewOf } from './reviews-logic';
+import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, nextReviewedValue, settleMark, targetIds, toggleId, viewOf } from './reviews-logic';
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -265,18 +265,32 @@ export class InvestigateReviews extends LitElement {
     if (!this.list || !ids.length || !this.canReview) return;
     const before = this.list;
     this.notice = '';
-    this.list = applyReviewed(this.list, ids, reviewed); // at once; the server answer only confirms
+    const optimistic = applyReviewed(this.list, ids, reviewed); // at once; the server answer only confirms
+    this.list = optimistic;
+    this.setDrawerReviewed(ids, reviewed);
+    let failed: string[] = [];
+    try {
+      if (this.demo) this.demoItems = this.demoItems.map((i) => (ids.includes(i.id) ? { ...i, reviewed } : i));
+      else failed = (await markReviewed(before.items.filter((i) => ids.includes(i.id)), reviewed)).failed;
+    } catch {
+      failed = ids; // every recorder failed
+    }
+    // FIX-VIDEO2-2570 (VD2-11): only the items whose recorder did not save go back (never over a list reloaded meanwhile)
+    if (this.list) this.list = settleMark(this.list, optimistic, before, failed, reviewed);
+    if (failed.length) {
+      const back = before.items.filter((i) => failed.includes(i.id));
+      for (const v of [true, false]) this.setDrawerReviewed(back.filter((i) => i.reviewed === v).map((i) => i.id), v);
+      this.selected = new Set([...this.selected].filter((id) => failed.includes(id)));
+      this.notice = fx().review.markFailed;
+    } else {
+      this.selected = new Set();
+    }
+  }
+
+  private setDrawerReviewed(ids: readonly string[], reviewed: boolean) {
     if (this.drawer && ids.includes(this.drawer.item.id)) {
       const item = { ...this.drawer.item, reviewed };
       this.drawer = { ...this.drawer, item, detail: this.drawer.detail ? { ...this.drawer.detail, reviewed } : null };
-    }
-    try {
-      if (this.demo) this.demoItems = this.demoItems.map((i) => (ids.includes(i.id) ? { ...i, reviewed } : i));
-      else await markReviewed(before.items.filter((i) => ids.includes(i.id)), reviewed);
-      this.selected = new Set();
-    } catch {
-      this.list = before;
-      this.notice = fx().review.markFailed;
     }
   }
 

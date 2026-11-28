@@ -18,6 +18,8 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError, forbidden
+from ..i18n import Lit
+from ..i18n import t as _t
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
@@ -25,6 +27,7 @@ from ._common import raw_body as _raw_body, rid as _rid
 from .recorders import recorder_settings
 from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
 from ..services import default_names as dn
+from ..services import video_text  # noqa: F401 - `nvr_smart.*` texts (FIX-VIDEO2-2570)
 from ..services import nvr_write_store as store
 from ..services.access import require_camera
 from ..services.timeutil import zone
@@ -630,9 +633,30 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
         if body.line is not None:
             write("line", body.line, f"/ISAPI/Smart/LineDetection/{ch}", nvr_schedule.line_document, f"חציית קו: {len((body.line or {}).get('lines') or [])} קווים")
         if body.field is not None:
-            write("field", body.field, f"/ISAPI/Smart/FieldDetection/{ch}", nvr_schedule.field_document, f"פריצה לאזור: {len((body.field or {}).get('regions') or [])} אזורים")
+            try:
+                write("field", body.field, f"/ISAPI/Smart/FieldDetection/{ch}", nvr_schedule.field_document, f"פריצה לאזור: {len((body.field or {}).get('regions') or [])} אזורים")
+            except ApiError as exc:
+                if (results.get("line") or {}).get("status") in (None, "unchanged"):
+                    raise  # nothing was written before it: the refusal stands as it is
+                _ZONES_CACHE.pop(camera_id, None)
+                raise smart_partial_error(results, "line", "field", exc) from exc
     _ZONES_CACHE.pop(camera_id, None)
     return results
+
+
+def smart_partial_error(results: dict[str, Any], applied: str, failed: str, exc: ApiError) -> ApiError:
+    """FIX-VIDEO2-2570 (VD2-09): the first smart-rule document was written (and recorded) and the second one was not - say exactly that,
+    never a bare "failed" that hides a rule the recorder now has. The second document's own outcome stays: its HTTP status, its code
+    (`details.cause`) and an unknown outcome (`details.outcome`) when it may have been written after all; the written one's change record
+    is in `details.applied` (one click to roll it back on the change log)."""
+    reason = Lit({"he": str(exc.message_in("he")), "en": str(exc.message_in("en"))})
+    msg = _t("nvr_smart.partial", applied=_t(f"nvr_smart.{applied}"), failed=_t(f"nvr_smart.{failed}"), reason=reason)
+    inner = exc.details or {}
+    details: dict[str, Any] = {"applied": {applied: results[applied]}, "failed": {failed: {"code": exc.code, **({"outcome": inner["outcome"]} if inner.get("outcome") else {})}},
+                               "cause": exc.code, "partial": True}
+    if inner.get("outcome"):
+        details["outcome"] = inner["outcome"]
+    return ApiError(exc.status, "smart_partial_write", msg, retryable=False, details=details)
 
 
 def _stream_visible(conn: sqlite3.Connection, principal: Principal) -> Callable[[str | None], bool] | None:

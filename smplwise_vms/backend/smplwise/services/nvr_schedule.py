@@ -93,9 +93,27 @@ def _day_index(name: str | None) -> int | None:
     return DAY_NAMES.index(name) if name in DAY_NAMES else None
 
 
+def _split_action(d0: int, t0: str, d1: int | None, t1: str) -> list[tuple[int, str, str]]:
+    """One schedule action as (day, begin, end) ranges of the week table. FIX-VIDEO2-2570 (VD2-08): an action that ends on a later day
+    is split at every midnight - Monday 22:00 -> Tuesday 06:00 is Monday [22:00, 24:00) and Tuesday [00:00, 06:00) - instead of a
+    reversed Monday range the week check refuses (which blocked every later save until the night was deleted). An action that ends
+    on the next day at 00:00 is, as before, a range to 24:00:00 of its start day (the device writes whole days that way); an action that
+    ends on its own day before its start wraps the whole week. The writer (`track_document`) writes each range back as its own
+    action, so the recorded hours are the same."""
+    if d1 is None or (d1 == d0 and t1 >= t0):  # same day: as the device wrote it (an empty range is refused as before)
+        return [(d0, t0, t1)]
+    span = (d1 - d0) % 7 or 7
+    out = [(d0, t0, "24:00:00")]
+    for k in range(1, span):
+        out.append(((d0 + k) % 7, "00:00:00", "24:00:00"))
+    if t1 != "00:00:00":
+        out.append(((d0 + span) % 7, "00:00:00", t1))
+    return out
+
+
 def record_from_track(xml: str) -> dict[str, Any]:
-    """The track's weekly schedule as 7 days of {begin, end, mode}; an action that ends on the next day at 00:00 is a
-    range to 24:00:00 of its start day (the device writes whole days that way)."""
+    """The track's weekly schedule as 7 days of {begin, end, mode}, each day ordered by its begin time; an action that crosses
+    midnight is split into the ranges of the days it covers (`_split_action`)."""
     days: list[list[dict[str, Any]]] = [[] for _ in range(7)]
     sched = next(iter(blocks(xml, "TrackSchedule")), "")
     for a in blocks(sched, "ScheduleAction"):
@@ -105,12 +123,13 @@ def record_from_track(xml: str) -> dict[str, Any]:
         t0, t1 = tag(start, "TimeOfDay") or "00:00:00", tag(end, "TimeOfDay") or "24:00:00"
         if d0 is None:
             continue
-        if d1 is not None and d1 != d0 and t1 == "00:00:00":
-            t1 = "24:00:00"
         mode = tag(next(iter(blocks(a, "Actions")), ""), "ActionRecordingMode") or "CMR"
         if tag(next(iter(blocks(a, "Actions")), ""), "Record") == "false":
             continue
-        days[d0].append({"begin": t0, "end": t1, "mode": mode})
+        for day, begin, end in _split_action(d0, t0, d1, t1):
+            days[day].append({"begin": begin, "end": end, "mode": mode})
+    for ranges in days:
+        ranges.sort(key=lambda r: r["begin"])
     ext = next(iter(blocks(xml, "CustomExtension")), "")
     return {"enabled": tag(xml, "Enable") == "true", "schedule_enabled": tag(ext, "enableSchedule") != "false" if ext else None, "default_mode": tag(xml, "DefaultRecordingMode"),
             "pre_record_s": int(tag(ext, "PreRecordTimeSeconds") or 0) if ext else None, "post_record_s": int(tag(ext, "PostRecordTimeSeconds") or 0) if ext else None, "days": days}
