@@ -35,7 +35,7 @@ def test_empty_counts_carry_the_new_fields_and_keep_the_old_ones():
     [
         ("locked", True, 1, 0),
         ("unlocked", True, 0, 0),
-        ("jammed", True, 0, 0),
+        ("jammed", True, 0, 1),  # FIX-HOME-MAPS-2570 (MH-03): neither locked nor open
         ("open", True, 0, 0),
         ("unavailable", False, 0, 1),
         ("unknown", True, 0, 1),
