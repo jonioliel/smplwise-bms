@@ -34129,10 +34129,11 @@
       "Branch pilot/FIX-PHONEKEY-2570, change note docs/changes/FIX-PHONEKEY-2570.md, tests"
     ],
     "evidence": [
-      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-PHONEKEY-2570 head 39175f51b merged d6b9d7920 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-PHONEKEY-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-PHONEKEY-2570 head 39175f51b merged d6b9d7920 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-PHONEKEY-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md).",
+      "2026-11-28 (RELEASE-2570-TRAIN): final head ce3b99821 (change note only against 39175f51b) merged c6f22e6b0."
     ],
     "owner": null,
-    "commit": "39175f51b",
+    "commit": "ce3b99821",
     "actual_cost_usd": null
   },
   {

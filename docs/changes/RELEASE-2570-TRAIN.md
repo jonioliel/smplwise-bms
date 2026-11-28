@@ -25,7 +25,7 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 11 | `pilot/FIX-CORE2-2570` | `4bee4fbbf` | `077b7b87e` | none (`Dockerfile` auto-merged: the 2.57.0 label and the multi-arch default both present) | e-mail, monthly reports, access digest DST, legacy aliases, multi-arch `BUILD_FROM` default + `release_check.py` base-image rule, 0215 comment-only rollback note |
 | 12 | `pilot/FIX-MAPS2-2570` | `f65f94aa5` | `3875ea848` | none (auto-merged: `routers/ha.py`, `wire/ha.py`, generated `wire-ha.ts`, `api/ha.ts`, `home/home-recordings.ts` (FE-05 `decodeSegment` and MH2-08 `flip` both kept), en `msg/screens.ts`, `error_text_en.json`); `gen_wire_types --check` 0 on the PC after the merge | MH2-01..MH2-09; based on FIX-HOME-MAPS-2570. Follow-up head `da5562f3f` (change note only: its backend tests re-ran at `f65f94aa5`, 124 passed) merged `7ad615768` |
 | 13 | `pilot/FIX-VIDEO2-2570` | `164279e7d` | `768d0447b` | none (`routers/nvr_write.py` auto-merged: FIX-VIDEO-2570's settings-write outcome and FIX-VIDEO2's `set_smart` / `smart_partial_error` both present); `gen_wire_types --check` 0 on the PC after the merge | VD2-02, VD2-04, VD2-06..VD2-11 |
-| 14 | `pilot/FIX-PHONEKEY-2570` | `39175f51b` | `d6b9d7920` | none | SA2-01, SA2-02: web + Android shell source (app 2.1.0, versionCode 4). The user guide pages changed, so `GUIDE_ALL_HE.html` was rebuilt (`build_guide.py`, next commit). **No Android build or Android unit test is possible on the PC or the runner (no JDK / SDK): the APK 2.1.0 and `DeviceKeyPolicyTest` are NOT_RUN; nothing tested on a real phone** |
+| 14 | `pilot/FIX-PHONEKEY-2570` | `39175f51b` | `d6b9d7920` | none | SA2-01, SA2-02: web + Android shell source (app 2.1.0, versionCode 4). The user guide pages changed, so `GUIDE_ALL_HE.html` was rebuilt (`build_guide.py`, next commit). **No Android build or Android unit test is possible on the PC or the runner (no JDK / SDK): the APK 2.1.0 and `DeviceKeyPolicyTest` are NOT_RUN; nothing tested on a real phone**. Final head `ce3b99821` merged `c6f22e6b0` (against `39175f51b` only the change note differs) |
 | 15 | `pilot/FIX-UTIL-B-2570` | `d929465c4` | `b3fa11ddd` | none (`services/insights_delivery.py` and `tests/test_insight215_slice3.py` auto-merged with FIX-CORE2-2570: CD2-15 `_still_wanted` and CU2-19 `_claim` both present, read through); `error_text_en.json` / `error_text_tpl_en.json` valid | CU2-09..CU2-11, CU2-19, CU2-21, CU2-33; edits `test_emergency_readiness_295.py`, which FIX-UTIL-A-2570 may also edit (keep both) |
 | - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
@@ -101,7 +101,28 @@ process per file, all exit 0: `test_fix_wiskey_2570` 7, `test_calendar_far_serie
 `test_nightly_coverage_lane_2570` 3, `test_legacy_import_2550` 18, `test_ha_state_reconcile_2550` 10, `test_core10_eventloop_2560` 11,
 `test_singletons_registered` 4, `test_version` 1, `test_release_notes_marker` 8 passed. `ruff check smplwise`: all checks passed.
 
-Run 2: PENDING
+Run 2 at `553194542` (rows 1-12 + train fixes; `p2570_train_check2.sh`, `DOCKERCHECK=1`): `tsc` app 0, `typecheck` 0, `lint` 0,
+`vite build` 0; **unused-exports FAILED** (`RunConfirmed`, `CursorPage` - fixed, section 2). Node unit (`-c playwright.unit.config.ts`,
+27 files: the rows' new specs, FIX-FE2's `-ui` spec, the i18n home / en ratchet / api specs, `unit-release-2570-home-scene`): 281 passed,
+4 skipped (screenshot-only). Page specs (desktop, vite preview of the head; `fix-fe-2570`, `ha-feed-counters-2570`,
+`evidence-fix-video-2570`, `evidence-honest-states-2540`, `evidence-schedules-list`, `evidence-automations-list`, `evidence-bv1-tiles`,
+`evidence-fix-maps2-2570`): 102 passed, 13 skipped. Backend, one process per file, all exit 0 except one: `test_fix_wiskey_2570` 7,
+`far_series` 3, `comms_utilities` 6, `i18n_errors_en` 9, `i18n_runtime_errors` 8, `area_honest_count` 35, `fix_core_data` 14,
+`legacy_import` 18, `ha_state_reconcile` 10, `core10_eventloop` 11, `singletons_registered` 4, `fix_fe2` 2, `area_presence_line` 12, `ha` 5,
+`fix_video` 16, `camera_reboot` 9, `nvr_system` 8, `nvr_write` 5, `alarm` 38, **`tickets_costs` 35 (whole file)**, `fix_automation` 26
+(incl. the train's sentence check), `automations_scope` 13, `mfa_stepup_gates` 19, `fix_wiskey2` 18, `intercom_capture_lease` 15,
+`notify_email` 55, `insight215_slice3` 36, `access_digest_dst` 2, `migrate_legacy` 7, `migration_downgrade_check` 29, `migrations` 4,
+`supervisor_build_check` 20, `gate_addon_build` 12, `release_check_green_2560` 14, `fix_maps2` 5, `wall` 15, `wall_alerts` 8, `plan_skins` 30,
+`plan_wizard_api` 5, `version` 1, `release_notes_marker` 8 passed; `test_release_check` 1 failed / 2 passed - `test_repository_is_release_consistent`,
+the not-rebuilt UI bundle and the missing tag (expected before the rebuild, as on the 2.56 train). `ruff check smplwise`: all checks passed.
+`docker buildx build --check smplwise_vms` with no build args (what a Supervisor that passes no `BUILD_FROM` does): linux/arm64 and
+linux/amd64 "Check complete, no warnings found".
+
+PC at `553194542`: the ten consistency checks exit 0 except `design_ratchet` (px-literal +3, fixed, section 2) and `release_check.py` (the
+tag and TR-03 NOT_CHECKED, as expected); `api_inventory.py`: 1962 routes, no diff; `migration_downgrade_check --from v2.56.0` PASS
+(FIX-CORE2's 0215 change is a comment only). After FIX-MAPS2 and FIX-VIDEO2: `gen_wire_types --check` 0 each.
+
+Run 3 (VIDEO2 + ratchet fixes), run 4 (PHONEKEY), run 5 (UTIL-B): PENDING
 
 ## 4. Registry
 
