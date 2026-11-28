@@ -93,4 +93,19 @@ Not in this row (not in the automation / schedule services): CD2-12, CD2-13, CD2
 
 ## Tests
 
-`tests/test_fix_automation_2570.py` (runner, slot B). Results: see the report section below.
+`tests/test_fix_automation_2570.py` - 26 tests (runner, slot B, one pytest process per group):
+
+| Run | Result |
+|---|---|
+| new tests on this branch (f802ae4af) | 26 passed |
+| new tests on v2.56.0 (base + the test file only) | 25 failed, 1 passed (the one that passes pins unchanged behaviour: a policy refusal / connect error stays failed and frees the gap) |
+| autos: test_automations_access/api/extra/mirror/notify/preview/scope/writes | 100 passed (at 194831603; mirror re-run at f802ae4af: pass) |
+| sched1: test_schedules_api/followup/review/review2/scope | 93 passed (194831603) |
+| sched2: test_automations_mirror + test_schedules_state/trash_runs/conditions/mirror/more_actions/p0 | 109 passed (f802ae4af) |
+| ha: test_ha, test_devices | 69 passed (194831603) |
+| sec: test_mfa_stepup_gates_2490, test_security_review_wxd_fixes, test_home_scene_manage_2500, test_wiskey_door_inventory, test_doorwrite_297 | 94 passed (194831603) |
+| misc: test_get_routes_read_conn, test_i18n_errors_en_2520, test_janitor, test_db_locking | 786 passed (194831603) |
+
+`test_schedules_trash_runs::test_the_janitor_prunes_old_runs_and_settled_ops` failed once at 194831603 (a stale pending op was settled
+and pruned in the same pass); fixed by settling after the prune (f802ae4af), the group then passed.
+NOT_RUN: the full backend suite, the frontend (no frontend change), any lab / Home Assistant contact.
