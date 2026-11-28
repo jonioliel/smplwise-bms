@@ -487,8 +487,9 @@ export class SystemSetup extends LitElement {
     this.notifyBusy = true;
     try {
       const r = await setNotify({ channels: p.channels, smart: p.smart, enabled: p.enabled });
-      this.notifyOk = !r.failed;
-      this.notifyResult = tr('בוצע: {applied} שינויים · {unchanged} כבר היו כך · {skipped} דולגו (סוג אירוע שלא מוגדר בערוץ) · {failed} נכשלו', { applied: r.applied, unchanged: r.unchanged, skipped: r.skipped, failed: r.failed });
+      this.notifyOk = !r.failed && !r.unknown;
+      this.notifyResult = tr('בוצע: {applied} שינויים · {unchanged} כבר היו כך · {skipped} דולגו (סוג אירוע שלא מוגדר בערוץ) · {failed} נכשלו', { applied: r.applied, unchanged: r.unchanged, skipped: r.skipped, failed: r.failed })
+        + (r.unknown ? ` · ${tr('{n} לא ידוע אם נשמרו (הקשר עם ה־NVR נפסק) · לבדוק', { n: r.unknown })}` : ''); // FIX-VIDEO-2570 (VD-02)
       this.notifyPlan = null;
       await this.loadNvr();
     } catch (err) {

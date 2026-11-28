@@ -20,7 +20,7 @@ from ..audit import audit
 from ..config import Settings
 from ..errors import ApiError
 from .nvr import _client, _get
-from .nvr_write import _put, _record, apply_change
+from .nvr_write import NOT_SENT_TRANSPORT_ERRORS as NOT_SENT_TRANSPORT_ERRORS, _put, _record, apply_change, put_outcome_unknown  # re-exported (FIX-NVR-PULSE-2560 name)
 from ..error_text import tpl
 from ..test_reset import register_reset
 
@@ -276,8 +276,8 @@ PULSE_XML = f'<IOPortData version="2.0" {XMLNS}><outputState>high</outputState><
 
 
 # FIX-NVR-PULSE-2560 (deep review VD-02): a transport failure before the request left the host (no connection) is a refusal;
-# any other one (a read time-out, a dropped connection after the body) may follow a delivered command (services/ha.py reads the same names)
-NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout", "PoolTimeout"})
+# any other one (a read time-out, a dropped connection after the body) may follow a delivered command. FIX-VIDEO-2570: the one rule
+# (NOT_SENT_TRANSPORT_ERRORS, put_outcome_unknown) lives in services/nvr_write.py and is shared with every settings write.
 PULSE_UNKNOWN_TEXT = "לא ידוע אם היציאה הופעלה: הקשר עם ה־NVR נפסק אחרי שהפקודה נשלחה. בדקו במקום לפני הפעלה חוזרת."
 PULSE_UNKNOWN_TEXT_EN = "It is not known whether the output was triggered: the link to the NVR dropped after the command was sent. Check on site before triggering it again."
 
@@ -285,12 +285,7 @@ PULSE_UNKNOWN_TEXT_EN = "It is not known whether the output was triggered: the l
 def pulse_outcome_unknown(exc: ApiError) -> bool:
     """True when the pulse may have reached the recorder although no good answer came back: a transport failure other than
     'could not connect', or a 5xx from the recorder itself. A refusal (401/403, an ISAPI rejection, a connect error) is False."""
-    if exc.code in ("source_unavailable", "source_timeout"):
-        return (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
-    if exc.code == "nvr_rejected":
-        status = (exc.details or {}).get("status")
-        return isinstance(status, int) and status >= 500
-    return False
+    return put_outcome_unknown(exc)
 
 
 # VD-04: a repeated (user, recorder, client request id) within this window answers the first result and never pulses again

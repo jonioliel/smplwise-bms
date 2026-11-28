@@ -88,6 +88,24 @@ def _put(client: httpx.Client, path: str, xml: str) -> str:
     return r.text
 
 
+# FIX-VIDEO-2570 (deep review VD-02, the settings half; FIX-NVR-PULSE-2560 did the pulse): which failed PUT may still have reached the
+# recorder. A transport failure before the request left the host (no connection) is a refusal; any other one (a read time-out, a
+# dropped connection after the body) and a 5xx from the recorder may follow a delivered document (services/ha.py reads the same names).
+NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout", "PoolTimeout"})
+WRITE_UNKNOWN_TEXT = "לא ידוע אם השינוי נשמר ב־NVR: הקשר נפסק אחרי שהשינוי נשלח. קראו שוב את ההגדרה לפני שינוי חוזר."
+
+
+def put_outcome_unknown(exc: ApiError) -> bool:
+    """True when the document may have reached the recorder although no good answer came back: a transport failure other than
+    'could not connect', or a 5xx from the recorder itself. A refusal (401/403, an ISAPI rejection, a connect error) is False."""
+    if exc.code in ("source_unavailable", "source_timeout"):
+        return (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
+    if exc.code == "nvr_rejected":
+        status = (exc.details or {}).get("status")
+        return isinstance(status, int) and status >= 500
+    return False
+
+
 # ---------------------------------------------------------------- change records
 
 def _fields(r: sqlite3.Row) -> dict[str, Any] | None:
@@ -226,8 +244,15 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
         try:
             _put(c, path, after)
         except ApiError as exc:
+            if put_outcome_unknown(exc):
+                # FIX-VIDEO-2570 (VD-02): sent, no good answer - neither "failed" nor "denied"; nothing is re-sent, the operator re-reads
+                rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="unknown", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
+                audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id,
+                      details={"kind": kind, "path": path, "change_id": rec["id"], "outcome": "unknown"})
+                raise ApiError(504, "action_outcome_unknown", WRITE_UNKNOWN_TEXT, retryable=False,
+                               details={**(exc.details or {}), "cause": exc.code, "change_id": rec["id"], "outcome": "unknown"}) from exc
             rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="failed", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id, camera_id=camera_id)
-            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
+            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"], "outcome": "refused"})
             raise
         try:
             verify = _get(c, path)
