@@ -34173,5 +34173,43 @@
     "owner": null,
     "commit": "d929465c4",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-CALENDAR-2570",
+    "title": "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision; merged into the 2.57.0 train, change note docs/changes/FIX-CALENDAR-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-CALENDAR-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-CALENDAR-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-CALENDAR-2570, change note docs/changes/FIX-CALENDAR-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-CALENDAR-2570 head 90db3dec0 merged f2475b293 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-CALENDAR-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "90db3dec0",
+    "actual_cost_usd": null
   }
 ]

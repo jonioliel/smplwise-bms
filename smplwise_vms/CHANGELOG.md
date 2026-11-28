@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570, FIX-UTIL-B-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570, FIX-UTIL-B-2570, FIX-CALENDAR-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -16,6 +16,9 @@
 - Incoming-call banner: when the call state cannot be read (other than a permission refusal) an amber line says so; the last list and its buttons stay, nothing is sent again.
 - Generator: a muted alert type also holds back its event alerts (test failed, mains restored, ...) and tells them once when the mute ends; a late notice is not sent for an alert that was already acknowledged; choosing "automatic" battery voltage or changing the battery-voltage mapping resets the learned 24 V setting.
 - Calendars: the conflict check of a long recurring series looks much further ahead; if even that cannot finish, the booking is refused instead of being taken as conflict-free.
+- Calendar sync: a full re-sync no longer cancels entries outside the window the provider listed; a recurring series keeps its identity (an instance is never imported as a new entry, a cancelled single occurrence does not cancel the series); Microsoft calendars no longer import copies of Arx's own series.
+- Calendar sync: a calendar can be bound only through the person's own connection (or by a system administrator); a sync in flight never overwrites a pause, resume or new authorisation; a rotated sign-in token never outlives a disconnect.
+- Calendar settings: a screen left open can no longer roll back another person's change (the save carries the version it loaded and only the changed keys); the steppers save each value on its own.
 - Home administration: the save-at-once switches (visitor invitations, wall rest / night, the per-person switches) go back to the saved state after a refused or failed save.
 - Addresses with a broken escape (such as "50%") no longer break the automations, schedules, generator alert, home recordings and calendars screens.
 - Home A/C: the newest temperature tap wins, and no temperature is sent after a failed turn-on.
@@ -73,6 +76,7 @@
 - `GET /ha/entities?area_buildings=true` adds `building_id` to each listed area (additive); `PATCH /wall/profiles/{id}` takes an optional `version` (409 `stale_version` when it differs); `GET /skins/status` needs `system.configure` (403 otherwise).
 - Recordings search: `coverage: partial` with a note around the repeated hour or for unplaced files; playback sessions carry an optional `clock_change_note`; `?date=` that does not exist is 422 `validation` (`invalid_date`); smart rules partial write is `smart_partial_write` (`details.applied`, `details.failed`, `details.cause`, `details.outcome`); a second detect-by-pressing listen is 409 `listen_running`.
 - `PUT /presence/settings`: 422 (`fields: ["required_sensors.sensors"]`) for a required sensor that is not approved; the save is all-or-nothing.
+- Calendar settings (`PUT /calendar/settings`, `PUT /calendar/attendee-settings`): `?merge=true` (only the changed keys), `revision` in the answer, `base_revision` in the request (409 `revision_conflict` when it differs) - all additive; binding a calendar through another person's connection is 403.
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 

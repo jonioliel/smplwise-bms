@@ -27,6 +27,7 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 13 | `pilot/FIX-VIDEO2-2570` | `164279e7d` | `768d0447b` | none (`routers/nvr_write.py` auto-merged: FIX-VIDEO-2570's settings-write outcome and FIX-VIDEO2's `set_smart` / `smart_partial_error` both present); `gen_wire_types --check` 0 on the PC after the merge | VD2-02, VD2-04, VD2-06..VD2-11 |
 | 14 | `pilot/FIX-PHONEKEY-2570` | `39175f51b` | `d6b9d7920` | none | SA2-01, SA2-02: web + Android shell source (app 2.1.0, versionCode 4). The user guide pages changed, so `GUIDE_ALL_HE.html` was rebuilt (`build_guide.py`, next commit). **No Android build or Android unit test is possible on the PC or the runner (no JDK / SDK): the APK 2.1.0 and `DeviceKeyPolicyTest` are NOT_RUN; nothing tested on a real phone**. Final head `ce3b99821` merged `c6f22e6b0` (against `39175f51b` only the change note differs) |
 | 15 | `pilot/FIX-UTIL-B-2570` | `d929465c4` | `b3fa11ddd` | none (`services/insights_delivery.py` and `tests/test_insight215_slice3.py` auto-merged with FIX-CORE2-2570: CD2-15 `_still_wanted` and CU2-19 `_claim` both present, read through); `error_text_en.json` / `error_text_tpl_en.json` valid | CU2-09..CU2-11, CU2-19, CU2-21, CU2-33; edits `test_emergency_readiness_295.py`, which FIX-UTIL-A-2570 may also edit (keep both) |
+| 16 | `pilot/FIX-CALENDAR-2570` | `90db3dec0` (includes the test fix `0241dcb3f`) | `f2475b293` | none (`error_text_en.json` auto-merged, valid); `gen_wire_types --check` 0 on the PC after the merge | CU2-01..03, CU2-12, CU2-13, CU2-30, SA2-06; based on FIX-COMMS-2570 |
 | - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
 | - | registry | - | `d832d0166` | - | section 4 |
@@ -139,6 +140,6 @@ regenerated views committed.
 
 ## 6. Open points
 
-1. Rows still to come (the lead's list, 28.11): FIX-GATE-2570, FIX-AUTOMATION2-2570 (based on FIX-AUTOMATION), FIX-CALENDAR-2570 and FIX-UTIL-A-2570 (both based on FIX-COMMS), FIX-SECURITY2-2570; each adds CHANGELOG lines and a registry entry.
+1. Rows still to come (the lead's list, 28.11): FIX-GATE-2570, FIX-AUTOMATION2-2570 (based on FIX-AUTOMATION), FIX-UTIL-A-2570 (based on FIX-COMMS), FIX-SECURITY2-2570; each adds CHANGELOG lines and a registry entry.
 2. UI rebuild (`npm run build:addon` on the runner) only after the lead's "all rows in", then the gate (the lead's).
 3. RELEASE-2560-TRAIN is still IN_PROGRESS in the registry although 2.56.0 is released; left to the lead.

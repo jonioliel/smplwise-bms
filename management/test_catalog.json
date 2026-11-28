@@ -24001,5 +24001,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-CALENDAR-2570-1",
+    "requirement_ids": [
+      "R-FIX-CALENDAR-2570-1"
+    ],
+    "task_ids": [
+      "FIX-CALENDAR-2570"
+    ],
+    "title": "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision; merged into the 2.57.0 train, change note docs/changes/FIX-CALENDAR-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

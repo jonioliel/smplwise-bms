@@ -15559,5 +15559,21 @@
     "test_ids": [
       "AT-FIX-UTIL-B-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-CALENDAR-2570-1",
+    "title": "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision",
+    "statement": "Second deep review calendar fixes CU2-01..CU2-03, CU2-12, CU2-13, CU2-30, SA2-06: windowed full re-sync, series identity, own-connection bindings, sync lease, settings merge and revision; merged into the 2.57.0 train, change note docs/changes/FIX-CALENDAR-2570.md.",
+    "task_ids": [
+      "FIX-CALENDAR-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-CALENDAR-2570-1"
+    ]
   }
 ]
