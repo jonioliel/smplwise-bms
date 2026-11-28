@@ -186,6 +186,42 @@ def test_sec8_target_create_update_test_and_key_export_are_refused_remotely(arx,
     assert exp.status_code == 200 and exp.json()["key"].startswith("SWXB-KEY-1:")
 
 
+def test_sa02_gdrive_relink_and_key_import_are_local_only(arx, tmp_path):
+    """FIX-PUSH-APPROVAL-2560 SA-02: re-pointing a connected Google Drive target and importing an off-box key need the local network."""
+    from fake_gdrive import CLIENT_ID, CLIENT_SECRET
+
+    from smplwise.services import offbox_store
+
+    local = TestClient(arx.app)
+    assert local.get(f"{API}/me").status_code == 200
+    exp = local.post(f"{API}/{OFFBOX}/key/export", json={"confirm": "EXPORT"})
+    assert exp.status_code == 200, exp.text
+    key = exp.json()["key"]
+    made = local.post(f"{API}/{OFFBOX}/targets", json={"name": "Drive", "kind": "gdrive", "enabled": False,
+                                                       "config": {"client_id": CLIENT_ID, "folder_name": "SmplWise Arx backups", "chunk_mib": 1},
+                                                       "secrets": {"client_secret": CLIENT_SECRET}})
+    assert made.status_code == 201, made.text
+    tid = made.json()["id"]
+    arx.flag("u-owner")
+    arx.bind("u-owner", "system_admin")
+    assert arx.login(arx.owner).status_code == 200
+    remote = arx.client
+    connect, poll = f"{OFFBOX}/targets/{tid}/gdrive/connect", f"{OFFBOX}/targets/{tid}/gdrive/poll"
+    with arx.db.connection() as conn:
+        offbox_store.set_secret(conn, arx.settings.data_dir, tid, "refresh_token", "rt-1", None)
+    refused = [remote.post(f"/arx{API}/{connect}"), remote.post(f"/arx{API}/{poll}"),
+               remote.post(f"/arx{API}/{OFFBOX}/key/import", json={"key": key})]
+    for r in refused:
+        assert r.status_code == 403 and r.json()["code"] == "offbox_local_only", r.text
+    with arx.db.connection(mode="read") as conn:
+        denied = {r["action"] for r in conn.execute("SELECT action FROM audit_log WHERE decision = 'denied' AND reason = 'local_only'")}
+    assert denied == {"backup.offbox.gdrive_connect_start", "backup.offbox.gdrive_connect", "backup.offbox.key_import"}
+    # the local channel is not refused, and diagnose / disconnect stay remote
+    assert local.post(f"{API}/{connect}").json().get("code") != "offbox_local_only"
+    assert remote.post(f"/arx{API}/{OFFBOX}/targets/{tid}/gdrive/diagnose").json().get("code") != "offbox_local_only"
+    assert local.post(f"{API}/{OFFBOX}/key/import", json={"key": key}).json().get("code") != "offbox_local_only"
+
+
 # ---------------------------------------------------------------- D-12 (owner Q6a): mapping an unmapped area into a building
 
 def test_d12_an_unmapped_area_goes_into_a_building_only_with_installation_wide_permission(bulk_app):

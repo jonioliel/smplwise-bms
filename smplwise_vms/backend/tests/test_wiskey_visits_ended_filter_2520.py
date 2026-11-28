@@ -73,7 +73,7 @@ def test_an_english_reader_gets_the_refusal_in_english(vx):  # noqa: F811
 
 def test_without_the_guard_rc10_would_refuse_the_value(vx, monkeypatch):  # noqa: F811
     fake, env, _s = vx
-    monkeypatch.setattr(wv, "list_statuses", lambda api: [*SIX, "ended"])
+    monkeypatch.setattr(wv, "list_statuses", lambda api, caps=None: [*SIX, "ended"])
     r = env.c.get(f"{W}/visits", params={"status": "ended"})
     assert sent(fake, "visits/list")[-1]["filters"]["status"] == "ended"
     assert r.status_code != 200 or r.json()["visits"] is None, r.text  # the fake answers rc.10's `invalid_fields`: no list

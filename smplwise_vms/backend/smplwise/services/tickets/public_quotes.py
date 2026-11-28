@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ...db import Database
-from . import costs, links, quotes
+from . import costs, links, quotes, store_links
 from .handler_actions import ActionRefused, LinkGone, _finish as finish_request, _progress as link_progress, claim as claim_request, fresh as fresh_link
 from .keyring import KEYS
 from .module_key import ModuleKeyError
@@ -122,7 +122,7 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 if f.link.no_money:  # defence in depth behind link_context(claim_surface=True): a staff link never quotes
                     raise PublicError(404, "link_unavailable")
                 link = f.link
-                replay = claim_request(conn, link, crid, QUOTE_ROUTE, when)
+                replay = claim_request(conn, link, crid, store_links.route_key(QUOTE_ROUTE, payload), when)  # FIX-TICKETS-2560: the body is part of the key
                 if replay is not None:
                     return replay[0], replay[1], False
                 try:
@@ -144,6 +144,6 @@ def build_router(db: Database, *, clock: Callable[[], float] | None = None) -> A
                 spend_budget(request)
             return status, answer
 
-        return await idem.run(idempotency_scope(ctx.link), crid, QUOTE_ROUTE, work)
+        return await idem.run(idempotency_scope(ctx.link), crid, QUOTE_ROUTE, work, payload)
 
     return r

@@ -16,6 +16,7 @@ from smplwise.errors import ApiError
 from smplwise.main import create_app
 from smplwise.routers import ha as ha_router
 from smplwise.services import ha_sync
+from support.waiting import soon
 
 LEVELS = [{"id": "L0", "name": "מפלס ראשי", "elevation_m": 0.0, "ceiling_height_m": 2.8, "is_default": True, "external_ids": {}},
           {"id": "L1", "name": "אולם תחתון", "elevation_m": -1.2, "ceiling_height_m": 6.0, "is_default": False, "external_ids": {}}]
@@ -101,7 +102,7 @@ def test_the_toggle_uses_the_existing_entity_action_route_and_its_permission(set
     _publish(c, vid, levels=LEVELS, objects=LAMPS[:2], circuits=CIRCUITS[:1])
     bind(c, settings, "vera", "viewer", "floor", ids["floor2"])
     bind(c, settings, "omer", "operator", "floor", ids["floor2"])
-    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "c1", "expires_at": "2099-01-01T00:00:00Z"}
+    body = {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "c1", "expires_at": soon()}
     assert c.post("/api/v1/ha/entities/switch.hall_a/actions", json=body, headers=as_user("vera")).status_code == 403, "reading a circuit grants no control"
     r = c.post("/api/v1/ha/entities/switch.hall_a/actions", json=body, headers=as_user("omer"))
     assert r.status_code == 503 and r.json()["code"] == "bridge_not_paired", "the floor operator reaches the existing action path (no bridge in the test)"

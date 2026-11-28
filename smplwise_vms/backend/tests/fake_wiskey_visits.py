@@ -144,6 +144,7 @@ class VisitsFake(FakeWiskey):
              "duration_minutes": 120, "doors": {"entry-a": [1]}, "weekly_timing": {"mode": "weekly"}, "updated_at": "2026-11-01T10:00:00+00:00", "updated_by": HA_ID},
         ]}
         self.offer_record = False
+        self.filter_contract = False  # WISKEY-VISIT-FILTERS-2560: WisKey publishes wiskey-visit-list-filters.v1 (`ended` without the record command)
         self.record_answer = "ok"
         self.record_then_drop = False
         self.records: dict[str, dict[str, Any]] = {}
@@ -171,7 +172,7 @@ class VisitsFake(FakeWiskey):
                 return [fail(msg, "invalid_fields")]
             status = filters.get("status", "all")
             # rc.10 access/visit_requests.py: `STATUSES | {"all"}`; rc.19 adds `ended` with the record command (WISKEY-VISITS-ENDED-FILTER-2520)
-            if status not in LIST_STATUSES | ({"ended"} if self.offer_record else set()):
+            if status not in LIST_STATUSES | ({"ended"} if self.offer_record or self.filter_contract else set()):
                 return [fail(msg, "invalid_fields")]
             rows = sorted(self.visits, key=lambda r: r["sequence"], reverse=True)
             rows = [r for r in rows if status == "all" or r["status"] == status]

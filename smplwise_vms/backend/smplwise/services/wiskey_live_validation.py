@@ -466,7 +466,7 @@ def read_receipt(receipt: Any) -> dict[str, tuple[str, Any]]:
 def run_native(conn: sqlite3.Connection, features: Any, *, principal: Principal, run_id: str, station_id: str,
                steps: list[tuple[str, str, Door]], required: Iterable[str], ttl_s: int, now: datetime | None = None,
                sleep: Callable[[float], None] = time.sleep, monotonic: Callable[[], float] = time.monotonic,
-               wait_s: float = RESULT_WAIT_S) -> WiskeyRun:
+               wait_s: float | None = None) -> WiskeyRun:
     """ONE `live_validation` operation: the request + current policy + snapshot (Arx RBAC, the confirmed relay map), the durable
     intent committed before the start, then completion reads until finished or `wait_s`. `steps` = (step_id, action, door)."""
     from ..db import permission_revision
@@ -517,7 +517,9 @@ def run_native(conn: sqlite3.Connection, features: Any, *, principal: Principal,
     if started.state != "admitted" or not started.operation_ref:
         return WiskeyRun(whole=failed("start_unknown"), request_id=body["request_id"])
     op = started.operation_ref
-    deadline = monotonic() + wait_s
+    # BACKEND-SUITE-COST-2560: RESULT_WAIT_S is read at call time (it was bound as the default when the module loaded, so a
+    # test that set it to 0 still waited the full 60 s); production behaviour is unchanged
+    deadline = monotonic() + (RESULT_WAIT_S if wait_s is None else wait_s)
     while True:
         try:
             res = features.client.result(op)

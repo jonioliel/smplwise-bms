@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from smplwise.main import create_app
 from smplwise.rbac import ROLES
 from smplwise.services import ha_sync
+from support.waiting import soon
 
 
 def test_kiosk_role_is_live_and_map_only(settings):
@@ -34,7 +35,7 @@ def test_kiosk_role_is_live_and_map_only(settings):
     assert c.get("/api/v1/health/summary", headers=h).status_code == 200, "the wall shows system health without admin menus"
     for path in (f"/api/v1/cameras/{cam}/recordings?date=2026-09-16", "/api/v1/events", "/api/v1/cases", "/api/v1/storage", "/api/v1/audit", "/api/v1/health/report", "/api/v1/backups"):
         assert c.get(path, headers=h).status_code == 403, path
-    action = {"allowed_action_id": "lock.unlock", "client_request_id": "r1", "expires_at": "2099-01-01T00:00:00Z"}
+    action = {"allowed_action_id": "lock.unlock", "client_request_id": "r1", "expires_at": soon()}
     assert c.post("/api/v1/ha/entities/lock.front/actions", json=action, headers=h).status_code == 403, "no unlock from a kiosk"
     assert c.patch("/api/v1/settings", json={"time.zone": "Europe/London"}, headers=h).status_code == 403
     assert c.post("/api/v1/exports", json={"camera_id": cam, "from_at": "2026-09-16T08:00:00Z", "to_at": "2026-09-16T08:01:00Z"}, headers=h).status_code == 403

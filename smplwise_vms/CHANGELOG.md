@@ -1,5 +1,27 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
+
+
+### שופר - Improved
+- מצבי מערכת הבית נכתבים בחוט עבודה נפרד: מסד נתונים עמוס או חוק שמפעיל הודעה כבר לא עוצרים את קריאת הערוץ, ולכן "רענן ממערכת הבית", תזמונים וזיהוי בלחיצה לא מקבלים שגיאת זמינות בגללם. - Home system states are written on a worker thread: a busy database or a rule that sends a notice no longer holds up reading the feed, so "refresh from Home Assistant", schedules and detect-by-pressing do not time out because of it.
+- נגישות: הערה על יום מעבר שעון בציר החדרים ("01, פעמיים"), מכריז אחד להודעות מתעדכנות, כרטיס התראת גנרטור בלי כפתור בתוך כפתור, ותיאור לכפתור האימות הנוסף. - Accessibility: a note on the rooms timeline for a clock-change day ("01, twice"), one announcer for live messages, a generator alert card without a button inside a button, and a description for the extra-verification button.
+- ביקורים חיצוניים ב-WisKey: מסנני הרשימה נלקחים מהחוזה ש-WisKey מפרסם (כולל "הסתיימו"). - External WisKey visits: the list filters follow the contract WisKey publishes (the "ended" filter included).
+- WisKey: חיבור שנתקע נחתך בזמן קריאה מוגבל ולא תוקע את הבקשה (וסוויטת הבדיקות של השרת זולה יותר, ללא שינוי כיסוי). - WisKey: a stalled connection is cut off by a read-time limit instead of holding the request (and the server test suite is cheaper, same coverage).
+
+### תוקן - Fixed
+- מסך הבית: שמירת המועדפים כבר לא מוחקת מועדפים מוסתרים. - Home screen: saving the favourites no longer drops hidden favourites.
+- תיק חקירה: הסרת פריט מהתיק מבקשת אישור; התראות גנרטור: "אשר הכול" מבקש אישור ומציין כמה התראות. - Investigation case: removing an item asks for confirmation; generator alerts: "acknowledge all" asks first and states how many alerts.
+- תיקוני סקירה סופית: מכריז הנגישות לא מוסיף גלילה למסכים; אישור בדחיפה והגדרת הגיבוי החיצוני (קישור מחדש וייבוא מפתח מהרשת המקומית בלבד); פולס פלט אזעקה שאין לו תשובה מוצג "לא ידוע - בדקו במקום" ומתבקש אישור; ייבוא מהמערכת הישנה, קריאה מחדש של מצבים ומסירת כללים למערכת הבית עמידים יותר; קריאה חוזרת בכרטיסים עם גוף שונה נדחית, ואישור שני בזכייה מרובת ספקים נשלח אחרון. - Final-review fixes: the accessibility announcer no longer adds scrolling to screens; push approval and the off-box backup setup (re-link and key import from the local network only); an alarm-output pulse with a lost answer shows "unknown - check on site" and asks for confirmation; the legacy import, the state re-read and rule delivery to the home system are sturdier; a ticket request repeated with a different body is refused, and the second approval of a multi-vendor award is sent last.
+- פקודות פיזיות (דלתות, אזעקה, מדיה, חירום): תוקף הפקודה נקבע לפי שעון השרת ולא שעון המכשיר, שליחה חוזרת אחרי אימות נוסף נושאת תוקף טרי, והשרת מגביל את אורך התוקף. - Physical commands (doors, alarm, media, emergency): a command's expiry follows the server clock instead of the device clock, a resend after step-up carries a fresh expiry, and the server bounds the expiry's length.
+- אבטחה: עורך קומה בבניין אחד כבר לא יכול לקשר שטח של בניין אחר לחדר בקומה שלו (שדה השטח בחדר ומחיקות שמנתקות קישורים עוברים את אותה בדיקת בניין). - Security: a floor editor in one building can no longer link another building's area to a room on his floor (the room's area field and the writes that drop links run the same building check).
+
+### שינוי בממשק השרת - API change
+- נוסף: `POST /nvr/outputs/{id}/pulse` דורש גוף `{confirm: true, client_request_id}` ועונה 504 `action_outcome_unknown` כשהתשובה אבדה; בקשת כרטיס שחוזרת עם אותו מפתח וגוף אחר נדחית ב-409 `request_body_changed`; קישור מחדש ליעד גיבוי ויבוא מפתח הם מהרשת המקומית בלבד. אין שינוי בהגדרות. - Added: `POST /nvr/outputs/{id}/pulse` requires a body `{confirm: true, client_request_id}` and answers 504 `action_outcome_unknown` when the answer was lost; a ticket request repeated with the same key and another body is refused with 409 `request_body_changed`; re-linking a backup target and key import are local-network only. No settings change. `capabilities.visits.statuses` של הביקורים החיצוניים נגזר מחוזה WisKey כשהוא מפורסם. - No route or setting change. `capabilities.visits.statuses` of the external visits follows the WisKey contract when it is published.
+
+### התקנה - Install
+- אין מיגרציה חדשה. הגשר נשאר 0.10.10 (כמו ב-2.55.0). אין צורך להפעיל מחדש את מערכת הבית. חזרה ל-2.55.0: לשחזר את הגיבוי "auto-pre-upgrade" שההערה שלו "before upgrade 2.55.0 -> 2.56.0", לא את החדש ביותר. - No new migration. The bridge stays 0.10.10 (as in 2.55.0). No home system restart is needed. Rollback to 2.55.0: restore the "auto-pre-upgrade" backup whose note reads "before upgrade 2.55.0 -> 2.56.0", not the newest one.
+
 ## 2.55.0 (pilot) - import from the old NVR add-on, a safe way back, Android push without Google
 
 

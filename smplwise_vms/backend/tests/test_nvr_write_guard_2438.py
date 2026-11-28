@@ -169,7 +169,7 @@ def test_operational_actions_ignore_the_switch(settings, fake):
     with TestClient(app) as c:
         cam = _camera(c, app)
         _switch(c, False)
-        r = c.post("/api/v1/nvr/outputs/1/pulse")
+        r = c.post("/api/v1/nvr/outputs/1/pulse", json={"confirm": True, "client_request_id": "t-guard-1"})
         assert r.status_code == 201, r.text
         r = c.post("/api/v1/nvr/storage/2/smart-test", json={"kind": "short"})
         assert r.status_code == 201, r.text

@@ -2,7 +2,8 @@
 
 A background thread keeps one WebSocket session to HA Core: registries (entities, devices, areas, labels,
 floors) and a full state snapshot at connect, with the `state_changed` subscription made before the snapshot and the
-events of that window applied after it (CORE-03). Rows carry occurred
+events of that window applied after it (CORE-03). The socket reader only hands each state frame to one worker thread
+(services/ha_state_worker.py, CORE-10): the mirror write, its hooks and the rule delivery never block the feed's event loop. Rows carry occurred
 (HA `last_changed`/`last_updated`) and received (`state_seen_at`) times; while disconnected the API
 reports `fresh: false` and nothing is invented. Attributes are trimmed to an allow-list.
 
@@ -28,13 +29,13 @@ import queue
 import sqlite3
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 from ..config import Settings
 from ..db import Database, is_storage_full, log_storage_full, now_iso, retry_locked
 from ..errors import ApiError
 from ..test_reset import register_reset
-from . import ha_client, loop_thread_stop, site_location
+from . import ha_client, ha_state_worker, loop_thread_stop, site_location
 
 log = logging.getLogger("smplwise.ha")
 
@@ -135,6 +136,9 @@ class SyncState:
         self.auth_refusals = 0
         self.next_attempt_at: str | None = None
         self.dropped_frames = 0  # LOWS-BACKEND-2550 (CORE-06): frames a full /ha/ws subscriber queue could not take (since start)
+        # CORE10-EVENTLOOP-2560 (CORE-10): state frames the full state worker queue refused, and the full re-reads that made up for them
+        self.state_overflows = 0
+        self.state_resyncs = 0
 
     def __setattr__(self, name: str, value: Any) -> None:
         # when the connection was lost (monotonic): the NVR-less health reports an HA outage past a grace period
@@ -627,13 +631,15 @@ def _busy_retry(fn, attempts: int = 3, wait_s: float = 2.0):
     return retry_locked(fn, what="HA sync", attempts=attempts, base_s=wait_s / 2)
 
 
-def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) -> dict[str, Any]:
+def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1, deliver=None) -> dict[str, Any]:
     """One state_changed push: the mirror row, the correlation event (T053: door / motion / lock transitions) and the
     rule alerts in one short transaction. Rule notifications to HA are sent after the commit - under the write lock a
     slow HA answer stalled every other writer (round-10 lock storm).
-    One attempt by default (bounded by BUSY_TIMEOUT_S): this runs inside the HA WebSocket client's event loop, and
-    retries of ~30 s would miss the socket's ping deadline and cost a disconnect plus a full resync. A state lost to a
-    busy database is corrected by the next push of that entity or the next snapshot."""
+    One attempt by default (bounded by BUSY_TIMEOUT_S). The live feed runs this on the state worker
+    (services/ha_state_worker.py, CORE10-EVENTLOOP-2560), never on the socket reader, with STATE_WRITE_ATTEMPTS and
+    `deliver=ha_state_worker.deliver_later` (a rule's Home Assistant notify / announce on its own thread). `deliver`
+    None = `rules.deliver_pending` inline (direct callers and tests). A state lost to a busy database is corrected by the
+    next push of that entity or the next snapshot."""
     from . import rules as rules_svc
     from .correlation import may_record, record_transition
 
@@ -689,7 +695,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
             return row
 
     row = retry_locked(_write, what="HA state update", attempts=attempts, base_s=0.25)
-    rules_svc.deliver_pending(fired)
+    (deliver or rules_svc.deliver_pending)(fired)
     if str(new.get("entity_id") or "").startswith(AUTOMATION_PREFIXES):
         from . import automations as automations_svc
 
@@ -701,11 +707,11 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     return row
 
 
-def on_state_changed(db: Database, data: dict[str, Any]) -> dict[str, Any]:
-    """One `state_changed` frame with a new state, as the socket handler runs it: the stored row first (a screen that
+def on_state_changed(db: Database, data: dict[str, Any], attempts: int = 1, deliver=None) -> dict[str, Any]:
+    """One `state_changed` frame with a new state, as the state worker runs it: the stored row first (a screen that
     refetches - or a command poll the push wakes - must read the new state), then the push to every /ha/ws subscriber.
     Event-driven end to end: no polling interval anywhere between Home Assistant and the screens (LAT1)."""
-    row = handle_state_event(db, data)
+    row = handle_state_event(db, data, attempts, deliver)
     STATE.sequence += 1
     STATE.last_event_at = now_iso()
     publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
@@ -800,6 +806,53 @@ def store_states(db: Database, states: list[dict[str, Any]], seen: str) -> set[s
 # changed in between used to be in neither and stayed wrong until that entity's next change. Bounded: past this many held
 # events only the newest event of each entity is kept (the older ones are superseded by it).
 HELD_STATES_MAX = 20000
+
+# CORE10-EVENTLOOP-2560 (deep review CORE-10): the socket reader only hands a state frame to this worker (one consumer thread, FIFO:
+# the order of every frame is kept, per entity and across entities); the mirror write, its hooks and the rule delivery never run on
+# the feed's event loop again. A frame the full queue refuses is counted and the session re-reads every state (never silently).
+STATE_WORKER = ha_state_worker.StateWorker()
+STATE_WRITE_ATTEMPTS = 3  # off the reader a busy database is retried (bounded): the socket's keepalive no longer waits for it
+DRAIN_S = 30.0  # a new session waits this long at most for an earlier session's frames before its snapshot is stored
+END_DRAIN_S = 10.0  # a session that ends waits this long at most for its frames (STOP_DRAIN_S when the add-on stops)
+STOP_DRAIN_S = 2.0
+RESYNC_LOW_WATER = 0.5  # the re-read after an overflow is asked for once the queue holds at most this share of its frames
+
+
+async def _run_on_state_worker(fn: Callable[..., Any], *args: Any) -> Any:
+    """Run `fn(*args)` as a control job on STATE_WORKER (never refused, FIFO behind the queued frames) and await its result."""
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future[Any] = loop.create_future()
+
+    def _settle(setter: Callable[[Any], None], value: Any) -> None:
+        if not fut.done():  # the awaiting task was cancelled (the session ended): the result is dropped
+            setter(value)
+
+    def job() -> None:
+        try:
+            result = fn(*args)
+        except BaseException as exc:  # noqa: BLE001 - handed to the awaiting task
+            loop.call_soon_threadsafe(_settle, fut.set_exception, exc)
+            return
+        loop.call_soon_threadsafe(_settle, fut.set_result, result)
+
+    STATE_WORKER.submit(job, bounded=False)
+    return await fut
+
+
+def apply_resync(db: Database, listing: list[dict[str, Any]], seen: str, touched: set[str] | None = None) -> None:
+    """CORE-10: the full re-read after the state worker's queue refused frames - run ON the worker, so every frame queued before the
+    re-read was asked for is stored first and every frame after it is applied on top. Open screens refetch on the `resync` notice
+    (the CORE-06 signal of a full /ha/ws queue).
+    CD-02: the listing is applied through the reconcile rule (reconcile_states), never as a blind overwrite: a state HA reports as
+    older than the stored one is kept, and an entity in `touched` (a state frame that arrived from the moment the re-read was asked
+    for until now) is left to that frame - the socket reader may hand newer frames to the worker before this job is submitted."""
+    _rows, counts = reconcile_states(db, listing, seen, set(touched or ()))
+    log.info("HA sync: re-read applied: %d repaired, %d older kept, %d unchanged, %d updated live, %d not written",
+             counts["repaired"], counts["older"], counts["same"], counts["live"], counts["failed"])
+    STATE.last_snapshot_at = seen
+    STATE.state_resyncs += 1
+    log.warning("HA sync: every state re-read after %d state change(s) did not fit the queue (%d entities)", STATE.state_overflows, len(listing))
+    publish({"type": "structure_changed", "reason": "resync", "changed": True, "last_registry_at": STATE.last_registry_at})
 
 
 def _ha_time(value: Any) -> Any:
@@ -1098,6 +1151,9 @@ class HaSync:
         # CORE-03: while not None, the connect snapshot is being fetched / stored and state events are held here (on_ready applies them)
         held: list[dict[str, Any]] | None = None
         held_compacted = [False]
+        # CORE-10: this session's `call` once on_ready has it (the re-read after an overflow), and the re-read's own state
+        session_call: list[Any] = [None]
+        resync: dict[str, Any] = {"task": None, "again": False, "warned": False, "touched": None}  # CD-02: ids of frames seen since the re-read was asked for
 
         def on_event(data: dict[str, Any]) -> None:
             nonlocal held
@@ -1107,6 +1163,8 @@ class HaSync:
             touched = self._reconcile_touched
             if touched is not None and "new_state" in data:  # HA-STATE-RECONCILE-2550: the live event wins over the cycle's listing
                 touched.add(str(eid))
+            if resync["touched"] is not None and "new_state" in data:  # CD-02: the same for the re-read after an overflow
+                resync["touched"].add(str(eid))
             if held is not None and "new_state" in data:  # a registry_updated frame (no new_state key) is not a state event
                 held.append(data)
                 if len(held) > HELD_STATES_MAX:
@@ -1115,9 +1173,43 @@ class HaSync:
                         held_compacted[0] = True
                         log.warning("HA sync: more than %d state changes during the connect snapshot; only the newest per entity kept", HELD_STATES_MAX)
                 return
-            apply_event(data)
+            queue_event(data)
+
+        def queue_event(data: dict[str, Any]) -> None:
+            """CORE-10: the reader only hands the frame on (it runs on the socket's event loop). A full queue refuses it: counted, and
+            every state is re-read from Home Assistant."""
+            if "new_state" not in data:  # a registry_updated frame carries entity_id too: on_message handles it, nothing to store
+                return
+            if STATE_WORKER.submit(apply_event, data):
+                return
+            STATE.state_overflows += 1
+            if not resync["warned"]:
+                resync["warned"] = True
+                log.warning("HA sync: the state queue is full (%d waiting); the states are re-read from Home Assistant", STATE_WORKER.maxsize)
+            schedule_resync()
+
+        def schedule_resync() -> None:
+            resync["again"] = True
+            task = resync["task"]
+            if (task is not None and not task.done()) or session_call[0] is None:
+                return  # one re-read at a time (it repeats while frames keep being refused); before on_ready the connect snapshot follows
+            task = asyncio.create_task(resync_states(session_call[0]), name="ha-state-resync")
+            resync["task"] = task
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+
+        def poke_soon(reason: str) -> None:
+            """The debouncer lives on the session loop; apply_event runs on the state worker."""
+            d = debouncer
+            if d is None:
+                return
+            try:
+                loop.call_soon_threadsafe(d.poke, reason)
+            except RuntimeError:  # the session's loop has ended: the next session's connect refresh covers it
+                pass
 
         def apply_event(data: dict[str, Any]) -> None:
+            """On the state worker (CORE-10), never on the socket reader."""
             new = data.get("new_state")
             eid = data.get("entity_id", "")
             if not new:
@@ -1129,11 +1221,11 @@ class HaSync:
                     except Exception:
                         log.exception("state removal failed for %s", eid)
                         return
-                    if removed and debouncer is not None:
-                        debouncer.poke("state_removed")
+                    if removed:
+                        poke_soon("state_removed")
                 return
             try:
-                on_state_changed(db, data)
+                on_state_changed(db, data, STATE_WRITE_ATTEMPTS, ha_state_worker.deliver_later)
             except Exception as exc:
                 if is_storage_full(exc):  # T068-EDGE-2450: one line a minute on a full disk, not a traceback per state change
                     log_storage_full(log, "HA state updates")
@@ -1189,6 +1281,7 @@ class HaSync:
 
         async def on_ready(call) -> None:
             nonlocal refresher_task, debouncer, held
+            session_call[0] = call
             cfg = await call("get_config")
             STATE.ha_version = (cfg.get("result") or {}).get("version")
             # CR-029 S2 (owner 2026-10-11): the site location for the sun comes from this same core config reply
@@ -1215,13 +1308,16 @@ class HaSync:
             states = await call("get_states")
             listing = states.get("result") or []
             seen = now_iso()
+            # CORE-10: a frame of an earlier session still queued would be applied after this snapshot and overwrite it
+            if not await loop.run_in_executor(None, STATE_WORKER.wait_idle, DRAIN_S):
+                log.warning("HA sync: earlier state changes still being stored after %.0f s; the snapshot is stored anyway", DRAIN_S)
             await loop.run_in_executor(None, _note_connect_gap, db)  # DEVHIST: before the snapshot overwrites "the last state seen"
             await loop.run_in_executor(None, store_states, db, listing, seen)
             STATE.last_snapshot_at = seen
             STATE.connected = True
             STATE.last_error = None
             STATE.auth_refusals, STATE.next_attempt_at = 0, None
-            # no await between here and the end of the loop: a new event is applied directly from now on, never before a held one
+            # no await between here and the end of the loop: a new event is queued directly from now on, never before a held one
             pending_events, held = held or [], None
             if pending_events:
                 snapshot_updated = {str(st.get("entity_id") or ""): st.get("last_updated") for st in listing if isinstance(st, dict)}
@@ -1229,7 +1325,7 @@ class HaSync:
                 for data in pending_events:
                     if held_event_is_stale(data, snapshot_updated):
                         continue
-                    apply_event(data)
+                    queue_event(data)  # CORE-10: in order, on the state worker
                     applied += 1
                 log.info("HA sync: %d state change(s) during the connect snapshot applied (%d older than the snapshot skipped)",
                          applied, len(pending_events) - applied)
@@ -1293,6 +1389,30 @@ class HaSync:
             tasks.add(reconciler_task)
             reconciler_task.add_done_callback(tasks.discard)
 
+        async def resync_states(call) -> None:
+            """CORE-10: the full re-read after the state queue refused frames (scheduled by queue_event; one at a time)."""
+            try:
+                while resync["again"]:
+                    resync["again"] = False
+                    while STATE_WORKER.frames() > STATE_WORKER.maxsize * RESYNC_LOW_WATER:
+                        await asyncio.sleep(0.2)
+                    resync["touched"] = touched = set()  # from before the listing is asked for: a frame that races it is never undone
+                    try:
+                        reply = await call("get_states")
+                    except Exception as exc:  # noqa: BLE001 - a dropped socket: the reconnect's snapshot re-reads everything
+                        log.warning("HA sync: the state re-read after a full queue failed: %s", type(exc).__name__)
+                        return
+                    if not reply.get("success", True):
+                        log.warning("HA sync: the state re-read after a full queue was refused (%s); the next overflow or connect re-reads",
+                                    (reply.get("error") or {}).get("code"))
+                        return
+                    # a control job: never refused, and placed behind every frame queued so far (they are older than this listing)
+                    # frames queued after this job are applied on top of it (FIFO); frames read before it are in `touched`
+                    STATE_WORKER.submit(apply_resync, db, reply.get("result") or [], now_iso(), touched, bounded=False)
+            finally:
+                resync["warned"] = False
+                resync["touched"] = None
+
         try:
             await ha_client.ws_session(settings, on_ready, on_event, stop_evt, on_message=on_message)
         finally:
@@ -1309,6 +1429,11 @@ class HaSync:
             # calling the closed socket ("registry refresh failed: ConnectionClosedOK" every 10 minutes, F13)
             if refresher_task is not None:
                 refresher_task.cancel()
+            # CORE-10: the session ends with its frames stored (bounded; the next session's snapshot waits for the rest)
+            try:
+                await loop.run_in_executor(None, STATE_WORKER.wait_idle, STOP_DRAIN_S if stop_evt.is_set() else END_DRAIN_S)
+            except Exception:  # noqa: BLE001 - the loop is closing
+                pass
 
     async def _refresh_and_notify(self, call, reason: str, *, notify: bool = True, force_notice: bool = False) -> bool | None:
         """One registry refresh at a time; a `structure_changed` notice when it moved anything a screen shows (or when
@@ -1363,7 +1488,10 @@ class HaSync:
                 return self._reconcile_done({"skipped": "refused"}, reason)
             if not STATE.connected:  # the session dropped while the listing came in
                 return self._reconcile_done({"skipped": "disconnected"}, reason)
-            rows, counts = await asyncio.get_running_loop().run_in_executor(None, reconcile_states, db, listing, now_iso(), touched)
+            # CORE-10 + HA-STATE-RECONCILE-2550: the repair is a control job on the state worker, behind every frame queued before it:
+            # a frame that arrived before the listing was asked for (so it is not in `touched`) is stored first and cannot be applied
+            # on top of the newer repaired row afterwards; a frame that arrives later is in `touched` and the repair leaves it alone.
+            rows, counts = await _run_on_state_worker(reconcile_states, db, listing, now_iso(), touched)
         finally:
             self._reconcile_touched = None
         for row in rows:

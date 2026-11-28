@@ -7,6 +7,7 @@ import json
 import pytest
 
 from smplwise.config import DEFAULT_REMOTE_PATH, load_settings, normalize_remote_path
+from support.waiting import soon
 
 
 # ---------------------------------------------------------------- 1. add-on options
@@ -1000,7 +1001,7 @@ def test_remote_user_controls_a_light(settings, tmp_path, monkeypatch):
         arx.bind("u-viewer", "operator")
         assert arx.login(arx.viewer).status_code == 200
         body = {"allowed_action_id": "light.turn_on", "arguments": {"brightness_pct": 40}, "expected_state_version": None, "confirmation_grant": None,
-                "client_request_id": "arx-1", "expires_at": "2099-01-01T00:00:00Z"}
+                "client_request_id": "arx-1", "expires_at": soon()}
         r = arx.client.post("/arx/api/v1/ha/entities/light.lobby/actions", json=body)
         assert r.status_code == 202, r.text
         assert calls[-1]["user_id"] == "u-viewer" and calls[-1]["data"]["entity_id"] == "light.lobby"

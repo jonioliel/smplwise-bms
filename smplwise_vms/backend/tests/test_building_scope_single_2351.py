@@ -14,13 +14,14 @@ from test_building_scope_control_2351 import _preview, _site
 from test_devices import _bulk, _finish, _place, _publish_plan, bulk_app, dev_app  # noqa: F401 - the fixtures of the bulk tests
 
 from smplwise.services import building_scope
+from support.waiting import soon
 
 API = "/api/v1"
 
 
 def _act(c, entity_id: str, rid: str, action: str = "light.turn_off", headers: dict | None = None, **extra):
     body = {"allowed_action_id": action, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": rid,
-            "expires_at": "2099-01-01T00:00:00Z", **extra}
+            "expires_at": soon(), **extra}
     return c.post(f"{API}/ha/entities/{entity_id}/actions", json=body, headers=headers or {})
 
 

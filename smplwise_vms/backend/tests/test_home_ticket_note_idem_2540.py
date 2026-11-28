@@ -37,6 +37,20 @@ def test_the_same_request_id_twice_adds_one_note_and_answers_the_first_result(se
     assert _notes(w, mine) == ["עדיין מטפטף", "ועכשיו יותר"]
 
 
+def test_tk03_the_same_request_id_with_an_edited_text_is_409_then_a_fresh_key_adds_the_edited_note(settings):
+    """FIX-TICKETS-2560 (TK-03): a retry after a lost answer with an EDITED text used to replay the first note and lose the edit."""
+    w = tickets_build(settings)
+    mine = _open(w)
+    key = rid()
+    assert w.c.post(f"{API}/home/tickets/{mine}/notes", json={"text": "מטפטף", "client_request_id": key}, headers=w.h("nora")).status_code == 201
+    r = w.c.post(f"{API}/home/tickets/{mine}/notes", json={"text": "מטפטף חזק", "client_request_id": key}, headers=w.h("nora"))
+    assert r.status_code == 409 and r.json()["code"] == "request_body_changed", r.text
+    assert _notes(w, mine) == ["מטפטף"]
+    ok = w.c.post(f"{API}/home/tickets/{mine}/notes", json={"text": "מטפטף חזק", "client_request_id": rid()}, headers=w.h("nora"))
+    assert ok.status_code == 201
+    assert _notes(w, mine) == ["מטפטף", "מטפטף חזק"]
+
+
 def test_the_same_request_id_on_another_ticket_is_refused_and_adds_nothing(settings):
     w = tickets_build(settings)
     a, b = _open(w, "נזילה"), _open(w, "נורה שרופה")

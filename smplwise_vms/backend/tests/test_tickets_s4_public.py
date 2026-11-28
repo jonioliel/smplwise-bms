@@ -210,6 +210,29 @@ def test_a_repeated_request_id_replays_and_another_route_is_409(s4):
     assert r.status_code == 409 and r.json()["code"] == "request_id_reused"
 
 
+def test_tk01_the_same_request_id_with_an_edited_body_is_409_and_a_fresh_id_sends_it(s4):
+    """FIX-TICKETS-2560 (TK-01): a lost answer, then an edit under the SAME id used to replay the first answer and drop the edit."""
+    t, token = s4.sent()
+    client, _ = s4.public(Clock(time.time()))
+    rid = crid()
+    first = client.post("/t/api/status", headers=hdr(token), json={"status": "acknowledged", "note": "הערה ראשונה", "client_request_id": rid})
+    assert first.status_code == 200
+    same = client.post("/t/api/status", headers=hdr(token), json={"status": "acknowledged", "note": "הערה ראשונה", "client_request_id": rid})
+    assert same.status_code == 200 and same.json() == first.json()
+    edited = client.post("/t/api/status", headers=hdr(token), json={"status": "acknowledged", "note": "הערה מתוקנת", "client_request_id": rid})
+    assert edited.status_code == 409 and edited.json()["code"] == "request_body_changed"
+    chip = client.post("/t/api/status", headers=hdr(token), json={"status": "in_progress", "note": "הערה ראשונה", "client_request_id": rid})
+    assert chip.status_code == 409 and chip.json()["code"] == "request_body_changed"
+    # a note and an ETA behave the same
+    nrid = crid()
+    assert client.post("/t/api/note", headers=hdr(token), json={"text": "א", "client_request_id": nrid}).status_code == 200
+    assert client.post("/t/api/note", headers=hdr(token), json={"text": "אב", "client_request_id": nrid}).json()["code"] == "request_body_changed"
+    # the edit goes out as a new request under a fresh id: that is what the page does on this 409
+    assert client.post("/t/api/note", headers=hdr(token), json={"text": "אב", "client_request_id": crid()}).status_code == 200
+    notes = [e["body"] for e in s4.w.detail(t["id"])["events"] if e["kind"] == "note" and e["actor"]["kind"] == "contact"]
+    assert notes == ["א", "אב"] or sorted(notes) == sorted(["א", "אב"]), notes
+
+
 def test_not_mine_returns_the_ticket_and_revokes_the_link_at_once(s4):
     t, token = s4.sent()
     client, _ = s4.public(Clock(time.time()))

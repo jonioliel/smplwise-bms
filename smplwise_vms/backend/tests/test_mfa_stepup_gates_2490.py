@@ -386,6 +386,8 @@ AFTER_REQUIRE: dict[str, str] = {
     "services.rbac_admin.check_delegation": "the delegation limits after the route's require()",
     "routers.doors.switch_role": "access.doors.open as data, added to a role after require(rbac.roles.manage)",
     "routers.catalog.put_home_link": "a second floor's site.content.configure after the first require() (RemapGuard)",
+    "routers.catalog.delete_building": "the building's site.content.configure again after the route's require() (RemapGuard, FIX-MH01-2560)",
+    "routers.catalog.delete_floor": "the floor's site.content.configure again after the route's require() (RemapGuard, FIX-MH01-2560)",
     "routers.home_mapping.apply_mapping": "a second building's site.content.configure after the first require() (RemapGuard)",
     "routers.home_mapping.restore_version": "a second building's site.content.configure after the first require() (RemapGuard)",
     "routers.nvr_write._camera_config_scope": "the camera's own chain after the route's installation-wide require()",

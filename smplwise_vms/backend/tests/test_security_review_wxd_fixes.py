@@ -33,6 +33,7 @@ from smplwise.main import create_app
 from smplwise.rbac import STATION, Principal, permissions_anywhere
 from smplwise.routers import access_control
 from smplwise.services import automations, door_authority, door_path, door_run_guard, ha_client, intercom_sync, trusted_door
+from support.waiting import soon
 
 API = "/api/v1"
 ENTRY = "01JSECWXDSTATIONENTRY0000A"  # synthetic opaque config entry ids (never a hardware id)
@@ -81,7 +82,7 @@ def _env(ttl: float = 15.0, **fields: Any) -> dict[str, Any]:
 
 
 def _tile(c: TestClient, entity: str, user: str | None, action: str = "lock.unlock") -> Any:
-    body = {"allowed_action_id": action, "client_request_id": str(uuid.uuid4()), "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"}
+    body = {"allowed_action_id": action, "client_request_id": str(uuid.uuid4()), "expires_at": soon(), "confirmation_grant": "confirmed"}
     return c.post(f"{API}/ha/entities/{entity}/actions", json=body, headers=as_user(user) if user else {})
 
 

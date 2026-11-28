@@ -615,6 +615,7 @@
 "ההעדפה שנשלחה אינה תקינה.": "The preference sent is not valid.",
 "ההערה ארוכה מדי.": "The note is too long.",
 "ההערה ריקה.": "The note is empty.",
+"ההערה שונתה אחרי השליחה הקודמת - היא נשלחת כהערה חדשה.": "The note changed after the previous send - it is sent as a new note.",
 "ההפרש גדול מדי.": "The difference is too large.",
 "ההצעה השתנתה.": "The proposal has changed.",
 "ההצעה כבר טופלה או הוחלפה בחדשה.": "The suggestion has already been handled or replaced with a new one.",

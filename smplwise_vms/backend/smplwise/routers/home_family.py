@@ -212,16 +212,20 @@ def my_ticket_note(body: NoteBody, request: Request, ticket_id: str = Path(..., 
     refused (409 request_id_reused)."""
     import json
 
-    from ..services.tickets import present, service, store
+    from ..services.tickets import present, service, store, store_links
 
     viewer = _viewer(conn, principal)
     seen = _mine(viewer, ticket_id)
-    scope, key, route = f"user:{principal.user_id}", body.client_request_id, _note_route(ticket_id)
+    # FIX-TICKETS-2560 (TK-03): the text is part of what the key stands for (`route#digest`, the same helper as the public pages)
+    scope, key, route = f"user:{principal.user_id}", body.client_request_id, store_links.route_key(_note_route(ticket_id), {"text": body.text})
     if key:
         prev = store.request_get(conn, scope, key)
         if prev is not None:
-            if prev["route"] != route:
+            match = store_links.request_match(prev["route"], route)
+            if match == "route":
                 raise ApiError(409, "request_id_reused", "מזהה הבקשה כבר שימש לפעולה אחרת.")
+            if match == "body":
+                raise ApiError(409, "request_body_changed", "ההערה שונתה אחרי השליחה הקודמת - היא נשלחת כהערה חדשה.")
             return JSONResponse(json.loads(prev["response_json"]), status_code=int(prev["status_code"]))
     service.add_note(conn, viewer, seen, body.text, False, _rid(request))
     answer = {"ticket": _item(conn, _mine(viewer, ticket_id), present.Lookups(conn))}

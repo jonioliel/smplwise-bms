@@ -403,7 +403,7 @@ def apply(conn: sqlite3.Connection, settings: Any, src: LegacySource, *, plan_di
     """Do the plan the caller looked at. `backup(settings, conn, kind, note)` writes the project backup (services.backup.create;
     a seam for tests). Raises PlanChanged (nothing written) when the plan is no longer the one with `plan_digest`."""
     from ..audit import audit
-    from ..db import now_iso, set_setting
+    from ..db import now_iso, set_setting, unlocked
 
     fresh = plan(conn, settings, src, lang)
     if fresh["plan_digest"] != plan_digest:
@@ -414,14 +414,27 @@ def apply(conn: sqlite3.Connection, settings: Any, src: LegacySource, *, plan_di
     applied: list[dict[str, Any]] = []
     unchanged = 0
     if todo:
-        if backup is None:
-            from . import backup as backup_svc
-
-            backup = backup_svc.create
+        note = f"before legacy import {src.sha256[:12]}"
         try:
-            entry = backup(settings, conn, BACKUP_KIND, f"before legacy import {src.sha256[:12]}")
+            if backup is not None:
+                entry = backup(settings, conn, BACKUP_KIND, note)
+            else:
+                # CD-03 (CORE-05 on this path): the snapshot is read under the request's transaction, the archive is compressed with
+                # the single write lock given up (HA state writes, recorder alerts and user actions go on meanwhile), then the lock is
+                # taken back.
+                from . import backup as backup_svc
+
+                prepared = backup_svc.prepare(conn, BACKUP_KIND, note)
+                with unlocked(conn):
+                    entry = backup_svc.write_prepared(settings, prepared)
         except Exception as exc:  # noqa: BLE001 - no backup, no change (the caller answers 409)
             raise BackupFailed(type(exc).__name__) from None
+        if backup is None:
+            # the lock was open for a while: the plan must still be the one the administrator looked at before the first change
+            # (the UPDATEs below are also guarded on an empty alias, so this only keeps the answer honest: nothing written, 409)
+            again = plan(conn, settings, src, lang)
+            if again["plan_digest"] != plan_digest:
+                raise PlanChanged(again["plan_digest"])
         at = now_iso()
         for it in todo:
             if it["area"] != "cameras" or it["action"] != "update":

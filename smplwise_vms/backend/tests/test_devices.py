@@ -19,6 +19,7 @@ from smplwise.rbac import ROLES
 from smplwise.routers.access import PERMISSION_LABELS
 from smplwise.services import devices as svc
 from smplwise.services import ha_bridge, ha_client, ha_scope, ha_sync
+from support.waiting import soon
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -323,7 +324,7 @@ def _pair(c, monkeypatch):
 
 
 def _body(**kw):
-    return {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req", "expires_at": "2099-01-01T00:00:00Z", **kw}
+    return {"allowed_action_id": "switch.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "req", "expires_at": soon(), **kw}
 
 
 def _devices_control_only_role(c) -> str:
@@ -519,7 +520,7 @@ def test_new_allow_list_actions_validate_and_have_expected_risk(dev_app, monkeyp
     app, s = dev_app
     c = TestClient(app)
     _pair(c, monkeypatch)
-    body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
+    body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": soon(), **kw}  # noqa: E731
     # cover.set_cover_position: 0-100 only, and a movement needs the explicit confirmation like open/close
     assert c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 150}, confirmation_grant="confirmed", client_request_id="p1")).status_code == 422
     r = c.post("/api/v1/ha/entities/cover.lobby_blind/actions", json=body(allowed_action_id="cover.set_cover_position", arguments={"position": 40}, client_request_id="p2a"))
@@ -1073,7 +1074,7 @@ def test_bulk_one_per_scope_and_never_overlapping(bulk_app):
     assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "cover.office", "state": "open", "attributes": {}}]}).status_code == 200
     other = c.post("/api/v1/devices/actions", json=_bulk(scope="area", id="office", kind="covers_close"))
     assert other.status_code == 202, other.text
-    single = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "client_request_id": "single-1", "expires_at": "2099-01-01T00:00:00Z"})
+    single = c.post("/api/v1/ha/entities/switch.lobby_sign/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "client_request_id": "single-1", "expires_at": soon()})
     assert single.status_code == 202, single.text
     fake.release.set()
     _finish(c, bid)
@@ -1211,7 +1212,7 @@ def test_bulk_switches_included_unless_protected(bulk_app, monkeypatch):
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'devices.bulk_protected' AND decision = 'allowed'").fetchone()[0] == 3
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'system.configure' AND decision = 'denied'").fetchone()[0] >= 2
     # protected = out of GROUP actions only: the switch is still controllable on its own (devices.control, the single route)
-    r = c.post("/api/v1/ha/entities/switch.lobby_pump/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "client_request_id": "pump-off-1", "expires_at": "2099-01-01T00:00:00Z"})
+    r = c.post("/api/v1/ha/entities/switch.lobby_pump/actions", json={"allowed_action_id": "switch.turn_off", "arguments": {}, "client_request_id": "pump-off-1", "expires_at": soon()})
     assert r.status_code == 202, r.text
     assert any(x["data"]["entity_id"] == "switch.lobby_pump" for x in fake.calls)
     # a switch on the door layer is never in a group action: protection does not apply (409, audited)
@@ -1255,7 +1256,7 @@ def test_media_player_standby_confirms_turn_off(bulk_app):
     app, s, c, fake = bulk_app
     assert c.post("/api/v1/multimedia/admin/approve", json={"approved": False}).status_code == 200  # CR-015: a managed screen is not operated through this route
     fake.stuck = {"media_player.lobby_tv"}
-    r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json={"allowed_action_id": "media_player.turn_off", "arguments": {}, "client_request_id": "tv-off-1", "expires_at": "2099-01-01T00:00:00Z"})
+    r = c.post("/api/v1/ha/entities/media_player.lobby_tv/actions", json={"allowed_action_id": "media_player.turn_off", "arguments": {}, "client_request_id": "tv-off-1", "expires_at": soon()})
     assert r.status_code == 202
     assert c.post("/api/v1/ha/dev/states", json={"states": [{"entity_id": "media_player.lobby_tv", "state": "standby", "attributes": {}}]}).status_code == 200
     assert c.get(f"/api/v1/ha/actions/{r.json()['id']}").json()["status"] == "confirmed"
@@ -1314,7 +1315,7 @@ def test_slice4_new_allow_list_actions_validate_and_have_expected_risk(dev_app, 
             ]
         },
     ).status_code == 200
-    body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": "2099-01-01T00:00:00Z", **kw}  # noqa: E731
+    body = lambda **kw: {"arguments": {}, "expected_state_version": None, "confirmation_grant": None, "expires_at": soon(), **kw}  # noqa: E731
     # climate: preset / swing / humidity
     assert c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_preset_mode", arguments={"preset_mode": "x" * 41}, client_request_id="q1")).status_code == 422
     r = c.post("/api/v1/ha/entities/climate.lobby/actions", json=body(allowed_action_id="climate.set_preset_mode", arguments={"preset_mode": "eco"}, client_request_id="q2"))

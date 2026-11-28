@@ -20,6 +20,7 @@ from schedules_fixture import post_json, put_draft
 from smplwise.db import now_iso, set_setting
 from smplwise.errors import ApiError
 from smplwise.services import door_path_guard as guard
+from support.waiting import soon
 
 REFUSAL = "לא ניתן להוסיף כאן פתיחת דלת אינטרקום. פתיחה נעשית מכפתור הדלת או מתוכנית החזקה פתוחה."
 
@@ -43,7 +44,7 @@ def _setting(app, value: str | None) -> None:
 
 
 def _tile(c, entity: str, action: str, user: str | None = None):
-    body = {"allowed_action_id": action, "client_request_id": str(uuid.uuid4()), "expires_at": "2099-01-01T00:00:00Z", "confirmation_grant": "confirmed"}
+    body = {"allowed_action_id": action, "client_request_id": str(uuid.uuid4()), "expires_at": soon(), "confirmation_grant": "confirmed"}
     return c.post(f"{API}/ha/entities/{entity}/actions", json=body, headers=as_user(user) if user else {})
 
 

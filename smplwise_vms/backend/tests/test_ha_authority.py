@@ -12,10 +12,11 @@ from test_ha import STATES
 
 from smplwise.main import create_app
 from smplwise.services import ha_bridge, ha_client, ha_sync
+from support.waiting import soon
 
 
 def _body(**kw):
-    return {"allowed_action_id": "light.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "r1", "expires_at": "2099-01-01T00:00:00Z", **kw}
+    return {"allowed_action_id": "light.turn_on", "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": "r1", "expires_at": soon(), **kw}
 
 
 @pytest.fixture()

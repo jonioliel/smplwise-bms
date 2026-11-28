@@ -104,6 +104,21 @@ def test_create_app_with_and_without_the_template_build_the_same_database(tmp_pa
     assert counts_a == counts_b
 
 
+def test_the_unsynced_copy_leaves_the_application_connections_their_durability(tmp_path):
+    """BACKEND-SUITE-COST-2560: copy_into writes with synchronous=OFF (no fsync of the copy). That is a setting of the copying
+    connection only: the file is still WAL, intact, and every connection the product opens on it is FULL (durable) or NORMAL
+    (the mirror class), exactly as on a database migrated the real way."""
+    tpl = db_template.build(_real(), Database, tmp_path / "tpl")
+    path = tmp_path / "copy" / "smplwise.db"
+    db = Database(path)
+    db_template.copy_into(tpl, path)
+    assert pragmas(path)["journal_mode"] == "wal" and checks(path) == ("ok", [])
+    with db.connection(label="durable probe") as conn:
+        assert conn.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL
+    with db.connection(label="mirror probe", durable=False) as conn:
+        assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1  # NORMAL
+
+
 def test_direct_migrate_calls_and_non_empty_databases_take_the_real_path(tmp_path):
     before = dict(db_template.STATS)
     db = Database(tmp_path / "d" / "smplwise.db")

@@ -209,7 +209,15 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, from_floor_id: 
         return zone_row(z)
     fields["revision"] = z["revision"] + 1
     fields["updated_at"] = now_iso()
+    guard = None
+    if "ha_area_id" in fields:
+        # FIX-MH01-2560: the room's area link is the first source of an area's building (building_scope.area_targets) - the same
+        # round-14 RemapGuard as POST /plan/area-links: an area leaving its building needs placement.edit there too, an unmapped area
+        # mapped into one needs it installation-wide; a refusal is the audited 403 with nothing written. Switch off: no-op.
+        guard = _remap_guard(conn, principal)
     zones_store.patch_zone(conn, zone_id, fields)
+    if guard is not None:
+        guard.check()
     audit(conn, actor=principal, action="zone.update", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request),
           details={k: v for k, v in fields.items() if k != "polygon_json"} | ({"points": len(body.polygon)} if body.polygon else {}) | ({"via_floor_id": from_floor_id} if place is not None else {}))
     return zone_row(_get_zone(conn, zone_id))
@@ -498,6 +506,15 @@ def share_placement(zone_id: str, floor_id: str, body: PlacementIn, request: Req
     return {"zone_id": zone_id, "floor_id": floor_id, "placement": placement, "revision": share.revision + 1}
 
 
+def _remap_guard(conn: sqlite3.Connection, principal: Principal):
+    """FIX-MH01-2560: every write that can change which building an area resolves to - a room's area link, and a room deleted with
+    its link (the area falls back to its area -> floor row) - runs the round-14 RemapGuard of POST /plan/area-links (create before the
+    write, `check()` after it and before the route's audit row). Switch off / "מיקום במפה": a no-op."""
+    from ..services import building_scope
+
+    return building_scope.RemapGuard(conn, principal, "placement.edit")
+
+
 @router.delete("/zones/{zone_id}", status_code=204)
 def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, with_unshare: bool = False, principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> None:
@@ -510,7 +527,9 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
     require(conn, principal, "placement.edit", ("floor", z["floor_id"]))
     group = shared_spaces.zone_in_share(conn, zone_id)
     if group is None:
+        guard = _remap_guard(conn, principal)
         zones_store.delete_zone(conn, zone_id, now_iso())
+        guard.check()
         store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291: an organisation location's optional link to this room
         audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=_rid(request), details={"name": z["name"]})
         return
@@ -525,11 +544,13 @@ def delete_zone(zone_id: str, request: Request, background: BackgroundTasks, wit
     _share_rights(conn, principal, group.floors, apply=True)  # every floor, before the first write
     now = now_iso()
     rid = _rid(request)
+    guard = _remap_guard(conn, principal)
     for s in group.shares:
         if shared_spaces.unshare(conn, zone_id, s.floor_id, principal.user_id, now):
             audit(conn, actor=principal, action="zone.unshare", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid,
                   details={"home_floor_id": group.home_floor_id, "floor_id": s.floor_id, "reason": "zone_deleted"})
     zones_store.delete_zone(conn, zone_id, now)
+    guard.check()
     store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     audit(conn, actor=principal, action="zone.delete", decision="allowed", resource_type="zone", resource_id=zone_id, request_id=rid, details={"name": z["name"], "unshared_floors": [s.floor_id for s in group.shares]})
     _revoke(background, _all_users(conn))
@@ -565,7 +586,9 @@ def accept_zones(floor_id: str, body: AcceptIn, request: Request, principal: Pri
     if body.replace_auto:
         # review M4: a room that is part of a shared space is kept (un-share it first to replace it)
         keep = {r["id"] for r in zones_store.live_auto_zone_ids(conn, floor_id) if shared_spaces.zone_in_share(conn, r["id"]) is not None}
+        guard = _remap_guard(conn, principal)  # FIX-MH01-2560: a replaced room may carry an area link
         zones_store.delete_auto_zones_except(conn, floor_id, keep, now_iso())
+        guard.check()
         store_locations.clear_dead_plan_zones(conn)  # ORGPLAN-291
     ids = []
     lang = dn.lang_of(conn, principal)  # I18N-EN-2490 (owner N53): an unnamed room is named in the caller's language

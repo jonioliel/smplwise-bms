@@ -257,7 +257,13 @@ def test_water_routes_without_another_test_answer_as_before(app):  # noqa: F811 
     r = c.post(f"{api}/bills/{b['id']}/void", json={"reason": "בדיקת חוזה"})
     assert r.status_code == 200, r.text
     garden = c.get(f"{api}/meters/{ids['garden']}").json()
-    r = c.post(f"{api}/meters/{ids['garden']}/replace", json={"revision": garden["revision"]})
+    # BACKEND-SUITE-COST-2560: one second after the counter life began, as test_route_char_consumption_2460.py does. With `at`
+    # omitted (= now) a fast run replaced the meter in its creation second, which the service refuses by design (422).
+    import datetime as _dt
+
+    started = _dt.datetime.strptime(garden["epochs"][0]["started_at"][:19], "%Y-%m-%dT%H:%M:%S")
+    at = (started + _dt.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    r = c.post(f"{api}/meters/{ids['garden']}/replace", json={"revision": garden["revision"], "at": at})
     assert r.status_code == 200, r.text
     r = c.delete(f"{api}/meters/{ids['garden']}?revision={r.json()['revision']}")
     assert r.status_code == 200, r.text
