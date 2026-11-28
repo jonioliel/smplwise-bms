@@ -33905,5 +33905,119 @@
     "owner": null,
     "commit": "be7dce69a",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-AUTOMATION-2570",
+    "title": "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap; merged into the 2.57.0 train, change note docs/changes/FIX-AUTOMATION-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-AUTOMATION-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-AUTOMATION-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-AUTOMATION-2570, change note docs/changes/FIX-AUTOMATION-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-AUTOMATION-2570 head 0a95b58dd merged a6f7d290d into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-AUTOMATION-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "0a95b58dd",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-WISKEY2-2570",
+    "title": "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents; merged into the 2.57.0 train, change note docs/changes/FIX-WISKEY2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-WISKEY2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-WISKEY2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-WISKEY2-2570, change note docs/changes/FIX-WISKEY2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-WISKEY2-2570 head 9e5eb8f97 merged 24cf3d2e9 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-WISKEY2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "9e5eb8f97",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-CORE2-2570",
+    "title": "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes; merged into the 2.57.0 train, change note docs/changes/FIX-CORE2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-CORE2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-CORE2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-CORE2-2570, change note docs/changes/FIX-CORE2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-CORE2-2570 head 4bee4fbbf merged 077b7b87e into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-CORE2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "4bee4fbbf",
+    "actual_cost_usd": null
   }
 ]

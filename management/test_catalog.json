@@ -23826,5 +23826,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-AUTOMATION-2570-1",
+    "requirement_ids": [
+      "R-FIX-AUTOMATION-2570-1"
+    ],
+    "task_ids": [
+      "FIX-AUTOMATION-2570"
+    ],
+    "title": "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap; merged into the 2.57.0 train, change note docs/changes/FIX-AUTOMATION-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-WISKEY2-2570-1",
+    "requirement_ids": [
+      "R-FIX-WISKEY2-2570-1"
+    ],
+    "task_ids": [
+      "FIX-WISKEY2-2570"
+    ],
+    "title": "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents; merged into the 2.57.0 train, change note docs/changes/FIX-WISKEY2-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-CORE2-2570-1",
+    "requirement_ids": [
+      "R-FIX-CORE2-2570-1"
+    ],
+    "task_ids": [
+      "FIX-CORE2-2570"
+    ],
+    "title": "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes; merged into the 2.57.0 train, change note docs/changes/FIX-CORE2-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -20,6 +20,9 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 6 | `pilot/FIX-FE2-2570` | `ac155879e` | `d6c7a0799` | none (`screens/devices-automations.ts` auto-merged with FIX-FE-2570's `decodeSegment`) | FE2-01..FE2-16, VD2-05; `api/run-confirm.ts`; additive `time_zone`, `bridge.integration_version`; regenerated wire types |
 | 7 | `pilot/FIX-VIDEO-2570` | `5a73eb616` | `62e1ed6d7` | none (`devices-schedules.ts` and `error_text_en.json` auto-merged; FIX-FE-2570's `decodeSegment` at line 339 and FIX-VIDEO's `pageView()` both present; JSON valid) | VD-02 rest, VD-03 rest, SCR-29, SCR-54, alarm `expires_too_far`; its evidence spec ran on an earlier commit - re-run on the train (3.2) |
 | 8 | `pilot/FIX-TICKETS2-2570` | `be7dce69a` | `20744741d` | none | TK2-01..TK2-04; the whole `test_tickets_costs.py` re-run on the train (3.2) |
+| 9 | `pilot/FIX-AUTOMATION-2570` | `0a95b58dd` | `a6f7d290d` | none (`routers/ha.py`, `error_text_en.json` auto-merged; JSON valid) | backend only; contract check with FIX-FE2-2570: section 2.1 |
+| 10 | `pilot/FIX-WISKEY2-2570` | `9e5eb8f97` | `24cf3d2e9` | none | backend only: emergency release by the releaser, managed install restart, write lineage |
+| 11 | `pilot/FIX-CORE2-2570` | `4bee4fbbf` | `077b7b87e` | none (`Dockerfile` auto-merged: the 2.57.0 label and the multi-arch default both present) | e-mail, monthly reports, access digest DST, legacy aliases, multi-arch `BUILD_FROM` default + `release_check.py` base-image rule, 0215 comment-only rollback note |
 | - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
 | - | registry | - | `d832d0166` | - | section 4 |
@@ -31,9 +34,27 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 - unused-exports ratchet (runner, at `9a7540f68`): FIX-HOME-MAPS-2570 added three exports used only in their own file -
   `doorJammed` (`home/home-logic.ts`), `TargetSend` / `TargetZone` (`home/home-target.ts`). The `export` keyword dropped (file-local), as
   on the 2.56 train; no caller outside the file, none in the tests.
+- `1b29221ef` (FIX-AUTOMATION-2570 VD2-01): 403 `forbidden` / `scene_members_unknown` reused the generic sentence of
+  `ascope.unknown_effects` ("the item has actions not known in advance ..."). New key `ascope.scene_members_unknown` (Hebrew + English,
+  `services/automation_scope_text.py`): "לא ידוע אילו מכשירים הסצנה מפעילה (ההגדרה שלה אינה קריאה). הפעלתה דורשת הרשאה לשלוט במכשירים,
+  לפתוח דלתות ולנטרל את האזעקה בכל ההתקנה." / "It is not known which devices this scene sets (its definition cannot be read). Running it
+  needs the permissions to control devices, open doors and disarm the alarm in the whole installation." `unknown_scene_reasons` uses
+  it; `test_vd2_01_...` asserts it (one added line).
 - PENDING (lead, 28.11; after FIX-MAPS2-2570 is merged): the simple home screen's scene buttons (`home/home-actions.ts`) move to
   FIX-FE2-2570's `api/run-confirm.ts` and the unknown-outcome classification (a lost answer = amber unknown, not a failure; after a run
   "request sent", not "scene ... ran"), with a unit test.
+
+### 2.1 The scene / script contract, FIX-AUTOMATION-2570 (server) against FIX-FE2-2570 (client), read on the merged train
+
+| server answer | client (scenes panel, launcher, area quick sheet; scripts panel) |
+|---|---|
+| request field `confirm: true`, same `client_request_id` | `api/run-confirm.ts runConfirmed`: asks first for a `sensitive` / `unknown_effects` item; otherwise sends once and, on 409 `confirmation_required`, asks and sends ONE more time with `confirm: true` and the same id; "no" sends nothing |
+| 403 `grant_required` (`details.grant`, `entity_id`, `path`) | `mapAutomationError` (`api/automations.ts`) reads `grant` / `path`; red refusal with the server's sentence (`physicalOutcome` = refused) |
+| 403 `step_up_required` | the global step-up dialog of `api/client.ts` / `shell/step-up.ts` (FE2-03: a late confirmation answers "press again", nothing re-sent) |
+| 403 `forbidden`, `details.reason = scene_members_unknown` | red refusal with the server's `user_message` - now its own sentence (train fix above), Hebrew / English by the request language |
+| 504 `config_timeout`, `details.outcome = unknown` | `physicalOutcome` -> `unknown` (the structured outcome wins): amber "לא ידוע אם הסצנה הופעלה · בדקו במקום" (scenes), `.l-note.warn` (launcher), `qcSceneUnknown` (quick sheet); `runConfirmed` never re-sends it |
+
+Open: the simple home screen's own scene buttons (`home/home-actions.ts`) - the pending train fix above.
 
 ## 3. Checks
 
@@ -72,9 +93,11 @@ regenerated views committed.
 
 1. FIX-CORE-DATA-2570 changed `scripts/gate/nightly_tests.sh` (the report-only coverage lane, TR-08 part): refresh the runner's
    installed copy `~/nightly_tests.sh` from the repository (the row did not install it). Until then the nightly runs without the lane.
+2. FIX-CORE2-2570 changed `scripts/release_check.py` (base-image rule: the Dockerfile default must be the multi-arch
+   `base-python:<build.yaml tag>`) - an engine file of the gate; install it with the gate engine as on the 2.56 train.
 
 ## 6. Open points
 
-1. More fix rows from the lead (FIX-MAPS2, FIX-GATE, FIX-AUTOMATION, FIX-CORE2, FIX-WISKEY2, FIX-VIDEO2, maybe the review-2 rows); each adds CHANGELOG lines and a registry entry.
+1. More fix rows from the lead (FIX-MAPS2, FIX-GATE, FIX-VIDEO2, FIX-AUTOMATION2, maybe the review-2 rows); each adds CHANGELOG lines and a registry entry.
 2. UI rebuild (`npm run build:addon` on the runner) only after the lead's "all rows in", then the gate (the lead's).
 3. RELEASE-2560-TRAIN is still IN_PROGRESS in the registry although 2.56.0 is released; left to the lead.

@@ -15447,5 +15447,53 @@
     "test_ids": [
       "AT-FIX-TICKETS2-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-AUTOMATION-2570-1",
+    "title": "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap",
+    "statement": "Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap; merged into the 2.57.0 train, change note docs/changes/FIX-AUTOMATION-2570.md.",
+    "task_ids": [
+      "FIX-AUTOMATION-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-AUTOMATION-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-WISKEY2-2570-1",
+    "title": "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents",
+    "statement": "Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents; merged into the 2.57.0 train, change note docs/changes/FIX-WISKEY2-2570.md.",
+    "task_ids": [
+      "FIX-WISKEY2-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-WISKEY2-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-CORE2-2570-1",
+    "title": "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes",
+    "statement": "Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes; merged into the 2.57.0 train, change note docs/changes/FIX-CORE2-2570.md.",
+    "task_ids": [
+      "FIX-CORE2-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-CORE2-2570-1"
+    ]
   }
 ]

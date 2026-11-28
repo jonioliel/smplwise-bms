@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-8 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -33,6 +33,13 @@
 - Schedules: the bulk bar acts only on the selected schedules on the page on screen.
 - Multimedia card: "all off" for an area uses the server clock for its expiry.
 - Tickets: "approve with correction" keeps the VAT rate of the vendor's revision, so the preview and the approved amount agree; the requests-for-quote list says when its counts cover only the loaded requests and keeps them on refresh; a late answer for another ticket or department is dropped.
+- Scenes: a scene that sets an alarm panel, a lock, a siren or a door is checked like the same action done by hand (permission, confirmation, extra verification), from the scenes list and from device tiles; a scene whose devices cannot be read runs only for someone who may control devices, open doors and disarm the alarm in the whole installation.
+- Automations, scripts and scenes: a run whose answer was lost is recorded as "not known whether it ran" and keeps the wait before the next run, so a quick second press does not run it twice; a copied or restored automation starts switched off; an operation stuck as pending is settled after 10 minutes.
+- Schedules: copy / split / restore report a failed switch-off; a folder saved without a position no longer fails; a refused "run now" no longer blocks the next one.
+- WisKey: an emergency door release acts for the person who released it (with that person's permissions), not the one who started the emergency; a managed install never leaves Home Assistant stopped after an unexpected error; a write that could not be anchored is settled at once instead of holding the person until a restart.
+- E-mail: messages left waiting by a restart are marked as interrupted (never sent twice); the sending limit counts addresses; a mail server name that points at this machine is refused; the test button has one 30-second limit.
+- Monthly reports planned while delivery or a channel was off are skipped, not sent later; the weekly access digest covers the right hours in a clock-change week.
+- Install on aarch64 (64-bit ARM) hosts: the add-on image now defaults to the multi-architecture base, so newer Supervisors no longer pull the amd64 image there.
 
 ### API change
 - Schedule execution job view: new additive `reviews_unread: bool`; the status read can answer `{outcome: "ok", code: "reviews_unread"}`.
@@ -44,6 +51,8 @@
 - Presence: `GET presence/building` and `GET presence/area/{id}` carry `time_zone`; `GET ha/status` carries `bridge.integration_version` (both additive).
 - NVR writes (settings, notify, reboot, disk check, camera reboot): a command sent with no good answer is answered 504 `action_outcome_unknown` with `details.outcome = "unknown"` and the `change_id` (was a refusal); `PUT /nvr/notify` gains an additive `unknown` count.
 - Alarm arm / disarm / bypass: an `expires_at` more than 5 minutes ahead is 422 `expires_too_far` (was `validation`; `details.fields` kept).
+- Scenes (`POST /automations/scene/{id}/apply`, and `scene.turn_on` on `POST /ha/entities/{id}/actions`): sensitive members now give 403 `grant_required` (`details.grant`, `entity_id`, `path: "members"`), 409 `confirmation_required` (send `confirm: true`), 403 `step_up_required`, or 403 `forbidden` with `details.reason = "scene_members_unknown"`; `sensitive_classes` lists every class.
+- Automation run ops (trigger, run script, apply scene): a lost answer is 504 `config_timeout` with `details.outcome = "unknown"`, `retryable: false`.
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 
