@@ -16,8 +16,7 @@ test.describe('SCR-52 the map room card "all off"', () => {
   test('one batch at a time: a second tap while the first batch is sending starts nothing', () => {
     const s = src('screens/explore-floor-map.ts');
     const run = s.slice(s.indexOf('private async runBulk('), s.indexOf('private renderRoomConfirm()'));
-    expect(run).toMatch(/if (this.bulkRunning) {[^}]*return;s*}s*
-s*this.bulkRunning = true;/);
+    expect(run).toMatch(/if \(this\.bulkRunning\) \{[^}]*return;\s*\}\s*\n\s*this\.bulkRunning = true;/);
     expect(run).toMatch(/finally \{\s*\n\s*this\.bulkRunning = false;/);
   });
 });
