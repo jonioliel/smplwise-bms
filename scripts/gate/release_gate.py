@@ -6,6 +6,13 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     a single failed test is a FAIL (settle());
   * a pytest shard with no summary, an exit code other than 0/1, zero collected tests, or rc=1 without a parsed failure is a FAIL
     (backend_finish());
+  * FIX-GATE-2570 (CD2-01): such a process-level FAIL (a shard, a Playwright process, a fixture group, a crashed pool job) carries the
+    test files that process owned (`files` of the item), so a targeted `--after` re-run re-selects them whole (gate2_select
+    .failed_files); one without a file list makes that re-run take the full side instead (fail closed);
+  * FIX-GATE-2570 (CD2-03): a Playwright process of a category in ALL_SKIPPED_FAIL_CATS (fixture, pixel) whose tests were ALL skipped
+    is a FAIL ("zero tests ran"); preview / dev processes may legitimately self-skip whole (environment-gated evidence specs) and are
+    listed as SKIPPED_ALL instead; a fixture_specs.json that exists but does not parse is a FAIL (the gate still runs the built-in
+    devices group; the fixture lane stops);
   * each category's passed count is compared with its baseline; below the category's drop threshold of the baseline is a FAIL
     unless the run started with --allow-count-drop "<reason>" (check_baselines()). GATE-TRUST-2540 (TR-07): the baseline of a category
     is the HIGHER of gate_baselines.json (a tracked floor) and that category's passed count in the newest GREEN FULL tier-L run of the
@@ -203,23 +210,54 @@ def fixture_stages(g):
 
 def fixture_groups(fe):
     """{group: group dict with only its "gate": true specs} from the worktree's frontend/tests/fixtures/fixture_specs.json, in file
-    order; a worktree without a readable JSON gets the built-in devices group (FIXTURE_SPECS)."""
+    order; a worktree without the JSON gets the built-in devices group (FIXTURE_SPECS). FIX-GATE-2570 (CD2-03): a JSON that EXISTS
+    but does not parse (or has no groups object) also gets the built-in group, and the error is kept in FIXTURE_JSON_ERRORS - the
+    caller turns it into a FAIL (fixture_json_failure()), it is never swallowed."""
+    path = Path(fe) / "tests" / "fixtures" / "fixture_specs.json"
+    fallback = {"devices": dict(FIXTURE_DEFAULT_GROUP, specs={n: {"gate": True} for n in sorted(FIXTURE_SPECS)})}
     try:
-        groups = json.loads((Path(fe) / "tests" / "fixtures" / "fixture_specs.json").read_text(encoding="utf-8"))["groups"]
-        out = {}
-        for name, g in groups.items():
-            specs = {n: s for n, s in (g.get("specs") or {}).items() if s.get("gate")}
-            if specs:
-                out[name] = dict(g, specs=specs)
-        return out
-    except (OSError, ValueError, KeyError, AttributeError, TypeError):
-        return {"devices": dict(FIXTURE_DEFAULT_GROUP, specs={n: {"gate": True} for n in sorted(FIXTURE_SPECS)})}
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return fallback
+    except OSError as exc:
+        err = f"{type(exc).__name__}: {exc}"
+    else:
+        try:
+            groups = json.loads(text)["groups"]
+            out = {}
+            for name, g in groups.items():
+                specs = {n: s for n, s in (g.get("specs") or {}).items() if s.get("gate")}
+                if specs:
+                    out[name] = dict(g, specs=specs)
+            return out
+        except (ValueError, KeyError, AttributeError, TypeError) as exc:
+            err = f"{type(exc).__name__}: {str(exc)[:160]}"
+    msg = f"frontend/tests/fixtures/fixture_specs.json does not parse ({err})"
+    with _LOCK:
+        if msg not in FIXTURE_JSON_ERRORS:
+            FIXTURE_JSON_ERRORS.append(msg)
+    return fallback
+
+
+def fixture_json_failure(lane=False):
+    """FIX-GATE-2570 (CD2-03): a FAIL item per unreadable fixture_specs.json seen by fixture_groups(). True when there was one."""
+    for msg in FIXTURE_JSON_ERRORS:
+        count("fixture", "fail")
+        item("fixture", "fixture_specs.json: unreadable", "FAIL",
+             msg + ("; the fixture lane did not run the wrong groups" if lane else "; the built-in devices group ran in its place, the branch's groups did not"))
+    return bool(FIXTURE_JSON_ERRORS)
 SCHEDULE = (os.environ.get("GATE_SCHEDULE") or "v1").strip().lower()   # v1 = the 2.9.2 gate; v2 = GATESPEED-293 (--schedule)
 _LOCK = threading.RLock()     # count()/item() are called from the v2 pool's threads too
 STATUS = RES / "gate_status.json"
 STARTED = time.strftime("%Y-%m-%dT%H:%M:%S%z")
 GROUPS = []          # process groups started here (only these are ever killed)
-ITEMS = []           # every non-pass finding {category,id,status,reason}
+ITEMS = []           # every non-pass finding {category,id,status,reason[,files]}
+SHARD_FILES = {}     # FIX-GATE-2570 (CD2-01): backend shard k -> its test file names (a crashed shard's item names them)
+PROC_FILES = {}      # FIX-GATE-2570 (CD2-01): Playwright process label -> the spec file names it was started with
+# FIX-GATE-2570 (CD2-03): categories in which a Playwright process whose tests were ALL skipped is a FAIL. preview / dev are not in it:
+# the runner's gates 2.51-2.56 have green runs with whole preview / dev processes of environment-gated evidence specs that self-skip.
+ALL_SKIPPED_FAIL_CATS = {c.strip() for c in (os.environ.get("GATE_ALL_SKIPPED_FAIL_CATS") or "fixture,pixel").split(",") if c.strip()}
+FIXTURE_JSON_ERRORS = []   # FIX-GATE-2570 (CD2-03): a worktree's fixture_specs.json that exists but does not parse
 COUNTS = {}          # category -> {pass,fail,flaky,known,skipped}
 PHASES = []          # [{name,seconds}]
 STATE = {"sha": "", "phase": "start", "summary": ""}
@@ -378,8 +416,12 @@ def count(cat, key, n=1):
         rec["counts"].setdefault(cat, {"pass": 0, "fail": 0, "flaky": 0, "known": 0, "skipped": 0})[key] += n
 
 
-def item(cat, ident, st, reason=""):
+def item(cat, ident, st, reason="", files=None):
+    """files (FIX-GATE-2570, CD2-01): the test files a process-level item stands for (a crashed shard's test files, a Playwright
+    process's spec files); gate2_select.failed_files re-selects them in a targeted --after run."""
     row = {"category": cat, "id": ident, "status": st, "reason": reason[:300]}
+    if files is not None:
+        row["files"] = sorted({os.path.basename(str(f)) for f in files})
     with _LOCK:
         ITEMS.append(row)
     rec = getattr(_REC, "rec", None)
@@ -667,6 +709,7 @@ def backend_start(wt, logd, nshards=3, only=None):
         if not fl:   # an empty shard would run pytest's testpaths (every file); the timing lane has two files
             continue
         log = logd / f"backend_s{k}.log"
+        SHARD_FILES[k] = [os.path.basename(f) for f in fl]   # FIX-GATE-2570 (CD2-01)
         p = spawn([PY, "-m", "pytest", "-o", "addopts=", "-q", "-p", "no:cacheprovider", "-rfE", "--basetemp", str(logd / f"tmp_b{k}")]
                   + lane_pytest_args() + fl, bd, log)
         procs.append((k, p, log))
@@ -736,10 +779,11 @@ def backend_finish(procs, wt, logd):
     allfails = []
     tot = {"passed": 0, "failed": 0, "skipped": 0, "error": 0}
     for k, p, log in procs:
+        own = SHARD_FILES.get(k)   # FIX-GATE-2570 (CD2-01): None -> the item has no file list -> the --after re-run takes the full backend
         try:
             p.wait(timeout=max(left(), 1))
         except subprocess.TimeoutExpired:
-            item("backend", f"shard {k}", "FAIL", "timeout")
+            item("backend", f"shard {k}", "FAIL", "timeout", files=own)
             count("backend", "fail")
         reap(p)
         text = log.read_text(errors="replace")
@@ -748,18 +792,18 @@ def backend_finish(procs, wt, logd):
             tot[w] += c.get(w, 0)
         rc = p.returncode
         if not c:
-            item("backend", f"shard {k}", "FAIL", "no pytest summary (crash or timeout); see " + log.name)
+            item("backend", f"shard {k}", "FAIL", "no pytest summary (crash or timeout); see " + log.name, files=own)
             count("backend", "fail")
         elif rc is not None:
             ran = c.get("passed", 0) + c.get("failed", 0) + c.get("error", 0)
             if rc not in (0, 1):
-                item("backend", f"shard {k}", "FAIL", f"pytest exited with rc={rc} (interrupted / collection or usage error); see {log.name}")
+                item("backend", f"shard {k}", "FAIL", f"pytest exited with rc={rc} (interrupted / collection or usage error); see {log.name}", files=own)
                 count("backend", "fail")
             elif ran == 0:
-                item("backend", f"shard {k}", "FAIL", f"pytest ran zero tests (rc={rc}); see {log.name}")
+                item("backend", f"shard {k}", "FAIL", f"pytest ran zero tests (rc={rc}); see {log.name}", files=own)
                 count("backend", "fail")
             elif rc == 1 and not fails:
-                item("backend", f"shard {k}", "FAIL", f"pytest rc=1 but no FAILED/ERROR line was parsed; see {log.name}")
+                item("backend", f"shard {k}", "FAIL", f"pytest rc=1 but no FAILED/ERROR line was parsed; see {log.name}", files=own)
                 count("backend", "fail")
         allfails += fails
     count("backend", "pass", tot["passed"])
@@ -1311,6 +1355,7 @@ def backend_start_v2(wt, logd, n, shm=None, only=None):
             (base / "tmp").mkdir(parents=True, exist_ok=True)
             env["TMPDIR"] = str(base / "tmp")
         log = logd / f"backend_s{k}.log"
+        SHARD_FILES[k] = list(names)   # FIX-GATE-2570 (CD2-01): a crashed / timed-out shard names its files
         p = spawn(backend_cmd(names, logd, k, base / f"tmp_b{k}", True), bd, log, env=env)
         procs.append((k, p, log))
         plan.append({"shard": k, "files": len(names), "weight": round(w, 1)})
@@ -1465,6 +1510,9 @@ def file_arg(name, line=None):
 
 def run_pw(fe, specs, projects, base_url, logd, label, env=None, workers=None, grep=None, grep_invert=None, line_args=None, timeout=None):
     jp = logd / f"pw_{label}.json"
+    if specs is not None and line_args is None:   # FIX-GATE-2570 (CD2-01): a failed process names the specs it owned (union per label)
+        with _LOCK:
+            PROC_FILES.setdefault(label, set()).update(os.path.basename(str(x)) for x in specs)
     if jp.exists():
         jp.unlink()
     grep, grep_invert = lane_grep(grep, grep_invert)   # GATELANES-297: every run of a gate leaves the timing lane out
@@ -1508,30 +1556,46 @@ def setup_flake_self_skip(r, r2, rows, rows2):
     return others > 0 and passed > 0
 
 
+def job_files(j):
+    """FIX-GATE-2570 (CD2-01): the spec files of a pool job (None when it has none: the --after re-run then takes the full side)."""
+    return list(j["names"]) if j.get("names") else None
+
+
 def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
     """Count a Playwright result set: known / retry once alone / flaky / fail. A test that "did not run" because an earlier test
     of its serial group failed is never counted as skipped: its file is re-run alone with the failed one."""
+    own = sorted(PROC_FILES[label]) if PROC_FILES.get(label) else None   # FIX-GATE-2570 (CD2-01): None -> full side on --after
     if rows is None:
         count(cat, "fail")
-        item(cat, f"{label}: no report", "FAIL", "Playwright produced no JSON report" + (" (timeout)" if to else f" (rc={rc})") + f"; see pw_{label}.log")
+        item(cat, f"{label}: no report", "FAIL", "Playwright produced no JSON report" + (" (timeout)" if to else f" (rc={rc})") + f"; see pw_{label}.log", files=own)
         return
     # FALSE-GREEN GUARDS: an empty or error-carrying report is never "nothing failed"
     lerrs = pw_load_errors(logd / f"pw_{label}.json")
     if lerrs:
         count(cat, "fail")
-        item(cat, f"{label}: load error", "FAIL", f"{len(lerrs)} load/transpile error(s) in the Playwright report, first: {lerrs[0]}; see pw_{label}.log")
+        item(cat, f"{label}: load error", "FAIL", f"{len(lerrs)} load/transpile error(s) in the Playwright report, first: {lerrs[0]}; see pw_{label}.log", files=own)
     if to:
         count(cat, "fail")
-        item(cat, f"{label}: timeout", "FAIL", f"Playwright hit the time limit (rc={rc}); the report is incomplete; see pw_{label}.log")
+        item(cat, f"{label}: timeout", "FAIL", f"Playwright hit the time limit (rc={rc}); the report is incomplete; see pw_{label}.log", files=own)
     elif not rows:
         count(cat, "fail")
-        item(cat, f"{label}: zero tests", "FAIL", f"Playwright reported 0 tests (rc={rc}); a process that runs nothing is not a pass; see pw_{label}.log")
+        item(cat, f"{label}: zero tests", "FAIL", f"Playwright reported 0 tests (rc={rc}); a process that runs nothing is not a pass; see pw_{label}.log", files=own)
     elif rc not in (0, 1):
         count(cat, "fail")
-        item(cat, f"{label}: exit code", "FAIL", f"Playwright exited with rc={rc} (not 0/1); see pw_{label}.log")
+        item(cat, f"{label}: exit code", "FAIL", f"Playwright exited with rc={rc} (not 0/1); see pw_{label}.log", files=own)
     elif rc == 1 and not lerrs and not any(r["status"] == "unexpected" for r in rows):
         count(cat, "fail")
-        item(cat, f"{label}: exit code", "FAIL", "Playwright exited with rc=1 but reported no failed test; see pw_{label}.log")
+        item(cat, f"{label}: exit code", "FAIL", "Playwright exited with rc=1 but reported no failed test; see pw_{label}.log", files=own)
+    elif all(r["status"] == "skipped" and not r.get("norun") for r in rows):
+        # FIX-GATE-2570 (CD2-03): every test skipped itself - the process ran nothing. A fixture / pixel process exists to run its
+        # tests with its environment (a wrong pw_env makes the specs skip on SW_LIVE !== '1'): a FAIL, like zero tests.
+        if cat in ALL_SKIPPED_FAIL_CATS:
+            count(cat, "fail")
+            item(cat, f"{label}: all skipped", "FAIL", f"all {len(rows)} test(s) skipped (rc={rc}): zero tests ran, a process that runs "
+                 f"nothing is not a pass (check the group's pw_env / fixture env); see pw_{label}.log", files=own)
+        else:
+            item(cat, f"{label}: all skipped", "SKIPPED_ALL", f"all {len(rows)} test(s) of this process skipped themselves (rc={rc}); "
+                 f"allowed in {cat} (environment-gated specs); see pw_{label}.log")
     failed, norun, known_files = [], [], set()
     for r in rows:
         if r["status"] == "skipped":
@@ -1790,6 +1854,7 @@ def fixture_block(wt, fe, logd, cls, gname=None):
     by_projs = {}
     for name, projs in runs.items():
         by_projs.setdefault(tuple(sorted(projs, key=ALL_PROJECTS.index)), []).append(name)
+    gfiles = sorted(runs)   # FIX-GATE-2570 (CD2-01): a group that never reached Playwright names its specs
     try:
         for si, (benv, penv) in enumerate(fixture_stages(g)):
             if g.get("script"):
@@ -1800,18 +1865,18 @@ def fixture_block(wt, fe, logd, cls, gname=None):
                 fx = spawn([PY, g["script"]], wt, blog, env=env)
                 up = wait_http(f"http://127.0.0.1:{api}/healthz", 240)  # 2.40.6 gate: the fake backend took >90 s to start under load 48
                 if not up:
-                    count("fixture", "fail"); item("fixture", f"fixture {gname}: fake backend", "FAIL", f"did not start (stage {si}); see {blog.name}")
+                    count("fixture", "fail"); item("fixture", f"fixture {gname}: fake backend", "FAIL", f"did not start (stage {si}); see {blog.name}", files=gfiles)
                     return
                 if si == 0 and g.get("seed"):
                     rc, to = run([PY, g["seed"], str(api), str(api + 1)], wt, logd / f"fixture_{gname}_seed.log", timeout=180)
                     if rc != 0:
-                        count("fixture", "fail"); item("fixture", f"fixture {gname}: seed", "FAIL", f"rc={rc}; see fixture_{gname}_seed.log")
+                        count("fixture", "fail"); item("fixture", f"fixture {gname}: seed", "FAIL", f"rc={rc}; see fixture_{gname}_seed.log", files=gfiles)
                         return
             if vp is None:
                 port = free_port()
                 vp, ok = start_vite(fe, "preview", port, logd, api)
                 if not ok:
-                    count("fixture", "fail"); item("fixture", f"fixture {gname}: preview", "FAIL", "vite preview did not start")
+                    count("fixture", "fail"); item("fixture", f"fixture {gname}: preview", "FAIL", "vite preview did not start", files=gfiles)
                     return
                 base_url = f"http://127.0.0.1:{port}/"
             fenv = {k: fixture_expand(v, api, out) for k, v in penv.items()}
@@ -2227,7 +2292,10 @@ def run_frontend_v2(wt, fe, logd, cls, dead):
         for j in _order(jl):
             r = res_.get(j["label"], (None, 0, 0))[0]
             if isinstance(r, BaseException):
-                count(j["cat"], "fail"); item(j["cat"], j["label"], "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")
+                # FIX-GATE-2570 (CD2-01): the crashed job names its files; a crashed visual step is a visual-run failure (the step did
+                # not run - hard, never quarantined), not a "visual case" called "visual" that a re-run would re-check as nothing
+                jcat = VISUAL_RUN_CAT if j["kind"] == "visual" else j["cat"]
+                count(jcat, "fail"); item(jcat, j["label"], "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}", files=job_files(j))
                 continue
             for cat, rows, rc, to, lab in r or []:
                 settle(cat, rows, rc, to, fe, logd, urls[cat], {}, lab)
@@ -2771,6 +2839,8 @@ def fixture_lane_run(wt, fe, logd, extra, hard_fail):
             hard_fail.append("build failed: the fixture lane did not run")
             return
     cls = classify(fe, "L")
+    if fixture_json_failure(lane=True):   # FIX-GATE-2570 (CD2-03): the lane never runs the built-in fallback as if it were the branch's groups
+        return
     only = [x.strip() for x in (os.environ.get("GATE_FIXTURE_GROUPS") or "").split(",") if x.strip()]
     if only:
         cls["fixture_groups"] = {g: r for g, r in cls["fixture_groups"].items() if g in only}
@@ -2793,7 +2863,8 @@ def fixture_lane_run(wt, fe, logd, extra, hard_fail):
                               for j in _order(jobs)]}
     for lab, (r, _st, _w) in res.items():
         if isinstance(r, BaseException):
-            count("fixture", "fail"); item("fixture", lab, "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}")
+            count("fixture", "fail"); item("fixture", lab, "FAIL", f"job crashed: {type(r).__name__}: {str(r)[:150]}",
+                                           files=next((job_files(j) for j in jobs if j["label"] == lab), None))
 
 
 def compute_verdict(hard_fail):
@@ -2913,6 +2984,7 @@ def main():
         with Phase("fe-lint-start", "ESLint started (background)"):   # CR-FE-GATES-ENFORCE-2442: collected after Playwright
             felint = fe_lint_start(wt, fe, logd)
         cls = classify(fe, TIER)
+        fixture_json_failure()   # FIX-GATE-2570 (CD2-03): an unreadable fixture_specs.json is a FAIL, never a silent fallback
         if SELECTION:
             cls = filter_classification(cls, SELECTION)
             extra["selection"] = {"base": SELECT_BASE, "error": SELECTION.get("error"), "full": SELECTION.get("full"),

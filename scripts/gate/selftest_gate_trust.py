@@ -168,6 +168,24 @@ def main_part_tr09():
     check("TR-09 a full run on another line (not an ancestor) is not an anchor", not r["ok"] and "not an ancestor" in r["why"], r)
     broken = {f"gate_release-2540-train_{shas[2]}.json": report(shas[2], verdict="fail", items=[{"category": "gate", "id": "90-minute budget exhausted", "status": "FAIL"}])}
     check("TR-09 a full run that did not complete (engine-level failure) is not an anchor", not run(res("broken", broken))["ok"])
+    # FIX-GATE-2570 (CD2-01): a red full run with a crashed backend shard - its tests ran in no run
+    shard_items = [{"category": "backend", "id": "shard 3", "status": "FAIL", "reason": "no pytest summary"}]
+    crashed = {f"gate_release-2540-train_{shas[2]}.json": report(shas[2], verdict="fail", items=shard_items)}
+    r = run(res("crashed", crashed))
+    check("CD2-01 a red full run with a crashed shard is no anchor for another --after report, and the summary says why",
+          not r["ok"] and "process-level failure" in r["why"] and "shard 3" in r["why"], r)
+    named_doc = report(shas[2], verdict="fail", items=[dict(shard_items[0], files=["test_a.py", "test_b.py"])])
+    named = res("crashed_named", {f"gate_release-2540-train_{shas[2]}.json": named_doc})
+    after_self = TMP / "anchor" / "after_self.json"
+    wj(after_self, named_doc)
+    r = ge.anchor_check(named, repo, head, BR, after_self, NOW, quarantine=TMP / "no_quarantine.json")
+    check("CD2-01 ... it is the anchor when it IS the --after report and the shard named its files (they are re-selected whole)",
+          r["ok"] and r["anchor"]["sha"] == shas[2], r)
+    bare_doc = report(shas[2], verdict="fail", items=shard_items)
+    wj(after_self, bare_doc)
+    r = ge.anchor_check(res("crashed_bare", {f"gate_release-2540-train_{shas[2]}.json": bare_doc}), repo, head, BR, after_self, NOW,
+                        quarantine=TMP / "no_quarantine.json")
+    check("CD2-01 ... but not when the shard item names no files (a report of an older engine): FULL tier", not r["ok"] and "names no files" in r["why"], r)
     nobe = {f"gate_release-2540-train_{shas[2]}.json": report(shas[2], backend=0)}
     check("TR-09 a full run in which the backend did not run is not an anchor", not run(res("nobe", nobe))["ok"])
     ngreen = {f"nightly/gate_main_{shas[1]}.json": report(shas[1], branch="main", hours_ago=10)}

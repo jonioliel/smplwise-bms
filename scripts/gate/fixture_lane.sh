@@ -15,13 +15,14 @@
 #      (FLAKY rule), `then` stages on the same data dir - GATE_FIXTURE_SLOTS (default 2) groups at a time; budget LANE_TOTAL_SECS
 #      (default 3600)
 #   4. report: ~/smplwise-results/fixture-lane/gate_<branch>_<sha>.{json,md} (never the gate's own gate_status.json)
-# Exit: the engine's (0 = every fixture test that ran passed and at least one ran per Playwright process; 1 = a failure); 0 when
+# Exit: the engine's (0 = every fixture test that ran passed and at least one ran per Playwright process - since FIX-GATE-2570 an
+# all-skipped process, an unreadable fixture_specs.json or a --groups list that matches no group is a FAIL; 1 = a failure); 0 when
 # not run (busy machine). No real Home Assistant, WisKey, NVR, go2rtc or camera is reached: every fixture forces `.test` hosts and
 # refuses to start inside the add-on.
 # Install: copy next to release_gate.py on the runner (~/), INSTALL_ON_RUNNER.md; engine_sync.py maps it.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,23p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,24p "$0"; exit 0;; esac
 BR="$1"; shift
 NOW=0; GROUPS_ARG=""
 while [ "$#" -gt 0 ]; do

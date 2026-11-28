@@ -288,25 +288,48 @@ def _full(path: str, pats: list[str]) -> bool:
     return any(re.search(p, path) for p in pats)
 
 
-def failed_files(report: Path) -> dict[str, set[str]]:
-    """{'backend': {test_x.py}, 'frontend': {x.spec.ts}, 'visual': {'screen / state / scheme / project'}} of every FAIL item of a
-    gate report (the --after re-run). `visual` (T074): the visual-matrix cases that failed; they keep the visual step on."""
+# FIX-GATE-2570 (CD2-01): the categories whose FAIL items are tests (gate2_verdict.TEST_CATS) - an item there that names no test file
+# (a crashed shard / Playwright process / fixture group) must still be re-checked by the --after re-run
+TEST_CATS = {"backend", "preview", "dev", "pixel", "fixture", "visual"}
+
+
+def failed_files(report: Path) -> dict:
+    """{'backend': {test_x.py}, 'frontend': {x.spec.ts}, 'visual': {'screen / state / scheme / project'}, 'full': {'backend': [why],
+    'frontend': [why]}, 'failures': n} of every FAIL item of a gate report (the --after re-run). `visual` (T074): the visual-matrix
+    cases that failed; they keep the visual step on.
+    FIX-GATE-2570 (CD2-01): a process-level FAIL (`shard 3`, `preview_desktop_c2: timeout`, `fixture g: seed`, a crashed job) names
+    no test; the engine writes the files that process owned into the item (`files`) and they are selected whole. A test-category
+    FAIL that names neither a test nor its files cannot be mapped: its side (backend, or the frontend for the Playwright categories)
+    is marked `full` - the re-run takes the full side instead of silently selecting nothing (fail closed)."""
     d = json.loads(Path(report).read_text(encoding="utf-8"))
-    out = {"backend": set(), "frontend": set(), "visual": set()}
+    out: dict = {"backend": set(), "frontend": set(), "visual": set(), "full": {"backend": [], "frontend": []}, "failures": 0}
     for i in d.get("items", []):
         if i.get("status") != "FAIL":
             continue
-        ident = i.get("id", "")
-        if i.get("category") == "visual":
+        ident, cat = str(i.get("id", "")), i.get("category")
+        side = "backend" if cat == "backend" else "frontend"
+        if cat in TEST_CATS:
+            out["failures"] += 1
+        if cat == "visual":
             out["visual"].add(ident)
             continue
+        files = i.get("files")
+        if isinstance(files, list) and files:
+            if side == "backend":
+                out["backend"].update(Path(str(f)).name for f in files if re.fullmatch(r"test_[\w.-]+\.py", Path(str(f)).name))
+            else:
+                out["frontend"].update(Path(str(f)).name for f in files if str(f).endswith(".spec.ts"))
+            continue
         m = re.match(r"tests/(test_[^:]+\.py)", ident)
-        if i.get("category") == "backend" and m:
+        if cat == "backend" and m:
             out["backend"].add(m.group(1))
             continue
         m = re.match(r"([\w.-]+\.spec\.ts)", ident)
         if m:
             out["frontend"].add(m.group(1))
+            continue
+        if cat in TEST_CATS:
+            out["full"][side].append(f"--after: {cat} '{ident[:80]}' failed and names no test file (a process-level failure)")
     out["sha"] = d.get("sha", "")
     return out
 
@@ -368,15 +391,34 @@ def visual_decision(paths: list[str], fe_src_changed: bool, after: dict | None) 
     return "skip: no frontend/src, visual harness or baseline change and no visual failure to re-check"
 
 
+def _after_json(after: dict | None) -> dict | None:
+    """The --after part of the selection JSON: sorted lists; `full` / `failures` (FIX-GATE-2570) as they are."""
+    if not after:
+        return None
+    return {k: (v if isinstance(v, (dict, int)) else sorted(v)) for k, v in after.items() if k != "sha"}
+
+
+class NothingToRerun(ValueError):
+    """FIX-GATE-2570 (CD2-01 (c)): a re-run meant to re-check failures that selects nothing for them. Raised from the selection, it
+    makes the engine run the FULL tier (compute_selection's error path) - never a green run that re-checked nothing."""
+
+
 def rerun_only_selection(root: Path, after: dict) -> dict:
-    """Only the failed files of a red gate (the automatic re-run of quarantined failures on the same sha): no core, no mapping."""
+    """Only the failed files of a red gate (the automatic re-run of quarantined failures on the same sha): no core, no mapping.
+    FIX-GATE-2570 (CD2-01): an unmappable process-level failure (after["full"]) makes its side full; a re-run that would select
+    nothing although the report has failures raises NothingToRerun (-> the full tier)."""
     root = Path(root).resolve()
     all_tests = sorted(p.name for p in (root / BE / "tests").glob("test_*.py"))
     all_specs = sorted(p.name for p in (root / FE / "tests").glob("*.spec.ts"))
-    b = sorted(set(after.get("backend", ())) & set(all_tests))
-    f = sorted(set(after.get("frontend", ())) & set(all_specs))
+    afull = after.get("full") or {}
+    b = all_tests if afull.get("backend") else sorted(set(after.get("backend", ())) & set(all_tests))
+    f = all_specs if afull.get("frontend") else sorted(set(after.get("frontend", ())) & set(all_specs))
+    if after.get("failures") and not b and not f and not after.get("visual"):
+        raise NothingToRerun(f"the --after report has {after['failures']} test failure(s) but none of them maps to a test file of this "
+                             "tree: nothing would be re-checked")
     why = "failed in the red gate (re-run only)"
-    return {"policy": "gate2-rerun-only", "changed_files": 0, "version_only_ignored": [], "full": {"backend": [], "frontend": []},
+    return {"policy": "gate2-rerun-only", "changed_files": 0, "version_only_ignored": [],
+            "full": {"backend": list(afull.get("backend", ())), "frontend": list(afull.get("frontend", ()))},
             "notes": [], "pixel": "only failed pixel specs", "deferred_to_nightly": {}, "heavy_secs": HEAVY_SECS,
             "visual": "run: the engine re-checks only the first run's visual failures (none -> no visual step)",
             "after": {"backend": b, "frontend": f, "visual": sorted(after.get("visual", ()))},
@@ -635,6 +677,8 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
             badd(n, "failed in the red gate (--after)")
         for n in after.get("frontend", ()):
             fadd(n, "failed in the red gate (--after)")
+        for side in ("backend", "frontend"):   # FIX-GATE-2570 (CD2-01): an unmappable process-level failure -> that full side
+            full[side].extend((after.get("full") or {}).get(side, ()))
     # ---- full sides
     if full["backend"]:
         bsel, bwhy = set(all_tests), {n: "full tier" for n in all_tests}
@@ -667,7 +711,7 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
         "visual": visual_note,
         "deferred_to_nightly": deferred,
         "heavy_secs": HEAVY_SECS,
-        "after": {k: sorted(v) for k, v in (after or {}).items() if k != "sha"} if after else None,
+        "after": _after_json(after),
         "backend": {"selected": sorted(bsel), "dropped": sorted(set(all_tests) - bsel), "why": bwhy, "total": len(all_tests)},
         "frontend": {"selected": sorted(fsel), "dropped": sorted(set(all_specs) - fsel), "why": fwhy, "total": len(all_specs)},
     }

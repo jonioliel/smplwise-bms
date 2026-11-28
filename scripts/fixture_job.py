@@ -9,7 +9,8 @@ frontend/tests/fixtures/fixture_specs.json (--gate: only its "gate": true specs,
 in more than one group runs in each (other env). --project overrides the per-spec project list of the JSON. The JSON is the one
 source also read by scripts/gate/release_gate.py. Meant for the runner (run_remote.sh fixture ... takes the shared lock first);
 no real Home Assistant or device is ever reached (the fixtures force .test hosts and refuse to run inside the add-on).
-Only process groups started here are stopped. Exit 0 = every group passed with at least one test that really ran.
+Only process groups started here are stopped. Exit 0 = every group passed with at least one test that really ran; no spec selected
+at all (FIX-GATE-2570) = exit 1 "FIXTURE: nothing to run".
 """
 from __future__ import annotations
 
@@ -259,6 +260,11 @@ def main(argv: list[str]) -> int:
     if unknown:
         print("not a fixture spec (see fixture_specs.json): " + ", ".join(unknown), flush=True)
         return 2
+    if not any(names for _g, runs in todo for _p, names in runs):
+        # FIX-GATE-2570 (CD2-10): nothing selected (e.g. --gate on a JSON that lost its "gate": true flags) is not a pass
+        print("FIXTURE: nothing to run (no fixture spec selected" + (" with \"gate\": true" if "--gate" in argv else "") + ")", flush=True)
+        print("FIXTURE_FAIL nothing ran", flush=True)
+        return 1
     logd = Path(tempfile.mkdtemp(prefix="fixture_job_"))
     deadline = time.time() + int(os.environ.get("FIXTURE_TOTAL_SECS", "3000"))
     if "--no-build" not in argv or not (FE / "dist" / "index.html").exists():

@@ -78,7 +78,7 @@ class Recorder:
 _REC: Recorder | None = None
 
 
-def pytest_configure(config: Any) -> None:
+def _start_from_env() -> None:
     global _REC
     out, src = os.environ.get(_ENV_OUT), os.environ.get(_ENV_SRC)
     if not out or not src or _REC is not None:
@@ -86,6 +86,18 @@ def pytest_configure(config: Any) -> None:
     rec = Recorder(src)
     if rec.start():
         _REC = rec
+
+
+def pytest_configure(config: Any) -> None:
+    _start_from_env()   # a no-op when the import below already started it (kept for a plugin registered some other way)
+
+
+# FIX-GATE-2570 (CD2-09): start recording when `-p coverage_lane` imports this plugin - pytest does that BEFORE it loads the initial
+# conftest.py, which imports the whole app (smplwise.main) at module level. Started in pytest_configure (as before), every module-level
+# line of those modules (imports, def, class, constants) was never seen and they were listed as "never imported". Only under the
+# plugin's own module name, so a test that loads this file under another name never starts a second, never-stopped recorder.
+if __name__ == "coverage_lane":
+    _start_from_env()
 
 
 def pytest_unconfigure(config: Any) -> None:
