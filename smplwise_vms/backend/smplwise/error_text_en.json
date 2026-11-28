@@ -1015,6 +1015,7 @@
 "הקובץ לא נמצא.": "The file was not found.",
 "הקובץ מכיל מטא־נתונים או אנימציה שאינם מותרים.": "The file contains metadata or an animation that is not allowed.",
 "הקובץ מכיל מטא־נתונים או טקסט שאינם מותרים.": "The file contains metadata or text that is not allowed.",
+"הקובץ נפרס לנפח גדול מדי לקריאה. אפשר להעלות את קובצי המערכת הישנה עצמם או ייצוא שלהם.": "The file unpacks to more than can be read. Upload the old system's own files or an export of them.",
 "הקובץ עדיין לא מוכן.": "The file is not ready yet.",
 "הקובץ ריק.": "The file is empty.",
 "הקובץ שונה מזה שהועלה.": "The file is different from the one that was uploaded.",

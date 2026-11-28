@@ -26,11 +26,13 @@ set / empty while it is read, and the NVR host and the go2rtc URL are reduced to
 shown). Nothing in here writes, and nothing reaches the network."""
 from __future__ import annotations
 
+import bz2
 import datetime as dt
 import gzip
 import hashlib
 import io
 import json
+import lzma
 import tarfile
 import zipfile
 import zlib
@@ -43,6 +45,11 @@ LEGACY_VERSION_KNOWN = "1.5.27"
 MAX_INPUT_BYTES = 20 * 1024 * 1024  # one upload (the API); the workstation script passes its own, larger limit for a full backup
 MAX_MEMBER_BYTES = 8 * 1024 * 1024  # one JSON / JSON-lines member, decompressed
 MAX_TOTAL_READ = 64 * 1024 * 1024  # every candidate member together, decompressed
+# CD-05 (2.57): every byte DECOMPRESSED while walking an archive, kept or skipped (a skipped member of a gzip stream is still
+# decompressed, and a backward seek in a gzip stream decompresses again from the start). A 20 MB upload of very compressible data
+# would otherwise expand to ~20 GB per pass; 512 MB is several times a real upload's inner archives and a few seconds of CPU.
+MAX_UNPACKED_WALK = 512 * 1024 * 1024
+_WALK_CHUNK = 1024 * 1024
 MAX_MEMBERS = 50_000  # members looked at in one archive (a configuration folder can hold thousands)
 MAX_EVENT_ROWS = 20_000  # the legacy keeps 4,000; more is not this add-on's store
 
@@ -129,11 +136,14 @@ def _is_gzip(raw: bytes) -> bool:
 
 
 class _Budget:
-    """The decompressed bytes and members read so far (caps across nested archives)."""
+    """The decompressed bytes and members read so far (caps across nested archives). `read` counts the bytes of members kept;
+    `unpacked` counts every byte a decompressor produced while walking (CD-05), whether the member was kept or skipped."""
 
-    def __init__(self) -> None:
+    def __init__(self, walk_cap: int | None = None) -> None:
         self.read = 0
         self.members = 0
+        self.unpacked = 0
+        self.walk_cap = MAX_UNPACKED_WALK if walk_cap is None else walk_cap
 
     def member(self) -> None:
         self.members += 1
@@ -144,6 +154,88 @@ class _Budget:
         self.read += n
         if self.read > MAX_TOTAL_READ:
             raise SourceError("too_large_unpacked", str(MAX_TOTAL_READ))
+
+    def unpack(self, n: int) -> None:
+        self.unpacked += n
+        if self.unpacked > self.walk_cap:
+            raise SourceError("too_large_unpacked", f"walk {self.walk_cap}")
+
+
+# the compressions `tarfile` reads with `r:*` / `r|*`; each is decompressed here instead, through `_Unpacked`, so it is counted
+_COMPRESSED = ((b"\x1f\x8b", lambda f: gzip.GzipFile(fileobj=f, mode="rb")), (b"BZh", lambda f: bz2.BZ2File(f, mode="rb")),
+               (b"\xfd7zXZ\x00", lambda f: lzma.LZMAFile(f, mode="rb")))
+
+
+class _Unpacked:
+    """A decompressed, seekable view of a compressed stream that counts EVERY byte it decompresses against the budget (CD-05):
+    reads, forward seeks (decompressed to be skipped) and backward seeks (decompressed again from the start). `tarfile` reads it as
+    a plain TAR (`r:` / `r|`), so no decompression happens out of the budget's sight."""
+
+    def __init__(self, src: Any, opener: Any, budget: _Budget) -> None:
+        self._src = src
+        self._opener = opener
+        self._budget = budget
+        self._start = src.tell()
+        self._d: Any = None
+        self._pos = 0
+        self._open()
+
+    def _open(self) -> None:
+        if self._d is not None:
+            self._d.close()
+        self._src.seek(self._start)
+        self._d = self._opener(self._src)
+        self._pos = 0
+
+    def read(self, n: int = -1) -> bytes:
+        if n is None or n < 0:
+            out = bytearray()
+            while True:
+                chunk = self.read(_WALK_CHUNK)
+                if not chunk:
+                    return bytes(out)
+                out += chunk
+        data = self._d.read(n)
+        self._pos += len(data)
+        self._budget.unpack(len(data))
+        return data
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        if whence == 1:
+            offset += self._pos
+        elif whence != 0:
+            raise io.UnsupportedOperation("seek from the end of a compressed stream")
+        if offset < self._pos:
+            self._open()
+        while self._pos < offset:
+            if not self.read(min(_WALK_CHUNK, offset - self._pos)):
+                break
+        return self._pos
+
+    def tell(self) -> int:
+        return self._pos
+
+    def seekable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return True
+
+    def close(self) -> None:
+        if self._d is not None:
+            self._d.close()
+            self._d = None
+
+
+def _plain_tar_stream(fh: Any, budget: _Budget) -> Any:
+    """`fh` itself when it is not compressed, else a counted decompressed view of it (`_Unpacked`)."""
+    start = fh.tell()
+    magic = fh.read(6)
+    fh.seek(start)
+    for sig, opener in _COMPRESSED:
+        if magic.startswith(sig):
+            return _Unpacked(fh, opener, budget)
+    return fh
 
 
 def _read_capped(fh: Any, cap: int, budget: _Budget) -> bytes | None:
@@ -299,8 +391,9 @@ def _read_inner_tar(fh: Any, parts: _Parts, budget: _Budget, *, role: str) -> No
     """A Home Assistant backup's inner archive, read as a stream (`r|*`): the add-on's (`addon.json`, `data/options.json`) or the
     configuration folder's (only the files at the top of the folder: the legacy wrote there, never into a sub-folder)."""
     try:
-        inner = tarfile.open(fileobj=fh, mode="r|*")
-    except (tarfile.TarError, OSError, EOFError) as exc:
+        stream = _plain_tar_stream(fh, budget)  # CD-05: the decompression of skipped members is counted too
+        inner = tarfile.open(fileobj=stream, mode="r|")
+    except (tarfile.TarError, OSError, EOFError, zlib.error, lzma.LZMAError) as exc:
         raise SourceError("unreadable_inner_archive", f"{role}: {type(exc).__name__}") from None
     try:
         for m in inner:
@@ -328,17 +421,20 @@ def _read_inner_tar(fh: Any, parts: _Parts, budget: _Budget, *, role: str) -> No
                 parts.warnings.append("member_too_large")
                 continue
             parts.feed(m.name, data, priority=priority)
-    except (tarfile.TarError, OSError, EOFError, zlib.error) as exc:
+    except (tarfile.TarError, OSError, EOFError, zlib.error, lzma.LZMAError) as exc:
         raise SourceError("unreadable_inner_archive", f"{role}: {type(exc).__name__}") from None
     finally:
         inner.close()
+        if stream is not fh:
+            stream.close()
 
 
 def _read_tar(fileobj: Any, parts: _Parts, budget: _Budget) -> str:
     """A plain / gzip TAR: loose files, or an unprotected Home Assistant backup. Returns the container name."""
     try:
-        t = tarfile.open(fileobj=fileobj, mode="r:*")
-    except (tarfile.TarError, OSError, EOFError) as exc:
+        stream = _plain_tar_stream(fileobj, budget)  # CD-05: a compressed outer TAR is decompressed (and counted) by `_Unpacked`
+        t = tarfile.open(fileobj=stream, mode="r:")
+    except (tarfile.TarError, OSError, EOFError, zlib.error, lzma.LZMAError) as exc:
         raise SourceError("unreadable_tar", type(exc).__name__) from None
     with t:
         members = []
@@ -592,7 +688,8 @@ def read_path(path: Any, *, max_bytes: int = 4 * 1024 * 1024 * 1024) -> LegacySo
             h.update(chunk)
         fh.seek(0)
         parts = _Parts()
-        container = _read_tar(fh, parts, _Budget())
+        # a workstation file may be a full backup (GBs): its walk budget grows with the file, a 20 MB upload's does not
+        container = _read_tar(fh, parts, _Budget(walk_cap=max(MAX_UNPACKED_WALK, 16 * size)))
         return _reduce(container, h.hexdigest(), size, parts)
 
 

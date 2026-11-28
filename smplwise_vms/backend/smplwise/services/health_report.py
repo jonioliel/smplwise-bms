@@ -252,7 +252,18 @@ def _ha_sync_check(settings: Settings) -> dict[str, Any]:
             st = "error"  # NVR-less mode: Home Assistant is the product
         detail = t("health.ha.detail", state=_conn_word(hs.get("connected")), entities=hs.get("entities", 0), version=hs.get("ha_version") or "?",
                    age=t("health.s_ago", n=int(age)) if age is not None else "—", error=" · " + str(hs.get("last_error")) if hs.get("last_error") else "")
-        return _check("ha_sync", t("health.ha.label"), st, detail, **hs)
+        return _check("ha_sync", t("health.ha.label"), st, detail, **hs, **_feed_meta())
+
+
+def _feed_meta() -> dict[str, Any]:
+    """FIX-CORE-DATA-2570 (additive): the rule-notification delivery counters (CD-04) and the state feed / reconcile counters, under
+    the HA sync check's `meta` (`delivery`, `state_feed`). The report never fails because of them."""
+    from . import ha_state_worker
+
+    try:
+        return {"delivery": ha_state_worker.delivery_view(), "state_feed": ha_sync.feed_view()}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _bridge_check(conn: sqlite3.Connection) -> dict[str, Any]:
