@@ -41,6 +41,11 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
   לפתוח דלתות ולנטרל את האזעקה בכל ההתקנה." / "It is not known which devices this scene sets (its definition cannot be read). Running it
   needs the permissions to control devices, open doors and disarm the alarm in the whole installation." `unknown_scene_reasons` uses
   it; `test_vd2_01_...` asserts it (one added line).
+- Design ratchet (PC at `553194542`): px-literal 25513 -> 25516 - FIX-FE2-2570's `.scene-note` (`margin-block-start: 6px`,
+  `screens/area-quick-sheet-css.ts`) and FIX-CORE-DATA-2570's counters list (`margin:6px ...;padding-inline-start:18px`,
+  `screens/system-diagnostics.ts`). Written on the spacing scale with the same values (`calc(var(--sw-s-1) * 1.5)` = 6px,
+  `calc(var(--sw-s-3) * 1.5)` = 18px): no look change, ratchet back to 25513 without a baseline raise. (Run with `PYTHONUTF8=1` on the PC:
+  without it the ratchet's per-file lines read the base files as cp1255 and print wrong "0 -> n" counts; the total is right either way.)
 - Home screen scene buttons (lead, 28.11; after FIX-MAPS2-2570): new pure helper `home/home-scene-run.ts runHomeScene` = FIX-FE2-2570's
   `api/run-confirm.ts runConfirmed` + `api/physical-outcome.ts` (a lost answer - no answer, 504 `config_timeout` with
   `details.outcome = unknown`, a 5xx - is `unknown`, never "did not run", never re-sent; a refusal carries the server's sentence).
@@ -107,6 +112,6 @@ regenerated views committed.
 
 ## 6. Open points
 
-1. More fix rows from the lead (FIX-GATE, FIX-VIDEO2, FIX-AUTOMATION2, maybe the review-2 rows); each adds CHANGELOG lines and a registry entry.
+1. Rows still to come (the lead's list, 28.11): FIX-GATE-2570, FIX-VIDEO2-2570, FIX-AUTOMATION2-2570 (based on FIX-AUTOMATION), FIX-CALENDAR-2570 and FIX-UTIL-A-2570 (both based on FIX-COMMS), FIX-UTIL-B-2570, FIX-SECURITY2-2570, FIX-PHONEKEY-2570; each adds CHANGELOG lines and a registry entry.
 2. UI rebuild (`npm run build:addon` on the runner) only after the lead's "all rows in", then the gate (the lead's).
 3. RELEASE-2560-TRAIN is still IN_PROGRESS in the registry although 2.56.0 is released; left to the lead.

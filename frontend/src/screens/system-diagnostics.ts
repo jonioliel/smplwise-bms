@@ -1921,7 +1921,7 @@ export class SystemDiagnostics extends LitElement {
     if (delivery) {
       lines.push(html`<li data-ha-feed-delivery>${tr('התראות של כללים: {queued} נשלחו לתור · {waiting} ממתינות · {dropped} נזרקו כשהתור היה מלא · {skipped} דולגו כי התיישנו', { queued: n(delivery, 'queued'), waiting: n(delivery, 'waiting'), dropped: n(delivery, 'dropped_full'), skipped: n(delivery, 'skipped_old') })}</li>`);
     }
-    return html`<ul class="hd" data-ha-feed-counters style="margin:6px 0 0;padding-inline-start:18px">${lines}</ul>`;
+    return html`<ul class="hd" data-ha-feed-counters style="margin:calc(var(--sw-s-1) * 1.5) 0 0;padding-inline-start:calc(var(--sw-s-3) * 1.5)">${lines}</ul>`;
   }
 
   /** CR-008 D7: under the "וידאו ב־WebRTC" card, the settings hint of each camera whose main stream will not play there. */
