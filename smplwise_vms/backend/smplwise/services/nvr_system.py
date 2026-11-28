@@ -387,6 +387,30 @@ def hdd_list(settings: Settings, *, client: httpx.Client | None = None) -> list[
             c.close()
 
 
+# FIX-VIDEO-2570 (second review: VD-02 still open for the disk check and the NVR reboot): a command that was sent but got no good
+# answer is recorded "unknown" and audited "allowed" with outcome "unknown" - never failed / denied, never re-sent. The NVR reboot is the
+# case where this is the rule rather than the exception: the recorder often drops the link while it restarts.
+COMMAND_UNKNOWN_TEXT = "לא ידוע אם ה־NVR ביצע את הפקודה: הקשר נפסק אחרי שהיא נשלחה. בדקו את מצב ה־NVR לפני שליחה חוזרת."
+REBOOT_UNKNOWN_TEXT = "לא ידוע אם ה־NVR מופעל מחדש: הקשר נפסק אחרי שהפקודה נשלחה (בזמן הפעלה מחדש זה צפוי). חכו כמה דקות ובדקו שהוא חזר, לפני שליחה חוזרת."
+
+
+def _command_failed(conn: sqlite3.Connection, principal: Any, exc: ApiError, *, kind: str, permission: str, target: str, path: str, after: str | None,
+                    note: str, request_id: str | None, unknown_text: str) -> ApiError:
+    """The change-log row and the audit row of a device command whose PUT raised; the error to raise. Sent with no good answer
+    (`put_outcome_unknown`): `unknown` / `allowed` + outcome unknown, 504 `action_outcome_unknown`. Otherwise `failed` / `denied`."""
+    if put_outcome_unknown(exc):
+        rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=None, after=after, status="unknown", error=exc.code,
+                      note=f"{note} - לא ידוע, לבדוק")
+        audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id,
+              details={"kind": kind, "path": path, "change_id": rec["id"], "outcome": "unknown"})
+        return ApiError(504, "action_outcome_unknown", unknown_text, retryable=False,
+                        details={**(exc.details or {}), "cause": exc.code, "change_id": rec["id"], "outcome": "unknown"})
+    _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=None, after=after, status="failed", error=exc.code, note=note)
+    audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id,
+          details={"kind": kind, "path": path, "outcome": "refused"})
+    return exc
+
+
 def smart_test_xml(hdd_id: int, kind: str) -> str:
     return f'<SMARTTest version="2.0" {XMLNS}><hddID>{hdd_id}</hddID><selfTestType>{kind}</selfTestType></SMARTTest>'
 
@@ -401,9 +425,11 @@ def start_smart_test(settings: Settings, conn: sqlite3.Connection, principal: An
         try:
             _put(c, path, xml)
         except ApiError as exc:
-            _record(conn, principal, kind="storage_test", permission="nvr.storage.test", target=f"hdd-{hdd_id}", path=path, before=None, after=xml, status="failed", error=exc.code, note=f"בדיקת SMART {kind}")
-            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=f"hdd-{hdd_id}", reason=exc.code, request_id=request_id, details={"kind": "storage_test", "path": path})
-            raise
+            out = _command_failed(conn, principal, exc, kind="storage_test", permission="nvr.storage.test", target=f"hdd-{hdd_id}", path=path, after=xml,
+                                  note=f"בדיקת SMART {kind}", request_id=request_id, unknown_text=COMMAND_UNKNOWN_TEXT)
+            if out is exc:
+                raise
+            raise out from exc
     finally:
         if own:
             c.close()
@@ -422,9 +448,11 @@ def reboot(settings: Settings, conn: sqlite3.Connection, principal: Any, *, requ
         try:
             _put(c, REBOOT_PATH, "")
         except ApiError as exc:
-            _record(conn, principal, kind="reboot", permission="nvr.system.reboot", target="system", path=REBOOT_PATH, before=None, after=None, status="failed", error=exc.code, note="הפעלה מחדש")
-            audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id="system", reason=exc.code, request_id=request_id, details={"kind": "reboot"})
-            raise
+            out = _command_failed(conn, principal, exc, kind="reboot", permission="nvr.system.reboot", target="system", path=REBOOT_PATH, after=None,
+                                  note="הפעלה מחדש", request_id=request_id, unknown_text=REBOOT_UNKNOWN_TEXT)
+            if out is exc:
+                raise
+            raise out from exc
     finally:
         if own:
             c.close()

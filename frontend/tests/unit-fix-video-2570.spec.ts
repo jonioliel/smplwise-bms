@@ -47,3 +47,15 @@ test('SCR-54: the bulk bar acts on the page on screen - the same page computatio
   const list = s.slice(s.indexOf('private renderList('), s.indexOf('private renderBulk('));
   expect(list).toMatch(/const \{ items: pageItems, page, pages \} = this\.pageView\(rows\);/);
 });
+
+test('second review (VD-02): a camera restart whose answer was lost reads "unknown", never "not restarted"', async () => {
+  const { rebootErrorText } = await import('../src/screens/camera-reboot-logic');
+  const { crt } = await import('../src/i18n/camera-reboot');
+  const { ApiError } = await import('../src/api/client');
+  const unknown = crt('errorUnknown');
+  expect(unknown).toContain('לא ידוע');
+  expect(rebootErrorText(new ApiError(504, { code: 'action_outcome_unknown', user_message: 'x', retryable: false, correlation_id: '', details: { outcome: 'unknown' } }))).toBe(unknown);
+  expect(rebootErrorText(new TypeError('Failed to fetch'))).toBe(unknown); // no answer at all: the press may have left
+  expect(rebootErrorText(new ApiError(503, { code: 'source_unavailable', user_message: 'x', retryable: true, correlation_id: '', details: {} }))).toBe(crt('errorUnavailable'));
+  expect(crt('errorUnknown', undefined, 'en')).toContain('not known');
+});

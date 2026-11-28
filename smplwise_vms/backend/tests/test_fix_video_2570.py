@@ -114,3 +114,116 @@ def test_alarm_expiry_too_far_has_the_common_code():
     with pytest.raises(ApiError) as past:
         alarm_router._envelope("req-3", (now - dt.timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ"))
     assert past.value.status == 409 and past.value.code == "expired"
+
+
+# ---------------------------------------------------------------- second review (2.57): the other NVR commands (VD-02 still open)
+
+REBOOT_PATH = "/ISAPI/System/reboot"
+SMART_PATH = "/ISAPI/ContentMgmt/Storage/hdd/2/SMARTTest"
+
+
+class FlakyCommands(FakeNvr):
+    """The NVR reboot and the disk check: `mode` as in Flaky; `sent` counts what reached the fake device."""
+
+    def __init__(self):
+        super().__init__()
+        self.mode: str | None = None
+        self.sent: dict[str, int] = {}
+        inner = self.handler
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            p = request.url.path
+            if request.method == "PUT" and p in (REBOOT_PATH, SMART_PATH):
+                if self.mode == "connect":
+                    raise httpx.ConnectError("down", request=request)
+                self.sent[p] = self.sent.get(p, 0) + 1
+                if self.mode == "read_timeout":
+                    raise httpx.ReadTimeout("restarting", request=request)
+                if self.mode == "disconnect":
+                    raise httpx.RemoteProtocolError("dropped", request=request)
+                if self.mode == "5xx":
+                    return httpx.Response(500, text="boom")
+            return inner(request)
+
+        self.handler = handler  # type: ignore[method-assign]
+
+
+@pytest.fixture()
+def fakec(monkeypatch) -> FlakyCommands:
+    f = FlakyCommands()
+    for mod in (nvr_write, nvr_system):
+        monkeypatch.setattr(mod, "_client", f.client)
+    return f
+
+
+def _kind_rows(c: TestClient, kind: str):
+    changes = [x for x in c.get("/api/v1/nvr/changes").json()["changes"] if x["kind"] == kind]
+    audit = c.get("/api/v1/audit?prefix=nvr.&limit=50").json()
+    rows = audit if isinstance(audit, list) else next((v for v in audit.values() if isinstance(v, list)), [])
+    return changes, [e for e in rows if e.get("action") == "nvr.write" and (e.get("details") or {}).get("kind") == kind]
+
+
+@pytest.mark.parametrize("mode", ["read_timeout", "disconnect", "5xx"])
+def test_nvr_reboot_whose_answer_was_lost_is_unknown(settings, fakec, mode):
+    """The recorder usually drops the link while it restarts: that is "unknown, check it came back", never failed / denied."""
+    fakec.mode = mode
+    with TestClient(create_app(settings)) as c:
+        r = c.post("/api/v1/nvr/reboot", json={"confirm": "RESTART"})
+        assert r.status_code == 504 and r.json()["code"] == "action_outcome_unknown" and r.json()["details"]["outcome"] == "unknown", r.text
+        assert fakec.sent == {REBOOT_PATH: 1}, "sent once, never re-sent"
+        changes, audit = _kind_rows(c, "reboot")
+        assert [x["status"] for x in changes] == ["unknown"]
+        assert len(audit) == 1 and audit[0]["decision"] == "allowed" and audit[0]["details"]["outcome"] == "unknown", audit
+
+
+@pytest.mark.parametrize("mode", ["read_timeout", "5xx"])
+def test_disk_check_whose_answer_was_lost_is_unknown(settings, fakec, mode):
+    fakec.mode = mode
+    with TestClient(create_app(settings)) as c:
+        r = c.post("/api/v1/nvr/storage/2/smart-test", json={"kind": "short"})
+        assert r.status_code == 504 and r.json()["details"]["outcome"] == "unknown", r.text
+        assert fakec.sent == {SMART_PATH: 1}
+        changes, audit = _kind_rows(c, "storage_test")
+        assert [x["status"] for x in changes] == ["unknown"]
+        assert len(audit) == 1 and audit[0]["decision"] == "allowed" and audit[0]["details"]["outcome"] == "unknown"
+
+
+def test_reboot_and_disk_check_not_sent_stay_failed_and_denied(settings, fakec):
+    fakec.mode = "connect"
+    with TestClient(create_app(settings)) as c:
+        assert c.post("/api/v1/nvr/reboot", json={"confirm": "RESTART"}).json().get("details", {}).get("outcome") != "unknown"
+        assert c.post("/api/v1/nvr/storage/2/smart-test", json={"kind": "short"}).json().get("details", {}).get("outcome") != "unknown"
+        for kind in ("reboot", "storage_test"):
+            changes, audit = _kind_rows(c, kind)
+            assert [x["status"] for x in changes] == ["failed"] and [a["decision"] for a in audit] == ["denied"], (kind, changes, audit)
+        assert fakec.sent == {}
+
+
+@pytest.mark.parametrize("mode", ["read_timeout", "disconnect", "5xx"])
+def test_camera_reboot_whose_answer_was_lost_is_unknown(settings, monkeypatch, mode):
+    from smplwise.services import camera_reboot
+
+    sent: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.method)
+        if mode == "read_timeout":
+            raise httpx.ReadTimeout("slow", request=request)
+        if mode == "disconnect":
+            raise httpx.RemoteProtocolError("dropped", request=request)
+        return httpx.Response(500, text="boom")
+
+    monkeypatch.setattr(camera_reboot, "_client", lambda _s=None: httpx.Client(transport=httpx.MockTransport(handler), base_url="http://nvr"))
+    with TestClient(create_app(settings)) as c:
+        cam = c.post("/api/v1/cameras", json={"channel": 7, "alias": "שער"}).json()
+        r = c.post(f"/api/v1/cameras/{cam['id']}/reboot", json={"confirm": True})
+        assert r.status_code == 504 and r.json()["code"] == "action_outcome_unknown" and r.json()["details"]["outcome"] == "unknown", r.text
+        assert sent == ["GET"], "one request, never retried"
+        changes = [x for x in c.get("/api/v1/nvr/changes").json()["changes"] if x["kind"] == "camera_reboot"]
+        assert [x["status"] for x in changes] == ["unknown"]
+        audit = c.get("/api/v1/audit?prefix=nvr.&limit=50").json()
+        rows = audit if isinstance(audit, list) else next((v for v in audit.values() if isinstance(v, list)), [])
+        mine = [e for e in rows if (e.get("details") or {}).get("kind") == "camera_reboot"]
+        assert [e["decision"] for e in mine] == ["allowed"] and mine[0]["details"]["outcome"] == "unknown"
+        # it may have restarted: the camera's cooldown holds, so a second press is not sent at once
+        assert c.get(f"/api/v1/cameras/{cam['id']}/reboot").json()["reason"] == "cooldown"
