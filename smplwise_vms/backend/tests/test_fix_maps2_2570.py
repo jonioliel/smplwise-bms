@@ -83,7 +83,7 @@ def test_wall_save_without_a_version_is_as_before(settings):
 
 # ------------------------------------------------------------------------------------------------------------------ MH2-04 area buildings
 
-def test_entities_name_each_areas_building_only_when_asked(bulk_app):
+def test_entities_name_each_areas_building_only_when_asked(bulk_app):  # noqa: F811 - the fixture imported above
     app, _s, c, _fake = bulk_app
     ids = _site(c, app)
     plain = c.get(f"{API}/ha/entities", params={"limit": 1}).json()
