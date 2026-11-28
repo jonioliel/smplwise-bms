@@ -10,3 +10,9 @@ export function bulkItemFailed(error: string, status: string | null | undefined)
 export function bulkResultOf(failed: number, total: number): { failed: number; total: number } | null {
   return failed > 0 && total > 0 ? { failed, total } : null;
 }
+
+/** FIX-HOME-MAPS-2570 (MH-04): an "all off" tapped while a batch is still running sends nothing (one batch at a time - the screen has one
+ * action line) and says why: `same` = this room's own batch is still going, `other` = another room's batch is. No queue, no retry. */
+export function bulkBusyKind(runningZone: string | null, tappedZone: string | null): 'same' | 'other' {
+  return runningZone != null && runningZone === tappedZone ? 'same' : 'other';
+}

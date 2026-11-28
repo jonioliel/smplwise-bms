@@ -90,7 +90,7 @@ import { mayOpenHere, openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
 import { tr } from '../i18n/msg/plan-editor';
 import { argKey, argsToSend } from './map-action-args';
-import { bulkItemFailed, bulkResultOf } from './map-room-bulk';
+import { bulkBusyKind, bulkItemFailed, bulkResultOf } from './map-room-bulk';
 
 /** Hebrew names for enum choices the adapters offer (T040). */
 const ARG_CHOICE_HE: Record<string, string> = { off: tr('כבוי'), heat: tr('חימום'), cool: tr('קירור'), heat_cool: tr('חימום/קירור'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר בלבד') };
@@ -1673,6 +1673,7 @@ export class ExploreFloorMap extends LitElement {
   /** 06:MAP-1 a: a notice belongs to the card it was written on - another selection (or none) starts without it. */
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('selectedId') && this.notice) this.notice = '';
+    if (changed.has('selectedZoneId') && this.bulkBusy) this.bulkBusy = null;
     if (changed.has('selectedZoneId') && this.bulkResult) this.bulkResult = null; // SCR-52: the "all off" line belongs to its own room
     // MEDIUM-REST-2540 (SCR-17): values typed for one device do not wait for the next card (a pending confirmation keeps its own)
     if (changed.has('selectedId') && Object.keys(this.actionArgs).length) {
@@ -2507,6 +2508,10 @@ export class ExploreFloorMap extends LitElement {
   private bulkRunning = false;
   /** SCR-52 (owner Q1 a): the selected room's last "all off" left this many of this many devices on (null: all went off / none run). */
   @state() private bulkResult: { failed: number; total: number } | null = null;
+  /** FIX-HOME-MAPS-2570 (MH-04): the zone whose batch is running now, and the note on the card of a room whose own "all off" was refused
+   * because of it (nothing is queued and nothing is sent: the person is told, and taps again when the first batch is done). */
+  private bulkZone: string | null = null;
+  @state() private bulkBusy: 'same' | 'other' | null = null;
 
   /** "כבה הכול": at once (the recommended rule: lights never ask), or after a confirmation with `map.room_card_confirm` = bulk. */
   private onRoomBulk(d: RoomCardBulkDetail): void {
@@ -2521,10 +2526,16 @@ export class ExploreFloorMap extends LitElement {
     this.roomConfirm = null;
     // LOWS-FRONTEND-2550 (review SCR-52): one "all off" at a time - a second tap while the first batch is still sending does not start a
     // second batch over the same devices
-    if (this.bulkRunning) return;
+    // FIX-HOME-MAPS-2570 (MH-04): ... and the person is told so on the room card, never dropped without a word
+    if (this.bulkRunning) {
+      this.bulkBusy = bulkBusyKind(this.bulkZone, this.selectedZoneId);
+      return;
+    }
     this.bulkRunning = true;
+    this.bulkBusy = null;
     this.bulkResult = null;
     const zone = this.selectedZoneId;
+    this.bulkZone = zone;
     let sent = 0;
     let failed = 0;
     try {
@@ -2537,6 +2548,8 @@ export class ExploreFloorMap extends LitElement {
       if (this.selectedZoneId === zone) this.bulkResult = bulkResultOf(failed, sent);
     } finally {
       this.bulkRunning = false;
+      this.bulkZone = null;
+      this.bulkBusy = null;
     }
   }
 
@@ -3300,7 +3313,7 @@ export class ExploreFloorMap extends LitElement {
     const z = b.zones.find((x) => x.id === this.selectedZoneId);
     if (!z || z.shared) return nothing; // a shared room shows its members card instead
     const camera = this.r28?.['map.room_card_camera'];
-    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} .bulkResult=${this.bulkResult} place=${this.roomCardPlace()} camera=${camera === 'snapshot' || camera === 'none' ? camera : 'live'}
+    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} .bulkResult=${this.bulkResult} .bulkBusy=${this.bulkBusy} place=${this.roomCardPlace()} camera=${camera === 'snapshot' || camera === 'none' ? camera : 'live'}
       @room-card-action=${(e: CustomEvent<RoomCardActionDetail>) => this.onRoomAction(e.detail)} @room-card-bulk=${(e: CustomEvent<RoomCardBulkDetail>) => this.onRoomBulk(e.detail)}
       @room-card-close=${() => (this.selectedZoneId = null)} @room-card-camera=${(e: CustomEvent<{ id: string }>) => navigate(`/live/cameras/${e.detail.id}`)}
       @room-card-recordings=${(e: CustomEvent<{ id: string }>) => navigate('/investigate/playback', { camera: e.detail.id, from: 'map' })}></sw-room-card>`;

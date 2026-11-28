@@ -162,3 +162,11 @@ def test_one_area_carries_the_same_counts(ahc_app):
     c = TestClient(ahc_app).get("/api/v1/devices/areas/ahc_lobby").json()["counts"]
     assert (c["locks"], c["locks_locked"], c["locks_unknown"]) == (3, 1, 2)
     assert c["alarm"] == "armed_home" and c["alarms_unknown"] == 1
+
+
+@pytest.mark.parametrize("state", ["jammed", "locking", "unlocking"])
+def test_a_jammed_or_moving_lock_is_never_counted_as_open_or_locked(state):
+    """FIX-HOME-MAPS-2570 (MH-03): jammed / locking / unlocking say neither "locked" nor "open"."""
+    c = _counts(_e("lock", state))
+    assert (c["locks"], c["locks_locked"], c["locks_unknown"]) == (1, 0, 1)
+    assert c["locks"] - c["locks_locked"] - c["locks_unknown"] == 0
