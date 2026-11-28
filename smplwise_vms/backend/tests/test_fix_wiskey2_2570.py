@@ -217,7 +217,7 @@ def test_startup_recovery_starts_core_for_a_crashed_run_left_with_core_stopped_o
     steps.append({"name": "backup_local", "state": "failed", "code": "backup_failed", "at": "x"})
     with world["db"].write_aside() as conn:
         set_setting(conn, wmi.K_JOB, json.dumps({"id": job_id, "state": "failed", "code": "run_crashed", "kind": "convert", "steps": steps,
-                                                 "rollback_of": None}))
+                                                 "finished_at": "2030-01-01T00:00:00Z", "rollback_of": None}))
     assert wmi.recover_interrupted(world["db"], world["settings"]) == "crash_recovered"
     assert p.running and p.calls == ["start"]
     job = _job(world)
