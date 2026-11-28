@@ -409,7 +409,12 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), caller: Cal
         require(conn, caller.principal, CONFIGURE, INSTALLATION)
         if not svc.take("settings", "*", svc.RATE_SETTINGS):
             raise ApiError(429, "rate_limited", "יותר מדי שינויים. נסו שוב בעוד דקה.", retryable=True)
-        st, changes = svc.update_settings(conn, body, caller.principal.user_id)
+        try:
+            st, changes = svc.update_settings(conn, body, caller.principal.user_id)
+        except ApiError as exc:  # CU2-10: all or nothing - the writes are already rolled back; the refusal itself is audited (an ApiError commits)
+            audit(conn, actor=caller.principal, action="presence.settings.update", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  reason=getattr(exc, "code", None), details={"fields": sorted(str(k) for k in body)[:20]})
+            raise
         audit(conn, actor=caller.principal, action="presence.settings.update", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details=changes)
         return {"settings": st, "sensors": [{"key": k, **v} for k, v in svc.SENSORS.items()], "devices": len(svc.list_all(conn))}
 

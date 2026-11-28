@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Path, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Path, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -115,10 +115,14 @@ def update_task(body: TaskBody, request: Request, task_id: str = Path(..., patte
 
 
 @router.delete("/maintenance/tasks/{task_id}")
-def delete_task(request: Request, task_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
+def delete_task(request: Request, background: BackgroundTasks, task_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Remove a task from the ledger (kept for the audit trail; its open round ends, its tags stop resolving)."""
-    return service.delete_task(Viewer(conn, principal), task_id, _rid(request))
+    """Remove a task from the ledger (kept for the audit trail; its open round ends, its tags stop resolving, its files are deleted)."""
+    out = service.delete_task(Viewer(conn, principal), task_id, _rid(request))
+    data_dir = settings_of(request).data_dir
+    for rel in out.pop("_file_paths", []):
+        background.add_task(mfiles.remove, data_dir, rel)  # CU2-21: the bytes go after the commit, never before it
+    return out
 
 
 class CompleteBody(_Body):
@@ -185,11 +189,11 @@ def get_file(request: Request, task_id: str = Path(..., pattern=ID), file_id: st
 
 
 @router.delete("/maintenance/tasks/{task_id}/files/{file_id}")
-def delete_file(request: Request, task_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID), principal: Principal = Depends(current_principal),
-                conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def delete_file(request: Request, background: BackgroundTasks, task_id: str = Path(..., pattern=ID), file_id: str = Path(..., pattern=ID),
+                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove a file (maintenance.manage on the task's place); the row stays for the audit trail, the bytes go."""
     row = service.file_delete(Viewer(conn, principal), task_id, file_id, _rid(request))
-    mfiles.remove(settings_of(request).data_dir, row["path"])
+    background.add_task(mfiles.remove, settings_of(request).data_dir, row["path"])  # CU2-21: after the commit (a failed commit keeps row and bytes)
     return {"id": file_id, "deleted": True}
 
 

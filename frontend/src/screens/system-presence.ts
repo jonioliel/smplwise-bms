@@ -12,7 +12,7 @@ import './system-building-presence';
 import { describeError } from '../api/client';
 import { dayTimeText } from '../api/day-format';
 import {
-  RETENTION_CHOICES, SENSOR_KEYS, SENSOR_LABEL, VALUE_CHECK_MODES, breakGlass, valueCheckOf, getPresenceSettings, listPresenceDevices, policyProblem, putPresenceSettings,
+  RETENTION_CHOICES, SENSOR_KEYS, SENSOR_LABEL, VALUE_CHECK_MODES, breakGlass, valueCheckOf, getPresenceSettings, listPresenceDevices, policyBlocker, policyProblem, putPresenceSettings,
   type PresenceDevice, type PresenceSettings, type SensorKey, type ValueCheck,
 } from '../api/presence';
 import { can, isApi } from '../api/session';
@@ -224,9 +224,9 @@ export class SystemPresence extends LitElement {
   }
 
   private async save() {
-    const problem = policyProblem(this.draft);
-    if (problem && this.draft.required_sensors.enabled && this.draft.required_sensors.sensors.length === 0) {
-      this.error = problem;
+    const blocker = policyBlocker(this.draft); // CU2-09: also a required sensor that is not approved - the server refuses it too
+    if (blocker) {
+      this.error = blocker;
       return;
     }
     this.busy = true;
@@ -334,7 +334,7 @@ export class SystemPresence extends LitElement {
           <sw-segmented label=${pt('valueCheck')} data-presence-value-check value=${valueCheckOf(d.value_check)} ?disabled=${!editable || this.busy} @change=${(e: CustomEvent<SegmentedChange>) => this.patch({ value_check: e.detail.value as ValueCheck })}
       .options=${VALUE_CHECK_MODES.map((m: ValueCheck) => ({ value: m, label: pt(`valueCheck_${m}`), attrs: { 'data-v': m } }))}></sw-segmented></div>
         <div class="row" data-presence-row="notice"><span class="lbl">${tr('הודעה לעובדים')}<span class="muted">${tr('גרסה {n}; שינוי בטקסט מעלה את הגרסה וכל מכשיר מאשר מחדש', { n: d.notice_version })}</span></span></div>
-        <textarea data-presence-notice placeholder=${tr('טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)')} .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
+        <textarea data-presence-notice maxlength="8000" placeholder=${tr('טקסט ההודעה לעובדים (ניסוח משפטי של בעל המערכת)')} .value=${d.notice_text} ?disabled=${!editable || this.busy} @input=${(e: Event) => this.patch({ notice_text: (e.target as HTMLTextAreaElement).value })}></textarea>
         <div class="row" data-presence-row="retention"><span class="lbl">${tr('שמירת יומן הדיווחים')}</span>
           <sw-field><select data-presence-retention ?disabled=${!editable || this.busy} @change=${(e: Event) => this.patch({ retention_days: Number((e.target as HTMLSelectElement).value) })}>
             ${RETENTION_CHOICES.map((n) => html`<option value=${n} ?selected=${d.retention_days === n}>${tr('{n} ימים', { n })}</option>`)}
@@ -357,7 +357,7 @@ export class SystemPresence extends LitElement {
           : nothing}
         ${editable
           ? html`<div class="foot">
-              <sw-button variant="primary" size="sm" icon="check" data-presence-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
+              <sw-button variant="primary" size="sm" icon="check" data-presence-save ?disabled=${!this.dirty || this.busy || !!policyBlocker(this.draft)} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
               ${this.message ? html`<span class="ok" role="status" data-presence-message>${this.message}</span>` : nothing}
               ${this.error ? html`<span class="err" role="alert" data-presence-error>${this.error}</span>` : nothing}
             </div>`

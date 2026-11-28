@@ -560,8 +560,21 @@ def _validate_places(conn: sqlite3.Connection, body: dict[str, Any], current: di
 
 
 def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Apply an administrator's partial update. Returns (the new settings, what changed for the audit row - never the whole
-    notice text). The notice version rises by itself when the text changes or a sensor is newly allowed."""
+    """Apply an administrator's partial update, ALL OR NOTHING (CU2-10): a refusal part-way (an `ApiError` still commits the request
+    transaction) rolls every write of this call back first. Returns (the new settings, what changed for the audit row - never the
+    whole notice text). The notice version rises by itself when the text changes or a sensor is newly allowed."""
+    conn.execute("SAVEPOINT presence_settings")
+    try:
+        out = _update_settings_writes(conn, body, actor_user_id)
+    except BaseException:
+        conn.execute("ROLLBACK TO SAVEPOINT presence_settings")
+        conn.execute("RELEASE SAVEPOINT presence_settings")
+        raise
+    conn.execute("RELEASE SAVEPOINT presence_settings")
+    return out
+
+
+def _update_settings_writes(conn: sqlite3.Connection, body: dict[str, Any], actor_user_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
     current = load_settings(conn)
     changes: dict[str, Any] = {}
     unknown = set(body) - {"enabled", "mode", "interval_s", "distance_filter_m", "notice_text", "sensors_allowed", "intervals_s", "sites", "beacons", "wifi_sites", "wifi_match_mode",
@@ -569,6 +582,15 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     if unknown:
         raise field_error("שדה לא מוכר: " + ", ".join(sorted(unknown)), sorted(unknown), cls=PresenceError)
     places = _validate_places(conn, body, current)  # WHOIN034-295: all validated BEFORE anything is written (a refusal still commits)
+    # CU2-09: a required sensor that is not on the approved list could never be satisfied, so every in-scope user would be blocked.
+    # Judged on the state this save leaves behind (omitted keys keep their stored values), only while the policy is on.
+    if "sensors_allowed" in body or "required_sensors" in body:
+        sa = body["sensors_allowed"] if isinstance(body.get("sensors_allowed"), list) else current["sensors_allowed"]
+        rq = _normalize_required(body["required_sensors"], strict=True) if "required_sensors" in body else current["required_sensors"]
+        missing = [s for s in rq.get("sensors", []) if s not in sa] if rq.get("enabled") else []
+        if missing:
+            raise field_error(tpl("חיישן נדרש חייב להיות ברשימת החיישנים המאושרים: {v}", v=", ".join(missing)), ["required_sensors.sensors"], cls=PresenceError,
+                              legacy={"field": "required_sensors.sensors"}, extra={"not_allowed": missing})
     if "value_check" in body and body["value_check"] not in pv.VALUE_CHECK_MODES:  # v2.2: also before any write
         raise field_error("בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", ["value_check"], cls=PresenceError, legacy={"field": "value_check"}, extra={"known": list(pv.VALUE_CHECK_MODES)})
     bump = False

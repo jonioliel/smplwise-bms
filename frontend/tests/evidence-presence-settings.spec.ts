@@ -120,6 +120,8 @@ test.describe('הגדרות › אפליקציה לנייד (CR-027)', () => {
     // a required sensor that is not allowed is flagged before the save
     await card.locator('[data-presence-sensor="location"]').uncheck();
     await expect(policy.locator('[data-presence-policy-problem]')).toContainText('חייב להיות מאושר');
+    await expect(policy.locator('[data-presence-save] button')).toBeDisabled(); // CU2-09: Save is off while a required sensor is not approved
+    expect(mock.puts).toHaveLength(1);
     await shot(page, 'presence-settings-policy');
   });
 

@@ -531,11 +531,12 @@ def test_unavailable_is_stored_returned_and_satisfies_a_required_non_location_se
     assert gate()["blocked"] is False and gate()["missing"] == []
     assert c.get(f"{API}/sites", headers={**as_user("dana"), **APP_UA}).status_code == 200
     # a sensor the administrator does not allow is stored `off` even if the phone says unavailable
-    c.put(f"{API}/presence/settings", json={"sensors_allowed": ["location", "battery"]})
+    # (FIX-UTIL-B-2570 / CU2-09: while the policy still requires it the server refuses to un-approve it - nobody could ever satisfy it)
+    assert c.put(f"{API}/presence/settings", json={"sensors_allowed": ["location", "battery"]}).status_code == 422
+    assert c.put(f"{API}/presence/settings", json={"required_sensors": {"enabled": False, "sensors": ["altitude"]}, "sensors_allowed": ["location", "battery"]}).status_code == 200
     c.post(f"{API}/presence/devices/{did}/ack", json={"notice_version": 3}, headers=tok)
     c.post(f"{API}/presence/devices/{did}/events", json={"events": [], "status": {**STATUS_ON, "sensors": {"altitude": "unavailable"}}}, headers=tok)
     assert c.get(f"{API}/presence/devices/{did}/state", headers=tok).json()["status"]["sensors"]["altitude"] == "off"
-    assert gate()["blocked"] is True
 
 
 def test_unavailable_never_satisfies_location_and_stale_or_unacked_reports_still_do_not_count(world):

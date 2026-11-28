@@ -340,10 +340,20 @@ def _finish(db: Database, sid: str, status: str, reason: str | None, now_ts: flo
     stamp = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     with db.connection(label="insights.delivery.finish") as conn:
         if status in ("held", "retry"):
-            conn.execute("UPDATE insights_report_sends SET status = ?, reason = ?, not_before = COALESCE(?, not_before), attempts = COALESCE(?, attempts) WHERE id = ?",
+            conn.execute("UPDATE insights_report_sends SET status = ?, reason = ?, finished_at = NULL, not_before = COALESCE(?, not_before), attempts = COALESCE(?, attempts) WHERE id = ?",
                          (status, reason, not_before, attempts, sid))
         else:
             conn.execute("UPDATE insights_report_sends SET status = ?, reason = ?, finished_at = ?, attempts = COALESCE(?, attempts) WHERE id = ?", (status, reason, stamp, attempts, sid))
+
+
+def _claim(db: Database, sid: str, now_ts: float) -> bool:
+    """CU2-19: take the row BEFORE anything leaves, in its own committed transaction. While the send is in flight the row reads
+    `failed` / `unknown_outcome` (the table has no `sending` state): a restart between the send and `_finish` then leaves an honest
+    "may have left" row, never a queued one that would be sent a second time. `_finish` overwrites it with the real result."""
+    stamp = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
+    with db.connection(label="insights.delivery.claim") as conn:
+        return conn.execute("UPDATE insights_report_sends SET status = 'failed', reason = 'unknown_outcome', finished_at = ? WHERE id = ? AND status IN ('queued','held','retry')",
+                            (stamp, sid)).rowcount == 1
 
 
 def _send_whatsapp(db: Database, row: dict[str, Any], digits: str, text: str, now: dt.datetime) -> tuple[str, str | None]:
@@ -364,8 +374,12 @@ def _send_whatsapp(db: Database, row: dict[str, Any], digits: str, text: str, no
     if not decision.allowed:
         return "retry", "rate_limited"
     msg = OutboundMessage(outbox_id=row["id"], channel="whatsapp", purpose="notify", recipient=Recipient(None, phone=digits), text=text, account=account)
+    row["_send_begun"] = True  # CU2-19: from here on an exception means "may have left", never a retry
     result = WhatsAppChannel(transport(), svc).send(msg)
-    svc.note_result(account.key, result)
+    try:
+        svc.note_result(account.key, result)
+    except Exception:  # noqa: BLE001 - bookkeeping after the message left must not turn it into a retry
+        log.warning("insights report send result note failed")
     if result.may_have_left:
         try:
             gate.record(account_key=account.key, use_key=USE_KEY, recipient_key=rkey, kind="message", now=now)
@@ -413,6 +427,7 @@ def _deliver_email(db: Database, row: dict[str, Any], ts: float, now: dt.datetim
         _finish(db, row["id"], "skipped", "not_permitted", ts)
         out["skipped"] += 1
         return
+    row["_send_begun"] = True  # CU2-19: from here on an unexpected exception means "may have left", never a retry
     try:
         ne.smtp_send(cfg, target, mail)
     except ne.MailError as e:
@@ -513,11 +528,17 @@ def process(db: Database, now_ts: float | None = None, store: Any = None) -> dic
             _finish(db, r["id"], "held", "send_hours", ts, not_before=iso_utc(hours.next_opening(now, window, tz)))
             out["held"] += 1
             continue
+        if not _claim(db, r["id"], ts):
+            continue  # another pass took it, or it left the due states meanwhile
         try:
             (_deliver_email if r["channel"] == "email" else _deliver_whatsapp)(db, r, ts, now, out, store)
-        except Exception:  # noqa: BLE001 - one bad row never stops the others; it is retried, then failed
+        except Exception:  # noqa: BLE001 - one bad row never stops the others; before the send it is retried, then failed
             log.warning("insights report delivery row failed", exc_info=True)
-            _retry_or_fail(db, r, "internal", ts, now, out)
+            if r.get("_send_begun"):  # CU2-19: the message may have left - unknown, never resent
+                _finish(db, r["id"], "failed", "unknown_outcome", ts, attempts=int(r["attempts"] or 0) + 1)
+                out["failed"] += 1
+            else:
+                _retry_or_fail(db, r, "internal", ts, now, out)
     return out
 
 

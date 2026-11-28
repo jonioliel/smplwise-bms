@@ -470,8 +470,24 @@ def test_catalogue_rule_and_subject_registered_and_no_device_action():
     assert "water" in policies.RECIPIENT_RULES and "water" in policies.SUBJECT_KINDS
     assert policies.BY_KEY["water.leak"].app and policies.BY_KEY["water.leak"].push and not policies.BY_KEY["water.offline"].push
     assert wa.RULE_DEFAULTS["night_from"] == "01:00" and wa.RULE_DEFAULTS["night_min_lph"] == 6.0 and wa.RULE_DEFAULTS["night_min_intervals"] == 8
-    import inspect
 
-    src = inspect.getsource(wr) + inspect.getsource(wa)
-    for word in ("call_service", "turn_off", "valve", "ha_client"):
-        assert word not in src.replace("no valve", ""), word  # the evaluator never acts on a device (owner Q6)
+
+def test_a_leak_alarm_never_acts_on_a_device(app, monkeypatch):
+    """CU2-33 (owner Q6): behaviour, not a grep of the source - run a real burst alarm and trap every Home Assistant service call."""
+    import sys
+
+    calls: list[tuple] = []
+
+    def trap(*a, **k):
+        calls.append((a, k))
+        raise AssertionError("a leak alarm must never call a Home Assistant service")
+
+    for mod in list(sys.modules.values()):  # the function and every `from ... import call_service` copy of it
+        if getattr(mod, "__name__", "").startswith("smplwise") and getattr(mod, "call_service", None) is not None:
+            monkeypatch.setattr(mod, "call_service", trap)
+    c, settings = app
+    a = create(c, "sensor.water_a", max_flow_lph=100)
+    feed(settings, a, local(20, 12), [25_000, 25_001, 1000, 1000], max_flow=100)
+    out = run(settings, local(20, 12, 32))
+    assert out["opened"] == 1 and rows(settings, a)[0]["kind"] == "burst"  # the alarm really fired ...
+    assert notes(settings)[0]["source"] == "water.leak" and calls == []      # ... and nothing was switched or closed

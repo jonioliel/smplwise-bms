@@ -293,8 +293,12 @@ def test_nothing_is_sent_before_the_send_time_or_for_a_month_that_ended_before_t
     # the enable happened "now" (wall clock); a pass at a moment BEFORE it, or before 08:00 of the 1st, plans nothing
     assert dl.process(w["db"], enabled_at - 40 * 86400)["planned"] == 0
     assert mail == []
+    # CU2-33: the real reason - the enable moment is pushed far back, so ONLY the send time can hold the month: 07:00 local on the 1st
+    # (before 08:00) plans nothing, 09:00 local plans September
+    _fake_enabled_at(w, "2026-09-15T00:00:00Z")
     with w["db"].connection(mode="read") as conn:
-        assert dl.due(conn, ts(2026, 10, 1, 4, 0)) is None  # 07:00 local on the 1st: before the send time, and before enabled_at anyway
+        assert dl.due(conn, ts(2026, 10, 1, 4, 0)) is None
+        assert dl.due(conn, ts(2026, 10, 1, 6, 0)) == "2026-09"
 
 
 def _fake_enabled_at(w, when: str) -> None:
@@ -354,6 +358,55 @@ def test_a_transient_mail_failure_is_retried_then_a_permanent_one_fails(w, mail,
     with w["db"].connection(mode="read") as conn:
         rows = conn.execute("SELECT status, attempts, reason FROM insights_report_sends").fetchall()
     assert {r["status"] for r in rows} == {"failed"} and all(r["attempts"] == dl.MAX_ATTEMPTS and r["reason"] == "connect" for r in rows)
+
+
+def test_a_restart_between_the_send_and_the_record_never_sends_the_month_again(w, mail, monkeypatch):
+    """CU2-19: the row is taken before anything leaves; a process that dies after the send leaves it `failed / unknown_outcome`, never `queued`."""
+    enable(w)
+    _fake_enabled_at(w, "2026-09-15T00:00:00Z")
+    real = dl._finish
+
+    def die_on_sent(db, sid, status, reason, now_ts, **kw):
+        if status == "sent":
+            raise KeyboardInterrupt  # the process is gone before the result is written (not an `Exception`: nothing catches it)
+        return real(db, sid, status, reason, now_ts, **kw)
+
+    monkeypatch.setattr(dl, "_finish", die_on_sent)
+    now = ts(2026, 10, 1, 6, 0)
+    with pytest.raises(KeyboardInterrupt):
+        dl.process(w["db"], now)
+    assert len(mail) == 1
+    monkeypatch.setattr(dl, "_finish", real)  # "after the restart"
+    dl.process(w["db"], now + 3600)
+    dl.process(w["db"], now + 7200)
+    assert len(mail) == 2, "the other address goes out once; the row that may have left is not sent again"
+    with w["db"].connection(mode="read") as conn:
+        by = {r["recipient_key"]: (r["status"], r["reason"]) for r in conn.execute("SELECT recipient_key, status, reason FROM insights_report_sends").fetchall()}
+    assert sorted(by.values()) == [("failed", "unknown_outcome"), ("sent", None)]
+
+
+def test_an_unexpected_error_inside_the_send_is_unknown_and_never_retried(w, mail, monkeypatch):
+    """CU2-19: an exception once the send began lands in `unknown_outcome` (the module's own "may have left: never retried" rule)."""
+    from smplwise.services import notify_email as ne
+
+    enable(w)
+    _fake_enabled_at(w, "2026-09-15T00:00:00Z")
+    calls = {"n": 0}
+
+    def boom(c, to, r, deadline=None):
+        calls["n"] += 1
+        raise RuntimeError("after the bytes left")
+
+    monkeypatch.setattr(ne, "smtp_send", boom)
+    now = ts(2026, 10, 1, 6, 0)
+    out = dl.process(w["db"], now)
+    assert out["failed"] == 2 and out["retry"] == 0
+    for i in range(1, 4):
+        dl.process(w["db"], now + i * 3600)
+    assert calls["n"] == 2, "each address was tried once"
+    with w["db"].connection(mode="read") as conn:
+        rows = conn.execute("SELECT status, reason, attempts FROM insights_report_sends").fetchall()
+    assert {(r["status"], r["reason"], r["attempts"]) for r in rows} == {("failed", "unknown_outcome", 1)}
 
 
 def test_the_whatsapp_text_goes_only_to_a_consenting_user_who_may_read_the_report(w, monkeypatch):
