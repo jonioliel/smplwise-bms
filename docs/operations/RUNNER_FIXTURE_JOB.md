@@ -35,6 +35,14 @@ a group leave is read back from the group, `services/ha_actions.still_grouped_el
 native people screen. New group `no_ha` (`frontend/tests/fixtures/no_ha_backend.py`: the real backend with no Home Assistant at all)
 runs part 1 of `evidence-wiskey-people` (desktop + mobile), also `"gate": true`. No pixel baseline is involved.
 
+**FIX-SECURITY2-2570 (2026-11-28, deep review 2.57 SA2-05 c):** group `arx` (`arx_fake_ha.py`, desktop only) joined the gate with
+`evidence-arx-second-factor` (enrol, sign in with the code, no replay, administrator reset - its reset step now sends the typed username,
+`{"confirm"}`, MFA-RESET-HARDENING-2510), `evidence-local-user-create-2438` and `evidence-arx-admin-default` (added to the group), all
+`"gate": true`. `evidence-arx-remote` was added to the group and stays `"gate": false` with `evidence-arx-sessions`: on the shared group
+backend the sessions spec counts the sign-ins the other specs left (4, expects 3), and the remote spec's sign-out step timed out once on
+the user menu (passed in the other run); its owner-screenshots test now leaves the users screen before signing out (the open drawer
+intercepted the avatar's click). No spec calls `toHaveScreenshot`; no pixel baseline is involved.
+
 **What the gate ran before:** `evidence-camera-card.spec.ts`, and since CURVEDGATE-297 (2026-10-27) also `evidence-curved-walls.spec.ts`
 and `evidence-curve-points.spec.ts` (group `devices`, the same `devices_fake_ha.py` backend the gate's fixture phase starts), are
 `"gate": true`. The gate runs fixture specs on every project (header `--project=` flags win); both curved-wall specs skip every

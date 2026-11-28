@@ -52,9 +52,9 @@ def test_the_gate_and_the_job_agree():
                 # specs rewritten for the native people screen (CR-036 S7), the people spec's part 1 on the no-HA backend
                 "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts",
                 "evidence-wiskey-capture.spec.ts",
-                # FIX-SECURITY2-2570 (deep review 2.57 SA2-05 c): the remote sign-in, second factor, sessions and Arx-user specs (group arx)
-                "evidence-arx-second-factor.spec.ts", "evidence-arx-sessions.spec.ts", "evidence-local-user-create-2438.spec.ts",
-                "evidence-arx-remote.spec.ts", "evidence-arx-admin-default.spec.ts"}
+                # FIX-SECURITY2-2570 (deep review 2.57 SA2-05 c): the second factor, Arx-user and administrator-default specs (group arx);
+                # evidence-arx-remote / -sessions stay "gate": false (they do not pass on the shared group backend yet - change note)
+                "evidence-arx-second-factor.spec.ts", "evidence-local-user-create-2438.spec.ts", "evidence-arx-admin-default.spec.ts"}
     assert fj.gate_specs({k: GROUPS[k] for k in ("wiskey", "media_ma", "media_sonos", "no_ha")}) == {
         "evidence-media-players-live.spec.ts", "evidence-wiskey-people.spec.ts", "evidence-wiskey-editor.spec.ts", "evidence-wiskey-capture.spec.ts"}
     assert GROUPS["devices"]["specs"]["evidence-home-screen.spec.ts"]["gate"]
@@ -157,8 +157,7 @@ def test_the_gate_runs_one_pool_job_per_fixture_group():
     assert set(cls["fixture_groups"]) == {k for k, g in GROUPS.items() if any(s.get("gate") for s in g["specs"].values())}
     assert cls["fixture_groups"]["shots_home_edit"] == {"hand-switch-home-edit-2500-shots.spec.ts": ["desktop"]}
     # FIX-SECURITY2-2570 (SA2-05 c): the arx group joined the gate, desktop only
-    assert cls["fixture_groups"]["arx"] == {n: ["desktop"] for n in ("evidence-arx-second-factor.spec.ts", "evidence-arx-sessions.spec.ts",
-                                                                      "evidence-local-user-create-2438.spec.ts", "evidence-arx-remote.spec.ts",
+    assert cls["fixture_groups"]["arx"] == {n: ["desktop"] for n in ("evidence-arx-second-factor.spec.ts", "evidence-local-user-create-2438.spec.ts",
                                                                       "evidence-arx-admin-default.spec.ts")}
     # STALE-FIXTURE-SPECS-2530: a spec in two groups runs in each with that group's projects (the people spec: wiskey on desktop, no_ha on
     # desktop + mobile)

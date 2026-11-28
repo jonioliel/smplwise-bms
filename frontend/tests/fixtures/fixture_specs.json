@@ -53,9 +53,9 @@
       "extra_ports": 2,
       "specs": {
         "evidence-arx-second-factor.spec.ts": {"gate": true, "projects": ["desktop"]},
-        "evidence-arx-sessions.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-arx-sessions.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-local-user-create-2438.spec.ts": {"gate": true, "projects": ["desktop"]},
-        "evidence-arx-remote.spec.ts": {"gate": true, "projects": ["desktop"]},
+        "evidence-arx-remote.spec.ts": {"gate": false, "projects": ["desktop"]},
         "evidence-arx-admin-default.spec.ts": {"gate": true, "projects": ["desktop"]}
       }
     },
