@@ -12,3 +12,15 @@ Fixes the open findings MH-02, MH-03, MH-04 of docs/review/DEEP-REVIEW-2560-MAPS
 - Texts: Hebrew + English (these modules have no ar / ru files).
 
 Tests: see the report; status NOT_RUN on the PC (runner only).
+
+## Tests (runner, slot B)
+
+- Python `test_area_honest_count_2540.py` + `test_area_row.py`: before the change the 3 new jammed / locking / unlocking cases failed; after: pass.
+- `unit-fix-home-maps-2570`, `unit-medium-rest-2540`, `unit-lows-frontend-2550-screens`, `unit-home-simple-logic`: 49 passed; `tsc --noEmit` clean.
+- Not run: the full Playwright suites and pixel baselines (no baseline covers these states).
+
+## Compare page
+
+`private/planning/fix_home_maps_2570_compare_2026-11-28.html` (Hebrew): runner screenshots before (v2.56.0) / after, desktop + phone, light + dark,
+of the home doors screen (jammed, locking, unlocking) and the floor-map room card's new "another room's turn-off is still running" line.
+Made by `frontend/tests/evidence-fix-home-maps-2570.spec.ts` (runs only with `SHOTS_DIR` set).
