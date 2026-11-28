@@ -567,7 +567,7 @@ def test_adjust_keeps_the_vat_rate_frozen_in_the_vendors_revision_tk2_01(s4):
     assert base["vat_rate_bp"] == 1800
     r = s4.c.get(f"{API}/tickets/settings")
     assert s4.c.put(f"{API}/tickets/settings", json={"revision": r.json()["revision"], "costs": {"vat_rate_bp": 1700}}).status_code == 200
-    r = decide(s4, t["id"], "adjust", lines=[{"kind": "labor", "hours": "2", "rate": "150"}], amounts_include_vat=False, reason="תיקון שורה")
+    r = decide(s4, t["id"], "adjust", lines=[{"kind": "labor", "hours": "2", "rate": "150"}], reason="תיקון שורה")
     assert r.status_code == 200, r.text
     c = _claim(s4, t["id"])
     adj = c["revisions"][-1]
