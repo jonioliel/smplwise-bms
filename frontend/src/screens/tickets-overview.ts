@@ -42,6 +42,7 @@ import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICK
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 import { LongListsController } from '../api/long-lists';
+import { stillOn } from '../tickets/late-answer'; // TK2-04
 /** OVERVIEWFIT-297: a drawn widget with what the pages need - its grid span, its title (the pager's labels) and whether it carries a red count */
 interface OverviewWidget { key: CardKey; title: string; span: number; alert: boolean; fill?: number; make: (span?: number) => TemplateResult }
 
@@ -606,10 +607,12 @@ export class TicketsOverview extends LitElement {
    * claims waiting for approval. Each fails on its own; a refusal (no permission) is "nothing to show", not a failure. */
   private async loadSlow(): Promise<void> {
     const dept = this.dept || undefined;
+    const key = dept ?? '';
+    const live = () => stillOn(key, this.slowKey); // TK2-04: every slow answer is dropped once the viewer moved to another department
     const rfq = ticketsRfqApi();
     const pages = Promise.all((['open', 'awarded', 'ordered'] as const).map((state) => rfq.list({ state, department_id: dept, limit: 100 })));
     void pages.then(async (ps) => {
-      if (this.slowKey !== (dept ?? '')) return; // the viewer moved to another department meanwhile
+      if (!live()) return; // the viewer moved to another department meanwhile
       const all = ps.flatMap((p) => p.items);
       this.rfqs = all;
       this.rfqFailed = false;
@@ -617,8 +620,10 @@ export class TicketsOverview extends LitElement {
       const got = await Promise.all(awarded.map((r) => rfq.get(r.id).catch(() => null)));
       const next = new Map<string, RfqDetail>();
       for (const g of got) if (g) next.set(g.id, g);
+      if (!live()) return;
       this.details = next;
     }).catch((e: unknown) => {
+      if (!live()) return;
       if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
         this.rfqs = [];
         this.rfqFailed = false;
@@ -629,11 +634,12 @@ export class TicketsOverview extends LitElement {
     const period = readStoredPeriod();
     void boardApi().handlerLoad(period ?? undefined).then((r) => {
       const days = asHandledDays(r.days) ?? HANDLED_DEFAULT;
+      if (!live()) return;
       this.handled = { days, counts: r.handled };
-    }).catch(() => (this.handled = null));
+    }).catch(() => { if (live()) this.handled = null; });
     if (canAnywhere('tickets.costs.view')) {
       void ticketCostsApi().accountClaims({ status: ['submitted'], ...(dept ? { department: dept } : {}) })
-        .then((r) => (this.approval = r.rows.length)).catch(() => (this.approval = null));
+        .then((r) => { if (live()) this.approval = r.rows.length; }).catch(() => { if (live()) this.approval = null; });
     } else {
       this.approval = null;
     }

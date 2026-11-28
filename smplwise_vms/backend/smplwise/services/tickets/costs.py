@@ -447,9 +447,9 @@ def _text(value: Any, field: str, max_len: int, *, multiline: bool = False) -> s
     return fields.text(value, field, max_len, refuse=_refused, multiline=multiline)  # CR-TK-MONEY-UTILS (01:F-15): the shared check
 
 
-def draft(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, vat_mode: str | None = None) -> Draft:
+def draft(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, vat_mode: str | None = None, vat_rate_bp: int | None = None) -> Draft:
     """Validate a claim body against the settings and the vendor record; the server computes every figure. `vat_mode` forces the
-    mode (an adjustment keeps the corrected revision's mode)."""
+    mode and `vat_rate_bp` the rate (an adjustment keeps the corrected revision's mode AND its frozen rate, TK2-01)."""
     s = cost_settings(conn)
     contact, _vendor = _contact_pair(conn, claim["contact_id"])
     currency = body.get("currency") or claim.get("currency") or s.currencies[0]
@@ -472,7 +472,7 @@ def draft(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, vat_mode: 
             include = contact.get("vat_default") == "included"
         vat_mode = money.vat_mode_for(vat_exempt=bool(contact.get("vat_exempt")), amounts_include_vat=include, no_charge=no_charge)
     try:
-        computed = money.compute(lines, vat_mode, s.vat_rate_bp, max_total_minor=s.max_claim_total_minor)
+        computed = money.compute(lines, vat_mode, s.vat_rate_bp if vat_rate_bp is None else vat_rate_bp, max_total_minor=s.max_claim_total_minor)
     except money.MoneyError as exc:
         raise CostRefused(422, exc.code, exc.field) from None
     return Draft(computed=computed, currency=currency, no_charge=no_charge,
@@ -709,7 +709,8 @@ def adjust(conn, claim: Mapping[str, Any], body: Mapping[str, Any], *, by: str, 
     why = _reason(reason)
     inote = _internal_note(internal_note)
     base = store_costs.revision(conn, revision_id) or {}
-    d = draft(conn, claim, {**body, "currency": base.get("currency")}, vat_mode=base.get("vat_mode"))
+    d = draft(conn, claim, {**body, "currency": base.get("currency")}, vat_mode=base.get("vat_mode"),
+              vat_rate_bp=int(base["vat_rate_bp"]) if base.get("vat_rate_bp") is not None else None)
     from . import quotes
 
     exceptional, _base_quote = quotes.analyse_demand(conn, claim, d.computed.lines)

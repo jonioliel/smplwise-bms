@@ -11,6 +11,7 @@ export const en = {
   searchPh: 'Search by title or number',
   searchShort: 'Search',
   loadMore: 'More requests',
+  loadedOnly: 'The counts, filters and search cover the {n} requests loaded so far; use "More requests" to load the rest.',
   unavailable: 'Requests for quotation are not available on this server yet',
   loadFailed: 'The requests for quotation could not be loaded',
   forbidden: 'No permission for requests for quotation',
