@@ -82,6 +82,9 @@ def dir_identical(a: Path, b: Path) -> tuple[bool, list[str]]:
 # SUPERVISOR-BUILD-GATE-2341: the add-on image must build the way the HA Supervisor builds it. 2.31.0 pinned BUILD_FROM /
 # build.yaml to name:tag@sha256:... and the Supervisor build ran on an image without Python ("pip install ... exit code 127").
 HA_PY_BASE = re.compile(r"^ghcr\.io/home-assistant/(?P<arch>[a-z0-9]+)-base-python:(?P<tag>\d+\.\d+-alpine\d+\.\d+)$")
+# CD2-08: the multi-architecture name of the same base (linux/amd64 + linux/arm64) - what the Dockerfile default must be, since
+# Supervisors from 2026.04 no longer pass BUILD_FROM and an aarch64 host would otherwise build FROM the amd64 image
+HA_PY_MULTI = re.compile(r"^ghcr\.io/home-assistant/base-python:(?P<tag>\d+\.\d+-alpine\d+\.\d+)$")
 PY_CMD = re.compile(r"(?<![\w./-])(pip3?|python3?(\.\d+)?)(?![\w-])")
 PY_INSTALL = re.compile(r"\b(apk\s+add|apt-get\s+install)\b[^&;|]*\b(python3|py3-pip)\b")
 
@@ -276,7 +279,8 @@ def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
                 "; ".join(pinned) + " - the Supervisor build broke on this in 2.31.0 (pip exit 127); use name:tag" if pinned
                 else (", ".join(f"{n}={v}" for n, v in refs) if refs else "no BUILD_FROM in the Dockerfile and no build.yaml build_from")))
 
-    # 2. the HA python base for each arch; the Dockerfile default is build.yaml's amd64 (newer Supervisors read the Dockerfile)
+    # 2. the HA python base for each arch; the Dockerfile default is the multi-arch name of the same tag (newer Supervisors read the
+    #    Dockerfile and pass no BUILD_FROM: an arch-specific default would be wrong on every other arch - review CD2-08)
     bad = []
     for a, img in build_from.items():
         m = HA_PY_BASE.match(img)
@@ -285,8 +289,12 @@ def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
     tags = {HA_PY_BASE.match(i).group("tag") for i in build_from.values() if HA_PY_BASE.match(i)}
     if len(tags) > 1:
         bad.append(f"arches use different python/alpine tags: {sorted(tags)}")
-    if df_default is None or df_default != build_from.get("amd64"):
-        bad.append(f"Dockerfile ARG BUILD_FROM={df_default} != build.yaml amd64={build_from.get('amd64')}")
+    multi = HA_PY_MULTI.match(df_default or "")
+    if not multi:
+        bad.append(f"Dockerfile ARG BUILD_FROM={df_default} is not the multi-arch HA python base (expected ghcr.io/home-assistant/base-python:"
+                   f"{next(iter(tags), '<py>-alpine<ver>')}): a Supervisor that passes no BUILD_FROM builds every arch from this default")
+    elif tags and {multi.group("tag")} != tags:
+        bad.append(f"Dockerfile ARG BUILD_FROM={df_default} has another tag than build.yaml ({sorted(tags)})")
     res.append(("add-on base image is the HA python base for each arch", bool(build_from) and not bad,
                 "; ".join(bad) if bad else ", ".join(f"{a}={i}" for a, i in build_from.items())))
 
@@ -302,7 +310,7 @@ def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
             img = words[0] if words else ""
             m = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", img)
             img = args.get(m.group(1), "") if m else img
-            has_py = bool(HA_PY_BASE.match(img)) or stages.get(img.lower(), False)
+            has_py = bool(HA_PY_BASE.match(img) or HA_PY_MULTI.match(img)) or stages.get(img.lower(), False)
             if len(words) >= 3 and words[1].upper() == "AS":
                 stages[words[2].lower()] = has_py   # updated below as the stage installs python
                 cur = words[2].lower()

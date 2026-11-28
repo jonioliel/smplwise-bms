@@ -67,6 +67,7 @@ from .notify_delivery_lang import address_langs, note_in, resolve_text_in, sever
 from .notify_policy import BY_KEY
 from .notify_visibility import Reach, is_manager, principal_of
 from .timeutil import iso_utc, parse_utc, zone
+from ..db import now_iso
 from ..test_reset import register_reset
 
 log = logging.getLogger("smplwise.notify.email")
@@ -90,6 +91,7 @@ WORKER_QUEUE_MAX = 200                             # dispatches waiting for the 
 ALLOW_LOOPBACK_HOST = False                        # tests only: the validator refuses loopback / link-local hosts
 CHANNEL_DOWN_AFTER_S = 15 * 60
 TEST_BURST, TEST_PER_MIN = 3, 3.0                  # POST /notify/email/test: 3 a minute
+TEST_DEADLINE_S = 30.0                             # POST /notify/email/test: the whole test (every recipient) within this time
 HELO_NAME = "arx.local"
 PERSONAL_KINDS = ("session", "bulk_job")           # another user's sign-in / job: never mailed to an installation address
 SERVER_FAILURES = ("dns", "connect", "tls", "auth", "timeout")   # kinds that say "the mail server is unusable" (channel-down tracking)
@@ -184,6 +186,27 @@ def refused_host(host: str) -> bool:
         except ValueError:
             return True  # a non-canonical numeric spelling: refused rather than guessed at
         return ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast
+    return False
+
+
+def _resolve(host: str, port: int) -> list[str]:
+    """The addresses a host name resolves to (a seam: tests replace it)."""
+    return [str(info[4][0]) for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)]
+
+
+def refused_target(host: str, port: int) -> bool:
+    """Review CD2-17: `refused_host` judges the text an administrator typed; a NAME that resolves to this machine or to a link-local
+    address (127.0.0.0/8, ::1, 169.254.0.0/16, fe80::/10, unspecified, multicast) is refused at send time as well. Raises OSError when
+    the name does not resolve (the caller classifies it as `dns`)."""
+    if refused_host(host):
+        return True
+    for a in _resolve(host, port):
+        try:
+            ip = ipaddress.ip_address(a.split("%", 1)[0])
+        except ValueError:
+            return True
+        if ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+            return True
     return False
 
 
@@ -557,6 +580,8 @@ def smtp_send(cfg: MailConfig, to: str, r: Rendered, deadline: float | None = No
     stage = "connect"
     ok = False
     try:
+        if not ALLOW_LOOPBACK_HOST and refused_target(cfg.host, cfg.port):
+            raise MailError("invalid")  # never a connection to this machine or a link-local address, whatever the name resolves to
         if cfg.security == "tls":
             client = smtplib.SMTP_SSL(cfg.host, cfg.port, local_hostname=HELO_NAME, timeout=first, context=tls_context())
         else:
@@ -611,22 +636,25 @@ class RateGate:
         while self.stamps and now - self.stamps[0] >= RATE_WINDOW_S:
             self.stamps.popleft()
 
-    def allow(self) -> bool:
-        """Take a slot if one is free."""
+    def allow(self, n: int = 1) -> bool:
+        """Take `n` slots (one per mail: a notification to five addresses is five mails, review CD2-14) if they are free. A batch larger
+        than the whole window passes only on an empty window (and fills it), so it is never held for ever."""
+        n = max(1, int(n))
         with self.lock:
             now = _mono()
             self._trim(now)
-            if len(self.stamps) >= MAX_MAILS_PER_MIN:
+            used = len(self.stamps)
+            if used + n > MAX_MAILS_PER_MIN and not (used == 0 and n > MAX_MAILS_PER_MIN):
                 return False
-            self.stamps.append(now)
+            self.stamps.extend([now] * n)
             return True
 
-    def force(self) -> None:
-        """Count a send that may not be held back (an escalation) against the window."""
+    def force(self, n: int = 1) -> None:
+        """Count sends that may not be held back (an escalation) against the window - one slot per mail."""
         with self.lock:
             now = _mono()
             self._trim(now)
-            self.stamps.append(now)
+            self.stamps.extend([now] * max(1, int(n)))
 
 
 class _TestBucket:
@@ -660,7 +688,7 @@ _HELD: dict[str, list[HeldItem]] = {}
 _DIGEST: dict[str, Any] = {"job": None, "notifier": None}
 
 
-_LIVE: set[str] = set()   # delivery rows in `retry` whose job is alive in THIS process (the retry heap or the held digest)
+_LIVE: set[str] = set()   # delivery rows in `queued` / `retry` whose work is alive in THIS process (the worker's queue, the retry heap or the held digest)
 
 
 def _record(db: Any, ids: list[str], status: str, reason: str | None, attempt: int, **kw: Any) -> None:
@@ -675,17 +703,30 @@ ORPHAN_GRACE_S = 60.0
 
 
 def recover_orphans(db: Any) -> int:
-    """Delivery rows left in `retry` by a process that no longer exists (a restart drops the retry heap and the held digest) have no job
-    behind them: each is marked `failed` / `unavailable` - honest, and the failures panel shows it. Runs from the notifier's housekeeping (the first
-    pass comes shortly after start-up); a row whose job is alive here, or that is younger than a minute, is left alone. Returns how many."""
+    """Delivery rows left `queued` or `retry` by a process that no longer exists (a restart - an add-on update - drops the worker's queue,
+    the retry heap and the held digest) have no work behind them: each is marked `failed`, never re-sent (review CD2-06: a `queued` row may
+    have been in the middle of its SMTP session when the process died, so sending it again could mail it twice). A `queued` row says
+    `interrupted`, a `retry` row `unavailable`; both reach the failures panel and the notification's timeline. Runs from the notifier's
+    housekeeping (the first pass comes shortly after start-up); a row whose work is alive here, or that is younger than a minute, is left
+    alone. The UPDATE is conditional (review CD2-12): a row the worker settled meanwhile (`sent`, `failed`) is never overwritten. Returns
+    how many."""
     cutoff = iso_utc(notify.now_utc() - dt.timedelta(seconds=ORPHAN_GRACE_S))
     with db.connection(mode="read", label="notify.email.orphans") as conn:
-        rows = conn.execute("SELECT id, notification_id, attempt FROM notification_deliveries WHERE channel = 'email' AND status = 'retry' AND created_at <= ?", (cutoff,)).fetchall()
+        rows = conn.execute("SELECT id, notification_id, attempt, status FROM notification_deliveries WHERE channel = 'email' AND status IN ('queued', 'retry') "
+                            "AND created_at <= ?", (cutoff,)).fetchall()
     with _LOCK:
         dead = [r for r in rows if r["id"] not in _LIVE]
+    n = 0
     for r in dead:
-        _record(db, [r["id"]], "failed", "unavailable", int(r["attempt"] or 0), notification_id=r["notification_id"], channel="email")
-    return len(dead)
+        reason = "interrupted" if r["status"] == "queued" else "unavailable"
+        attempt = int(r["attempt"] or 0) + (1 if r["status"] == "queued" else 0)
+        with db.connection(label="notify.email.orphans") as conn:
+            changed = conn.execute("UPDATE notification_deliveries SET status = 'failed', reason = ?, attempt = ? WHERE id = ? AND status = ?",
+                                   (reason, attempt, r["id"], r["status"])).rowcount
+            if changed:
+                conn.execute("INSERT INTO notification_events(notification_id, at, kind, channel) VALUES (?,?,?,?)", (r["notification_id"], now_iso(), "delivery_failed", "email"))
+                n += 1
+    return n
 
 
 # test-only: test seam / test double - product code never calls it; the name is read only by tests: tests/test_infra_temperature_report.py, tests/test_notify_email.py (+2 more). Kept (owner decision O10 a, CR-BE-DEAD-CODE-2442).
@@ -739,7 +780,18 @@ class EmailWorker(DelayedWorker):
             job.run_retry(self)
 
     def _job_failed(self, job: Any) -> None:
+        """A retry / digest job raised (review CD2-13): its rows have no work behind them any more. They leave the live set, so the
+        housekeeping's orphan sweep settles them as `failed` (never re-sent) instead of leaving them `retry` for good."""
         log.exception("e-mail retry failed")
+        with _LOCK:
+            _LIVE.difference_update(_job_ids(job))
+
+
+def _job_ids(job: Any) -> list[str]:
+    """The delivery rows a retry-heap job stands for: a mail job's items, or the rows a digest took from the held list."""
+    if isinstance(job, MailJob):
+        return [did for did, _nid in job.items]
+    return list(getattr(job, "ids", ()) or ())
 
 
 _WORKER: EmailWorker | None = None
@@ -756,6 +808,16 @@ def worker_for(db: Any) -> EmailWorker:
         new = _WORKER
     if w is not None:
         w.stop()
+        stale: list[str] = []
+        with w.lock:
+            stale += [did for _t, _s, j in w.heap for did in _job_ids(j)]
+        with w.q.mutex:
+            for fn in list(w.q.queue):
+                b = getattr(fn, "keywords", {}).get("batch") if isinstance(fn, functools.partial) else None
+                if b is not None:
+                    stale += [did for did, _a, _f in b.targets]
+        with _LOCK:  # CD2-06: the replaced worker's work is gone - its rows become orphans the housekeeping settles
+            _LIVE.difference_update(stale)
     return new
 
 
@@ -782,6 +844,7 @@ class DigestJob:
             held = {a: list(v) for a, v in _HELD.items()}
             _HELD.clear()
             _DIGEST.update(job=None, notifier=None)
+        self.ids = [it.delivery_id for items in held.values() for it in items]  # CD2-13: what _job_failed gives back if this pass raises
         if not held:
             return
         db = notifier.db
@@ -814,7 +877,7 @@ class DigestJob:
                     del fresh[address]
         if not fresh:
             return
-        if not GATE.allow():  # still saturated: wait for the next window (the items keep their original hold time)
+        if not GATE.allow(len(fresh)):  # one digest mail per address; still saturated: wait for the next window (the items keep their original hold time)
             for address, items in fresh.items():
                 for it in items:
                     _hold(notifier, address, it, DIGEST_RETRY_S)
@@ -1026,8 +1089,8 @@ class EmailChannel(Channel):
             return [Target(self.name, None, mask_address(a), "skipped", d.held_reason(self.name)) for a in cfg.recipients]
         fold = False
         if d.mode == "escalate":
-            GATE.force()
-        elif not GATE.allow():
+            GATE.force(len(cfg.recipients))
+        elif not GATE.allow(len(cfg.recipients)):  # CD2-14: one slot per mail (per address), not per notification
             if d.mode == "resolved":
                 return [Target(self.name, None, mask_address(a), "skipped", "rate_limited") for a in cfg.recipients]
             fold = True
@@ -1039,6 +1102,8 @@ class EmailChannel(Channel):
                        d.scratch.get("email_langs") or {})
         if not batch.targets:
             return
+        with _LOCK:  # CD2-06: handed over = alive in this process; the orphan sweep settles only rows nobody here still holds
+            _LIVE.update(did for did, _a, _f in batch.targets)
         if not worker_for(notifier.db).submit(functools.partial(_run_batch, batch=batch)):  # the worker's queue is full: say so, honestly
             for did, _a, _f in batch.targets:
                 _record(notifier.db, [did], "failed", "unavailable", 1, notification_id=d.nid, channel="email")
@@ -1060,7 +1125,19 @@ class _Batch:
 
 
 def _run_batch(worker: EmailWorker, *, batch: _Batch) -> None:
-    """On the worker thread: one dispatch - held ones to the digest, the rest one message per address within the notification's time budget."""
+    """On the worker thread: one dispatch - held ones to the digest, the rest one message per address within the notification's time budget.
+    If the hand-over raises (a database error), the rows it did not settle leave the live set (review CD2-06): the orphan sweep then marks
+    them `failed / interrupted` - never sent a second time, never left `queued` for good."""
+    done: set[str] = set()
+    try:
+        _run_batch_rows(worker, batch, done)
+    except Exception:
+        with _LOCK:
+            _LIVE.difference_update(did for did, _a, _f in batch.targets if did not in done)
+        raise
+
+
+def _run_batch_rows(worker: EmailWorker, batch: _Batch, done: set[str]) -> None:
     with worker.db.connection(mode="read", label="notify.email.config") as conn:
         cfg = load_config(conn, Path(worker.db.path).parent)
     deadline = time.monotonic() + MAX_NOTIFICATION_S
@@ -1071,10 +1148,12 @@ def _run_batch(worker: EmailWorker, *, batch: _Batch) -> None:
         if fold:  # over the rate limit: held for the digest, which names it with a count
             _record(worker.db, [did], "retry", "rate_limited", 0)
             _hold(worker, address, HeldItem(did, batch.nid, it.title, it.place, it.severity, it.count, _mono(), it.lang))
+            done.add(did)
             continue
         job = MailJob(address, [(did, batch.nid)], batch.rendered[lang], "single", batch.mode, 0, batch.source)
         known = server_down or (MailError("timeout", True) if time.monotonic() >= deadline else None)
         err = run_job(worker, job, cfg=cfg, known=known, deadline=deadline)
+        done.add(did)  # its outcome is recorded (sent / failed, or `retry` with a live job on the heap)
         if err is not None and err.kind in SERVER_FAILURES:
             server_down = err
 
@@ -1094,12 +1173,13 @@ def send_test(cfg: MailConfig, tz_name: str, to: str | None = None, langs: dict[
         return False, "unavailable", 0, 0
     rendered: dict[str, Rendered] = {}
     delivered, first = 0, None
+    deadline = time.monotonic() + TEST_DEADLINE_S  # review CD2-17: one overall deadline for the whole test, not ~10 s per step per recipient
     for a in targets:
         lang = (langs or {}).get(a, "he")
         if lang not in rendered:
             rendered[lang] = compose_test(tz_name, lang)
         try:
-            smtp_send(cfg, a, rendered[lang])
+            smtp_send(cfg, a, rendered[lang], deadline)
             delivered += 1
         except MailError as e:
             first = first or e.kind

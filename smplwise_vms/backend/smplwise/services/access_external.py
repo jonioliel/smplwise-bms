@@ -458,6 +458,14 @@ def period_end(conn: sqlite3.Connection, at: datetime) -> datetime:
     return end.astimezone(timezone.utc)
 
 
+def period_bounds(conn: sqlite3.Connection, at: datetime) -> tuple[datetime, datetime]:
+    """The last full digest period (start, end) in UTC. Both ends are scheduled LOCAL instants in the installation's IANA zone (review
+    CD2-18): the start is the scheduled instant before the end, not `end - 7 x 24 h`, so a week with a DST change counts its own 167 or
+    169 hours - no hour counted twice, none missed."""
+    end = period_end(conn, at)
+    return period_end(conn, end - timedelta(seconds=1)), end
+
+
 def digest_due(db: Database) -> bool:
     """Send the weekly notice once per period, at (not before) its time; a period whose time passed more than 6 hours ago is marked and
     skipped (never a burst of late digests after downtime). The notice is content-free: the details are on the screen."""
@@ -487,8 +495,7 @@ def digest(conn: sqlite3.Connection, principal: Principal, at: datetime | None =
     the Arx directory's (the caller sees them on the screen anyway); WisKey's own name values are never stored, so a name gap says only
     that the names differ."""
     now = at or ag.now()
-    end = period_end(conn, now)
-    start = end - timedelta(days=7)
+    start, end = period_bounds(conn, now)
     s, e = ag.iso(start), ag.iso(end)
     marks = ",".join("?" * len(ag.LIVE))
     rows = [dict(r) for r in conn.execute(f"SELECT * FROM access_grants WHERE state IN ({marks}) OR created_at >= ? OR approved_at >= ? OR ended_at >= ?",

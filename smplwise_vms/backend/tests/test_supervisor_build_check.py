@@ -14,7 +14,8 @@ spec.loader.exec_module(rc)
 
 AMD = "ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22"
 ARM = "ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.22"
-GOOD_DF = f"""ARG BUILD_FROM={AMD}
+MULTI = "ghcr.io/home-assistant/base-python:3.12-alpine3.22"   # CD2-08: the multi-arch name of the same base
+GOOD_DF = f"""ARG BUILD_FROM={MULTI}
 FROM ${{BUILD_FROM}}
 RUN apk add --no-cache ffmpeg
 WORKDIR /app
@@ -103,10 +104,23 @@ def test_wrong_base_image_or_arch_mismatch_fails(tmp_path):
     assert not res[BASE][0] and "different python/alpine tags" in res[BASE][1]
 
 
-def test_dockerfile_default_must_equal_build_yaml_amd64(tmp_path):
-    df = GOOD_DF.replace(AMD, "ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.22", 1)
-    res = run(tmp_path, df=df)
-    assert not res[BASE][0] and "!= build.yaml amd64" in res[BASE][1]
+def test_dockerfile_default_must_be_the_multi_arch_base_of_the_build_yaml_tag(tmp_path):
+    """Review CD2-08: Supervisors from 2026.04 pass no BUILD_FROM and read the Dockerfile default for every arch - the amd64-only image
+    (the 2.56.0 default) would make an aarch64 host build FROM amd64 and fail at the first RUN."""
+    res = run(tmp_path, df=GOOD_DF.replace(MULTI, AMD, 1))
+    assert not res[BASE][0] and "not the multi-arch HA python base" in res[BASE][1] and MULTI in res[BASE][1]
+    res = run(tmp_path, df=GOOD_DF.replace(MULTI, ARM, 1))
+    assert not res[BASE][0]
+    res = run(tmp_path, df=GOOD_DF.replace(MULTI, "ghcr.io/home-assistant/base-python:3.13-alpine3.22", 1))
+    assert not res[BASE][0] and "another tag than build.yaml" in res[BASE][1]
+    assert run(tmp_path)[BASE][0]
+
+
+def test_the_shipped_dockerfile_default_is_the_multi_arch_base():
+    df = (ROOT / "smplwise_vms" / "Dockerfile").read_text(encoding="utf-8")
+    assert f"ARG BUILD_FROM={MULTI}" in df.splitlines(), "the default must not name one architecture"
+    by = rc.parse_build_from((ROOT / "smplwise_vms" / "build.yaml").read_text(encoding="utf-8"))
+    assert by == {"amd64": AMD, "aarch64": ARM}, "build.yaml keeps the per-arch names of the same tag for older Supervisors"
 
 
 def test_pip_on_a_stage_without_python_fails(tmp_path):

@@ -131,3 +131,14 @@ def test_the_real_range_since_2_48_is_downgrade_safe():
     assert "0217_camera_discovery_origin.sql" in names and "0226_push_subscription_sign_in.sql" in names
     assert all(v.ok for v in rep.verdicts), [v.as_dict() for v in rep.verdicts if not v.ok]
     assert md.main(["--root", str(ROOT), "--from", "v2.48.0"]) == 0
+
+
+@pytest.mark.skipif(not _has_tag("v2.43.0"), reason="the checkout has no v2.43.0 tag")
+def test_a_rollback_to_2_43_0_is_judged_0215_carries_its_rollback_note():
+    """Review CD2-20: 0215 (2.43.1) rewrites rows of home_interface_policy, a table 2.43.0 reads; the check was added after it shipped, so
+    the range v2.43.0 -> this tree failed on it. Its comment-only `-- Rollback:` note says what the older home screen does with the names."""
+    rep = md.check_range(md.GitSource(ROOT, "v2.43.0"), md.TreeSource(ROOT))
+    v215 = next(v for v in rep.verdicts if v.name == "0215_home_v3_categories.sql")
+    assert v215.ok and v215.note and "2.43.0" in v215.note, v215.as_dict()
+    assert rep.problems == [], rep.problems
+    assert all(v.ok for v in rep.verdicts), [v.as_dict() for v in rep.verdicts if not v.ok]
