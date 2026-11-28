@@ -10,6 +10,7 @@ import { BULK_KIND_LABEL, followBulk, previewBulk, runBulk, type BulkKind, type 
 import type { BulkTarget } from '../api/home-site';
 import { ltrNum } from '../i18n/bidi';
 import { tr } from '../i18n/msg/screens';
+import { siteOffHeadline, startSiteRuns } from './site-off-run';
 
 /** One building of the dialog: its requests (api/home-site.ts bulkTargets) and the tree's hint of what is on. */
 export interface SiteOffBuilding {
@@ -214,9 +215,7 @@ export class HomeSiteOff extends LitElement {
     if (this.phase !== 'confirm' || !isApi() || (!this.single && this.chosen().length > 1 && !this.ack)) return;
     this.phase = 'running';
     try {
-      const first: BulkRecord[] = [];
-      for (const x of this.previews) first.push(await runBulk(x.p.scope, x.p.id, this.kind, x.p.digest, undefined, undefined, undefined, x.p.building_id));
-      this.records = first;
+      const first = await startSiteRuns(this.previews, (p) => runBulk(p.scope, p.id, this.kind, p.digest, undefined, undefined, undefined, p.building_id), (r) => (this.records = r));
       this.follow = { stopped: false };
       await Promise.all(first.map((r, i) => followBulk(r, (n) => (this.records = this.records.map((o, j) => (j === i ? n : o))), this.follow!)));
       this.phase = 'result';
@@ -278,8 +277,9 @@ export class HomeSiteOff extends LitElement {
     const ok = this.records.reduce((s, r) => s + r.counts.confirmed + (r.counts.sent ?? 0), 0);
     const done = this.phase === 'result';
     const pct = total ? Math.round((ok / total) * 100) : 0;
-    return html`<div class=${classMap({ headline: true, ok: done && ok === total, partial: done && ok < total })} data-site-off-result=${done ? (ok === total ? 'ok' : 'partial') : 'running'}>
-        ${done ? (ok === total ? tr('בוצע') : tr('בוצע חלקית: {n} לא אושרו', { n: ltrNum(total - ok) })) : tr('{ok} מתוך {total} אושרו', { ok: ltrNum(ok), total: ltrNum(total) })}
+    const head = siteOffHeadline(this.records, done);
+    return html`<div class=${classMap({ headline: true, ok: head.tone === 'ok', partial: head.tone === 'partial' || head.tone === 'none' })} data-site-off-result=${done ? (head.tone === 'ok' ? 'ok' : 'partial') : 'running'}>
+        ${head.text}
       </div>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${ok} aria-label=${tr('אושרו')}><div style=${`inline-size:${pct}%`}></div></div>
       <div class="muted">${done ? tr('התקן ייחשב כבוי רק כשיתקבל דיווח על כך.') : tr('אפשר לסגור את החלון; הפעולה ממשיכה בשרת.')}</div>

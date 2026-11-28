@@ -25,6 +25,7 @@ import { fromResult, rescale, type CandidateSet } from '../map/candidates';
 import { effectiveScale, type GeometryDoc } from '../map/geometry';
 import { buildScene, type SceneDescription } from '../map/scene-builder';
 import { MATERIALS } from '../map/material-resolve';
+import { areaOfName, saveWizardRooms } from './wizard-rooms';
 import { wizardBackend, type CreatedRoom, type Draft, type PublishResult, type ResumeInfo, type SceneCatalog, type UploadedPlan, type VersionInfo, type WizardBackend } from './wizard-backend';
 import {
   CAMERA_PLACED_HE, KITS, OPENING_CHOICES, ROOM_TYPES, WALL_CHOICES, WHERE_HE, WIZARD_DEFAULTS, applyKit, bandCounts, bandOf, cameraPlacements, detectedChoice, detectedText,
@@ -466,8 +467,7 @@ export class PlanWizardScreen extends LitElement {
   // ------------------------------------------------------------ step 4: rooms
 
   private areaOf(name: string): string | null {
-    const n = name.trim();
-    return n ? (this.areas.find((a) => a.name === n)?.area_id ?? null) : null;
+    return areaOfName(this.areas, name, null);
   }
 
   private setRoom(i: number, patch: Partial<RoomRow>) {
@@ -491,10 +491,8 @@ export class PlanWizardScreen extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const list = this.rooms.map((r, i) => ({ polygon: r.polygon, name: r.name.trim() || fallbackRoomName(i), kind: roomType(r.typeId).kind }));
-      const made = await b.acceptRooms(list, this.replaceAuto, this.created.map((c) => c.id));
-      for (let i = 0; i < made.length; i++) await b.tagRoom(made[i], roomType(this.rooms[i]?.typeId).tags, this.areaOf(this.rooms[i]?.name ?? ''));
-      this.created = made;
+      const rows = this.rooms.map((r, i) => ({ polygon: r.polygon, name: r.name.trim() || fallbackRoomName(i), kind: roomType(r.typeId).kind, tags: roomType(r.typeId).tags, areaId: this.areaOf(r.name) }));
+      await saveWizardRooms(b, rows, this.replaceAuto, this.created, (made) => (this.created = made));
       this.step = 5;
       void this.loadThree();
     } catch (err) {
