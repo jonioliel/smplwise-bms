@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-28T19:42:03.216967+00:00
+Generated: 2026-11-28T19:47:31.662839+00:00
 
-Tasks: 785 | Requirements: 899 | Tests: 916 | Screens: 32
+Tasks: 787 | Requirements: 901 | Tests: 918 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 8
-- REVIEW: 222
+- REVIEW: 224
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 690
+- V1: 692
 - V2: 29
 - V3: 3
 
@@ -840,3 +840,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-HOME-MAPS-2570](tasks/FIX-HOME-MAPS-2570.md) | V1 | REVIEW | Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off | — |
 | [FIX-CORE-DATA-2570](tasks/FIX-CORE-DATA-2570.md) | V1 | REVIEW | Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane | — |
 | [FIX-FE2-2570](tasks/FIX-FE2-2570.md) | V1 | REVIEW | Deep review 2.57 frontend-core fixes FE2-01..FE2-16 and VD2-05: run-with-confirmation helper, honest scene / script outcome, wall photos, step-up, messaging policy, presence time zone | — |
+| [FIX-VIDEO-2570](tasks/FIX-VIDEO-2570.md) | V1 | REVIEW | Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page | — |
+| [FIX-TICKETS2-2570](tasks/FIX-TICKETS2-2570.md) | V1 | REVIEW | Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped | — |

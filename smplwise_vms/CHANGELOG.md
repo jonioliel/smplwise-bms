@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-6 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-8 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -28,6 +28,11 @@
 - Messaging policy: turning enforcement on with an empty list, or removing a recipient while it is on, asks first; the pacing card shows what is saved after a refused save.
 - Scenarios: an answer for a scenario that is no longer open is dropped, and delete sends once.
 - Presence times follow the building's time zone; the presence chip hides after three failed reads in a row; floor stills, the cast clock and the tab-mode preferences no longer keep a stale or wrong state after a failure.
+- NVR: a settings write, a recorder restart, a disk check or a camera restart whose answer was lost is shown as "not known whether it was done - check" (amber) instead of "failed", and is never sent again; an unknown camera restart keeps the camera's cooldown.
+- Camera overlay (OSD): after a write that did not succeed the recorder is read again, so a refused date format does not stay on screen; a lost answer says it is not known whether it was written.
+- Schedules: the bulk bar acts only on the selected schedules on the page on screen.
+- Multimedia card: "all off" for an area uses the server clock for its expiry.
+- Tickets: "approve with correction" keeps the VAT rate of the vendor's revision, so the preview and the approved amount agree; the requests-for-quote list says when its counts cover only the loaded requests and keeps them on refresh; a late answer for another ticket or department is dropped.
 
 ### API change
 - Schedule execution job view: new additive `reviews_unread: bool`; the status read can answer `{outcome: "ok", code: "reviews_unread"}`.
@@ -37,6 +42,8 @@
 - Import from the old NVR add-on: an archive that unpacks past the reader's caps is answered 422 `legacy_source_too_large_unpacked` (`details.reason` kept).
 - Health report: the `ha_sync` check carries `meta.delivery` and `meta.state_feed` counters (additive; `meta` is a free object).
 - Presence: `GET presence/building` and `GET presence/area/{id}` carry `time_zone`; `GET ha/status` carries `bridge.integration_version` (both additive).
+- NVR writes (settings, notify, reboot, disk check, camera reboot): a command sent with no good answer is answered 504 `action_outcome_unknown` with `details.outcome = "unknown"` and the `change_id` (was a refusal); `PUT /nvr/notify` gains an additive `unknown` count.
+- Alarm arm / disarm / bypass: an `expires_at` more than 5 minutes ahead is 422 `expires_too_far` (was `validation`; `details.fields` kept).
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 

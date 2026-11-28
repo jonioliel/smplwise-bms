@@ -15415,5 +15415,37 @@
     "test_ids": [
       "AT-FIX-FE2-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-VIDEO-2570-1",
+    "title": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page",
+    "statement": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page; merged into the 2.57.0 train, change note docs/changes/FIX-VIDEO-2570.md.",
+    "task_ids": [
+      "FIX-VIDEO-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-VIDEO-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-TICKETS2-2570-1",
+    "title": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped",
+    "statement": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped; merged into the 2.57.0 train, change note docs/changes/FIX-TICKETS2-2570.md.",
+    "task_ids": [
+      "FIX-TICKETS2-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-TICKETS2-2570-1"
+    ]
   }
 ]

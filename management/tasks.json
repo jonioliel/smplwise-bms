@@ -33829,5 +33829,81 @@
     "owner": null,
     "commit": "ac155879e",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-VIDEO-2570",
+    "title": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page; merged into the 2.57.0 train, change note docs/changes/FIX-VIDEO-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-VIDEO-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-VIDEO-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-VIDEO-2570, change note docs/changes/FIX-VIDEO-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-VIDEO-2570 head 5a73eb616 merged 62e1ed6d7 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-VIDEO-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "5a73eb616",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-TICKETS2-2570",
+    "title": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped; merged into the 2.57.0 train, change note docs/changes/FIX-TICKETS2-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-TICKETS2-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-TICKETS2-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-TICKETS2-2570, change note docs/changes/FIX-TICKETS2-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-TICKETS2-2570 head be7dce69a merged 20744741d into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-TICKETS2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "be7dce69a",
+    "actual_cost_usd": null
   }
 ]

@@ -23776,5 +23776,55 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-VIDEO-2570-1",
+    "requirement_ids": [
+      "R-FIX-VIDEO-2570-1"
+    ],
+    "task_ids": [
+      "FIX-VIDEO-2570"
+    ],
+    "title": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Deep review fixes VD-02 (settings, reboot, disk check, camera reboot), VD-03 rest, SCR-29, SCR-54, alarm expires_too_far: lost NVR answers are unknown, OSD re-read, schedules bulk on the page; merged into the 2.57.0 train, change note docs/changes/FIX-VIDEO-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FIX-TICKETS2-2570-1",
+    "requirement_ids": [
+      "R-FIX-TICKETS2-2570-1"
+    ],
+    "task_ids": [
+      "FIX-TICKETS2-2570"
+    ],
+    "title": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Deep review 2.57 tickets fixes TK2-01..TK2-04: adjust keeps the frozen VAT rate, RFQ list loaded-only note, late answers dropped; merged into the 2.57.0 train, change note docs/changes/FIX-TICKETS2-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
