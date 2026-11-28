@@ -15,11 +15,14 @@ package com.smplwise.arx.app
  * 2. The Arx interface - only under the server's Arx path, never on the platform's own pages:
  *
  *        window.ArxApp = { platform: 'android', shell: 'webview', version: '<versionName>', switchServer(),
- *                          deviceKey: { status(), create({authKind, payload}), sign(payload, text), setKeyId(id), remove() } }
+ *                          deviceKey: { status(), create({authKind, payload}), sign(payload), setKeyId(id), remove(), signedPrompt: true } }
  *
  *    (`deviceKey`, MFA-DEVICEKEY-2490: promises answered through the listener's reply port; see DeviceKey.kt. MFA-DEVICEKEY-ATTEST-2490:
  *    `create({authKind, payload})` with the server's register payload attests the new key and answers `attestation` - the Keystore
- *    chain to send as the registration's `attestation` field)
+ *    chain to send as the registration's `attestation` field. FIX-PHONEKEY-2570 (second deep review SA2-02): `sign(payload)` sends the
+ *    payload only - the phone's prompt is built by the app from the signed payload itself (DeviceKeyPolicy.promptOf), a second
+ *    argument of the page is dropped here and never reaches the app; `signedPrompt: true` tells the page this app does so - the page
+ *    offers the phone-key registration only to such an app)
  *
  *    and the helper for downloads the page builds (`blob:` URLs, e.g. the audit CSV): the WebView's download callback
  *    cannot fetch a blob and the site's CSP (`connect-src`) refuses a fetch of it, so the script keeps the most recent
@@ -183,9 +186,10 @@ object BridgeScript {
   var deviceKey = Object.freeze({
     status: function () { return ask({ type: 'deviceKeyStatus' }); },
     create: function (o) { return ask({ type: 'deviceKeyCreate', authKind: String((o && o.authKind) || ''), payload: String((o && o.payload) || '') }); },
-    sign: function (payload, text) { return ask({ type: 'deviceKeySign', payload: String(payload), text: String(text || '') }); },
+    sign: function (payload) { return ask({ type: 'deviceKeySign', payload: String(payload) }); },
     setKeyId: function (k) { return ask({ type: 'deviceKeySetId', keyId: String(k) }); },
-    remove: function () { return ask({ type: 'deviceKeyDelete' }); }
+    remove: function () { return ask({ type: 'deviceKeyDelete' }); },
+    signedPrompt: true
   });
   Object.defineProperty(window, 'ArxApp', {
     value: Object.freeze({

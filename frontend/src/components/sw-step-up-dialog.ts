@@ -279,7 +279,7 @@ export class SwStepUpDialog extends LitElement {
     this.keyBusy = true;
     this.error = '';
     try {
-      await deviceKeyStepUp(this.keyId, t('stepUp.heading'), this.details.action);
+      await deviceKeyStepUp(this.keyId, this.details.action);
       window.dispatchEvent(new CustomEvent(STEP_UP_VERIFIED));
       this.answer(true);
     } catch (err) {

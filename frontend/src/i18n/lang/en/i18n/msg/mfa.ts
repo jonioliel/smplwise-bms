@@ -11,7 +11,6 @@ export const en = {
   'אימות המכשיר נכשל': 'Device check failed',
   'אימות של מערכת הבית': 'Home system MFA',
   'אין': 'None',
-  'אין מפתחות טלפון. מוסיפים מפתח באפליקציית Android.': 'No phone keys. Add one in the Android app.',
   'אישור לפני שינויים רגישים': 'Confirm before sensitive changes',
   'אכיפה': 'Enforce',
   'אמצעי האימות של המשתמש': 'The user\'s verification methods',
@@ -178,4 +177,39 @@ export const en = {
   'כדי להמשיך, הזן את הקוד הנוכחי מאפליקציית האימות.': 'To continue, enter the current code from your authenticator app.',
   'כדי להמשיך, אשר במפתח הטלפון.': 'To continue, confirm with the phone key.',
   'אם לא תאשר תוך {seconds} שניות, הבקשה תבוטל ולא תבוצע.': 'If you do not confirm within {seconds} seconds, the request is cancelled and not carried out.',
+  // FIX-PHONEKEY-2570 (SA2-01): adding a phone key in the Android app; where it is available
+  'אין מפתחות טלפון.': 'No phone keys.',
+  'אין מפתחות טלפון. מוסיפים מפתח מתוך אפליקציית Arx ל־Android (גרסה {v} ומעלה): החשבון שלי › אבטחה › מפתחות טלפון.':
+    'No phone keys. A phone key is added from the Arx Android app (version {v} or later): My account › Security › Phone keys.',
+  'כדי להוסיף מפתח טלפון צריך לעדכן את אפליקציית Arx ל־Android לגרסה {v} ומעלה.': 'To add a phone key, update the Arx Android app to version {v} or later.',
+  'לטלפון הזה כבר יש מפתח פעיל בחשבון. כדי להחליף אותו, בטלו אותו קודם.': 'This phone already has an active key on the account. To replace it, revoke it first.',
+  'בטלפון הזה לא מוגדרים טביעת אצבע, זיהוי פנים או נעילת מסך. הגדירו אחד מהם ונסו שוב.':
+    'This phone has no fingerprint, face unlock or screen lock set up. Set one up and try again.',
+  'הגעת למספר המרבי של מפתחות טלפון. בטלו מפתח ישן כדי להוסיף.': 'You have reached the maximum number of phone keys. Revoke an old key to add one.',
+  'שם הטלפון (לא חובה)': 'Phone name (optional)',
+  'הוספת מפתח בטלפון הזה': 'Add a key on this phone',
+  'הטלפון יבקש טביעת אצבע, זיהוי פנים או נעילת מסך. המפתח נשאר בטלפון; השרת שומר רק את החלק הציבורי שלו.':
+    'The phone asks for a fingerprint, face unlock or screen lock. The key stays on the phone; the server keeps only its public part.',
+  'בטלפון שמור מפתח קודם שאינו פעיל בחשבון הזה. הוספה תחליף אותו.': 'The phone holds an earlier key that is not active on this account. Adding replaces it.',
+  'מפתח הטלפון נוסף. מעכשיו אפשר לאשר פעולות בטלפון הזה.': 'Phone key added. You can now confirm actions on this phone.',
+  'המפתח נרשם בחשבון, אבל האפליקציה לא שמרה אותו. בטלו אותו ברשימה ונסו שוב.': 'The key was registered on the account, but the app did not keep it. Revoke it in the list and try again.',
+  'הרישום בוטל בטלפון. המפתח לא נוסף.': 'Cancelled on the phone. No key was added.',
+  'לחצו שוב על ״הוספת מפתח בטלפון הזה״.': 'Press "Add a key on this phone" again.',
+  'הטלפון כבר מציג בקשת אישור. סיימו אותה ונסו שוב.': 'The phone is already showing a confirmation. Finish it and try again.',
+  'הטלפון לא הצליח ליצור את המפתח. המפתח לא נוסף.': 'The phone could not create the key. No key was added.',
+  'הזמן לרישום עבר. לחצו שוב על ״הוספת מפתח בטלפון הזה״.': 'The registration timed out. Press "Add a key on this phone" again.',
+  'הטלפון הזה': 'This phone',
+  'זמין באפליקציית Arx ל־Android מגרסה {v}: רושמים בה מפתח טלפון (החשבון שלי › אבטחה) ומפעילים את ההגדרה מתוכה.':
+    'Available in the Arx Android app from version {v}: register a phone key there (My account › Security) and switch this on from the app.',
+  // FIX-PHONEKEY-2570 (SA2-02): the line the phone shows, from the signed payload
+  'אישור הפעולה ב־SmplWise Arx': 'Confirm the action in SmplWise Arx',
+  'רישום מפתח הטלפון לחשבון': 'Register the phone key with the account',
+  'כניסה לחשבון': 'Sign in to the account',
+  'אישור הזהות שלך': 'Confirm your identity',
+  'אישור בקשה ממסך אחר · מספר {n}': 'Approve a request from another screen · number {n}',
+  'פעולה באזעקה': 'An alarm action',
+  'שינוי דרכי האימות': 'Changing sign-in methods',
+  'שחזור גיבוי': 'Restoring a backup',
+  'קוד חדש למפתח הגשר': 'A new bridge key code',
+  'פעולה רגישה · {action}': 'A sensitive action · {action}',
 };

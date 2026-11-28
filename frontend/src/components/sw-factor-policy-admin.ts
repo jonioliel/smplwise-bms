@@ -14,7 +14,7 @@ import type { SegmentedChange } from './sw-segmented';
 import { describeError, get, patch } from '../api/client';
 import { onRemote, session } from '../api/session';
 import type { Me } from '../api/types';
-import { factorPolicy, POLICY_VALUES, type Compliance, type FactorPolicy, type Person, type PolicyValue } from '../api/factor-screens';
+import { deviceKeyEnrolment, factorPolicy, PHONE_KEY_APP_VERSION, POLICY_VALUES, type Compliance, type FactorPolicy, type Person, type PolicyValue } from '../api/factor-screens';
 import { settingsStyles } from '../styles/settings';
 import { tr } from '../i18n/msg/mfa';
 
@@ -361,6 +361,20 @@ export class SwFactorPolicyAdmin extends LitElement {
         @change=${(e: CustomEvent<SegmentedChange>) => this.set('security.factor_reset_channel', e.detail.value)}></sw-segmented></div>`;
   }
 
+  /** FIX-PHONEKEY-2570 (second deep review SA2-01): "approve on the phone" needs a phone key, and a phone key is registered only in the
+   * Android app that can do it (api/factor-screens.ts `deviceKeyEnrolment`). The switch is shown where a key can be registered - and
+   * whenever it is on (it must stay possible to switch it off); elsewhere an honest line says where the feature lives. The server
+   * offers the method only to a user with an active phone key anyway (services/push_approval.available). */
+  private renderPush(ro: boolean, on: boolean, push: boolean) {
+    const stored = String(this.stored['security.push_approval'] ?? FALLBACK['security.push_approval']) === 'on';
+    if (!stored && deviceKeyEnrolment() !== 'ready') {
+      return html`<div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted" data-fp-push-unavailable>${tr('זמין באפליקציית Arx ל־Android מגרסה {v}: רושמים בה מפתח טלפון (החשבון שלי › אבטחה) ומפעילים את ההגדרה מתוכה.', { v: PHONE_KEY_APP_VERSION })}</span></span></div>`;
+    }
+    return html`<div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted">${tr('ממסך אחר: הקלדת המספר שעל המסך באפליקציה, באישור מפתח הטלפון')}</span></span>
+        <sw-toggle data-fp-push .checked=${push} ?disabled=${ro || !on} label=${tr('אישור בטלפון')} labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.push_approval', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>`;
+  }
+
   private renderStepUp(ro: boolean) {
     const on = String(this.value('security.step_up')) === 'on';
     const local = String(this.value('security.step_up_local')) === 'on';
@@ -377,9 +391,7 @@ export class SwFactorPolicyAdmin extends LitElement {
       <div class="row" data-fp-row="local"><span class="lbl">${tr('גם ברשת המקומית')}<span class="muted">${tr('כבוי: ברשת המקומית לא נשאלים, כדרך חזרה למערכת')}</span></span>
         <sw-toggle data-fp-step-up-local .checked=${local} ?disabled=${ro || !on} label=${tr('גם ברשת המקומית')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_local', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
-      <div class="row" data-fp-row="push"><span class="lbl">${tr('אישור בטלפון')}<span class="muted">${tr('ממסך אחר: הקלדת המספר שעל המסך באפליקציה, באישור מפתח הטלפון')}</span></span>
-        <sw-toggle data-fp-push .checked=${push} ?disabled=${ro || !on} label=${tr('אישור בטלפון')} labelHidden
-          @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.push_approval', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>
+      ${this.renderPush(ro, on, push)}
       <div class="row" data-fp-row="alarm-pin"><span class="lbl">${tr('קוד האזעקה האישי כאישור')}<span class="muted">${tr('לנטרול אזעקה ולעקיפת חיישן בלבד, לפעולה אחת')}</span></span>
         <sw-toggle data-fp-alarm-pin .checked=${pin} ?disabled=${ro || !on} label=${tr('קוד האזעקה האישי כאישור')} labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => this.set('security.step_up_alarm_pin', e.detail.checked ? 'on' : 'off')}></sw-toggle></div>

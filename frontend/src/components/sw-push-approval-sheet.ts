@@ -122,7 +122,7 @@ export class SwPushApprovalSheet extends LitElement {
     this.busy = true;
     this.error = '';
     try {
-      const st = await approvePushApproval(r.request_id, this.keyId, n, `${pushActionText(r.action)} · ${n}`, signer);
+      const st = await approvePushApproval(r.request_id, this.keyId, n, signer);
       if (st.status === 'approved') this.done = trm('אושר. אפשר לחזור למסך שביקש.');
       else this.error = trm('הבקשה כבר לא ממתינה.');
     } catch (err) {

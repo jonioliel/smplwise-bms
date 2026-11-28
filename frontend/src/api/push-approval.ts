@@ -9,7 +9,7 @@
 import { ApiError, api, get, post } from './client';
 import type { PushApprovalChallenge, PushApprovalList, PushApprovalPending, PushApprovalStarted, PushApprovalState } from './generated/wire-push-approval';
 import type { StepUpProof } from './generated/wire-second-factor';
-import { DeviceKeyCancelled } from './factor-screens';
+import { signPayload } from './factor-screens';
 
 export type { PushApprovalPending };
 
@@ -30,20 +30,16 @@ export const listPushApprovals = () => get<PushApprovalList>('auth/push-approval
 export const denyPushApproval = (id: string) => post<PushApprovalState>(`auth/push-approvals/${enc(id)}/deny`);
 
 interface DeviceKeySigner {
-  sign(payload: string, text: string): Promise<{ signature?: string }>;
+  sign(payload: string, text?: string): Promise<{ signature?: string }>;
 }
 
-/** The typed number: a phone-key challenge for `number`, the app's prompt (shows `text`) signs it, the server approves - or, for a number that is
- * not the requester's, denies the request (409 `push_approval_number_mismatch`). Throws DeviceKeyCancelled when the prompt is cancelled. */
-export async function approvePushApproval(id: string, keyId: string, number: number, text: string, signer: DeviceKeySigner): Promise<PushApprovalState> {
+/** The typed number: a phone-key challenge for `number`, the app's prompt signs it, the server approves - or, for a number that is not
+ * the requester's, denies the request (409 `push_approval_number_mismatch`). FIX-PHONEKEY-2570 (SA2-02): the phone is told the SIGNED
+ * payload's own words ("approve a request from another screen, number NN" - the number inside the signed action), never a text of the
+ * page. Throws DeviceKeyCancelled when the prompt is cancelled. */
+export async function approvePushApproval(id: string, keyId: string, number: number, signer: DeviceKeySigner): Promise<PushApprovalState> {
   const ch = await post<PushApprovalChallenge>(`auth/push-approvals/${enc(id)}/challenge`, { key_id: keyId, number });
-  let signature = '';
-  try {
-    signature = (await signer.sign(ch.payload, text)).signature ?? '';
-  } catch (err) {
-    throw new DeviceKeyCancelled(err instanceof Error ? err.message : 'failed');
-  }
-  if (!signature) throw new DeviceKeyCancelled('failed');
+  const signature = await signPayload(signer, ch.payload);
   return post<PushApprovalState>(`auth/push-approvals/${enc(id)}/approve`, { challenge_id: ch.challenge_id, key_id: keyId, signature });
 }
 

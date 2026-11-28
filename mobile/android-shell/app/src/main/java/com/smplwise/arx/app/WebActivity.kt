@@ -307,9 +307,9 @@ class WebActivity : LockedActivity() {
     private var deviceKeyBusy = false
 
     /**
-     * The page's phone-key calls (window.ArxApp.deviceKey): status, create (needs a tap), sign (the phone's own prompt shows the
-     * action text; only a payload for this server and this app's key is signed - DeviceKeyPolicy.acceptable), setKeyId, remove (needs
-     * a tap). One prompt at a time. Every call is answered once with `deviceKeyResult` {id, ok, ...}; no key material but the public key.
+     * The page's phone-key calls (window.ArxApp.deviceKey): status, create (needs a tap), sign (the phone's own prompt shows what the
+     * SIGNED payload says - DeviceKeyPolicy.promptOf, FIX-PHONEKEY-2570 SA2-02 - never a text of the page; only a payload for this
+     * server and this app's key is signed - DeviceKeyPolicy.acceptable), setKeyId, remove (needs a tap). One prompt at a time. Every call is answered once with `deviceKeyResult` {id, ok, ...}; no key material but the public key.
      */
     private fun onDeviceKey(type: String, msg: JSONObject, reply: JavaScriptReplyProxy) {
         val id = msg.optString("id").take(16)
@@ -366,12 +366,12 @@ class WebActivity : LockedActivity() {
             "deviceKeySign" -> {
                 if (deviceKeyBusy) return fail("busy")
                 val payload = msg.optString("payload")
-                if (DeviceKeyPolicy.acceptable(payload, serverOrigin, DeviceKey.keyId(this, alias)) == null) return fail("refused")
+                val accepted = DeviceKeyPolicy.acceptable(payload, serverOrigin, DeviceKey.keyId(this, alias)) ?: return fail("refused")
                 deviceKeyBusy = true
                 DeviceKey.sign(
                     this, alias, payload,
                     title = getString(R.string.device_key_prompt_title),
-                    subtitle = DeviceKeyPolicy.promptText(msg.optString("text"), getString(R.string.device_key_prompt_default)),
+                    subtitle = promptLine(DeviceKeyPolicy.promptOf(accepted)),
                     negative = getString(R.string.cancel),
                 ) { outcome ->
                     deviceKeyBusy = false
@@ -396,6 +396,25 @@ class WebActivity : LockedActivity() {
                 answer(true)
             }
         }
+    }
+
+    /** FIX-PHONEKEY-2570 (SA2-02): the prompt's line for what the payload signs (DeviceKeyPolicy.promptOf). */
+    private fun promptLine(p: DeviceKeyPolicy.Prompt): String = when (p.kind) {
+        DeviceKeyPolicy.PromptKind.REGISTER -> getString(R.string.device_key_prompt_register)
+        DeviceKeyPolicy.PromptKind.SIGN_IN -> getString(R.string.device_key_prompt_sign_in)
+        DeviceKeyPolicy.PromptKind.IDENTITY -> getString(R.string.device_key_prompt_default)
+        DeviceKeyPolicy.PromptKind.APPROVAL -> getString(R.string.device_key_prompt_approval, p.arg ?: "")
+        DeviceKeyPolicy.PromptKind.DISARM -> getString(R.string.device_key_prompt_disarm)
+        DeviceKeyPolicy.PromptKind.BYPASS -> getString(R.string.device_key_prompt_bypass)
+        DeviceKeyPolicy.PromptKind.ALARM -> getString(R.string.device_key_prompt_alarm)
+        DeviceKeyPolicy.PromptKind.DOOR -> getString(R.string.device_key_prompt_door)
+        DeviceKeyPolicy.PromptKind.PERMISSIONS -> getString(R.string.device_key_prompt_permissions)
+        DeviceKeyPolicy.PromptKind.USERS -> getString(R.string.device_key_prompt_users)
+        DeviceKeyPolicy.PromptKind.FACTORS -> getString(R.string.device_key_prompt_factors)
+        DeviceKeyPolicy.PromptKind.BACKUP -> getString(R.string.device_key_prompt_backup)
+        DeviceKeyPolicy.PromptKind.BRIDGE -> getString(R.string.device_key_prompt_bridge)
+        DeviceKeyPolicy.PromptKind.SETTINGS -> getString(R.string.device_key_prompt_settings)
+        DeviceKeyPolicy.PromptKind.OTHER -> getString(R.string.device_key_prompt_other, p.arg ?: "")
     }
 
     // ---- navigation --------------------------------------------------------------------------------------------------
