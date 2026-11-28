@@ -554,11 +554,18 @@ export async function reviewDetail(item: ReviewItem): Promise<ReviewDetail> {
   return { ...item, ...itemOf(w), camera_name: item.camera_name, detections: w.detections, detection_ids: w.detection_ids, sub_labels: w.sub_labels, tracked: [] };
 }
 
-/** The caller's reviewed state, per recorder (needs events.read on each item). Arx's state first; the server mirrors it to Frigate only when that write class is on (F2), and a failed mirror never fails the mark. */
-export async function markReviewed(items: readonly { id: string; recorder_id: string }[], reviewed: boolean): Promise<void> {
+/** The caller's reviewed state, per recorder (needs events.read on each item). Arx's state first; the server mirrors it to Frigate only when that write class is on (F2), and a failed mirror never fails the mark.
+ * FIX-VIDEO2-2570 (VD2-11): one request per recorder, each settled on its own - the answer names the items whose recorder refused or did not
+ * answer (`failed`), so the screen keeps what was saved and reports only the rest. Throws (the first error) only when every recorder failed. */
+export async function markReviewed(items: readonly { id: string; recorder_id: string }[], reviewed: boolean): Promise<{ failed: string[] }> {
   const by = new Map<string, string[]>();
   for (const i of items) by.set(i.recorder_id, [...(by.get(i.recorder_id) ?? []), i.id]);
-  await Promise.all([...by].map(([rid, ids]) => post(`frigate/${encodeURIComponent(rid)}/reviews/reviewed`, { ids, reviewed })));
+  const groups = [...by];
+  const settled = await Promise.allSettled(groups.map(([rid, ids]) => post(`frigate/${encodeURIComponent(rid)}/reviews/reviewed`, { ids, reviewed })));
+  const failed = groups.flatMap(([, ids], n) => (settled[n].status === 'rejected' ? ids : []));
+  const firstError = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (firstError && settled.every((r) => r.status === 'rejected')) throw firstError.reason;
+  return { failed };
 }
 
 // ---- display helpers ----

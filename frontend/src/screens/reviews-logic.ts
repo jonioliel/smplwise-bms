@@ -96,6 +96,15 @@ export function applyReviewed(list: ReviewList, ids: readonly string[], reviewed
   return { ...list, items, unreviewed };
 }
 
+/** FIX-VIDEO2-2570 (VD2-11): the list after a mark came back. `optimistic` is the list the mark put on screen, `before` the list it changed,
+ * `failed` the items whose recorder did not save the mark. Only those items get their old value back (the saved ones stay marked), and
+ * nothing is reverted when the list on screen is no longer the one the mark made (a reload landed meanwhile: it already shows the truth). */
+export function settleMark(current: ReviewList, optimistic: ReviewList, before: ReviewList, failed: readonly string[], reviewed: boolean): ReviewList {
+  if (current !== optimistic || !failed.length) return current;
+  const back = before.items.filter((i) => failed.includes(i.id) && i.reviewed !== reviewed).map((i) => i.id);
+  return back.length ? applyReviewed(current, back, !reviewed) : current;
+}
+
 /** What the list area shows (the order of the checks is the screen's contract). */
 type ReviewView = 'loading' | 'forbidden' | 'error' | 'offline-empty' | 'empty' | 'all-reviewed' | 'ready';
 

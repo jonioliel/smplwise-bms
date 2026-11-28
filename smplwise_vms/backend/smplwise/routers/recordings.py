@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..db import unlocked
-from ..errors import ApiError
+from ..errors import ApiError, field_error
+from ..i18n import localize_for
+from ..i18n import t as _t
+from ..services import video_text  # noqa: F401 - `recordings.*` texts (FIX-VIDEO2-2570)
 from ..rbac import Principal
 from ..services import recorded_days, recordings
 from ..services import recordings_store as store
@@ -44,7 +47,11 @@ def camera_recordings(
     cam = camera_for_playback(conn, principal, camera_id)
     tz_name = setting_value(conn, "time.zone")
     if date:
-        start, end = local_day_bounds(dt.date.fromisoformat(date), zone(tz_name))
+        try:
+            day = dt.date.fromisoformat(date)
+        except ValueError:  # FIX-VIDEO2-2570 (VD2-07): "2026-02-30" passes the pattern but is no date - a 422, not a 500
+            raise field_error(_t("recordings.invalid_date"), ["date"], problems=[{"field": "date", "code": "invalid_date"}], extra={"value": date}) from None
+        start, end = local_day_bounds(day, zone(tz_name))
     elif from_ and to:
         try:
             start, end = parse_utc(from_), parse_utc(to)
@@ -56,7 +63,7 @@ def camera_recordings(
         result = recordings.search_segments(settings_of(request), conn, cam, start, end, tz_name)
     out = recordings.as_dict(result)
     out.update({"camera_id": cam["id"], "from": iso_utc(start), "to": iso_utc(end), "track_id": cam["main_track"]})
-    return out
+    return localize_for(conn, principal, out)  # FIX-VIDEO2-2570: the coverage note in the reader's language
 
 
 @router.get("/cameras/{camera_id}/recordings/days", **wire(W.RecordedDays))

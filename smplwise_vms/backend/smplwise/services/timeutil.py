@@ -108,13 +108,54 @@ def utc_to_nvr_wall(value: dt.datetime, tz: ZoneInfo) -> str:
 def nvr_wall_to_utc(value: str, tz: ZoneInfo) -> dt.datetime:
     """NVR result time ('2026-09-14T10:24:36Z', local wall clock) → UTC. In the autumn fold hour the
     earlier instant is chosen; in the spring gap the time is shifted forward like the NVR does."""
+    return _naive_wall(value).replace(tzinfo=tz, fold=0).astimezone(UTC)
+
+
+def _naive_wall(value: str) -> dt.datetime:
     v = value.strip()
     if v.endswith("Z"):
         v = v[:-1]
     if "+" in v[10:]:
         v = v[: v.index("+", 10)]
-    naive = dt.datetime.fromisoformat(v)
-    return naive.replace(tzinfo=tz, fold=0).astimezone(UTC)
+    return dt.datetime.fromisoformat(v)
+
+
+def wall_is_repeated(naive: dt.datetime, tz: ZoneInfo) -> bool:
+    """FIX-VIDEO2-2570 (VD2-04): True when the local wall time names TWO instants (the hour the autumn clock change repeats).
+    A time in the spring gap names none (its two `fold` readings differ too, but neither reads back to the same wall time)."""
+    first, second = naive.replace(tzinfo=tz, fold=0), naive.replace(tzinfo=tz, fold=1)
+    if first.utcoffset() == second.utcoffset():
+        return False
+    return first.astimezone(UTC).astimezone(tz).replace(tzinfo=None) == naive
+
+
+def instant_in_repeated_hour(value: dt.datetime, tz: ZoneInfo) -> bool:
+    """True when the instant's local wall time also names another instant (VD2-04): a recorder addressed by wall-clock digits
+    (search, RTSP playback, quirk T4) cannot tell the two occurrences apart."""
+    return wall_is_repeated(value.astimezone(tz).replace(tzinfo=None, microsecond=0), tz)
+
+
+def nvr_span_to_utc(start_raw: str, end_raw: str, tz: ZoneInfo, lo: dt.datetime | None = None,
+                    hi: dt.datetime | None = None) -> tuple[dt.datetime, dt.datetime, bool] | None:
+    """FIX-VIDEO2-2570 (VD2-04): a recorder file's wall-clock start / end -> (start UTC, end UTC, ambiguous). A wall time in the
+    hour the autumn change repeats names two instants, so a file touching it has up to four readings. Only readings whose end is after
+    their start count (a file from 01:40 to 01:20 crosses the change: it ends on the second occurrence); of those the shortest wins,
+    then the earliest - the first one that overlaps [lo, hi) when a window is given (a search inside the second occurrence finds
+    the files of that occurrence), else the first. `ambiguous` = an end named two instants, so the answer is a guess the caller
+    must report. None = no reading ends after it starts (a malformed file)."""
+    s_naive, e_naive = _naive_wall(start_raw), _naive_wall(end_raw)
+    s_amb, e_amb = wall_is_repeated(s_naive, tz), wall_is_repeated(e_naive, tz)
+    starts = [s_naive.replace(tzinfo=tz, fold=f).astimezone(UTC) for f in ((0, 1) if s_amb else (0,))]
+    ends = [e_naive.replace(tzinfo=tz, fold=f).astimezone(UTC) for f in ((0, 1) if e_amb else (0,))]
+    valid = sorted(((s, e) for s in starts for e in ends if e > s), key=lambda p: (p[1] - p[0], p[0]))
+    if not valid:
+        return None
+    if lo is not None and hi is not None:
+        for s, e in valid:
+            if e > lo and s < hi:
+                return s, e, s_amb or e_amb
+    s, e = valid[0]
+    return s, e, s_amb or e_amb
 
 
 def compact_wall(value: dt.datetime, tz: ZoneInfo) -> str:

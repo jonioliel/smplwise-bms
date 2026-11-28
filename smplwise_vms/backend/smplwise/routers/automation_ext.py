@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
+from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import automation_ext as ext
@@ -175,10 +176,14 @@ def detect(request: Request, device_id: str = DEVICE_ID, principal: Principal = 
     ctx = _ctx(request, conn, principal)
     _flag(ctx, "automations.wall_buttons_editable")
     _device_or_404(ctx, device_id)
-    info = ext.device_buttons(ctx, device_id, None, _list_triggers)
-    if not info["buttons"]:
-        raise ApiError(409, "no_buttons", "לא נמצאו כפתורים במפסק.")
-    out = ext.detect_press(ctx, device_id, info["buttons"])
+    # FIX-VIDEO2-2570 (VD2-02): the device's trigger list (a WebSocket call) and the listen (up to `automations.wall_listen_s`)
+    # run with the request's write lock released - a 30 s hold made every other write of the add-on fail with "database is
+    # locked" (an alarm disarm, a door command's audit row); only the audit row below is written, in a short transaction
+    with unlocked(conn):
+        info = ext.device_buttons(ctx, device_id, None, _list_triggers)
+        if not info["buttons"]:
+            raise ApiError(409, "no_buttons", "לא נמצאו כפתורים במפסק.")
+        out = ext.detect_press(ctx, device_id, info["buttons"])
     audit(conn, actor=principal, action="automation.button_detect", decision="allowed", resource_type="ha_device", resource_id=device_id,
           request_id=_rid(request), details={"detected": out["detected"]})
     return _out(conn, principal, out)

@@ -626,6 +626,7 @@ class _Registry:
 LISTENERS = _Registry()
 _LISTENER: Listener = Listener()
 _ACTIVE: dict[str, float] = {}
+_LISTENING: set[str] = set()  # FIX-VIDEO2-2570 (VD2-02): the callers whose listen is running now - one at a time, released in `finally`
 _ACTIVE_LOCK = threading.Lock()
 
 
@@ -637,17 +638,24 @@ def set_listener(listener: Listener | None) -> None:
 
 def detect_press(ctx: Any, device_id: str, buttons: list[dict[str, Any]]) -> dict[str, Any]:
     """Wait (at most `automations.wall_listen_s`) for one real press of the device; one listen per caller at a time."""
+    from ..errors import ApiError
+
     user = ctx.principal.user_id if ctx.principal is not None else "?"
     with _ACTIVE_LOCK:
+        if user in _LISTENING:  # a second tab or a double click while the first listen still runs
+            raise ApiError(409, "listen_running", _t("ext.listen_running"))
         if time.monotonic() - _ACTIVE.get(user, -1e9) < 1:
-            from ..errors import ApiError
-
             raise ApiError(429, "rate_limited", _t("ext.rate_limited"))
         _ACTIVE[user] = time.monotonic()
-    timeout = _int(ctx.cfg, "automations.wall_listen_s")
-    triggers = [{"device_id": device_id, "domain": p["domain"], "type": p["ha_type"], "subtype": p["ha_subtype"], **({"discovery_id": p["discovery_id"]} if p.get("discovery_id") else {})}
-                for b in buttons for p in b["presses"]]
-    hit = _LISTENER.listen(triggers, float(timeout)) if triggers else None
+        _LISTENING.add(user)
+    try:
+        timeout = _int(ctx.cfg, "automations.wall_listen_s")
+        triggers = [{"device_id": device_id, "domain": p["domain"], "type": p["ha_type"], "subtype": p["ha_subtype"], **({"discovery_id": p["discovery_id"]} if p.get("discovery_id") else {})}
+                    for b in buttons for p in b["presses"]]
+        hit = _LISTENER.listen(triggers, float(timeout)) if triggers else None
+    finally:
+        with _ACTIVE_LOCK:
+            _LISTENING.discard(user)
     if not hit:
         return {"detected": False, "listen_s": timeout}
     return {"detected": True, "button": wb.button_of(hit.get("subtype")), "press": wb.press_of(hit.get("type")), "ha_type": hit.get("type"), "ha_subtype": hit.get("subtype"),
@@ -835,6 +843,7 @@ def catalog_extension(ctx: Any) -> dict[str, Any]:
 def _reset_for_tests() -> None:
     """Test seam: puts the module-level tables back to what a freshly started process has (smplwise.test_reset; product code never calls it)."""
     _ACTIVE.clear()
+    _LISTENING.clear()
 
 
-register_reset(__name__, ("_ACTIVE",), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
+register_reset(__name__, ("_ACTIVE", "_LISTENING"), _reset_for_tests)  # CR-SINGLETON-RESETS-2460: module-level tables (tests/test_singletons_registered.py)
