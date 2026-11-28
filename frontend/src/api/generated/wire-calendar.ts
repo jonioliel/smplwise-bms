@@ -385,11 +385,13 @@ export interface CalRoomsDay {
 export interface CalSettingsSaved {
   settings: Record<string, unknown>;
   erase_preview: number;
+  revision: number;
 }
 
 export interface CalSettingsView {
   settings: Record<string, unknown>;
   can_configure: boolean;
+  revision: number;
 }
 
 export interface CalSlot {

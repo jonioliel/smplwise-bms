@@ -141,6 +141,9 @@ export class SystemCalendarSync extends LitElement {
   /** CALCONNECT-2330: the open connect / bind / feeds dialog (a new object per opening) */
   @state() private dialog: ConnectMode | null = null;
   private api: CalendarsApi | null = null;
+  /** FIX-CALENDAR-2570 (SA2-06): the settings version this screen loaded; rule saves run one after another so each names the latest one */
+  private rev: number | undefined;
+  private saveChain: Promise<unknown> = Promise.resolve();
   private onResize = () => {
     this.compact = window.innerWidth < 1180 || window.innerHeight < 820;
     this.phone = window.innerWidth < 700;
@@ -170,6 +173,7 @@ export class SystemCalendarSync extends LitElement {
       this.flags = f.flags;
       this.cals = cals.calendars;
       this.s = s?.settings ?? null;
+      this.rev = s?.revision;
       this.canConfigure = !!s?.can_configure;
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) this.forbidden = true;
@@ -321,16 +325,34 @@ export class SystemCalendarSync extends LitElement {
     return i < 0 ? t : html`${t.slice(0, i + 3)}<span class="num ltr">${t.slice(i + 3)}</span>`;
   }
 
-  private async saveRule(k: keyof CalSettings, v: string): Promise<void> {
+  private saveRule(k: keyof CalSettings, v: string): Promise<void> {
+    const run = () => this.saveRuleNow(k, v);
+    const p = this.saveChain.then(run, run);
+    this.saveChain = p;
+    return p;
+  }
+
+  private async saveRuleNow(k: keyof CalSettings, v: string): Promise<void> {
     if (!this.s || !this.api || this.s[k] === v) return;
     const was = this.s[k];
     this.s = { ...this.s, [k]: v } as CalSettings;
     try {
       // FIX-CALENDAR-2570 (CU2-30): the changed key only, laid over the stored document (another administrator's change stays)
-      this.s = (await this.api.patchSettings({ [k]: v } as Partial<CalSettings>)).settings;
+      const r = await this.api.patchSettings({ [k]: v } as Partial<CalSettings>, this.rev);
+      this.rev = r.revision;
+      this.s = r.settings;
       void refreshCalendars();
     } catch (e) {
-      if (this.s) this.s = { ...this.s, [k]: was } as CalSettings;
+      if (e instanceof ApiError && e.code === 'revision_conflict') {
+        // SA2-06: a screen left open never rolls back a change made meanwhile - nothing was stored; reload and say so (the server's text)
+        try {
+          const fresh = await this.api.settings();
+          this.s = fresh.settings;
+          this.rev = fresh.revision;
+        } catch {
+          if (this.s) this.s = { ...this.s, [k]: was } as CalSettings;
+        }
+      } else if (this.s) this.s = { ...this.s, [k]: was } as CalSettings;
       this.actionError = describeError(e);
     }
   }

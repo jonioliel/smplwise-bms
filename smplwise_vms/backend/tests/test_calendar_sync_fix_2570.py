@@ -429,3 +429,27 @@ def test_attendee_settings_merge_keeps_the_keys_another_admin_saved(cc):  # noqa
     ok(cc.put(f"{API}/calendar/attendee-settings", json={"cancel_notice_delay_s": 20}))
     s = ok(cc.put(f"{API}/calendar/attendee-settings?merge=true", json={"notify_guests": False}))["settings"]
     assert s["cancel_notice_delay_s"] == 20 and s["notify_guests"] is False
+
+
+# ---------------------------------------------------------------- SA2-06: a stale settings screen is refused, never rolls back
+
+def test_a_stale_settings_save_is_refused_and_changes_nothing(cc):  # noqa: F811
+    from smplwise import error_text
+    enable(cc)
+    seen = ok(cc.get(f"{API}/calendar/settings"))
+    rev_a = seen["revision"]  # administrator A opened the sync rules screen
+    assert seen["settings"]["guest_retention_days"] == 30
+    b = ok(cc.put(f"{API}/calendar/settings?merge=true", json={"guest_retention_days": 365, "base_revision": rev_a}))  # B keeps the guests longer
+    assert b["revision"] == rev_a + 1 and b["settings"]["guest_retention_days"] == 365
+    r = cc.put(f"{API}/calendar/settings?merge=true", json={"sync_external_delete": "flag", "base_revision": rev_a})  # A's screen is stale
+    assert r.status_code == 409 and r.json()["code"] == "revision_conflict" and r.json()["details"]["revision"] == rev_a + 1, r.text
+    assert error_text.english(r.json()["user_message"])  # Hebrew text with its English twin
+    r = cc.put(f"{API}/calendar/settings", json={**seen["settings"], "sync_external_delete": "flag", "base_revision": rev_a})  # a whole stale copy too
+    assert r.status_code == 409
+    now = ok(cc.get(f"{API}/calendar/settings"))
+    assert now["revision"] == rev_a + 1 and now["settings"]["guest_retention_days"] == 365 and now["settings"]["sync_external_delete"] == "cancel"
+    fresh = ok(cc.put(f"{API}/calendar/settings?merge=true", json={"sync_external_delete": "flag", "base_revision": now["revision"]}))
+    assert fresh["revision"] == rev_a + 2 and fresh["settings"]["guest_retention_days"] == 365
+    assert cc.put(f"{API}/calendar/settings?merge=true", json={"reopen_days": 8, "base_revision": "1"}).status_code == 422
+    same = ok(cc.put(f"{API}/calendar/settings?merge=true", json={"reopen_days": fresh["settings"]["reopen_days"], "base_revision": fresh["revision"]}))
+    assert same["revision"] == fresh["revision"]  # nothing changed: the version stays

@@ -342,6 +342,15 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     return parse_settings(get_setting(conn, SETTINGS_KEY))
 
 
+SETTINGS_REVISION_KEY = "calendar.settings.revision"
+
+
+def settings_revision(conn: sqlite3.Connection) -> int:
+    """FIX-CALENDAR-2570 (SA2-06): the version of the settings document; every save that changes it adds one (0 = never saved)."""
+    raw = get_setting(conn, SETTINGS_REVISION_KEY)
+    return int(raw) if raw and str(raw).isdigit() else 0
+
+
 def parse_utc(v: Any, field: str) -> dt.datetime:
     if not isinstance(v, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})", v):
         raise Invalid(f"{field}: ISO-8601 instant with a zone", field)

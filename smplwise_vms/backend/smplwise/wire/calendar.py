@@ -36,12 +36,16 @@ class CalSettingsView(WireModel):
     settings: dict[str, Any]
     """The settings document as stored (services/calendar/model.read_settings)."""
     can_configure: bool
+    revision: int
+    """FIX-CALENDAR-2570 (SA2-06): the document's version; a save that names an older one (`base_revision`) is refused with 409 `revision_conflict`."""
 
 
 class CalSettingsSaved(WireModel):
     settings: dict[str, Any]
     erase_preview: int
     """Guest records a shorter retention erases (0 when the retention did not change)."""
+    revision: int
+    """FIX-CALENDAR-2570 (SA2-06): the document's version after this save."""
 
 
 class CalGuestsPurged(WireModel):

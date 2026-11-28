@@ -13,7 +13,7 @@ import '../components/sw-card';
 import '../components/sw-tabs';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
 import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
 import type { RouteState } from '../router';
@@ -263,6 +263,9 @@ export class SystemCalendars extends LitElement {
   private ro: ResizeObserver | null = null;
   /** FIX-CALENDAR-2570 (CU2-30): one debounce per stepper key (`cal.*`, `att.*`, `policy.*`), its first value captured when the burst began */
   private steps = new StepSaves();
+  /** SA2-06: the settings version this screen loaded; saves run one after another so each names the latest one */
+  private rev: number | undefined;
+  private saveChain: Promise<unknown> = Promise.resolve();
   /** The tallest row met on this tab so far: rows per page only shrink while paging, so turning a page never skips a row. */
   private fitRowH = 0;
   private onResize = () => (this.phone = window.innerWidth < 700);
@@ -460,6 +463,7 @@ export class SystemCalendars extends LitElement {
       this.api ??= await calendarsApi();
       const [r, c] = await Promise.all([this.api.settings(), this.api.calendars().catch(() => ({ calendars: [] as Calendar[] }))]);
       this.s = r.settings;
+      this.rev = r.revision;
       this.canEdit = r.can_configure;
       this.cals = c.calendars.filter((x) => !x.archived);
     } catch (e) {
@@ -473,19 +477,37 @@ export class SystemCalendars extends LitElement {
 
   /** Saves the changed keys only (FIX-CALENDAR-2570, CU2-30: the server lays them over the stored document, so another administrator's
    * earlier change is never reverted); a refusal puts back what these keys showed before (`before`: captured when a stepper burst began). */
-  private async save(patch: Partial<CalSettings>, before?: Partial<CalSettings>): Promise<number> {
+  private save(patch: Partial<CalSettings>, before?: Partial<CalSettings>): Promise<number> {
+    const run = () => this.saveNow(patch, before);
+    const p = this.saveChain.then(run, run);
+    this.saveChain = p;
+    return p;
+  }
+
+  private async saveNow(patch: Partial<CalSettings>, before?: Partial<CalSettings>): Promise<number> {
     if (!this.s || !this.api || !this.canEdit) return 0;
     const s0 = this.s;
     const prior = before ?? (Object.fromEntries(Object.keys(patch).map((k) => [k, s0[k as keyof CalSettings]])) as Partial<CalSettings>);
     this.s = { ...this.s, ...patch } as CalSettings;
     this.saveError = '';
     try {
-      const r = await this.api.patchSettings(patch);
+      const r = await this.api.patchSettings(patch, this.rev);
+      this.rev = r.revision;
       this.s = { ...r.settings, ...(this.steps.waiting('cal.') as Partial<CalSettings>) } as CalSettings;
       void refreshCalendars(); // the navigation (placement, the switch) and every screen's ui follow at once
       return r.erase_preview;
     } catch (e) {
-      if (this.s) this.s = { ...this.s, ...prior } as CalSettings;
+      if (e instanceof ApiError && e.code === 'revision_conflict') {
+        // SA2-06: someone saved meanwhile - nothing was stored; the screen shows the stored settings and says so (the server's text)
+        this.steps.drop();
+        try {
+          const fresh = await this.api.settings();
+          this.s = fresh.settings;
+          this.rev = fresh.revision;
+        } catch {
+          if (this.s) this.s = { ...this.s, ...prior } as CalSettings;
+        }
+      } else if (this.s) this.s = { ...this.s, ...prior } as CalSettings;
       this.saveError = describeError(e);
       return 0;
     }

@@ -82,3 +82,14 @@ test('the settings screens send changed keys only (merge) and use one debounce p
   expect(screen).not.toMatch(/attTimer|stepTimer/);
   expect(src('screens/system-calendar-sync.ts')).toContain('this.api.patchSettings(');
 });
+
+test('SA2-06: both settings screens name the version they loaded and reload on a stale save', () => {
+  expect(src('api/calendars.ts')).toContain("put('/calendar/settings?merge=true', base === undefined ? p : { ...p, base_revision: base })");
+  for (const f of ['screens/system-calendars.ts', 'screens/system-calendar-sync.ts']) {
+    const s = src(f);
+    expect(s).toMatch(/patchSettings\([^)]*, this\.rev\)/);
+    expect(s).toContain("e.code === 'revision_conflict'");
+    expect(s).toContain('const fresh = await this.api.settings();');
+    expect(s).toContain('this.saveChain.then(run, run)'); // one save at a time: each names the latest version
+  }
+});

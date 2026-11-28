@@ -240,10 +240,11 @@ export type EventPreview = Omit<CalWire.CalEventPreview, 'conflicts' | 'conteste
 /** The wire calls. One object so the demo can stand in for it as a whole (calendars/demo.ts implements the same shape). */
 export interface CalendarsApi {
   module(): Promise<ModuleState>;
-  settings(): Promise<{ settings: CalSettings; can_configure: boolean }>;
+  /** `revision` (FIX-CALENDAR-2570, SA2-06): the document's version; a save naming an older one is refused (409 `revision_conflict`) */
+  settings(): Promise<{ settings: CalSettings; can_configure: boolean; revision?: number }>;
   saveSettings(doc: CalSettings): Promise<{ settings: CalSettings; erase_preview: number }>;
   /** FIX-CALENDAR-2570 (CU2-30): only the changed keys (`?merge=true`); the others keep their stored value, so two admins never undo each other */
-  patchSettings(patch: Partial<CalSettings>): Promise<{ settings: CalSettings; erase_preview: number }>;
+  patchSettings(patch: Partial<CalSettings>, baseRevision?: number): Promise<{ settings: CalSettings; erase_preview: number; revision?: number }>;
   purgeGuests(): Promise<{ erased: number }>;
   calendars(includeArchived?: boolean): Promise<{ calendars: Calendar[] }>;
   createCalendar(body: Partial<Calendar> & { name: string; type: CalType; color: CalColor; owner_user_id?: string }): Promise<{ calendar: Calendar }>;
@@ -305,7 +306,7 @@ const httpCalendars: CalendarsApi = {
   module: () => get('/calendar/module'),
   settings: () => get('/calendar/settings'),
   saveSettings: (doc) => put('/calendar/settings', doc),
-  patchSettings: (p) => put('/calendar/settings?merge=true', p),
+  patchSettings: (p, base) => put('/calendar/settings?merge=true', base === undefined ? p : { ...p, base_revision: base }),
   purgeGuests: () => post('/calendar/guests/purge'),
   calendars: (arch) => get(`/calendar/calendars${arch ? '?include_archived=1' : ''}`),
   createCalendar: (body) => post('/calendar/calendars', body),
