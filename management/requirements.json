@@ -15543,5 +15543,21 @@
     "test_ids": [
       "AT-FIX-PHONEKEY-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-UTIL-B-2570-1",
+    "title": "Second deep review comms / utilities fixes CU2-09..CU2-11, CU2-19, CU2-21, CU2-33: presence settings atomic and validated, notice TV recovers, insights claim before send, maintenance file deletes",
+    "statement": "Second deep review comms / utilities fixes CU2-09..CU2-11, CU2-19, CU2-21, CU2-33: presence settings atomic and validated, notice TV recovers, insights claim before send, maintenance file deletes; merged into the 2.57.0 train, change note docs/changes/FIX-UTIL-B-2570.md.",
+    "task_ids": [
+      "FIX-UTIL-B-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-UTIL-B-2570-1"
+    ]
   }
 ]

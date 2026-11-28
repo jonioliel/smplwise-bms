@@ -34134,5 +34134,43 @@
     "owner": null,
     "commit": "39175f51b",
     "actual_cost_usd": null
+  },
+  {
+    "id": "FIX-UTIL-B-2570",
+    "title": "Second deep review comms / utilities fixes CU2-09..CU2-11, CU2-19, CU2-21, CU2-33: presence settings atomic and validated, notice TV recovers, insights claim before send, maintenance file deletes",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Second deep review comms / utilities fixes CU2-09..CU2-11, CU2-19, CU2-21, CU2-33: presence settings atomic and validated, notice TV recovers, insights claim before send, maintenance file deletes; merged into the 2.57.0 train, change note docs/changes/FIX-UTIL-B-2570.md."
+    ],
+    "requirement_ids": [
+      "R-FIX-UTIL-B-2570-1"
+    ],
+    "test_ids": [
+      "AT-FIX-UTIL-B-2570-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Branch pilot/FIX-UTIL-B-2570, change note docs/changes/FIX-UTIL-B-2570.md, tests"
+    ],
+    "evidence": [
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-UTIL-B-2570 head d929465c4 merged b3fa11ddd into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-UTIL-B-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+    ],
+    "owner": null,
+    "commit": "d929465c4",
+    "actual_cost_usd": null
   }
 ]

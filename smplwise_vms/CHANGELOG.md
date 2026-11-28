@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570, FIX-UTIL-B-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -52,6 +52,10 @@
 - WisKey: an emergency door release acts for the person who released it (with that person's permissions), not the one who started the emergency; a managed install never leaves Home Assistant stopped after an unexpected error; a write that could not be anchored is settled at once instead of holding the person until a restart.
 - E-mail: messages left waiting by a restart are marked as interrupted (never sent twice); the sending limit counts addresses; a mail server name that points at this machine is refused; the test button has one 30-second limit.
 - Monthly reports planned while delivery or a channel was off are skipped, not sent later; the weekly access digest covers the right hours in a clock-change week.
+- Presence settings: a policy that requires a sensor not on the approved list is refused (and Save is disabled for it); a refused save changes nothing at all and is audited.
+- Notice TV: after the screen was removed it keeps checking (1, 2, 4, 8, then every 10 minutes) and comes back by itself.
+- Monthly reports: a report is marked as taken before it is sent, so a restart never sends it twice; an error after the send began is "may have left", never a retry.
+- Maintenance: deleting a task also deletes its files; file bytes are removed only after the delete is saved.
 - Install on aarch64 (64-bit ARM) hosts: the add-on image now defaults to the multi-architecture base, so newer Supervisors no longer pull the amd64 image there.
 
 ### API change
@@ -68,6 +72,7 @@
 - Automation run ops (trigger, run script, apply scene): a lost answer is 504 `config_timeout` with `details.outcome = "unknown"`, `retryable: false`.
 - `GET /ha/entities?area_buildings=true` adds `building_id` to each listed area (additive); `PATCH /wall/profiles/{id}` takes an optional `version` (409 `stale_version` when it differs); `GET /skins/status` needs `system.configure` (403 otherwise).
 - Recordings search: `coverage: partial` with a note around the repeated hour or for unplaced files; playback sessions carry an optional `clock_change_note`; `?date=` that does not exist is 422 `validation` (`invalid_date`); smart rules partial write is `smart_partial_write` (`details.applied`, `details.failed`, `details.cause`, `details.outcome`); a second detect-by-pressing listen is 409 `listen_running`.
+- `PUT /presence/settings`: 422 (`fields: ["required_sensors.sensors"]`) for a required sensor that is not approved; the save is all-or-nothing.
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 
