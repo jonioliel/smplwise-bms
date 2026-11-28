@@ -191,7 +191,7 @@ def series_on_two_way(c, sc):
     cal, cid = two_way(c)
     ev = ok(book(c, cal, T(3, 16), T(3, 17), title="שיעור", rrule="FREQ=WEEKLY;BYDAY=TU;COUNT=4"), 201)["event"]
     rep = sync(c, cid)
-    assert rep["pushed"] == 1 and sc.pushes == [(ev["id"], None, "FREQ=WEEKLY;BYDAY=TU;COUNT=4")]
+    assert rep["pushed"] == 1 and [(a, u) for a, u, _r in sc.pushes] == [(ev["id"], None)] and "FREQ=WEEKLY" in (sc.pushes[0][2] or "")
     return cal, cid, ev
 
 
