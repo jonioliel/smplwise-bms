@@ -69,6 +69,8 @@ export interface AttendeesApi {
   settings(): Promise<{ settings: AttendeeSettings; channels: { key: string; address: 'phone' | 'email'; state: 'live' | 'soon'; available: boolean }[]; can_configure: boolean }>;
   /** the whole installation document (`calendar.configure`); the server validates it and refuses unknown keys */
   saveSettings(body: AttendeeSettings): Promise<{ settings: AttendeeSettings }>;
+  /** FIX-CALENDAR-2570 (CU2-30): only the changed keys (`?merge=true`); the others keep their stored value */
+  patchSettings(patch: Partial<AttendeeSettings>): Promise<{ settings: AttendeeSettings }>;
 }
 
 const ev = (id: string) => `/calendar/events/${encodeURIComponent(id)}/attendees`;
@@ -84,6 +86,7 @@ const httpAttendees: AttendeesApi = {
   savePolicy: (cid, body) => put(`/calendar/calendars/${encodeURIComponent(cid)}/attendee-policy`, body),
   settings: () => get('/calendar/attendee-settings'),
   saveSettings: (body) => put('/calendar/attendee-settings', body),
+  patchSettings: (p) => put('/calendar/attendee-settings?merge=true', p),
 };
 
 // ---------------------------------------------------------------- the static demo (no backend)
@@ -108,6 +111,8 @@ function demoView(id: string): AttendeesView {
     policy: { guests_mode: 'organizer', self_join: false, max_attendees: 50 },
   };
 }
+
+let demoAttSettings: AttendeeSettings = { enabled: true, cancel_notice_delay_s: 6, guest_channel_order: ['whatsapp', 'sms', 'email'], notify_users_inapp: true, notify_guests: true };
 
 const demoAttendees: AttendeesApi = {
   list: async (id) => demoView(id),
@@ -135,11 +140,12 @@ const demoAttendees: AttendeesApi = {
   policy: async () => ({ policy: { guests_mode: 'organizer', self_join: false, max_attendees: 50, notify_on_change: true, list_visibility: 'organizer', revision: 0 }, can_edit: true }),
   savePolicy: async (_cid, body) => ({ policy: { guests_mode: 'organizer', self_join: false, max_attendees: 50, notify_on_change: true, list_visibility: 'organizer', revision: 1, ...body }, can_edit: true }),
   settings: async () => ({
-    settings: { enabled: true, cancel_notice_delay_s: 6, guest_channel_order: ['whatsapp', 'sms', 'email'], notify_users_inapp: true, notify_guests: true },
+    settings: { ...demoAttSettings },
     channels: [{ key: 'whatsapp', address: 'phone', state: 'live', available: true }, { key: 'sms', address: 'phone', state: 'soon', available: false }, { key: 'email', address: 'email', state: 'soon', available: false }],
     can_configure: true,
   }),
   saveSettings: async (body) => ({ settings: { ...body } }),
+  patchSettings: async (p) => ({ settings: (demoAttSettings = { ...demoAttSettings, ...p }) }),
 };
 
 /** The client for the current session: the server, or (no backend) the demo list. */

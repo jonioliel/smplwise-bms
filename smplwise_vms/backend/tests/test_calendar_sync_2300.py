@@ -236,16 +236,18 @@ def test_binding_rules(cc, fake):
 def test_binding_needs_an_edit_role_in_the_calendar(cc, fake):
     enable(cc)
     cal = room(cc)
-    cid = connect(cc)
+    admins = connect(cc)
     bind(cc, cc.settings_obj, "cora", "calendar_connect", "installation", "*")
     bind(cc, cc.settings_obj, "cora", "operator", "installation", "*")
     cora = as_user("cora")
+    cid = connect(cc, who=cora)  # FIX-CALENDAR-2570 (CU2-03, owner decision a): a binding uses the caller's OWN connection
     assert bind_cal(cc, cal, cid, who=cora).status_code == 404  # members-only calendar: absent for him
     cur = ok(cc.get(f"{API}/calendar/calendars/{cal['id']}"))["calendar"]
     ok(cc.put(f"{API}/calendar/calendars/{cal['id']}/members", json={"revision": cur["revision"], "members": [{"subject_kind": "user", "subject_id": "dev-cora", "cal_role": "view"}]}))
     assert bind_cal(cc, cal, cid, who=cora).status_code == 403  # he sees it but may not publish it
     cur = ok(cc.get(f"{API}/calendar/calendars/{cal['id']}"))["calendar"]
     ok(cc.put(f"{API}/calendar/calendars/{cal['id']}/members", json={"revision": cur["revision"], "members": [{"subject_kind": "user", "subject_id": "dev-cora", "cal_role": "edit"}]}))
+    assert bind_cal(cc, cal, admins, who=cora).status_code == 403  # until 2.57 this was 200: the administrator's account via his connection
     assert bind_cal(cc, cal, cid, who=cora).status_code == 200
 
 

@@ -294,14 +294,23 @@ function overlaps(s: Store, cal: string, start: string, end: string) {
   return s.occ.filter((o) => (o.calendar_id === cal || o.room_calendar_ids.includes(cal)) && ['confirmed', 'pending'].includes(o.state) && o.start < end && o.end > start);
 }
 
+let demoSettingsRev = 0; // FIX-CALENDAR-2570 (SA2-06): the demo keeps a version like the server
+
 export const demoCalendars: CalendarsApi = {
   module: async () => ({ enabled: true, menu_position: st().settings.menu_position, can: role(), ui: clone(st().settings) }),
-  settings: () => read((s) => ({ settings: clone(s.settings), can_configure: role().configure })),
+  settings: () => read((s) => ({ settings: clone(s.settings), can_configure: role().configure, revision: demoSettingsRev })),
   saveSettings: async (doc) => {
     const s = st();
     const lower = doc.guest_retention_days < s.settings.guest_retention_days;
     s.settings = { ...s.settings, ...doc };
     return { settings: clone(s.settings), erase_preview: lower ? 6 : 0 };
+  },
+  patchSettings: async (p) => {
+    const s = st();
+    const lower = p.guest_retention_days !== undefined && p.guest_retention_days < s.settings.guest_retention_days;
+    s.settings = { ...s.settings, ...p };
+    demoSettingsRev += 1;
+    return { settings: clone(s.settings), erase_preview: lower ? 6 : 0, revision: demoSettingsRev };
   },
   purgeGuests: async () => {
     const s = st();

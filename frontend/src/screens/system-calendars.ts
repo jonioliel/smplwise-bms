@@ -13,11 +13,12 @@ import '../components/sw-card';
 import '../components/sw-tabs';
 import '../components/sw-table';
 import type { TableColumn } from '../components/sw-table';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
 import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
 import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
+import { StepSaves } from '../calendars/step-saves';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { LongListsController, perPageFor } from '../api/long-lists';
@@ -259,9 +260,12 @@ export class SystemCalendars extends LitElement {
   @state() private policy: AttendeePolicy | null = null;
   @state() private policyCanEdit = false;
   private api: CalendarsApi | null = null;
-  private attTimer = 0;
   private ro: ResizeObserver | null = null;
-  private stepTimer = 0;
+  /** FIX-CALENDAR-2570 (CU2-30): one debounce per stepper key (`cal.*`, `att.*`, `policy.*`), its first value captured when the burst began */
+  private steps = new StepSaves();
+  /** SA2-06: the settings version this screen loaded; saves run one after another so each names the latest one */
+  private rev: number | undefined;
+  private saveChain: Promise<unknown> = Promise.resolve();
   /** The tallest row met on this tab so far: rows per page only shrink while paging, so turning a page never skips a row. */
   private fitRowH = 0;
   private onResize = () => (this.phone = window.innerWidth < 700);
@@ -276,8 +280,7 @@ export class SystemCalendars extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('resize', this.onResize);
     this.ro?.disconnect();
-    clearTimeout(this.stepTimer);
-    clearTimeout(this.attTimer);
+    this.steps.drop();
   }
 
   // ---------------------------------------------------------------- attendees (CAL-ATTENDEES-2343 follow-up)
@@ -299,6 +302,7 @@ export class SystemCalendars extends LitElement {
   }
 
   private async pickPolicyCal(cid: string): Promise<void> {
+    this.steps.flush('policy.'); // CU2-30: a pending change goes to the calendar it was made on, before the switch
     this.attCal = cid;
     this.policy = null;
     if (!cid) return;
@@ -312,29 +316,33 @@ export class SystemCalendars extends LitElement {
     }
   }
 
-  /** Saves the whole installation document with one change (the server validates; a refusal restores the old value). */
-  private async saveAtt(patch: Partial<AttendeeSettings>): Promise<void> {
+  /** Saves the changed keys only (FIX-CALENDAR-2570, CU2-30: laid over the stored document, so another administrator's change stays);
+   * a refusal puts back what these keys showed before the change (`before`: captured when a stepper burst began). */
+  private async saveAtt(patch: Partial<AttendeeSettings>, before?: Partial<AttendeeSettings>): Promise<void> {
     if (!this.att || !this.attCanEdit) return;
-    const before = this.att;
+    const att = this.att;
+    const prior = before ?? (Object.fromEntries(Object.keys(patch).map((k) => [k, att[k as keyof AttendeeSettings]])) as Partial<AttendeeSettings>);
     this.att = { ...this.att, ...patch };
     this.saveError = '';
     try {
-      this.att = (await attendeesApi().saveSettings(this.att)).settings;
+      const r = await attendeesApi().patchSettings(patch);
+      this.att = { ...r.settings, ...(this.steps.waiting('att.') as Partial<AttendeeSettings>) };
     } catch (e) {
-      this.att = before;
+      if (this.att) this.att = { ...this.att, ...prior };
       this.saveError = describeError(e);
     }
   }
 
-  private async savePolicy(patch: Partial<AttendeePolicy>): Promise<void> {
-    if (!this.policy || !this.policyCanEdit) return;
-    const before = this.policy;
-    const cid = this.attCal;
-    this.policy = { ...this.policy, ...patch };
+  /** CU2-30: `from` (a stepper burst) names the calendar and the policy as they were when the change began - the save goes to THAT calendar. */
+  private async savePolicy(patch: Partial<AttendeePolicy>, from?: { cal: string; policy: AttendeePolicy }): Promise<void> {
+    const cid = from?.cal ?? this.attCal;
+    const before = from?.policy ?? this.policy;
+    if (!before || !cid || !this.policyCanEdit) return;
+    if (this.attCal === cid && this.policy) this.policy = { ...this.policy, ...patch };
     this.saveError = '';
     try {
       const r = await attendeesApi().savePolicy(cid, { ...patch, revision: before.revision });
-      if (this.attCal === cid) this.policy = r.policy;
+      if (this.attCal === cid) this.policy = { ...r.policy, ...(this.steps.waiting('policy.') as Partial<AttendeePolicy>) };
     } catch (e) {
       if (this.attCal === cid) this.policy = before;
       this.saveError = describeError(e);
@@ -342,7 +350,7 @@ export class SystemCalendars extends LitElement {
   }
 
   /** One attendee row in the shared look of settingRow: name, default (+ reset), control. */
-  private attRow(key: string, label: string, hint: string, off: boolean, cur: unknown, def: unknown, kind: 'seg' | 'tog' | 'step', save: (v: unknown) => void,
+  private attRow(key: string, label: string, hint: string, off: boolean, cur: unknown, def: unknown, kind: 'seg' | 'tog' | 'step', save: (v: unknown, from?: unknown) => void,
     o: { opts?: Opt[]; min?: number; max?: number; unit?: string } = {}) {
     let ctl;
     if (kind === 'tog') {
@@ -353,10 +361,16 @@ export class SystemCalendars extends LitElement {
       const hi = o.max ?? 9999;
       const set = (x: number) => {
         const v = Math.min(hi, Math.max(lo, Math.round(x || 0)));
-        clearTimeout(this.attTimer);
-        this.attTimer = window.setTimeout(() => save(v), 500);
-        if (key.startsWith('policy.') && this.policy) this.policy = { ...this.policy, [key.slice(7)]: v };
-        else if (this.att) this.att = { ...this.att, [key.slice(4)]: v };
+        // CU2-30: one timer per key; the calendar and the shown value are taken when the burst begins, not when the save runs
+        if (key.startsWith('policy.') && this.policy) {
+          const from = { cal: this.attCal, policy: this.policy };
+          this.policy = { ...this.policy, [key.slice(7)]: v };
+          this.steps.change(key, v, () => from, save);
+        } else if (this.att) {
+          const was = this.att[key.slice(4) as keyof AttendeeSettings];
+          this.att = { ...this.att, [key.slice(4)]: v };
+          this.steps.change(key, v, () => was, save);
+        }
       };
       ctl = html`<span class="stepper"><button type="button" aria-label=${tr('פחות')} ?disabled=${off || n <= lo} @click=${() => set(n - 1)}>−</button>
         <input type="number" inputmode="numeric" aria-label=${label} .value=${String(n)} ?disabled=${off} min=${lo} max=${hi} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))}><button type="button" aria-label=${tr('יותר')} ?disabled=${off || n >= hi} @click=${() => set(n + 1)}>+</button></span>`;
@@ -375,7 +389,7 @@ export class SystemCalendars extends LitElement {
     const a = this.att;
     if (!a) return [html`<div class="skel" style="block-size:56px"></div>`];
     const offA = !this.attCanEdit;
-    const sa = (k: keyof AttendeeSettings) => (v: unknown) => void this.saveAtt({ [k]: v } as Partial<AttendeeSettings>);
+    const sa = (k: keyof AttendeeSettings) => (v: unknown, from?: unknown) => void this.saveAtt({ [k]: v } as Partial<AttendeeSettings>, from === undefined ? undefined : ({ [k]: from } as Partial<AttendeeSettings>));
     const rows: unknown[] = [
       this.attRow('att.enabled', tr('משתתפים בשמם באירועים'), tr('כבוי: אין רשימת משתתפים ואין הודעות'), offA, a.enabled, ATT_DEFAULTS.enabled, 'tog', sa('enabled')),
       this.attRow('att.notify_users_inapp', tr('הודעה במערכת למשתמשים ולדיירים'), '', offA, a.notify_users_inapp, ATT_DEFAULTS.notify_users_inapp, 'tog', sa('notify_users_inapp')),
@@ -386,7 +400,7 @@ export class SystemCalendars extends LitElement {
     if (!this.attCal) return rows;
     if (!p) return [...rows, html`<div class="skel" style="block-size:56px"></div>`];
     const offP = !this.policyCanEdit;
-    const sp = (k: keyof AttendeePolicy) => (v: unknown) => void this.savePolicy({ [k]: v } as Partial<AttendeePolicy>);
+    const sp = (k: keyof AttendeePolicy) => (v: unknown, from?: unknown) => void this.savePolicy({ [k]: v } as Partial<AttendeePolicy>, from as { cal: string; policy: AttendeePolicy } | undefined);
     const D = POLICY_DEFAULTS;
     return [...rows,
       this.attRow('policy.guests_mode', tr('מי מזמין אורחים מבחוץ'), tr('ביומן הנבחר'), offP, p.guests_mode, D.guests_mode, 'seg', sp('guests_mode'), { opts: GUESTS_OPTS }),
@@ -449,6 +463,7 @@ export class SystemCalendars extends LitElement {
       this.api ??= await calendarsApi();
       const [r, c] = await Promise.all([this.api.settings(), this.api.calendars().catch(() => ({ calendars: [] as Calendar[] }))]);
       this.s = r.settings;
+      this.rev = r.revision;
       this.canEdit = r.can_configure;
       this.cals = c.calendars.filter((x) => !x.archived);
     } catch (e) {
@@ -460,19 +475,39 @@ export class SystemCalendars extends LitElement {
     this.toaster.show(t);
   }
 
-  /** Saves the whole document with one change (the server refuses unknown keys and replaces the document). */
-  private async save(patch: Partial<CalSettings>): Promise<number> {
+  /** Saves the changed keys only (FIX-CALENDAR-2570, CU2-30: the server lays them over the stored document, so another administrator's
+   * earlier change is never reverted); a refusal puts back what these keys showed before (`before`: captured when a stepper burst began). */
+  private save(patch: Partial<CalSettings>, before?: Partial<CalSettings>): Promise<number> {
+    const run = () => this.saveNow(patch, before);
+    const p = this.saveChain.then(run, run);
+    this.saveChain = p;
+    return p;
+  }
+
+  private async saveNow(patch: Partial<CalSettings>, before?: Partial<CalSettings>): Promise<number> {
     if (!this.s || !this.api || !this.canEdit) return 0;
-    const before = this.s;
+    const s0 = this.s;
+    const prior = before ?? (Object.fromEntries(Object.keys(patch).map((k) => [k, s0[k as keyof CalSettings]])) as Partial<CalSettings>);
     this.s = { ...this.s, ...patch } as CalSettings;
     this.saveError = '';
     try {
-      const r = await this.api.saveSettings(this.s);
-      this.s = r.settings;
+      const r = await this.api.patchSettings(patch, this.rev);
+      this.rev = r.revision;
+      this.s = { ...r.settings, ...(this.steps.waiting('cal.') as Partial<CalSettings>) } as CalSettings;
       void refreshCalendars(); // the navigation (placement, the switch) and every screen's ui follow at once
       return r.erase_preview;
     } catch (e) {
-      this.s = before;
+      if (e instanceof ApiError && e.code === 'revision_conflict') {
+        // SA2-06: someone saved meanwhile - nothing was stored; the screen shows the stored settings and says so (the server's text)
+        this.steps.drop();
+        try {
+          const fresh = await this.api.settings();
+          this.s = fresh.settings;
+          this.rev = fresh.revision;
+        } catch {
+          if (this.s) this.s = { ...this.s, ...prior } as CalSettings;
+        }
+      } else if (this.s) this.s = { ...this.s, ...prior } as CalSettings;
       this.saveError = describeError(e);
       return 0;
     }
@@ -480,9 +515,9 @@ export class SystemCalendars extends LitElement {
 
   private stepSave(key: keyof CalSettings, v: number): void {
     if (!this.s) return;
+    const was = this.s[key];
     this.s = { ...this.s, [key]: v } as CalSettings;
-    clearTimeout(this.stepTimer);
-    this.stepTimer = window.setTimeout(() => void this.save({ [key]: v } as Partial<CalSettings>), 500);
+    this.steps.change(`cal.${String(key)}`, v, () => was, (val, first) => void this.save({ [key]: val } as Partial<CalSettings>, { [key]: first } as Partial<CalSettings>));
   }
 
   render() {

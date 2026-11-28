@@ -3,7 +3,8 @@
 * list_calendars: `/me/calendars` (canEdit, isDefaultCalendar).
 * pull: `calendarView/delta` over a window (30 days back, 400 ahead; recurrences arrive as instances), times asked in UTC
   (`Prefer: outlook.timezone="UTC"`); the final `@odata.deltaLink` is the sync token; a removed item is a deletion; 410 / a sync state
-  Graph no longer knows -> full_resync_required. Links of an answer are followed only on graph.microsoft.com.
+  Graph no longer knows -> full_resync_required. Links of an answer are followed only on graph.microsoft.com. FIX-CALENDAR-2570: an
+  occurrence carries its series' id (`seriesMasterId`, CU2-02) and a full listing reports its window (CU2-01).
 * push: create / update with our marker as a single-value extended property (`arx_id`); an Arx series goes out with a Graph recurrence
   when its rule maps (daily / weekly / monthly by day / yearly with interval, count or until), else as its first instance.
 * delete: 404 counts as done. revoke: Graph has no per-token revoke - the local delete is the disconnect, and the owner removes the
@@ -62,8 +63,9 @@ def to_ext(item: dict[str, Any]) -> ExtEvent | ExtDeletion | None:
     for p in item.get("singleValueExtendedProperties") or []:
         if isinstance(p, dict) and str(p.get("id", "")).lower() == ARX_PROP.lower() and isinstance(p.get("value"), str):
             arx = p["value"]
+    master = item.get("seriesMasterId")  # CU2-02: an occurrence / exception of a series names its master
     return ExtEvent(uid, str(item.get("@odata.etag") or item.get("changeKey") or ""), str(item.get("subject") or ""), s, e, notes, bool(item.get("isAllDay")),
-                    None, arx)
+                    None, arx, series_uid=master if isinstance(master, str) and master and master != uid else None)
 
 
 def recurrence(ev: OutEvent) -> dict[str, Any] | None:
@@ -150,19 +152,21 @@ class MicrosoftAdapter:
                 for c in items if isinstance(c.get("id"), str)]
 
     def pull(self, connection: ConnectionInfo, binding: Binding, since_token: str | None) -> PullResult:
+        window: tuple[dt.datetime | None, dt.datetime | None] | None = None
         if since_token:
             if not rest.same_host(since_token, API):
                 return PullResult(full_resync_required=True)
             items, delta, gone = self._pages(connection.id, since_token)
         else:
             now = CLOCK()
+            lo, hi = now - dt.timedelta(days=PAST_DAYS), now + dt.timedelta(days=AHEAD_DAYS)
             url = f"{API}/me/calendars/{quote(binding.external_ref, safe='')}/calendarView/delta"
-            items, delta, gone = self._pages(connection.id, url, {"startDateTime": (now - dt.timedelta(days=PAST_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                                                   "endDateTime": (now + dt.timedelta(days=AHEAD_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            items, delta, gone = self._pages(connection.id, url, {"startDateTime": lo.strftime("%Y-%m-%dT%H:%M:%SZ"), "endDateTime": hi.strftime("%Y-%m-%dT%H:%M:%SZ")})
+            window = (lo, hi)  # CU2-01: a full listing holds only events that overlap [lo, hi]
         if gone:
             return PullResult(full_resync_required=True)
         changes = [c for c in (to_ext(i) for i in items) if c is not None]
-        return PullResult(changes, delta)
+        return PullResult(changes, delta, window=window)
 
     def push(self, connection: ConnectionInfo, binding: Binding, event: OutEvent, ext_uid: str | None, etag: str | None) -> PushResult:
         body = to_body(event)

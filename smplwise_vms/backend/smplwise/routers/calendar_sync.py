@@ -3,7 +3,9 @@
 
 Who: `calendar.connect` (the grant the owner hands out, C10), at installation scope. A connection is changed, authorised, paused, synced
 or removed by its owner or a system administrator (owner answer 19); every connect holder sees the list. Binding a calendar needs, on
-top, an `edit`+ role in that calendar (owner answer 17: a connection holder cannot publish a calendar he cannot edit). All under the
+top, an `edit`+ role in that calendar (owner answer 17: a connection holder cannot publish a calendar he cannot edit). FIX-CALENDAR-2570
+(CU2-03, owner decision a): a binding uses only the caller's OWN connection (or any, for a system administrator), and only the owner or
+an administrator lists a connection's external calendars - nobody reads or writes another person's account through his connection. All under the
 module gate; every write is audited with ids only (never labels of external accounts, never tokens, never an address).
 
 The connect flow (CALCONNECT-2330, oauth.py): the owner pastes HIS OWN client id (and Google's client secret) - `PUT .../client`; then
@@ -296,6 +298,8 @@ def authorize_cancel(cid: str, request: Request, principal: Principal = Depends(
 def connection_calendars(cid: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _need_connect(conn, principal)
     row = _connection(conn, cid)
+    with _errors(conn, principal, request):  # CU2-03: the owner's account is listed for the owner (or an administrator) only - audited 403
+        _own(Ctx(conn, principal), row)
     ad = registry.get(row["provider"])
     if ad is None:
         raise ApiError(409, "adapter_unavailable", "אין עדיין מתאם לספק הזה.", details={"provider": row["provider"]})
@@ -350,6 +354,7 @@ def remove_connection(cid: str, request: Request, principal: Principal = Depends
             pass
     with _db(request).write_aside(label="calendar.connection.remove") as c:
         bindings = store.remove_connection(c, cid, engine._lease_key(cid), credentials.clear_all)
+        credentials.purge_orphans(c)  # CU2-13: credentials an older build left behind for connections that no longer exist
         audit(c, actor=principal, action="calendar.connection.remove", decision="allowed", resource_type="calendar_connection", resource_id=cid,
               request_id=cal_mod._rid(request), details={"bindings": bindings})
     return Response(status_code=204)
@@ -400,6 +405,7 @@ def put_binding(cid: str, body: Body, request: Request, principal: Principal = D
         if set(d) - {"connection_id", "external_calendar_ref", "direction", "detail", "dedicated"}:
             raise model.Invalid("unknown binding field", "connection_id")
         crow = _connection(conn, str(d["connection_id"]))
+        _own(ctx, crow)  # CU2-03: only the caller's own connection (or any, for a system administrator) - an audited 403 otherwise
         ref = model._text(d.get("external_calendar_ref"), "external_calendar_ref", 1, 300)
         direction = d.get("direction", "export")
         detail = d.get("detail", "busy")
