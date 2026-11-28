@@ -129,7 +129,7 @@ sw-segmented::part(key):focus-visible {outline: 3px solid var(--hs-focus); outli
 .hs h2, .ovl h2 {font-size: var(--f-h2); font-weight: 600; color: var(--hs-heading); line-height: 1.3;}
 .pager {display: flex; align-items: center; justify-content: center; gap: 14px; flex: none;}
 .pager .pg {font-size: var(--f-sm); color: var(--hs-text-2); min-inline-size: 76px; text-align: center;}
-/* FIX-MAPS2-2570 (MH2-08): the pager's words follow the language ("1 מתוך 2" right to left, "1 out of 2" left to right; the numbers
+/* FIX-MAPS2-2570 (MH2-08): the pager's words follow the language (right to left in Hebrew, "1 out of 2" left to right in English; the numbers
    are isolated .num spans), and a directional chevron (hi(name, 'flip'): back / forward, previous / next) is drawn for right to left
    and mirrored in English. Only these icons: video and map geometry are never mirrored, nor are the keypads' delete keys. */
 .hi.flip:dir(ltr) {scale: -1 1;}
