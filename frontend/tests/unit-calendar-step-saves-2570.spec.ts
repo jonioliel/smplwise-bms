@@ -73,10 +73,10 @@ test('drop forgets every pending save', () => {
 });
 
 test('the settings screens send changed keys only (merge) and use one debounce per key', () => {
-  expect(src('api/calendars.ts')).toContain("patchSettings: (p) => put('/calendar/settings?merge=true', p)");
+  expect(src('api/calendars.ts')).toContain("put('/calendar/settings?merge=true',");
   expect(src('api/calendar-attendees.ts')).toContain("patchSettings: (p) => put('/calendar/attendee-settings?merge=true', p)");
   const screen = src('screens/system-calendars.ts');
-  expect(screen).toContain('this.api.patchSettings(patch)');
+  expect(screen).toContain('this.api.patchSettings(patch, this.rev)');
   expect(screen).toContain('attendeesApi().patchSettings(patch)');
   expect(screen).toContain("this.steps.flush('policy.')");
   expect(screen).not.toMatch(/attTimer|stepTimer/);
