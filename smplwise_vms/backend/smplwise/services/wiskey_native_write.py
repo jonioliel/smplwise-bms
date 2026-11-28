@@ -514,6 +514,9 @@ class NativePeopleWriter:
             signed.clear()
             self.lineage.mark_not_sent(operation_id, exc.code)
             return WriteOutcome(operation_id, "not_sent", exc.code)
+        except Exception:  # noqa: BLE001 - FIX-WISKEY2-2570 / WA2-04: the send marker was not committed (lineage database error): nothing was sent
+            signed.clear()
+            return self._unsent_after_admit(operation_id)
         try:
             result = await self.port.send_signed(command, signed, operation_id=operation_id)
         except WiskeyCommandError as exc:
@@ -539,6 +542,17 @@ class NativePeopleWriter:
                                                     "state": outcome.state, "code": outcome.code, "user_id": outcome.user_id,
                                                     "person_revision": outcome.person_revision})
         return outcome
+
+    def _unsent_after_admit(self, operation_id: str) -> WriteOutcome:
+        """FIX-WISKEY2-2570 / WA2-04: an unexpected error after `admit` and before the send marker was committed. No frame of the
+        mutation left, so the row is settled `not_sent` now (best effort - when the lineage database itself is failing the row stays
+        `intent` and the next process's recovery settles it the same way) instead of holding the person until a restart."""
+        code = "send_marker_failed"
+        try:
+            self.lineage.mark_not_sent(operation_id, code)
+        except Exception:  # noqa: BLE001
+            log.warning("wiskey people write: %s left in intent (lineage unavailable)", operation_id)
+        return WriteOutcome(operation_id, "not_sent", code)
 
     def _failed(self, operation_id: str, exc: WiskeyCommandError) -> WriteOutcome:
         if exc.outcome == port_api.NOT_SENT:
@@ -662,6 +676,8 @@ class NativePeopleWriter:
         except LineageError as exc:
             self.lineage.mark_not_sent(operation_id, exc.code)
             return self._name_outcome(WriteOutcome(operation_id, "not_sent", exc.code), person_ref)
+        except Exception:  # noqa: BLE001 - FIX-WISKEY2-2570 / WA2-04: the apply marker was not committed: the apply was never sent
+            return self._name_outcome(self._unsent_after_admit(operation_id), person_ref)
         try:
             ack = await self.port.send_signed(NAME_REF_APPLY, {**bindings, "name_ref": carrier["name_ref"]}, operation_id=operation_id)
         except WiskeyCommandError as exc:

@@ -77,18 +77,40 @@ ContextResolver = Callable[[sqlite3.Connection, str], EmergencyContext]
 Connect = Callable[[], AbstractContextManager]
 
 
-def incident_context(conn: sqlite3.Connection, request_id: str) -> EmergencyContext:
-    """The MANUAL context of a door call: the person who confirmed the incident (door_emergency_incidents.requested_by) and Arx's permission revision. Only `person` incidents
-    resolve; any other actor kind raises (the fire lineage producer does not exist in Arx - supply your own resolver)."""
-    from ..db import permission_revision
+def release_id_of(request_id: str) -> str | None:
+    """The incident's release request id when `request_id` is the dispatcher's per-door RELEASE id (`<release id>:r:<station>:<relay>`,
+    services/door_emergency.dispatch); None for an apply id (`<request id>:<station>:<relay>`). The release id itself may carry a colon (the
+    OPEN-over-LOCK supersede writes `<client id>:sup`), so the door part is split off from the right."""
+    parts = request_id.rsplit(":", 3)
+    if len(parts) == 4 and parts[1] == "r" and parts[0]:
+        return parts[0]
+    return None
 
-    client_id = request_id.split(":", 1)[0]
-    row = conn.execute("SELECT requested_by, actor_kind FROM door_emergency_incidents WHERE request_id=? OR release_request_id=? OR release_request_id=?",
-                       (client_id, client_id, client_id)).fetchone()
-    if row is None or row[1] != "person":
-        raise FeatureWireError("Unauthorized", "not_sent")
+
+def incident_context(conn: sqlite3.Connection, request_id: str) -> EmergencyContext:
+    """The MANUAL context of a door call, from Arx's own incident record. An APPLY acts for the person who confirmed the incident
+    (`requested_by`); a RELEASE acts for, and is authorized against, the person who RELEASED it (`released_by`) - never the starter
+    (FIX-WISKEY2-2570 / WA2-01: a starter whose permission or account was removed must not block, nor be credited with, somebody else's
+    release; a releaser who is unknown, inactive or no longer entitled is refused - the policy snapshot judges the releaser; the refusal is
+    the door's audited `door.emergency.door_result`). Only `person` incidents resolve; any other actor kind raises (the fire lineage
+    producer does not exist in Arx - supply your own resolver). The account must be an active Arx account
+    (services/active_users.has_active_account, as wiskey_auto_door._principal)."""
+    from ..db import permission_revision
+    from .active_users import has_active_account
+
+    release_id = release_id_of(request_id)
+    if release_id is not None:
+        # the dispatcher sends `release_request_id or request_id`: the release id first, the incident id only when no release id was stored
+        row = conn.execute("SELECT released_by, actor_kind FROM door_emergency_incidents WHERE release_request_id=?", (release_id,)).fetchone()
+        if row is None:
+            row = conn.execute("SELECT released_by, actor_kind FROM door_emergency_incidents WHERE request_id=? AND COALESCE(release_request_id, '')=''",
+                               (release_id,)).fetchone()
+    else:
+        row = conn.execute("SELECT requested_by, actor_kind FROM door_emergency_incidents WHERE request_id=?", (request_id.split(":", 1)[0],)).fetchone()
+    if row is None or row[1] != "person" or not isinstance(row[0], str) or not row[0]:
+        raise FeatureWireError("Unauthorized", "not_sent")  # no releaser on record: refused, never the starter instead
     user = conn.execute("SELECT id, username, display_name FROM users WHERE id=?", (row[0],)).fetchone()
-    if user is None:
+    if user is None or not has_active_account(conn, user[0]):
         raise FeatureWireError("Unauthorized", "not_sent")
     principal = Principal(user_id=user[0], username=user[1], display_name=user[2] or "", source="emergency")
     return EmergencyContext(fx.human_actor(user[0]), (principal,), "arx-permissions", permission_revision(conn), "manual", True)

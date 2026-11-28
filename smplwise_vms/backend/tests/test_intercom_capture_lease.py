@@ -171,7 +171,10 @@ def test_start_refused_by_the_host_destroys_the_row(route):
     assert r.status_code == 409 and r.json()["details"]["outcome"] == "refused"
     with w.db.connection(mode="read") as conn:
         assert tuple(conn.execute("SELECT state, reason FROM capture_leases").fetchone()) == ("destroyed", "start_refused")
-    assert start(w).status_code == 409 or True  # the station's reservation was released (no hold for a refusal)
+    # FIX-WISKEY2-2570 / WA2-06: the station's reservation was released (no hold for a refusal) - a new start is admitted
+    w.host.start_outcome = "ok"
+    r = start(w)
+    assert r.status_code == 200 and r.json()["capture"]["session_id"], r.text
 
 
 def test_confirm_sent_unknown_ends_destroyed_confirm_unknown(route):
