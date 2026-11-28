@@ -123,7 +123,26 @@ PC at `553194542`: the ten consistency checks exit 0 except `design_ratchet` (px
 tag and TR-03 NOT_CHECKED, as expected); `api_inventory.py`: 1962 routes, no diff; `migration_downgrade_check --from v2.56.0` PASS
 (FIX-CORE2's 0215 change is a comment only). After FIX-MAPS2 and FIX-VIDEO2: `gen_wire_types --check` 0 each.
 
-Run 3 (VIDEO2 + ratchet fixes), run 4 (PHONEKEY), run 5 (UTIL-B): PENDING
+Run 3 at `ae9b986c0` (FIX-VIDEO2 + the ratchet fixes): `tsc` 0, `typecheck` 0, `lint` 0, **unused-exports OK**, `vite build` 0; Node unit
+(`unit-fix-video2-2570`, `unit-frigate`, `unit-fix-fe2-2570`, `unit-fix-fe2-2570-ui`, `unit-tickets-late-answer-2570`, `unit-tickets-rfq`,
+`unit-release-2570-home-scene`) 82 passed, 4 skipped; page `ha-feed-counters-2570` (desktop; the counters list on the spacing scale) 4
+passed. Backend: `test_fix_video2_2570` 9, `saved_views` 1, `wire_consumption_2450` 13, `recordings` 6, `exports` 5, `nvr_schedule` 3,
+`recorded_days` 28, `playback_timing_t074` 4, `kav079_api` 8, `nvr_write_guard_2438` 10, `fix_video_2570` 16, `automations_extra` 8,
+`i18n_errors_en` 9, `singletons_registered` 4 passed. ruff clean.
+
+Run 4 at `6d06bb17d` (FIX-PHONEKEY): `tsc`, `typecheck`, `lint`, unused-exports, `vite build` all 0 / OK; Node unit
+`unit-fix-phonekey-2570`, `unit-push-approval-fix-2560`, `unit-android-app`: 21 passed; page (desktop) `evidence-fix-phonekey-2570`,
+`evidence-mfa-screens-2510`, `unit-mfa-t095-rest-2530`, `pixel-mfa-screens-2510` (existing baselines): 31 passed, 5 skipped. The mobile
+project of these specs: NOT_RUN on the train (the row ran it). Android `testDebugUnitTest` and the 2.1.0 APK: NOT_RUN (no JDK / SDK).
+
+Run 5 at `8f5eeb3e5` (FIX-UTIL-B): `tsc`, `typecheck`, `lint`, `vite build` 0; **unused-exports FAILED** (`GONE_PROBE_MS`,
+`GONE_PROBE_MAX_MS` - fixed in `af82523a7`); Node `unit-notice-tv-logic` 17 passed; page (desktop, vite preview of the head - a fresh
+build of the tree, so the row's two specs did not have to wait for the www rebuild) `notice-tv-gone-recovers-2570` +
+`evidence-presence-settings`: 6 passed. Backend: `test_presence` 21, `presence_settings_atomic_2570` 4, `i18n_errors_en` 9,
+`i18n_runtime_errors` 8, `error_envelope_family2_2500` 7, `insight215_slice3` 38, `maintenance_215b` 20, `water_alerts_s2` 16,
+`emergency_readiness_295` 22, `notify_email` 55 passed. ruff clean.
+
+Run 6 (FIX-CALENDAR): PENDING
 
 ## 4. Registry
 
