@@ -528,12 +528,17 @@ def _scene_member_gate(conn: sqlite3.Connection, principal: Principal, request: 
     siren, a door-class cover) ran without the panel's arm / disarm grant. Every sensitive member now needs what its own manual action needs
     (services/automation_scope.scene_member_reasons); refused = the audited 403 (`grant_required`, `entity_not_controllable` or the remote
     channel's alarm code), before anything is recorded or sent. The confirmation is the route's own (`confirmation_grant: "confirmed"`, every
-    scene is an "attention" action). Returns the sensitive member steps (their step-up is asked after the confirmation)."""
-    if action_id != "scene.turn_on":
+    scene is an "attention" action). Returns the sensitive member steps (their step-up is asked after the confirmation).
+    FIX-AUTOMATION2-2570: `script.turn_on` the same way - the script's own sensitive steps and those of every scene / script it calls
+    (services/automation_scope.item_closure_reasons); a script or a call whose content cannot be read is the VD2-01 unknown rule."""
+    if action_id not in ("scene.turn_on", "script.turn_on"):
         return []
     from ..services import automation_ops, automation_scope
 
-    steps, reasons = automation_scope.scene_member_reasons(conn, principal, entity_id)
+    if action_id == "script.turn_on":
+        steps, reasons = automation_scope.item_closure_reasons(conn, principal, "script", entity_id)
+    else:
+        steps, reasons = automation_scope.scene_member_reasons(conn, principal, entity_id)
     if reasons:
         err = automation_ops.reason_error(reasons[0])
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=err.code,

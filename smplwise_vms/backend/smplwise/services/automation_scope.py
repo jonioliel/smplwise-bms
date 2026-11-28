@@ -352,7 +352,7 @@ def facts_of(ctx: Ctx, kind: str, rd: dict[str, Any], *, entity_id: str | None =
                         f["targets"].append(e)
             elif role in ("scene", "script", "automation"):
                 for e in b["entity_ids"]:
-                    f["refs"].append({"role": role, "entity_id": e})
+                    f["refs"].append({"role": role, "entity_id": e, "action": b.get("action")})
         elif b.get("kind") == "locked":
             f["locked"].append({"path": w.path, "fingerprint": b["fingerprint"], "reason": b["reason"], "sensitive": bool(b.get("sensitive")), "effects": b.get("effects")})
             if b.get("effects") == "unknown":
@@ -420,8 +420,19 @@ def scene_member_reasons(conn: sqlite3.Connection, principal: Principal, scene_e
     cover, `door.unlock` for an unlock, `alarm.arm` / `alarm.disarm` (own scope) and the remote channel's alarm rule for a panel. The members
     come from the scene's readable config (the states it sets), else from its state's member list (each judged as its strictest action)."""
     ctx = Ctx(conn, principal)
+    sens, unknown = scene_sensitive_steps(ctx, scene_entity_id)
+    if unknown:
+        # VD2-01: nothing is known of what it sets - the strongest rights, and the step-up of a disarm and of a door opening
+        return sens, unknown_scene_reasons(ctx, scene_entity_id)
+    return sens, control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))) + grant_reasons(ctx, sens)
+
+
+def scene_sensitive_steps(ctx: Ctx, scene_entity_id: str) -> tuple[list[dict[str, Any]], bool]:
+    """CD2-02 / VD2-01: (the sensitive member steps of a scene, whether its members cannot be read at all). The members come from the scene's
+    readable config (the states it sets), else from its state's member list (each judged as its strictest action); a scene known by neither that
+    is not a device integration's own gives (UNKNOWN_SCENE_STEPS, True); an integration's scene without a member list gives ([], False)."""
     steps: list[dict[str, Any]] | None = None
-    row = conn.execute("SELECT config_json FROM ha_config_items WHERE kind = 'scene' AND entity_id = ?", (scene_entity_id,)).fetchone()
+    row = ctx.conn.execute("SELECT config_json, source FROM ha_config_items WHERE kind = 'scene' AND entity_id = ?", (scene_entity_id,)).fetchone()
     if row is not None and row["config_json"]:
         try:
             cfg = json.loads(row["config_json"])
@@ -434,14 +445,110 @@ def scene_member_reasons(conn: sqlite3.Connection, principal: Principal, scene_e
         members = ((ctx.entity(scene_entity_id) or {}).get("attributes") or {}).get("entity_id")
         if isinstance(members, list):
             steps = scene_member_steps(ctx, [m for m in members if isinstance(m, str)])
+        elif members_unknown(ctx, scene_entity_id, row["source"] if row is not None else None):
+            return list(UNKNOWN_SCENE_STEPS), True
         else:
-            src = conn.execute("SELECT source FROM ha_config_items WHERE kind = 'scene' AND entity_id = ?", (scene_entity_id,)).fetchone()
-            if members_unknown(ctx, scene_entity_id, src["source"] if src is not None else None):
-                # VD2-01: nothing is known of what it sets - the strongest rights, and the step-up of a disarm and of a door opening
-                return list(UNKNOWN_SCENE_STEPS), unknown_scene_reasons(ctx, scene_entity_id)
             steps = []
-    sens = [s for s in steps if s.get("sens") and s["role"] == "device"]
-    return sens, control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in sens))) + grant_reasons(ctx, sens)
+    return [s for s in steps if s.get("sens") and s["role"] == "device"], False
+
+
+# ---------------------------------------------------------------- FIX-AUTOMATION2-2570: what a human-started run reaches through the items it calls
+
+# the calls that run another item's content (`script.turn_off`, `automation.turn_on/off` switch it, they run nothing)
+_RUNS_CONTENT = frozenset({"scene.turn_on", "script.turn_on", "automation.trigger"})
+
+
+def _runs_content(ref: dict[str, Any]) -> bool:
+    action = ref.get("action") or ""
+    if ref["role"] == "script":
+        return action != "script.turn_off"  # `script.turn_on` or the script's own service (`script.<key>`)
+    return action in _RUNS_CONTENT
+
+
+def run_closure(ctx: Ctx, facts: dict[str, Any], *, entity_id: str | None, readable: bool = True) -> dict[str, Any]:
+    """FIX-AUTOMATION2-2570: the sensitive steps a human-started run of an automation / script reaches - its own and those of every scene, script
+    and triggered automation it calls, transitively (depth EFFECT_DEPTH; an item already met is not walked again, so a cycle ends). A called
+    item whose content cannot be read (no mirrored config, a config that does not parse, a scene known neither by its config nor by its member
+    list, a chain deeper than EFFECT_DEPTH) is `unknown` - judged as the scene_members_unknown rule (VD2-01). Returns
+    {`nested`: the called items' sensitive device steps (`path: "calls"`), `unknown`: the entity ids that could not be read, `sensitive`: a confirmation is due,
+    `step_up`: the steps whose manual action asks the step-up (own + nested; a disarm and a door opening when something is unknown)}.
+    `readable` False: the item itself has no readable config (a YAML script) - it is as unknown as an unreadable call."""
+    nested: list[dict[str, Any]] = []
+    locked_sens = False
+    unknown: list[str] = [] if readable else [entity_id or ""]
+    seen: set[str] = {entity_id} if entity_id else set()
+
+    def walk(refs: list[dict[str, Any]], depth: int) -> None:
+        nonlocal locked_sens
+        for ref in refs:
+            if not _runs_content(ref):
+                continue
+            e = ref["entity_id"]
+            if e in seen:
+                continue  # met before on this run (a cycle or a second call): judged once
+            seen.add(e)
+            if depth > EFFECT_DEPTH:
+                unknown.append(e)
+                continue
+            if ref["role"] == "scene":
+                steps, unk = scene_sensitive_steps(ctx, e)
+                if unk:
+                    unknown.append(e)
+                else:
+                    nested.extend({**st, "path": "calls"} for st in steps)
+                continue
+            row = ctx.conn.execute("SELECT kind, config_json FROM ha_config_items WHERE entity_id = ?", (e,)).fetchone()
+            try:
+                cfg = json.loads(row["config_json"]) if row is not None and row["config_json"] else None
+            except ValueError:
+                cfg = None
+            if row is None or row["kind"] not in ("script", "automation") or not isinstance(cfg, dict):
+                unknown.append(e)
+                continue
+            rd = drafts.read(row["kind"], cfg, ctx.model_ctx(code_view=False, scoped=False))
+            inner = facts_of(ctx, row["kind"], rd, entity_id=e, depth=EFFECT_DEPTH)  # its own steps and calls; this walk expands the calls
+            nested.extend({**s, "path": "calls"} for s in inner["steps"] if s.get("sens") and s["role"] == "device")
+            locked_sens = locked_sens or any(s.get("sens") and s["role"] == "locked" for s in inner["steps"])
+            walk(inner["refs"], depth + 1)
+
+    walk(facts["refs"], 1)
+    own = [s for s in facts["steps"] if s.get("sens") and s["role"] == "device"]
+    step_up = own + nested + (list(UNKNOWN_SCENE_STEPS) if unknown else [])
+    return {"nested": nested, "unknown": unknown, "sensitive": bool(nested or unknown or locked_sens), "step_up": step_up,
+            "classes": list(dict.fromkeys(s["sens"] for s in nested))}
+
+
+def closure_reasons(ctx: Ctx, closure: dict[str, Any]) -> list[dict[str, Any]]:
+    """FIX-AUTOMATION2-2570: why the caller may NOT start the run for what the called items do: every nested sensitive step needs what its own
+    manual action needs (control of a lock / siren / door-class cover, `door.unlock`, `alarm.arm` / `alarm.disarm` own scope and the remote
+    channel's alarm rule); a called item that cannot be read needs the strongest rights installation-wide (VD2-01, `scene_members_unknown`)."""
+    nested = closure["nested"]
+    out = control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in nested)))
+    out.extend(grant_reasons(ctx, nested))
+    if closure["unknown"]:
+        out.extend(unknown_scene_reasons(ctx, closure["unknown"][0]))
+    return out
+
+
+def item_closure_reasons(conn: sqlite3.Connection, principal: Principal, kind: str, entity_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """FIX-AUTOMATION2-2570: (the steps whose step-up is due, why the caller may NOT run it) for a script started from the device-control route
+    (`script.turn_on` on a tile or a map card), which checks control of the script entity only: its own sensitive steps and those it reaches
+    (`run_closure`) need what their manual action needs; a script whose content cannot be read is judged as an unreadable call."""
+    ctx = Ctx(conn, principal)
+    row = conn.execute("SELECT config_json FROM ha_config_items WHERE kind = ? AND entity_id = ?", (kind, entity_id)).fetchone()
+    try:
+        cfg = json.loads(row["config_json"]) if row is not None and row["config_json"] else None
+    except ValueError:
+        cfg = None
+    if not isinstance(cfg, dict):
+        closure = run_closure(ctx, {"steps": [], "refs": []}, entity_id=entity_id, readable=False)
+        return closure["step_up"], closure_reasons(ctx, closure)
+    rd = drafts.read(kind, cfg, ctx.model_ctx(code_view=False, scoped=False))
+    facts = facts_of(ctx, kind, rd, entity_id=entity_id, depth=EFFECT_DEPTH)
+    closure = run_closure(ctx, facts, entity_id=entity_id)
+    own = [s for s in facts["steps"] if s.get("sens") and s["role"] == "device"]
+    reasons = control_reasons(ctx, list(dict.fromkeys(s["entity_id"] for s in own))) + grant_reasons(ctx, own) + closure_reasons(ctx, closure)
+    return closure["step_up"], reasons
 
 
 # VD2-01: the step-up a scene of unknown members asks (it may disarm or open a door)

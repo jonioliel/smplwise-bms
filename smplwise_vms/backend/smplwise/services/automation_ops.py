@@ -1057,10 +1057,14 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
             raise ApiError(422, "not_editable", "פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן.")
         plan = _door_plan(w, "automation", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "automation", facts, entity_id=row.entity_id, source=row.source)
+        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id, readable=rd is not None)  # FIX-AUTOMATION2-2570
+        w.details.update(_closure_details(closure))  # a refusal's audit row names what the called items reach too
+        reasons = reasons or scope.closure_reasons(w.ctx, closure)
         if reasons:
             raise reason_error(reasons[0])
-        if _risky(rd, facts) and confirm is not True:
+        if (_risky(rd, facts) or closure["sensitive"]) and confirm is not True:
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
+        run_step_up(w, closure)
         w.details.update(entities=facts["targets"], classes=facts["sensitive_classes"], sensitive=facts["sensitive"], skip_condition=bool(skip_condition))
         key = f"automation:{item_id}"
         gap_check(key, float(w.ctx.limits["run_interval_s"]))
@@ -1134,11 +1138,15 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
         w.runtime_ready()
         plan = _door_plan(w, "script", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "script", facts, entity_id=row.entity_id, source=row.source)
+        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id, readable=rd is not None)  # FIX-AUTOMATION2-2570
+        w.details.update(_closure_details(closure))  # a refusal's audit row names what the called items reach too
+        reasons = reasons or scope.closure_reasons(w.ctx, closure)
         if reasons:
             raise reason_error(reasons[0])
         variables = _field_variables(rd, fields)
-        if _risky(rd, facts) and confirm is not True:
+        if (_risky(rd, facts) or closure["sensitive"]) and confirm is not True:
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
+        run_step_up(w, closure)
         w.details.update(entities=facts["targets"], classes=facts["sensitive_classes"], sensitive=facts["sensitive"], fields=sorted(variables))
         key = f"script:{item_id}"
         gap_check(key, float(w.ctx.limits["run_interval_s"]))
@@ -1229,6 +1237,25 @@ def scene_step_up(w: W, steps: list[dict[str, Any]]) -> None:
 
     for action in dict.fromkeys(SCENE_STEP_UP[s["action"]] for s in steps if s.get("role") == "device" and s.get("action") in SCENE_STEP_UP):
         step_up.guard_action(w.conn, w.request, w.principal, action)
+
+
+def run_step_up(w: W, closure: dict[str, Any]) -> None:
+    """FIX-AUTOMATION2-2570: a human-started run of an automation / script that disarms an alarm panel, bypass-arms it or unlocks a lock - itself
+    or through a scene / script / automation it calls - asks the same fresh step-up proof as that manual action and as such a scene (CD2-02);
+    a call whose content cannot be read asks the disarm's and the door opening's (VD2-01). Off unless the administrator turned step-up on;
+    after the grants and the confirmation, before anything is recorded or sent. Runs Home Assistant starts on its own are never asked."""
+    scene_step_up(w, closure["step_up"])
+
+
+def _closure_details(closure: dict[str, Any]) -> dict[str, Any]:
+    """The audit row's view of what the run reaches through the items it calls (only when there is something to say)."""
+    out: dict[str, Any] = {}
+    if closure["nested"]:
+        out["nested_classes"] = closure["classes"]
+        out["nested_entities"] = list(dict.fromkeys(s["entity_id"] for s in closure["nested"]))
+    if closure["unknown"]:
+        out["nested_unknown"] = closure["unknown"]
+    return out
 
 
 def _door_plan(w: W, kind: str, item_id: str, confirm: bool) -> "door_run_guard.RunPlan | None":
