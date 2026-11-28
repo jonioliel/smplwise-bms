@@ -192,6 +192,7 @@
   "אפשר לרשום עד {max_devices_per_user} מכשירים. הסירו מכשיר ישן קודם.": "You can register up to {max_devices_per_user} devices. Remove an old device first.",
   "עד {batch_max} אירועים בבקשה.": "Up to {batch_max} events in a request.",
   "עד {ssid_hashes_max} רשתות לאתר.": "Up to {ssid_hashes_max} networks for a site.",
+  "חיישן נדרש חייב להיות ברשימת החיישנים המאושרים: {v}": "A required sensor must be on the approved sensors list: {v}",
   "{key}: בין {lo} ל־{hi}.": "{key}: between {lo} and {hi}.",
   "{label} עדיין משויך לאתר שהוסר.": "{label} is still assigned to a site that was removed.",
   "הערך מחוץ לטווח ({spec} עד {spec2}).": "The value is out of range ({spec} to {spec2}).",
