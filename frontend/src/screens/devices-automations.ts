@@ -34,7 +34,7 @@ import { sct } from '../i18n/scenarios';
 import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
 import { tr } from '../i18n/msg/devices';
-import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
+import { decodeSegment, onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import {
   mapAutomationError, needsConfirmation, toggleAutomation, visibleKinds,
@@ -541,7 +541,7 @@ export class DevicesAutomations extends LitElement {
     if (r.segments[0] !== 'devices' || r.segments[1] !== 'automations') return;
     const scen = r.segments[2] === 'scenarios';
     this.scenView = scen;
-    this.scenId = scen ? decodeURIComponent(r.segments[3] ?? '') : '';
+    this.scenId = scen ? decodeSegment(r.segments[3] ?? '') : ''; // FIX-FE-2570 (FE-05): a broken `%` link must not throw
     const next = parseAutomationsRoute(scen ? ['devices', 'automations'] : r.segments, r.params);
     const incoming = r.params.toString();
     if (incoming !== this.lastWritten) {

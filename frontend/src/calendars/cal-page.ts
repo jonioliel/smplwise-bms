@@ -11,7 +11,7 @@ import { isApi } from '../api/session';
 import type { RouteState } from '../router';
 import { calendarsBase, CALENDARS_SETTINGS_HREF } from '../shell/nav';
 import { calAccess, onCalAccess, refreshCalendars, type CalAccess } from './access';
-import { CAL_EVENTS, CAL_VIEWS, type CalCtx, type CalView, type NewEventDetail, type NewMaintDetail } from './ctx';
+import { CAL_EVENTS, CAL_VIEWS, calSub, type CalCtx, type CalView, type NewEventDetail, type NewMaintDetail } from './ctx';
 import { calCss } from './styles';
 import { tr } from '../i18n/msg/calendars';
 import './view-calendar';
@@ -175,8 +175,7 @@ export class CalendarsPage extends LitElement {
   }
 
   private get sub(): string {
-    const s = this.route?.segments ?? [];
-    return decodeURIComponent((this.route?.mode === 'devices' ? s[3] : s[2]) ?? '');
+    return calSub(this.route); // FIX-FE-2570: a broken `%` link must not throw
   }
 
   private manages(): boolean {
