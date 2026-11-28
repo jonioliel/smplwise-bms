@@ -1057,7 +1057,7 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
             raise ApiError(422, "not_editable", "פריט זה מוגדר בקובץ תצורה או במכשיר ואינו ניתן לעריכה כאן.")
         plan = _door_plan(w, "automation", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "automation", facts, entity_id=row.entity_id, source=row.source)
-        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id, readable=rd is not None)  # FIX-AUTOMATION2-2570
+        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id)  # FIX-AUTOMATION2-2570
         w.details.update(_closure_details(closure))  # a refusal's audit row names what the called items reach too
         reasons = reasons or scope.closure_reasons(w.ctx, closure)
         if reasons:
@@ -1138,7 +1138,7 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
         w.runtime_ready()
         plan = _door_plan(w, "script", item_id, confirm)  # CR-033 D9: before the item's own rights, so a door item is refused as such
         reasons = scope.run_reasons(w.ctx, "script", facts, entity_id=row.entity_id, source=row.source)
-        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id, readable=rd is not None)  # FIX-AUTOMATION2-2570
+        closure = scope.run_closure(w.ctx, facts, entity_id=row.entity_id)  # FIX-AUTOMATION2-2570
         w.details.update(_closure_details(closure))  # a refusal's audit row names what the called items reach too
         reasons = reasons or scope.closure_reasons(w.ctx, closure)
         if reasons:

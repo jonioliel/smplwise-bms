@@ -465,17 +465,17 @@ def _runs_content(ref: dict[str, Any]) -> bool:
     return action in _RUNS_CONTENT
 
 
-def run_closure(ctx: Ctx, facts: dict[str, Any], *, entity_id: str | None, readable: bool = True) -> dict[str, Any]:
+def run_closure(ctx: Ctx, facts: dict[str, Any], *, entity_id: str | None) -> dict[str, Any]:
     """FIX-AUTOMATION2-2570: the sensitive steps a human-started run of an automation / script reaches - its own and those of every scene, script
     and triggered automation it calls, transitively (depth EFFECT_DEPTH; an item already met is not walked again, so a cycle ends). A called
     item whose content cannot be read (no mirrored config, a config that does not parse, a scene known neither by its config nor by its member
     list, a chain deeper than EFFECT_DEPTH) is `unknown` - judged as the scene_members_unknown rule (VD2-01). Returns
     {`nested`: the called items' sensitive device steps (`path: "calls"`), `unknown`: the entity ids that could not be read, `sensitive`: a confirmation is due,
     `step_up`: the steps whose manual action asks the step-up (own + nested; a disarm and a door opening when something is unknown)}.
-    `readable` False: the item itself has no readable config (a YAML script) - it is as unknown as an unreadable call."""
+    The item itself without a readable config (a YAML script, the mirror off) keeps the rule of its route (open question in the change note)."""
     nested: list[dict[str, Any]] = []
     locked_sens = False
-    unknown: list[str] = [] if readable else [entity_id or ""]
+    unknown: list[str] = []
     seen: set[str] = {entity_id} if entity_id else set()
 
     def walk(refs: list[dict[str, Any]], depth: int) -> None:
@@ -533,7 +533,8 @@ def closure_reasons(ctx: Ctx, closure: dict[str, Any]) -> list[dict[str, Any]]:
 def item_closure_reasons(conn: sqlite3.Connection, principal: Principal, kind: str, entity_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """FIX-AUTOMATION2-2570: (the steps whose step-up is due, why the caller may NOT run it) for a script started from the device-control route
     (`script.turn_on` on a tile or a map card), which checks control of the script entity only: its own sensitive steps and those it reaches
-    (`run_closure`) need what their manual action needs; a script whose content cannot be read is judged as an unreadable call."""
+    (`run_closure`) need what their manual action needs. A script the mirror does not hold readably (the automations feature off, a YAML
+    script) keeps the route's earlier rule - control of the script entity - so a tile never breaks because the mirror is off."""
     ctx = Ctx(conn, principal)
     row = conn.execute("SELECT config_json FROM ha_config_items WHERE kind = ? AND entity_id = ?", (kind, entity_id)).fetchone()
     try:
@@ -541,8 +542,7 @@ def item_closure_reasons(conn: sqlite3.Connection, principal: Principal, kind: s
     except ValueError:
         cfg = None
     if not isinstance(cfg, dict):
-        closure = run_closure(ctx, {"steps": [], "refs": []}, entity_id=entity_id, readable=False)
-        return closure["step_up"], closure_reasons(ctx, closure)
+        return [], []
     rd = drafts.read(kind, cfg, ctx.model_ctx(code_view=False, scoped=False))
     facts = facts_of(ctx, kind, rd, entity_id=entity_id, depth=EFFECT_DEPTH)
     closure = run_closure(ctx, facts, entity_id=entity_id)

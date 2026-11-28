@@ -530,7 +530,8 @@ def _scene_member_gate(conn: sqlite3.Connection, principal: Principal, request: 
     channel's alarm code), before anything is recorded or sent. The confirmation is the route's own (`confirmation_grant: "confirmed"`, every
     scene is an "attention" action). Returns the sensitive member steps (their step-up is asked after the confirmation).
     FIX-AUTOMATION2-2570: `script.turn_on` the same way - the script's own sensitive steps and those of every scene / script it calls
-    (services/automation_scope.item_closure_reasons); a script or a call whose content cannot be read is the VD2-01 unknown rule."""
+    (services/automation_scope.item_closure_reasons); a CALL whose content cannot be read is the VD2-01 unknown rule (a script the
+    mirror does not hold keeps control of the script entity)."""
     if action_id not in ("scene.turn_on", "script.turn_on"):
         return []
     from ..services import automation_ops, automation_scope
