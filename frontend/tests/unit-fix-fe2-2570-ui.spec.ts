@@ -390,3 +390,61 @@ test('FE2-11: a bake that throws after the claim reports the job failed (it is n
   expect(fin).toHaveLength(1);
   expect((fin[0].body as { status: string }).status).toBe('failed');
 });
+
+// ------------------------------------------------------------------------------------------------ compare-page screenshots (SW_SHOTS_DIR only)
+
+const SHOTS = process.env.SW_SHOTS_DIR || '';
+for (const scheme of ['light', 'dark'] as const) {
+  for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 390, height: 844 }]) {
+    test(`shots: ${vp.name} ${scheme}`, async ({ page }) => {
+      test.skip(!SHOTS, 'SW_SHOTS_DIR not set');
+      const fs = await import('node:fs');
+      fs.mkdirSync(SHOTS, { recursive: true });
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+      const SETS = { sets: [{ id: 'A', name: 'פרטי', count: 1, used_by: [] }], limits: { max_files: 200, max_bytes: 8 * 1024 * 1024 } };
+      const view = { enforce: false, can_manage: true, max_entries: 500, allow: [], self_messages: { active: false, until: null, minutes_default: 30, minutes_range: [1, 240] } };
+      await setup(page, (s) => {
+        if (s.path === 'wall/photo-sets') return { body: SETS };
+        if (s.path === 'wall/photo-sets/A/photos') return { body: { photos: [{ id: 'pa', w: 1, h: 1 }] } };
+        if (s.path.startsWith('messaging/whatsapp/policy')) return { body: view };
+        return applyAnswer(s);
+      });
+      await page.evaluate((dark) => {
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        document.body.style.background = 'var(--sw-bg, Canvas)';
+        document.body.style.padding = '16px';
+      }, scheme === 'dark');
+      const shot = (name: string) => page.screenshot({ path: path.join(SHOTS, `${vp.name}-${scheme}-${name}.png`) });
+      const clear = async () => {
+        await page.keyboard.press('Escape');
+        await page.evaluate(() => document.querySelectorAll('body > *:not(script)').forEach((e) => e.remove()));
+      };
+      // 1. a sensitive scene: the shared confirmation
+      await page.evaluate((it) => {
+        const el = document.createElement('scenes-panel') as HTMLElement & { items: unknown[] };
+        el.items = [it];
+        document.body.append(el);
+      }, scene());
+      await page.locator('scenes-panel [data-scene-activate]').click();
+      await page.waitForTimeout(500);
+      await shot('scene');
+      await clear();
+      // 2. deleting a wall photo
+      await page.evaluate(() => {
+        const el = document.createElement('sw-wall-photo-sets') as HTMLElement & { open: boolean };
+        document.body.append(el);
+        el.open = true;
+      });
+      await page.locator('sw-wall-photo-sets [data-wall-photo-del="pa"]').click();
+      await page.waitForTimeout(500);
+      await shot('wall-photo');
+      await clear();
+      // 3. the WhatsApp policy: enforcement on with an empty list
+      await page.evaluate(() => document.body.append(document.createElement('messaging-policy-card')));
+      await page.locator('messaging-policy-card [data-policy-enforce]').click();
+      await page.waitForTimeout(500);
+      await shot('policy');
+    });
+  }
+}

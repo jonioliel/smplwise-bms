@@ -440,6 +440,7 @@ class Dial<T extends string> {
     await saveOptimistic(`dial:${this.key}`, this.own, { value, groups }, apply, () =>
       putMyPrefs({ [`ui.dd_${this.key}`]: value, [`ui.dd_${this.key}_groups`]: Object.keys(groups).length ? (groups as Record<string, string>) : null } as Parameters<typeof putMyPrefs>[0]));
   }
+}
 const ringDial = new Dial<DdRing>('ring', asDdRing, DD_RING_DEFAULT, 'sw.dd.ring');
 const panelDial = new Dial<DdPanel>('panel', asDdPanel, DD_PANEL_DEFAULT, 'sw.dd.panel');
 
@@ -487,6 +488,7 @@ class Choice<T extends string> {
     };
     await saveOptimistic(`choice:${this.key}`, this.own, value, apply, () => putMyPrefs({ [`ui.dd_${this.key}`]: value } as Parameters<typeof putMyPrefs>[0]));
   }
+}
 const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAULT, 'sw.dd.search');
 const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
 const placeChoice = new Choice<DdPlace>('place', asDdPlace, DD_PLACE_DEFAULT, 'sw.dd.place');
