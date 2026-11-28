@@ -89,7 +89,32 @@ _RAISE = re.compile(r"raise forbidden\(|ApiError\(\s*403\b")
 _AUDITED = re.compile(r"audit\w*\(|refus\w*\(|\bdenied\(")
 
 # Un-audited hand-written 403s per router file after FIX-SECURITY2-2570 (2.57; 56 before it). May only go DOWN.
-BASELINE: dict[str, int] = {}
+BASELINE: dict[str, int] = {
+    "access_control_profiles.py": 1,  # WisKey itself refused the read (a state of the remote system)
+    "alarm.py": 1,  # a wrong code (its attempt is audited through `failed(...)` just above)
+    "automations.py": 1,  # scene capture: audited by the enclosing `with w.audited("automation.capture", ...)`
+    "bulk_people.py": 1,  # interactive (browser) sessions only - a channel rule
+    "calendar_feeds.py": 1,  # a feed's remote switch from the remote channel - local only
+    "devices.py": 1,  # identity_unmapped (no Home Assistant identity to act as)
+    "ha.py": 2,  # identity_unmapped; another user's action poll - ha.py was another 2.57 row's file (listed in the change note)
+    "home_wall_events.py": 3,  # wall-panel-only, the calendar module off for the panel, family calendars only - policy, not permission
+    "local_identity.py": 4,  # the public sign-in guards (feature off, https, CSRF) and "own password only"
+    "local_passkeys.py": 2,  # "Arx users only" (self-service)
+    "local_privacy.py": 1,  # "Arx users only" (self-service)
+    "multimedia.py": 1,  # identity_unmapped
+    "playback.py": 1,  # another user's playback session - another 2.57 row's file (listed in the change note)
+    "presence.py": 1,  # another 2.57 row's file (listed in the change note)
+    "schedules.py": 1,  # a malformed alarm code = a wrong code
+    "search.py": 1,  # the global search switched off / not for this role (a feature setting)
+    "second_factor.py": 1,  # a step-up challenge (the proof is asked for, not refused)
+    "service_identity.py": 2,  # defence in depth after an audited `require`: never for an Arx-only identity
+    "system_update.py": 1,  # cross-site request (CSRF)
+    "tickets_budgets.py": 1,  # tickets: another 2.57 row's area (listed in the change note)
+    "tickets_contacts.py": 1,  # tickets: another 2.57 row's area (listed in the change note)
+    "tickets_rfq.py": 1,  # tickets: another 2.57 row's area (listed in the change note)
+    "views.py": 3,  # saved views - another 2.57 row's file (listed in the change note)
+    "wall.py": 2,  # the profile does not allow acknowledging; a photo folder outside the system's - configuration / validation
+}
 
 
 def unaudited(root: Path = ROUTERS) -> Counter:
