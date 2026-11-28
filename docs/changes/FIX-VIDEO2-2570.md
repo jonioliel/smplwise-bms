@@ -53,6 +53,19 @@ New texts: `smplwise/services/video_text.py` (`recordings.*`, `nvr_smart.*`, `vi
 - The history-map minute model (`investigate-history-map.ts`) still cannot address the repeated hour; the partial note covers the
   recordings answer only. The playback screen does not show `clock_change_note` yet (frontend follow-up; the search note shows there).
 
-## Tests
+## Tests (runner, slot B, 28.11; real results)
 
-See the row report for the runner results (before on v2.56.0 + the new test files, after on the branch head).
+New: `smplwise_vms/backend/tests/test_fix_video2_2570.py` (9 tests), `frontend/tests/unit-fix-video2-2570.spec.ts` (2 tests).
+
+| Run | Result |
+|---|---|
+| BEFORE: v2.56.0 (`6ea807b2e`) + the new backend test file | **9 failed / 9** - detect: "database is locked" for a second writer during the listen; timeutil helpers missing; fold file missing from the day and `coverage: complete`; second-occurrence search empty and `complete`; repeated page `complete`; no `clock_change_note`; cross-midnight action read as `22:00 -> 06:00`; smart partial answered `nvr_rejected`; shared view edit answered every camera id (hidden count 0) |
+| BEFORE: v2.56.0 + the new frontend spec | **2 failed / 2** - `markReviewed` threw on the one failed recorder; no `settleMark` |
+| AFTER: branch head `65076688b`, `test_fix_video2_2570.py` + `test_saved_views.py` + `test_wire_consumption_2450.py` (`SW_WIRE_STRICT=1`) | **24 passed** |
+| AFTER: `93e27d4e3` (code identical to the head; tests changed after), affected files one pytest process each: `test_recordings` 6, `test_exports` 5, `test_nvr_schedule` 3, `test_saved_views` 1, `test_kav079_api` 8, `test_recorded_days` 28, `test_i18n_errors_en_2520` 9, `test_playback_timing_t074` 4, `test_rbac_camera_scope` 101, `test_wire_consumption_2450` 13, `test_singletons_registered` 4, `test_multi_nvr` 18, `test_nvr_write_guard_2438` 10 | **all passed** (the one failure in that run was the new views test, whose scenario was wrong - a site administrator may not edit the system administrator's view - and was rewritten as an owner edit; it passes at the head) |
+| `scripts/gen_wire_types.py --check` (head) | exit 0 (`wire-playback.ts`, `wire-playback-groups.ts` regenerated) |
+| ruff (`smplwise_vms/backend/smplwise` + the new test) | All checks passed |
+| Frontend unit: `unit-fix-video2-2570.spec.ts` (head) 2 passed; `unit-frigate.spec.ts` + the new spec (`93e27d4e3`) 21 passed | passed |
+| `tsc --noEmit` (`93e27d4e3` with the regenerated types) | exit 0 |
+| Browser page specs / pixel baselines | NOT_RUN (no look change: the review notice reused, no new UI element) |
+| Full backend suite | NOT_RUN (the train gate runs it) |
