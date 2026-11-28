@@ -34052,10 +34052,11 @@
       "Branch pilot/FIX-MAPS2-2570, change note docs/changes/FIX-MAPS2-2570.md, tests"
     ],
     "evidence": [
-      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-MAPS2-2570 head f65f94aa5 merged 3875ea848 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-MAPS2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md)."
+      "2026-11-28 (RELEASE-2570-TRAIN): Registered at the merge. pilot/FIX-MAPS2-2570 head f65f94aa5 merged 3875ea848 into release/2570-train (cut from v2.56.0 6ea807b2e; docs/changes/RELEASE-2570-TRAIN.md on the train). Change note docs/changes/FIX-MAPS2-2570.md. Target 2.57.0. REVIEW until the release; acceptance test NOT_RUN as a catalog record (the train checks are in docs/changes/RELEASE-2570-TRAIN.md).",
+      "2026-11-28 (RELEASE-2570-TRAIN): follow-up head da5562f3f (change note only) merged 7ad615768."
     ],
     "owner": null,
-    "commit": "f65f94aa5",
+    "commit": "da5562f3f",
     "actual_cost_usd": null
   },
   {
