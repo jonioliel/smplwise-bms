@@ -136,20 +136,26 @@ def test_cd02_the_guarded_snapshot_brings_back_an_entity_ha_lists_again(app_s):
     assert row["removed_at"] is None and row["state"] == "2"
 
 
-def test_cd02_a_drain_timeout_stores_the_snapshot_behind_the_earlier_sessions_frames(app_s, monkeypatch):
+# the second case is the reproduction of the second review (DEEP-REVIEW-2570-CORE-DATA-RELEASE, CD2-22, run on the runner): a door
+# contact listed `on` (10:05) by the new session's snapshot, the previous session's queued frame `off` (10:01)
+@pytest.mark.parametrize("eid, start, old_state, old_at, new_state, new_at", [
+    ("sensor.cd02b_drain", "START", "OLD", "2026-11-26T10:00:00+00:00", "NEW", "2026-11-26T10:05:00+00:00"),
+    ("binary_sensor.cd2_22_door", "off", "off", "2026-11-26T10:01:00+00:00", "on", "2026-11-26T10:05:00+00:00"),
+])
+def test_cd02_a_drain_timeout_stores_the_snapshot_behind_the_earlier_sessions_frames(app_s, monkeypatch, eid, start, old_state, old_at,
+                                                                                    new_state, new_at):
     """The earlier session's frame (older) is still queued when the new session's wait for the worker times out. Before: the snapshot
     was stored at once and the older frame was applied over it afterwards - the mirror kept the OLD state."""
     app, s = app_s
     monkeypatch.setattr(ha_sync, "DRAIN_S", 0.2)
-    eid = "sensor.cd02b_drain"
-    _seed(app, eid, "START", "2026-11-26T09:00:00+00:00")
+    _seed(app, eid, start, "2026-11-26T09:00:00+00:00")
     gate = threading.Event()
     ha_sync.STATE_WORKER.submit(gate.wait, 10, bounded=False)  # the earlier session's long write
-    old = _event(eid, "START", "OLD", 0)
-    old["new_state"]["last_updated"] = old["new_state"]["last_changed"] = "2026-11-26T10:00:00+00:00"
+    old = _event(eid, start, old_state, 0)
+    old["new_state"]["last_updated"] = old["new_state"]["last_changed"] = old_at
     assert ha_sync.STATE_WORKER.submit(ha_sync.on_state_changed, app.state.db, old)  # its last frame, queued behind it
     fake = FakeHa()
-    fake.states.append(_item(eid, "NEW", "2026-11-26T10:05:00+00:00"))  # what HA holds now (newer)
+    fake.states.append(_item(eid, new_state, new_at))  # what HA holds now (newer)
 
     async def script(_on_event, _call):
         gate.set()
@@ -160,7 +166,7 @@ def test_cd02_a_drain_timeout_stores_the_snapshot_behind_the_earlier_sessions_fr
     finally:
         gate.set()
     assert ha_sync.STATE_WORKER.wait_idle(10)
-    assert _state(app, eid) == "NEW"
+    assert _state(app, eid) == new_state
     assert any(m.get("type") == "structure_changed" and m.get("reason") == "resync" for m in published), "open screens refetch"
 
 
