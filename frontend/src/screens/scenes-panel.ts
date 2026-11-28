@@ -9,11 +9,13 @@ import { autoApi } from '../api/automations-demo';
 import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
-  activateScene, createItem, deleteItem, mapAutomationError, replaceItem,
+  activateScene, createItem, deleteItem, mapAutomationError, needsConfirmation, replaceItem,
   type AutomationCatalog, type AutomationsStatus, type CatalogEntity, type Item, type ItemDetail, type SceneDraft, type SceneMember,
 } from '../api/automations';
 import { groupScenes, hiddenScenes, isIntegrationScene, sceneLine } from './automations-logic';
 import { runConfirmed } from '../api/run-confirm';
+import { physicalOutcome } from '../api/physical-outcome';
+import { confirmDialog } from '../components/confirm-dialog';
 import { askRun } from './run-confirm-ask';
 import type { DrawerResult } from './automation-drawer';
 import type { SceneCapture } from '../components/scene-capture';
@@ -268,7 +270,7 @@ export class ScenesPanel extends LitElement {
     if (!this.isConnected) return; // a drawer closes itself while the screen is torn down (a route change): that is not the user's close
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
-  private say(text: string, tone: 'ok' | 'error' = 'ok', action?: DrawerResult['action']) {
+  private say(text: string, tone: DrawerResult['tone'] = 'ok', action?: DrawerResult['action']) {
     this.fire<DrawerResult>('result', { text, tone, action });
   }
 
@@ -287,7 +289,9 @@ export class ScenesPanel extends LitElement {
       window.setTimeout(() => (this.done = new Set([...this.done].filter((x) => x !== i.id))), 2200);
       this.fire('changed', { id: i.id });
     } catch (err) {
-      this.say(mapAutomationError(err).message, 'error');
+      // FIX-FE2-2570 (VD2-05): no answer / a time-out = the scene may have run - amber "unknown, check on site", never "not activated"
+      if (physicalOutcome(err) === 'unknown') this.say(tr('לא ידוע אם הסצנה הופעלה · בדקו במקום'), 'warn');
+      else this.say(mapAutomationError(err).message, 'error');
     } finally {
       this.busy = new Set([...this.busy].filter((x) => x !== i.id));
     }
@@ -369,9 +373,16 @@ export class ScenesPanel extends LitElement {
     this.saving = true;
     this.editorError = '';
     const draft: SceneDraft = { name: e.detail.name, icon: this.detail ? (this.detail.draft as SceneDraft).icon : null, members: e.detail.members };
+    const write = (confirm?: boolean) => (this.detail ? replaceItem('scene', this.detail.id, draft, this.detail.revision, { confirm }) : createItem('scene', draft, { enabled: true, confirm }));
     try {
-      if (this.detail) await replaceItem('scene', this.detail.id, draft, this.detail.revision);
-      else await createItem('scene', draft, { enabled: true });
+      try {
+        await write();
+      } catch (err) {
+        // FIX-FE2-2570 (VD2-05): a scene with a lock / alarm / siren is saved only with an explicit confirmation - asked, then sent once more
+        if (!needsConfirmation(err)) throw err;
+        if (!(await confirmDialog({ heading: tr('לשמור סצנה רגישה?'), body: tr('הסצנה כוללת פעולה רגישה (מנעול, אזעקה, צופר או דלת). כל מי שיפעיל אותה יתבקש לאשר.'), confirmLabel: tr('שמירה') }))) return;
+        await write(true);
+      }
       this.say(tr('נשמר'));
       this.fire('changed', {});
       this.fire('close-scene');

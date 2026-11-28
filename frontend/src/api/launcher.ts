@@ -9,6 +9,7 @@ import { canAnywhere } from './session';
 // PERF-2490: the automations model (with its adapters) loads with the first scene / script launch, not with the home screen
 import type { ItemKind } from './automations';
 import type { RunAsk } from './run-confirm';
+import { ApiError, describeError } from './client';
 import { navigate } from '../router';
 import { tr } from '../i18n/msg/api-home';
 
@@ -90,10 +91,19 @@ export async function runLaunch(item: LaunchItem, ask: RunAsk = async () => fals
   if (item.kind === 'quick') return 'none';
   // a scene / script is addressed by its automations item id, not its entity id: the list (the same gate as apply / run) resolves it
   const kind: ItemKind = item.kind;
-  const [{ activateScene, automations, runScriptNow }, { runConfirmed }] = await Promise.all([import('./automations'), import('./run-confirm')]);
-  const { items } = await automations().list({ kind, limit: 500 });
+  // VD2-05: everything before the run request itself sent nothing - its failure is a plain "not run" (`outcome: not_sent`), never "unknown"
+  const notSent = (code: string, text: string) => new ApiError(404, { code, user_message: text, retryable: false, correlation_id: '', details: { outcome: 'not_sent' } });
+  let mods: [typeof import('./automations'), typeof import('./run-confirm')];
+  let items: import('./automations').Item[];
+  try {
+    mods = await Promise.all([import('./automations'), import('./run-confirm')]);
+    ({ items } = await mods[0].automations().list({ kind, limit: 500 }));
+  } catch (err) {
+    throw notSent(err instanceof ApiError ? err.code : 'list_failed', describeError(err));
+  }
+  const [{ activateScene, runScriptNow }, { runConfirmed }] = mods;
   const found = items.find((x) => x.entity_id === item.id);
-  if (!found) throw new Error(item.kind === 'scene' ? tr('הסצנה לא נמצאה') : tr('הסקריפט לא נמצא'));
+  if (!found) throw notSent('item_not_found', item.kind === 'scene' ? tr('הסצנה לא נמצאה') : tr('הסקריפט לא נמצא'));
   // FIX-FE2-2570 (FE2-01): a sensitive scene / script (a lock, the alarm, a siren, a door step) is asked about first; the server's
   // `confirmation_required` asks too and, on yes, the request goes ONE more time with `confirm: true`. Without `ask` nothing sensitive runs.
   const r = item.kind === 'scene'

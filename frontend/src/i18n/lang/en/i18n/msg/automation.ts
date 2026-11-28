@@ -1002,4 +1002,9 @@ export const en = {
   'הבקשה להפעלת הסקריפט נשלחה': 'The request to run the script was sent',
   'להפעיל את "{name}"?': 'Activate "{name}"?',
   'כולל פעולה שדורשת אישור מפורש, למשל פתיחת דלת.': 'Includes an action that needs explicit confirmation, such as opening a door.',
+  // FIX-FE2-2570 (VD2-05)
+  'לא ידוע אם הסצנה הופעלה · בדקו במקום': 'Not known whether the scene ran · check on site',
+  'לא ידוע אם הסקריפט הופעל · בדקו במקום': 'Not known whether the script ran · check on site',
+  'לשמור סצנה רגישה?': 'Save a sensitive scene?',
+  'הסצנה כוללת פעולה רגישה (מנעול, אזעקה, צופר או דלת). כל מי שיפעיל אותה יתבקש לאשר.': 'The scene includes a sensitive action (a lock, an alarm, a siren or a door). Whoever runs it will be asked to confirm.',
 };

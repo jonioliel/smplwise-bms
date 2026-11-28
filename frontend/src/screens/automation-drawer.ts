@@ -22,7 +22,8 @@ import { t } from '../i18n/he';
 import { chipSelected, chipSelectedCheck } from '../styles/chip-selected';
 import { dialogRowStyles } from '../styles/fragments';
 
-export type DrawerResult = { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } };
+/** FIX-FE2-2570 (VD2-05): `warn` = the outcome of a physical run is not known (no answer / a time-out): amber, never "failed", never "done". */
+export type DrawerResult = { text: string; tone: 'ok' | 'error' | 'warn'; action?: { label: string; run: () => void } };
 
 const MODE_CHIP: Record<Mode, string> = { single: tr('התעלם'), restart: tr('התחל מחדש'), queued: tr('המתן בתור'), parallel: tr('הרץ במקביל') };
 const LIST_LABEL: Record<string, string> = { conditions: tr('אם'), if: tr('אם'), then: tr('אז'), else: tr('אחרת'), default: tr('אחרת'), sequence: tr('אז') };

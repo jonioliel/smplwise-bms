@@ -638,6 +638,9 @@ export const areaQuickSheetStyles = [
       .scene-note.bad {
         color: var(--sw-danger);
       }
+      .scene-note.warn {
+        color: var(--sw-warning-text);
+      }
       @media (hover: hover) and (pointer: fine) {
         .scene:hover {
           background: var(--sw-surface-2);

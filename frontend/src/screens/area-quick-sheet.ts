@@ -19,6 +19,7 @@ import { getDevicesArea, isDimmable, type CardId, type DeviceArea, type DeviceAr
 import type { BulkKind } from '../api/device-bulk';
 import { activateScene, automations, mapAutomationError, type Item } from '../api/automations';
 import { runConfirmed } from '../api/run-confirm';
+import { physicalOutcome } from '../api/physical-outcome';
 import { askRun } from './run-confirm-ask';
 import { HOME_SCREEN_DEFAULT, loadHomeScreen, type HomeScreenOptions, type PopupAlert } from '../api/home-screen';
 import { EMPTY_LAYOUT, POPUP_ITEM_SECTIONS, isVersionConflict, savePopupLayout, type PopupLayout } from '../api/popup-layout';
@@ -112,7 +113,7 @@ export class AreaQuickSheet extends LitElement {
   @state() private events: VmsEvent[] = [];
   @state() private sceneBusy = '';
   /** FIX-FE2-2570 (FE2-01): the answer to the last scene press (null = none yet). */
-  @state() private sceneNote: { text: string; bad: boolean } | null = null;
+  @state() private sceneNote: { text: string; bad: boolean; warn?: boolean } | null = null;
   /** AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area's presence line, as on the area screen (null = not read / not permitted). */
   @state() private areaPres: AreaPresence | null = null;
   private presTimer = 0;
@@ -595,7 +596,8 @@ export class AreaQuickSheet extends LitElement {
       const r = await runConfirmed(it, (o) => activateScene(it.id, o), askRun);
       if (r.sent) this.sceneNote = { text: hs('qcSceneSent'), bad: false };
     } catch (err) {
-      this.sceneNote = { text: mapAutomationError(err).message, bad: true };
+      // VD2-05: no answer / a time-out = the scene may have run - amber "unknown, check on site", never "failed"
+      this.sceneNote = physicalOutcome(err) === 'unknown' ? { text: hs('qcSceneUnknown'), bad: false, warn: true } : { text: mapAutomationError(err).message, bad: true };
     } finally {
       this.sceneBusy = '';
     }
@@ -935,7 +937,7 @@ export class AreaQuickSheet extends LitElement {
     if (s === 'scenes') {
       return html`<div class="sec" data-qc-section="scenes">${head(this.scenes.length)}<div class="scenes">${this.scenes.map(
         (it) => html`<button type="button" class="scene" data-qc-scene=${it.id} ?data-busy=${this.sceneBusy === it.id} ?disabled=${!!this.sceneBusy} @click=${() => void this.runScene(it)}><sw-icon name="play" size=${13}></sw-icon>${bidi(it.name)}</button>`,
-      )}</div>${this.sceneNote ? html`<div class=${classMap({ 'scene-note': true, bad: this.sceneNote.bad })} data-qc-scene-note role=${this.sceneNote.bad ? 'alert' : 'status'}>${this.sceneNote.text}</div>` : nothing}</div>`;
+      )}</div>${this.sceneNote ? html`<div class=${classMap({ 'scene-note': true, bad: this.sceneNote.bad, warn: !!this.sceneNote.warn })} data-qc-scene-note role=${this.sceneNote.bad ? 'alert' : 'status'}>${this.sceneNote.text}</div>` : nothing}</div>`;
     }
     if (s === 'schedules') {
       return html`<div class="sec" data-qc-section="schedules">${head(this.schedules.length)}<div class="rows">${this.schedules.map(

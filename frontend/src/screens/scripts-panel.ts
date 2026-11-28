@@ -8,6 +8,7 @@ import { bidi } from '../i18n/bidi';
 import { cardChips, confirmLine, floorLine, areaLine, runLine } from './automations-logic';
 import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type AutomationsStatus, type Item } from '../api/automations';
 import type { DrawerResult } from './automation-drawer';
+import { physicalOutcome } from '../api/physical-outcome';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { tr } from '../i18n/msg/automation';
@@ -185,7 +186,7 @@ export class ScriptsPanel extends LitElement {
     if (!this.isConnected) return; // a drawer closes itself while the screen is torn down (a route change): that is not the user's close
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
-  private say(text: string, tone: 'ok' | 'error' = 'ok') {
+  private say(text: string, tone: DrawerResult['tone'] = 'ok') {
     this.fire<DrawerResult>('result', { text, tone });
   }
 
@@ -202,6 +203,7 @@ export class ScriptsPanel extends LitElement {
     } catch (err) {
       const f = mapAutomationError(err);
       if (f.kind === 'confirm' && !confirmed) this.confirm = i;
+      else if (physicalOutcome(err) === 'unknown') this.say(tr('לא ידוע אם הסקריפט הופעל · בדקו במקום'), 'warn'); // FIX-FE2-2570 (VD2-05)
       else this.say(f.message, 'error');
     } finally {
       this.busy = new Set([...this.busy].filter((x) => x !== i.id));

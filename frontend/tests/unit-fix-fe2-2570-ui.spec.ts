@@ -29,6 +29,7 @@ async function bundle(): Promise<string> {
         "import { castStore } from '../components/cast-store';",
         "import { noteServerTime } from '../api/server-clock';",
         "import { runFloorBake } from '../screens/floor-stills';",
+        "import { physicalOutcome } from '../api/physical-outcome';",
         "import '../screens/scenes-panel';",
         "import '../screens/area-quick-sheet';",
         "import '../screens/wall-photo-sets';",
@@ -36,7 +37,7 @@ async function bundle(): Promise<string> {
         "import '../screens/messaging-policy-card';",
         "import '../screens/scenarios-panel';",
         'installStepUp();',
-        'Object.assign(window as unknown as Record<string, unknown>, { T: { S, C, confirmDialog, runLaunch, castStore, noteServerTime, runFloorBake } });',
+        'Object.assign(window as unknown as Record<string, unknown>, { T: { S, C, confirmDialog, runLaunch, castStore, noteServerTime, runFloorBake, physicalOutcome } });',
       ].join('\n'),
       resolveDir: path.join(HERE, '../src/shell'), loader: 'ts',
     },
@@ -184,6 +185,65 @@ test('FE2-01 (area quick sheet): a refused scene is SHOWN under the chips, not s
   }, scene({ sensitive: false, targets: [] }));
   expect(note?.bad).toBe(true);
   expect(note?.text ?? '').not.toBe('');
+});
+
+// ------------------------------------------------------------------------------------------------ VD2-05: honest outcomes of a scene press
+
+test.describe('VD2-05: a scene that got no answer is "unknown - check on site", never "not run"; a sensitive scene can be saved', () => {
+  test('the scenes panel: a lost answer is an amber note, a refusal a red one', async ({ page }) => {
+    await setup(page, (s) => (/\/apply$/.test(s.path) ? fail('run_too_soon', 'הסצנה הופעלה ממש עכשיו.', 409) : undefined));
+    await page.route(`${ORIGIN}/app/api/v1/automations/scene/entity%3Ascene.calm/apply`, (r) => r.abort('connectionreset'));
+    const tones = await page.evaluate(async ([a, b]) => {
+      const el = document.createElement('scenes-panel') as HTMLElement & { items: unknown[]; activate(i: unknown): Promise<void> };
+      const seen: string[] = [];
+      el.addEventListener('result', (e) => seen.push((e as CustomEvent<{ tone: string }>).detail.tone));
+      el.items = [a, b];
+      document.body.append(el);
+      await el.activate(a);
+      await el.activate(b);
+      return seen;
+    }, [scene({ id: 'entity:scene.calm', entity_id: 'scene.calm', sensitive: false, targets: [] }), scene({ id: 'entity:scene.tv', entity_id: 'scene.tv', sensitive: false, targets: [] })]);
+    expect(tones).toEqual(['warn', 'error']);
+  });
+
+  test('the area quick sheet: a lost answer is shown amber (not as a failure)', async ({ page }) => {
+    await setup(page, () => undefined);
+    await page.route(`${ORIGIN}/app/api/v1/automations/**`, (r) => r.abort('connectionreset'));
+    const note = await page.evaluate(async (it) => {
+      const el = document.createElement('area-quick-sheet') as HTMLElement & { runScene(i: unknown): Promise<void>; sceneNote?: { text: string; bad: boolean; warn?: boolean } | null };
+      await el.runScene(it);
+      return el.sceneNote ?? null;
+    }, scene({ sensitive: false, targets: [] }));
+    expect(note).toMatchObject({ bad: false, warn: true });
+  });
+
+  test('the launcher: a failure before the run request is "not run" (refused); a lost run answer is "unknown"', async ({ page }) => {
+    await setup(page, (s) => (s.method === 'GET' && s.path.startsWith('automations?') ? { body: { items: [scene({ sensitive: false, targets: [] })], total: 1 } } : undefined));
+    await page.route(`${ORIGIN}/app/api/v1/automations/scene/**`, (r) => r.abort('connectionreset'));
+    const out = await page.evaluate(async () => {
+      const T = (window as unknown as { T: { runLaunch: (i: unknown, ask?: unknown) => Promise<unknown>; physicalOutcome: (e: unknown) => string } }).T;
+      const kind = (p: Promise<unknown>) => p.then(() => 'ok', (e) => T.physicalOutcome(e));
+      return [await kind(T.runLaunch({ kind: 'scene', id: 'scene.missing', label: '' })), await kind(T.runLaunch({ kind: 'scene', id: 'scene.leave', label: '' }))];
+    });
+    expect(out).toEqual(['refused', 'unknown']);
+  });
+
+  test('saving a scene the server calls sensitive: asked, then sent once more with confirm: true', async ({ page }) => {
+    const sent = await setup(page, (s) => {
+      if (s.method === 'POST' && s.path === 'automations/scene') return (s.body as { confirm?: boolean }).confirm ? { status: 201, body: { id: 'n1', revision: 'r1' } } : fail('confirmation_required', 'פעולה זו דורשת אישור מפורש.', 409);
+      return { body: { items: [], total: 0 } };
+    });
+    const done = page.evaluate(async () => {
+      const el = document.createElement('scenes-panel') as HTMLElement & { onSave(e: CustomEvent): Promise<void> };
+      document.body.append(el);
+      await el.onSave(new CustomEvent('save', { detail: { name: 'יציאה', members: [{ entity_id: 'lock.front', state: 'locked', attributes: {} }] } }));
+    });
+    await expect(confirmBox(page)).toHaveCount(1);
+    await confirmBox(page).locator('[data-confirm-ok]').click();
+    await done;
+    const creates = sent.filter((s) => s.method === 'POST' && s.path === 'automations/scene').map((s) => (s.body as { confirm?: boolean }).confirm ?? null);
+    expect(creates).toEqual([null, true]);
+  });
 });
 
 // ------------------------------------------------------------------------------------------------ FE2-02 / FE2-05: the wall photos dialog

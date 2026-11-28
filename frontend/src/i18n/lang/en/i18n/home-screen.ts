@@ -97,6 +97,7 @@ export const en = {
   qcEmpty: 'No devices to control in this area',
   qcLoadFailed: 'The area could not be loaded',
   qcSceneSent: 'Request sent',
+  qcSceneUnknown: 'Not known whether the scene ran · check on site',
   qcGrab: 'Drag: expand or close',
   // AREAEDIT-2290: editing the area pop-up (hide + order; managers only)
   qcEdit: 'Edit',
