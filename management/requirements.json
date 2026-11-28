@@ -15383,5 +15383,21 @@
     "test_ids": [
       "AT-FIX-HOME-MAPS-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-CORE-DATA-2570-1",
+    "title": "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane",
+    "statement": "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane; merged into the 2.57.0 train, change note docs/changes/FIX-CORE-DATA-2570.md.",
+    "task_ids": [
+      "FIX-CORE-DATA-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-CORE-DATA-2570-1"
+    ]
   }
 ]

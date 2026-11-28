@@ -23726,5 +23726,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-CORE-DATA-2570-1",
+    "requirement_ids": [
+      "R-FIX-CORE-DATA-2570-1"
+    ],
+    "task_ids": [
+      "FIX-CORE-DATA-2570"
+    ],
+    "title": "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane; merged into the 2.57.0 train, change note docs/changes/FIX-CORE-DATA-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

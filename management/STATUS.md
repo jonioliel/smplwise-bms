@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-28T19:18:12.184401+00:00
+Generated: 2026-11-28T19:30:42.616366+00:00
 
-Tasks: 783 | Requirements: 897 | Tests: 914 | Screens: 32
+Tasks: 784 | Requirements: 898 | Tests: 915 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 8
-- REVIEW: 220
+- REVIEW: 221
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 688
+- V1: 689
 - V2: 29
 - V3: 3
 
@@ -838,3 +838,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-COMMS-2570](tasks/FIX-COMMS-2570.md) | V1 | REVIEW | Deep review fixes CU-01..CU-04: generator mute delays events, no late tell for acked alerts, 24 V latch reset, far calendar series check fails closed | — |
 | [FIX-FE-2570](tasks/FIX-FE-2570.md) | V1 | REVIEW | Deep review fixes FE-02, FE-05 (+ FE2-17 guard): home admin switches controlled, route segments decoded with decodeSegment | — |
 | [FIX-HOME-MAPS-2570](tasks/FIX-HOME-MAPS-2570.md) | V1 | REVIEW | Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off | — |
+| [FIX-CORE-DATA-2570](tasks/FIX-CORE-DATA-2570.md) | V1 | REVIEW | Deep review fixes CD-05, CD-02 (second path), health-report feed counters, TR-08 (part): legacy archive walk budget, connect snapshot behind queued frames, nightly coverage lane | — |
