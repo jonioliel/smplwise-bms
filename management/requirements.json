@@ -15495,5 +15495,21 @@
     "test_ids": [
       "AT-FIX-CORE2-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-MAPS2-2570-1",
+    "title": "Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager",
+    "statement": "Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager; merged into the 2.57.0 train, change note docs/changes/FIX-MAPS2-2570.md.",
+    "task_ids": [
+      "FIX-MAPS2-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-MAPS2-2570-1"
+    ]
   }
 ]

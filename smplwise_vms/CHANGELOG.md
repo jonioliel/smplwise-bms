@@ -2,7 +2,7 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570), not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
@@ -20,6 +20,12 @@
 - Home A/C: the newest temperature tap wins, and no temperature is sent after a failed turn-on.
 - Locks: a jammed or moving lock never reads as open ("jammed" in a warning tone, "locking..." / "unlocking..."); the area counts put it with the unknown locks.
 - Floor map: turning off a room while another room's turn-off is still running now says so on the room card (nothing is sent).
+- Floor plan wizard: rooms are kept as soon as they are accepted; a failed tag names the rooms left untagged and saving again replaces them without duplicates; a room is linked only to an area of its own building.
+- Turning off the whole site: the dialog follows every building already sent when a later building fails, and says where it was sent and where nothing was sent; only-sent devices never read "done".
+- Plan editor: a pin moved during a save keeps its unsaved mark; the button and Ctrl+S share one save.
+- Wall panel profiles: saving over a newer version is refused ("changed meanwhile") instead of overwriting it.
+- Home screen in English: pager numbers and arrows follow the language; "Used today" fits a 360 px phone.
+- Home screen scenes: the scene buttons use the same confirmation rule as the scenes panel, say "request sent" after a run, and show "not known whether the scene ran - check on site" in amber when the answer was lost.
 - Import from the old NVR add-on: an archive that unpacks to far more than its size is stopped after 512 MB of unpacking and refused with its own message, instead of keeping the server busy for minutes.
 - Home Assistant feed: at a reconnect while the previous connection's updates are still being stored, the fresh listing is stored after them, so an older update no longer overwrites a newer state; entities Home Assistant does not register are no longer removed after a re-read.
 - Scenes and scripts: a scene that touches doors, locks or unknown devices asks before it runs from the scenes panel, the home launcher and the area quick sheet (also when the server asks for it), and one that does may now be saved; when no answer comes back the result reads amber "not known whether it ran - check on site" instead of "did not run", and a run says "request sent".
@@ -53,6 +59,7 @@
 - Alarm arm / disarm / bypass: an `expires_at` more than 5 minutes ahead is 422 `expires_too_far` (was `validation`; `details.fields` kept).
 - Scenes (`POST /automations/scene/{id}/apply`, and `scene.turn_on` on `POST /ha/entities/{id}/actions`): sensitive members now give 403 `grant_required` (`details.grant`, `entity_id`, `path: "members"`), 409 `confirmation_required` (send `confirm: true`), 403 `step_up_required`, or 403 `forbidden` with `details.reason = "scene_members_unknown"`; `sensitive_classes` lists every class.
 - Automation run ops (trigger, run script, apply scene): a lost answer is 504 `config_timeout` with `details.outcome = "unknown"`, `retryable: false`.
+- `GET /ha/entities?area_buildings=true` adds `building_id` to each listed area (additive); `PATCH /wall/profiles/{id}` takes an optional `version` (409 `stale_version` when it differs); `GET /skins/status` needs `system.configure` (403 otherwise).
 
 ## 2.56.0 (pilot) - a steadier Home Assistant feed, accessibility follow-ups, visit filters
 

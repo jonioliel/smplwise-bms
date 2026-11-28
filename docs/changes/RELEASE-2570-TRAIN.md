@@ -23,6 +23,7 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 9 | `pilot/FIX-AUTOMATION-2570` | `0a95b58dd` | `a6f7d290d` | none (`routers/ha.py`, `error_text_en.json` auto-merged; JSON valid) | backend only; contract check with FIX-FE2-2570: section 2.1 |
 | 10 | `pilot/FIX-WISKEY2-2570` | `9e5eb8f97` | `24cf3d2e9` | none | backend only: emergency release by the releaser, managed install restart, write lineage |
 | 11 | `pilot/FIX-CORE2-2570` | `4bee4fbbf` | `077b7b87e` | none (`Dockerfile` auto-merged: the 2.57.0 label and the multi-arch default both present) | e-mail, monthly reports, access digest DST, legacy aliases, multi-arch `BUILD_FROM` default + `release_check.py` base-image rule, 0215 comment-only rollback note |
+| 12 | `pilot/FIX-MAPS2-2570` | `f65f94aa5` | `3875ea848` | none (auto-merged: `routers/ha.py`, `wire/ha.py`, generated `wire-ha.ts`, `api/ha.ts`, `home/home-recordings.ts` (FE-05 `decodeSegment` and MH2-08 `flip` both kept), en `msg/screens.ts`, `error_text_en.json`); `gen_wire_types --check` 0 on the PC after the merge | MH2-01..MH2-09; based on FIX-HOME-MAPS-2570 |
 | - | train fixes | - | `d8cf27b59`, next commit | - | section 2 |
 | - | version bump / draft changelog / API inventory | - | `83927b8d2` | - | 2.57.0 in `config.yaml`, `Dockerfile` label, `smplwise/__init__.py`; CHANGELOG 2.57.0 section on top, DRAFT in an HTML comment (heading clean, as on the earlier trains), English with a Hebrew summary placeholder (the lead writes the bilingual text); `contracts/API_INVENTORY.md` version line |
 | - | registry | - | `d832d0166` | - | section 4 |
@@ -40,9 +41,17 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
   לפתוח דלתות ולנטרל את האזעקה בכל ההתקנה." / "It is not known which devices this scene sets (its definition cannot be read). Running it
   needs the permissions to control devices, open doors and disarm the alarm in the whole installation." `unknown_scene_reasons` uses
   it; `test_vd2_01_...` asserts it (one added line).
-- PENDING (lead, 28.11; after FIX-MAPS2-2570 is merged): the simple home screen's scene buttons (`home/home-actions.ts`) move to
-  FIX-FE2-2570's `api/run-confirm.ts` and the unknown-outcome classification (a lost answer = amber unknown, not a failure; after a run
-  "request sent", not "scene ... ran"), with a unit test.
+- Home screen scene buttons (lead, 28.11; after FIX-MAPS2-2570): new pure helper `home/home-scene-run.ts runHomeScene` = FIX-FE2-2570's
+  `api/run-confirm.ts runConfirmed` + `api/physical-outcome.ts` (a lost answer - no answer, 504 `config_timeout` with
+  `details.outcome = unknown`, a 5xx - is `unknown`, never "did not run", never re-sent; a refusal carries the server's sentence).
+  `home-actions.ts applyScene(s, ask)` uses it (it used to send `confirm` only for a scene the list marked sensitive, with no answer to a
+  409); `HScene.unknownEffects` (from the list's `unknown_effects`) is asked about first like `sensitive`. `sw-home.ts a_scene`: the home's
+  own question overlay is the `ask` (asked before the press for a sensitive / unknown-effects scene; for a 409 `confirmation_required` the
+  overlay opens and "close" answers no - the `ask` overlay gained an optional `no`); after a run the toast says "הבקשה להפעלת {name}
+  נשלחה" (was "סצנת {name} הופעלה"; the English entry replaced), an unknown outcome an amber toast "לא ידוע אם הסצנה הופעלה · בדקו
+  במקום" (`toast(text, undo, 'warn')` -> `.toast2[data-tone="warn"]`, an em outline of the home's warning colour; no px literal). The
+  resting look is unchanged (no baseline refresh). Test: `frontend/tests/unit-release-2570-home-scene.spec.ts` (node: ask / 409 /
+  unknown / refusal paths, one send each, and the wiring in the two files).
 
 ### 2.1 The scene / script contract, FIX-AUTOMATION-2570 (server) against FIX-FE2-2570 (client), read on the merged train
 
@@ -54,7 +63,7 @@ pushed head of each branch was fetched and taken (all equal to the heads the lea
 | 403 `forbidden`, `details.reason = scene_members_unknown` | red refusal with the server's `user_message` - now its own sentence (train fix above), Hebrew / English by the request language |
 | 504 `config_timeout`, `details.outcome = unknown` | `physicalOutcome` -> `unknown` (the structured outcome wins): amber "לא ידוע אם הסצנה הופעלה · בדקו במקום" (scenes), `.l-note.warn` (launcher), `qcSceneUnknown` (quick sheet); `runConfirmed` never re-sends it |
 
-Open: the simple home screen's own scene buttons (`home/home-actions.ts`) - the pending train fix above.
+The simple home screen's own scene buttons follow the same rule since the train fix in section 2.
 
 ## 3. Checks
 
@@ -98,6 +107,6 @@ regenerated views committed.
 
 ## 6. Open points
 
-1. More fix rows from the lead (FIX-MAPS2, FIX-GATE, FIX-VIDEO2, FIX-AUTOMATION2, maybe the review-2 rows); each adds CHANGELOG lines and a registry entry.
+1. More fix rows from the lead (FIX-GATE, FIX-VIDEO2, FIX-AUTOMATION2, maybe the review-2 rows); each adds CHANGELOG lines and a registry entry.
 2. UI rebuild (`npm run build:addon` on the runner) only after the lead's "all rows in", then the gate (the lead's).
 3. RELEASE-2560-TRAIN is still IN_PROGRESS in the registry although 2.56.0 is released; left to the lead.

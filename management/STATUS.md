@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-28T19:51:43.572102+00:00
+Generated: 2026-11-28T19:57:25.174919+00:00
 
-Tasks: 790 | Requirements: 904 | Tests: 921 | Screens: 32
+Tasks: 791 | Requirements: 905 | Tests: 922 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 8
-- REVIEW: 227
+- REVIEW: 228
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 695
+- V1: 696
 - V2: 29
 - V3: 3
 
@@ -845,3 +845,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-AUTOMATION-2570](tasks/FIX-AUTOMATION-2570.md) | V1 | REVIEW | Second deep review automation / scene / schedule fixes CD2-02, CD2-04, CD2-05, CD2-07, CD2-11, CD2-16, CD2-19, VD2-01, VD2-03: scene members judged as their manual action, unknown run outcome keeps the gap | — |
 | [FIX-WISKEY2-2570](tasks/FIX-WISKEY2-2570.md) | V1 | REVIEW | Second deep review WisKey fixes WA2-01..WA2-06: emergency release by the releaser, managed install never leaves Core stopped, write lineage recovery and stuck intents | — |
 | [FIX-CORE2-2570](tasks/FIX-CORE2-2570.md) | V1 | REVIEW | Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes | — |
+| [FIX-MAPS2-2570](tasks/FIX-MAPS2-2570.md) | V1 | REVIEW | Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager | — |

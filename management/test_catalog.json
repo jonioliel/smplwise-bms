@@ -23901,5 +23901,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-FIX-MAPS2-2570-1",
+    "requirement_ids": [
+      "R-FIX-MAPS2-2570-1"
+    ],
+    "task_ids": [
+      "FIX-MAPS2-2570"
+    ],
+    "title": "Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager; merged into the 2.57.0 train, change note docs/changes/FIX-MAPS2-2570.md.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-28 (RELEASE-2570-TRAIN); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
