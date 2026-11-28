@@ -93,6 +93,23 @@ def test_cd05_every_decompressed_byte_is_counted_including_backward_seeks():
     assert budget.read < 1024 * 1024, "the kept bytes stay what they were"
 
 
+def test_cd05_the_api_says_why_an_over_large_archive_is_refused(client, monkeypatch):
+    """The dry run answers its own code and an exact message (Hebrew + English table) - before, the generic "not a file of the old
+    system" hid that the file was readable but unpacked past the cap."""
+    from smplwise.error_text import english
+
+    client.get("/api/v1/me")
+    monkeypatch.setattr(ls, "MAX_UNPACKED_WALK", 4 * 1024 * 1024)
+    r = client.post("/api/v1/migration/legacy/dry-run", content=_backup_with_skipped_bulk(outer_gz=True))
+    assert r.status_code == 422, r.text
+    body = r.json()
+    assert body["code"] == "legacy_source_too_large_unpacked" and body["details"]["reason"] == "too_large_unpacked"
+    assert "נפרס לנפח גדול מדי" in body["user_message"]
+    assert english(body["user_message"]) == "The file unpacks to more than can be read. Upload the old system's own files or an export of them."
+    r = client.post("/api/v1/migration/legacy/dry-run", content=b"plain text")
+    assert r.status_code == 422 and r.json()["code"] == "legacy_source_invalid", "other refusals keep their answer"
+
+
 # ---------------------------------------------------------------- CD-02, second path
 
 def _seed(app, entity_id: str, state: str, at: str, seen: str | None = None) -> None:
