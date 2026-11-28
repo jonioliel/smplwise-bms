@@ -96,3 +96,56 @@ guard('security and integration cards', {
   'screens/wa-installed-card.ts': 1,
   'components/media-ma-connection.ts': 1,
 });
+
+guard('home administration', {
+  // FIX-FE-2570 (deep review 2.56 FE-02, 2.57 FE2-17): visitor invitations, wall rest, wall night, and per person: may switch, home only,
+  // wall panel mode, guests (the behaviour test is fix-fe-2570.spec.ts: a refused save leaves each on the server's state)
+  'home/sw-home-admin.ts': 7,
+});
+
+// FIX-FE-2570 (deep review 2.57 FE2-17): the per-file counts above only see the files on the list - sw-home-admin.ts was missing and its
+// seven save-at-once switches stayed uncontrolled while the guard passed. This part finds the switches itself: every sw-toggle in src whose
+// `@change` expression calls a save / put / post / patch / apply function is a save-at-once switch and must be `controlled`.
+// KNOWN_UNCONTROLLED is a ratchet of the ones that matched when the discovery was added (not reviewed one by one here: some save
+// optimistically and put themselves back, as generator/gen-routing.ts does with live() + a reload). A count may only go down; a new file
+// or a higher count fails. A switch whose handler is a named method (`this.toggle(...)`) is not seen - the per-file counts cover those.
+const SAVES_AT_ONCE = /@change=\$\{[\s\S]*?(\bsave\w*\(|\bput\w*\(|\bpost\w*\(|\bpatch\w*\(|\bset\w*Setting|\bapply\w*\()/;
+const KNOWN_UNCONTROLLED: Record<string, number> = {
+  'components/notify-whatsapp-section.ts': 1,
+  'components/sw-offbox-backup.ts': 1,
+  'door-windows/event-rules.ts': 2,
+  'generator/gen-routing.ts': 2,
+  'screens/automation-ext-forms.ts': 1,
+  'screens/devices-layout.ts': 2,
+  'screens/multimedia-remote-editor.ts': 1,
+  'screens/plan-studio-panel.ts': 1,
+  'screens/system-call-banner.ts': 1,
+  'screens/system-calendars.ts': 3,
+  'screens/system-notifications.ts': 1,
+  'screens/system-presence.ts': 3,
+  'screens/system-schedules.ts': 1,
+  'screens/wiskey-person-editor.ts': 1,
+  'temperature/wizard.ts': 2,
+};
+
+function sourceFiles(dir: string, rel = ''): string[] {
+  const out: string[] = [];
+  for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...sourceFiles(dir, r));
+    else if (e.name.endsWith('.ts')) out.push(r);
+  }
+  return out;
+}
+
+test('FE2-17: a switch that saves at once is controlled wherever it is (found, not listed)', () => {
+  const found: Record<string, number> = {};
+  for (const file of sourceFiles(SRC)) {
+    if (!fs.readFileSync(path.join(SRC, file), 'utf8').includes('<sw-toggle')) continue;
+    const n = toggleTags(file).filter((t) => !/^<sw-toggle\s+controlled\b/.test(t) && SAVES_AT_ONCE.test(t)).length;
+    if (n) found[file] = n;
+  }
+  expect(found['home/sw-home-admin.ts'] ?? 0, 'home/sw-home-admin.ts (FE-02)').toBe(0);
+  const over = Object.entries(found).filter(([f, n]) => n > (KNOWN_UNCONTROLLED[f] ?? 0)).map(([f, n]) => `${f}: ${n} (known ${KNOWN_UNCONTROLLED[f] ?? 0})`);
+  expect(over, 'a save-at-once sw-toggle without `controlled`').toEqual([]);
+});

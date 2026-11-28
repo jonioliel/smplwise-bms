@@ -11,7 +11,13 @@ const state = (sw: ReturnType<Page['locator']>) => sw.locator('button[role="swit
 
 async function admin(page: Page) {
   await mockHome(page, { perms: ['devices.read', 'rbac.assign', 'system.configure', 'identity.directory.read'], policy: { interface: 'full', default_interface: 'full', admin: true } });
-  const users = [{ user_id: 'dev-noa', username: 'noa', display_name: 'נועה לביא', source: 'ingress', system_admin: true, default_interface: 'full', may_switch: true, home_only: false, kiosk: false, kiosk_area_id: null, rooms: null, modules: ['lights', 'doors'], configured: true, admin: true, guests: false, can_invite: false }];
+  // the signed-in person (dev-noa, tests/home-simple-mocks.ts) is a system administrator - she may change the visitor switch; the person
+  // shown first (dev-dan) is not, so his per-person switches are enabled (a system administrator's "home only" is locked)
+  const row = { source: 'ingress', default_interface: 'full', may_switch: true, home_only: false, kiosk: false, kiosk_area_id: null, rooms: null, modules: ['lights', 'doors'], configured: true, guests: false, can_invite: false };
+  const users = [
+    { ...row, user_id: 'dev-dan', username: 'dan', display_name: 'דן כהן', system_admin: false, admin: false },
+    { ...row, user_id: 'dev-noa', username: 'noa', display_name: 'נועה לביא', system_admin: true, admin: true },
+  ];
   const sent: { path: string; body: unknown }[] = [];
   const settings = { default_mode: 'full_all', kiosk_exit: 'code', wallpaper: 'none', wall_rest: 'off', wall_rest_after: '2', wall_night: 'off', wall_night_start: '23:00', wall_night_end: '06:00', wall_night_dim: 'medium', wall_takeover: 'alarm_urgent' };
   await page.route('**/api/v1/home/policies', (r) => ok(r, { users, modules: ['lights', 'doors'], seed: {}, kiosk_code_set: false }));
@@ -31,7 +37,7 @@ async function admin(page: Page) {
   await page.route('**/api/v1/sites?tree=true', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
   await page.goto('/#/system/access?tab=home');
   const el = page.locator('sw-home-admin');
-  await expect(el.locator('[data-home-detail] h3')).toHaveText('נועה לביא', { timeout: 30_000 });
+  await expect(el.locator('[data-home-detail] h3')).toHaveText('דן כהן', { timeout: 30_000 });
   return { el, sent };
 }
 

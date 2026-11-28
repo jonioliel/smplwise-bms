@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { parseAutomationsRoute } from '../src/screens/automations-logic';
 
-// FIX-FE-2570 (deep review 2.56, FE-05 and FE-02). Node only, no page:
+// FIX-FE-2570 (deep review 2.56, FE-05). Node only, no page:
 //   npx playwright test -c playwright.unit.config.ts tests/unit-fix-fe-2570.spec.ts
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 
@@ -28,10 +28,5 @@ test.describe('FE-05 route segments outside the shell', () => {
   }
 });
 
-// FE-02: every switch of the home administration page saves at once, so every one is controlled (the page test is
-// tests/fix-fe-2570.spec.ts: a refused save leaves the switch on the server's state).
-test('FE-02: every sw-toggle on the home administration page is controlled', () => {
-  const toggles = src('home/sw-home-admin.ts').match(/<sw-toggle\b[^>]*>/g) ?? [];
-  expect(toggles.length).toBeGreaterThanOrEqual(7);
-  for (const t of toggles) expect(t, t.slice(0, 80)).toMatch(/<sw-toggle controlled\b/);
-});
+// FE-02 is covered by the page behaviour test tests/fix-fe-2570.spec.ts (a refused save leaves each switch on the server's state) and by
+// the structural guard in tests/unit-controlled-toggles-2540.spec.ts (FE2-17).
