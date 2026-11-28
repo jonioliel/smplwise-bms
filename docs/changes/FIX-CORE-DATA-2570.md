@@ -44,6 +44,11 @@ Base: origin/release/2570-train (v2.56.0, 6ea807b2e). Each finding was confirmed
   Install step (not done by this row): the runner's installed copy `~/nightly_tests.sh` must be refreshed from the repo.
   Still open of TR-08: a real-HA run and an aarch64 build.
 
+- **CD-05, the API answer** `routers/legacy_migration.py` (lead 28.11, open question 2 = a): a readable archive that unpacks past the
+  reader's caps (`too_large_unpacked`) is answered 422 `legacy_source_too_large_unpacked` with its own exact message ("the file
+  unpacks to more than can be read"; Hebrew in the router, English in `smplwise/error_text_en.json`); `details.reason` is kept.
+  Every other refusal keeps its answer.
+
 ## Tests
 
 New: `smplwise_vms/backend/tests/test_fix_core_data_2570.py` (CD-05, CD-02 second path, the seen stamp, the health counters),
@@ -73,3 +78,6 @@ the CD-02 second path on the runner with a scratch test (a door contact listed `
   (not in the repository). Pixel baselines: not affected (no visual-matrix mock carries the new `meta` keys).
 - NOT_RUN: the full backend suite, the full Playwright suite, the nightly itself with the coverage lane (the runner's installed
   `~/nightly_tests.sh` must be refreshed from the repo first; not done by this row).
+- The API answer (CD-05): `test_cd05_the_api_says_why_an_over_large_archive_is_refused` BEFORE (router and English table as at the
+  base): 1 failed (`'legacy_source_invalid' == 'legacy_source_too_large_unpacked'`); AFTER: test_fix_core_data_2570.py +
+  test_legacy_import_2550.py + test_i18n_errors_en_2520.py 41 passed; ruff clean.
