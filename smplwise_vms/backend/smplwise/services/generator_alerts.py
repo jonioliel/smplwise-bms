@@ -350,6 +350,8 @@ def _emit(conn: sqlite3.Connection, signal: notify.Signal) -> str | None:
 
 def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, snapshot: dict[str, Any], now: str, now_ts: float, template: str | None = None) -> str:
     muted = _muted(conn, dev["id"], t.key, now)
+    if muted and t.event:  # CU-01: an event is closed at once - the marker lets _tell_event_late find it when the mute ends
+        snapshot = {**snapshot, MUTED_MARK: True}
     recent = None if t.event else conn.execute(
         "SELECT id, count FROM generator_alerts WHERE device_id = ? AND alert_key = ? AND cleared_at IS NOT NULL ORDER BY cleared_at DESC LIMIT 1", (dev["id"], t.key)).fetchone()
     if recent is not None:
@@ -376,6 +378,25 @@ def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severit
     return aid
 
 
+MUTED_MARK = "_muted"  # CU-01: snapshot key of an event raised while muted and not yet told
+
+
+def _tell_event_late(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, now: str, template: str | None) -> None:
+    """CU-01: a mute DELAYS an event alert (test failed, mains restored ...) too. Closed event rows raised while the type was muted carry
+    MUTED_MARK; once the mute is over each is told once (the mark is then removed, so a refusing notification centre is not asked again) -
+    unless an operator already acknowledged it (CU-02)."""
+    if _muted(conn, dev["id"], t.key, now):
+        return
+    for row in conn.execute("SELECT * FROM generator_alerts WHERE device_id = ? AND alert_key = ? AND notification_id IS NULL "
+                            "AND json_extract(snapshot_json, '$._muted') = 1", (dev["id"], t.key)).fetchall():
+        conn.execute("UPDATE generator_alerts SET snapshot_json = json_remove(snapshot_json, '$._muted') WHERE id = ?", (row["id"],))
+        if row["acked_at"] is not None:
+            continue
+        nid = _emit(conn, _signal(dev, t, row["severity"], "", row["id"], template=template))
+        if nid:
+            conn.execute("UPDATE generator_alerts SET notification_id = ? WHERE id = ?", (nid, row["id"]))
+
+
 def _tell_late(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, row: sqlite3.Row, detail: str, now: str, template: str | None) -> None:
     """DATA-RULES-2540 (review D-03): a mute DELAYS an alert, it never swallows it. An open alert that has no notification (it was raised
     while its type was muted) is told once the mute is over (expired or removed) and the condition still holds. Tried once per alert and
@@ -387,6 +408,8 @@ def _tell_late(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, row
         return
     with _lock:
         _TOLD_LATE.add(row["id"])
+    if row["acked_at"] is not None:  # CU-02: an operator already handled it - nobody is told about it now
+        return
     nid = _emit(conn, _signal(dev, t, row["severity"], detail, row["id"], template=template))
     if nid:
         conn.execute("UPDATE generator_alerts SET notification_id = ? WHERE id = ?", (nid, row["id"]))
@@ -465,6 +488,8 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
                 if enabled and not offline and EVENT_JUDGES[t.key](ctx):
                     _raise(conn, dev, t, severity, "", ctx.snapshot(), now, now_ts, pol["template_he"] if pol else None)
                     out["raised"] += 1
+                elif enabled:
+                    _tell_event_late(conn, dev, t, now, pol["template_he"] if pol else None)
                 continue
             if t.key != "controller_offline" and offline:
                 continue  # nothing can be judged while the controller does not answer: open rows stay as they are
@@ -498,7 +523,7 @@ def _battery_seen_24(conn: sqlite3.Connection, device_id: str, entry: dict[str, 
         if device_id in _BATTERY_HISTORY_READ:
             return False
         _BATTERY_HISTORY_READ.add(device_id)
-    top = core.battery_history_max(conn, device_id)
+    top = core.battery_history_max(conn, device_id, (entry or {}).get("history_from"))  # CU-03: nothing from before the choice / mapping change
     return top is not None and top > core.BATTERY_SPLIT_V
 
 
@@ -552,7 +577,7 @@ def alert_detail(conn: sqlite3.Connection, alert_id: str) -> dict[str, Any] | No
     names = {x["id"]: x["name"] for x in conn.execute("SELECT id, name FROM generator_devices").fetchall()}
     d = _alert_dict(r, names)
     try:
-        d["snapshot"] = json.loads(r["snapshot_json"] or "{}")
+        d["snapshot"] = {k: v for k, v in json.loads(r["snapshot_json"] or "{}").items() if k != MUTED_MARK}
     except ValueError:
         d["snapshot"] = {}
     timeline: list[dict[str, Any]] = [{"at": r["raised_at"], "kind": "raised"}]

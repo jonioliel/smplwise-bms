@@ -890,6 +890,7 @@
 "הסבב לא נמצא.": "The round was not found.",
 "הסבב עודכן בינתיים.": "The round was updated in the meantime.",
 "הסדרה ארוכה מדי.": "The series is too long.",
+"לא ניתן להשלים את בדיקת ההתנגשויות של הסדרה (היא ארוכה מדי). קצרו את הסדרה או הגבילו אותה.": "The conflict check for this series could not be completed (it is too long). Shorten the series or limit it.",
 "הסוד המבוקש אינו מוכר.": "The requested secret is not recognised.",
 "הסיסמה אינה תקינה (תווי ASCII בלבד).": "The password is not valid (ASCII characters only).",
 "הסיסמה הנוכחית אינה נכונה.": "The current password is incorrect.",
