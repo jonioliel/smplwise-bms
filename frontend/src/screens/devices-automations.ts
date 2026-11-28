@@ -762,15 +762,15 @@ export class DevicesAutomations extends LitElement {
   private onCopied = (e: CustomEvent<{ item: ItemDetail }>) => {
     void this.loadList();
     this.go(itemPath(segmentOfKind(e.detail.item.kind).id, e.detail.item.id));
-    // FIX-AUTOMATION2-2570: the copy of an automation is written switched off; the toast offers to turn it on (the normal enable path)
-    if (offersEnableNow(e.detail.item)) this.say(tr('שוכפל. העותק כבוי עד שתפעילו אותו.'), 'ok', this.enableNowAction(e.detail.item));
-    else this.say(tr('שוכפל'));
+    // FIX-AUTOMATION2-2570: the copy of an automation is written switched off - the toast says so; the drawer (modal, open on the copy)
+    // carries the "turn on now" button (a toast button under a modal drawer cannot be pressed)
+    this.say(offersEnableNow(e.detail.item) ? tr('שוכפל. העותק כבוי עד שתפעילו אותו.') : tr('שוכפל'));
   };
   /** FIX-AUTOMATION2-2570: "turn on now" = the list switch's own path (`toggle`): its confirmation dialog when the server asks for one. */
   private enableNowAction(item: Item): NonNullable<Note['action']> {
     return { label: tr('הפעל עכשיו'), run: () => void this.toggle(item, true) };
   }
-  private onEnableNow = (e: CustomEvent<{ item: Item }>) => void this.toggle(e.detail.item, true);
+
   private onChanged = () => {
     void this.loadList();
     void this.refreshStatus();
@@ -1028,7 +1028,7 @@ export class DevicesAutomations extends LitElement {
     ${this.drawerUsed || drawerOpen
       ? html`<automation-drawer .kind=${drawerKind} .itemId=${r.segment === 'scenes' ? '' : r.id} .open=${drawerOpen} .trash=${r.trash} .view=${r.view} .runId=${r.run} .status=${this.status} .now=${this.now} .action=${this.cardAction}
           @drawer-close=${this.onDrawerClose} @view-change=${this.onViewChange} @edit=${(e: CustomEvent<{ kind: 'automation' | 'script' | 'scene'; id: string }>) => navigate(editPath(e.detail.kind, e.detail.id))}
-          @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @enable-now=${this.onEnableNow} @result=${this.onResult} @action-done=${this.onActionDone}></automation-drawer>`
+          @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult} @action-done=${this.onActionDone}></automation-drawer>`
       : nothing}
     ${this.editorSheet()}
     ${this.dialogs()}

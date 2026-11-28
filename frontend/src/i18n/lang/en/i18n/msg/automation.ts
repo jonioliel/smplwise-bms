@@ -114,6 +114,7 @@ export const en = {
   '"{name}" שוחזר': '"{name}" restored',
   '"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.': '"{name}" restored. It stays off until you turn it on.',
   'הפעל עכשיו': 'Turn on now',
+  '"{name}" כבוי עד שתפעילו אותו.': '"{name}" stays off until you turn it on.',
   '"{name}" נמחק לצמיתות': '"{name}" deleted permanently',
   'שולט בתזמונים': 'Controls schedules',
   'רגישה': 'Sensitive',

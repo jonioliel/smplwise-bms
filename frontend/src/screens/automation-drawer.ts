@@ -10,7 +10,7 @@ import { autoApi } from '../api/automations-demo';
 import { applyAutomationsGlass } from '../styles/glass';
 import { bidi } from '../i18n/bidi';
 import {
-  childLists, controlsSchedules, copyItem, deleteItem, mapAutomationError, readOnlyChip, runAutomation, runNeedsConfirm, runScriptNow, stopScriptNow, walkDraft,
+  childLists, controlsSchedules, copyItem, deleteItem, mapAutomationError, needsConfirmation, readOnlyChip, runAutomation, runNeedsConfirm, runScriptNow, stopScriptNow, toggleAutomation, walkDraft,
   type AnyDraft, type AutomationDraft, type AutomationsStatus, type Block, type DryRunResult, type ItemDetail, type ItemKind, type Mode, type RunSummary, type RunTrace, type ScriptDraft,
   type VersionRow,
 } from '../api/automations';
@@ -60,7 +60,9 @@ export class AutomationDrawer extends LitElement {
   @state() private dry: DryRunResult | null = null;
   @state() private dryBusy = false;
   @state() private busy = false;
-  @state() private confirm: 'run' | 'delete' | 'copy' | 'restore' | null = null;
+  @state() private confirm: 'run' | 'delete' | 'copy' | 'restore' | 'enable' | null = null;
+  /** FIX-AUTOMATION2-2570: the automation this drawer just copied or restored (written switched off): its "turn on now" offer. */
+  @state() private enableOffer: ItemDetail | null = null;
   @state() private copyName = '';
   @state() private restoring: VersionRow | null = null;
   @state() private conflict: ItemDetail | null = null;
@@ -464,7 +466,7 @@ export class AutomationDrawer extends LitElement {
   private say(text: string, tone: 'ok' | 'error' = 'ok', action?: DrawerResult['action']) {
     this.fire<DrawerResult>('result', { text, tone, action });
   }
-  private close = () => this.fire('drawer-close');
+  private close = () => { this.enableOffer = null; this.fire('drawer-close'); };
   private go(view: DrawerView, run = '') {
     this.fire('view-change', { view, run });
   }
@@ -554,6 +556,7 @@ export class AutomationDrawer extends LitElement {
     try {
       const r = await copyItem(it.kind, it.id, name);
       this.confirm = null;
+      this.enableOffer = offersEnableNow(r.item) ? r.item! : null;
       if (r.item) this.fire('copied', { item: r.item });
       else this.say(tr('נשמר'), 'ok');
     } catch (err) {
@@ -591,10 +594,9 @@ export class AutomationDrawer extends LitElement {
     this.busy = true;
     try {
       const r = await autoApi().restoreTrash(t.trash_id, { client_request_id: `restore-${t.trash_id}-${Date.now()}` });
-      // FIX-AUTOMATION2-2570: a restored automation comes back switched off; "turn on now" asks the screen to take the normal enable path
-      const back = r.item;
-      if (back && offersEnableNow(back)) this.say(tr('"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.', { name: t.name }), 'ok', { label: tr('הפעל עכשיו'), run: () => this.fire('enable-now', { item: back }) });
-      else this.say(tr('"{name}" שוחזר', { name: t.name }));
+      // FIX-AUTOMATION2-2570: a restored automation comes back switched off; the drawer offers "turn on now" (the enable path)
+      this.enableOffer = offersEnableNow(r.item) ? r.item! : null;
+      this.say(this.enableOffer ? tr('"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.', { name: t.name }) : tr('"{name}" שוחזר', { name: t.name }));
       this.fire('changed', { id: r.item?.id ?? t.config_id });
       this.trashRows = (this.trashRows ?? []).filter((x) => x.trash_id !== t.trash_id);
     } catch (err) {
@@ -602,6 +604,41 @@ export class AutomationDrawer extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** FIX-AUTOMATION2-2570: "turn on now" for the automation just copied / restored - the list switch's route (`toggleAutomation`) and its
+   *  confirmation: asked first for unknown effects, else when the server answers 409 `confirmation_required`. Never a retry. */
+  private async enableNow(confirmed = false) {
+    const it = this.enableOffer;
+    if (!it || this.busy) return;
+    if (!confirmed && it.unknown_effects) { this.confirm = 'enable'; return; }
+    this.confirm = null;
+    this.busy = true;
+    try {
+      await toggleAutomation(it.id, true, { confirm: confirmed || undefined });
+      this.enableOffer = null;
+      this.say(tr('"{name}" הופעל', { name: it.name }));
+      this.fire('changed', { id: it.id });
+      if (this.item?.id === it.id) void this.load(true);
+    } catch (err) {
+      if (needsConfirmation(err) && !confirmed) this.confirm = 'enable';
+      else this.failed(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private enableOfferBanner(): TemplateResult {
+    const o = this.enableOffer!;
+    return html`<div class="banner info" data-drawer-enable-offer>${aIcon('info')}<div><b>${tr('"{name}" כבוי עד שתפעילו אותו.', { name: o.name })}</b></div><button type="button" class="btn sm" data-drawer-enable-now ?disabled=${this.busy} @click=${() => void this.enableNow()}>${aIcon('play')}${tr('הפעל עכשיו')}</button></div>`;
+  }
+
+  private enableDialog(): TemplateResult | typeof nothing {
+    const o = this.enableOffer;
+    if (this.confirm !== 'enable' || !o) return nothing;
+    const line = confirmLine(o);
+    return html`<sw-dialog open heading=${tr('להפעיל?')} data-dialog="enable" @close=${() => (this.confirm = null)}>
+      <div class="dlgform">${line ? html`<p>${line}</p>` : nothing}<div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirm = null)}>${tr('ביטול')}</button><button type="button" class="btn primary" data-dialog-ok ?disabled=${this.busy} @click=${() => void this.enableNow(true)}>${tr('הפעל')}</button></div></div></sw-dialog>`;
   }
 
   private async purge(t: TrashRow) {
@@ -663,6 +700,7 @@ export class AutomationDrawer extends LitElement {
       out.push(html`<div class=${`banner ${yaml ? 'warn' : 'info'}`} data-drawer-readonly=${ro.code}>${aIcon(yaml ? 'eye' : ro.code === 'delegation_off' ? 'lock' : 'eye')}<div><b>${yaml ? tr('מוגדרת בקובץ תצורה') : ro.text}</b>${yaml ? html`<small>${tr('לצפייה בלבד. עריכה: בתשתית המערכת.')}</small>` : nothing}</div></div>`);
     }
     if (it.state === 'invalid') out.push(html`<div class="banner bad" data-drawer-invalid>${aIcon('warning')}<div><b>${tr('לא פעילה – שגיאה בהגדרה')}</b>${it.warnings.find((w) => w.code === 'invalid_config')?.message ? html`<small>${it.warnings.find((w) => w.code === 'invalid_config')!.message}</small>` : nothing}</div></div>`);
+    if (this.enableOffer?.id === it.id && offersEnableNow(it)) out.push(this.enableOfferBanner());
     if (it.warnings.some((w) => w.code === 'changed_outside')) out.push(html`<div class="banner info" data-drawer-outside>${aIcon('history')}<div><b>${tr('שונתה מחוץ למערכת')}</b></div><button type="button" class="btn sm" @click=${() => this.go('versions')}>${tr('גרסאות')}</button></div>`);
     return html`${out}`;
   }
@@ -769,7 +807,7 @@ export class AutomationDrawer extends LitElement {
 
   private dialogs(it: ItemDetail | null): TemplateResult | typeof nothing {
     const c = this.confirm;
-    if (!c || !it) return nothing;
+    if (!c || !it || c === 'enable') return nothing;
     if (c === 'run') {
       const line = confirmLine(it);
       return html`<sw-dialog open heading=${it.kind === 'script' ? tr('להפעיל עכשיו?') : tr('להריץ עכשיו?')} data-dialog="run" @close=${() => (this.confirm = null)}>
@@ -789,7 +827,7 @@ export class AutomationDrawer extends LitElement {
 
   render() {
     if (this.trash) {
-      return html`<sw-drawer modal .open=${this.open} heading=${tr('סל המחזור')} @close=${this.close}>${this.trashView()}<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>${tr('סגירה')}</button></div></sw-drawer>`;
+      return html`<sw-drawer modal .open=${this.open} heading=${tr('סל המחזור')} @close=${this.close}>${this.enableOffer ? html`<div class="stack">${this.enableOfferBanner()}${this.trashView()}</div>` : this.trashView()}${this.enableDialog()}<div class="foot2" slot="footer"><button type="button" class="btn" @click=${this.close}>${tr('סגירה')}</button></div></sw-drawer>`;
     }
     const it = this.item;
     const sub = this.view;
@@ -801,6 +839,7 @@ export class AutomationDrawer extends LitElement {
       ${stateBlock ?? (it ? (sub === 'trace' ? this.traceView(it) : sub === 'versions' ? this.versionsView(it) : sub === 'dryrun' ? this.dryView() : this.detail(it)) : nothing)}
       ${it && !stateBlock ? this.footer(it) : nothing}
       ${this.dialogs(it)}
+      ${this.enableDialog()}
     </sw-drawer>`;
   }
 }

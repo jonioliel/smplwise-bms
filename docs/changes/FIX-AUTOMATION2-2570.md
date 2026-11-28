@@ -66,14 +66,18 @@ refusal names the grant. The schedules' "run now" of a script (`schedule_view.it
 ## 3. Frontend: "turn on now" after a copy / restore
 
 - `automations-logic.offersEnableNow(item)`: an automation in state `off` that the caller may toggle.
-- `devices-automations.ts`: after a copy (`onCopied`) and after the delete toast's undo (`undoDelete`) the toast says the item is off
-  and offers **"הפעל עכשיו" / "Turn on now"**, which runs the list switch's own `toggle(item, true)` - its confirmation dialog
-  ("להפעיל?") when the item asks for one or the server answers 409. `automation-drawer.ts`: the trash view's restore offers the same
-  through an `enable-now` event the screen handles with the same `toggle`.
+- After a copy (drawer, open on the copy) and after a restore from the trash (drawer, trash view): a banner in the drawer
+  "<name> כבוי עד שתפעילו אותו." with **"הפעל עכשיו" / "Turn on now"** (`automation-drawer.enableNow`): the list switch's route
+  (`toggleAutomation`) - its own "להפעיל?" dialog first for an item with unknown effects, or when the server answers 409
+  `confirmation_required`, then `confirm: true`; never a retry. The toast says the item is off. (A first version put the button in the
+  toast: under the modal drawer it cannot be pressed - the page test caught it.)
+- After the delete toast's undo (the drawer is closed then): the toast offers the same button, which runs the list switch's own
+  `toggle(item, true)` with its dialog.
 - Texts (he + en; the module has no ar / ru): `שוכפל. העותק כבוי עד שתפעילו אותו.`, `"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.`,
-  `הפעל עכשיו`.
+  `"{name}" כבוי עד שתפעילו אותו.`, `הפעל עכשיו`.
 - The demo store (`api/automations-mock.ts`) writes a copied / restored automation disabled, as the server does.
-- No new style (the toast's existing action button). Compare page: private/planning/fix_automation2_2570_compare_2026-11-28.html.
+- Styles: the existing `.banner info` and `.btn sm` (no new token or CSS). Compare page:
+  private/planning/fix_automation2_2570_compare_2026-11-28.html.
 
 ## Tests
 

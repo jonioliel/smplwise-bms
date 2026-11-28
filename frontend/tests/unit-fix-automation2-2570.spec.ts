@@ -6,8 +6,9 @@ import { offersEnableNow } from '../src/screens/automations-logic';
 import { en as devicesEn } from '../src/i18n/lang/en/i18n/msg/devices';
 import { en as automationEn } from '../src/i18n/lang/en/i18n/msg/automation';
 
-// FIX-AUTOMATION2-2570: a copied or restored automation comes back switched off (the server's CD2-04 rule); the toast offers "turn on now",
-// which takes the list switch's own enable path (its confirmation dialog when the server asks for one) - never a direct enable call.
+// FIX-AUTOMATION2-2570: a copied or restored automation comes back switched off (the server's CD2-04 rule). "Turn on now" takes the enable
+// route of the list switch (`toggleAutomation`) with its confirmation dialog when the item / the server asks for one: in the drawer after a copy
+// or a trash restore (the drawer is modal, a toast button under it cannot be pressed), in the toast after the delete toast's undo.
 // Node only (playwright.unit.config.ts).
 
 const can = (toggle: boolean) => ({ edit: true, code_view: false, toggle, run: true, delete: true, copy: true });
@@ -39,17 +40,19 @@ test('the demo store copies and restores an automation switched off, as the serv
   expect(on.item.state).toBe('on');
 });
 
-test('the screen and the drawer offer it through the normal enable path, with the text in Hebrew and English', () => {
+test('the screen and the drawer offer it through the enable path, with the text in Hebrew and English', () => {
   const screen = readFileSync(fileURLToPath(new URL('../src/screens/devices-automations.ts', import.meta.url)), 'utf8');
   const drawer = readFileSync(fileURLToPath(new URL('../src/screens/automation-drawer.ts', import.meta.url)), 'utf8');
-  // "turn on now" runs the list switch's toggle (its confirmation dialog), never toggleAutomation / setEnabled directly
+  // the screen (the delete toast's undo; the drawer is closed then): the list switch's own toggle, with its confirmation dialog
   expect(screen).toMatch(/enableNowAction\(item: Item\)[^]*?run: \(\) => void this\.toggle\(item, true\)/);
-  expect(screen).toMatch(/onEnableNow = \(e: CustomEvent<\{ item: Item \}>\) => void this\.toggle\(e\.detail\.item, true\)/);
-  expect(screen).toContain('@enable-now=${this.onEnableNow}');
+  expect(screen).toMatch(/undoDelete[^]*?offersEnableNow\(r\.item\)[^]*?this\.enableNowAction\(r\.item!\)/);
   expect(screen).toMatch(/onCopied[^]*?offersEnableNow\(e\.detail\.item\)/);
-  expect(screen).toMatch(/undoDelete[^]*?offersEnableNow\(r\.item\)/);
-  expect(drawer).toMatch(/restoreFromTrash[^]*?offersEnableNow\(back\)[^]*?this\.fire\('enable-now', \{ item: back \}\)/);
-  expect(drawer).not.toMatch(/restoreFromTrash[^]*?setEnabled[^]*?private async purge/);
+  // the drawer (copy, trash restore): the offer, then toggleAutomation with `confirm` only after its own dialog (unknown effects or a 409)
+  expect(drawer).toMatch(/doCopy[^]*?this\.enableOffer = offersEnableNow\(r\.item\)/);
+  expect(drawer).toMatch(/restoreFromTrash[^]*?this\.enableOffer = offersEnableNow\(r\.item\)/);
+  expect(drawer).toMatch(/enableNow\(confirmed = false\)[^]*?it\.unknown_effects\) \{ this\.confirm = 'enable'[^]*?toggleAutomation\(it\.id, true, \{ confirm: confirmed \|\| undefined \}\)[^]*?needsConfirmation\(err\) && !confirmed\) this\.confirm = 'enable'/);
+  expect(drawer).toContain('@click=${() => void this.enableNow(true)}');
+  expect(automationEn['"{name}" כבוי עד שתפעילו אותו.']).toBe('"{name}" stays off until you turn it on.');
   for (const he of ['הפעל עכשיו', '"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.']) {
     expect(devicesEn[he as keyof typeof devicesEn]).toBeTruthy();
     expect(automationEn[he as keyof typeof automationEn]).toBeTruthy();

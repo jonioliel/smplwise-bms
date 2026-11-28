@@ -4,8 +4,8 @@ import path from 'node:path';
 import { appReady } from './helpers/app-ready';
 import { settle } from './helpers/settle';
 
-// FIX-AUTOMATION2-2570: after copying an automation (now written switched off, CD2-04) the toast offers "turn on now", which takes the list
-// switch's own enable path. Demo mode (api/automations-mock.ts), installer, 1440 and 390, light and dark. Pictures for the compare page go to
+// FIX-AUTOMATION2-2570: after copying an automation (now written switched off, CD2-04) the toast says so and the drawer, open on the copy,
+// offers "turn on now", which takes the list switch's enable route (and its confirmation when asked). Demo mode (api/automations-mock.ts), installer, 1440 and 390, light and dark. Pictures for the compare page go to
 // FA2_SHOTS (default: test-results/fa2-2570); the desktop project only.
 //   SW_BASE_URL=http://127.0.0.1:4711/ npx playwright test tests/evidence-fix-automation2-2570.spec.ts --project=desktop --workers=1
 
@@ -31,7 +31,7 @@ async function open(page: Page, hash: string, size: keyof typeof SIZES, scheme: 
   await appReady(page);
 }
 
-async function copyHall(page: Page) {
+async function copyHall(page: Page) { // the copy of the item the drawer shows
   const d = drawer(page);
   await d.locator('[data-drawer-copy]').click();
   await d.locator('[data-dialog="copy"] [data-dialog-ok]').click();
@@ -48,9 +48,10 @@ test.describe('copy of an automation: "turn on now"', () => {
         await settle(page);
         fs.mkdirSync(OUT, { recursive: true });
         await page.screenshot({ path: path.join(OUT, `copy-toast-${size}-${scheme}.png`) });
-        const note = scr(page).locator('[data-auto-note]');
-        await expect(note).toContainText('העותק כבוי עד שתפעילו אותו');
-        await expect(note.locator('[data-note-action]')).toHaveText('הפעל עכשיו');
+        await expect(scr(page).locator('[data-auto-note]')).toContainText('העותק כבוי עד שתפעילו אותו');
+        const offer = drawer(page).locator('[data-drawer-enable-offer]');
+        await expect(offer).toContainText('כבוי עד שתפעילו אותו');
+        await expect(offer.locator('[data-drawer-enable-now]')).toContainText('הפעל עכשיו');
       });
     }
   }
@@ -59,12 +60,28 @@ test.describe('copy of an automation: "turn on now"', () => {
     test.skip(info.project.name !== 'desktop', 'desktop project only (it sets its own sizes)');
     await open(page, '/devices/automations/1727700000002', '1440', 'light');
     await copyHall(page);
-    await scr(page).locator('[data-auto-note] [data-note-action]').click();
-    await expect(scr(page).locator('[data-auto-note]')).toHaveCount(0); // no error toast: the enable went through
+    await drawer(page).locator('[data-drawer-enable-now]').click();
+    await expect(scr(page).locator('[data-auto-note]')).toContainText('הופעל'); // "<name> turned on"
+    await expect(drawer(page).locator('[data-drawer-enable-offer]')).toHaveCount(0);
     // the copy (its name ends with "(עותק)") is on in the list now (an in-app address change: the demo store keeps its state)
     await page.evaluate(() => { location.hash = '#/devices/automations?q=' + encodeURIComponent('(עותק)'); });
     const copyCard = scr(page).locator('automation-card', { hasText: '(עותק)' });
     await expect(copyCard).toHaveCount(1);
     await expect(copyCard.locator('[data-card-toggle] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
   });
+});
+
+test('"turn on now" for a copy that asks a confirmation opens the drawer\'s own "turn it on?" dialog first', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop project only (it sets its own sizes)');
+  await open(page, '/devices/automations/1727700000007', '1440', 'light'); // "תאורה לפי תבנית": a template block, effects not known
+  await copyHall(page);
+  await drawer(page).locator('[data-drawer-enable-now]').click();
+  const dlg = drawer(page).locator('[data-dialog="enable"]');
+  await expect(dlg).toBeVisible();
+  await settle(page);
+  fs.mkdirSync(OUT, { recursive: true });
+  await page.screenshot({ path: path.join(OUT, 'enable-confirm-1440-light.png') });
+  await dlg.locator('[data-dialog-ok]').click();
+  await expect(scr(page).locator('[data-auto-note]')).toContainText('הופעל');
+  await expect(drawer(page).locator('[data-drawer-enable-offer]')).toHaveCount(0);
 });
