@@ -66,5 +66,36 @@ Each finding was confirmed at the base by reading before it was fixed.
   403 text). Hiding the button needs an additive `mine` flag on the connection - left for a later row.
 - Old clients that PUT the whole settings document without `base_revision` are not refused (additive API).
 
-## Tests
-See the final section (filled after the runner run).
+## Tests (runner, slot B, `SW_WIRE_STRICT=1`, one pytest process per file)
+
+New: `smplwise_vms/backend/tests/test_calendar_sync_fix_2570.py` (19 tests; provider data are fixtures in the documented Google /
+Graph shapes, no network) and `frontend/tests/unit-calendar-step-saves-2570.spec.ts` (6 node-only tests).
+
+BEFORE (base `origin/pilot/FIX-COMMS-2570` with the new tests):
+- `test_calendar_sync_fix_2570.py`: 18 failed, 1 passed (the CU2-01 window test passes there only because the base fake lists
+  everything); re-run with the new fake + adapters and only the base `engine.py`: both CU2-01 tests FAIL (`cancelled` 3 instead of 1;
+  2 instead of 0), the no-window control passes.
+- `test_calendar_sync_2300.py` (updated CU2-03 test): 1 failed (`assert 200 == 403`), 37 passed.
+- `unit-calendar-step-saves-2570.spec.ts`: fails (module `calendars/step-saves` does not exist).
+
+AFTER (branch):
+| File | Result |
+|---|---|
+| `test_calendar_sync_fix_2570.py` | 19 passed |
+| `test_calendar_sync_2300.py` | 38 passed |
+| `test_calendar_connect_2330.py` | 30 passed |
+| `test_calendar_attendees_2343.py` | 20 passed |
+| `test_calendar_feed_review_2351.py` | 16 passed |
+| `test_wire_calendar_2470.py` | 3 passed |
+| `test_calendar_engine_2300.py` | 45 passed |
+| `test_calendar_far_series_fail_closed_2570.py` | 3 passed |
+| `test_error_contract_inventory_2490.py` | 7 passed |
+| ruff (`smplwise` + the two test files) | clean |
+| `scripts/gen_wire_types.py --check` | exit 0 |
+| `tsc --noEmit` | exit 0 |
+| eslint (changed frontend files) | 0 errors |
+| `unit-calendars-attendees-2343`, `unit-calendars-feed-remote-2351` | 15 passed |
+| `unit-calendar-step-saves-2570` | 6 passed (at 0241dcb3f; at 72cc1e388 one static check still expected the pre-SA2-06 call text) |
+
+NOT_RUN: the browser specs (evidence / layout / pixel - no look change), the rest of the backend suite (the train gate runs it),
+any real Google / Microsoft account (no network in this task).
