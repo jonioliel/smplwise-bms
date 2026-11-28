@@ -15303,5 +15303,85 @@
     "test_ids": [
       "AT-FIX-MH01-2560-1"
     ]
+  },
+  {
+    "id": "R-RELEASE-2570-TRAIN-1",
+    "title": "RELEASE-2570-TRAIN - the 2.57.0 train",
+    "statement": "The 2.57.0 train on release/2570-train (cut from v2.56.0 6ea807b2e) passes ONE release gate with targeted re-runs, then is tagged, pushed and installed in the lab only after the owner's approval.",
+    "task_ids": [
+      "RELEASE-2570-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2570-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-FIX-WISKEY-2570-1",
+    "title": "Deep review fixes WA-02, WA-03, SCR-51 (part): WisKey schedule execution counts, visit status filter refusal, call banner unread line",
+    "statement": "Deep review fixes WA-02, WA-03, SCR-51 (part): WisKey schedule execution counts, visit status filter refusal, call banner unread line; merged into the 2.57.0 train, change note docs/changes/FIX-WISKEY-2570.md.",
+    "task_ids": [
+      "FIX-WISKEY-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-WISKEY-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-COMMS-2570-1",
+    "title": "Deep review fixes CU-01..CU-04: generator mute delays events, no late tell for acked alerts, 24 V latch reset, far calendar series check fails closed",
+    "statement": "Deep review fixes CU-01..CU-04: generator mute delays events, no late tell for acked alerts, 24 V latch reset, far calendar series check fails closed; merged into the 2.57.0 train, change note docs/changes/FIX-COMMS-2570.md.",
+    "task_ids": [
+      "FIX-COMMS-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-COMMS-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-FE-2570-1",
+    "title": "Deep review fixes FE-02, FE-05 (+ FE2-17 guard): home admin switches controlled, route segments decoded with decodeSegment",
+    "statement": "Deep review fixes FE-02, FE-05 (+ FE2-17 guard): home admin switches controlled, route segments decoded with decodeSegment; merged into the 2.57.0 train, change note docs/changes/FIX-FE-2570.md.",
+    "task_ids": [
+      "FIX-FE-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-FE-2570-1"
+    ]
+  },
+  {
+    "id": "R-FIX-HOME-MAPS-2570-1",
+    "title": "Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off",
+    "statement": "Deep review fixes MH-02..MH-04: A/C setpoint order, jammed / moving locks never open, busy note on the room all-off; merged into the 2.57.0 train, change note docs/changes/FIX-HOME-MAPS-2570.md.",
+    "task_ids": [
+      "FIX-HOME-MAPS-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-HOME-MAPS-2570-1"
+    ]
   }
 ]
