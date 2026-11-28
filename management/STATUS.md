@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-28T20:08:59.304078+00:00
+Generated: 2026-11-28T20:17:50.683274+00:00
 
-Tasks: 792 | Requirements: 906 | Tests: 923 | Screens: 32
+Tasks: 793 | Requirements: 907 | Tests: 924 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,13 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 27
 - DONE: 516
 - IN_PROGRESS: 8
-- REVIEW: 229
+- REVIEW: 230
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 697
+- V1: 698
 - V2: 29
 - V3: 3
 
@@ -847,3 +847,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [FIX-CORE2-2570](tasks/FIX-CORE2-2570.md) | V1 | REVIEW | Second deep review core / data / release fixes CD2-06, CD2-08, CD2-12..CD2-15, CD2-17, CD2-18, CD2-20, CD2-21: e-mail orphans and limits, multi-arch Dockerfile default, legacy alias writes | — |
 | [FIX-MAPS2-2570](tasks/FIX-MAPS2-2570.md) | V1 | REVIEW | Second deep review maps / home fixes MH2-01..MH2-09: wizard rooms kept, site turn-off follows sent runs, pin save, wall profile version, skins status permission, English home pager | — |
 | [FIX-VIDEO2-2570](tasks/FIX-VIDEO2-2570.md) | V1 | REVIEW | Second deep review video / devices fixes VD2-02, VD2-04, VD2-06..VD2-11: detect listen outside the lock, recordings across the repeated hour, schedule actions across midnight, smart partial write, saved views keep hidden cameras, per-recorder review marks | — |
+| [FIX-PHONEKEY-2570](tasks/FIX-PHONEKEY-2570.md) | V1 | REVIEW | Second deep review SA2-01, SA2-02: phone key registration in the Android app, the phone prompt shows the signed payload (app 2.1.0) | — |

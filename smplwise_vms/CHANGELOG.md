@@ -2,11 +2,12 @@
 
 ## 2.57.0 (pilot) - the deep-review fixes: WisKey, generator and calendars, home and maps, honest switches
 
-<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
+<!-- RELEASE-2570-TRAIN: DRAFT - the train coordinator's working list for rows 1-11 (FIX-WISKEY-2570, FIX-COMMS-2570, FIX-FE-2570, FIX-HOME-MAPS-2570, FIX-CORE-DATA-2570, FIX-FE2-2570, FIX-VIDEO-2570, FIX-TICKETS2-2570, FIX-AUTOMATION-2570, FIX-WISKEY2-2570, FIX-CORE2-2570, FIX-MAPS2-2570, FIX-VIDEO2-2570, FIX-PHONEKEY-2570) and the train fixes, not the final release text; more fix rows join from the lead. English only; the lead writes the final bilingual text (Hebrew first) at release. The word DRAFT is kept out of the heading (as on the 2.52-2.56 trains) so scripts/release_check.py reads 2.57.0 as the CHANGELOG head while the version files are 2.57.0. -->
 
 תקציר בעברית: (המוביל כותב בשחרור)
 
 ### Improved
+- Phone key: inside the Arx Android app 2.1.0 a phone key can now be added from "account security" (after a recent sign-in check); the phone's own prompt shows what is being signed (taken from the signed request, not from the page); an older app is asked to update. Not yet tested on a real phone; the Android app 2.1.0 is not built in this release.
 - System diagnostics: the Home Assistant sync card lists the state-update and rule-notification counters and the last state reconcile.
 
 ### Fixed

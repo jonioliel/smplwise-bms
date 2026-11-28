@@ -15527,5 +15527,21 @@
     "test_ids": [
       "AT-FIX-VIDEO2-2570-1"
     ]
+  },
+  {
+    "id": "R-FIX-PHONEKEY-2570-1",
+    "title": "Second deep review SA2-01, SA2-02: phone key registration in the Android app, the phone prompt shows the signed payload (app 2.1.0)",
+    "statement": "Second deep review SA2-01, SA2-02: phone key registration in the Android app, the phone prompt shows the signed payload (app 2.1.0); merged into the 2.57.0 train, change note docs/changes/FIX-PHONEKEY-2570.md.",
+    "task_ids": [
+      "FIX-PHONEKEY-2570"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FIX-PHONEKEY-2570-1"
+    ]
   }
 ]
