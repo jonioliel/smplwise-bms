@@ -77,7 +77,7 @@ test('"turn on now" for a copy that asks a confirmation opens the drawer\'s own 
   await copyHall(page);
   await drawer(page).locator('[data-drawer-enable-now]').click();
   const dlg = drawer(page).locator('[data-dialog="enable"]');
-  await expect(dlg).toBeVisible();
+  await expect(dlg.locator("[data-dialog-ok]")).toBeVisible(); // the sw-dialog host itself is display: contents
   await settle(page);
   fs.mkdirSync(OUT, { recursive: true });
   await page.screenshot({ path: path.join(OUT, 'enable-confirm-1440-light.png') });
