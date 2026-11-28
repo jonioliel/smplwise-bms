@@ -40,7 +40,8 @@ export interface PlaybackGroup {
 /**
  * One playback session. `actual_start_at` / `actual_end_at` / `media_anchor` stay null until a verified media anchor fills them
  * (chapter 24); `media_handle` = the WebSocket path of this generation, null once the session is over. `moved_to_next_segment`
- * (create / seek only) = the asked time had no recording and the session starts at the next segment.
+ * (create / seek only) = the asked time had no recording and the session starts at the next segment. `clock_change_note` (create / seek
+ * only, FIX-VIDEO2-2570) = the start is in the hour the autumn clock change repeats: the recorder may play the other occurrence.
  */
 export interface PlaybackSession {
   id: string;
@@ -60,6 +61,7 @@ export interface PlaybackSession {
   bytes_down: number;
   seconds: number;
   moved_to_next_segment?: boolean;
+  clock_change_note?: string;
 }
 
 /** What the browser measured against its master clock (T042), stored on the group with the time it arrived. */

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { markReviewed, type ReviewList } from '../src/api/frigate';
-import { applyReviewed, settleMark } from '../src/screens/reviews-logic';
+import * as logic from '../src/screens/reviews-logic';
 import { REVIEW_ITEMS, reviewList } from '../src/fixtures/frigate';
 
 // FIX-VIDEO2-2570 (second deep review VD2-11): a Frigate "reviewed" mark across two recorders that half fails keeps what was saved and
@@ -50,6 +50,8 @@ test('a mark across two recorders where one fails names the failed items and kee
 });
 
 test('only the failed items go back, and never over a list reloaded meanwhile', () => {
+  const { applyReviewed, settleMark } = logic; // a namespace import: on a build without the helper the first test still runs
+  expect(typeof settleMark).toBe('function');
   const before: ReviewList = reviewList(REVIEW_ITEMS.map((i) => ({ ...i })), { layer: 'alert' });
   const ids = before.items.slice(0, 3).map((i) => i.id);
   const optimistic = applyReviewed(before, ids, true);

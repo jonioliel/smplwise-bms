@@ -18,7 +18,6 @@ import sqlite3
 import types
 
 import httpx
-import pytest
 from automations_fixture import *  # noqa: F401,F403
 from automations_fixture import autos_app  # noqa: F401
 from automations_fixture import API
@@ -33,7 +32,8 @@ from smplwise.main import create_app
 from smplwise.services import automation_ext as ext
 from smplwise.services import nvr, nvr_schedule, nvr_write, recordings
 from smplwise.services import playback as pb
-from smplwise.services.timeutil import instant_in_repeated_hour, nvr_span_to_utc, parse_utc, wall_is_repeated, zone
+from smplwise.services import timeutil
+from smplwise.services.timeutil import parse_utc, zone
 
 TZ = zone("Asia/Jerusalem")  # 2026-10-25 02:00 IDT -> 01:00 IST: 01:00-02:00 wall clock happens twice (22:00Z-23:00Z, 23:00Z-24:00Z)
 FOLD_DAY = "2026-10-25"
@@ -41,7 +41,7 @@ FOLD_DAY = "2026-10-25"
 
 # ---------------------------------------------------------------- VD2-02
 
-def test_detect_by_pressing_listens_without_holding_the_write_lock_and_one_listen_per_caller(autos_app):
+def test_detect_by_pressing_listens_without_holding_the_write_lock_and_one_listen_per_caller(autos_app):  # noqa: F811 - a fixture imported above
     app, s, c, fake, tr = autos_app
     with_wall_switch(app, tr)
     assert c.patch(f"{API}/settings", json={"automations.wall_buttons_editable": "true"}).status_code == 200
@@ -59,7 +59,7 @@ def test_detect_by_pressing_listens_without_holding_the_write_lock_and_one_liste
                 seen["other_writer"] = str(exc)
             finally:
                 other.close()
-            user = next(iter(ext._LISTENING), None)
+            user = next(iter(getattr(ext, "_LISTENING", ())), None)
             seen["listening"] = user
             ctx = types.SimpleNamespace(principal=types.SimpleNamespace(user_id=user), cfg={})
             try:
@@ -76,7 +76,7 @@ def test_detect_by_pressing_listens_without_holding_the_write_lock_and_one_liste
     assert r.status_code == 200 and r.json()["detected"] is True, r.text
     assert seen["other_writer"] == "ok", f"the listen held the write lock: {seen['other_writer']}"
     assert seen["listening"] is not None and seen["second"] == (409, "listen_running"), seen
-    assert not ext._LISTENING, "the guard is released when the listen ends"
+    assert not getattr(ext, "_LISTENING", None), "the guard is released when the listen ends"
     with app.state.db.connection() as conn:
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'automation.button_detect'").fetchone()[0] == 1, "the audit row is still written"
 
@@ -84,17 +84,17 @@ def test_detect_by_pressing_listens_without_holding_the_write_lock_and_one_liste
 # ---------------------------------------------------------------- VD2-04 / 06 / 07
 
 def test_the_zone_names_the_repeated_hour_and_not_the_spring_gap():
-    assert wall_is_repeated(dt.datetime(2026, 10, 25, 1, 30), TZ) is True
-    assert wall_is_repeated(dt.datetime(2026, 10, 25, 2, 30), TZ) is False
-    assert wall_is_repeated(dt.datetime(2026, 3, 27, 2, 30), TZ) is False, "a spring-gap time names no instant twice"
-    assert instant_in_repeated_hour(parse_utc("2026-10-24T22:30:00Z"), TZ) and instant_in_repeated_hour(parse_utc("2026-10-24T23:30:00Z"), TZ)
-    assert not instant_in_repeated_hour(parse_utc("2026-10-25T00:30:00Z"), TZ)
+    assert timeutil.wall_is_repeated(dt.datetime(2026, 10, 25, 1, 30), TZ) is True
+    assert timeutil.wall_is_repeated(dt.datetime(2026, 10, 25, 2, 30), TZ) is False
+    assert timeutil.wall_is_repeated(dt.datetime(2026, 3, 27, 2, 30), TZ) is False, "a spring-gap time names no instant twice"
+    assert timeutil.instant_in_repeated_hour(parse_utc("2026-10-24T22:30:00Z"), TZ) and timeutil.instant_in_repeated_hour(parse_utc("2026-10-24T23:30:00Z"), TZ)
+    assert not timeutil.instant_in_repeated_hour(parse_utc("2026-10-25T00:30:00Z"), TZ)
     # a file from 01:40 (first occurrence) to 01:20 (second): 22:40Z -> 23:20Z
-    s, e, amb = nvr_span_to_utc("2026-10-25T01:40:00Z", "2026-10-25T01:20:00Z", TZ)
+    s, e, amb = timeutil.nvr_span_to_utc("2026-10-25T01:40:00Z", "2026-10-25T01:20:00Z", TZ)
     assert (s, e, amb) == (parse_utc("2026-10-24T22:40:00Z"), parse_utc("2026-10-24T23:20:00Z"), True)
     # an ordinary summer file is exact and not ambiguous
-    assert nvr_span_to_utc("2026-09-14T10:00:00Z", "2026-09-14T10:30:00Z", TZ) == (parse_utc("2026-09-14T07:00:00Z"), parse_utc("2026-09-14T07:30:00Z"), False)
-    assert nvr_span_to_utc("2026-09-14T10:30:00Z", "2026-09-14T10:00:00Z", TZ) is None, "a reversed file is malformed"
+    assert timeutil.nvr_span_to_utc("2026-09-14T10:00:00Z", "2026-09-14T10:30:00Z", TZ) == (parse_utc("2026-09-14T07:00:00Z"), parse_utc("2026-09-14T07:30:00Z"), False)
+    assert timeutil.nvr_span_to_utc("2026-09-14T10:30:00Z", "2026-09-14T10:00:00Z", TZ) is None, "a reversed file is malformed"
 
 
 def _cam(client, s, channel: int, track: int) -> dict:
@@ -103,7 +103,7 @@ def _cam(client, s, channel: int, track: int) -> dict:
     return cam
 
 
-def test_a_file_across_the_autumn_change_is_kept_and_the_day_is_partial(lab_client, monkeypatch):
+def test_a_file_across_the_autumn_change_is_kept_and_the_day_is_partial(lab_client, monkeypatch):  # noqa: F811 - a fixture imported above
     client, s = lab_client
     recordings.invalidate()
     cam = _cam(client, s, 4, 401)
@@ -120,7 +120,7 @@ def test_a_file_across_the_autumn_change_is_kept_and_the_day_is_partial(lab_clie
     assert body["coverage"] == "partial" and "שעון חורף" in body["note"], body
 
 
-def test_a_search_inside_the_second_occurrence_finds_its_files(lab_client, monkeypatch):
+def test_a_search_inside_the_second_occurrence_finds_its_files(lab_client, monkeypatch):  # noqa: F811 - a fixture imported above
     client, s = lab_client
     recordings.invalidate()
     cam = _cam(client, s, 5, 501)
@@ -134,7 +134,7 @@ def test_a_search_inside_the_second_occurrence_finds_its_files(lab_client, monke
     assert body["coverage"] == "partial", "the file may belong to the other occurrence: never `complete`"
 
 
-def test_a_repeated_page_is_partial_and_an_impossible_date_is_a_422(lab_client, monkeypatch):
+def test_a_repeated_page_is_partial_and_an_impossible_date_is_a_422(lab_client, monkeypatch):  # noqa: F811 - a fixture imported above
     client, s = lab_client
     recordings.invalidate()
     cam = _cam(client, s, 6, 601)
@@ -151,7 +151,7 @@ def test_a_repeated_page_is_partial_and_an_impossible_date_is_a_422(lab_client, 
     assert r.status_code == 422 and r.json()["code"] == "validation" and r.json()["details"]["fields"] == ["date"], r.text
 
 
-def test_a_playback_start_inside_the_repeated_hour_says_so(lab_client, monkeypatch):
+def test_a_playback_start_inside_the_repeated_hour_says_so(lab_client, monkeypatch):  # noqa: F811 - a fixture imported above
     client, s = lab_client
     recordings.invalidate()
     pb.REGISTRY.sessions.clear()
@@ -229,10 +229,12 @@ def test_editing_a_shared_view_keeps_the_cameras_the_editor_cannot_watch(setting
     _published_floor_with(c, ids["floor2"], cams[1])
     bind(c, settings, "site", "site_admin", "site", ids["site"])  # may manage shared views; watches the cameras placed in his site
     bind(c, settings, "lead", "viewer", "floor", ids["floor2"])  # watches camera 2 only; may not manage shared views
-    shared = c.post("/api/v1/views", json={"name": "כל המצלמות", "cameras": cams, "cols": 3, "rows": 1, "shared": True}).json()
+    # the site administrator shares a view of his camera; the system administrator adds the two others to it
+    shared = c.post("/api/v1/views", json={"name": "כל המצלמות", "cameras": [cams[1]], "cols": 3, "rows": 1, "shared": True}, headers=as_user("site")).json()
+    assert c.put(f"/api/v1/views/{shared['id']}", json={"name": "כל המצלמות", "cameras": cams, "cols": 3, "rows": 1, "shared": True}).status_code == 200
     seen = next(v for v in c.get("/api/v1/views", headers=as_user("site")).json()["views"] if v["id"] == shared["id"])
     assert seen["cameras"] == [cams[1]] and seen["hidden_cameras"] == 2
-    # the site administrator renames it from what he sees: the two cameras he may not watch stay, at their places
+    # the site administrator (the owner) renames it from what he sees: the two cameras he may not watch stay, at their places
     r = c.put(f"/api/v1/views/{shared['id']}", json={"name": "כניסות", "cameras": seen["cameras"], "cols": 3, "rows": 1, "shared": True}, headers=as_user("site"))
     assert r.status_code == 200, r.text
     assert r.json()["cameras"] == [cams[1]] and r.json()["hidden_cameras"] == 2, "the answer shows only what he may watch"
