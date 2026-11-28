@@ -762,6 +762,9 @@ class DirectJoin:
 
         async def go() -> dict[str, int]:
             source = await writer.observe_source()
+            with self._recover_lock:  # FIX-WISKEY2-2570 / WA2-03: the same check as `_ensure_recovered` - a scope is recovered once per process
+                if source.scope in self._recovered:
+                    return {"not_sent": 0, "unknown": 0}
             counts = writer.recover(source.scope)
             with self._recover_lock:
                 self._recovered.add(source.scope)

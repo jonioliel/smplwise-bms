@@ -793,6 +793,9 @@ def _job_update(db: Any, job: dict[str, Any]) -> None:
 class _Run:
     def __init__(self, db: Any, settings: Any, job: dict[str, Any], platform: Any) -> None:
         self.db, self.settings, self.job, self.p = db, settings, job, platform
+        # FIX-WISKEY2-2570 / WA2-02: True from the moment the Supervisor accepted a stop of Core until a start was asked again; `run`
+        # asks for one start when anything unexpected escapes while it is True
+        self.core_down = False
 
     # step bookkeeping
     def step(self, name: str) -> None:
@@ -830,6 +833,7 @@ class _Run:
         if kind not in ("ok", "dropped"):
             self.fail("core_stop_refused")
             raise StepFailed("core_stop_refused")
+        self.core_down = True
         if not self.wait(lambda: not self.p.core_api_up(), STOP_CONFIRM_S):
             self.fail("core_did_not_stop")
             raise StepFailed("core_did_not_stop")
@@ -838,6 +842,7 @@ class _Run:
     def start_core(self, name: str = "start_core") -> bool:
         self.step(name)
         kind = self.p.start_core()
+        self.core_down = False  # the start was asked: from here on the normal path judges and records it
         if kind not in ("ok", "dropped", "unreachable") and not self.p.core_api_up():
             self.fail("core_start_refused")
             return False
@@ -973,6 +978,13 @@ def start(db: Any, settings: Any, kind: str, *, actor: Any = None, request_id: s
             if job.get("state") == "running":
                 job.update(state="failed", code="run_crashed", finished_at=_now_iso())
                 _job_update(db, job)
+                # FIX-WISKEY2-2570 / WA2-02: the crash is audited with what the run did about Core (best effort: the database may be the cause)
+                try:
+                    _audit(db, "wiskey.managed.run", "denied", reason="run_crashed",
+                           details={"job": job["id"], "kind": job.get("kind"), "state": "failed", "error": type(exc).__name__,
+                                    "core_rescue": job.get("core_rescue")})
+                except Exception:  # noqa: BLE001
+                    log.warning("wiskey managed crash audit failed")
         finally:
             _RUN_LOCK.release()
 
@@ -980,8 +992,51 @@ def start(db: Any, settings: Any, kind: str, *, actor: Any = None, request_id: s
     return _public_job(job) or {}
 
 
+def _previous_back(cfg: Path | None, job: dict[str, Any]) -> list[str]:
+    """Core is stopped and the run is over: when the installed tree is missing (a crash between the two renames of a swap or a restore)
+    and the stage still holds the previous tree, put it back. Never swaps forward, never touches a tree that is there."""
+    if cfg is None:
+        return []
+    target = Path(cfg) / "custom_components" / DOMAIN
+    stage_id = job.get("rollback_of") if job.get("kind") == "rollback" else job["id"]
+    previous = _stage(cfg, str(stage_id)) / "previous"
+    if not os.path.lexists(target) and previous.is_dir():
+        try:
+            previous.rename(target)
+            return ["previous_restored"]
+        except OSError:
+            return ["previous_restore_failed"]
+    return []
+
+
+def _rescue_core(r: _Run, cfg: Path, job: dict[str, Any]) -> list[str]:
+    """FIX-WISKEY2-2570 / WA2-02: an unexpected error escaped while this run had Core stopped. ONE start request (no retry, no wait loop),
+    after the previous tree is back when the target is missing; no bookkeeping write before it (the database may be what failed).
+    Returns what was done, for the job record and the audit row."""
+    actions: list[str] = []
+    try:
+        actions += _previous_back(cfg, job)
+    except Exception:  # noqa: BLE001 - the start below must still be asked
+        actions.append("previous_restore_failed")
+    try:
+        actions.append("core_start_requested" if r.p.start_core() in ("ok", "dropped") else "core_start_refused")
+    except Exception:  # noqa: BLE001
+        actions.append("core_start_failed")
+    r.core_down = False
+    return actions
+
+
 def run(db: Any, settings: Any, job: dict[str, Any], cfg: Path) -> None:
     r = _Run(db, settings, job, PLATFORM(settings))
+    try:
+        return _run(r, db, settings, job, cfg)
+    except BaseException:
+        if r.core_down:  # never leave Core stopped behind an unexpected error (WA2-02); the worker body records the crash
+            job["core_rescue"] = _rescue_core(r, cfg, job)
+        raise
+
+
+def _run(r: _Run, db: Any, settings: Any, job: dict[str, Any], cfg: Path) -> None:
     rollback = job["kind"] == "rollback"
     stage_id = job["rollback_of"] if rollback else job["id"]
 
@@ -1107,32 +1162,50 @@ def _restore_from_backup(settings: Any, cfg: Path, backup_id: str, stage_id: str
 
 def recover_interrupted(db: Any, settings: Any) -> str | None:
     """An Arx restart while a run was active: mark it `interrupted`; put the previous tree back if the target is missing; start Core if
-    it is not answering. Never swaps forward. Returns the outcome or None (nothing to recover)."""
+    it is not answering. Never swaps forward. Returns the outcome or None (nothing to recover). Since FIX-WISKEY2-2570 (WA2-02) also a
+    run marked `failed / run_crashed` while Core was stopped: the same two actions, recorded once as `crash_recovered`."""
     job = _read(db, lambda c: _get_json(c, K_JOB))
-    if not job or job.get("state") != "running" or not JOB_ID_RE.match(str(job.get("id"))):
+    if not job or not JOB_ID_RE.match(str(job.get("id"))):
+        return None
+    crashed = _crashed_with_core_stopped(job)
+    if job.get("state") != "running" and not crashed:
         return None
     cfg = _config_dir()
-    actions: list[str] = []
-    if cfg is not None:
-        target = Path(cfg) / "custom_components" / DOMAIN
-        stage_id = job.get("rollback_of") if job.get("kind") == "rollback" else job["id"]
-        previous = _stage(cfg, str(stage_id)) / "previous"
-        if not os.path.lexists(target) and previous.is_dir():
-            try:
-                previous.rename(target)
-                actions.append("previous_restored")
-            except OSError:
-                actions.append("previous_restore_failed")
+    actions: list[str] = list(_previous_back(cfg, job))
     platform = PLATFORM(settings)
     try:
         if platform.configured() and not platform.core_api_up():
             actions.append("core_started" if platform.start_core() in ("ok", "dropped") else "core_start_refused")
     except Exception:  # noqa: BLE001
         actions.append("core_start_failed")
+    if crashed:  # FIX-WISKEY2-2570 / WA2-02: the run stays `failed / run_crashed` (honest); the recovery is recorded once and never repeated
+        job["crash_recovered"] = {"at": _now_iso(), "actions": actions}
+        _job_update(db, job)
+        _audit(db, "wiskey.managed.run", "denied", reason="run_crashed_recovered", details={"job": job["id"], "kind": job.get("kind"), "actions": actions})
+        return "crash_recovered"
     job.update(state="interrupted", code="arx_restarted", finished_at=_now_iso())
     _job_update(db, job)
     _audit(db, "wiskey.managed.run", "denied", reason="arx_restarted", details={"job": job["id"], "kind": job.get("kind"), "actions": actions})
     return "interrupted"
+
+
+def _crashed_with_core_stopped(job: dict[str, Any]) -> bool:
+    """FIX-WISKEY2-2570 / WA2-02: a run marked `failed / run_crashed` whose recorded steps end with Core stopped - a `stop_core` step that
+    was asked (`running` or `done`) with no later `start_core*` step that verifiably finished (`done`) - and no recovery recorded yet. A
+    start the crash rescue asked for is not trusted to have worked: the recovery asks the platform whether Core answers before it starts
+    anything, once."""
+    if job.get("state") != "failed" or job.get("code") != "run_crashed" or job.get("crash_recovered"):
+        return False
+    stopped = False
+    for s in job.get("steps") or ():
+        if not isinstance(s, dict):
+            continue
+        name = str(s.get("name") or "")
+        if name == "stop_core" and s.get("state") in ("running", "done"):
+            stopped = True
+        elif name.startswith("start_core") and s.get("state") == "done":
+            stopped = False
+    return stopped
 
 
 def recover_interrupted_safe(db: Any, settings: Any) -> None:

@@ -457,7 +457,14 @@ class WriteLineage:
                     raise LineageError("create_origin_already_used") from None
                 raise LineageError("duplicate_operation") from None
             # the anchor follows the lineage (a crash between the two reads as "main behind" -> open intents unknown: conservative)
-            self.anchor.write(self.generation, seq)
+            try:
+                self.anchor.write(self.generation, seq)
+            except (sqlite3.Error, OSError):
+                # FIX-WISKEY2-2570 / WA2-04: the main database refused the anchor (busy past its timeout, disk full). Nothing was sent:
+                # the committed intent is settled `not_sent` at once, so it does not hold the person (`one_inflight_per_person`) until
+                # the next process start. The anchor now reads "main behind", which the next open treats conservatively.
+                self._settle(operation_id, new_state="not_sent", allowed_from=("intent",), code="anchor_write_failed", proof="not_sent")
+                raise LineageError("anchor_write_failed") from None
         return self.get(operation_id)
 
     def begin_send(self, operation_id: str) -> None:
@@ -533,19 +540,26 @@ class WriteLineage:
 
     def recover(self, scope: str) -> dict[str, int]:
         """Startup recovery of ONE scope by its (new) exclusive writer: `intent` rows (crash window 1, the send marker was never
-        committed) become `not_sent`; `sending` rows (windows 2 and 3) become `unknown`. Nothing is sent."""
-        self.acquire_writer(scope)
+        committed) become `not_sent`; `sending` rows (windows 2 and 3) become `unknown`. Nothing is sent.
+
+        FIX-WISKEY2-2570 / WA2-03: only crash leftovers are recovered - rows admitted under an EARLIER fence. A row admitted at this
+        writer's current fence was admitted by this process (admit checks holder and fence in the same transaction) and is live here:
+        its own call settles it (a verified refusal / not-sent stays provable). A new process always takes a higher fence, so its first
+        recovery still covers every row a dead process left."""
+        fence = self.acquire_writer(scope)
         counts = {"not_sent": 0, "unknown": 0}
         with self._lock:
             now = _iso(self.clock())
             with self._tx():
                 self._check_fence(scope)
-                for (op,) in self.db.execute("SELECT operation_id FROM intents WHERE scope = ? AND state = 'intent'", (scope,)).fetchall():
+                for (op,) in self.db.execute("SELECT operation_id FROM intents WHERE scope = ? AND state = 'intent' AND fence <> ?",
+                                             (scope, fence)).fetchall():
                     self.db.execute("UPDATE intents SET state = 'not_sent', outcome_code = 'recovered_before_send', settled_at = ?, "
                                     "ended_at = ? WHERE operation_id = ?", (now, now, op))
                     self._proof(op, "recovered_before_send", {"code": "recovered_before_send"}, now)
                     counts["not_sent"] += 1
-                for (op,) in self.db.execute("SELECT operation_id FROM intents WHERE scope = ? AND state = 'sending'", (scope,)).fetchall():
+                for (op,) in self.db.execute("SELECT operation_id FROM intents WHERE scope = ? AND state = 'sending' AND fence <> ?",
+                                             (scope, fence)).fetchall():
                     self.db.execute("UPDATE intents SET state = 'unknown', outcome_code = 'recovered_after_send' WHERE operation_id = ?",
                                     (op,))
                     self._proof(op, "recovered_after_send", {"code": "recovered_after_send"}, now)
