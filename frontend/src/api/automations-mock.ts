@@ -816,7 +816,8 @@ export class AutomationsMockStore implements AutomationsAdapter {
       const draft = clone(this.draftOf(src));
       if (kind === 'scene') (draft as SceneDraft).name = body.name; else (draft as AutomationDraft).alias = body.name;
       this.bridge('builder');
-      const e = this.storeNew(kind, draft, true, this.newId(kind), body.name, src.config, 'שוכפלה');
+      // FIX-AUTOMATION2-2570 / CD2-04: a copied automation is written switched off, as the server writes it (scripts and scenes do not run by themselves)
+      const e = this.storeNew(kind, draft, kind !== 'automation', this.newId(kind), body.name, src.config, 'שוכפלה');
       this.audited(`${kind}.copy`, e);
       return this.result(e, `op-${this.seq}`);
     });
@@ -1006,7 +1007,7 @@ export class AutomationsMockStore implements AutomationsAdapter {
       const id = free ? t.id : this.newId(t.kind);
       const cfg = clone(t.config);
       if (t.kind !== 'script') cfg.id = id;
-      const e: Entry = { kind: t.kind, id, entity: t.kind === 'script' ? `script.${id}` : this.entityFor(t.kind, id, t.name), config: cfg, source: 'ui', meta: { ...DEFAULT_META, createdVia: 'arx', owner: this.user.name, updatedAt: this.stamp() }, versions: [], runs: [] };
+      const e: Entry = { kind: t.kind, id, entity: t.kind === 'script' ? `script.${id}` : this.entityFor(t.kind, id, t.name), config: cfg, source: 'ui', meta: { ...DEFAULT_META, enabled: t.kind !== 'automation', createdVia: 'arx', owner: this.user.name, updatedAt: this.stamp() }, versions: [], runs: [] };
       this.entries.set(this.key(t.kind, id), e);
       this.pushVersion(e, 'arx', this.user.name, 'שוחזרה מסל המחזור');
       this.trashRows.splice(i, 1);

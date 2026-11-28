@@ -112,6 +112,8 @@ export const en = {
   'נשמר': 'Saved',
   'הגרסה שוחזרה': 'Version restored',
   '"{name}" שוחזר': '"{name}" restored',
+  '"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.': '"{name}" restored. It stays off until you turn it on.',
+  'הפעל עכשיו': 'Turn on now',
   '"{name}" נמחק לצמיתות': '"{name}" deleted permanently',
   'שולט בתזמונים': 'Controls schedules',
   'רגישה': 'Sensitive',

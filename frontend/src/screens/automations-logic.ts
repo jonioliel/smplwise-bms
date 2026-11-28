@@ -440,3 +440,9 @@ export function addressAction(action: string | null | undefined, can: Pick<Item[
   if (action === 'delete' && can.delete) return 'delete';
   return null;
 }
+
+/** FIX-AUTOMATION2-2570: a copied or restored automation comes back switched off (the server's CD2-04 rule); its toast offers "turn on now",
+ *  which goes through the normal enable path (and its confirmation), only when the caller may switch it on. */
+export function offersEnableNow(item: Pick<Item, 'kind' | 'state' | 'can'> | null | undefined): boolean {
+  return !!item && item.kind === 'automation' && item.state === 'off' && item.can.toggle;
+}

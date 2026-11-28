@@ -178,8 +178,13 @@ def test_a_cycle_of_scripts_ends(autos_app):
     app, s, c, fake, tr = autos_app
     _script(app, fake, "ping", [_call("light.turn_on", "light.office"), _call("script.turn_on", "script.pong")])
     _script(app, fake, "pong", [_call("script.turn_on", "script.ping")])
-    r = _run_script(c, "ping")
-    assert r.status_code == 202, r.text  # nothing sensitive anywhere in the loop: no confirmation, no recursion error
+    grant(c, "omer", "מפעיל סקריפטים", ["devices.read", "entity.state.read", "devices.control", "ha.entity.control", "script.run", "alarm.view"],
+          "installation", "*")
+    # the loop ends (no recursion error) and is not an unreadable call: no strongest-rights refusal. The effects view still counts a loop
+    # deeper than its depth as unknown, so the confirmation the item asks stays (unchanged)
+    r = _run_script(c, "ping", OMER)
+    assert r.status_code == 409 and r.json()["code"] == "confirmation_required", r.text
+    assert _run_script(c, "ping", OMER, confirm=True).status_code == 202
 
 
 # ================================================================ 3. a call that cannot be read fails closed (VD2-01 rule)

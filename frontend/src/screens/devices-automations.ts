@@ -42,7 +42,7 @@ import {
 } from '../api/automations';
 import {
   BASE, NO_FILTERS, STATE_FILTERS_OF, withConflicts, applyFilters, banners, countsOf, confirmLine, editPath, editTarget, filtersActive, filtersFromParams, filtersToParams, floorOptions, hiddenScenes, itemPath,
-  newButton, newPath, parseAutomationsRoute, screenKind, segmentOf, segmentOfKind, stateCounts, trashPath, SEGMENTS,
+  newButton, newPath, offersEnableNow, parseAutomationsRoute, screenKind, segmentOf, segmentOfKind, stateCounts, trashPath, SEGMENTS,
   type AutomationsRoute, type ListFilters, type Segment, type StateFilter,
 } from './automations-logic';
 import type { DrawerResult } from './automation-drawer';
@@ -750,9 +750,11 @@ export class DevicesAutomations extends LitElement {
   };
   private async undoDelete(trashId: string, name: string) {
     try {
-      await autoApi().restoreTrash(trashId, { client_request_id: `undo-${trashId}-${Date.now()}` });
-      this.say(tr('"{name}" שוחזר', { name }));
+      const r = await autoApi().restoreTrash(trashId, { client_request_id: `undo-${trashId}-${Date.now()}` });
       await this.loadList();
+      // FIX-AUTOMATION2-2570: a restored automation comes back switched off; the toast offers to turn it on through the normal enable path
+      if (offersEnableNow(r.item)) this.say(tr('"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.', { name }), 'ok', this.enableNowAction(r.item!));
+      else this.say(tr('"{name}" שוחזר', { name }));
     } catch (err) {
       this.say(mapAutomationError(err).message, 'error');
     }
@@ -760,8 +762,15 @@ export class DevicesAutomations extends LitElement {
   private onCopied = (e: CustomEvent<{ item: ItemDetail }>) => {
     void this.loadList();
     this.go(itemPath(segmentOfKind(e.detail.item.kind).id, e.detail.item.id));
-    this.say(tr('שוכפל'));
+    // FIX-AUTOMATION2-2570: the copy of an automation is written switched off; the toast offers to turn it on (the normal enable path)
+    if (offersEnableNow(e.detail.item)) this.say(tr('שוכפל. העותק כבוי עד שתפעילו אותו.'), 'ok', this.enableNowAction(e.detail.item));
+    else this.say(tr('שוכפל'));
   };
+  /** FIX-AUTOMATION2-2570: "turn on now" = the list switch's own path (`toggle`): its confirmation dialog when the server asks for one. */
+  private enableNowAction(item: Item): NonNullable<Note['action']> {
+    return { label: tr('הפעל עכשיו'), run: () => void this.toggle(item, true) };
+  }
+  private onEnableNow = (e: CustomEvent<{ item: Item }>) => void this.toggle(e.detail.item, true);
   private onChanged = () => {
     void this.loadList();
     void this.refreshStatus();
@@ -1019,7 +1028,7 @@ export class DevicesAutomations extends LitElement {
     ${this.drawerUsed || drawerOpen
       ? html`<automation-drawer .kind=${drawerKind} .itemId=${r.segment === 'scenes' ? '' : r.id} .open=${drawerOpen} .trash=${r.trash} .view=${r.view} .runId=${r.run} .status=${this.status} .now=${this.now} .action=${this.cardAction}
           @drawer-close=${this.onDrawerClose} @view-change=${this.onViewChange} @edit=${(e: CustomEvent<{ kind: 'automation' | 'script' | 'scene'; id: string }>) => navigate(editPath(e.detail.kind, e.detail.id))}
-          @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult} @action-done=${this.onActionDone}></automation-drawer>`
+          @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @enable-now=${this.onEnableNow} @result=${this.onResult} @action-done=${this.onActionDone}></automation-drawer>`
       : nothing}
     ${this.editorSheet()}
     ${this.dialogs()}

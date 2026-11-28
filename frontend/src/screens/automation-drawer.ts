@@ -15,7 +15,7 @@ import {
   type VersionRow,
 } from '../api/automations';
 import { commandId } from '../api/request-id';
-import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, runRows, whenText, type DrawerView } from './automations-logic';
+import { addressAction, areaLine, fieldDefaults, missingFields, type FieldChoice, cardChips, confirmLine, deletedText, floorLine, keepText, offersEnableNow, runRows, whenText, type DrawerView } from './automations-logic';
 import type { TrashRow } from '../api/automations';
 import { tr } from '../i18n/msg/automation';
 import { t } from '../i18n/he';
@@ -591,7 +591,10 @@ export class AutomationDrawer extends LitElement {
     this.busy = true;
     try {
       const r = await autoApi().restoreTrash(t.trash_id, { client_request_id: `restore-${t.trash_id}-${Date.now()}` });
-      this.say(tr('"{name}" שוחזר', { name: t.name }));
+      // FIX-AUTOMATION2-2570: a restored automation comes back switched off; "turn on now" asks the screen to take the normal enable path
+      const back = r.item;
+      if (back && offersEnableNow(back)) this.say(tr('"{name}" שוחזר. הוא כבוי עד שתפעילו אותו.', { name: t.name }), 'ok', { label: tr('הפעל עכשיו'), run: () => this.fire('enable-now', { item: back }) });
+      else this.say(tr('"{name}" שוחזר', { name: t.name }));
       this.fire('changed', { id: r.item?.id ?? t.config_id });
       this.trashRows = (this.trashRows ?? []).filter((x) => x.trash_id !== t.trash_id);
     } catch (err) {
