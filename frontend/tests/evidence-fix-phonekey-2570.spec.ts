@@ -183,7 +183,9 @@ test('shots: the phone keys block in the app and in a browser, light and dark', 
     for (const scheme of ['light', 'dark'] as const) {
       const ctx = await browser.newContext({ baseURL, viewport: size, isMobile: phone, hasTouch: phone, colorScheme: scheme, locale: 'he-IL', reducedMotion: 'reduce' });
       const p = await ctx.newPage();
-      await installMfaMock(p, where === 'browser' ? { deviceKeys: [] } : {});
+      // the scheme: this browser's own choice (design/apply.ts OWN_SCHEME_KEY) and the installation's setting
+      await p.addInitScript((sc) => { try { localStorage.setItem('sw.ui.scheme', sc); } catch { /* about:blank has no storage */ } }, scheme);
+      await installMfaMock(p, { settings: { 'ui.scheme': scheme }, ...(where === 'browser' ? { deviceKeys: [] } : {}) });
       if (where === 'app') await fakeApp(p);
       await openSecurity(p);
       const block = p.locator('sw-app sw-user-menu [data-my-security] sw-account-security [data-sec-block="device-keys"]');
