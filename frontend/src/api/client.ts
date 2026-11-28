@@ -236,7 +236,10 @@ async function fetchApi(path: string, init: RequestInit, ms = 0, hold?: (d: Dead
     const refusedAt = Date.now();
     // the user confirmed (a current code or a passkey): the same request once more (never queued, never retried again - a second refusal is final)
     // SCR-23: a physical action (a door, the alarm) only while the refusal is recent - never replayed after the confirmation expired
-    if (details && (await onStepUp(details)) && replayAllowed(details, Date.now() - refusedAt)) {
+    if (details && (await onStepUp(details))) {
+      // FIX-FE2-2570 (review FE2-03): confirmed, but too late for a physical action (its dialog waited behind another one) - not re-sent,
+      // and the screen says "confirmed - press again" instead of the raw "confirm your identity" refusal right after the person confirmed
+      if (!replayAllowed(details, Date.now() - refusedAt)) return pressAgain(details);
       // FIX-SERVER-CLOCK-2560 (review FE-01): a physical action is never re-sent with the expiry it had before the dialog - the code
       // typed in 15-30 s outlives a 15 s envelope. Its body gets the same life again from now (server clock); a body whose expiry
       // cannot be rebuilt is not sent at all: the screen says "confirmed - press again".

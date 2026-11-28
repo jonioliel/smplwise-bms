@@ -4,12 +4,13 @@ import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-card';
 import '../components/sw-toggle';
 import '../components/sw-button';
+import { confirmDialog } from '../components/confirm-dialog';
 import { ApiError, describeError } from '../api/client';
 import { messagingPolicyApi, POLICY_ROLES, type PolicyRole, type PolicyView } from '../api/messaging-policy';
 import { settingsStyles } from '../styles/settings';
 import { bidi } from '../i18n/bidi';
 import { mw, type MwKey } from '../i18n/messaging-policy';
-import { blocksEverything, minutesValue, pageOf, phoneDigits } from '../messaging/policy-model';
+import { blockingChange, blocksEverything, minutesValue, pageOf, phoneDigits } from '../messaging/policy-model';
 import { timeText } from '../api/day-format';
 import { PollController } from '../components/poll-controller';
 import { hostBlockStyles, ltrStyles } from '../styles/fragments';
@@ -104,6 +105,28 @@ export class MessagingPolicyCard extends LitElement {
     }
   }
 
+  /** FIX-FE2-2570 (review FE2-08): a change that stops delivery (enforcement on with nobody listed; removing a recipient while it is
+   * on) is asked first - it took effect on one click, and a removed number can only be added back with its full digits. */
+  private async setEnforce(on: boolean): Promise<void> {
+    const v = this.view;
+    if (!v || this.busy || !this.editable) return;
+    if (blockingChange(v, { enforce: on }) && !(await this.ask(mw('confirmBlockAllTitle'), mw('confirmBlockAll')))) return;
+    void this.run(() => messagingPolicyApi().setEnforce(on));
+  }
+
+  private async remove(id: string, label: string): Promise<void> {
+    const v = this.view;
+    if (!v || this.busy || !this.editable) return;
+    const b = blockingChange(v, { remove: true });
+    if (b && !(await this.ask(mw('confirmRemoveTitle', { name: label }), b === 'all' ? `${mw('confirmRemove', { name: label })}
+${mw('blocksAll')}` : mw('confirmRemove', { name: label })))) return;
+    void this.run(() => messagingPolicyApi().remove(id));
+  }
+
+  private ask(heading: string, body: string): Promise<boolean> {
+    return confirmDialog({ heading, body, confirmLabel: mw('confirmYes'), danger: true });
+  }
+
   private add(): void {
     if (phoneDigits(this.phone) === null) {
       this.error = mw('err_phone');
@@ -148,7 +171,7 @@ export class MessagingPolicyCard extends LitElement {
       <div class="row"><span class="lbl">${mw('allowTitle')}</span></div>
       <div class="row"><span class="lbl">${mw('enforce')}</span>
         <sw-toggle controlled label=${mw('enforce')} labelHidden data-policy-enforce .checked=${v.enforce} ?disabled=${off}
-          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.run(() => messagingPolicyApi().setEnforce(e.detail.checked))}></sw-toggle>
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnforce(e.detail.checked)}></sw-toggle>
         ${v.enforce ? nothing : html`<span class="tag" data-enforce-off>${mw('enforceOff')}</span>`}</div>
       ${blocksEverything(v.enforce, v.allow.length) ? html`<div class="msg err" role="status" data-blocks-all>${mw('blocksAll')}</div>` : nothing}
       <div data-policy-list>
@@ -157,7 +180,7 @@ export class MessagingPolicyCard extends LitElement {
           <span class="tag" data-role=${e.role}>${mw(`role_${e.role}` as MwKey)}</span>
           <span class="tag ltr">${e.last4 ? `…${e.last4}` : '–'}</span>
           ${this.editable ? html`<sw-button size="sm" variant="ghost" data-remove ?disabled=${this.busy}
-            @click=${() => void this.run(() => messagingPolicyApi().remove(e.id))}>${mw('remove')}</sw-button>` : nothing}</div>`)
+            @click=${() => void this.remove(e.id, e.label)}>${mw('remove')}</sw-button>` : nothing}</div>`)
           : html`<p class="muted" data-empty>${mw('empty')}</p>`}
         ${pg.pages > 1 ? html`<div class="pager" data-pager>
           <sw-button size="sm" variant="ghost" data-prev ?disabled=${pg.page === 0} @click=${() => (this.page = pg.page - 1)}>${mw('prev')}</sw-button>

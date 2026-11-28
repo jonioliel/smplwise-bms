@@ -102,6 +102,7 @@ const he = {
   qcLightsOff: 'כבה תאורה',
   qcEmpty: 'אין התקנים לשליטה באזור הזה',
   qcLoadFailed: 'לא ניתן לטעון את האזור',
+  qcSceneSent: 'הבקשה נשלחה', // FIX-FE2-2570 (FE2-01): a scene press - the request was sent, the outcome is not known
   qcGrab: 'גרירה: הרחבה או סגירה',
   // AREAEDIT-2290: editing the area pop-up (hide + order; managers only)
   qcEdit: 'עריכה',

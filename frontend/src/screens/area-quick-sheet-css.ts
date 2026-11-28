@@ -629,6 +629,15 @@ export const areaQuickSheetStyles = [
       .scene[data-busy] {
         opacity: 0.6;
       }
+      /* FIX-FE2-2570 (FE2-01): what happened to the last scene press - "sent", or the server's reason in red */
+      .scene-note {
+        margin-block-start: 6px;
+        font-size: var(--sw-fs-sm);
+        color: var(--sw-text-2);
+      }
+      .scene-note.bad {
+        color: var(--sw-danger);
+      }
       @media (hover: hover) and (pointer: fine) {
         .scene:hover {
           background: var(--sw-surface-2);

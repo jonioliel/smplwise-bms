@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
-import { POLL_MS, chipView } from '../api/building-presence-logic';
+import { POLL_MS, chipView, keptSnapshot } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 import { canAnywhere, isApi } from '../api/session';
 
@@ -15,6 +15,8 @@ import { canAnywhere, isApi } from '../api/session';
 export class BuildingPresenceChip extends LitElement {
   @state() private snap: BuildingSnapshot | null = null;
   private timer = 0;
+  /** FIX-FE2-2570 (FE2-12): reads failed in a row since the last answer. */
+  private fails = 0;
 
   static styles = css`
     :host {
@@ -64,8 +66,12 @@ export class BuildingPresenceChip extends LitElement {
   private async load() {
     try {
       this.snap = await getBuildingPresence();
+      this.fails = 0;
     } catch {
-      // a failed read keeps the last answer; nothing is invented and nothing is shown for a chip that never loaded
+      // a failed read keeps the last answer for a moment; FIX-FE2-2570 (FE2-12): after a few failed reads in a row it is dropped (the
+      // chip hides) - a wall tablet cut off from the server for hours must not keep saying "occupied"
+      this.fails += 1;
+      this.snap = keptSnapshot(this.snap, this.fails);
     }
   }
 

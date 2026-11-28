@@ -547,7 +547,7 @@ test.describe('scenes', () => {
     await ready(page);
     const movie = scene(page, 'סלון · סרט');
     await movie.locator('[data-scene-activate]').click();
-    await expect(movie.locator('[data-scene-activate]')).toHaveText('הופעלה');
+    await expect(movie.locator('[data-scene-activate]')).toHaveText('נשלחה'); // FIX-FE2-2570 (FE2-04): the request was sent, the outcome is not known
     await expect(movie.locator('[data-scene-sub]')).toContainText('הופעלה');
     await movie.locator('[data-scene-fav]').click();
     await expect(panel(page).locator('[data-scene-group="favourites"] .scard')).toHaveCount(3);
@@ -657,7 +657,7 @@ test.describe('scripts', () => {
     await open(page, '/devices/automations/scripts');
     await ready(page);
     await script(page, 'בוקר טוב').locator('[data-script-run]').click();
-    await expect(scr(page).locator('[data-auto-note]')).toContainText('הסקריפט הופעל');
+    await expect(scr(page).locator('[data-auto-note]')).toContainText('הבקשה להפעלת הסקריפט נשלחה');
     // the sensitive one: the confirmation names what it includes
     const vac = script(page, 'מצב חופשה');
     await vac.locator('[data-script-run]').click();
@@ -691,7 +691,7 @@ test.describe('scripts', () => {
       await d.locator('[data-drawer-run]').click();
       await expect(d.locator('[data-dialog="run"]')).toContainText('פעולה מתקדמת');
       await d.locator('[data-dialog="run"] [data-dialog-ok]').click();
-      await expect(scr(page).locator('[data-auto-note]')).toContainText('הסקריפט הופעל');
+      await expect(scr(page).locator('[data-auto-note]')).toContainText('הבקשה להפעלת הסקריפט נשלחה');
     }
   });
 

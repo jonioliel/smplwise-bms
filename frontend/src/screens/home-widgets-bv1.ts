@@ -528,6 +528,9 @@ function launchLabel(item: LaunchItemCfg, names: Map<string, string>): string {
   return names.get(item.id) ?? idLabel(item.id);
 }
 
+/** FIX-FE2-2570 (FE2-04): the note after a scene / script launch - the request was sent; nothing more is known. */
+const LAUNCH_SENT = () => tr('הבקשה נשלחה');
+
 export interface LaunchState {
   busy: Set<string>;
   done: Set<string>;
@@ -551,9 +554,12 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
     h.setLaunchNote('');
     requestUpdate();
     try {
-      await runLaunch(x as LaunchItem);
+      // FIX-FE2-2570 (FE2-01): a sensitive scene / script asks first (the shared confirmation; loaded with the first press, PERF-2490);
+      // FE2-04: the server accepted the request (202) - "sent", the devices' outcome is not known
+      const r = await runLaunch(x as LaunchItem, (target) => import('./run-confirm-ask').then((m) => m.askRun(target)));
+      if (r !== 'sent') return;
       st.done.add(key(x));
-      h.setLaunchNote(x.kind === 'scene' ? tr('הסצנה הופעלה') : tr('הסקריפט הופעל'));
+      h.setLaunchNote(LAUNCH_SENT());
       window.setTimeout(() => {
         st.done.delete(key(x));
         h.setLaunchNote('');
@@ -580,5 +586,5 @@ export function renderLauncher(h: Bv1Host, it: WidgetItem, st: LaunchState, name
   };
   return h.shell(it, 'wg-launcher', {}, html`${h.head(it, GRID_ICON)}
     <div class="lg" data-home-launcher role="group" aria-label=${it.title}>${items.map(btn)}</div>
-    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, bad: h.launchNote !== tr('הסצנה הופעלה') && h.launchNote !== tr('הסקריפט הופעל') })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
+    ${h.launchNote ? html`<div class=${classMap({ 'l-note': true, bad: h.launchNote !== LAUNCH_SENT() })} role="status" data-home-launch-note>${h.launchNote}</div>` : nothing}`);
 }

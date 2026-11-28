@@ -8,6 +8,7 @@ import type { IconName } from '../components/sw-icon';
 import { canAnywhere } from './session';
 // PERF-2490: the automations model (with its adapters) loads with the first scene / script launch, not with the home screen
 import type { ItemKind } from './automations';
+import type { RunAsk } from './run-confirm';
 import { navigate } from '../router';
 import { tr } from '../i18n/msg/api-home';
 
@@ -80,19 +81,23 @@ export const idLabel = (id: string): string => id.split('.').slice(1).join('.').
  * Runs a scene or a script (the same requests the automations screen sends; the server checks the permission again). Routes and the
  * quick actions are the caller's: a route navigates, a quick action goes through the home screen's bulk dialog (`home-quick`).
  */
-export async function runLaunch(item: LaunchItem): Promise<void> {
+export async function runLaunch(item: LaunchItem, ask: RunAsk = async () => false): Promise<'sent' | 'cancelled' | 'none'> {
   if (item.kind === 'route') {
     const r = launchRoute(item.id);
     if (r) navigate(r.hash);
-    return;
+    return 'none';
   }
-  if (item.kind === 'quick') return;
+  if (item.kind === 'quick') return 'none';
   // a scene / script is addressed by its automations item id, not its entity id: the list (the same gate as apply / run) resolves it
   const kind: ItemKind = item.kind;
-  const { activateScene, automations, runScriptNow } = await import('./automations');
+  const [{ activateScene, automations, runScriptNow }, { runConfirmed }] = await Promise.all([import('./automations'), import('./run-confirm')]);
   const { items } = await automations().list({ kind, limit: 500 });
   const found = items.find((x) => x.entity_id === item.id);
   if (!found) throw new Error(item.kind === 'scene' ? tr('הסצנה לא נמצאה') : tr('הסקריפט לא נמצא'));
-  if (item.kind === 'scene') await activateScene(found.id);
-  else await runScriptNow(found.id);
+  // FIX-FE2-2570 (FE2-01): a sensitive scene / script (a lock, the alarm, a siren, a door step) is asked about first; the server's
+  // `confirmation_required` asks too and, on yes, the request goes ONE more time with `confirm: true`. Without `ask` nothing sensitive runs.
+  const r = item.kind === 'scene'
+    ? await runConfirmed(found, (o) => activateScene(found.id, o), ask)
+    : await runConfirmed(found, (o) => runScriptNow(found.id, {}, o), ask);
+  return r.sent ? 'sent' : 'cancelled';
 }

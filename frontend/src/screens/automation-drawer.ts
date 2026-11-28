@@ -488,7 +488,7 @@ export class AutomationDrawer extends LitElement {
     try {
       if (it.kind === 'script') await runScriptNow(it.id, this.values, { confirm: confirmed || undefined });
       else await runAutomation(it.id, { skip_condition: true, confirm: confirmed || undefined });
-      this.say(it.kind === 'script' ? tr('הסקריפט הופעל') : tr('האוטומציה הורצה'));
+      this.say(it.kind === 'script' ? tr('הבקשה להפעלת הסקריפט נשלחה') : tr('האוטומציה הורצה')); // FIX-FE2-2570 (FE2-04): 202 = request sent
       this.fire('changed', { id: it.id });
       window.setTimeout(() => void this.load(true), 250);
     } catch (err) {

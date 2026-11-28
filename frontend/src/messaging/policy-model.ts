@@ -33,3 +33,11 @@ export function pageOf(entries: PolicyEntry[], page: number): { items: PolicyEnt
 export function blocksEverything(enforce: boolean, entries: number): boolean {
   return enforce && entries === 0;
 }
+
+/** FIX-FE2-2570 (review FE2-08): a change that stops delivery and so is asked first - switching enforcement on with nobody listed
+ * ('all'), or removing a listed recipient while enforcement is on ('one'; the last one = 'all'). null = no question. */
+export function blockingChange(view: { enforce: boolean; allow: readonly unknown[] }, change: { enforce: boolean } | { remove: true }): 'all' | 'one' | null {
+  if ('enforce' in change) return change.enforce && !view.enforce && view.allow.length === 0 ? 'all' : null;
+  if (!view.enforce) return null;
+  return view.allow.length <= 1 ? 'all' : 'one';
+}

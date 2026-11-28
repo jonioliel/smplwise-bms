@@ -96,6 +96,7 @@ export const en = {
   qcLightsOff: 'Lights off',
   qcEmpty: 'No devices to control in this area',
   qcLoadFailed: 'The area could not be loaded',
+  qcSceneSent: 'Request sent',
   qcGrab: 'Drag: expand or close',
   // AREAEDIT-2290: editing the area pop-up (hide + order; managers only)
   qcEdit: 'Edit',

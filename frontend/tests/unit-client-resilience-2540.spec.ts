@@ -162,7 +162,7 @@ test.describe('SCR-23: a refused physical action is never sent after the confirm
   });
 
   for (const late of [false, true]) {
-    test(`door open confirmed ${late ? 'after' : 'within'} the replay window: ${late ? 'not re-sent, the refusal stays' : 're-sent once'}`, async () => {
+    test(`door open confirmed ${late ? 'after' : 'within'} the replay window: ${late ? 'not re-sent, "press again"' : 're-sent once'}`, async () => {
       const realNow = Date.now;
       let skew = 0;
       Date.now = () => realNow() + skew;
@@ -175,7 +175,7 @@ test.describe('SCR-23: a refused physical action is never sent after the confirm
           const out = await settle(post('access-control/doors/d1/open', {}));
           if (late) {
             expect(out).toBeInstanceOf(ApiError);
-            expect((out as ApiError).body.code).toBe('step_up_required');
+            expect((out as ApiError).body.code).toBe('step_up_confirmed_press_again'); // FIX-FE2-2570 (FE2-03): not the raw refusal
             expect(calls).toHaveLength(1);
           } else {
             expect(out).toBeNull();

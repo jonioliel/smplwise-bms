@@ -211,6 +211,34 @@ function notify(): void {
   for (const l of listeners) l();
 }
 
+/**
+ * FIX-FE2-2570 (deep review 2.57, FE2-16): one optimistic save of a preference key. Each save used to keep its own `before` and put it
+ * back on failure, so two quick changes A then B, with B saved and A refused afterwards, reverted the screen to what it was before A
+ * while the server held B. Now a failure reverts only when no later save of the same key was started, and it reverts to the last value
+ * the server accepted (or the value before the first save still in flight), never to an intermediate optimistic one.
+ */
+const optimistic = new Map<string, { seq: number; pending: number; base: unknown }>();
+async function saveOptimistic<T>(key: string, current: T, next: T, apply: (v: T) => void, send: () => Promise<unknown>): Promise<void> {
+  const s = optimistic.get(key) ?? { seq: 0, pending: 0, base: undefined };
+  optimistic.set(key, s);
+  if (s.pending === 0) s.base = current;
+  const n = ++s.seq;
+  apply(next);
+  if (!remote) return;
+  s.pending += 1;
+  const who = user;
+  try {
+    await send();
+    s.base = next;
+  } catch (err) {
+    if (user !== who || n !== s.seq) return; // another user now, or a later save of this key is in charge
+    apply(s.base as T);
+    throw err;
+  } finally {
+    s.pending -= 1;
+  }
+}
+
 /** The shell, its rows and the screens with their own chip rows follow every change of the mode. */
 export function onTabsMode(fn: () => void): () => void {
   listeners.add(fn);
@@ -404,23 +432,14 @@ class Dial<T extends string> {
     this.own = next;
   }
   async save(value: T | null, groups: DialGroups<T>): Promise<void> {
-    const before = this.own;
-    this.own = { value, groups };
-    if (user) this.write(user, this.own);
-    notify();
-    if (!remote) return;
-    const who = user;
-    try {
-      await putMyPrefs({ [`ui.dd_${this.key}`]: value, [`ui.dd_${this.key}_groups`]: Object.keys(groups).length ? (groups as Record<string, string>) : null } as Parameters<typeof putMyPrefs>[0]);
-    } catch (err) {
-      if (user !== who) return;
-      this.own = before;
-      if (user) this.write(user, before);
+    const apply = (v: { value: T | null; groups: DialGroups<T> }) => {
+      this.own = v;
+      if (user) this.write(user, v);
       notify();
-      throw err;
-    }
+    };
+    await saveOptimistic(`dial:${this.key}`, this.own, { value, groups }, apply, () =>
+      putMyPrefs({ [`ui.dd_${this.key}`]: value, [`ui.dd_${this.key}_groups`]: Object.keys(groups).length ? (groups as Record<string, string>) : null } as Parameters<typeof putMyPrefs>[0]));
   }
-}
 const ringDial = new Dial<DdRing>('ring', asDdRing, DD_RING_DEFAULT, 'sw.dd.ring');
 const panelDial = new Dial<DdPanel>('panel', asDdPanel, DD_PANEL_DEFAULT, 'sw.dd.panel');
 
@@ -461,23 +480,13 @@ class Choice<T extends string> {
     this.write(userId, this.own);
   }
   async save(value: T | null): Promise<void> {
-    const before = this.own;
-    this.own = value;
-    if (user) this.write(user, value);
-    notify();
-    if (!remote) return;
-    const who = user;
-    try {
-      await putMyPrefs({ [`ui.dd_${this.key}`]: value } as Parameters<typeof putMyPrefs>[0]);
-    } catch (err) {
-      if (user !== who) return;
-      this.own = before;
-      if (user) this.write(user, before);
+    const apply = (v: T | null) => {
+      this.own = v;
+      if (user) this.write(user, v);
       notify();
-      throw err;
-    }
+    };
+    await saveOptimistic(`choice:${this.key}`, this.own, value, apply, () => putMyPrefs({ [`ui.dd_${this.key}`]: value } as Parameters<typeof putMyPrefs>[0]));
   }
-}
 const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAULT, 'sw.dd.search');
 const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
 const placeChoice = new Choice<DdPlace>('place', asDdPlace, DD_PLACE_DEFAULT, 'sw.dd.place');
@@ -734,76 +743,43 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
  * reverted when the server refuses. The static demo has no backend: the choice then lives in this browser only.
  */
 export async function saveOwnTabsMode(mode: TabMode | null, groups: TabModeGroups): Promise<void> {
-  const before = own;
-  own = { mode, groups };
-  if (user) writeCache(user, own);
-  notify();
-  if (!remote) return;
-  const who = user;
-  try {
-    await putMyPrefs({ 'ui.tabs_mode': mode, 'ui.tabs_mode_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null });
-  } catch (err) {
-    if (user !== who) return;
-    own = before;
-    if (user) writeCache(user, before);
+  const apply = (v: typeof own) => {
+    own = v;
+    if (user) writeCache(user, v);
     notify();
-    throw err;
-  }
+  };
+  await saveOptimistic('tabs_mode', own, { mode, groups }, apply, () =>
+    putMyPrefs({ 'ui.tabs_mode': mode, 'ui.tabs_mode_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null }));
 }
 
 /** Save the user's own dropdown style: `style` null = follow the installation, `groups` only the overrides. Optimistic, reverted on refusal (as saveOwnTabsMode). */
 export async function saveOwnDdStyle(style: DdStyle | null, groups: DdStyleGroups): Promise<void> {
-  const before = ddOwn;
-  ddOwn = { style, groups };
-  if (user) writeDdCache(user, ddOwn);
-  notify();
-  if (!remote) return;
-  const who = user;
-  try {
-    await putMyPrefs({ 'ui.dd_style': style, 'ui.dd_style_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null });
-  } catch (err) {
-    if (user !== who) return;
-    ddOwn = before;
-    if (user) writeDdCache(user, before);
+  const apply = (v: typeof ddOwn) => {
+    ddOwn = v;
+    if (user) writeDdCache(user, v);
     notify();
-    throw err;
-  }
+  };
+  await saveOptimistic('dd_style', ddOwn, { style, groups }, apply, () =>
+    putMyPrefs({ 'ui.dd_style': style, 'ui.dd_style_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null }));
 }
 
 /** Save the user's own dropdown size: `size` null = follow the installation, `groups` only the overrides. Optimistic, reverted on refusal (as saveOwnDdStyle). */
 export async function saveOwnDdSize(size: DdSize | null, groups: DdSizeGroups): Promise<void> {
-  const before = ddSizeOwn;
-  ddSizeOwn = { size, groups };
-  if (user) writeDdSizeCache(user, ddSizeOwn);
-  notify();
-  if (!remote) return;
-  const who = user;
-  try {
-    await putMyPrefs({ 'ui.dd_size': size, 'ui.dd_size_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null });
-  } catch (err) {
-    if (user !== who) return;
-    ddSizeOwn = before;
-    if (user) writeDdSizeCache(user, before);
+  const apply = (v: typeof ddSizeOwn) => {
+    ddSizeOwn = v;
+    if (user) writeDdSizeCache(user, v);
     notify();
-    throw err;
-  }
+  };
+  await saveOptimistic('dd_size', ddSizeOwn, { size, groups }, apply, () =>
+    putMyPrefs({ 'ui.dd_size': size, 'ui.dd_size_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null }));
 }
 
 /** Save the user's own phone choice: null = follow the installation. Optimistic, reverted on refusal (as saveOwnDdStyle). */
 export async function saveOwnDdPhone(mode: DdPhone | null): Promise<void> {
-  const before = ddPhoneOwn;
-  ddPhoneOwn = mode;
-  if (user) writeDdPhoneCache(user, mode);
-  notify();
-  if (!remote) return;
-  const who = user;
-  try {
-    await putMyPrefs({ 'ui.dd_phone': mode });
-  } catch (err) {
-    if (user !== who) return;
-    ddPhoneOwn = before;
-    if (user) writeDdPhoneCache(user, before);
+  const apply = (v: DdPhone | null) => {
+    ddPhoneOwn = v;
+    if (user) writeDdPhoneCache(user, v);
     notify();
-    throw err;
-  }
+  };
+  await saveOptimistic('dd_phone', ddPhoneOwn, mode, apply, () => putMyPrefs({ 'ui.dd_phone': mode }));
 }

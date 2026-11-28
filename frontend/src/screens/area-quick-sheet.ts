@@ -17,7 +17,9 @@ import { ApiError } from '../api/client';
 import { fmtTime, subscribeHa } from '../api/ha';
 import { getDevicesArea, isDimmable, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceRow } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
-import { activateScene, automations, type Item } from '../api/automations';
+import { activateScene, automations, mapAutomationError, type Item } from '../api/automations';
+import { runConfirmed } from '../api/run-confirm';
+import { askRun } from './run-confirm-ask';
 import { HOME_SCREEN_DEFAULT, loadHomeScreen, type HomeScreenOptions, type PopupAlert } from '../api/home-screen';
 import { EMPTY_LAYOUT, POPUP_ITEM_SECTIONS, isVersionConflict, savePopupLayout, type PopupLayout } from '../api/popup-layout';
 import { invalidateSettings } from '../api/prefs';
@@ -109,6 +111,8 @@ export class AreaQuickSheet extends LitElement {
   @state() private schedules: Schedule[] = [];
   @state() private events: VmsEvent[] = [];
   @state() private sceneBusy = '';
+  /** FIX-FE2-2570 (FE2-01): the answer to the last scene press (null = none yet). */
+  @state() private sceneNote: { text: string; bad: boolean } | null = null;
   /** AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area's presence line, as on the area screen (null = not read / not permitted). */
   @state() private areaPres: AreaPresence | null = null;
   private presTimer = 0;
@@ -179,6 +183,7 @@ export class AreaQuickSheet extends LitElement {
         this.detail = null;
         this.areaPres = null;
         this.scenes = [];
+        this.sceneNote = null;
         this.schedules = [];
         this.events = [];
         this.error = '';
@@ -258,6 +263,7 @@ export class AreaQuickSheet extends LitElement {
     ++this.loadSeq;
     this.detail = null;
     this.scenes = [];
+    this.sceneNote = null;
     this.schedules = [];
     this.events = [];
     this.error = '';
@@ -579,13 +585,17 @@ export class AreaQuickSheet extends LitElement {
     this.events = events;
   }
 
+  /** FIX-FE2-2570 (review FE2-01, outside-area note): a sensitive scene asks first (the shared confirmation, as the scenes panel and the
+   * launcher); a refusal is SHOWN under the chips (it was swallowed, so the press did nothing at all); a sent request says "sent". */
   private async runScene(it: Item) {
     if (this.sceneBusy) return;
     this.sceneBusy = it.id;
+    this.sceneNote = null;
     try {
-      await activateScene(it.id);
-    } catch {
-      /* the automations screen reports; here the chip simply releases */
+      const r = await runConfirmed(it, (o) => activateScene(it.id, o), askRun);
+      if (r.sent) this.sceneNote = { text: hs('qcSceneSent'), bad: false };
+    } catch (err) {
+      this.sceneNote = { text: mapAutomationError(err).message, bad: true };
     } finally {
       this.sceneBusy = '';
     }
@@ -925,7 +935,7 @@ export class AreaQuickSheet extends LitElement {
     if (s === 'scenes') {
       return html`<div class="sec" data-qc-section="scenes">${head(this.scenes.length)}<div class="scenes">${this.scenes.map(
         (it) => html`<button type="button" class="scene" data-qc-scene=${it.id} ?data-busy=${this.sceneBusy === it.id} ?disabled=${!!this.sceneBusy} @click=${() => void this.runScene(it)}><sw-icon name="play" size=${13}></sw-icon>${bidi(it.name)}</button>`,
-      )}</div></div>`;
+      )}</div>${this.sceneNote ? html`<div class=${classMap({ 'scene-note': true, bad: this.sceneNote.bad })} data-qc-scene-note role=${this.sceneNote.bad ? 'alert' : 'status'}>${this.sceneNote.text}</div>` : nothing}</div>`;
     }
     if (s === 'schedules') {
       return html`<div class="sec" data-qc-section="schedules">${head(this.schedules.length)}<div class="rows">${this.schedules.map(

@@ -8,6 +8,12 @@ export const en = {
   enforce: 'Send only to the list',
   enforceOff: 'Off: every recipient may be messaged',
   blocksAll: 'Enforcement is on and the list is empty: no message will be sent',
+  // FIX-FE2-2570 (review FE2-08): the confirmations before a change that stops delivery
+  confirmBlockAllTitle: 'Stop every message?',
+  confirmBlockAll: 'Enforcement will be on with an empty list: no WhatsApp message will be sent until someone is added.',
+  confirmRemoveTitle: 'Remove {name}?',
+  confirmRemove: 'Enforcement is on: {name} will get no more messages. Adding them back needs the full number.',
+  confirmYes: 'Yes, continue',
   phone: 'Number (with country code)',
   label: 'Name',
   role: 'Role',

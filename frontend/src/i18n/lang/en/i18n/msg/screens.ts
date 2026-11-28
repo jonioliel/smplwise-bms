@@ -243,6 +243,7 @@ export const en = {
   'כבה תאורה': 'Turn off the lights',
   'הסצנה הופעלה': 'Scene activated',
   'הסקריפט הופעל': 'Script run',
+  'הבקשה נשלחה': 'Request sent', // FIX-FE2-2570 (FE2-04): the launcher's note after a scene / script
   'לא הופעל: {reason}': 'Not run: {reason}',
 
   // infra-electricity.ts

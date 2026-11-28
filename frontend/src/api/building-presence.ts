@@ -61,6 +61,8 @@ export interface BuildingSnapshot {
   empty_minutes?: number | null;
   empty_reached?: boolean;
   at?: string;
+  /** FIX-FE2-2570 (FE2-06): the installation's IANA zone (absent from an older server: the formatters fall back to Asia/Jerusalem). */
+  time_zone?: string;
 }
 export interface PresenceCandidate { entity_id: string; name: string; area_id: string | null; area_name: string | null; device_class: string | null; tagged: boolean; state: string | null; placed?: boolean }
 export interface PresenceRoomOption { area_id: string; name: string }
@@ -76,6 +78,8 @@ export interface AreaPresence {
   line: boolean;
   sensors: { status: OccupancyStatus; empty_since: string | null; sensors: number } | null;
   people: { count: number; names: string[] | null; more: number; anonymous?: boolean } | null;
+  /** FIX-FE2-2570 (FE2-06): the installation's IANA zone. */
+  time_zone?: string;
 }
 
 export const HOLD_RANGE = { min: 0, max: 3600 } as const;

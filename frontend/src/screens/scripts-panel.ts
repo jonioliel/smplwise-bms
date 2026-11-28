@@ -197,7 +197,7 @@ export class ScriptsPanel extends LitElement {
     this.busy = new Set([...this.busy, i.id]);
     try {
       await runScriptNow(i.id, {}, { confirm: confirmed || undefined });
-      this.say(tr('הסקריפט הופעל'));
+      this.say(tr('הבקשה להפעלת הסקריפט נשלחה')); // FIX-FE2-2570 (FE2-04): a 202 "request sent" - the devices' outcome is not known
       this.fire('changed', { id: i.id });
     } catch (err) {
       const f = mapAutomationError(err);

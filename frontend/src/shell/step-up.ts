@@ -24,13 +24,24 @@ function keyOf(details: StepUpDetails): string {
   return details.once ? `once:${++onceSeq}` : `action:${typeof details.action === 'string' ? details.action : ''}`;
 }
 
+/** The address the request was refused on ('' without a page - unit specs under node). */
+function here(): string {
+  try {
+    return location.hash;
+  } catch {
+    return '';
+  }
+}
+
 function askStepUp(details: StepUpDetails): Promise<boolean> {
   const key = keyOf(details);
   const known = open.get(key);
   if (known) return known;
+  const at = here();
   const answer: Promise<boolean> = queue
-    .then(() => import('../components/sw-step-up-dialog'))
-    .then((m) => m.stepUpDialog(details))
+    // FIX-FE2-2570 (review FE2-03): a refusal that waited behind another dialog belongs to the screen it came from - when the address
+    // changed meanwhile, its dialog never opens and nothing is sent (as the open dialog's own SCR-23 route cancel)
+    .then(() => (here() === at ? import('../components/sw-step-up-dialog').then((m) => m.stepUpDialog(details)) : false))
     .catch(() => false)
     .finally(() => {
       open.delete(key);

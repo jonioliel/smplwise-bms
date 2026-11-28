@@ -23,6 +23,7 @@ from ..services import building_presence as bp
 from ..services import building_presence_history as bph
 from ..services import ha_sync
 from ..services import presence_people as people_svc
+from ..services.timeutil import site_zone_name
 from ._common import rid as _rid
 from ..wire import building_presence as W
 from ..wire import wire
@@ -71,7 +72,8 @@ def building_snapshot(request: Request, principal: Principal = Depends(_principa
                 audit(w, actor=principal, action=bp.VIEW, decision="denied", resource_type="installation", resource_id="*", reason="no_binding", request_id=_rid(request))
             raise forbidden(permission=bp.VIEW)
         note_grant(authorize(conn, principal, bp.VIEW, INSTALLATION), bp.VIEW)
-        return bp.snapshot(conn, fresh=bool(ha_sync.STATE.connected))
+        # FIX-FE2-2570 (review FE2-06): the installation's IANA zone, so the screens show "empty since HH:MM" in it, not on a fixed zone
+        return {**bp.snapshot(conn, fresh=bool(ha_sync.STATE.connected)), "time_zone": site_zone_name(conn)}
 
 
 @router.get("/presence/area/{area_id}", **wire(W.BuildingPresenceAreaPresenceLine))
@@ -98,7 +100,7 @@ def area_presence_line(area_id: str, request: Request, principal: Principal = De
                 audit(w, actor=principal, action="presence.people.view", decision="allowed", resource_type="area", resource_id=area_id, request_id=_rid(request),
                       details={"inside": view["totals"]["inside"], "named": view["totals"]["named"], "hidden": view["totals"]["hidden"], "enabled": view["enabled"],
                                "area": (out["people"] or {}).get("count", 0), "anonymous": bool((out["people"] or {}).get("anonymous"))})
-        return out
+        return {**out, "time_zone": site_zone_name(conn)}  # FIX-FE2-2570 (FE2-06): the installation's zone for the line's times
 
 
 @router.get("/presence/building/sensors", **wire(W.BuildingPresenceBuildingSensors))
