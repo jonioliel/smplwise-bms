@@ -25,10 +25,12 @@ Base: `origin/release/2570-train` (= v2.56.0, `6ea807b2e`). Review: `docs/review
   (camera@time argument) decode with `router.ts decodeSegment` (LOWS-FRONTEND-2550): a broken escape such as `50%` is kept as written
   instead of throwing `URIError`.
 
-## Same class seen outside this row (not edited)
+## Same class outside the five screens (lead, 28.11: done in this row)
 
-- `frontend/src/calendars/cal-page.ts:179` (`get sub()`): a bare `decodeURIComponent` on a route segment, the same FE-05 class.
-- `frontend/src/api/download.ts:11`: `decodeURIComponent` on a `Content-Disposition` file name (not a route; throws on a malformed header).
+- `frontend/src/calendars/cal-page.ts` (`get sub()`) decoded its sub-address with a bare `decodeURIComponent`. It now calls the new pure
+  helper `calSub(route)` in `frontend/src/calendars/ctx.ts`, which uses `router.ts decodeSegment` (a broken escape is kept as written).
+- `frontend/src/api/download.ts` `dispositionName`: already safe at the base - the `decodeURIComponent` is inside `try / catch` and falls
+  back to the name as sent (CR-API-BLOB-2436, `e83f050a4`). Not changed; a unit test now pins the fallback.
 
 - FE2-17 (deep review 2.57, test quality; added by the lead) `frontend/tests/unit-controlled-toggles-2540.spec.ts`: the per-file guard
   lists `home/sw-home-admin.ts: 7`, and a new structural test finds the save-at-once switches itself (every `sw-toggle` in `src` whose
@@ -57,5 +59,14 @@ Also at the fix (`a13039daa`): `vite build` OK; `tsc --noEmit -p tsconfig.json` 
 tsconfig.tests.json` exit 0 at `9f2f165a3`; `eslint` on the six changed source files exit 0; `unit-automations-list` +
 `unit-lows-frontend-2550-core` 40 passed; page specs `home-simple-2420`, `home-v3-followup-a`, `home-wall-night-2500`, `home-v3-p1`
 (desktop) 55 passed.
+
+Calendars / download (runner, slot B, head `c0517cda6`):
+
+| Run | Result |
+|---|---|
+| Before - `src/calendars` from `f3c2e99d2` | `unit-fix-fe-2570-b` fails to load: `ctx` has no `calSub` (the page still used the throwing decoder) |
+| After | `unit-fix-fe-2570-b` + `unit-fix-fe-2570` (incl. the two download-name tests) + `unit-calendars-ui-2310`: 23 passed; `tsc -p tsconfig.json` 0, `tsc -p tsconfig.tests.json` 0, `eslint` on `ctx.ts` / `cal-page.ts` 0 |
+
+The download-name tests pass on the base too (the code was already safe); they are a guard, not a before / after pair.
 
 NOT_RUN: the tablet / phone projects, the full evidence / layout / pixel suites, backend tests (no backend change), any lab run.
