@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { localhostOrigin } from './helpers/localhost-origin';
 
 // MFA-HA-PASSKEY-2520: the remote second step of a home-system user answered with a passkey, behind the owner's switch
 // `security.passkey_remote_factor` (default off). The server tells the page what it offers in the `details` of its 401
@@ -72,9 +73,11 @@ test('another address: the passkey is not offered beside the code, and a passkey
 
 // ---------------------------------------------------------------- the whole remote sign-in with a passkey (mocked endpoints)
 
-test('the ceremony: the sign-in asks, the passkey answers in the header, a cancelled ceremony keeps the step', async ({ page }) => {
-  await page.goto('./');
-  test.skip(new URL(page.url()).hostname !== 'localhost', 'WebAuthn needs a localhost page (run with SW_BASE_URL=http://localhost:<port>/)');
+// FIX-SECURITY2-2570 (SA2-05 b): it skipped itself on every lane (they all serve 127.0.0.1) - now it opens a localhost origin there and
+// fails, never skips, when it cannot have one.
+test('the ceremony: the sign-in asks, the passkey answers in the header, a cancelled ceremony keeps the step', async ({ page, baseURL }) => {
+  await page.goto(`${await localhostOrigin(page, baseURL)}/`);
+  expect(new URL(page.url()).hostname, 'WebAuthn needs a localhost page').toBe('localhost');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable');
   const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {

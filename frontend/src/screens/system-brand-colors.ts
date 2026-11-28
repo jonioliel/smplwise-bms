@@ -5,9 +5,9 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
-import { getSettings, patchSettings } from '../api/media';
+import { getSettings, patchSettings, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
-import { can, isApi } from '../api/session';
+import { isApi } from '../api/session';
 import { BRAND_ACCENT, BRAND_DEFAULT, BRAND_PRESETS, SYSTEM_BLUE, brandColors, brandHex, contrastOnWhite, normalizeBrand, setBrandColors } from '../design/brand';
 import { t, type I18nKey } from '../i18n/he';
 import { settingsStyles } from '../styles/settings';
@@ -26,6 +26,9 @@ export class SystemBrandColors extends LitElement {
   @state() private draft = brandColors();
   @state() private saved = brandColors();
   @state() private canEdit = !isApi();
+  /** SA2-03: the first read of the stored colours failed (shown with "try again"; nothing is editable until a read succeeds) */
+  @state() private loadError = '';
+  @state() private loading = false;
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
@@ -99,15 +102,26 @@ export class SystemBrandColors extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     if (!isApi()) return;
-    this.canEdit = can('system.configure');
-    void getSettings()
-      .then((r) => {
-        this.canEdit = r.can_edit;
-        const v = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on'], 'toggle') };
-        this.saved = v;
-        this.draft = { ...v };
-      })
-      .catch(() => undefined);
+    void this.load();
+  }
+
+  /** FIX-SECURITY2-2570 (deep review SA2-03): the card is editable only after the stored colours were read; a failed read is shown with
+   * "try again" and the swatches and the save stay closed, so the defaults are never saved over the stored colours. */
+  private async load() {
+    this.loading = true;
+    this.loadError = '';
+    this.canEdit = false;
+    try {
+      const r = await getSettings();
+      const v = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on'], 'toggle') };
+      this.saved = v;
+      this.draft = { ...v };
+      this.canEdit = r.can_edit;
+    } catch (err) {
+      this.loadError = describeError(err);
+    } finally {
+      this.loading = false;
+    }
   }
 
   private get dirty(): boolean {
@@ -123,7 +137,12 @@ export class SystemBrandColors extends LitElement {
     this.error = '';
     try {
       if (isApi()) {
-        const r = await patchSettings({ 'ui.accent': this.draft.accent, 'ui.toggle_on': this.draft.toggle });
+        if (!this.canEdit) return; // SA2-03: never a save before the stored colours were read
+        // SA2-03: only the colour that changed (picking the accent alone never rewrites the stored switch colour)
+        const body: Partial<ProductSettings> = {};
+        if (this.draft.accent !== this.saved.accent) body['ui.accent'] = this.draft.accent;
+        if (this.draft.toggle !== this.saved.toggle) body['ui.toggle_on'] = this.draft.toggle;
+        const r = await patchSettings(body);
         invalidateSettings();
         this.saved = { accent: normalizeBrand(r.settings['ui.accent']), toggle: normalizeBrand(r.settings['ui.toggle_on'], 'toggle') };
       } else {
@@ -171,6 +190,10 @@ export class SystemBrandColors extends LitElement {
 
   render() {
     return html`<sw-card heading=${t('brandColors.heading')} subheading=${t('brandColors.subheading')} data-brand-card>
+      ${this.loadError
+        ? html`<div class="foot" data-brand-load-error><span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${t('brandColors.loadFailed')} · ${this.loadError}</span>
+            <sw-button size="sm" icon="refresh" data-brand-retry ?disabled=${this.loading} @click=${() => void this.load()}>${t('brandColors.retry')}</sw-button></div>`
+        : nothing}
       ${this.renderRow('accent')}
       ${this.renderRow('toggle')}
       <div class="foot">

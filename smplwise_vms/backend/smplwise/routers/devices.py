@@ -34,7 +34,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
 from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize, permissions_anywhere, require
 from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import device_types
@@ -186,11 +186,13 @@ def device_activity_feed(
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
     perms = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
     if perms and not any(ha_scope.entity_allowed(conn, principal, entity_id, p) for p in perms):  # a lock / alarm panel: a permission that operates it
-        raise ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה.")
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה."), action="device.activity",  # SA2-04
+                              resource_type="ha_entity", resource_id=entity_id, details={"needs_one_of": sorted(perms)})
     if row["domain"] == "alarm_control_panel":
         # the alarm's own rows also need alarm.view at the entity's scope (as _visible_entities)
         if not ha_scope.entity_allowed(conn, principal, entity_id, "alarm.view"):
-            raise ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה.")
+            raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה."), action="alarm.view",  # SA2-04
+                                  resource_type="ha_entity", resource_id=entity_id)
     try:
         out = device_activity.list_activity(conn, entity_id, since=since, until=until, actor=actor, kind=kind, limit=limit, cursor=cursor, connected=ha_sync.STATE.connected)
     except ValueError as exc:
@@ -1005,7 +1007,8 @@ def bulk_status(bulk_id: str, request: Request, principal: Principal = Depends(c
     counts and `done`. Its own requester, or a system administrator."""
     b = bulk.load(conn, bulk_id)
     if b["principal_user_id"] != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
-        raise ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר.")
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "הפעולה שייכת למשתמש אחר."), action="devices.bulk.status",  # SA2-04
+                              resource_type="device_bulk", resource_id=bulk_id, reason="not_owner", request_id=_rid(request))
     if not b["done"] and not bulk.RUNNER.running(bulk_id):
         # its worker is gone (the add-on restarted mid-bulk): record what was never sent, read the rest once more
         db: Database = request.app.state.db

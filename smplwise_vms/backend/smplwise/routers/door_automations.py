@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError, forbidden
-from ..rbac import Principal
+from ..rbac import Principal, audited_refusal
 from ..services import door_automation as da
 from ..services import door_automations_store as store
 from ._common import rid as _rid
@@ -43,8 +43,8 @@ def _dev(request: Request) -> bool:
 
 
 def _row(conn: sqlite3.Connection, principal: Principal, block_id: str) -> sqlite3.Row:
-    if not da.holds_anywhere(conn, principal):
-        raise forbidden(permission=da.AUTOMATE)
+    if not da.holds_anywhere(conn, principal):  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission=da.AUTOMATE), action=da.AUTOMATE, resource_type="door_automation", resource_id=block_id)
     row = da.get(conn, block_id)
     if row is None:
         raise ApiError(404, "not_found", "ההגדרה לא נמצאה.")
@@ -105,8 +105,8 @@ def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.C
 @router.get("/door-automations")
 def list_blocks(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                 automation_id: str | None = Query(None, pattern=_ITEM)) -> dict[str, Any]:
-    if not da.holds_anywhere(conn, principal):
-        raise forbidden(permission=da.AUTOMATE)
+    if not da.holds_anywhere(conn, principal):  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission=da.AUTOMATE), action=da.AUTOMATE)
     if automation_id:
         rows = store.automation_rows(conn, automation_id)
     else:

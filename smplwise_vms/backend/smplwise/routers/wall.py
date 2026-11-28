@@ -45,7 +45,9 @@ def _names(conn: sqlite3.Connection) -> dict[str, str]:
 def _wall_user(conn: sqlite3.Connection, principal: Principal) -> sqlite3.Row:
     """403 for a caller without `wall.view` or without an enabled profile: a user without a profile gets nothing from wall/*."""
     if WALL_VIEW not in permissions_anywhere(conn, principal):
-        raise forbidden("אין הרשאה למסך קיר.", permission=WALL_VIEW)
+        from ..rbac import audited_refusal  # SA2-04: the audited refusal (imported here: the import block is another row's edit)
+
+        raise audited_refusal(conn, principal, forbidden("אין הרשאה למסך קיר.", permission=WALL_VIEW), action=WALL_VIEW)
     row = wall.enabled_profile(conn, principal.user_id)
     if row is None:
         raise ApiError(403, "wall_not_configured", "למשתמש הזה אין מסך קיר פעיל.")

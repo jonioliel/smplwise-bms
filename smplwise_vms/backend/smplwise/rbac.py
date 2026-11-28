@@ -581,6 +581,22 @@ def require_system_admin(conn: sqlite3.Connection, principal: Principal, *, acti
     raise ApiError(403, "not_system_admin", text)
 
 
+def audited_refusal(conn: sqlite3.Connection, principal: Principal, exc, *, action: str, resource_type: str = "installation", resource_id: str = "*",
+                    reason: str = "no_permission", request_id: str | None = None, details: dict | None = None):
+    """FIX-SECURITY2-2570 (deep review 2.57 SA2-04): the ONE audited refusal of a handler that decides by itself (`authorize`,
+    `permissions_anywhere`, an ownership or domain check) instead of through `require`. It writes the `denied` audit row `require` would
+    have written - `action` (the permission, or the action refused), `reason`, the resource - and RETURNS `exc` unchanged, so the caller
+    keeps its exact answer (status, code, text, details): `raise audited_refusal(conn, principal, forbidden(...), action=...)`.
+    The row survives the refusal: an ApiError commits the request's write transaction (db.Database.connection), and a read-mode request
+    writes it through its own short side transaction (audit.audit). tests/test_audited_refusals_sa2_04.py counts the hand-written 403s
+    of routers/ that carry no audit call (a ratchet: the number may only go down)."""
+    from .audit import audit  # local import: audit depends on db only
+
+    audit(conn, actor=principal, action=action, decision="denied", resource_type=resource_type, resource_id=resource_id, reason=reason,
+          request_id=request_id, details=details)
+    return exc
+
+
 ADMIN_PERMISSION = "rbac.roles.manage"
 
 

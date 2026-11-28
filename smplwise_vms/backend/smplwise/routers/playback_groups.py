@@ -17,7 +17,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..capabilities import ensure_capability  # NN1: 409 capability_unavailable, after ensure_nvr
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
-from ..rbac import INSTALLATION, Principal, authorize
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize
 from ..services import playback as pb
 from ..services import playback_groups as pg
 from ..services import playback_groups_store as store
@@ -47,7 +47,8 @@ def _owned(conn: sqlite3.Connection, principal: Principal, group_id: str) -> pg.
     if not group:
         raise ApiError(404, "not_found", "קבוצת הניגון לא נמצאה (אולי פגה).")
     if group.user_id != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
-        raise ApiError(403, "forbidden", "קבוצת הניגון שייכת למשתמש אחר.")
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "קבוצת הניגון שייכת למשתמש אחר."), action="video.playback",  # SA2-04
+                              resource_type="playback_group", resource_id=group_id, reason="not_owner")
     return group
 
 

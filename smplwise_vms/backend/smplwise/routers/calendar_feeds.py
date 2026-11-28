@@ -50,7 +50,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from ..auth import _track, current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import get_setting, set_setting
 from ..errors import ApiError
-from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, Principal, authorize, require
+from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, Principal, audited_refusal, authorize, require
+from ._common import rid as _rid
 from ..services import calendar_feeds_store as store
 from ..services.calendar import calendars as cals
 from ..services.calendar import model
@@ -281,8 +282,9 @@ def set_feed_remote(fid: str, body: Body, request: Request, principal: Principal
             raise model.Invalid("enabled: true or false", "enabled")
         ctx = Ctx(conn, principal)
         _own(ctx, row)
-        if not _may_switch_remote(ctx, row, d["enabled"]):
-            raise ApiError(403, "forbidden", REMOTE_MANAGE_HE, details={"field": "remote"})
+        if not _may_switch_remote(ctx, row, d["enabled"]):  # SA2-04: the audited refusal
+            raise audited_refusal(conn, principal, ApiError(403, "forbidden", REMOTE_MANAGE_HE, details={"field": "remote"}), action="calendar.feed.remote",
+                                  resource_type="calendar_feed", resource_id=fid, reason="not_owner_or_admin", request_id=_rid(request))
         if row["revoked_at"] is not None:
             raise ApiError(409, "bad_state", "הפיד בוטל.")
         if bool(row["remote_enabled"]) != d["enabled"]:

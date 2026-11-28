@@ -536,6 +536,8 @@ export const en = {
     previewOff: 'The branding is off - this is how the system will look once it is on',
     needServer: 'Available only when the system is connected to the server',
     readOnly: 'View only - changing it needs the system-administration permission',
+    loadFailed: 'The stored installer branding did not load - nothing can be changed or saved until it does',
+    retry: 'Try again',
     alt: 'Installer logo',
   },
   brandLogos: {
@@ -628,6 +630,8 @@ export const en = {
     lowContrast: 'A light colour: white text on a button of this colour will be hard to read',
     save: 'Save',
     saved: 'Colours saved',
+    loadFailed: 'The stored brand colours did not load - nothing can be changed or saved until they do',
+    retry: 'Try again',
     preset_default: 'System blue (default)',
     preset_accent: 'Same as the accent',
     accentFollowHint: 'The switch follows the accent colour, also when it changes',

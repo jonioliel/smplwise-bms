@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { localhostOrigin } from './helpers/localhost-origin';
 
 // MFA-RESET-CHANNEL-UI-2520: a home-system user whom the remote sign-in answers "enrol first" registers a passkey as that enrolment,
 // while the owner's switch `security.passkey_remote_factor` is on. The server says so in the `details.passkey_enrol` of its 403
@@ -98,9 +99,11 @@ test('no offer (the switch off): "enrol first" ends the sign-in as before', asyn
   await expect.poll(() => revoked.length).toBeGreaterThan(0); // no valid home-system sign-in is left behind
 });
 
-test('the ceremony: "enrol first" with an offer - a new passkey answers in the header and the sign-in completes', async ({ page }) => {
-  await page.goto('./');
-  test.skip(new URL(page.url()).hostname !== 'localhost', 'WebAuthn needs a localhost page (run with SW_BASE_URL=http://localhost:<port>/)');
+// FIX-SECURITY2-2570 (SA2-05 b): this test and the next skipped themselves on every lane (they all serve 127.0.0.1) - now they open a
+// localhost origin there and fail, never skip, when they cannot have one.
+test('the ceremony: "enrol first" with an offer - a new passkey answers in the header and the sign-in completes', async ({ page, baseURL }) => {
+  await page.goto(`${await localhostOrigin(page, baseURL)}/`);
+  expect(new URL(page.url()).hostname, 'WebAuthn needs a localhost page').toBe('localhost');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable');
   await cdp.send('WebAuthn.addVirtualAuthenticator', {
@@ -131,9 +134,9 @@ test('the ceremony: "enrol first" with an offer - a new passkey answers in the h
   expect(last.split('.').length).toBeGreaterThanOrEqual(3); // rawId.clientDataJSON.attestationObject[.transports]
 });
 
-test('a cancelled ceremony keeps the enrolment step and says so', async ({ page }) => {
-  await page.goto('./');
-  test.skip(new URL(page.url()).hostname !== 'localhost', 'WebAuthn needs a localhost page');
+test('a cancelled ceremony keeps the enrolment step and says so', async ({ page, baseURL }) => {
+  await page.goto(`${await localhostOrigin(page, baseURL)}/`);
+  expect(new URL(page.url()).hostname, 'WebAuthn needs a localhost page').toBe('localhost');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable'); // no authenticator at all: the ceremony fails on the device side
   const { login, answers } = await signInMocks(page, (_answer, origin) => ({ status: 403, body: { code: 'second_factor_enrollment_required', user_message: ENROL_HE, retryable: false, correlation_id: 'mock',

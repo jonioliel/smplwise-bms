@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 
 from ..audit import audit
+from ..rbac import audited_refusal
 from ..auth import settings_of
 from ..errors import ApiError
 from ..services import access_control_station_people_store as store
@@ -159,7 +160,9 @@ def station_users(request: Request, response: Response, auth: ia.Authority = Dep
     response.headers["Cache-Control"] = "no-store"
     name = _managed_station(auth, station_id)
     if not _numbers_visible(auth, station_id):
-        raise ApiError(403, "station_people_numbers_hidden", "מספרי המשתמשים בעמדה הזו מוגדרים כפרט רגיש, ואין לך הרשאה לפרטים רגישים בה.")
+        raise audited_refusal(auth.conn, auth.principal, ApiError(403, "station_people_numbers_hidden",  # SA2-04: the audited refusal
+                              "מספרי המשתמשים בעמדה הזו מוגדרים כפרט רגיש, ואין לך הרשאה לפרטים רגישים בה."),
+                              action=ia.PEOPLE_SENSITIVE, resource_type="access_control_station", resource_id=station_id, request_id=_rid(request))
     inv, head = _scan(request, auth, station_id, refresh)
     base = {**head, "station": {"id": station_id, "name": name}}
     if inv is None:

@@ -21,7 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..auth import current_principal, get_conn
 from ..errors import ApiError, field_error
-from ..rbac import Principal
+from ..rbac import Principal, audited_refusal
+from ._common import rid as _rid
 from ..services import home_wall_events_store as store
 from ..services import home_interface as hi
 from ..wire import home_wall_events as W
@@ -80,7 +81,8 @@ def wall_event(body: WallEventBody, request: Request, principal: Principal = Dep
         else:
             fam = _family_calendars(ctx)
             if not fam:
-                raise ApiError(403, "forbidden", "אין יומן משפחתי שאפשר להוסיף אליו.", details={"permission": model.PERM_BOOK})
+                raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין יומן משפחתי שאפשר להוסיף אליו.", details={"permission": model.PERM_BOOK}),  # SA2-04
+                                      action=model.PERM_BOOK, resource_type="calendar", resource_id="family", request_id=_rid(request))
             cal = fam[0]
         data = {"calendar_id": cal["id"], "kind": "event", "title": body.title.strip(), "start": body.start, "end": body.end, "all_day": body.all_day}
         if not data["title"]:

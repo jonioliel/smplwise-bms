@@ -39,7 +39,13 @@ const draftOf = (w: InstallerState): Draft => ({ enabled: w.enabled, name: w.nam
 @customElement('system-brand-installer')
 export class SystemBrandInstaller extends LitElement {
   @state() private tab: Tab = 'profile';
+  /** FIX-SECURITY2-2570 (deep review SA2-03): the permission alone. `canEdit` also needs the stored profile read once - until then (and
+   * after a failed read) every field and the save stay closed, so an empty default form is never saved over the stored values. */
+  @state() private allowed = !isApi();
   @state() private canEdit = !isApi();
+  /** the first read of the stored profile failed: shown with "try again" instead of an editable default form */
+  @state() private loadError = '';
+  @state() private loading = false;
   @state() private saved: InstallerState = brandLogo().wl;
   @state() private draft: Draft = draftOf(brandLogo().wl);
   @state() private files: InstallerFull['files'] = { light: null, dark: null };
@@ -112,8 +118,23 @@ export class SystemBrandInstaller extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     if (!isApi()) return;
-    this.canEdit = can('system.configure');
-    void getInstaller().then((r) => this.adopt(r)).catch(() => undefined);
+    this.allowed = can('system.configure');
+    void this.load();
+  }
+
+  /** SA2-03: read the stored profile; the card is editable only after a successful read. */
+  private async load() {
+    this.loading = true;
+    this.loadError = '';
+    this.canEdit = false;
+    try {
+      this.adopt(await getInstaller());
+      this.canEdit = this.allowed;
+    } catch (err) {
+      this.loadError = describeError(err);
+    } finally {
+      this.loading = false;
+    }
   }
 
   /** the server's full profile -> the saved state; the shared brand store only learns of it while it is ON (the public view). */
@@ -140,8 +161,13 @@ export class SystemBrandInstaller extends LitElement {
     this.busy = 'save';
     this.error = '';
     try {
-      if (isApi()) this.adopt(await putInstaller({ ...this.draft }));
-      else {
+      if (isApi()) {
+        if (!this.canEdit) return; // SA2-03: never a save before the stored profile was read
+        // SA2-03: only the fields that differ from the stored ones (the route stores every field it receives)
+        const before = draftOf(this.saved);
+        const changed = Object.fromEntries((Object.keys(this.draft) as (keyof Draft)[]).filter((k) => this.draft[k] !== before[k]).map((k) => [k, this.draft[k]]));
+        this.adopt(await putInstaller(changed));
+      } else {
         this.saved = { ...this.saved, ...this.draft };
         setBrandView({ installer: this.saved.enabled ? { ...this.saved, logo_file: this.saved.files } : { enabled: false } });
       }
@@ -293,7 +319,11 @@ export class SystemBrandInstaller extends LitElement {
       <div class="bcard">
         <div class="top"><div><div style="font-size:var(--sw-fs-lg);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">${t('whiteLabel.heading')}</div>
           <div class="muted">${t('whiteLabel.subheading')}</div></div>
-          <span style="flex:1"></span>${this.canEdit ? nothing : html`<span class="msg" data-wl-readonly><sw-icon name="lock" size=${13}></sw-icon>${t('whiteLabel.readOnly')}</span>`}</div>
+          <span style="flex:1"></span>${this.allowed ? nothing : html`<span class="msg" data-wl-readonly><sw-icon name="lock" size=${13}></sw-icon>${t('whiteLabel.readOnly')}</span>`}</div>
+        ${this.loadError
+          ? html`<div class="top" data-wl-load-error><span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${t('whiteLabel.loadFailed')} · ${this.loadError}</span>
+              <sw-button size="sm" icon="refresh" data-wl-retry ?disabled=${this.loading} @click=${() => void this.load()}>${t('whiteLabel.retry')}</sw-button></div>`
+          : nothing}
         <div class="tabs" role="tablist" aria-label=${t('whiteLabel.tabs')}>
           ${tabs.map(([id, key]) => html`<button type="button" role="tab" class=${id === 'preview' ? 'ptab' : ''} aria-selected=${this.tab === id ? 'true' : 'false'} data-wl-tab=${id} @click=${() => (this.tab = id)}>${t(key)}</button>`)}
         </div>
@@ -310,7 +340,7 @@ export class SystemBrandInstaller extends LitElement {
           </aside>
         </div>
         <div class="foot">
-          ${this.canEdit ? html`<sw-button variant="primary" size="sm" icon="check" data-wl-save ?disabled=${!this.dirty || this.busy === 'save'} @click=${() => void this.save()}>${t('whiteLabel.save')}</sw-button>` : nothing}
+          ${this.allowed ? html`<sw-button variant="primary" size="sm" icon="check" data-wl-save ?disabled=${!this.canEdit || !this.dirty || this.busy === 'save'} @click=${() => void this.save()}>${t('whiteLabel.save')}</sw-button>` : nothing}
           ${this.message ? html`<span class="msg ok" role="status" data-wl-message><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
           ${this.error ? html`<span class="msg err" role="alert" data-wl-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
           <span class="grow"></span><span class="muted">${t('whiteLabel.stays')}</span>

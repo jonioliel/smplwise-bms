@@ -29,7 +29,7 @@ from ..db import commit_now, rollback_and_restart
 from ..errors import ApiError
 from ..remote_channel import is_remote
 from ..i18n import localize_for
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize, permissions_anywhere, require
 from ..services import door_emergency as de
 from ..services import door_emergency_grants as deg
 from ..services import door_window_triggers as dwt
@@ -463,8 +463,8 @@ def program_apply(body: ProgramApplyBody, request: Request, station_id: str = Pa
 
 @router.get("/doors/windows/calendar", **wire(W.DwCalendar))
 def get_calendar(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:
-        raise ApiError(403, "forbidden", "אין הרשאה.")
+    if not dw.visible_doors(conn, principal) and not authorize(conn, principal, dw.MANAGE, INSTALLATION).allowed:  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין הרשאה."), action=dw.MANAGE, resource_type="door", resource_id="calendar")
     start = (now_utc() - dt.timedelta(days=1)).date()
     rows = store.calendar_days(conn, start.isoformat())
     overrides = {r["on_date"]: dict(r) for r in rows if r["scope_key"] == "*"}
@@ -556,8 +556,9 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
     """The visible state (CR-039 8.1): the active incident (the red strip) for everyone who sees doors, and - for the holders of an
     emergency permission - the switches, the scopes they may press in and the recent history."""
     perms = permissions_anywhere(conn, principal)
-    if "access.read" not in perms and de.LOCK not in perms and de.OPEN not in perms and deg.GRANT not in perms:
-        raise ApiError(403, "forbidden", "אין הרשאה.")
+    if "access.read" not in perms and de.LOCK not in perms and de.OPEN not in perms and deg.GRANT not in perms:  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין הרשאה."), action="access.read", resource_type="door_emergency", resource_id="state",
+                              request_id=_rid(request))
     settings = settings_of(request)
     can_lock, can_open = de.LOCK in perms, de.OPEN in perms
     lock_live = de.lock_available(settings, conn)  # DOORLIVE-2310: the LOCK control is hidden while no WisKey command exists for it
@@ -718,8 +719,8 @@ def emergency_grant_revoke(body: RevokeGrantBody, request: Request, binding_id: 
 def emergency_incident(incident_id: str = Path(min_length=1, max_length=64), principal: Principal = Depends(current_principal_ro),
                        conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     perms = permissions_anywhere(conn, principal)
-    if de.LOCK not in perms and de.OPEN not in perms:
-        raise ApiError(403, "forbidden", "אין הרשאה.")
+    if de.LOCK not in perms and de.OPEN not in perms:  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "אין הרשאה."), action=de.LOCK, resource_type="door_emergency_incident", resource_id=incident_id)
     row = de.incident_row(conn, incident_id)
     if row is None or (row["drill"] and row["requested_by"] != principal.user_id and not authorize(conn, principal, CONFIGURE, INSTALLATION).allowed):
         raise ApiError(404, "not_found", "לא נמצא.")

@@ -1003,6 +1003,8 @@ export const he = {
     lowContrast: 'צבע בהיר: טקסט לבן על כפתור בצבע הזה יהיה קשה לקריאה',
     save: 'שמור',
     saved: 'הצבעים נשמרו',
+    loadFailed: 'צבעי המותג השמורים לא נטענו - אי אפשר לשנות ולשמור עד שייטענו',
+    retry: 'נסו שוב',
     preset_default: 'כחול המערכת (ברירת מחדל)',
     preset_accent: 'כמו צבע ההדגשה',
     accentFollowHint: 'המתג עוקב אחרי צבע ההדגשה, גם כשהוא משתנה',
@@ -1049,6 +1051,8 @@ export const he = {
     previewOff: 'המיתוג כבוי - כך תיראה המערכת כשיודלק',
     needServer: 'זמין רק כשהמערכת מחוברת לשרת',
     readOnly: 'צפייה בלבד - שינוי דורש הרשאת ניהול מערכת',
+    loadFailed: 'מיתוג המתקין השמור לא נטען - אי אפשר לשנות ולשמור עד שייטען',
+    retry: 'נסו שוב',
     alt: 'לוגו המתקין',
   },
   /** CR-LOGOS295: הגדרות › כללי › מראה המערכת › לוגו - the company logo, its size, the dark-background behaviour and the browser-tab title. */

@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError, field_error
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize, require
 from ..services import default_names as dn
 from ..services import incidents as svc
 from ..services import incidents_store as store
@@ -226,7 +226,8 @@ def incident_cameras(incident_id: str, principal: Principal = Depends(current_pr
     row = _incident(conn, principal, incident_id, READ)
     out = svc.cameras_panel(conn, row, principal)
     if out["withheld"]:
-        raise ApiError(403, "forbidden", "וידאו חי אינו זמין לך.", details={"permission": "video.live"})
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "וידאו חי אינו זמין לך.", details={"permission": "video.live"}),  # SA2-04
+                              action="video.live", resource_type="incident", resource_id=incident_id)
     return out
 
 

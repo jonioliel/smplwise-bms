@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..errors import ApiError, forbidden
-from ..rbac import Principal, is_system_admin
+from ..rbac import Principal, audited_refusal, is_system_admin
 from ..services import intercom_authority as ia
 from ..services import wiskey_live_validation as lv
 from ._common import db_of as _db, rid as _rid
@@ -226,7 +226,9 @@ class WitnessBody(BaseModel):
 @router.post("/wiskey-validation/pulse/{run_id}/witness", **wire(W.WiskeyValidationWitness))
 def witness(request: Request, body: WitnessBody, auth: ia.Authority = Depends(_gate), run_id: str = Path(pattern=RUN_ID)) -> dict[str, Any]:
     if not is_system_admin(auth.conn, auth.principal.user_id):
-        raise forbidden("אישור העד נרשם על ידי מנהל מערכת.", permission="system_admin")
+        raise audited_refusal(auth.conn, auth.principal, forbidden("אישור העד נרשם על ידי מנהל מערכת.", permission="system_admin"),  # SA2-04
+                              action="wiskey.validation.pulse.witness", resource_type="wiskey_validation_run", resource_id=run_id, reason="not_system_admin",
+                              request_id=_rid(request))
     view = lv.run_view(auth.conn, run_id, visible=lambda x: _may(auth, x))
     if view is None or view["kind"] != "pulse" or not view["stations"]:
         raise ApiError(404, "not_found", "הבדיקה לא נמצאה.")

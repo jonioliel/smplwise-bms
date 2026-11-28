@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError, forbidden
-from ..rbac import Principal
+from ..rbac import Principal, audited_refusal
 from ..services import home_family as hf
 from ..services import home_interface as hi
 from ._common import rid as _rid
@@ -66,8 +66,8 @@ class HideBody(BaseModel):
 def presence(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Who of the household is home (presence.report anywhere: whoever takes part with a phone). Hidden people are never listed to others."""
     _module(conn, principal, "presence")
-    if "presence.report" not in hf._anywhere(conn, principal):
-        raise forbidden(permission="presence.report")
+    if "presence.report" not in hf._anywhere(conn, principal):  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission="presence.report"), action="presence.report", resource_type="user", resource_id="*")
     return hf.presence_home(conn, principal)
 
 
@@ -77,8 +77,9 @@ def presence_me(body: HideBody, request: Request, principal: Principal = Depends
     needs no permission (it only restricts); showing again needs presence.report. Nobody can set it for another person. Audited."""
     from ..services import presence as P
 
-    if not body.hidden and "presence.report" not in hf._anywhere(conn, principal):
-        raise forbidden(permission="presence.report")
+    if not body.hidden and "presence.report" not in hf._anywhere(conn, principal):  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission="presence.report"), action="presence.report", resource_type="user",
+                              resource_id=principal.user_id, request_id=_rid(request))
     state = P.set_opt_out(conn, principal.user_id, body.hidden)
     audit(conn, actor=principal, action="presence.people.opt_out", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),
           details={"opted_out": state, "via": "home"})
@@ -141,8 +142,8 @@ def my_tickets(state: Literal["open", "all"] = "open", principal: Principal = De
     from ..services.tickets import access, present, store
 
     viewer = _viewer(conn, principal)
-    if access.VIEW not in viewer.anywhere and access.CREATE not in viewer.anywhere:
-        raise forbidden(permission=access.CREATE)
+    if access.VIEW not in viewer.anywhere and access.CREATE not in viewer.anywhere:  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission=access.CREATE), action=access.CREATE, resource_type="ticket", resource_id="*")
     items: list[dict[str, Any]] = []
     if access.VIEW in viewer.anywhere:
         statuses = store.STATUS_GROUPS["open"] if state == "open" else None

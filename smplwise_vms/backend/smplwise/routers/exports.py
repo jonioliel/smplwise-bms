@@ -12,7 +12,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, authorize
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize
 from ..services import exports as ex
 from ..services import exports_store as store
 from ..services.access import require_camera
@@ -51,7 +51,8 @@ def _owned(conn: sqlite3.Connection, principal: Principal, job_id: str) -> dict[
     if not job:
         raise ApiError(404, "not_found", "עבודת הייצוא לא נמצאה.")
     if job["owner_user_id"] != principal.user_id and not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
-        raise ApiError(403, "forbidden", "עבודת הייצוא שייכת למשתמש אחר.")
+        raise audited_refusal(conn, principal, ApiError(403, "forbidden", "עבודת הייצוא שייכת למשתמש אחר."), action="video.export",  # SA2-04
+                              resource_type="export_job", resource_id=job_id, reason="not_owner")
     return job
 
 

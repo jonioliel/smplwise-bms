@@ -16,7 +16,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..db import get_setting
 from ..errors import forbidden, validation
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere
+from ..rbac import INSTALLATION, Principal, audited_refusal, authorize, permissions_anywhere
 from ..services import plan_view, site_location
 from ._common import rid as _rid
 
@@ -53,8 +53,8 @@ def _payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
 
 @router.get("/plan-view/prefs")
 def get_prefs(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    if not _may_view(conn, principal):
-        raise forbidden(permission="map.read")
+    if not _may_view(conn, principal):  # SA2-04: the audited refusal
+        raise audited_refusal(conn, principal, forbidden(permission="map.read"), action="map.read")
     return _payload(conn, principal)
 
 
