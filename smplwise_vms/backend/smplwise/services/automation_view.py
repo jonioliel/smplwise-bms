@@ -65,6 +65,12 @@ def analyse_row(ctx: scope.Ctx, row: Row, *, code_view: bool = False, scoped: bo
             members = attrs.get("entity_id")
             if isinstance(members, list):
                 facts["targets"] = [m for m in members if isinstance(m, str)]
+                # CD2-02: a sensitive member (alarm panel, lock, siren, door-class cover) is judged as its strictest manual action - the state it sets is not known
+                facts["steps"] = scope.scene_member_steps(ctx, facts["targets"])
+                facts["sensitive_classes"] = list(dict.fromkeys(st["sens"] for st in facts["steps"]))
+                facts["sensitive"] = bool(facts["steps"])
+            elif scope.members_unknown(ctx, row.entity_id, row.source):
+                facts["unknown_effects"] = True  # VD2-01: a native scene whose members cannot be read is judged as able to do anything
         return None, facts
     rd = drafts.read(row.kind, row.cfg, ctx.model_ctx(code_view=code_view, scoped=scoped))
     return rd, scope.facts_of(ctx, row.kind, rd, entity_id=row.entity_id)

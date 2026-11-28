@@ -1457,6 +1457,7 @@
 "לא ידוע אם הביטול התקבל. הקריאה בוטלה בצד Arx.": "It is not known whether the cancellation was received. The call was cancelled on the Arx side.",
 "לא ידוע אם הבקשה הגיעה.": "It is not known whether the request arrived.",
 "לא ידוע אם ההודעה נשלחה. אל תשלחו שוב לפני שבדקתם עם הנמען.": "It is not known whether the message was sent. Do not send it again before checking with the recipient.",
+"לא ידוע אם ההפעלה בוצעה: הקשר עם תשתית המערכת נפסק אחרי שהבקשה נשלחה. בדקו את מצב ההתקנים לפני הפעלה חוזרת.": "It is not known whether it ran: the link to the system infrastructure dropped after the request was sent. Check the devices before running it again.",
 "לא ידוע אם הכרטיס נשמר במערכת הכניסה. נסו שוב: המערכת תקרא את האדם קודם ולא תוסיף כרטיס שני.": "It is not known whether the card was saved in the access system. Try again: the system will read the person first and will not add a second card.",
 "לא ידוע אם המצלמה הופעלה מחדש: הקשר עם ה־NVR נפסק אחרי שהפקודה נשלחה. בדקו את התמונה לפני לחיצה חוזרת.": "It is not known whether the camera restarted: the link to the NVR dropped after the command was sent. Check the picture before pressing again.",
 "לא ידוע אם המשימה בוטלה. בדקו את מצבה שוב.": "It is not known whether the job was cancelled. Check its status again.",

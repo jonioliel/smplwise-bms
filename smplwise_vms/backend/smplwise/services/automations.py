@@ -43,6 +43,9 @@ FETCH_DEBOUNCE_S = 0.5
 RUN_KEEP_DAYS = 30
 OP_KEEP_DAYS = 30
 RECENT_OP_S = 120
+# CD2-05: an op still `pending` this long after it was requested never got its answer (the process died during the bridge call, or a non-API
+# error left it): the janitor settles it `unknown` (never `failed`, never `ok`) and the "is Arx writing this?" checks stop counting it
+PENDING_EXPIRE_S = 600
 RUN_CHECK_DELAYS = (1.0, 3.0, 8.0, 20.0, 60.0, 180.0, 600.0)  # seconds: a run still running is looked at again, ever less often
 AUTHORING_RETRY_S = 60
 TRACE_LIST_MAX = 50
@@ -403,11 +406,15 @@ class Mirror:
 
     def _arx_create_in_flight(self, conn: sqlite3.Connection) -> bool:
         cutoff = _iso(self.now() - dt.timedelta(seconds=RECENT_OP_S))
-        return conn.execute("SELECT 1 FROM automation_ops WHERE op IN ('create', 'copy', 'restore') AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (cutoff,)).fetchone() is not None
+        pending_cutoff = _iso(self.now() - dt.timedelta(seconds=PENDING_EXPIRE_S))  # CD2-05: a pending op never settled stops counting
+        return conn.execute("SELECT 1 FROM automation_ops WHERE op IN ('create', 'copy', 'restore') AND ((status = 'pending' AND requested_at >= ?) OR requested_at >= ?) LIMIT 1",
+                            (pending_cutoff, cutoff)).fetchone() is not None
 
     def _recent_arx_op(self, conn: sqlite3.Connection, kind: str, item_id: str) -> bool:
         cutoff = _iso(self.now() - dt.timedelta(seconds=RECENT_OP_S))
-        return conn.execute("SELECT 1 FROM automation_ops WHERE kind = ? AND item_id = ? AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (kind, item_id, cutoff)).fetchone() is not None
+        pending_cutoff = _iso(self.now() - dt.timedelta(seconds=PENDING_EXPIRE_S))  # CD2-05
+        return conn.execute("SELECT 1 FROM automation_ops WHERE kind = ? AND item_id = ? AND ((status = 'pending' AND requested_at >= ?) OR requested_at >= ?) LIMIT 1",
+                            (kind, item_id, pending_cutoff, cutoff)).fetchone() is not None
 
     def _audit_outside(self, conn: sqlite3.Connection, c: Cand, cfg: dict[str, Any] | None, what: str, rev: str | None) -> None:
         """§10.2: a sensitive item changed or created without an Arx op. No config, no template text, no values - revisions and classes only."""
@@ -684,14 +691,27 @@ def runs_summary(conn: sqlite3.Connection, now: dt.datetime) -> dict[tuple[str, 
 
 def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
     """The janitor pass: expired trash, runs and ops past their retention, trash claims nothing finished. No Home Assistant call."""
-    out = {"trash": 0, "runs": 0, "ops": 0}
+    out = {"trash": 0, "runs": 0, "ops": 0, "expired": 0}
     with db.connection(label="automations janitor") as conn:
         now = MIRROR.now()
         out["trash"] = conn.execute("DELETE FROM automation_trash WHERE expires_at <= ?", (_iso(now),)).rowcount
         out["runs"] = conn.execute("DELETE FROM automation_runs WHERE at < ?", (_iso(now - dt.timedelta(days=RUN_KEEP_DAYS)),)).rowcount
         out["ops"] = conn.execute("DELETE FROM automation_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount
+        out["expired"] = expire_pending_ops(conn, now, "automation_ops")  # CD2-05: after the prune - a settled op is pruned on a later pass, never in this one
         conn.execute("UPDATE automation_trash SET restored_at = NULL WHERE restored_at LIKE '~%' AND substr(restored_at, instr(restored_at, ':') + 1) < ?", (_iso(now - dt.timedelta(hours=1)),))
     return out
+
+
+def expire_pending_ops(conn: sqlite3.Connection, now: dt.datetime, table: str) -> int:
+    """CD2-05: settle the ops left `pending` past PENDING_EXPIRE_S as `unknown` - the outcome of a call that never answered is not known, so it is
+    never `failed` and never `ok`; a retry with the same key then answers `unknown` instead of `op_pending` for ever. Nothing is re-sent. The op's
+    other columns stay (a schedule op keeps what it sent, so a late adoption can still claim it). Shared with services/schedules.py."""
+    assert table in ("automation_ops", "schedule_ops"), table
+    cutoff = _iso(now - dt.timedelta(seconds=PENDING_EXPIRE_S))
+    n = conn.execute(f"UPDATE {table} SET status = 'unknown', responded_at = ? WHERE status = 'pending' AND requested_at < ?", (_iso(now), cutoff)).rowcount
+    if n:
+        log.warning("%s: %d op(s) left pending for over %d s settled as unknown", table, n, PENDING_EXPIRE_S)
+    return n
 
 
 def _reset_for_tests() -> None:

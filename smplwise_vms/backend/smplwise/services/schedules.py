@@ -42,6 +42,7 @@ ENSURE_RETRY_S = 30.0
 RUN_SETTLE_S = 20.0  # a run is settled this long after its switch entered `triggered` (§6.6)
 STALE_AFTER_S = 25 * 60  # a mirror not refreshed for this long is stale even while the socket is up (the periodic pull is 10 minutes)
 OP_KEEP_DAYS = 30
+PENDING_EXPIRE_S = 600  # CD2-05: see services/automations.PENDING_EXPIRE_S (the same rule for the schedule ops)
 BRIDGE_REQUIRED = "0.3.0"
 STATE_KEY = "schedules.mirror"
 
@@ -469,7 +470,9 @@ class Mirror:
         """A create / copy / split / restore of Arx's own is pending or was requested a moment ago: what just appeared is
         probably its result (the op then claims it), not a change made outside."""
         cutoff = _iso(self.now() - dt.timedelta(seconds=120))
-        return conn.execute("SELECT 1 FROM schedule_ops WHERE op IN ('create', 'copy', 'split', 'restore') AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (cutoff,)).fetchone() is not None
+        pending_cutoff = _iso(self.now() - dt.timedelta(seconds=PENDING_EXPIRE_S))  # CD2-05: a pending op never settled stops counting
+        return conn.execute("SELECT 1 FROM schedule_ops WHERE op IN ('create', 'copy', 'split', 'restore') AND ((status = 'pending' AND requested_at >= ?) OR requested_at >= ?) LIMIT 1",
+                            (pending_cutoff, cutoff)).fetchone() is not None
 
     def _conditions_fail(self, conn: sqlite3.Connection, item: dict[str, Any], slot: int | None) -> bool:
         """The component sets a schedule to `triggered` at a slot start EVEN WHEN its conditions fail (verified), so
@@ -492,7 +495,9 @@ class Mirror:
 
     def _recent_arx_op(self, conn: sqlite3.Connection, sid: str) -> bool:
         cutoff = _iso(self.now() - dt.timedelta(seconds=120))
-        return conn.execute("SELECT 1 FROM schedule_ops WHERE schedule_id = ? AND (status = 'pending' OR requested_at >= ?) LIMIT 1", (sid, cutoff)).fetchone() is not None
+        pending_cutoff = _iso(self.now() - dt.timedelta(seconds=PENDING_EXPIRE_S))  # CD2-05
+        return conn.execute("SELECT 1 FROM schedule_ops WHERE schedule_id = ? AND ((status = 'pending' AND requested_at >= ?) OR requested_at >= ?) LIMIT 1",
+                            (sid, pending_cutoff, cutoff)).fetchone() is not None
 
     def _audit_outside(self, conn: sqlite3.Connection, sid: str, item: dict[str, Any], what: str) -> None:
         try:
@@ -839,7 +844,7 @@ def trash_rows(conn: sqlite3.Connection, now: dt.datetime | None = None) -> list
 def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
     """The janitor pass (main.janitor_tick): expired trash rows, runs past their retention, settled ops past 30 days, and
     the pending runs that are due. Nothing here talks to Home Assistant."""
-    out = {"trash": 0, "runs": 0, "ops": 0, "settled": 0, "released": 0}
+    out = {"trash": 0, "runs": 0, "ops": 0, "settled": 0, "released": 0, "expired": 0}
     with db.connection(label="schedules janitor") as conn:
         now = MIRROR.now()
         out["trash"] = conn.execute("DELETE FROM schedule_trash WHERE expires_at <= ?", (_iso(now),)).rowcount
@@ -848,6 +853,9 @@ def janitor(db: Database, settings: dict[str, Any]) -> dict[str, int]:
         days = int(settings.get("schedules.runs_retention_days") or 90)
         out["runs"] = conn.execute("DELETE FROM schedule_runs WHERE started_at < ? AND result != 'pending'", (_iso(now - dt.timedelta(days=days)),)).rowcount
         out["ops"] = conn.execute("DELETE FROM schedule_ops WHERE requested_at < ? AND status != 'pending'", (_iso(now - dt.timedelta(days=OP_KEEP_DAYS)),)).rowcount
+        from .automations import expire_pending_ops
+
+        out["expired"] = expire_pending_ops(conn, now, "schedule_ops")  # CD2-05: after the prune - a settled op is pruned on a later pass, never in this one
         if feature_on(conn):
             out["settled"] = settle_runs(conn, now)
     return out

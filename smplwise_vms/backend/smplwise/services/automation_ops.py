@@ -120,6 +120,13 @@ def gap_release(key: str) -> None:
         _LAST.pop(key, None)
 
 
+def gap_release_unless_unknown(key: str, exc: ApiError) -> None:
+    """VD2-03: the run gap is given back only when the call surely did not run; after "may have run" it stays, so an immediate re-press
+    never runs the item a second time."""
+    if (exc.details or {}).get("outcome") != "unknown":
+        gap_release(key)
+
+
 # ================================================================ the writer
 
 class W:
@@ -148,11 +155,15 @@ class W:
 
     @contextmanager
     def audited(self, action: str, kind: str | None = None, item_id: str | None = None) -> Iterator[None]:
-        """Every refusal inside is an audited `denied` row with the ApiError code (never a value)."""
+        """Every refusal inside is an audited `denied` row with the ApiError code (never a value). VD2-03: a call that may have been
+        applied (`details.outcome == "unknown"`) is not a refusal - it is audited `allowed` with `outcome: unknown`."""
         try:
             yield
         except ApiError as exc:
-            self.audit(action, "denied", kind, item_id, exc.code, status=exc.status)
+            if (exc.details or {}).get("outcome") == "unknown":
+                self.audit(action, "allowed", kind, item_id, exc.code, status=exc.status, outcome="unknown")
+            else:
+                self.audit(action, "denied", kind, item_id, exc.code, status=exc.status)
             raise
 
     # -- gates
@@ -195,6 +206,8 @@ def reason_error(r: dict[str, Any]) -> ApiError:
         return ApiError(403, "grant_required", r["message"], details={"entity_id": r.get("entity_id"), "grant": r.get("grant"), "path": r.get("path")})
     if code == "entity_not_controllable":
         return ApiError(403, "entity_not_controllable", r["message"], details={"entity_id": r.get("entity_id")})
+    if r.get("unknown_members"):  # VD2-01: a scene whose members cannot be read
+        return ApiError(403, "forbidden", r["message"], details={"entity_id": r.get("entity_id"), "reason": "scene_members_unknown"})
     return ApiError(403, "forbidden", "אין הרשאה לפעולה זו בהיקף המבוקש.", details={"entity_id": r.get("entity_id")} if r.get("entity_id") else {})
 
 
@@ -280,15 +293,47 @@ def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: 
         with unlocked(w.conn):
             resp = transport.bridge(signed)
     except ApiError as exc:
-        store_finish(w.conn, op_id, "unknown" if exc.code == "config_timeout" else "failed", error=None if exc.code == "config_timeout" else exc.code)
+        sent_err = (exc.details or {}).get("error")
+        if exc.code == "config_timeout":
+            store_finish(w.conn, op_id, "unknown")
+            exc.details = {**(exc.details or {}), "outcome": "unknown"}  # VD2-03: may have been applied - audited allowed / unknown, the run gap stays
+            raise
+        if op in RUN_OUTCOME_OPS and exc.code == "ha_unavailable" and isinstance(sent_err, str) and sent_err not in NOT_SENT_TRANSPORT_ERRORS:
+            # VD2-03: the link dropped after the request left (a read error, a closed socket): the run may have started - unknown, never "failed"
+            store_finish(w.conn, op_id, "unknown")
+            raise run_outcome_unknown(sent_err) from None
+        store_finish(w.conn, op_id, "failed", error=exc.code)
         raise
     finally:
         signed = None  # noqa: F841
     if not isinstance(resp, dict) or not resp.get("ok"):
+        raw = str(resp.get("error") or "") if isinstance(resp, dict) else ""
+        if op in RUN_OUTCOME_OPS and _raised_mid_run(raw):
+            # VD2-03: the bridge's service call raised AFTER it started (the bridge answers the exception's class name): a scene's first members,
+            # a script's first steps may have run - unknown, never "failed"; a policy refusal (lower-case code) stays "failed"
+            store_finish(w.conn, op_id, "unknown")
+            raise run_outcome_unknown(re.sub(r"[^A-Za-z0-9_.\-]", "", raw)[:60])
         err = bridge_error(resp if isinstance(resp, dict) else {"error": "bad_answer"}, op)
         store_finish(w.conn, op_id, "failed", error=err.details.get("error") or err.code)
         raise err
     return resp
+
+
+# VD2-03: the runtime ops whose lost / partial outcome is "may have run"; the transport errors that prove nothing was sent (routers/ha.py)
+RUN_OUTCOME_OPS = frozenset({"trigger", "run_script", "apply_scene"})
+NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout", "PoolTimeout"})
+RUN_UNKNOWN_TEXT = "לא ידוע אם ההפעלה בוצעה: הקשר עם תשתית המערכת נפסק אחרי שהבקשה נשלחה. בדקו את מצב ההתקנים לפני הפעלה חוזרת."
+
+
+def _raised_mid_run(error: str) -> bool:
+    """The bridge names an exception raised inside the service call by its class (`TimeoutError`, `HomeAssistantError`); its own refusals are
+    lower-case codes (`not_found`, `unauthorized`, `service_unavailable`, ...)."""
+    return bool(re.match(r"^[A-Z][A-Za-z0-9_]*$", error))
+
+
+def run_outcome_unknown(error: str | None) -> ApiError:
+    """504 `config_timeout` (the code the automations client already reads as "may have happened"), never retryable, `outcome: unknown`."""
+    return ApiError(504, "config_timeout", RUN_UNKNOWN_TEXT, retryable=False, details={"outcome": "unknown", "error": error})
 
 
 # ================================================================ ops (idempotency)
@@ -737,9 +782,22 @@ def copy_item(w: W, kind: str, item_id: str, name: str, client_request_id: str) 
         if kind in ("automation", "scene"):
             cfg["id"] = new_id
         cfg["name" if kind == "scene" else "alias"] = name
-        j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=new_id, creating=True)
-        _raise_judgement(w, kind, j, True, creating=True)  # the copy shows no more than the source did: confirmation is the caller's
-        return _write_new(w, kind, new_id, j, True, client_request_id, "copy", "automation.copy")
+        j = _judge_new_copy(w, kind, cfg, new_id)
+        # CD2-04: a copied automation is written DISABLED - it goes live only through the enable route (its confirmation, the door guard, the review)
+        return _write_new(w, kind, new_id, j, False, client_request_id, "copy", "automation.copy")
+
+
+def _judge_new_copy(w: W, kind: str, cfg: dict[str, Any], item_id: str) -> Judgement:
+    """The judgement of a copied / restored config (it shows no more than the source did: the confirmation is the enable route's, CD2-04). A
+    self-triggering automation is written in single-run mode, exactly as create / update write it."""
+    j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
+    _raise_judgement(w, kind, j, True, creating=True)
+    if j.self_trigger:
+        single = {k: v for k, v in cfg.items() if k != "max"}
+        single["mode"] = "single"
+        j = judge(w, kind, draft=None, config_in=single, stored=None, item_id=item_id, creating=True, force_single=True)
+        _raise_judgement(w, kind, j, True, creating=True)
+    return j
 
 
 # ================================================================ delete / trash / restore
@@ -860,12 +918,12 @@ def restore_trash(w: W, trash_id: str, client_request_id: str, confirm: bool = F
         cfg = model.to_new_schema(kind, cfg, _mctx(w))
         if kind in ("automation", "scene"):
             cfg["id"] = item_id
-        j = judge(w, kind, draft=None, config_in=cfg, stored=None, item_id=item_id, creating=True)
-        _raise_judgement(w, kind, j, True, creating=True)
+        j = _judge_new_copy(w, kind, cfg, item_id)
         if w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ? AND restored_at IS NULL", (f"~restoring:{store.stamp()}", trash_id)).rowcount != 1:
             raise ApiError(404, "trash_not_found", "הפריט אינו בסל המחזור (ייתכן שפג תוקפו).")
         try:
-            status, body = _write_new(w, kind, item_id, j, True, client_request_id, "restore", "automation.restore", trash_id=trash_id)
+            # CD2-04: a restored automation comes back DISABLED - it goes live only through the enable route (confirmation, door guard, review)
+            status, body = _write_new(w, kind, item_id, j, False, client_request_id, "restore", "automation.restore", trash_id=trash_id)
         except ApiError as exc:
             w.conn.execute("UPDATE automation_trash SET restored_at = ? WHERE id = ?", (None if exc.code != "config_timeout" else f"~unknown:{store.stamp()}", trash_id))
             raise
@@ -1013,8 +1071,8 @@ def run_automation(w: W, item_id: str, skip_condition: bool, confirm: bool, clie
         try:
             resp = bridge_call(w, "trigger", op_id, kind="automation", item_id=row.config_id, skip_condition=bool(skip_condition), sensitive=facts["sensitive"],
                                run_entity=row.entity_id)
-        except ApiError:
-            gap_release(key)
+        except ApiError as exc:
+            gap_release_unless_unknown(key, exc)
             raise
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         run_id = _note_started(w, "automation", item_id)
@@ -1091,8 +1149,8 @@ def run_script(w: W, item_id: str, fields: dict[str, Any], confirm: bool, client
         try:
             resp = bridge_call(w, "run_script", op_id, kind="script", item_id=row.config_id or item_id, variables=variables or None, sensitive=facts["sensitive"],
                                run_entity=row.entity_id)
-        except ApiError:
-            gap_release(key)
+        except ApiError as exc:
+            gap_release_unless_unknown(key, exc)
             raise
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         run_id = _note_started(w, "script", item_id)
@@ -1141,6 +1199,8 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
             raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.")
         if not row.entity_id:
             raise ApiError(404, "item_not_found", "הפריט לא נמצא.")
+        # CD2-02: a member that disarms / bypass-arms / unlocks asks the step-up proof its manual action asks; VD2-01: unknown members ask both
+        scene_step_up(w, list(scope.UNKNOWN_SCENE_STEPS) if facts["unknown_effects"] else facts["steps"])
         w.details.update(entities=facts["targets"], classes=facts["sensitive_classes"], sensitive=facts["sensitive"])
         key = f"scene:{item_id}"
         gap_check(key, float(w.ctx.limits["scene_apply_interval_s"]), "run_too_soon")
@@ -1150,12 +1210,25 @@ def apply_scene(w: W, item_id: str, confirm: bool, client_request_id: str) -> tu
             return replay(w, again, "apply", "apply", "scene", item_id)
         try:
             resp = bridge_call(w, "apply_scene", op_id, kind="scene", entity_id=row.entity_id, sensitive=facts["sensitive"])
-        except ApiError:
-            gap_release(key)
+        except ApiError as exc:
+            gap_release_unless_unknown(key, exc)
             raise
         store_finish(w.conn, op_id, "ok", item_id=item_id)
         w.audit("automation.run", "allowed", "scene", item_id, op_id=op_id, applied=True)
         return 202, _with_doors(w, plan, op_id, {"run_id": None, "op_id": op_id, "context_id": resp.get("context_id"), "note": "הבקשה נשלחה."})
+
+
+# CD2-02 / MFA-STEPUP-GATES-2490: the step-up action of a scene member's manual action (routers/ha.py STEP_UP_GRANTS / STEP_UP_ACTIONS)
+SCENE_STEP_UP = {"alarm_control_panel.alarm_disarm": "alarm.disarm", "alarm_control_panel.alarm_arm_custom_bypass": "alarm.bypass", "lock.unlock": "door.open"}
+
+
+def scene_step_up(w: W, steps: list[dict[str, Any]]) -> None:
+    """CD2-02: applying a scene that disarms an alarm panel, arms it with the bypass set or unlocks a lock needs the same fresh step-up proof as that
+    manual action (off unless the administrator turned step-up on) - after the grants and the confirmation, before anything is recorded or sent."""
+    from . import step_up
+
+    for action in dict.fromkeys(SCENE_STEP_UP[s["action"]] for s in steps if s.get("role") == "device" and s.get("action") in SCENE_STEP_UP):
+        step_up.guard_action(w.conn, w.request, w.principal, action)
 
 
 def _door_plan(w: W, kind: str, item_id: str, confirm: bool) -> "door_run_guard.RunPlan | None":
